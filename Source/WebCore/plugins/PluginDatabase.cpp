@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2006, 2007 Apple Inc.  All rights reserved.
  * Copyright (C) 2008 Collabora, Ltd.  All rights reserved.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -35,6 +36,10 @@
 #endif
 #include <stdlib.h>
 #include <wtf/text/CString.h>
+#if PLATFORM(QT)
+// FIXME: This is a lane violation - need to fix
+#include <../../WebKit/qt/Api/qwebsettings.h>
+#endif
 
 namespace WebCore {
 
@@ -417,6 +422,10 @@ Vector<String> PluginDatabase::defaultPluginDirectories()
 #if PLATFORM(QT)
     Vector<String> qtPaths;
     String qtPath(qgetenv("QTWEBKIT_PLUGIN_PATH").constData());
+    qtPath.split(UChar(':'), /* allowEmptyEntries */ false, qtPaths);
+    paths.append(qtPaths);
+
+    qtPath = QWebSettings::pluginSupplementalPath();
     qtPath.split(UChar(':'), /* allowEmptyEntries */ false, qtPaths);
     paths.append(qtPaths);
 #endif

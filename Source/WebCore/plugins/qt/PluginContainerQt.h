@@ -1,5 +1,6 @@
 /*
     Copyright (C) 2009 Nokia Corporation and/or its subsidiary(-ies)
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -18,6 +19,14 @@
 */
 #ifndef PluginContainerQt_h
 #define PluginContainerQt_h
+
+
+#if defined(PALM_DEVICE)
+// The moc_*.cpp files don't include config.h
+#include "config.h"
+#endif
+
+#if !defined(XP_WEBOS)
 
 #include <QX11EmbedContainer>
 
@@ -59,5 +68,7 @@ namespace WebCore {
         QWidget* m_parent;
     };
 }
+
+#endif
 
 #endif // PluginContainerQt_h

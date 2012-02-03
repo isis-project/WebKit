@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2003, 2006, 2007, 2008, 2009, 2011 Apple Inc. All rights reserved.
  *           (C) 2006 Graham Dennis (graham.dennis@gmail.com)
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -274,6 +275,9 @@ namespace WebCore {
         void setLocalStorageDatabasePath(const String&);
         const String& localStorageDatabasePath() const { return m_localStorageDatabasePath; }
 
+        void setPluginSupplementalPath(const String&);
+        const String& pluginSupplementalPath() const { return m_pluginSupplementalPath; }
+
         void setApplicationChromeMode(bool);
         bool inApplicationChromeMode() const { return m_inApplicationChromeMode; }
 
@@ -511,6 +515,11 @@ namespace WebCore {
         bool scrollingCoordinatorEnabled() const { return m_scrollingCoordinatorEnabled; }
 #endif
 
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+        static void setMediaPipelineOptions(const String& options);
+        static const String& mediaPipelineOptions() { return s_MediaPipelineOptions; }
+#endif
+
     private:
         Settings(Page*);
 
@@ -519,6 +528,7 @@ namespace WebCore {
         String m_defaultTextEncodingName;
         String m_ftpDirectoryTemplatePath;
         String m_localStorageDatabasePath;
+        String m_pluginSupplementalPath;
         KURL m_userStyleSheetLocation;
         ScriptFontFamilyMap m_standardFontFamilyMap;
         ScriptFontFamilyMap m_serifFontFamilyMap;
@@ -659,6 +669,10 @@ namespace WebCore {
         static bool gAVFoundationEnabled;
 #endif
         static bool gMockScrollbarsEnabled;
+
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+        static String s_MediaPipelineOptions;
+#endif
 
 #if USE(SAFARI_THEME)
         static bool gShouldPaintNativeControls;

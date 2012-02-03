@@ -1,6 +1,7 @@
 /*
     Copyright (C) 2008,2009 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2007 Staikos Computing Services Inc.
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -97,6 +98,9 @@ public:
     QWebElement element() const;
 
     QWebFrame *frame() const;
+#ifdef QT_WEBOS
+    bool isTextNode() const;
+#endif
 
 private:
     QWebHitTestResult(QWebHitTestResultPrivate *priv);

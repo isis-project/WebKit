@@ -9,6 +9,7 @@ CONFIG += ordered
 
 WEBKIT_TESTS_DIR = $$PWD/WebKit/qt/tests
 
+!contains(DEFINES, PALM_DEVICE) {
 SUBDIRS += \
     $$WEBKIT_TESTS_DIR/qwebframe \
     $$WEBKIT_TESTS_DIR/qwebpage \
@@ -19,6 +20,7 @@ SUBDIRS += \
     $$WEBKIT_TESTS_DIR/qwebhistory \
     $$WEBKIT_TESTS_DIR/qwebinspector \
     $$WEBKIT_TESTS_DIR/hybridPixmap
+}
 
 linux-* {
     # This test bypasses the library and links the tested code's object itself.
@@ -27,7 +29,9 @@ linux-* {
 }
 
 contains(QT_CONFIG, declarative)|contains(QT_CONFIG, qtquick1) {
-    SUBDIRS += $$WEBKIT_TESTS_DIR/qdeclarativewebview
+    !contains(DEFINES, PALM_DEVICE) {
+        SUBDIRS += $$WEBKIT_TESTS_DIR/qdeclarativewebview
+    }
 }
 
 # Benchmarks

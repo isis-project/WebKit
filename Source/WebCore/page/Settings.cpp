@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2006, 2007, 2008, 2009, 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -83,6 +84,10 @@ bool Settings::gMockScrollbarsEnabled = false;
 
 #if PLATFORM(WIN) || (OS(WINDOWS) && PLATFORM(WX))
 bool Settings::gShouldUseHighResolutionTimers = true;
+#endif
+
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+String Settings::s_MediaPipelineOptions;
 #endif
 
 // NOTEs
@@ -659,6 +664,11 @@ void Settings::setLocalStorageDatabasePath(const String& path)
     m_localStorageDatabasePath = path;
 }
 
+void Settings::setPluginSupplementalPath(const String& path)
+{
+    m_pluginSupplementalPath = path;
+}
+
 void Settings::setApplicationChromeMode(bool mode)
 {
     m_inApplicationChromeMode = mode;
@@ -837,5 +847,14 @@ bool Settings::mockScrollbarsEnabled()
 {
     return gMockScrollbarsEnabled;
 }
+
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+
+void Settings::setMediaPipelineOptions(const String& options)
+{
+    s_MediaPipelineOptions = options;
+}
+
+#endif
 
 } // namespace WebCore

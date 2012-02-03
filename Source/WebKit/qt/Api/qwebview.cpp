@@ -2,6 +2,7 @@
     Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2008 Holger Hans Peter Freyther
     Copyright (C) 2009 Girish Ramakrishnan <girish@forwardbias.in>
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -264,6 +265,15 @@ void QWebView::setPage(QWebPage* page)
                 this, SLOT(updateMicroFocus()));
         connect(d->page, SIGNAL(destroyed()),
                 this, SLOT(_q_pageDestroyed()));
+
+#ifdef QT_WEBOS
+        connect(d->page, SIGNAL(addInterractiveWidgetRect(uintptr_t, const QRect&, InteractiveRectType)),
+                this, SIGNAL(addInterractiveWidgetRect(uintptr_t, const QRect&, InteractiveRectType)));
+        connect(d->page, SIGNAL(removeInterractiveWidgetRect(uintptr_t, InteractiveRectType)),
+                this, SIGNAL(removeInterractiveWidgetRect(uintptr_t, InteractiveRectType)));
+        connect(d->page, SIGNAL(deadlockDetectionInterval(int)),
+                this, SIGNAL(deadlockDetectionInterval(int)));
+#endif
     }
     setAttribute(Qt::WA_OpaquePaintEvent, d->page);
     update();

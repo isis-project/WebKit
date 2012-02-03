@@ -7,6 +7,7 @@
  *               2006 Dirk Mueller <mueller@kde.org>
  *               2006 Nikolas Zimmermann <zimmermann@kde.org>
  * Copyright (C) 2008 Holger Hans Peter Freyther
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * All rights reserved.
  *
@@ -102,6 +103,10 @@ bool RenderThemeQt::useMobileTheme()
 bool RenderThemeQt::isControlStyled(const RenderStyle* style, const BorderData& border, const FillLayer& fill, const Color& backgroundColor) const
 {
     switch (style->appearance()) {
+#if PLATFORM(WEBOS)
+    case MenulistPart:
+        return true;
+#endif
     case SearchFieldPart:
         // Test the style to see if the UA border and background match.
         return (style->border() != border
@@ -191,6 +196,7 @@ QRect RenderThemeQt::inflateButtonRect(const QRect& originalRect) const
 
 void RenderThemeQt::adjustRepaintRect(const RenderObject* o, IntRect& rect)
 {
+#if ENABLE(VIDEO) // WEBOS FIXME: make sure we use a recent version of GStreamer
     switch (o->style()->appearance()) {
     case CheckboxPart:
         break;
@@ -207,6 +213,7 @@ void RenderThemeQt::adjustRepaintRect(const RenderObject* o, IntRect& rect)
     default:
         break;
     }
+#endif
 }
 
 Color RenderThemeQt::platformActiveSelectionBackgroundColor() const

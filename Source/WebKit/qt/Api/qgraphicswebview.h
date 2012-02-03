@@ -1,5 +1,6 @@
 /*
     Copyright (C) 2009 Nokia Corporation and/or its subsidiary(-ies)
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -20,6 +21,7 @@
 #ifndef QGraphicsWebView_h
 #define QGraphicsWebView_h
 
+#include <stdint.h>
 #include "qwebkitglobal.h"
 #include "qwebpage.h"
 #include <QtCore/qurl.h>
@@ -39,6 +41,7 @@
 class QWebPage;
 class QWebHistory;
 class QWebSettings;
+class QWebIosGestureEvent;
 
 class QGraphicsWebViewPrivate;
 
@@ -127,6 +130,11 @@ Q_SIGNALS:
     void iconChanged();
     void statusBarMessage(const QString& message);
     void linkClicked(const QUrl&);
+#ifdef QT_WEBOS
+    void addInterractiveWidgetRect(uintptr_t id, const QRect& frameRect, InteractiveRectType);
+    void removeInterractiveWidgetRect(uintptr_t id, InteractiveRectType);
+    void deadlockDetectionInterval(int);
+#endif
 
 protected:
     virtual void mousePressEvent(QGraphicsSceneMouseEvent*);
@@ -150,6 +158,7 @@ protected:
     virtual void focusInEvent(QFocusEvent*);
     virtual void focusOutEvent(QFocusEvent*);
     virtual void inputMethodEvent(QInputMethodEvent*);
+    virtual void iosGestureEvent(QWebIosGestureEvent*);
     virtual bool focusNextPrevChild(bool next);
 
     virtual bool sceneEvent(QEvent*);

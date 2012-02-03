@@ -516,6 +516,7 @@ SOURCES += \
     dom/EventTarget.cpp \
     dom/ExceptionBase.cpp \
     dom/ExceptionCodePlaceholder.cpp \
+    dom/GestureEvent.cpp \
     dom/IconURL.cpp \
     dom/KeyboardEvent.cpp \
     dom/MessageChannel.cpp \
@@ -1073,6 +1074,7 @@ SOURCES += \
     platform/graphics/StringTruncator.cpp \
     platform/graphics/TextRun.cpp \
     platform/graphics/TiledBackingStore.cpp \
+    platform/graphics/WOFFFileFormat.cpp \
     platform/graphics/transforms/AffineTransform.cpp \
     platform/graphics/transforms/TransformationMatrix.cpp \
     platform/graphics/transforms/MatrixTransformOperation.cpp \
@@ -2157,6 +2159,7 @@ HEADERS += \
     platform/graphics/Pattern.h \
     platform/graphics/Region.h \
     platform/graphics/RoundedRect.h \
+    platform/graphics/WOFFFileFormat.h \
     platform/graphics/qt/FontCustomPlatformData.h \
     platform/graphics/qt/ImageDecoderQt.h \
     platform/graphics/qt/StillImageQt.h \
@@ -2230,6 +2233,7 @@ HEADERS += \
     platform/network/ResourceResponseBase.h \
     platform/network/qt/DnsPrefetchHelper.h \
     platform/network/qt/NetworkStateNotifierPrivate.h \
+    platform/PlatformIosGestureEvent.h \
     platform/PlatformTouchEvent.h \
     platform/PlatformTouchPoint.h \
     platform/PopupMenu.h \
@@ -2807,6 +2811,7 @@ SOURCES += \
     platform/qt/KURLQt.cpp \
     platform/qt/MIMETypeRegistryQt.cpp \
     platform/qt/PasteboardQt.cpp \
+    platform/qt/PlatformIosGestureEventQt.cpp \
     platform/qt/PlatformKeyboardEventQt.cpp \
     platform/qt/PlatformMouseEventQt.cpp \
     platform/qt/PlatformScreenQt.cpp \
@@ -3210,6 +3215,12 @@ contains(DEFINES, ENABLE_VIDEO=1) {
 
         SOURCES += \
             platform/graphics/qt/MediaPlayerPrivateQt.cpp
+    } else:contains(DEFINES, WTF_USE_WEBOS_MULTIMEDIA=1) {
+        HEADERS += \
+            platform/graphics/webos/MediaPlayerPrivateWebos.h
+
+        SOURCES += \
+            platform/graphics/webos/MediaPlayerPrivateWebos.cpp
     }
 }
 

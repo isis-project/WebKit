@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
  * Copyright (C) 2009 Torch Mobile Inc. http://www.torchmobile.com/
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -78,6 +79,10 @@ public slots:
     void textZoomIn();
     void textZoomOut();
     void scalePageBy(float scaleFactor, float x, float y);
+    void iosGestureResetState();
+    void iosGestureStart(float x, float y, float rotation, float scale);
+    void iosGestureChange(float x, float y, float rotation, float scale);
+    void iosGestureEnd(float x, float y, float rotation, float scale);
     void clearTouchPoints();
     void releaseTouchPoint(int index);
 

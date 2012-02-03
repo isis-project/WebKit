@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies)
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -181,6 +182,13 @@ QRectF PageClientQWidget::windowRect() const
 {
     return QRectF(view->window()->geometry());
 }
+
+#if PLATFORM(WEBOS)
+const QString& PageClientQWidget::appIdentifier() const
+{
+    return page->appIdentifier();
+}
+#endif
 
 #if !defined(QT_NO_GRAPHICSVIEW)
 PageClientQGraphicsWidget::~PageClientQGraphicsWidget()
@@ -381,6 +389,13 @@ QRect PageClientQGraphicsWidget::geometryRelativeToOwnerWidget() const
     QGraphicsView* graphicsView = views.at(0);
     return graphicsView->mapFromScene(view->boundingRect()).boundingRect();
 }
+
+#if PLATFORM(WEBOS)
+const QString& PageClientQGraphicsWidget::appIdentifier() const
+{
+    return page->appIdentifier();
+}
+#endif
 
 #if USE(TILED_BACKING_STORE)
 QRectF PageClientQGraphicsWidget::graphicsItemVisibleRect() const

@@ -3,6 +3,7 @@
     Copyright (C) 2008,2009,2010 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2007 Staikos Computing Services Inc.
     Copyright (C) 2007 Apple Inc.
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -89,6 +90,7 @@
 #include <wtf/CurrentTime.h>
 
 #include "qwebelement.h"
+#include "qwebevent.h"
 #include "qwebframe.h"
 #include "qwebframe_p.h"
 #include "qwebhistory.h"
@@ -843,6 +845,49 @@ QString DumpRenderTreeSupportQt::viewportAsText(QWebPage* page, int deviceDPI, c
             conf.userScalable);
 
     return res;
+}
+
+void DumpRenderTreeSupportQt::iosGestureResetState(QWebPage* page)
+{
+#if ENABLE(IOS_GESTURE_EVENTS)
+    const float rotation = 0.0;
+    const float scale = 0.0;
+
+    QWebIosGestureEvent event(QWebEvent::getIosGestureEndEventType(), QPoint(0, 0), rotation, scale,
+            false, false, false, false);
+
+    page->event(&event);
+#endif
+}
+
+void DumpRenderTreeSupportQt::iosGestureStart(QWebPage* page, const QPoint& pt, float rotation, float scale)
+{
+#if ENABLE(IOS_GESTURE_EVENTS)
+    QWebIosGestureEvent event(QWebEvent::getIosGestureStartEventType(), pt, rotation, scale,
+            false, false, false, false);
+
+    page->event(&event);
+#endif
+}
+
+void DumpRenderTreeSupportQt::iosGestureChange(QWebPage* page, const QPoint& pt, float rotation, float scale)
+{
+#if ENABLE(IOS_GESTURE_EVENTS)
+    QWebIosGestureEvent event(QWebEvent::getIosGestureChangeEventType(), pt, rotation, scale,
+            false, false, false, false);
+
+    page->event(&event);
+#endif
+}
+
+void DumpRenderTreeSupportQt::iosGestureEnd(QWebPage* page, const QPoint& pt, float rotation, float scale)
+{
+#if ENABLE(IOS_GESTURE_EVENTS)
+    QWebIosGestureEvent event(QWebEvent::getIosGestureEndEventType(), pt, rotation, scale,
+            false, false, false, false);
+
+    page->event(&event);
+#endif
 }
 
 void DumpRenderTreeSupportQt::scalePageBy(QWebFrame* frame, float scalefactor, const QPoint& origin)

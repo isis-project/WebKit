@@ -1,6 +1,7 @@
 /*
     Copyright (C) 2008,2009 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2007 Staikos Computing Services Inc.
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -695,11 +696,15 @@ void QWebFrame::addToJavaScriptWindowObject(const QString &name, QObject *object
     JSC::PutPropertySlot slot;
     window->methodTable()->put(window, exec, JSC::Identifier(&exec->globalData(), reinterpret_cast_ptr<const UChar*>(name.constData()), name.length()), runtimeObject, slot);
 #elif USE(V8)
+#if !PLATFORM(WEBOS)
     QJSEngine* engine = d->frame->script()->qtScriptEngine();
     if (!engine)
         return;
     QJSValue v = engine->newQObject(object); // FIXME: Ownership not propagated yet.
     engine->globalObject().property(QLatin1String("window")).setProperty(name, v);
+#else // PLATFORM(WEBOS)
+    // TODO(mlam): Need to implement.
+#endif // PLATFORM(WEBOS)
 #endif
 }
 
@@ -1596,10 +1601,14 @@ QVariant QWebFrame::evaluateJavaScript(const QString& scriptSource)
 
         rc = JSC::Bindings::convertValueToQVariant(proxy->globalObject(mainThreadNormalWorld())->globalExec(), v, QMetaType::Void, &distance);
 #elif USE(V8)
+#if !PLATFORM(WEBOS)
         QJSEngine* engine = d->frame->script()->qtScriptEngine();
         if (!engine)
             return rc;
         rc = engine->evaluate(scriptSource).toVariant();
+#else // PLATFORM(WEBOS)
+        // TODO(mlam): Need to implement.
+#endif // PLATFORM(WEBOS)
 #endif
     }
     return rc;
@@ -2004,5 +2013,17 @@ QWebFrame *QWebHitTestResult::frame() const
         return 0;
     return d->frame.data();
 }
+
+#ifdef QT_WEBOS
+/*!
+  Returns true if inner node of the hitTestResult is text node
+*/
+bool QWebHitTestResult::isTextNode() const
+{
+    if (!d || !d->innerNode)
+        return false;
+    return d->innerNode->nodeType() == Node::TEXT_NODE;
+}
+#endif
 
 #include "moc_qwebframe.cpp"

@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008, 2009 Google Inc. All rights reserved.
  * Copyright (C) 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -66,9 +67,11 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/CString.h>
 
+#if !PLATFORM(WEBOS)
 #if PLATFORM(QT)
 #include <QJSEngine>
 #endif
+#endif // !PLATFORM(WEBOS)
 
 namespace WebCore {
 

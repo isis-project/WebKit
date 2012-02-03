@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2009 Nokia Corporation and/or its subsidiary(-ies)
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -94,6 +95,10 @@ public:
     virtual bool viewResizesToContentsEnabled() const = 0;
 
     virtual QRectF windowRect() const = 0;
+
+#if PLATFORM(WEBOS)
+    virtual const QString& appIdentifier() const = 0;
+#endif
 
 protected:
 #ifndef QT_NO_CURSOR

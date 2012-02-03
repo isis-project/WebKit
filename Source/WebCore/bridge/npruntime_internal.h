@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2007-2008 Collabora Ltd.  All rights reserved.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -29,7 +30,7 @@
 #include "npfunctions.h"
 #include "npruntime.h"
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) && !defined(XP_WEBOS)
     #include <X11/Xresource.h>
 
     #undef None

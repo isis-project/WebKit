@@ -1,6 +1,7 @@
 /*
     Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2007 Staikos Computing Services Inc.
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -23,6 +24,7 @@
 
 #include "qwebsettings.h"
 #include "qwebkitglobal.h"
+#include <stdint.h>
 
 #include <QtCore/qobject.h>
 #include <QtCore/qurl.h>
@@ -43,6 +45,7 @@ QT_END_NAMESPACE
 
 class QWebElement;
 class QWebFrame;
+class QWebKitPlatformPlugin;
 class QWebNetworkRequest;
 class QWebHistory;
 
@@ -67,9 +70,19 @@ namespace WebCore {
     class ResourceHandle;
     class HitTestResult;
     class QNetworkReplyHandler;
+#ifdef QT_WEBOS
+    class PluginViewWebOs;
+#endif
 
     struct FrameLoadRequest;
 }
+
+#ifdef QT_WEBOS
+enum InteractiveRectType {
+    InteractiveRectDefault,
+    InteractiveRectPlugin // Interactive rect is a plugin rect
+};
+#endif
 
 class QWEBKIT_EXPORT QWebPage : public QObject {
     Q_OBJECT
@@ -85,6 +98,9 @@ class QWEBKIT_EXPORT QWebPage : public QObject {
     Q_PROPERTY(QPalette palette READ palette WRITE setPalette)
     Q_PROPERTY(bool contentEditable READ isContentEditable WRITE setContentEditable)
     Q_ENUMS(LinkDelegationPolicy NavigationType WebAction)
+#ifdef QT_WEBOS
+    Q_PROPERTY(QString appIdentifier READ appIdentifier WRITE setAppIdentifier)
+#endif
 public:
     enum NavigationType {
         NavigationTypeLinkClicked,
@@ -279,6 +295,10 @@ public:
     bool hasSelection() const;
     QString selectedText() const;
     QString selectedHtml() const;
+#ifdef QT_WEBOS
+    const QString& appIdentifier() const;
+    void setAppIdentifier(const QString&);
+#endif
 
 #ifndef QT_NO_ACTION
     QAction *action(WebAction action) const;
@@ -368,6 +388,12 @@ public:
     virtual bool supportsExtension(Extension extension) const;
 
     inline QWebPagePrivate* handle() const { return d; }
+#ifdef QT_WEBOS
+    bool selectionBounds(QRect& selectionStart, QRect& selectionEnd, QRect& boundingRect) const;
+    void getTextCaretPos(QRect& bounds) const;
+#endif
+
+    static QWebKitPlatformPlugin* platformPlugin();
 
 public Q_SLOTS:
     bool shouldInterruptJavaScript();
@@ -407,6 +433,11 @@ Q_SIGNALS:
 
     void featurePermissionRequested(QWebFrame* frame, QWebPage::Feature feature);
     void featurePermissionRequestCanceled(QWebFrame* frame, QWebPage::Feature feature);
+#ifdef QT_WEBOS
+    void addInterractiveWidgetRect(uintptr_t id, const QRect& frameRect, InteractiveRectType);
+    void removeInterractiveWidgetRect(uintptr_t id, InteractiveRectType);
+    void deadlockDetectionInterval(int);
+#endif
 
 protected:
     virtual QWebPage *createWindow(WebWindowType type);
@@ -448,6 +479,9 @@ private:
     friend class WebCore::ResourceHandle;
     friend class WebCore::QNetworkReplyHandler;
     friend class DumpRenderTreeSupportQt;
+#ifdef QT_WEBOS
+    friend class WebCore::PluginViewWebOs;
+#endif
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QWebPage::FindFlags)

@@ -4,6 +4,7 @@
  * Copyright (C) 2006 Simon Hausmann <hausmann@kde.org>
  * Copyright (C) 2009 Torch Mobile Inc. http://www.torchmobile.com/
  * Copyright (C) 2010 Sencha, Inc.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * All rights reserved.
  *
@@ -49,6 +50,12 @@
 #include <QPixmap>
 #include <QStyle>
 #include <QTransform>
+
+#if ENABLE(IMAGE_DECODER_DOWN_SAMPLING) && PLATFORM(WEBOS)
+#include <QSettings>
+#endif
+
+#include <QDebug>
 
 #include <math.h>
 
@@ -223,6 +230,12 @@ BitmapImage::BitmapImage(QPixmap* pixmap, ImageObserver* observer)
 
 void BitmapImage::initPlatformData()
 {
+#if ENABLE(IMAGE_DECODER_DOWN_SAMPLING) && PLATFORM(WEBOS)
+    QSettings settings;
+    uint maxPixels = settings.value(QLatin1String("MaxPixelsPerDecodedImage")).toUInt();
+    if (maxPixels)
+        ImageSource::setMaxPixelsPerDecodedImage(maxPixels);
+#endif
 }
 
 void BitmapImage::invalidatePlatformData()

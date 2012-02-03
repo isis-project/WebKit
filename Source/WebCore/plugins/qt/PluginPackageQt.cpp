@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2006, 2007 Apple Inc.  All rights reserved.
  * Copyright (C) 2008 Collabora Ltd. All rights reserved.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -108,6 +109,7 @@ static void initializeGtk(QLibrary* module = 0)
         if (gtkInit) {
             // Prevent gtk_init() from replacing the X error handlers, since the Gtk
             // handlers abort when they receive an X error, thus killing the viewer.
+#if !PLATFORM(WEBOS)
 #ifdef Q_WS_X11
             int (*old_error_handler)(Display*, XErrorEvent*) = XSetErrorHandler(0);
             int (*old_io_error_handler)(Display*) = XSetIOErrorHandler(0);
@@ -116,6 +118,7 @@ static void initializeGtk(QLibrary* module = 0)
 #ifdef Q_WS_X11
             XSetErrorHandler(old_error_handler);
             XSetIOErrorHandler(old_io_error_handler);
+#endif
 #endif
             return;
         }

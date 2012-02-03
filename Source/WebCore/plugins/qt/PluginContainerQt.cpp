@@ -1,5 +1,6 @@
 /*
     Copyright (C) 2009 Nokia Corporation and/or its subsidiary(-ies)
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -18,6 +19,9 @@
 */
 
 #include "config.h"
+
+#if !defined(XP_WEBOS)
+
 #include "PluginContainerQt.h"
 
 #include "FocusController.h"
@@ -148,3 +152,5 @@ void PluginContainerQt::focusOutEvent(QFocusEvent*)
     if (Page* page = m_pluginView->parentFrame()->page())
         page->focusController()->setActive(false);
 }
+
+#endif // XP_WEBOS

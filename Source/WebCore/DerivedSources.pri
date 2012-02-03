@@ -143,6 +143,7 @@ IDL_BINDINGS += \
     dom/ErrorEvent.idl \
     dom/Event.idl \
     dom/EventException.idl \
+    dom/GestureEvent.idl \
 #    dom/EventListener.idl \
 #    dom/EventTarget.idl \
     dom/HashChangeEvent.idl \

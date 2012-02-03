@@ -1,6 +1,7 @@
 /*
     Copyright (C) 2008, 2009 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2008 Holger Hans Peter Freyther
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -65,6 +66,7 @@ QT_END_NAMESPACE
 
 class QWebInspector;
 class QWebPageClient;
+class QWebIosGestureEvent;
 
 class QtViewportAttributesPrivate : public QSharedData {
 public:
@@ -131,6 +133,7 @@ public:
 
     // Returns whether the default action was cancelled in the JS event handler
     bool touchEvent(QTouchEvent*);
+    bool iosGestureEvent(QWebIosGestureEvent*);
 
     class TouchAdjuster {
     public:
@@ -192,6 +195,9 @@ public:
 
     QSize viewportSize;
     QSize fixedLayoutSize;
+#ifdef QT_WEBOS
+    QString appIdentifier;
+#endif
 
     QWebHistory history;
     QWebHitTestResult hitTestResult;

@@ -3,6 +3,7 @@
  * Copyright (C) 2006, 2011 Apple Inc. All rights reserved.
  * Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
  * Copyright (C) 2008 Collabora Ltd. All rights reserved.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * All rights reserved.
  *
@@ -222,6 +223,10 @@ public:
     virtual void didPerformFirstNavigation() const;
 
 #if USE(V8)
+#if PLATFORM(WEBOS)
+    virtual void didCreateScriptContext(v8::Handle<v8::Context>, int worldId);
+    virtual void willReleaseScriptContext(v8::Handle<v8::Context>, int worldId);
+#else // !PLATFORM(WEBOS)
     // A frame's V8 context was created or destroyed.
     virtual void didCreateScriptContext(v8::Handle<v8::Context>, int);
     virtual void willReleaseScriptContext(v8::Handle<v8::Context>, int);
@@ -230,6 +235,7 @@ public:
     // This context is not tied to the lifetime of its frame, and is destroyed
     // in garbage collection.
     virtual void didCreateIsolatedScriptContext();
+#endif // !PLATFORM(WEBOS)
 
     // Returns true if we should allow the given V8 extension to be added to
     // the script context at the currently loading page and given extension group.

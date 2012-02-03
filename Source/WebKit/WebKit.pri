@@ -1,6 +1,7 @@
 SOURCES += \
     $$PWD/qt/Api/qwebframe.cpp \
     $$PWD/qt/Api/qgraphicswebview.cpp \
+    $$PWD/qt/Api/qwebevent.cpp \
     $$PWD/qt/Api/qwebpage.cpp \
     $$PWD/qt/Api/qwebview.cpp \
     $$PWD/qt/Api/qwebelement.cpp \
@@ -19,6 +20,7 @@ SOURCES += \
 HEADERS += \
     $$PWD/qt/Api/qwebframe.h \
     $$PWD/qt/Api/qgraphicswebview.h \
+    $$PWD/qt/Api/qwebevent.h \
     $$PWD/qt/Api/qwebkitglobal.h \
     $$PWD/qt/Api/qwebkitplatformplugin.h \
     $$PWD/qt/Api/qwebpage.h \
@@ -36,3 +38,13 @@ HEADERS += \
     $$PWD/qt/Api/qwebplugindatabase_p.h \
     $$PWD/qt/Api/qhttpheader_p.h
 
+
+contains(DEFINES, PALM_DEVICE) {
+    SOURCES += \
+        $$PWD/qt/WebCoreSupport/PluginViewWebOs.cpp \
+        $$PWD/qt/Api/qpersistentcookiejar.cpp
+
+    HEADERS += \
+        $$PWD/qt/WebCoreSupport/PluginViewWebOs.h \
+        $$PWD/qt/Api/qpersistentcookiejar.h
+}
