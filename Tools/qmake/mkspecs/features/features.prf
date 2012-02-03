@@ -94,6 +94,11 @@ haveQt(4):unix:!mac:!embedded {
     DEFINES += ENABLE_SVG_FONTS=0
 }
 
+contains(DEFINES, PALM_DEVICE) {
+    DEFINES += ENABLE_IMAGE_DECODER_DOWN_SAMPLING=1
+    DEFINES += ENABLE_IOS_GESTURE_EVENTS=1
+}
+
 # HTML5 datalist support
 !contains(DEFINES, ENABLE_DATALIST=.): DEFINES += ENABLE_DATALIST=1
 
@@ -102,7 +107,7 @@ haveQt(4):unix:!mac:!embedded {
 
 # Nescape plugins support (NPAPI)
 !contains(DEFINES, ENABLE_NETSCAPE_PLUGIN_API=.) {
-    unix:haveQt(4)|win32-*:!embedded:!wince*: {
+    unix:haveQt(4)|win32-*:!wince*: {
         DEFINES += ENABLE_NETSCAPE_PLUGIN_API=1
     } else {
         DEFINES += ENABLE_NETSCAPE_PLUGIN_API=0

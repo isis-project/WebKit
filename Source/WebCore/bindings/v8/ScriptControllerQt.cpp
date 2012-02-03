@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies)
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * All rights reserved.
  *
@@ -28,10 +29,13 @@
 #include "config.h"
 #include "ScriptController.h"
 
+#if !PLATFORM(WEBOS)
 #include <QJSEngine>
+#endif
 
 namespace WebCore {
 
+#if !PLATFORM(WEBOS)
 QJSEngine* ScriptController::qtScriptEngine()
 {
     if (!m_qtScriptEngine) {
@@ -44,6 +48,7 @@ QJSEngine* ScriptController::qtScriptEngine()
      }
      return m_qtScriptEngine.get();
 }
+#endif // !PLATFORM(WEBOS)
 
 }
 // vim: ts=4 sw=4 et

@@ -176,6 +176,10 @@ namespace WebCore {
     macro(touchend) \
     macro(touchcancel) \
     \
+    macro(gesturestart) \
+    macro(gesturechange) \
+    macro(gestureend) \
+    \
     macro(success) \
     \
     macro(loadend) \

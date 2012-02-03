@@ -2,6 +2,7 @@
  * Copyright (C) 2006, 2007, 2008, 2009, 2010 Apple Inc. All rights reserved.
  * Copyright (C) 2008 Collabora Ltd. All rights reserved.
  * Copyright (C) 2009 Girish Ramakrishnan <girish@forwardbias.in>
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -99,6 +100,12 @@ namespace WebCore {
     class PluginStream;
     class ResourceError;
     class ResourceResponse;
+#if PLATFORM(WEBOS) && ENABLE(IOS_GESTURE_EVENTS)
+    class GestureEvent;
+#endif
+#if PLATFORM(WEBOS) && ENABLE(TOUCH_EVENTS)
+    class TouchEvent;
+#endif
 
     enum PluginStatus {
         PluginStatusCanNotFindPlugin,
@@ -266,7 +273,16 @@ namespace WebCore {
 #endif
 
     private:
+#if PLATFORM(WEBOS)
+    protected:
+#endif
         PluginView(Frame* parentFrame, const IntSize&, PluginPackage*, Element*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
+#if PLATFORM(WEBOS)
+        virtual bool platformGetValue(NPNVariable, void* value, NPError* result);
+        virtual void postPlatformStart(void) { }
+        virtual void prePlatformDestroy(void) { }
+    private:
+#endif
 
         void setParameters(const Vector<String>& paramNames, const Vector<String>& paramValues);
         bool startOrAddToUnstartedList();
@@ -295,7 +311,9 @@ namespace WebCore {
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
         static bool platformGetValueStatic(NPNVariable variable, void* value, NPError* result);
+# if !PLATFORM(WEBOS)
         bool platformGetValue(NPNVariable variable, void* value, NPError* result);
+# endif
 #endif
 
         RefPtr<Frame> m_parentFrame;
@@ -322,13 +340,25 @@ namespace WebCore {
 
 #ifndef NP_NO_CARBON
 #if ENABLE(NETSCAPE_PLUGIN_API)
+#if PLATFORM(WEBOS)
+    protected:
+#endif
         bool dispatchNPEvent(NPEvent&);
+#if PLATFORM(WEBOS)
+    private:
+#endif
 #endif // ENABLE(NETSCAPE_PLUGIN_API)
 #endif
         void updatePluginWidget();
         void paintMissingPluginIcon(GraphicsContext*, const IntRect&);
 
         void handleKeyboardEvent(KeyboardEvent*);
+#if PLATFORM(WEBOS) && ENABLE(IOS_GESTURE_EVENTS)
+        virtual void handleIosGestureEvent(GestureEvent*);
+#endif
+#if PLATFORM(WEBOS) && ENABLE(TOUCH_EVENTS)
+        virtual void handleTouchEvent(TouchEvent*);
+#endif
         void handleMouseEvent(MouseEvent*);
 #if defined(XP_UNIX) && ENABLE(NETSCAPE_PLUGIN_API)
         void handleFocusInEvent();
@@ -365,7 +395,7 @@ namespace WebCore {
         bool m_haveInitialized;
         bool m_isWaitingToStart;
 
-#if defined(XP_UNIX)
+#if defined(XP_UNIX) && !defined(XP_WEBOS)
         bool m_needsXEmbed;
 #endif
 
@@ -413,7 +443,7 @@ private:
         Point mousePosForPlugin(MouseEvent* event = 0) const;
 #endif
 
-#if defined(XP_UNIX) && ENABLE(NETSCAPE_PLUGIN_API)
+#if defined(XP_UNIX) && !defined(XP_WEBOS) && ENABLE(NETSCAPE_PLUGIN_API)
         bool m_hasPendingGeometryChange;
         Pixmap m_drawable;
         Visual* m_visual;
@@ -424,10 +454,16 @@ private:
 #endif
 
 #if PLATFORM(QT)
+#if defined(XP_WEBOS)
+        void paintUsingPainter(QPainter* painter, const IntRect& exposedRect);
+        NPDrawingModel m_drawingModel;
+#endif
 #if defined(XP_UNIX) && ENABLE(NETSCAPE_PLUGIN_API)
         static bool s_isRunningUnderDRT;
+# if !defined(XP_WEBOS)
         static void setXKeyEventSpecificFields(XEvent*, KeyboardEvent*);
         void paintUsingXPixmap(QPainter* painter, const QRect &exposedRect);
+# endif
 #endif
 #if USE(ACCELERATED_COMPOSITING_PLUGIN_LAYER)
         OwnPtr<PlatformLayer> m_platformLayer;

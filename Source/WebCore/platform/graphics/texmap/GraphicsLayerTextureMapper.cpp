@@ -1,5 +1,6 @@
 /*
     Copyright (C) 2009 Nokia Corporation and/or its subsidiary(-ies)
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -335,6 +336,10 @@ void GraphicsLayerTextureMapper::setContentsToMedia(TextureMapperPlatformLayer* 
     notifyChange(TextureMapperNode::ContentChange);
     m_pendingContent.contentType = media ? TextureMapperNode::MediaContentType : TextureMapperNode::HTMLContentType;
     m_pendingContent.media = media;
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+    // for accessing GraphicsLayer::setNeedsDisplay from platform layer
+    m_pendingContent.media->setGraphicsLayer(this);
+#endif
 }
 
 /* \reimp (GraphicsLayer.h)

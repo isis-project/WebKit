@@ -1,0 +1,192 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<html>
+<head>
+<script src="../../../../../fast/js/resources/js-test-pre.js"></script>
+<script src="../../../../../fast/js/resources/js-test-post-function.js"></script>
+<style type="text/css">
+#gesturetarget {
+  width: 100px;
+  height: 100px;
+  position: relative;
+  background: white;
+}
+
+#movingbox {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  word-wrap: break-word;
+  overflow-y: scroll;
+  overflow-x: scroll;
+  display: block;
+}
+
+#greenbox {
+  width: 100px;
+  height: 100px;
+  background: green;
+  padding: 0px;
+  margin: 0px;
+}
+
+#redbox {
+  width: 100px;
+  height: 100px;
+  background: red;
+  padding: 0px;
+  margin: 0px;
+}
+
+td {
+  padding: 0px;
+}
+</style>
+</head>
+<body style="margin:0" onload="runTest();">
+<div id="gesturetarget">
+  <div id="movingbox">
+    <table border="0" cellspacing="0px">
+      <tr>
+        <td><div id="redbox"></div></td>
+        <td><div id="greenbox"></div></td>
+      </tr>
+      <tr>
+        <td><div id="greenbox"></div></td>
+        <td><div id="greenbox"></div></td>
+      </tr>
+    </table>
+  </div>
+</div>
+
+<p id="description"></p>
+<div id="console"></div>
+<script type="text/javascript">
+
+var movingdiv;
+var gesturesOccurred = 0;
+var expectedGesturesTotal = 2;
+var rotateEvents = [0.0, 0.0, 0.0, 0.0, 44.5, -60.5];
+var scaleEvents  = [1.0, 2.0, 2.0, 1.0,  1.0,   1.0];
+
+function checkGestureValues()
+{
+    movingdiv = document.getElementById('movingbox');
+    if (window.eventSender) {
+        gesturesOccurred++;
+    }
+
+    if (gesturesOccurred == expectedGesturesTotal) {
+        // If we've got here, we've passed.
+        successfullyParsed = true;
+        isSuccessfullyParsed();
+        if (window.layoutTestController)
+            layoutTestController.notifyDone();
+    } else {
+        rotateGestureSequence();
+    }
+
+}
+
+function logGesture(msg, event) {
+    debug(msg + ': scale/rotation=' + event.scale + '/' + event.rotation);
+    return; 
+    var pad = Array(msg.length+1).join(" ");
+    for (var propName in event) {
+        var val = event[propName];
+        if (typeof(val) != 'function') {
+            debug(pad + '  ' + propName + '=' + val);
+        }
+    }
+}
+
+function gestureStart(event)
+{
+    logGesture("  Gesture Start", event);
+    return true;  // Want the default behaviour.
+}
+
+function gestureChange(event)
+{
+    logGesture("  Gesture Change", event);
+    return true;  // Want the default behaviour.
+}
+
+function gestureEnd(event)
+{
+    logGesture("  Gesture End", event);
+    return true;  // Want the default behaviour.
+}
+
+function scaleGestureSequence()
+{
+    debug("first gesture sequence");
+    eventSender.iosGestureResetState();
+
+    // Start the gesture
+    eventSender.iosGestureStart(95, 12, rotateEvents[0], scaleEvents[0]);
+
+    // Move fingers down and to the right and also scale by 2.0
+    eventSender.iosGestureChange(95, 12, rotateEvents[1], scaleEvents[2]);
+
+    // Stop the gesture
+    eventSender.iosGestureEnd(95, 12, rotateEvents[2], scaleEvents[2]);
+
+    // Wait for layout.
+    checkGestureValues();
+}
+
+function rotateGestureSequence()
+{
+    debug("second gesture sequence");
+    eventSender.iosGestureResetState();
+
+    // Start the gesture
+    eventSender.iosGestureStart(95, 12, rotateEvents[3], scaleEvents[3]);
+
+    // Move fingers down and to the right and also scale by 2.0
+    eventSender.iosGestureChange(95, 12, rotateEvents[4], scaleEvents[4]);
+
+    // Stop the gesture
+    eventSender.iosGestureEnd(95, 12, rotateEvents[5], scaleEvents[5]);
+
+    // Wait for layout.
+    checkGestureValues();
+}
+
+function exitIfNecessary()
+{
+    debug('Gesture manager not implemented on this platform or broken');
+    successfullyParsed = true;
+    isSuccessfullyParsed();
+    if (window.layoutTestController)
+        layoutTestController.notifyDone();
+}
+
+if (window.layoutTestController)
+    layoutTestController.waitUntilDone();
+
+function runTest()
+{
+    var movingdiv = document.getElementById('movingbox');
+
+    if (window.eventSender) {
+        description('This tests iOS style gesture events. ' +
+            'Square is (mostly) green on pass');
+
+        movingdiv.addEventListener('gesturestart', gestureStart, false);
+        movingdiv.addEventListener('gesturechange', gestureChange, false);
+        movingdiv.addEventListener('gestureend', gestureEnd, false);
+        if (eventSender.iosGestureResetState)
+            scaleGestureSequence();
+        else
+            exitIfNecessary();
+    } else {
+        debug("This test requires DumpRenderTree.");
+    }
+}
+</script>
+
+
+
+</body>
+</html>

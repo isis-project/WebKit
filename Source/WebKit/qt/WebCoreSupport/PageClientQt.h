@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies)
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -96,6 +97,10 @@ public:
     virtual bool viewResizesToContentsEnabled() const { return false; }
 
     virtual QRectF windowRect() const;
+
+#if PLATFORM(WEBOS)
+    virtual const QString& appIdentifier() const;
+#endif
 
     QWidget* view;
     QWebPage* page;
@@ -213,6 +218,10 @@ public:
 
     // QGraphicsWebView can render composited layers
     virtual bool allowsAcceleratedCompositing() const { return true; }
+#endif
+
+#if PLATFORM(WEBOS)
+    virtual const QString& appIdentifier() const;
 #endif
 
     virtual QRectF windowRect() const;

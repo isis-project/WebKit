@@ -2,6 +2,7 @@
  * Copyright (C) 2006, 2007, 2008, 2009 Apple Inc. All rights reserved.
  * Copyright (C) 2007-2009 Torch Mobile, Inc.
  * Copyright (C) 2010, 2011 Research In Motion Limited. All rights reserved.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -484,6 +485,10 @@
 #define WTF_USE_CAIRO 1
 #endif
 
+#ifdef PALM_DEVICE
+#define WTF_PLATFORM_WEBOS 1
+#define XP_WEBOS 1
+#endif
 
 #if OS(WINCE)
 #include <ce_time.h>

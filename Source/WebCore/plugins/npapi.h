@@ -20,6 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -90,8 +91,10 @@
 #endif
 
 #if defined(XP_UNIX)
+# if !defined(XP_WEBOS)
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+# endif
 #include <stdio.h>
 #endif
 
@@ -263,6 +266,7 @@ typedef struct
   int32_t type;
 } NPAnyCallbackStruct;
 
+# if !defined(XP_WEBOS)
 typedef struct
 {
   int32_t      type;
@@ -271,12 +275,20 @@ typedef struct
   Colormap     colormap;
   unsigned int depth;
 } NPSetWindowCallbackStruct;
+# endif
 
 typedef struct
 {
   int32_t type;
   FILE* fp;
 } NPPrintCallbackStruct;
+
+# if defined(XP_WEBOS)
+typedef enum {
+  NPDrawingModelPixmap = 0,
+  NPDrawingModelQt = 1,
+} NPDrawingModel;
+# endif
 
 #endif /* XP_UNIX */
 
@@ -381,8 +393,45 @@ typedef enum {
   , NPPVpluginCoreAnimationLayer = 1003
 #endif
 
-#if defined(MOZ_PLATFORM_MAEMO) && (MOZ_PLATFORM_MAEMO >= 5)
+#if (defined(MOZ_PLATFORM_MAEMO) && (MOZ_PLATFORM_MAEMO >= 5)) || defined(XP_WEBOS)
   , NPPVpluginWindowlessLocalBool = 2002
+#endif
+
+#if defined(XP_WEBOS)
+  /* Used for negotiating drawing models */
+  , NPPVpluginDrawingModel = 1000
+
+  , npPalmEventLoopValue = 10000
+
+    /**
+     * Used for the plugin to inform WebKit that it wants to be cached which means
+     * it won't be deleted as it would normally be during significant style changes
+     * (like hiding the parent div element). The return value is ignored if the
+     * object element specifies the 'x-palm-cache-plugin' true/false attribute.
+     */
+  , npPalmCachePluginValue = 10001
+
+    /**
+     * Used for plugins that draw with PGContext. The raster pointer in a draw event
+     * is then passed in as null, and we're able to draw direct-to-screen.
+     */
+  , npPalmUseGraphicsContext = 10003
+
+    /**
+     * Used to request that WebKit send or stop ending TouchEvents to the plugin
+     */
+  , npPalmEnableTouchEvents = 10004
+
+    /**
+     * Used to indicate that plugin is interactive and should get mouse
+     * events (e.g., flash)
+     */
+  , npPalmIsInteractive = 10005
+
+    /**
+     * Used to determine the flash player scriptstucktimeout value - in seconds
+     */
+  , npPalmScriptStuckTimeout = 10007
 #endif
 } NPPVariable;
 
@@ -432,8 +481,27 @@ typedef enum {
   , NPNVsupportsCompositingCoreAnimationPluginsBool = 74656 /* TRUE if the browser supports
                                                                CA model compositing */
 #endif /* XP_MACOSX */
-#if defined(MOZ_PLATFORM_MAEMO) && (MOZ_PLATFORM_MAEMO >= 5)
+#if (defined(MOZ_PLATFORM_MAEMO) && (MOZ_PLATFORM_MAEMO >= 5)) || defined(XP_WEBOS)
   , NPNVSupportsWindowlessLocal = 2002
+#endif
+#if defined(XP_WEBOS)
+  /* Used for negotiating drawing models */
+  , NPNVpluginDrawingModel = 1000
+  , NPNVsupportsPixmapDrawingBool = 2003
+  , NPNVsupportsQtDrawingBool = 2004
+
+  /**
+   * Used to determine the application identifer in the context of which this
+   * plugin is created
+   */
+  , npPalmApplicationIdentifier = 2005
+  /**
+   * Plugin uses this to indicate when an input field is
+   * focused/defocused
+   */
+  , npPalmInputFieldFocused = 2006
+
+
 #endif
 } NPNVariable;
 
@@ -536,7 +604,158 @@ typedef struct _NPEvent
   uint32_t lParam;
 } NPEvent;
 #elif defined(XP_UNIX)
+#if defined(XP_WEBOS)
+typedef enum NpPalmEventsEnum
+{
+  npPalmNullEvent,
+  npPalmPenDownEvent        = 1 << 0,
+  npPalmPenUpEvent          = 1 << 1,
+  npPalmPenMoveEvent        = 1 << 2,
+  npPalmKeyDownEvent        = 1 << 3,
+  npPalmKeyUpEvent          = 1 << 4,
+  npPalmKeyRepeatEvent      = 1 << 5,
+  npPalmKeyPressEvent       = 1 << 6,
+  npPalmDrawEvent           = 1 << 7,
+  npPalmSystemEvent         = 1 << 8,
+  npPalmGestureEvent        = 1 << 9,
+  npPalmAccelerometerEvent  = 1 << 10,
+  npPalmTouchStartEvent     = 1 << 11,
+  npPalmTouchMoveEvent      = 1 << 12,
+  npPalmTouchEndEvent       = 1 << 13,
+  npPalmTouchCancelledEvent = 1 << 14,
+  npPalmPenDoubleClickEvent = 1 << 15,
+  npPalmPenClickEvent       = 1 << 16
+} NpPalmEventsEnum;
+
+typedef enum NpPalmSystemEventsEnum
+{
+  npPalmPauseEvent            = 1,
+  npPalmResumeEvent           = 2,
+  npPalmGainFocusEvent        = 3,
+  npPalmLoseFocusEvent        = 4,
+  npPalmDimmedEvent           = 5,
+  npPalmSetFullScreenEvent    = 6,
+  npPalmUnsetFullScreenEvent  = 7,
+  npPalmPageLoadingEvent      = 8,
+  npPalmPageLoadCompleteEvent = 9,
+  npPalmViewPortChangedEvent  = 10,
+  npPalmSpotlightStartEvent   = 11,
+  npPalmSpotlightEndEvent     = 12,
+} NpPalmSystemEventsEnum;
+
+typedef enum NpPalmKeyModifiersEnum
+{
+  npPalmCtrlKeyModifier  = 1 << 0,
+  npPalmAltKeyModifier   = 1 << 1,
+  npPalmShiftKeyModifier = 1 << 2,
+  npPalmMetaKeyModifier  = 1 << 3,
+} NpPalmKeyModifiersEnum;
+
+typedef struct NpPalmKeyEvent
+{
+  int32_t chr;        // 32-bits to allow any Unicode character
+  int32_t modifiers;
+  int32_t rawkeyCode; // Palm : to send raw events to browserserver
+  int32_t rawModifier; // Palm : to send raw events to browserserver
+} NpPalmKeyEvent;
+
+
+typedef struct NpPalmPenEvent
+{
+  int32_t xCoord, yCoord; // position of pen
+  int32_t modifiers;
+} NpPalmPenEvent;
+
+typedef struct NpPalmTouchPoint
+{
+  int32_t xCoord, yCoord;
+} NpPalmTouchPoint;
+
+typedef struct NpPalmTouchEvent
+{
+  int32_t touchCount;
+  NpPalmTouchPoint* touches;
+  int32_t modifiers;
+} NpPalmTouchEvent;
+
+typedef struct NpPalmDrawEvent
+{
+  void*    dstBuffer;     // destination paint buffer (points to top-left of area to paint, only valid in API version 1.0)
+  uint32_t dstRowBytes;   // Stride in bytes for paint buffer
+  int32_t  srcLeft;       // left  edge of box to draw from in unscaled coords
+  int32_t  srcRight;      // right edge of box to draw from in unscaled coords
+  int32_t  srcTop;        // top edge of box to draw from in unscaled coords
+  int32_t  srcBottom;     // bottom edge of box to draw from in unscaled coords
+  void*    graphicsContext; // pointer to the PGContext which plugin can use for drawing (must be used to draw in API version 2.0)
+  int32_t  dstLeft;
+  int32_t  dstRight;
+  int32_t  dstTop;
+  int32_t  dstBottom;
+} NpPalmDrawEvent;
+
+typedef struct NpPalmSystemEvent
+{
+  NpPalmSystemEventsEnum type;
+  int32_t  value;
+  int32_t  viewLeft;
+  int32_t  viewRight;
+  int32_t  viewTop;
+  int32_t  viewBottom;
+  void* reserved;
+} NpPalmSystemEvent;
+
+typedef enum NpPalmGestureEventEnum
+{
+  npPalmGestureStartEvent     = 1,
+  npPalmGestureChangeEvent    = 2,
+  npPalmGestureEndEvent       = 3,
+  npPalmGestureSingleTapEvent = 4,
+} NpPalmGestureEventEnum;
+
+typedef struct NpPalmGestureEvent
+{ // we get 2 multitouch for now.
+  NpPalmGestureEventEnum type;
+  int32_t x, y;
+  float scale, rotate;
+  int32_t center_x, center_y;
+  int32_t modifiers;
+} NpPalmGestureEvent;
+
+typedef struct NpPalmAccelerometerEvent
+{
+  enum Orientation {
+    Orientation_Invalid = 0,
+    Orientation_FaceUp,
+    Orientation_FaceDown,
+    Orientation_Up,
+    Orientation_Down,
+    Orientation_Left,
+    Orientation_Right,
+  };
+  float floatX;
+  float floatY;
+  float floatZ;
+  enum Orientation orientation;
+} NpPalmAccelerometerEvent;
+
+typedef struct NPEvent
+{
+  NpPalmEventsEnum eventType;
+
+  union {
+    NpPalmKeyEvent     keyEvent;
+    NpPalmPenEvent     penEvent;
+    NpPalmDrawEvent    drawEvent;
+    NpPalmSystemEvent  systemEvent;
+    NpPalmGestureEvent gestureEvent;
+    NpPalmAccelerometerEvent accelerometerEvent;
+    NpPalmTouchEvent touchEvent;
+  } data;
+
+} NPEvent;
+#else
 typedef XEvent NPEvent;
+#endif
 #else
 typedef void*  NPEvent;
 #endif
@@ -549,6 +768,8 @@ typedef RgnHandle NPQDRegion;
 typedef CGPathRef NPCGRegion;
 #elif defined(XP_WIN)
 typedef HRGN NPRegion;
+#elif defined(XP_WEBOS)
+typedef void *NPRegion;
 #elif defined(XP_UNIX)
 typedef Region NPRegion;
 #else
@@ -682,6 +903,15 @@ enum NPEventType {
 #endif /* NP_NO_CARBON */
 
 #endif /* XP_MACOSX */
+
+#if defined(XP_WEBOS)
+typedef struct NpPalmWindow
+{
+  bool      visible;     // Whether window is visible on screen or not
+  uint32_t  bpp;         // Bits-Per-Pixel for paint surfaces
+  double    scaleFactor; // scale factor to use for painting
+} NpPalmWindow;
+#endif
 
 /*
  * Values for mode passed to NPP_New:

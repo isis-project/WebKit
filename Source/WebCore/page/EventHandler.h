@@ -80,6 +80,10 @@ class Widget;
 class PlatformGestureEvent;
 #endif
 
+#if ENABLE(IOS_GESTURE_EVENTS)
+class PlatformIosGestureEvent;
+#endif
+
 #if ENABLE(DRAG_SUPPORT)
 extern const int LinkDragHysteresis;
 extern const int ImageDragHysteresis;
@@ -161,6 +165,10 @@ public:
 
 #if ENABLE(GESTURE_EVENTS)
     bool handleGestureEvent(const PlatformGestureEvent&);
+#endif
+
+#if ENABLE(IOS_GESTURE_EVENTS)
+    bool handleIosGestureEvent(const PlatformIosGestureEvent&);
 #endif
 
 #if ENABLE(CONTEXT_MENUS)

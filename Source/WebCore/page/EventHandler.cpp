@@ -87,6 +87,11 @@
 #include "PlatformGestureEvent.h"
 #endif
 
+#if ENABLE(IOS_GESTURE_EVENTS)
+#include "GestureEvent.h"
+#include "PlatformIosGestureEvent.h"
+#endif
+
 #if ENABLE(SVG)
 #include "SVGDocument.h"
 #include "SVGElementInstance.h"
@@ -3167,6 +3172,70 @@ void EventHandler::updateLastScrollbarUnderMouse(Scrollbar* scrollbar, bool setL
         m_lastScrollbarUnderMouse = setLast ? scrollbar : 0;
     }
 }
+
+#if ENABLE(IOS_GESTURE_EVENTS)
+
+bool EventHandler::handleIosGestureEvent(const PlatformIosGestureEvent& event)
+{
+    Document* doc = m_frame->document();
+    if (!doc)
+        return false;
+
+    RenderObject* docRenderer = doc->renderer();
+    if (!docRenderer)
+        return false;
+
+    IntPoint pagePt(event.pagePt().x(), event.pagePt().y());
+    IntPoint viewPt = m_frame->view()->windowToContents(pagePt);
+
+    HitTestRequest request(HitTestRequest::ReadOnly);
+    HitTestResult result(viewPt);
+    doc->renderer()->enclosingLayer()->hitTest(request, result);
+    Node* node = result.innerNode();
+    if (!node)
+        return false;
+
+    RefPtr<EventTarget> evtTarget = node;
+
+    AtomicString eventName;
+    switch (event.type()) {
+    case PlatformIosGestureEvent::GestureStart:
+        eventName = eventNames().gesturestartEvent;
+        break;
+    case PlatformIosGestureEvent::GestureChange:
+        eventName = eventNames().gesturechangeEvent;
+        break;
+    case PlatformIosGestureEvent::GestureEnd:
+        eventName = eventNames().gestureendEvent;
+        break;
+    default:
+        return false;
+    }
+
+    ExceptionCode ec;
+    RefPtr<Event> evt = GestureEvent::create(
+            /* eventname */ eventName,
+            /* bubble */ true,
+            /* cancelable */ true,
+            /* view */m_frame->document()->defaultView(),
+            /* detail */ 0,
+            /* screenX */ viewPt.x(),
+            /* screenY */ viewPt.y(),
+            /* pageX */ pagePt.x(),
+            /* pageY */ pagePt.y(),
+            /* ctrlKey */ event.ctrlKey(),
+            /* altKey */ event.altKey(),
+            /* shiftKey */ event.shiftKey(),
+            /* metaKey */event.metaKey(),
+            /* target */ evtTarget,
+            /* scale */ event.scale(),
+            /* rot */ event.rotation(),
+            /* isSimulated */ false);
+    evtTarget->dispatchEvent(evt, ec);
+    return evt->defaultHandled() || evt->defaultPrevented();
+}
+
+#endif
 
 #if ENABLE(TOUCH_EVENTS)
 

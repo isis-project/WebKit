@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2008, 2009 Google Inc. All rights reserved.
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -46,9 +47,12 @@
 
 #if PLATFORM(QT)
 #include <qglobal.h>
+
+#if !PLATFORM(WEBOS)
 QT_BEGIN_NAMESPACE
 class QJSEngine;
 QT_END_NAMESPACE
+#endif // !PLATFORM(WEBOS)
 #endif
 
 struct NPObject;
@@ -175,9 +179,11 @@ public:
     NPObject* createScriptObjectForPluginElement(HTMLPlugInElement*);
     NPObject* windowScriptNPObject();
 
+#if !PLATFORM(WEBOS)
 #if PLATFORM(QT)
     QJSEngine* qtScriptEngine();
 #endif
+#endif // !PLATFORM(WEBOS)
 
     // Dummy method to avoid a bunch of ifdef's in WebCore.
     void evaluateInWorld(const ScriptSourceCode&, DOMWrapperWorld*);
@@ -193,9 +199,11 @@ private:
 
     OwnPtr<V8Proxy> m_proxy;
     typedef HashMap<Widget*, NPObject*> PluginObjectMap;
+#if !PLATFORM(WEBOS)
 #if PLATFORM(QT)
     OwnPtr<QJSEngine> m_qtScriptEngine;
 #endif
+#endif // !PLATFORM(WEBOS)
 
     // A mapping between Widgets and their corresponding script object.
     // This list is used so that when the plugin dies, we can immediately

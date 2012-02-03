@@ -1,5 +1,6 @@
 /*
  Copyright (C) 2010 Nokia Corporation and/or its subsidiary(-ies)
+ Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
  This library is free software; you can redistribute it and/or
  modify it under the terms of the GNU Library General Public
@@ -40,6 +41,12 @@
 #else
 #include <GL/gl.h>
 #endif
+
+#if PLATFORM(WEBOS) && !defined(MACHINE_DESKTOP)
+#include <GLES2/gl2ext.h>
+#define GL_BGRA GL_BGRA_EXT
+#endif
+
 
 #if defined(TEXMAP_OPENGL_ES_2)
 #include <EGL/egl.h>

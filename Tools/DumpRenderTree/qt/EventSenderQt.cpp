@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
  * Copyright (C) 2009 Torch Mobile Inc. http://www.torchmobile.com/
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -533,6 +534,26 @@ void EventSender::scalePageBy(float scaleFactor, float x, float y)
 {
     if (QWebFrame* frame = m_page->mainFrame())
         DumpRenderTreeSupportQt::scalePageBy(frame, scaleFactor, QPoint(x, y));
+}
+
+void EventSender::iosGestureResetState()
+{
+    DumpRenderTreeSupportQt::iosGestureResetState(m_page);
+}
+
+void EventSender::iosGestureStart(float x, float y, float rotation, float scale)
+{
+    DumpRenderTreeSupportQt::iosGestureStart(m_page, QPoint(x, y), rotation, scale);
+}
+
+void EventSender::iosGestureChange(float x, float y, float rotation, float scale)
+{
+    DumpRenderTreeSupportQt::iosGestureChange(m_page, QPoint(x, y), rotation, scale);
+}
+
+void EventSender::iosGestureEnd(float x, float y, float rotation, float scale)
+{
+    DumpRenderTreeSupportQt::iosGestureEnd(m_page, QPoint(x, y), rotation, scale);
 }
 
 QWebFrame* EventSender::frameUnderMouse() const

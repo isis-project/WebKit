@@ -3,6 +3,7 @@
     Copyright (C) 2008,2009,2010 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2007 Staikos Computing Services Inc.
     Copyright (C) 2007 Apple Inc.
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -207,6 +208,11 @@ public:
     static QString viewportAsText(QWebPage*, int deviceDPI, const QSize& deviceSize, const QSize& availableSize);
 
     static void scalePageBy(QWebFrame*, float scale, const QPoint& origin);
+    
+    static void iosGestureResetState(QWebPage*);
+    static void iosGestureStart(QWebPage*, const QPoint& pt, float rotation, float scale);
+    static void iosGestureChange(QWebPage*, const QPoint& pt, float rotation, float scale);
+    static void iosGestureEnd(QWebPage*, const QPoint& pt, float rotation, float scale);
 
     static QVariantList nodesFromRect(const QWebElement& document, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping);
     static QString responseMimeType(QWebFrame*);

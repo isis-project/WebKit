@@ -2,6 +2,7 @@
  * Copyright (C) 2006, 2007, 2008, 2009, 2010 Apple Inc. All rights reserved.
  * Copyright (C) 2008 Collabora Ltd. All rights reserved.
  * Copyright (C) 2010 Girish Ramakrishnan <girish@forwardbias.in>
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -52,6 +53,12 @@
 #include "NotImplemented.h"
 #include "Page.h"
 #include "PlatformMouseEvent.h"
+#if PLATFORM(WEBOS) && ENABLE(TOUCH_EVENTS)
+#include "TouchEvent.h"
+#endif
+#if PLATFORM(WEBOS) && ENABLE(IOS_GESTURE_EVENTS)
+#include "GestureEvent.h"
+#endif
 #include "PluginDatabase.h"
 #include "PluginDebug.h"
 #include "PluginMainThreadScheduler.h"
@@ -172,6 +179,19 @@ void PluginView::handleEvent(Event* event)
         handleKeyboardEvent(static_cast<KeyboardEvent*>(event));
     else if (event->type() == eventNames().contextmenuEvent)
         event->setDefaultHandled(); // We don't know if the plug-in has handled mousedown event by displaying a context menu, so we never want WebKit to show a default one.
+#if PLATFORM(WEBOS) && ENABLE(IOS_GESTURE_EVENTS)
+    else if (event->type() == eventNames().gesturestartEvent
+             || event->type() == eventNames().gesturechangeEvent
+             || event->type() == eventNames().gestureendEvent)
+        handleIosGestureEvent(static_cast<GestureEvent*>(event));
+#endif
+#if PLATFORM(WEBOS) && ENABLE(TOUCH_EVENTS)
+    else if (event->type() == eventNames().touchstartEvent
+             || event->type() == eventNames().touchmoveEvent
+             || event->type() == eventNames().touchendEvent
+             || event->type() == eventNames().touchcancelEvent)
+        handleTouchEvent(static_cast<TouchEvent*>(event));
+#endif
 #if defined(XP_UNIX) && ENABLE(NETSCAPE_PLUGIN_API)
     else if (event->type() == eventNames().focusoutEvent)
         handleFocusOutEvent();
@@ -365,7 +385,7 @@ void PluginView::stop()
         PluginView::setCurrentPluginView(0);
     }
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) && !defined(XP_WEBOS) // webOS doesn't support windowed plugins.
     if (m_isWindowed && m_npWindow.ws_info)
            delete (NPSetWindowCallbackStruct *)m_npWindow.ws_info;
     m_npWindow.ws_info = 0;
@@ -631,6 +651,24 @@ NPError PluginView::setValue(NPPVariable variable, void* value)
     case NPPVpluginTransparentBool:
         m_isTransparent = value;
         return NPERR_NO_ERROR;
+#if defined(XP_WEBOS)
+    case NPPVpluginDrawingModel: {
+        // Can only set drawing model inside NPP_New()
+        if (this != currentPluginView())
+           return NPERR_GENERIC_ERROR;
+
+        NPDrawingModel newDrawingModel = NPDrawingModel(uintptr_t(value));
+        switch (newDrawingModel) {
+        case NPDrawingModelPixmap:  // fallthrough
+        case NPDrawingModelQt:
+            m_drawingModel = newDrawingModel;
+            return NPERR_NO_ERROR;
+        default:
+            LOG(Plugins, "Plugin asked for unsupported drawing model: %d", newDrawingModel);
+            return NPERR_GENERIC_ERROR;
+        }
+    }
+#endif
 #if defined(XP_MACOSX)
     case NPPVpluginDrawingModel: {
         // Can only set drawing model inside NPP_New()
@@ -830,7 +868,7 @@ PluginView::PluginView(Frame* parentFrame, const IntSize& size, PluginPackage* p
     , m_paramValues(0)
     , m_mimeType(mimeType)
     , m_instance(0)
-#if defined(XP_MACOSX)
+#if defined(XP_MACOSX) || defined(XP_WEBOS)
     , m_isWindowed(false)
 #else
     , m_isWindowed(true)
@@ -838,7 +876,7 @@ PluginView::PluginView(Frame* parentFrame, const IntSize& size, PluginPackage* p
     , m_isTransparent(false)
     , m_haveInitialized(false)
     , m_isWaitingToStart(false)
-#if defined(XP_UNIX)
+#if defined(XP_UNIX) && !defined(XP_WEBOS)
     , m_needsXEmbed(false)
 #endif
 #if OS(WINDOWS) && ENABLE(NETSCAPE_PLUGIN_API)
@@ -857,15 +895,15 @@ PluginView::PluginView(Frame* parentFrame, const IntSize& size, PluginPackage* p
     , m_contextRef(0)
     , m_fakeWindow(0)
 #endif
-#if defined(XP_UNIX) && ENABLE(NETSCAPE_PLUGIN_API)
+#if defined(XP_UNIX) && !defined(XP_WEBOS) && ENABLE(NETSCAPE_PLUGIN_API)
     , m_hasPendingGeometryChange(true)
     , m_drawable(0)
     , m_visual(0)
     , m_colormap(0)
     , m_pluginDisplay(0)
 #endif
-#if PLATFORM(QT) && defined(MOZ_PLATFORM_MAEMO) && (MOZ_PLATFORM_MAEMO >= 5)
-    , m_renderToImage(false)
+#if PLATFORM(QT) && PLATFORM(WEBOS)
+    , m_drawingModel(NPDrawingModelPixmap)
 #endif
     , m_loadManually(loadManually)
     , m_manualStream(0)
@@ -967,6 +1005,7 @@ bool PluginView::isCallingPlugin()
     return s_callingPlugin > 0;
 }
 
+#if !PLATFORM(WEBOS)
 PassRefPtr<PluginView> PluginView::create(Frame* parentFrame, const IntSize& size, Element* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
 {
     // if we fail to find a plugin for this MIME type, findPlugin will search for
@@ -982,6 +1021,7 @@ PassRefPtr<PluginView> PluginView::create(Frame* parentFrame, const IntSize& siz
 
     return adoptRef(new PluginView(parentFrame, size, plugin, element, url, paramNames, paramValues, mimeTypeCopy, loadManually));
 }
+#endif
 
 void PluginView::freeStringArray(char** stringArray, int length)
 {
@@ -1367,6 +1407,12 @@ NPError PluginView::getValue(NPNVariable variable, void* value)
         *((NPBool*)value) = !page->settings() || page->settings()->privateBrowsingEnabled();
         return NPERR_NO_ERROR;
     }
+
+#if defined(XP_WEBOS)
+    case NPPVpluginDrawingModel:
+        *((NPDrawingModel*)value) = m_drawingModel;
+        return NPERR_NO_ERROR;
+#endif
 
     default:
         return NPERR_GENERIC_ERROR;

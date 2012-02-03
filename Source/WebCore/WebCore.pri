@@ -112,8 +112,14 @@ contains(DEFINES, ENABLE_XSLT=1) {
     }
 }
 
+LIBS += -lz
+
 contains(DEFINES, WTF_USE_LIBXML2=1) {
     PKGCONFIG += libxml-2.0
+}
+
+contains(DEFINES, PALM_DEVICE) {
+    PKGCONFIG += glib-2.0
 }
 
 contains(DEFINES, ENABLE_NETSCAPE_PLUGIN_API=1) {
@@ -173,7 +179,11 @@ contains(DEFINES, ENABLE_VIDEO=1) {
     } else:contains(DEFINES, WTF_USE_QT_MULTIMEDIA=1) {
         CONFIG   *= mobility
         MOBILITY *= multimedia
-    }
+    } else:contains(DEFINES, WTF_USE_WEBOS_MULTIMEDIA=1) {
+	    INCLUDEPATH += $$SOURCE_DIR/platform/graphics/webos
+
+        LIBS += -lmedia-api -lremoteplugin -llunaservice -lrt
+    }    
 }
 
 contains(DEFINES, ENABLE_WEBGL=1) {

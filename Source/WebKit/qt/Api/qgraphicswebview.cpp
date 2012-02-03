@@ -1,6 +1,7 @@
 /*
     Copyright (C) 2009 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2009 Girish Ramakrishnan <girish@forwardbias.in>
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -23,6 +24,7 @@
 
 #if !defined(QT_NO_GRAPHICSVIEW)
 
+#include "qwebevent.h"
 #include "qwebframe.h"
 #include "qwebframe_p.h"
 #include "qwebpage.h"
@@ -1157,6 +1159,16 @@ void QGraphicsWebView::wheelEvent(QGraphicsSceneWheelEvent* ev)
         QGraphicsItem::wheelEvent(ev);
 }
 #endif // QT_NO_WHEELEVENT
+
+void QGraphicsWebView::iosGestureEvent(QWebIosGestureEvent* ev)
+{
+    if (d->page) {
+        const bool accepted = ev->isAccepted();
+        d->page->event(ev);
+        ev->setAccepted(accepted);
+    }
+}
+
 
 /*! \reimp
 */

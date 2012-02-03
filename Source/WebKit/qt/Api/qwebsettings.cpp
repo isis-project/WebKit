@@ -1,5 +1,6 @@
 /*
     Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -80,6 +81,10 @@ public:
     QUrl userStyleSheetLocation;
     QString defaultTextEncoding;
     QString localStoragePath;
+    QString pluginSupplementalPath;
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+    QString mediaPipelineOptions;
+#endif
     QString offlineWebApplicationCachePath;
     qint64 offlineStorageDefaultQuota;
 #if QT_VERSION >= QT_VERSION_CHECK(4, 8, 0)
@@ -222,6 +227,9 @@ void QWebSettingsPrivate::apply()
         QString storagePath = !localStoragePath.isEmpty() ? localStoragePath : global->localStoragePath;
         settings->setLocalStorageDatabasePath(storagePath);
 
+        QString path = !pluginSupplementalPath.isEmpty() ? pluginSupplementalPath : global->pluginSupplementalPath;
+        settings->setPluginSupplementalPath(path);
+
         value = attributes.value(QWebSettings::PrintElementBackgrounds,
                                       global->attributes.value(QWebSettings::PrintElementBackgrounds));
         settings->setShouldPrintBackgrounds(value);
@@ -263,6 +271,12 @@ void QWebSettingsPrivate::apply()
         settings->setNeedsSiteSpecificQuirks(value);
 
         settings->setUsesPageCache(WebCore::pageCache()->capacity());
+
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+        QString moptions = !mediaPipelineOptions.isEmpty() ? mediaPipelineOptions: global->mediaPipelineOptions;
+        settings->setMediaPipelineOptions( moptions );
+#endif
+
     } else {
         QList<QWebSettingsPrivate*> settings = *::allSettings();
         for (int i = 0; i < settings.count(); ++i)
@@ -501,6 +515,10 @@ QWebSettings::QWebSettings()
     defaultFont.setStyleHint(QFont::Monospace);
     d->fontFamilies.insert(QWebSettings::FixedFont, defaultFont.defaultFamily());
 
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+    d->mediaPipelineOptions = QLatin1String("--gst-debug=1");
+#endif
+
     d->attributes.insert(QWebSettings::AutoLoadImages, true);
     d->attributes.insert(QWebSettings::DnsPrefetchEnabled, false);
     d->attributes.insert(QWebSettings::JavascriptEnabled, true);
@@ -583,6 +601,61 @@ void QWebSettings::resetFontSize(FontSize type)
         d->apply();
     }
 }
+
+/*!
+    Specifies a colon separated list of paths to look for NPAPI plugins in.
+
+    The \a path is added to the end of the list of hard-coded paths that WebKit
+    already uses when searching for plugins.
+
+    The \a path must be a path on the local filesystem.
+
+    \note Can be empty.
+
+    \sa pluginSupplementalPath()
+*/
+void QWebSettings::setPluginSupplementalPath(const QString& path)
+{
+    QWebSettingsPrivate* global = QWebSettings::globalSettings()->d;
+    global->pluginSupplementalPath = path;
+}
+
+/*!
+    Returns the plugin supplemental path.
+
+    \sa setPluginSupplementalPath()
+*/
+const QString& QWebSettings::pluginSupplementalPath()
+{
+    QWebSettingsPrivate* global = QWebSettings::globalSettings()->d;
+    return global->pluginSupplementalPath;
+}
+
+#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
+/*!
+    Specifies a Webos media pipeline options
+
+    \note Can be empty.
+
+    \sa mediaPipelineOptions()
+*/
+void QWebSettings::setMediaPipelineOptions(const QString& options)
+{
+    QWebSettingsPrivate* global = QWebSettings::globalSettings()->d;
+    global->mediaPipelineOptions = options;
+}
+
+/*!
+    Returns the Webos Media pipeline options
+
+    \sa setMediaPipelineOptions()
+*/
+const QString& QWebSettings::mediaPipelineOptions()
+{
+    QWebSettingsPrivate* global = QWebSettings::globalSettings()->d;
+    return global->mediaPipelineOptions;
+}
+#endif
 
 /*!
     Specifies the location of a user stylesheet to load with every web page.

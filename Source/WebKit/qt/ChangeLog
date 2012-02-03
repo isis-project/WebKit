@@ -270,6 +270,53 @@
         (QWebPage::swallowContextMenuEvent):
         Update to use new names, access style.
 
+2011-11-11  Luiz Agostini  <luiz.agostini@palm.com>
+
+        [Qt] Removing unneeded #ifdef from PopupMenuQt.cpp
+        https://bugs.webkit.org/show_bug.cgi?id=72193
+
+        Reviewed by Noam Rosenthal.
+
+        Part of PopupMenuQt.cpp code is guarded by #ifndef QT_NO_COMBOBOX although that
+        code is not related to the class QComboBox.
+
+        * WebCoreSupport/PopupMenuQt.cpp:
+        (WebCore::PopupMenuQt::show):
+
+2011-11-03  Luiz Agostini  <luiz.agostini@palm.com>
+
+        [Qt] Adding methods setGeometry and setFont to QWebSelectMethod class.
+        https://bugs.webkit.org/show_bug.cgi?id=71530
+
+        Reviewed by Simon Hausmann.
+
+        Adding methods setGeometry and setFont so that users of platform plugin may show the
+        popup menus in proper position and using proper font.
+
+        * Api/qwebkitplatformplugin.h:
+        * WebCoreSupport/PopupMenuQt.cpp:
+        (WebCore::PopupMenuQt::show):
+        * examples/platformplugin/WebPlugin.h:
+        (WebPopup::setGeometry):
+        (WebPopup::setFont):
+        * examples/platformplugin/qwebkitplatformplugin.h:
+
+2011-11-08  Luiz Agostini  <luiz.agostini@palm.com>
+
+        [Qt] Removing qwebkitglobal.h inclusion from qwebkitplatformplugin.h
+        https://bugs.webkit.org/show_bug.cgi?id=71759
+
+        Reviewed by Simon Hausmann.
+
+        qwebkitplatformplugin.h must not depend on qwebkitglobal.h.
+
+        * Api/qwebkitplatformplugin.h:
+
+        Updating the copy of qwebkitplatformplugin.h that is used by the example plugin. The previous
+        one was very outdated.
+
+        * examples/platformplugin/qwebkitplatformplugin.h:
+
 2011-12-19  Alexander Færøy  <ahf@0x90.dk>
 
         [Qt] Cleanup QTM_NAMESPACE usage in DeviceOrientationProviderQt

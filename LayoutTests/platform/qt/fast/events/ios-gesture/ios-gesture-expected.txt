@@ -1,0 +1,19 @@
+This tests iOS style gesture events. Square is (mostly) green on pass
+
+On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
+
+
+first gesture sequence
+  Gesture End: scale/rotation=0/0
+  Gesture Start: scale/rotation=1/0
+  Gesture Change: scale/rotation=2/0
+  Gesture End: scale/rotation=2/0
+second gesture sequence
+  Gesture End: scale/rotation=0/0
+  Gesture Start: scale/rotation=1/0
+  Gesture Change: scale/rotation=1/44.5
+  Gesture End: scale/rotation=1/-60.5
+PASS successfullyParsed is true
+
+TEST COMPLETE
+

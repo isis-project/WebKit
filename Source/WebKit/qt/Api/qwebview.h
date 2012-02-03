@@ -1,6 +1,7 @@
 /*
     Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2007 Staikos Computing Services Inc.
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -23,6 +24,7 @@
 
 #include "qwebkitglobal.h"
 #include "qwebpage.h"
+#include <stdint.h>
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
 #include <QtWidgets/qwidget.h>
 #include <QtWidgets/qicon.h>
@@ -131,6 +133,11 @@ Q_SIGNALS:
     void selectionChanged();
     void iconChanged();
     void urlChanged(const QUrl&);
+#ifdef QT_WEBOS
+    void addInterractiveWidgetRect(uintptr_t id, const QRect& frameRect, InteractiveRectType);
+    void removeInterractiveWidgetRect(uintptr_t id, InteractiveRectType);
+    void deadlockDetectionInterval(int);
+#endif
 
 protected:
     void resizeEvent(QResizeEvent*);

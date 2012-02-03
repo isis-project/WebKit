@@ -2,6 +2,7 @@
  * Copyright (C) 2006, 2007 Apple Inc.  All rights reserved.
  * Copyright (C) 2008 Collabora Ltd. All rights reserved.
  * Copyright (C) 2009 Girish Ramakrishnan <girish@forwardbias.in>
+ * Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -54,6 +55,13 @@
 #endif
 #include "KeyboardEvent.h"
 #include "MouseEvent.h"
+#if ENABLE(IOS_GESTURE_EVENTS)
+#include "GestureEvent.h"
+#endif
+#if ENABLE(TOUCH_EVENTS)
+#include "TouchEvent.h"
+#include "TouchList.h"
+#endif
 #include "NotImplemented.h"
 #include "Page.h"
 #include "PlatformMouseEvent.h"
@@ -77,12 +85,16 @@
 #include <QPainter>
 #include <QStyleOptionGraphicsItem>
 #include <QWidget>
+#if defined(XP_WEBOS)
+#include <glib.h>
+#else
 #include <QX11Info>
 #include <X11/X.h>
 #ifndef QT_NO_XRENDER
 #define Bool int
 #define Status int
 #include <X11/extensions/Xrender.h>
+#endif
 #endif
 #include <runtime/JSLock.h>
 #include <runtime/JSValue.h>
@@ -115,7 +127,11 @@ public:
     void paint(QPainter* painter, const QStyleOptionGraphicsItem* option, QWidget* widget = 0)
     {
         Q_UNUSED(widget);
+#if defined(XP_WEBOS)
+        ASSERT_NOT_REACHED();
+#else
         m_view->paintUsingXPixmap(painter, option->exposedRect.toRect());
+#endif
     }
 
 private:
@@ -153,16 +169,20 @@ void PluginView::updatePluginWidget()
         show();
 
     if (!m_isWindowed && m_windowRect.size() != oldWindowRect.size()) {
+#if !defined(XP_WEBOS)
         if (m_drawable)
             XFreePixmap(QX11Info::display(), m_drawable);
 
         m_drawable = XCreatePixmap(QX11Info::display(), QX11Info::appRootWindow(), m_windowRect.width(), m_windowRect.height(),
                                    ((NPSetWindowCallbackStruct*)m_npWindow.ws_info)->depth);
         QApplication::syncX(); // make sure that the server knows about the Drawable
+#endif
     }
 
+#if !defined(XP_WEBOS)
     // do not call setNPWindowIfNeeded immediately, will be called on paint()
     m_hasPendingGeometryChange = true;
+#endif
 
     // (i) in order to move/resize the plugin window at the same time as the
     // rest of frame during e.g. scrolling, we set the window geometry
@@ -207,6 +227,35 @@ void PluginView::hide()
     Widget::hide();
 }
 
+# if defined(XP_WEBOS)
+void PluginView::paintUsingPainter(QPainter* painter, const IntRect& exposedRect)
+{
+    NPEvent npEvent;
+    bzero(&npEvent, sizeof(npEvent));
+
+    painter->save();
+    painter->translate(frameRect().x(), frameRect().y());
+    painter->setClipRect(exposedRect);
+
+    npEvent.eventType = npPalmDrawEvent;
+    npEvent.data.drawEvent.srcLeft = exposedRect.x();
+    npEvent.data.drawEvent.srcTop = exposedRect.y();
+    npEvent.data.drawEvent.srcRight = exposedRect.maxX();
+    npEvent.data.drawEvent.srcBottom = exposedRect.maxY();
+    npEvent.data.drawEvent.graphicsContext = painter;
+    npEvent.data.drawEvent.dstLeft = npEvent.data.drawEvent.srcLeft;
+    npEvent.data.drawEvent.dstTop = npEvent.data.drawEvent.srcTop;
+    npEvent.data.drawEvent.dstRight = npEvent.data.drawEvent.srcRight;
+    npEvent.data.drawEvent.dstBottom = npEvent.data.drawEvent.srcBottom;
+    npEvent.data.drawEvent.dstRowBytes = 4*(npEvent.data.drawEvent.dstRight-npEvent.data.drawEvent.dstLeft);
+
+    dispatchNPEvent(npEvent);
+
+    painter->restore();
+}
+#endif
+
+#if !defined(XP_WEBOS)
 void PluginView::paintUsingXPixmap(QPainter* painter, const QRect &exposedRect)
 {
     QPixmap qtDrawable = QPixmap::fromX11Pixmap(m_drawable, QPixmap::ExplicitlyShared);
@@ -268,6 +317,7 @@ void PluginView::paintUsingXPixmap(QPainter* painter, const QRect &exposedRect)
 
     painter->drawPixmap(QPoint(exposedRect.x(), exposedRect.y()), qtDrawable, exposedRect);
 }
+#endif
 
 void PluginView::paint(GraphicsContext* context, const IntRect& rect)
 {
@@ -289,17 +339,26 @@ void PluginView::paint(GraphicsContext* context, const IntRect& rect)
         return;
 #endif
 
+#if !defined(XP_WEBOS)
     if (!m_drawable)
         return;
+#endif
 
     QPainter* painter = context->platformContext();
     IntRect exposedRect(rect);
     exposedRect.intersect(frameRect());
     exposedRect.move(-frameRect().x(), -frameRect().y());
 
+#if defined(XP_WEBOS)
+    if (m_drawingModel == NPDrawingModelQt) {
+        paintUsingPainter(painter, exposedRect);
+        return;
+    }
+#else
     painter->translate(frameRect().x(), frameRect().y());
     paintUsingXPixmap(painter, exposedRect);
     painter->translate(-frameRect().x(), -frameRect().y());
+#endif
 }
 
 // TODO: Unify across ports.
@@ -310,11 +369,13 @@ bool PluginView::dispatchNPEvent(NPEvent& event)
 
     bool shouldPop = false;
 
+#if !defined(XP_WEBOS)
     if (m_plugin->pluginFuncs()->version < NPVERS_HAS_POPUPS_ENABLED_STATE
         && (event.type == ButtonRelease || event.type == 3 /*KeyRelease*/)) {
         pushPopupsEnabledState(true);
         shouldPop = true;
     }
+#endif
 
     PluginView::setCurrentPluginView(this);
 #if USE(JSC)
@@ -331,6 +392,7 @@ bool PluginView::dispatchNPEvent(NPEvent& event)
     return accepted;
 }
 
+#if !defined(XP_WEBOS)
 void setSharedXEventFields(XEvent* xEvent, QWidget* ownerWidget)
 {
     xEvent->xany.serial = 0; // we are unaware of the last request processed by X Server
@@ -384,6 +446,7 @@ void PluginView::setXKeyEventSpecificFields(XEvent* xEvent, KeyboardEvent* event
     xEvent->xkey.x_root = 0;
     xEvent->xkey.y_root = 0;
 }
+#endif
 
 void PluginView::handleKeyboardEvent(KeyboardEvent* event)
 {
@@ -393,14 +456,122 @@ void PluginView::handleKeyboardEvent(KeyboardEvent* event)
     if (event->type() != eventNames().keydownEvent && event->type() != eventNames().keyupEvent)
         return;
 
+#if defined(XP_WEBOS)
+    NPEvent npEvent;
+    bzero(&npEvent, sizeof(npEvent));
+
+    if (event->type() != eventNames().keydownEvent)
+        npEvent.eventType = npPalmKeyDownEvent;
+    else if (event->type() != eventNames().keyupEvent)
+        npEvent.eventType = npPalmKeyUpEvent;
+    else if (event->type() != eventNames().keypressEvent)
+        npEvent.eventType = npPalmKeyRepeatEvent;
+    else
+        return;
+
+    npEvent.data.keyEvent.chr = event->keyEvent()->text()[0];
+    npEvent.data.keyEvent.modifiers = 0x0;
+    if (event->ctrlKey())
+        npEvent.data.gestureEvent.modifiers |= npPalmCtrlKeyModifier;
+    if (event->altKey())
+        npEvent.data.gestureEvent.modifiers |= npPalmAltKeyModifier;
+    if (event->shiftKey())
+        npEvent.data.gestureEvent.modifiers |= npPalmShiftKeyModifier;
+    if (event->metaKey())
+        npEvent.data.gestureEvent.modifiers |= npPalmMetaKeyModifier;
+
+    // Our old GTK derived implementation would also preserve the raw key code &
+    // modifiers for use by the adapter/server. This may no longer be necessary today.
+    npEvent.data.keyEvent.rawkeyCode = event->keyCode();
+    npEvent.data.keyEvent.rawModifier = npEvent.data.keyEvent.modifiers;
+#else
     XEvent npEvent;
     initXEvent(&npEvent);
     setXKeyEventSpecificFields(&npEvent, event);
+#endif
 
     if (dispatchNPEvent(npEvent))
         event->setDefaultHandled();
 }
 
+#if PLATFORM(WEBOS) && ENABLE(IOS_GESTURE_EVENTS)
+void PluginView::handleIosGestureEvent(GestureEvent* event)
+{
+    NPEvent npEvent;
+
+    npEvent.eventType = npPalmGestureEvent;
+
+    if (event->type() ==  eventNames().gesturestartEvent)
+        npEvent.data.gestureEvent.type = npPalmGestureStartEvent;
+    else if (event->type() ==  eventNames().gesturechangeEvent)
+        npEvent.data.gestureEvent.type = npPalmGestureChangeEvent;
+    else if (event->type() ==  eventNames().gestureendEvent)
+        npEvent.data.gestureEvent.type = npPalmGestureEndEvent;
+
+    IntPoint pagePt(event->pageX(), event->pageY());
+    IntPoint windowPt = static_cast<FrameView*>(parent())->contentsToWindow(pagePt);
+    npEvent.data.gestureEvent.x = windowPt.x();
+    npEvent.data.gestureEvent.y = windowPt.y();
+    npEvent.data.gestureEvent.scale = event->scale();
+    npEvent.data.gestureEvent.rotate = event->rotation();
+
+    npEvent.data.gestureEvent.center_x = pagePt.x();
+    npEvent.data.gestureEvent.center_y = pagePt.y();
+
+    /* pass down modifier keys */
+    npEvent.data.gestureEvent.modifiers = 0;
+    if (event->ctrlKey())
+        npEvent.data.gestureEvent.modifiers |= npPalmCtrlKeyModifier;
+    if (event->altKey())
+        npEvent.data.gestureEvent.modifiers |= npPalmAltKeyModifier;
+    if (event->shiftKey())
+        npEvent.data.gestureEvent.modifiers |= npPalmShiftKeyModifier;
+    if (event->metaKey())
+        npEvent.data.gestureEvent.modifiers |= npPalmMetaKeyModifier;
+
+    if (dispatchNPEvent(npEvent))
+        event->setDefaultHandled();
+}
+#endif
+
+#if PLATFORM(WEBOS) && ENABLE(TOUCH_EVENTS)
+void PluginView::handleTouchEvent(TouchEvent* event)
+{
+    NPEvent npEvent;
+
+    if (event->type() ==  eventNames().touchstartEvent)
+        npEvent.eventType = npPalmTouchStartEvent;
+    else if (event->type() ==  eventNames().touchmoveEvent)
+        npEvent.eventType = npPalmTouchMoveEvent;
+    else if (event->type() ==  eventNames().touchendEvent)
+        npEvent.eventType = npPalmTouchEndEvent;
+    else if (event->type() ==  eventNames().touchcancelEvent)
+        npEvent.eventType = npPalmTouchCancelledEvent;
+
+    TouchList* touchList = event->touches();
+
+    npEvent.data.touchEvent.touchCount = touchList->length();
+    npEvent.data.touchEvent.modifiers = 0;
+
+    const int kMaxTouches = 10;
+
+    NpPalmTouchPoint touches[kMaxTouches];
+
+    for (int i = 0; i < npEvent.data.touchEvent.touchCount; i++) {
+        Touch* touch = touchList->item(i);
+        IntPoint p = static_cast<FrameView*>(parent())->contentsToWindow(IntPoint(touch->pageX(), touch->pageY()));
+        touches[i].xCoord = p.x();
+        touches[i].yCoord = p.y();
+    }
+
+    npEvent.data.touchEvent.touches = touches;
+
+    if (dispatchNPEvent(npEvent))
+        event->setDefaultHandled();
+}
+#endif
+
+#if !defined(XP_WEBOS)
 static unsigned int inputEventState(MouseEvent* event)
 {
     unsigned int state = 0;
@@ -475,6 +646,7 @@ static void setXCrossingEventSpecificFields(XEvent* xEvent, MouseEvent* event, c
     xcrossing.same_screen = true;
     xcrossing.focus = false;
 }
+#endif
 
 void PluginView::handleMouseEvent(MouseEvent* event)
 {
@@ -492,6 +664,24 @@ void PluginView::handleMouseEvent(MouseEvent* event)
         focusPluginElement();
     }
 
+#if defined(XP_WEBOS)
+    NPEvent npEvent;
+    bzero(&npEvent, sizeof(npEvent));
+
+    IntPoint postZoomPos = roundedIntPoint(m_element->renderer()->absoluteToLocal(event->absoluteLocation()));
+
+    if (event->type() == eventNames().mousedownEvent)
+        npEvent.eventType = npPalmPenDownEvent;
+    else if (event->type() == eventNames().mouseupEvent)
+        npEvent.eventType = npPalmPenUpEvent;
+    else if (event->type() == eventNames().mousemoveEvent)
+        npEvent.eventType = npPalmPenMoveEvent;
+    else
+        return; // We don't currently handle mouse in/out/over/wheel events
+
+    npEvent.data.penEvent.xCoord = postZoomPos.x();
+    npEvent.data.penEvent.yCoord = postZoomPos.y();
+#else
     XEvent npEvent;
     initXEvent(&npEvent);
 
@@ -505,6 +695,7 @@ void PluginView::handleMouseEvent(MouseEvent* event)
         setXCrossingEventSpecificFields(&npEvent, event, postZoomPos);
     else
         return;
+#endif
 
     if (dispatchNPEvent(npEvent))
         event->setDefaultHandled();
@@ -512,6 +703,12 @@ void PluginView::handleMouseEvent(MouseEvent* event)
 
 void PluginView::handleFocusInEvent()
 {
+#if defined(XP_WEBOS)
+    NPEvent npEvent;
+    bzero(&npEvent, sizeof(npEvent));
+    npEvent.eventType = npPalmSystemEvent;
+    npEvent.data.systemEvent.type = npPalmGainFocusEvent;
+#else
     XEvent npEvent;
     initXEvent(&npEvent);
 
@@ -519,12 +716,19 @@ void PluginView::handleFocusInEvent()
     event.type = 9; /* int as Qt unsets FocusIn */
     event.mode = NotifyNormal;
     event.detail = NotifyDetailNone;
+#endif
 
     dispatchNPEvent(npEvent);
 }
 
 void PluginView::handleFocusOutEvent()
 {
+#if defined(XP_WEBOS)
+    NPEvent npEvent;
+    bzero(&npEvent, sizeof(npEvent));
+    npEvent.eventType = npPalmSystemEvent;
+    npEvent.data.systemEvent.type = npPalmLoseFocusEvent;
+#else
     XEvent npEvent;
     initXEvent(&npEvent);
 
@@ -532,6 +736,7 @@ void PluginView::handleFocusOutEvent()
     event.type = 10; /* int as Qt unsets FocusOut */
     event.mode = NotifyNormal;
     event.detail = NotifyDetailNone;
+#endif
 
     dispatchNPEvent(npEvent);
 }
@@ -567,9 +772,11 @@ void PluginView::setNPWindowIfNeeded()
     if (m_isWindowed && !platformPluginWidget())
         return;
 
+#if !defined(XP_WEBOS)
     if (!m_hasPendingGeometryChange)
         return;
     m_hasPendingGeometryChange = false;
+#endif
 
     if (m_isWindowed) {
         platformPluginWidget()->setGeometry(m_windowRect);
@@ -691,6 +898,19 @@ bool PluginView::platformGetValueStatic(NPNVariable variable, void* value, NPErr
         *result = NPERR_NO_ERROR;
         return true;
 
+#if defined(XP_WEBOS)
+    case NPNVSupportsWindowlessLocal:
+        *static_cast<NPBool*>(value) = true;
+        *result = NPERR_NO_ERROR;
+        return true;
+
+    case NPNVsupportsPixmapDrawingBool: // Fallthrough
+    case NPNVsupportsQtDrawingBool:
+        *static_cast<NPBool*>(value) = true;
+        *result = NPERR_NO_ERROR;
+        return true;
+#endif
+
     default:
         return false;
     }
@@ -700,8 +920,13 @@ bool PluginView::platformGetValue(NPNVariable variable, void* value, NPError* re
 {
     switch (variable) {
     case NPNVxDisplay:
+#if defined(XP_WEBOS)
+        *(void **)value = 0;
+        *result = NPERR_INVALID_PARAM;
+#else
         *(void **)value = QX11Info::display();
         *result = NPERR_NO_ERROR;
+#endif
         return true;
 
     case NPNVxtAppContext:
@@ -709,10 +934,14 @@ bool PluginView::platformGetValue(NPNVariable variable, void* value, NPError* re
         return true;
 
     case NPNVnetscapeWindow: {
+#if defined(XP_WEBOS)
+        *result = NPERR_INVALID_PARAM;
+#else
         void* w = reinterpret_cast<void*>(value);
         QWebPageClient* client = m_parentFrame->view()->hostWindow()->platformPageClient();
         *((XID *)w) = client ? client->ownerWidget()->window()->winId() : 0;
         *result = NPERR_NO_ERROR;
+#endif
         return true;
     }
 
@@ -772,6 +1001,7 @@ void PluginView::forceRedraw()
     invalidate();
 }
 
+#if !defined(XP_WEBOS)
 static Display *getPluginDisplay()
 {
     // The plugin toolkit might run using a different X connection. At the moment, we only
@@ -843,6 +1073,7 @@ static void getVisualAndColormap(int depth, Visual **visual, Colormap *colormap)
     if (*visual)
         *colormap = XCreateColormap(QX11Info::display(), QX11Info::appRootWindow(), *visual, AllocNone);
 }
+#endif // XP_WEBOS
 
 bool PluginView::platformStart()
 {
@@ -854,13 +1085,33 @@ bool PluginView::platformStart()
 #if USE(JSC)
         JSC::JSLock::DropAllLocks dropAllLocks(JSC::SilenceAssertionsOnly);
 #endif
+#if !defined(XP_WEBOS)
         setCallingPlugin(true);
         m_plugin->pluginFuncs()->getvalue(m_instance, NPPVpluginNeedsXEmbed, &m_needsXEmbed);
         setCallingPlugin(false);
+#endif
         PluginView::setCurrentPluginView(0);
     }
 
+#if defined(XP_WEBOS)
+    if (plugin()->pluginFuncs()->setvalue) {
+        static GMainLoop* s_mainLoop = 0;
+
+        if (!s_mainLoop)
+            s_mainLoop = g_main_loop_new(0, TRUE);
+
+        plugin()->pluginFuncs()->setvalue(instance(),
+                                          (NPNVariable) npPalmEventLoopValue,
+                                          s_mainLoop);
+    }
+#endif
+
     if (m_isWindowed) {
+#if defined(XP_WEBOS)
+        notImplemented();
+        m_status = PluginStatusCanNotLoadPlugin;
+        return false;
+#else
         QWebPageClient* client = m_parentFrame->view()->hostWindow()->platformPageClient();
         if (m_needsXEmbed && client) {
             setPlatformWidget(new PluginContainerQt(this, client->ownerWidget()));
@@ -871,9 +1122,12 @@ bool PluginView::platformStart()
             m_status = PluginStatusCanNotLoadPlugin;
             return false;
         }
+#endif
     } else {
         setPlatformWidget(0);
+#if !defined(XP_WEBOS)
         m_pluginDisplay = getPluginDisplay();
+#endif
 
 #if USE(ACCELERATED_COMPOSITING) && !USE(TEXTURE_MAPPER)
         if (shouldUseAcceleratedCompositing()) {
@@ -888,6 +1142,15 @@ bool PluginView::platformStart()
     if (!frameRect().isEmpty())
         show();
 
+#if defined(XP_WEBOS)
+    m_npWindow.type = m_isWindowed ? NPWindowTypeWindow : NPWindowTypeDrawable;
+
+    m_npWindow.window = 0; // Not used?
+    m_npWindow.x = 0;
+    m_npWindow.y = 0;
+    m_npWindow.width = -1;
+    m_npWindow.height = -1;
+#else
     NPSetWindowCallbackStruct* wsi = new NPSetWindowCallbackStruct();
     wsi->type = 0;
 
@@ -929,25 +1192,36 @@ bool PluginView::platformStart()
     }
 
     m_npWindow.ws_info = wsi;
+#endif
 
     if (!(m_plugin->quirks().contains(PluginQuirkDeferFirstSetWindowCall))) {
         updatePluginWidget();
         setNPWindowIfNeeded();
     }
 
+#if PLATFORM(WEBOS)
+    postPlatformStart();
+#endif
+
     return true;
 }
 
 void PluginView::platformDestroy()
 {
+#if PLATFORM(WEBOS)
+    prePlatformDestroy();
+#endif
+
     if (platformPluginWidget())
         delete platformPluginWidget();
 
+#if !defined(XP_WEBOS)
     if (m_drawable)
         XFreePixmap(QX11Info::display(), m_drawable);
 
     if (m_colormap)
         XFreeColormap(QX11Info::display(), m_colormap);
+#endif
 }
 
 #if USE(ACCELERATED_COMPOSITING)

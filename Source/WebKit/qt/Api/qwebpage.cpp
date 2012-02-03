@@ -2,6 +2,7 @@
     Copyright (C) 2008, 2009 Nokia Corporation and/or its subsidiary(-ies)
     Copyright (C) 2007 Staikos Computing Services Inc.
     Copyright (C) 2007 Apple Inc.
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -92,6 +93,7 @@
 #include "PageClientQt.h"
 #include "PageGroup.h"
 #include "Pasteboard.h"
+#include "PlatformIosGestureEvent.h"
 #include "PlatformKeyboardEvent.h"
 #include "PlatformTouchEvent.h"
 #include "PlatformWheelEvent.h"
@@ -145,6 +147,7 @@
 #if USE(QT_MOBILITY_SYSTEMINFO)
 #include <qsysteminfo.h>
 #endif
+#include "qwebevent.h"
 
 using namespace WebCore;
 
@@ -799,17 +802,28 @@ void QWebPagePrivate::handleSoftwareInputPanel(Qt::MouseButton button, const QPo
         return;
 
     if (client && client->inputMethodEnabled()
-        && frame->document()->focusedNode()
-        && button == Qt::LeftButton && qApp->autoSipEnabled()) {
-        QStyle::RequestSoftwareInputPanel behavior = QStyle::RequestSoftwareInputPanel(
-            client->ownerWidget()->style()->styleHint(QStyle::SH_RequestSoftwareInputPanel));
-        if (!clickCausedFocus || behavior == QStyle::RSIP_OnMouseClick) {
-            HitTestResult result = frame->eventHandler()->hitTestResultAtPoint(frame->view()->windowToContents(pos), false);
-            if (result.isContentEditable()) {
-                QEvent event(QEvent::RequestSoftwareInputPanel);
-                QApplication::sendEvent(client->ownerWidget(), &event);
+            && frame->document()->focusedNode()) {
+        if(button == Qt::LeftButton && qApp->autoSipEnabled()) {
+            QStyle::RequestSoftwareInputPanel behavior = QStyle::RequestSoftwareInputPanel(
+                    client->ownerWidget()->style()->styleHint(QStyle::SH_RequestSoftwareInputPanel));
+            if (!clickCausedFocus || behavior == QStyle::RSIP_OnMouseClick) {
+                HitTestResult result = frame->eventHandler()->hitTestResultAtPoint(frame->view()->windowToContents(pos), false);
+                if (result.isContentEditable()) {
+                    QEvent event(QEvent::RequestSoftwareInputPanel);
+                    QApplication::sendEvent(client->ownerWidget(), &event);
+                }
+                else
+                {
+                    QEvent event(QEvent::CloseSoftwareInputPanel);
+                    QApplication::sendEvent(client->ownerWidget(), &event);
+                }
             }
         }
+    }
+    else
+    {
+        QEvent event(QEvent::CloseSoftwareInputPanel);
+        QApplication::sendEvent(client->ownerWidget(), &event);
     }
 
     clickCausedFocus = false;
@@ -1337,6 +1351,17 @@ void QWebPagePrivate::adjustPointForClicking(QMouseEvent*)
     notImplemented();
 }
 
+static QtPlatformPlugin& platformPluginObject()
+{
+    DEFINE_STATIC_LOCAL(QtPlatformPlugin, result, ());
+    return result;
+}
+
+QWebKitPlatformPlugin* QWebPage::platformPlugin()
+{
+    return ::platformPluginObject().plugin();
+}
+
 #if !defined(QT_NO_GRAPHICSVIEW)
 void QWebPagePrivate::adjustPointForClicking(QGraphicsSceneMouseEvent* ev)
 {
@@ -1368,6 +1393,24 @@ void QWebPagePrivate::adjustPointForClicking(QGraphicsSceneMouseEvent* ev)
     ev->setPos(QPointF(adjustedPoint));
 }
 #endif
+
+bool QWebPagePrivate::iosGestureEvent(QWebIosGestureEvent* event)
+{
+#if ENABLE(IOS_GESTURE_EVENTS)
+    WebCore::Frame* frame = QWebFramePrivate::core(mainFrame.data());
+    if (!frame->view())
+        return false;
+
+    // Only accepting because touchEvent does and I think it may be necessary - not 100% sure it's necessary
+    event->setAccepted(true);
+
+    // Return whether the default action was cancelled in the JS event handler
+    return frame->eventHandler()->handleIosGestureEvent(PlatformIosGestureEvent(event));
+#else
+    event->ignore();
+    return false;
+#endif
+}
 
 bool QWebPagePrivate::touchEvent(QTouchEvent* event)
 {
@@ -2477,6 +2520,18 @@ void QWebPage::setViewportSize(const QSize &size) const
     }
 }
 
+#ifdef QT_WEBOS
+const QString& QWebPage::appIdentifier() const
+{
+    return d->appIdentifier;
+}
+
+void QWebPage::setAppIdentifier(const QString& id)
+{
+    d->appIdentifier = id;
+}
+#endif
+
 static int getintenv(const char* variable)
 {
     bool ok;
@@ -3047,6 +3102,13 @@ QUndoStack *QWebPage::undoStack() const
 */
 bool QWebPage::event(QEvent *ev)
 {
+    if (ev->type() == QWebEvent::getIosGestureStartEventType()
+        || ev->type() == QWebEvent::getIosGestureChangeEventType()
+        || ev->type() == QWebEvent::getIosGestureEndEventType()) {
+        d->iosGestureEvent(static_cast<QWebIosGestureEvent*>(ev));
+        return true;
+    }
+
     switch (ev->type()) {
     case QEvent::Timer:
         d->timerEvent(static_cast<QTimerEvent*>(ev));
@@ -4163,5 +4225,44 @@ quint64 QWebPage::bytesReceived() const
   \fn QWebPagePrivate* QWebPage::handle() const
   \internal
 */
+#ifdef QT_WEBOS
+/*!
+    \fn bool QWebPage::selectionBounds(QRect& selectionStart, QRect& selectionEnd, QRect& boundingRect);
+
+    \brief This function sets the caret bounds of start, end and absoluting bounding rectangle of visible selection.
+
+    If the selection is invalid, It returns false and all the bounds are set to NULL.
+
+    \sa selectionChanged(), selectedHtml(), selectedText()
+*/
+bool QWebPage::selectionBounds(QRect& selectionStart, QRect& selectionEnd, QRect& boundingRect) const
+{
+    selectionStart = selectionEnd = boundingRect = QRect();
+    Frame* focusedFrame = d->page->focusController()->focusedFrame();
+    if (!focusedFrame)
+        return false;
+
+    selectionStart = focusedFrame->selection()->selection().visibleStart().absoluteCaretBounds();
+    selectionEnd = focusedFrame->selection()->selection().visibleEnd().absoluteCaretBounds();
+    boundingRect = enclosingIntRect(focusedFrame->selection()->bounds());
+
+    return (selectionStart.isValid() && selectionEnd.isValid() && boundingRect.isValid());
+}
+
+/*!
+    \fn void QWebPage::getTextCaretPos(QRect& bounds);
+
+    \brief Returns the text caret bounds in absolute coordinates (or empty if not editing).
+*/
+void QWebPage::getTextCaretPos(QRect& bounds) const
+{
+    Frame* focusedFrame = d->page->focusController()->focusedFrame();
+
+    if (focusedFrame && !focusedFrame->selection()->isRange())
+        bounds = focusedFrame->selection()->absoluteCaretBounds();
+    else
+        bounds = QRect(-1, -1, 0, 0);
+}
+#endif
 
 #include "moc_qwebpage.cpp"

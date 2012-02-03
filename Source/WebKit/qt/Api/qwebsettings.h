@@ -1,5 +1,6 @@
 /*
     Copyright (C) 2008 Nokia Corporation and/or its subsidiary(-ies)
+    Copyright (C) 2011 Hewlett-Packard Development Company, L.P.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -150,10 +151,17 @@ public:
     static QString offlineWebApplicationCachePath();
     static void setOfflineWebApplicationCacheQuota(qint64 maximumSize);
     static qint64 offlineWebApplicationCacheQuota();
-    
+
+    static void setPluginSupplementalPath(const QString& path);
+    static const QString& pluginSupplementalPath();
+
     void setLocalStoragePath(const QString& path);
     QString localStoragePath() const; 
 
+#if defined(ENABLE_VIDEO) && ENABLE_VIDEO && defined(WTF_USE_WEBOS_MULTIMEDIA) && WTF_USE_WEBOS_MULTIMEDIA
+    static void setMediaPipelineOptions(const QString& options);
+    static const QString& mediaPipelineOptions();
+#endif
     static void clearMemoryCaches();
 
     static void enablePersistentStorage(const QString& path = QString());
