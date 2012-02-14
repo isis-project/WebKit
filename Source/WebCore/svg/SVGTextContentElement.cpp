@@ -228,29 +228,42 @@ bool SVGTextContentElement::isSupportedAttribute(const QualifiedName& attrName)
     return supportedAttributes.contains<QualifiedName, SVGAttributeHashTranslator>(attrName);
 }
 
-void SVGTextContentElement::parseMappedAttribute(Attribute* attr)
+bool SVGTextContentElement::isPresentationAttribute(Attribute* attr) const
+{
+    if (attr->name().matches(XMLNames::spaceAttr))
+        return true;
+    return SVGStyledElement::isPresentationAttribute(attr);
+}
+
+void SVGTextContentElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
+{
+    if (!isSupportedAttribute(attr->name()))
+        SVGStyledElement::collectStyleForAttribute(attr, style);
+    else if (attr->name().matches(XMLNames::spaceAttr)) {
+        DEFINE_STATIC_LOCAL(const AtomicString, preserveString, ("preserve"));
+
+        if (attr->value() == preserveString)
+            style->setProperty(CSSPropertyWhiteSpace, CSSValuePre);
+        else
+            style->setProperty(CSSPropertyWhiteSpace, CSSValueNowrap);
+    }
+}
+
+void SVGTextContentElement::parseAttribute(Attribute* attr)
 {
     SVGParsingError parseError = NoError;
 
     if (!isSupportedAttribute(attr->name()))
-        SVGStyledElement::parseMappedAttribute(attr);
+        SVGStyledElement::parseAttribute(attr);
     else if (attr->name() == SVGNames::lengthAdjustAttr) {
         SVGLengthAdjustType propertyValue = SVGPropertyTraits<SVGLengthAdjustType>::fromString(attr->value());
         if (propertyValue > 0)
             setLengthAdjustBaseValue(propertyValue);
     } else if (attr->name() == SVGNames::textLengthAttr) {
         m_textLength.value = SVGLength::construct(LengthModeOther, attr->value(), parseError, ForbidNegativeLengths);
-    } else if (SVGTests::parseMappedAttribute(attr)
-               || SVGExternalResourcesRequired::parseMappedAttribute(attr)) {
-    } else if (SVGLangSpace::parseMappedAttribute(attr)) {
-        if (attr->name().matches(XMLNames::spaceAttr)) {
-            DEFINE_STATIC_LOCAL(const AtomicString, preserveString, ("preserve"));
-
-            if (attr->value() == preserveString)
-                addCSSProperty(attr, CSSPropertyWhiteSpace, CSSValuePre);
-            else
-                addCSSProperty(attr, CSSPropertyWhiteSpace, CSSValueNowrap);
-        }
+    } else if (SVGTests::parseAttribute(attr)
+               || SVGExternalResourcesRequired::parseAttribute(attr)) {
+    } else if (SVGLangSpace::parseAttribute(attr)) {
     } else
         ASSERT_NOT_REACHED();
 
@@ -315,8 +328,10 @@ void SVGTextContentElement::childrenChanged(bool changedByParser, Node* beforeCh
     if (changedByParser || !renderer())
         return;
 
+    // Invalidate the TextPosition cache in SVGTextLayoutAttributesBuilder as it may now point
+    // to no-longer existing SVGTextPositioningElements and thus needs to be rebuild.
     if (RenderSVGText* textRenderer = RenderSVGText::locateRenderSVGTextAncestor(renderer()))
-        textRenderer->setNeedsPositioningValuesUpdate();
+        textRenderer->textDOMChanged();
 }
 
 }

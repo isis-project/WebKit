@@ -93,8 +93,6 @@
 #include <WebCore/RenderView.h>
 #include <WebCore/RenderTreeAsText.h>
 #include <WebCore/Settings.h>
-#include <WebCore/SVGDocumentExtensions.h>
-#include <WebCore/SVGSMILElement.h>
 #include <WebCore/TextIterator.h>
 #include <WebCore/JSDOMBinding.h>
 #include <WebCore/ScriptController.h>
@@ -1273,34 +1271,6 @@ HRESULT WebFrame::pauseTransition(BSTR propertyName, IDOMNode* node, double seco
         return E_FAIL;
 
     *transitionWasRunning = controller->pauseTransitionAtTime(domNode->node()->renderer(), String(propertyName, SysStringLen(propertyName)), secondsFromNow);
-    return S_OK;
-}
-
-HRESULT WebFrame::pauseSVGAnimation(BSTR elementId, IDOMNode* node, double secondsFromNow, BOOL* animationWasRunning)
-{
-    if (!node || !animationWasRunning)
-        return E_POINTER;
-
-    *animationWasRunning = FALSE;
-
-    Frame* frame = core(this);
-    if (!frame)
-        return E_FAIL;
-
-    Document* document = frame->document();
-    if (!document || !document->svgExtensions())
-        return E_FAIL;
-
-    COMPtr<DOMNode> domNode(Query, node);
-    if (!domNode || !SVGSMILElement::isSMILElement(domNode->node()))
-        return E_FAIL;
-
-#if ENABLE(SVG)
-    *animationWasRunning = document->accessSVGExtensions()->sampleAnimationAtTime(String(elementId, SysStringLen(elementId)), static_cast<SVGSMILElement*>(domNode->node()), secondsFromNow);
-#else
-    *animationWasRunning = FALSE;
-#endif
-
     return S_OK;
 }
 
@@ -2604,7 +2574,8 @@ HRESULT WebFrame::stringByEvaluatingJavaScriptInScriptWorld(IWebScriptWorld* iWo
         return S_OK;
 
     JSLock lock(SilenceAssertionsOnly);
-    String resultString = ustringToString(result.toString(anyWorldGlobalObject->globalExec()));
+    JSC::ExecState* exec = anyWorldGlobalObject->globalExec();
+    String resultString = ustringToString(result.toString(exec)->value(exec));
     *evaluationResult = BString(resultString).release();
 
     return S_OK;

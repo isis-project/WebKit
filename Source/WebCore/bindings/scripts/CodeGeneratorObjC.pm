@@ -208,11 +208,6 @@ sub new
     return $reference;
 }
 
-sub finish
-{
-    my $object = shift;
-}
-
 sub ReadPublicInterfaces
 {
     my $class = shift;
@@ -622,7 +617,7 @@ sub AddIncludesForType
     }
 
     # FIXME: won't compile without these
-    $implIncludes{"CSSMutableStyleDeclaration.h"} = 1 if $type eq "CSSStyleDeclaration";
+    $implIncludes{"StylePropertySet.h"} = 1 if $type eq "CSSStyleDeclaration";
     $implIncludes{"NameNodeList.h"} = 1 if $type eq "NodeList";
 
     # Default, include the same named file (the implementation) and the same name prefixed with "DOM". 
@@ -868,7 +863,7 @@ sub GenerateHeader
             my $functionName = $function->signature->name;
 
             my $returnType = GetObjCType($function->signature->type);
-            my $needsDeprecatedVersion = (@{$function->parameters} > 1 and $function->signature->extendedAttributes->{"OldStyleObjC"});
+            my $needsDeprecatedVersion = (@{$function->parameters} > 1 and $function->signature->extendedAttributes->{"ObjCLegacyUnnamedParameters"});
             my $numberOfParameters = @{$function->parameters};
             my %typesToForwardDeclare = ($function->signature->type => 1);
 
@@ -882,10 +877,8 @@ sub GenerateHeader
                 $typesToForwardDeclare{$param->type} = 1;
 
                 if ($parameterIndex >= 1) {
-                    my $paramPrefix = $param->extendedAttributes->{"ObjCPrefix"};
-                    $paramPrefix = $paramName unless defined($paramPrefix);
-                    $functionSig .= " $paramPrefix";
-                    $methodName .= $paramPrefix;
+                    $functionSig .= " $paramName";
+                    $methodName .= $paramName;
                 }
 
                 $functionSig .= ":($paramType)$paramName";
@@ -949,7 +942,7 @@ sub GenerateHeader
                 push(@deprecatedHeaderFunctions, $functionDeclaration);
 
                 unless (defined $publicInterfaces{$publicInterfaceKey}) {
-                    warn "Deprecated method $publicInterfaceKey is not in PublicDOMInterfaces.h. All deprecated methods need to be public, or should have the OldStyleObjC IDL attribute removed";
+                    warn "Deprecated method $publicInterfaceKey is not in PublicDOMInterfaces.h. All deprecated methods need to be public, or should have the ObjCLegacyUnnamedParameters IDL attribute removed";
                     $fatalError = 1;
                 }
 
@@ -1043,7 +1036,7 @@ sub GenerateHeader
         push(@internalHeaderContent, "$implType* core($className *);\n");
         push(@internalHeaderContent, "$className *kit($implType*);\n");
 
-        if ($dataNode->extendedAttributes->{Polymorphic}) {
+        if ($dataNode->extendedAttributes->{"ObjCPolymorphic"}) {
             push(@internalHeaderContent, "Class kitClass($implType*);\n");
         }
 
@@ -1264,7 +1257,7 @@ sub GenerateImplementation
                     }
                 }
                 $implIncludes{"DOMPrivate.h"} = 1;
-            } elsif ($attribute->signature->extendedAttributes->{"ConvertToString"}) {
+            } elsif ($attribute->signature->extendedAttributes->{"ObjCImplementedAsUnsignedLong"}) {
                 $getterContentHead = "WTF::String::number(" . $getterContentHead;
                 $getterContentTail .= ")";
             } elsif ($idlType eq "Date") {
@@ -1391,8 +1384,8 @@ sub GenerateImplementation
                 my $argName = "new" . ucfirst($attributeInterfaceName);
                 my $arg = GetObjCTypeGetter($argName, $idlType);
 
-                # The definition of ConvertToString is flipped for the setter
-                if ($attribute->signature->extendedAttributes->{"ConvertToString"}) {
+                # The definition of ObjCImplementedAsUnsignedLong is flipped for the setter
+                if ($attribute->signature->extendedAttributes->{"ObjCImplementedAsUnsignedLong"}) {
                     $arg = "WTF::String($arg).toInt()";
                 }
 
@@ -1502,16 +1495,14 @@ sub GenerateImplementation
                 $needsCustom{"NodeFilter"} = $paramName if $idlType eq "NodeFilter";
                 $needsCustom{"EventListener"} = $paramName if $idlType eq "EventListener";
                 $needsCustom{"EventTarget"} = $paramName if $idlType eq "EventTarget";
-                $needsCustom{"NodeToReturn"} = $paramName if $param->extendedAttributes->{"Return"};
+                $needsCustom{"NodeToReturn"} = $paramName if $param->extendedAttributes->{"CustomReturn"};
 
                 unless ($codeGenerator->IsPrimitiveType($idlType) or $codeGenerator->IsStringType($idlType)) {
                     push(@needsAssert, "    ASSERT($paramName);\n");
                 }
 
                 if ($parameterIndex >= 1) {
-                    my $paramPrefix = $param->extendedAttributes->{"ObjCPrefix"};
-                    $paramPrefix = $param->name unless defined($paramPrefix);
-                    $functionSig .= " $paramPrefix";
+                    $functionSig .= " " . $param->name;
                 }
 
                 $functionSig .= ":($paramType)$paramName";
@@ -1546,7 +1537,7 @@ sub GenerateImplementation
                 $implIncludes{"Node.h"} = 1;
             }
 
-            if ($function->signature->extendedAttributes->{"UsesView"}) {
+            if ($function->signature->extendedAttributes->{"ObjCUseDefaultView"}) {
                 push(@functionContent, "    WebCore::DOMWindow* dv = $caller->defaultView();\n");
                 push(@functionContent, "    if (!dv)\n");
                 push(@functionContent, "        return nil;\n");
@@ -1700,7 +1691,7 @@ sub GenerateImplementation
             push(@implContent, "#endif\n\n") if $conditionalString;
 
             # generate the old style method names with un-named parameters, these methods are deprecated
-            if (@{$function->parameters} > 1 and $function->signature->extendedAttributes->{"OldStyleObjC"}) {
+            if (@{$function->parameters} > 1 and $function->signature->extendedAttributes->{"ObjCLegacyUnnamedParameters"}) {
                 my $deprecatedFunctionSig = $functionSig;
                 $deprecatedFunctionSig =~ s/\s\w+:/ :/g; # remove parameter names
 
@@ -1733,7 +1724,7 @@ sub GenerateImplementation
         push(@implContent, "        return nil;\n");
         push(@implContent, "    if ($className *wrapper = getDOMWrapper(value))\n");
         push(@implContent, "        return [[wrapper retain] autorelease];\n");
-        if ($dataNode->extendedAttributes->{Polymorphic}) {
+        if ($dataNode->extendedAttributes->{"ObjCPolymorphic"}) {
             push(@implContent, "    $className *wrapper = [[kitClass(value) alloc] _init];\n");
             push(@implContent, "    if (!wrapper)\n");
             push(@implContent, "        return nil;\n");
@@ -1776,25 +1767,15 @@ sub WriteData
     my $internalHeaderFileName = "$outputDir/" . $name . "Internal.h";
     my $depsFileName = "$outputDir/" . $name . ".dep";
 
-    # Remove old files.
-    unlink($headerFileName);
-    unlink($privateHeaderFileName);
-    unlink($implFileName);
-    unlink($internalHeaderFileName);
-    unlink($depsFileName);
-
     # Write public header.
-    open(HEADER, ">$headerFileName") or die "Couldn't open file $headerFileName";
-    
-    print HEADER @headerContentHeader;
-    print HEADER map { "\@class $_;\n" } sort keys(%headerForwardDeclarations);
-    print HEADER map { "\@protocol $_;\n" } sort keys(%headerForwardDeclarationsForProtocols);
+    my $contents = join "", @headerContentHeader;
+    map { $contents .= "\@class $_;\n" } sort keys(%headerForwardDeclarations);
+    map { $contents .= "\@protocol $_;\n" } sort keys(%headerForwardDeclarationsForProtocols);
 
     my $hasForwardDeclarations = keys(%headerForwardDeclarations) + keys(%headerForwardDeclarationsForProtocols);
-    print HEADER "\n" if $hasForwardDeclarations;
-    print HEADER @headerContent;
-
-    close(HEADER);
+    $contents .= "\n" if $hasForwardDeclarations;
+    $contents .= join "", @headerContent;
+    $codeGenerator->UpdateFile($headerFileName, $contents);
 
     @headerContentHeader = ();
     @headerContent = ();
@@ -1802,17 +1783,14 @@ sub WriteData
     %headerForwardDeclarationsForProtocols = ();
 
     if (@privateHeaderContent > 0) {
-        open(PRIVATE_HEADER, ">$privateHeaderFileName") or die "Couldn't open file $privateHeaderFileName";
-
-        print PRIVATE_HEADER @privateHeaderContentHeader;
-        print PRIVATE_HEADER map { "\@class $_;\n" } sort keys(%privateHeaderForwardDeclarations);
-        print PRIVATE_HEADER map { "\@protocol $_;\n" } sort keys(%privateHeaderForwardDeclarationsForProtocols);
+        $contents = join "", @privateHeaderContentHeader;
+        map { $contents .= "\@class $_;\n" } sort keys(%privateHeaderForwardDeclarations);
+        map { $contents .= "\@protocol $_;\n" } sort keys(%privateHeaderForwardDeclarationsForProtocols);
 
         $hasForwardDeclarations = keys(%privateHeaderForwardDeclarations) + keys(%privateHeaderForwardDeclarationsForProtocols);
-        print PRIVATE_HEADER "\n" if $hasForwardDeclarations;
-        print PRIVATE_HEADER @privateHeaderContent;
-
-        close(PRIVATE_HEADER);
+        $contents .= "\n" if $hasForwardDeclarations;
+        $contents .= join "", @privateHeaderContent;
+        $codeGenerator->UpdateFile($privateHeaderFileName, $contents);
 
         @privateHeaderContentHeader = ();
         @privateHeaderContent = ();
@@ -1822,34 +1800,28 @@ sub WriteData
 
     # Write implementation file.
     unless ($noImpl) {
-        open(IMPL, ">$implFileName") or die "Couldn't open file $implFileName";
-
-        print IMPL @implContentHeader;
-        print IMPL map { "#import \"$_\"\n" } sort keys(%implIncludes);
-        print IMPL @implContent;
-
-        close(IMPL);
+        $contents = join "", @implContentHeader;
+        map { $contents .= "#import \"$_\"\n" } sort keys(%implIncludes);
+        $contents .= join "", @implContent;
+        $codeGenerator->UpdateFile($implFileName, $contents);
 
         @implContentHeader = ();
         @implContent = ();
         %implIncludes = ();
     }
-    
+
     if (@internalHeaderContent > 0) {
-       open(INTERNAL_HEADER, ">$internalHeaderFileName") or die "Couldn't open file $internalHeaderFileName";
+        $contents = join "", @internalHeaderContent;
+        $codeGenerator->UpdateFile($internalHeaderFileName, $contents);
 
-       print INTERNAL_HEADER @internalHeaderContent;
-
-       close(INTERNAL_HEADER);
-
-       @internalHeaderContent = ();
+        @internalHeaderContent = ();
     }
 
     # Write dependency file.
     if (@depsContent) {
-        open(DEPS, ">$depsFileName") or die "Couldn't open file $depsFileName";
-        print DEPS @depsContent;
-        close(DEPS);
+        $contents = join "", @depsContent;
+        $codeGenerator->UpdateFile($depsFileName, $contents);
+
         @depsContent = ();
     }
 }

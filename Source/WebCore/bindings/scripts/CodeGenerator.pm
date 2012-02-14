@@ -147,8 +147,6 @@ sub ProcessDocument
         print "Generating $useGenerator bindings code for IDL interface \"" . $class->name . "\"...\n" if $verbose;
         $codeGenerator->GenerateInterface($class, $defines);
     }
-
-    $codeGenerator->finish();
 }
 
 sub FileNamePrefix
@@ -161,6 +159,17 @@ sub FileNamePrefix
     # Dynamically load external code generation perl module
     $codeGenerator = $ifaceName->new($object, $useOutputDir, $useOutputHeadersDir, $useLayerOnTop, $preprocessor, $writeDependencies, $verbose);
     return $codeGenerator->FileNamePrefix();
+}
+
+sub UpdateFile
+{
+    my $object = shift;
+    my $fileName = shift;
+    my $contents = shift;
+
+    open FH, "> $fileName" or die "Couldn't open $fileName: $!\n";
+    print FH $contents;
+    close FH;
 }
 
 sub ForAllParents
@@ -539,11 +548,7 @@ sub GetterExpression
 
     my $functionName;
     if ($attribute->signature->extendedAttributes->{"URL"}) {
-        if ($attribute->signature->extendedAttributes->{"NonEmpty"}) {
-            $functionName = "getNonEmptyURLAttribute";
-        } else {
-            $functionName = "getURLAttribute";
-        }
+        $functionName = "getURLAttribute";
     } elsif ($attribute->signature->type eq "boolean") {
         $functionName = "hasAttribute";
     } elsif ($attribute->signature->type eq "long") {
@@ -584,7 +589,7 @@ sub SetterExpression
 sub ShouldCheckEnums
 {
     my $dataNode = shift;
-    return not $dataNode->extendedAttributes->{"DontCheckEnums"};
+    return not $dataNode->extendedAttributes->{"DoNotCheckConstants"};
 }
 
 sub GenerateConditionalStringFromAttributeValue
@@ -622,7 +627,7 @@ sub GenerateCompileTimeCheckForEnumsIfNeeded
                 push(@checks, "#if ${conditionalString}\n");
             }
 
-            push(@checks, "COMPILE_ASSERT($value == ${interfaceName}::$name, ${interfaceName}Enum${name}IsWrongUseDontCheckEnums);\n");
+            push(@checks, "COMPILE_ASSERT($value == ${interfaceName}::$name, ${interfaceName}Enum${name}IsWrongUseDoNotCheckConstants);\n");
 
             if ($conditional) {
                 push(@checks, "#endif\n");
@@ -631,6 +636,17 @@ sub GenerateCompileTimeCheckForEnumsIfNeeded
         push(@checks, "\n");
     }
     return @checks;
+}
+
+sub ExtendedAttributeContains
+{
+    my $object = shift;
+    my $callWith = shift;
+    return 0 unless $callWith;
+    my $keyword = shift;
+
+    my @callWithKeywords = split /\s*\|\s*/, $callWith;
+    return grep { $_ eq $keyword } @callWithKeywords;
 }
 
 1;

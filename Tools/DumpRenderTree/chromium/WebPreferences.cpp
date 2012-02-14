@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -112,10 +112,12 @@ void WebPreferences::reset()
     acceleratedCompositingEnabled = false;
     compositeToTexture = false;
     accelerated2dCanvasEnabled = false;
+    deferred2dCanvasEnabled = false;
     acceleratedPaintingEnabled = false;
     forceCompositingMode = false;
     hixie76WebSocketProtocolEnabled = true;
     perTilePaintingEnabled = false;
+    mockScrollbarsEnabled = false;
 }
 
 static void setStandardFontFamilyWrapper(WebSettings* settings, const WebKit::WebString& font, UScriptCode script)
@@ -217,9 +219,11 @@ void WebPreferences::applyTo(WebView* webView)
     settings->setCompositeToTextureEnabled(compositeToTexture);
     settings->setForceCompositingMode(forceCompositingMode);
     settings->setAccelerated2dCanvasEnabled(accelerated2dCanvasEnabled);
+    settings->setDeferred2dCanvasEnabled(deferred2dCanvasEnabled);
     settings->setAcceleratedPaintingEnabled(acceleratedPaintingEnabled);
     settings->setHixie76WebSocketProtocolEnabled(hixie76WebSocketProtocolEnabled);
     settings->setPerTilePaintingEnabled(perTilePaintingEnabled);
+    settings->setMockScrollbarsEnabled(mockScrollbarsEnabled);
 
     // Fixed values.
     settings->setTextDirectionSubmenuInclusionBehaviorNeverIncluded();
@@ -229,7 +233,6 @@ void WebPreferences::applyTo(WebView* webView)
     settings->setEditableLinkBehaviorNeverLive();
     settings->setEnableScrollAnimator(false);
     settings->setFontRenderingModeNormal();
-    settings->setMockScrollbarsEnabled(false);
     settings->setTextDirectionSubmenuInclusionBehaviorNeverIncluded();
     settings->setUsesEncodingDetector(false);
     settings->setImagesEnabled(true);

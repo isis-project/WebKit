@@ -23,6 +23,5 @@
 messages -> WebNotificationManagerProxy {
     Cancel(uint64_t notificationID);
     DidDestroyNotification(uint64_t notificationID);
-
-    NotificationPermissionLevel(WTF::String originIdentifier) -> (uint64_t policy)
+    ClearNotifications(Vector<uint64_t> notificationIDs);
 }

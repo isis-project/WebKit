@@ -50,18 +50,23 @@ SOURCES += \
     assembler/MacroAssemblerARM.cpp \
     assembler/MacroAssemblerSH4.cpp \
     bytecode/CallLinkInfo.cpp \
+    bytecode/CallLinkStatus.cpp \
     bytecode/CodeBlock.cpp \
     bytecode/DFGExitProfile.cpp \
+    bytecode/GetByIdStatus.cpp \
     bytecode/JumpTable.cpp \
     bytecode/MethodCallLinkInfo.cpp \
+    bytecode/MethodCallLinkStatus.cpp \
     bytecode/Opcode.cpp \
+    bytecode/PolymorphicPutByIdList.cpp \
     bytecode/PredictedType.cpp \
+    bytecode/PutByIdStatus.cpp \
     bytecode/SamplingTool.cpp \
     bytecode/StructureStubInfo.cpp \
     bytecode/ValueProfile.cpp \
     bytecompiler/BytecodeGenerator.cpp \
     bytecompiler/NodesCodegen.cpp \
-    heap/AllocationSpace.cpp \
+    heap/BumpSpace.cpp \
     heap/ConservativeRoots.cpp \
     heap/DFGCodeBlocks.cpp \
     heap/HandleHeap.cpp \
@@ -69,6 +74,7 @@ SOURCES += \
     heap/Heap.cpp \
     heap/MachineStackMarker.cpp \
     heap/MarkStack.cpp \
+    heap/MarkedAllocator.cpp \
     heap/MarkedBlock.cpp \
     heap/MarkedSpace.cpp \
     heap/VTableSpectrum.cpp \
@@ -96,6 +102,7 @@ SOURCES += \
     dfg/DFGSpeculativeJIT32_64.cpp \
     dfg/DFGSpeculativeJIT64.cpp \
     dfg/DFGThunks.cpp \
+    interpreter/AbstractPC.cpp \
     interpreter/CallFrame.cpp \
     interpreter/Interpreter.cpp \
     interpreter/RegisterFile.cpp \
@@ -204,6 +211,8 @@ SOURCES += \
     runtime/Structure.cpp \
     runtime/TimeoutChecker.cpp \
     runtime/UString.cpp \
+    tools/CodeProfile.cpp \
+    tools/CodeProfiling.cpp \
     yarr/YarrJIT.cpp \
 
 *sh4* {

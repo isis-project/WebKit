@@ -38,10 +38,48 @@ import sys
 
 from webkitpy.common.host import Host
 from webkitpy.layout_tests.controllers.manager import Manager, WorkerException
+from webkitpy.layout_tests.models import test_expectations
 from webkitpy.layout_tests.views import printing
 
 
 _log = logging.getLogger(__name__)
+
+
+def lint(port, options, expectations_class):
+    host = port.host
+    if options.platform:
+        ports_to_lint = [port]
+    else:
+        ports_to_lint = [host.port_factory.get(name) for name in host.port_factory.all_port_names()]
+
+    files_linted = set()
+    lint_failed = False
+
+    for port_to_lint in ports_to_lint:
+        expectations_file = port_to_lint.path_to_test_expectations_file()
+        if expectations_file in files_linted:
+            continue
+
+        try:
+            expectations_class(port_to_lint,
+                tests=None,
+                expectations=port_to_lint.test_expectations(),
+                test_config=port_to_lint.test_configuration(),
+                is_lint_mode=True,
+                overrides=port_to_lint.test_expectations_overrides())
+        except test_expectations.ParseError, e:
+            lint_failed = True
+            _log.error('')
+            for warning in e.warnings:
+                _log.error(warning)
+            _log.error('')
+        files_linted.add(expectations_file)
+
+    if lint_failed:
+        _log.error('Lint failed.')
+        return -1
+    _log.info('Lint succeeded.')
+    return 0
 
 
 def run(port, options, args, regular_output=sys.stderr, buildbot_output=sys.stdout):
@@ -57,6 +95,9 @@ def run(port, options, args, regular_output=sys.stderr, buildbot_output=sys.stdo
         printer.cleanup()
         return 0
 
+    if options.lint_test_files:
+        return lint(port, options, test_expectations.TestExpectations)
+
     # We wrap any parts of the run that are slow or likely to raise exceptions
     # in a try/finally to ensure that we clean up the logging configuration.
     unexpected_result_count = -1
@@ -71,9 +112,6 @@ def run(port, options, args, regular_output=sys.stderr, buildbot_output=sys.stdo
             if e.errno == errno.ENOENT:
                 return -1
             raise
-
-        if options.lint_test_files:
-            return manager.lint()
 
         printer.print_update("Checking build ...")
         if not port.check_build(manager.needs_servers()):
@@ -137,6 +175,12 @@ def _set_up_derived_options(port, options):
         warnings.append("--no-http is ignored since --force is also provided")
         options.http = True
 
+    if options.skip_pixel_test_if_no_baseline and not options.pixel_tests:
+        warnings.append("--skip-pixel-test-if-no-baseline is only supported with -p (--pixel-tests)")
+
+    if options.ignore_metrics and (options.new_baseline or options.reset_results):
+        warnings.append("--ignore-metrics has no effect with --new-baselines or with --reset-results")
+
     return warnings
 
 
@@ -154,11 +198,13 @@ def parse_args(args=None):
     """Provides a default set of command line args.
 
     Returns a tuple of options, args from optparse"""
+    
+    option_group_definitions = []
 
     # FIXME: All of these options should be stored closer to the code which
     # FIXME: actually uses them. configuration_options should move
     # FIXME: to WebKitPort and be shared across all scripts.
-    configuration_options = [
+    option_group_definitions.append(("Configuration Options", [
         optparse.make_option("-t", "--target", dest="configuration",
                              help="(DEPRECATED)"),
         # FIXME: --help should display which configuration is default.
@@ -170,17 +216,16 @@ def parse_args(args=None):
                              help='Set the configuration to Release'),
         # old-run-webkit-tests also accepts -c, --configuration CONFIGURATION.
         optparse.make_option("--platform", help="Override port/platform being tested (i.e. chromium-mac)"),
-        optparse.make_option('--qt', action='store_const', const='qt', dest="platform", help='Alias for --platform=qt'),
-        optparse.make_option('--gtk', action='store_const', const='gtk', dest="platform", help='Alias for --platform=gtk'),
+        optparse.make_option("--chromium", action="store_const", const='chromium', dest='platform', help='Alias for --platform=chromium'),
         optparse.make_option('--efl', action='store_const', const='efl', dest="platform", help='Alias for --platform=efl'),
-    ]
+        optparse.make_option('--gtk', action='store_const', const='gtk', dest="platform", help='Alias for --platform=gtk'),
+        optparse.make_option('--qt', action='store_const', const='qt', dest="platform", help='Alias for --platform=qt'),
+    ]))
 
-    print_options = printing.print_options()
+    option_group_definitions.append(("Printing Options", printing.print_options()))
 
     # FIXME: These options should move onto the ChromiumPort.
-    chromium_options = [
-        optparse.make_option("--chromium", action="store_true", default=False,
-            help="use the Chromium port"),
+    option_group_definitions.append(("Chromium-specific Options", [
         optparse.make_option("--startup-dialog", action="store_true",
             default=False, help="create a dialog on DumpRenderTree startup"),
         optparse.make_option("--gp-fault-error-box", action="store_true",
@@ -224,9 +269,11 @@ def parse_args(args=None):
         optparse.make_option("--per-tile-painting",
             action="store_true",
             help="Use per-tile painting of composited pages"),
-    ]
+        optparse.make_option("--adb-args", type="string",
+            help="Arguments parsed to Android adb, to select device, etc."),
+    ]))
 
-    webkit_options = [
+    option_group_definitions.append(("WebKit Options", [
         optparse.make_option("--gc-between-tests", action="store_true", default=False,
             help="Force garbage collection between each test"),
         optparse.make_option("--complex-text", action="store_true", default=False,
@@ -241,15 +288,15 @@ def parse_args(args=None):
             help="Use WebKitTestRunner rather than DumpRenderTree."),
         optparse.make_option("--root", action="store",
             help="Path to a pre-built root of WebKit (for running tests using a nightly build of WebKit)"),
-    ]
+    ]))
 
-    old_run_webkit_tests_compat = [
+    option_group_definitions.append(("ORWT Compatibility Options", [
         # FIXME: Remove this option once the bots don't refer to it.
         # results.html is smart enough to figure this out itself.
         _compat_shim_option("--use-remote-links-to-tests"),
-    ]
+    ]))
 
-    results_options = [
+    option_group_definitions.append(("Results Options", [
         optparse.make_option("-p", "--pixel-tests", action="store_true",
             dest="pixel_tests", help="Enable pixel-to-pixel PNG comparisons"),
         optparse.make_option("--no-pixel-tests", action="store_false",
@@ -274,6 +321,9 @@ def parse_args(args=None):
         optparse.make_option("--no-new-test-results", action="store_false",
             dest="new_test_results", default=True,
             help="Don't create new baselines when no expected results exist"),
+        optparse.make_option("--skip-pixel-test-if-no-baseline", action="store_true",
+            dest="skip_pixel_test_if_no_baseline", help="Do not generate and check pixel result in the case when "
+                 "no image baseline is available for the test."),
         optparse.make_option("--skip-failing-tests", action="store_true",
             default=False, help="Skip tests that are expected to fail. "
                  "Note: When using this option, you might miss new crashes "
@@ -305,9 +355,12 @@ def parse_args(args=None):
             default=True, help="Run HTTP and WebSocket tests (default)"),
         optparse.make_option("--no-http", action="store_false", dest="http",
             help="Don't run HTTP and WebSocket tests"),
-    ]
+        optparse.make_option("--ignore-metrics", action="store_true", dest="ignore_metrics",
+            default=False, help="Ignore rendering metrics related information from test "
+            "output, only compare the structure of the rendertree."),
+    ]))
 
-    test_options = [
+    option_group_definitions.append(("Testing Options", [
         optparse.make_option("--build", dest="build",
             action="store_true", default=True,
             help="Check to ensure the DumpRenderTree build is up-to-date "
@@ -379,18 +432,20 @@ def parse_args(args=None):
         optparse.make_option("--no-retry-failures", action="store_false",
             dest="retry_failures",
             help="Don't re-try any tests that produce unexpected results."),
-    ]
+        optparse.make_option("--max-locked-shards", type="int",
+            help="Set the maximum number of locked shards"),
+    ]))
 
-    misc_options = [
+    option_group_definitions.append(("Miscellaneous Options", [
         optparse.make_option("--lint-test-files", action="store_true",
         default=False, help=("Makes sure the test files parse for all "
                             "configurations. Does not run any tests.")),
-    ]
+    ]))
 
     # FIXME: Move these into json_results_generator.py
-    results_json_options = [
+    option_group_definitions.append(("Result JSON Options", [
         optparse.make_option("--master-name", help="The name of the buildbot master."),
-        optparse.make_option("--builder-name", default="DUMMY_BUILDER_NAME",
+        optparse.make_option("--builder-name", default="",
             help=("The name of the builder shown on the waterfall running "
                   "this script e.g. WebKit.")),
         optparse.make_option("--build-name", default="DUMMY_BUILD_NAME",
@@ -401,19 +456,28 @@ def parse_args(args=None):
         optparse.make_option("--test-results-server", default="",
             help=("If specified, upload results json files to this appengine "
                   "server.")),
-    ]
+    ]))
 
-    option_list = (configuration_options + print_options +
-                   chromium_options + webkit_options + results_options + test_options +
-                   misc_options + results_json_options + old_run_webkit_tests_compat)
-    option_parser = optparse.OptionParser(option_list=option_list)
+    option_parser = optparse.OptionParser()
+
+    for group_name, group_options in option_group_definitions:
+        option_group = optparse.OptionGroup(option_parser, group_name)
+        option_group.add_options(group_options)
+        option_parser.add_option_group(option_group)
 
     return option_parser.parse_args(args)
 
 
 def main():
     options, args = parse_args()
-    host = Host()
+    if options.platform and options.platform.startswith('test'):
+        # It's a bit lame to import mocks into real code, but this allows the user
+        # to run tests against the test platform interactively, which is useful for
+        # debugging test failures.
+        from webkitpy.common.host_mock import MockHost
+        host = MockHost()
+    else:
+        host = Host()
     host._initialize_scm()
     port = host.port_factory.get(options.platform, options)
     return run(port, options, args)

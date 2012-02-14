@@ -31,7 +31,6 @@
 #include "config.h"
 #include "WebDevToolsFrontendImpl.h"
 
-#include "BoundObject.h"
 #include "ContextMenuController.h"
 #include "ContextMenuItem.h"
 #include "DOMWindow.h"
@@ -123,7 +122,7 @@ void WebDevToolsFrontendImpl::dispatchOnInspectorFrontend(const WebString& messa
     args.append(ToV8String(message));
     v8::TryCatch tryCatch;
     tryCatch.SetVerbose(true);
-    V8Proxy::instrumentedCallFunction(frame->frame()->page(), function, inspectorBackend, args.size(), args.data());
+    V8Proxy::instrumentedCallFunction(frame->frame(), function, inspectorBackend, args.size(), args.data());
 }
 
 } // namespace WebKit

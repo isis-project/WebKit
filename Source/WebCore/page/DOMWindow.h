@@ -351,10 +351,6 @@ namespace WebCore {
         using RefCounted<DOMWindow>::ref;
         using RefCounted<DOMWindow>::deref;
 
-#if ENABLE(BLOB)
-        DOMURL* webkitURL() const;
-#endif
-
 #if ENABLE(DEVICE_ORIENTATION)
         DEFINE_ATTRIBUTE_EVENT_LISTENER(devicemotion);
         DEFINE_ATTRIBUTE_EVENT_LISTENER(deviceorientation);
@@ -370,14 +366,9 @@ namespace WebCore {
         enum FileSystemType {
             TEMPORARY,
             PERSISTENT,
-            EXTERNAL,
         };
         void webkitRequestFileSystem(int type, long long size, PassRefPtr<FileSystemCallback>, PassRefPtr<ErrorCallback>);
         void webkitResolveLocalFileSystemURL(const String&, PassRefPtr<EntryCallback>, PassRefPtr<ErrorCallback>);
-#endif
-
-#if ENABLE(INDEXED_DATABASE)
-        IDBFactory* webkitIndexedDB() const;
 #endif
 
 #if ENABLE(NOTIFICATIONS)
@@ -419,6 +410,11 @@ namespace WebCore {
         // frame), we would like to zero out m_frame to avoid being confused
         // by the document that is currently active in m_frame.
         bool isCurrentlyDisplayedInFrame() const;
+
+#if ENABLE(INDEXED_DATABASE)
+        IDBFactory* idbFactory() { return m_idbFactory.get(); }
+        void setIDBFactory(PassRefPtr<IDBFactory>);
+#endif
 
     private:
         explicit DOMWindow(Frame*);

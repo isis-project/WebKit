@@ -150,16 +150,15 @@ class Checkout(object):
     def chromium_deps(self):
         return DEPS(self._scm.absolute_path(self._filesystem.join("Source", "WebKit", "chromium", "DEPS")))
 
-    def apply_patch(self, patch, force=False):
+    def apply_patch(self, patch):
         # It's possible that the patch was not made from the root directory.
         # We should detect and handle that case.
         # FIXME: Move _scm.script_path here once we get rid of all the dependencies.
-        args = [self._scm.script_path('svn-apply')]
+        # --force (continue after errors) is the common case, so we always use it.
+        args = [self._scm.script_path('svn-apply'), "--force"]
         if patch.reviewer():
             args += ['--reviewer', patch.reviewer().full_name]
-        if force:
-            args.append('--force')
-        self._executive.run_command(args, input=patch.contents())
+        self._executive.run_command(args, input=patch.contents(), cwd=self._scm.checkout_root)
 
     def apply_reverse_diff(self, revision):
         self._scm.apply_reverse_diff(revision)

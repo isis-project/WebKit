@@ -1594,8 +1594,8 @@ PlatformLayer* MediaPlayerPrivate::platformLayer() const
 
 void MediaPlayerPrivate::paintToTextureMapper(TextureMapper* textureMapper, const FloatRect& targetRect, const TransformationMatrix& matrix, float opacity, BitmapTexture* mask) const
 {
-    if (textureMapper->isOpenGLBacked()) {
-        TextureMapperGL* texmapGL = static_cast<TextureMapperGL*>(textureMapper);
+    TextureMapperGL* texmapGL = dynamic_cast<TextureMapperGL*>(textureMapper);
+    if (texmapGL && texmapGL->isOpenGLBacked()) {
         RemotePluginBuffer remoteBuffer;
         if (lockBuffer(&remoteBuffer, false)) {
             if (!m_textureId[m_currentRemoteBuffer]) {

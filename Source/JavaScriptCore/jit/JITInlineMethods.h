@@ -264,6 +264,9 @@ ALWAYS_INLINE void JIT::restoreArgumentReference()
 
 ALWAYS_INLINE void JIT::updateTopCallFrame()
 {
+    ASSERT(static_cast<int>(m_bytecodeOffset) >= 0);
+    if (m_bytecodeOffset)
+        store32(Imm32(m_bytecodeOffset + 1), intTagFor(RegisterFile::ArgumentCount));
     storePtr(callFrameRegister, &m_globalData->topCallFrame);
 }
 
@@ -399,15 +402,19 @@ ALWAYS_INLINE bool JIT::isOperandConstantImmediateChar(unsigned src)
     return m_codeBlock->isConstantRegisterIndex(src) && getConstantOperand(src).isString() && asString(getConstantOperand(src).asCell())->length() == 1;
 }
 
-template <typename ClassType, typename StructureType> inline void JIT::emitAllocateBasicJSObject(StructureType structure, RegisterID result, RegisterID storagePtr)
+template <typename ClassType, bool destructor, typename StructureType> inline void JIT::emitAllocateBasicJSObject(StructureType structure, RegisterID result, RegisterID storagePtr)
 {
-    MarkedSpace::SizeClass* sizeClass = &m_globalData->heap.sizeClassForObject(sizeof(ClassType));
-    loadPtr(&sizeClass->firstFreeCell, result);
+    MarkedAllocator* allocator = 0;
+    if (destructor)
+        allocator = &m_globalData->heap.allocatorForObjectWithDestructor(sizeof(ClassType));
+    else
+        allocator = &m_globalData->heap.allocatorForObjectWithoutDestructor(sizeof(ClassType));
+    loadPtr(&allocator->m_firstFreeCell, result);
     addSlowCase(branchTestPtr(Zero, result));
 
     // remove the object from the free list
     loadPtr(Address(result), storagePtr);
-    storePtr(storagePtr, &sizeClass->firstFreeCell);
+    storePtr(storagePtr, &allocator->m_firstFreeCell);
 
     // initialize the object's structure
     storePtr(structure, Address(result, JSCell::structureOffset()));
@@ -425,12 +432,12 @@ template <typename ClassType, typename StructureType> inline void JIT::emitAlloc
 
 template <typename T> inline void JIT::emitAllocateJSFinalObject(T structure, RegisterID result, RegisterID scratch)
 {
-    emitAllocateBasicJSObject<JSFinalObject>(structure, result, scratch);
+    emitAllocateBasicJSObject<JSFinalObject, false, T>(structure, result, scratch);
 }
 
 inline void JIT::emitAllocateJSFunction(FunctionExecutable* executable, RegisterID scopeChain, RegisterID result, RegisterID storagePtr)
 {
-    emitAllocateBasicJSObject<JSFunction>(TrustedImmPtr(m_codeBlock->globalObject()->namedFunctionStructure()), result, storagePtr);
+    emitAllocateBasicJSObject<JSFunction, true>(TrustedImmPtr(m_codeBlock->globalObject()->namedFunctionStructure()), result, storagePtr);
 
     // store the function's scope chain
     storePtr(scopeChain, Address(result, JSFunction::offsetOfScopeChain()));
@@ -486,20 +493,16 @@ inline void JIT::emitValueProfilingSite(ValueProfile* valueProfile)
 #endif
 }
 
-inline void JIT::emitValueProfilingSite(ValueProfilingSiteKind siteKind)
+inline void JIT::emitValueProfilingSite(unsigned bytecodeOffset)
 {
     if (!shouldEmitProfiling())
         return;
-    
-    ValueProfile* valueProfile;
-    if (siteKind == FirstProfilingSite)
-        valueProfile = m_codeBlock->addValueProfile(m_bytecodeOffset);
-    else {
-        ASSERT(siteKind == SubsequentProfilingSite);
-        valueProfile = m_codeBlock->valueProfileForBytecodeOffset(m_bytecodeOffset);
-    }
-    
-    emitValueProfilingSite(valueProfile);
+    emitValueProfilingSite(m_codeBlock->valueProfileForBytecodeOffset(bytecodeOffset));
+}
+
+inline void JIT::emitValueProfilingSite()
+{
+    emitValueProfilingSite(m_bytecodeOffset);
 }
 #endif
 
@@ -677,6 +680,9 @@ inline void JIT::map(unsigned bytecodeOffset, int virtualRegisterIndex, Register
     m_mappedVirtualRegisterIndex = virtualRegisterIndex;
     m_mappedTag = tag;
     m_mappedPayload = payload;
+    
+    ASSERT(!canBeOptimized() || m_mappedPayload == regT0);
+    ASSERT(!canBeOptimized() || m_mappedTag == regT1);
 }
 
 inline void JIT::unmap(RegisterID registerID)

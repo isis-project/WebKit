@@ -34,6 +34,7 @@ class RenderTextControl;
 class VisiblePosition;
 
 enum TextFieldSelectionDirection { SelectionHasNoDirection, SelectionHasForwardDirection, SelectionHasBackwardDirection };
+enum TextFieldEventBehavior { DispatchNoEvent, DispatchChangeEvent };
 
 class HTMLTextFormControlElement : public HTMLFormControlElementWithState {
 public:
@@ -85,7 +86,7 @@ protected:
     HTMLTextFormControlElement(const QualifiedName&, Document*, HTMLFormElement*);
     virtual void updatePlaceholderText() = 0;
 
-    virtual void parseMappedAttribute(Attribute*);
+    virtual void parseAttribute(Attribute*) OVERRIDE;
 
     void setTextAsOfLastFormControlChangeEvent(const String& text) { m_textAsOfLastFormControlChangeEvent = text; }
     

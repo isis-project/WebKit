@@ -60,7 +60,7 @@ class SharedBuffer;
 
 typedef String ErrorString;
 
-class InspectorPageAgent : public InspectorBaseAgent<InspectorPageAgent> {
+class InspectorPageAgent : public InspectorBaseAgent<InspectorPageAgent>, public InspectorBackendDispatcher::PageCommandHandler {
     WTF_MAKE_NONCOPYABLE(InspectorPageAgent);
 public:
     enum ResourceType {
@@ -87,18 +87,20 @@ public:
     static String cachedResourceTypeString(const CachedResource&);
 
     // Page API for InspectorFrontend
-    void enable(ErrorString*);
-    void disable(ErrorString*);
-    void addScriptToEvaluateOnLoad(ErrorString*, const String& source, String* result);
-    void removeScriptToEvaluateOnLoad(ErrorString*, const String& identifier);
-    void reload(ErrorString*, const bool* const optionalIgnoreCache, const String* optionalScriptToEvaluateOnLoad);
-    void open(ErrorString*, const String& url, const bool* const inNewWindow);
-    void getCookies(ErrorString*, RefPtr<InspectorArray>& cookies, WTF::String* cookiesString);
-    void deleteCookie(ErrorString*, const String& cookieName, const String& domain);
-    void getResourceTree(ErrorString*, RefPtr<InspectorObject>&);
-    void getResourceContent(ErrorString*, const String& frameId, const String& url, String* content, bool* base64Encoded);
-    void searchInResource(ErrorString*, const String& frameId, const String& url, const String& query, const bool* const optionalCaseSensitive, const bool* const optionalIsRegex, RefPtr<InspectorArray>&);
-    void searchInResources(ErrorString*, const String&, const bool* const caseSensitive, const bool* const isRegex, RefPtr<InspectorArray>&);
+    virtual void enable(ErrorString*);
+    virtual void disable(ErrorString*);
+    virtual void addScriptToEvaluateOnLoad(ErrorString*, const String& source, String* result);
+    virtual void removeScriptToEvaluateOnLoad(ErrorString*, const String& identifier);
+    virtual void reload(ErrorString*, const bool* optionalIgnoreCache, const String* optionalScriptToEvaluateOnLoad);
+    virtual void navigate(ErrorString*, const String& url);
+    virtual void getCookies(ErrorString*, RefPtr<InspectorArray>& cookies, WTF::String* cookiesString);
+    virtual void deleteCookie(ErrorString*, const String& cookieName, const String& domain);
+    virtual void getResourceTree(ErrorString*, RefPtr<InspectorObject>&);
+    virtual void getResourceContent(ErrorString*, const String& frameId, const String& url, String* content, bool* base64Encoded);
+    virtual void searchInResource(ErrorString*, const String& frameId, const String& url, const String& query, const bool* optionalCaseSensitive, const bool* optionalIsRegex, RefPtr<InspectorArray>&);
+    virtual void searchInResources(ErrorString*, const String&, const bool* caseSensitive, const bool* isRegex, RefPtr<InspectorArray>&);
+    virtual void setDocumentContent(ErrorString*, const String& frameId, const String& html);
+    virtual void setScreenSizeOverride(ErrorString*, int width, int height);
 
     // InspectorInstrumentation API
     void didClearWindowObjectInWorld(Frame*, DOMWrapperWorld*);
@@ -107,6 +109,8 @@ public:
     void frameNavigated(DocumentLoader*);
     void frameDetached(Frame*);
     void loaderDetachedFromFrame(DocumentLoader*);
+    void applyScreenWidthOverride(long*);
+    void applyScreenHeightOverride(long*);
 
     // Inspector Controller API
     virtual void setFrontend(InspectorFrontend*);
@@ -124,6 +128,9 @@ public:
 
 private:
     InspectorPageAgent(InstrumentingAgents*, Page*, InspectorState*, InjectedScriptManager*);
+    void updateFrameViewFixedLayout(int, int);
+    void setFrameViewFixedLayout(int, int);
+    void clearFrameViewFixedLayout();
 
     PassRefPtr<InspectorObject> buildObjectForFrame(Frame*);
     PassRefPtr<InspectorObject> buildObjectForFrameTree(Frame*);
@@ -136,6 +143,8 @@ private:
     HashMap<Frame*, String> m_frameToIdentifier;
     HashMap<String, Frame*> m_identifierToFrame;
     HashMap<DocumentLoader*, String> m_loaderToIdentifier;
+    OwnPtr<IntSize> m_originalFixedLayoutSize;
+    bool m_originalUseFixedLayout;
 };
 
 

@@ -58,16 +58,17 @@ module p2p {
         attribute EventListener onconnecting;
         attribute EventListener onopen;
         attribute EventListener onmessage;
+        attribute EventListener onstatechange;
         attribute EventListener onaddstream;
         attribute EventListener onremovestream;
 
         // EventTarget interface
         void addEventListener(in DOMString type,
                               in EventListener listener,
-                              in [optional] boolean useCapture);
+                              in [Optional] boolean useCapture);
         void removeEventListener(in DOMString type,
                                  in EventListener listener,
-                                 in [optional] boolean useCapture);
+                                 in [Optional] boolean useCapture);
         boolean dispatchEvent(in Event event)
             raises(EventException);
     };

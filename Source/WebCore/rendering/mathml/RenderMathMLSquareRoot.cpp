@@ -61,8 +61,8 @@ const float gRadicalLineThickness = 0.02f;
 // Radical thick line thickness (%)
 const float gRadicalThickLineThickness = 0.1f;
     
-RenderMathMLSquareRoot::RenderMathMLSquareRoot(Node *expression) 
-    : RenderMathMLBlock(expression) 
+RenderMathMLSquareRoot::RenderMathMLSquareRoot(Element* element)
+    : RenderMathMLBlock(element)
 {
 }
 
@@ -73,7 +73,7 @@ void RenderMathMLSquareRoot::paint(PaintInfo& info, const LayoutPoint& paintOffs
     if (info.context->paintingDisabled())
         return;
     
-    LayoutPoint adjustedPaintOffset = paintOffset + location();
+    IntPoint adjustedPaintOffset = roundedIntPoint(paintOffset + location());
 
     LayoutUnit maxHeight = 0;
     LayoutUnit width = 0;
@@ -189,5 +189,3 @@ void RenderMathMLSquareRoot::layout()
 }
 
 #endif // ENABLE(MATHML)
-
-        

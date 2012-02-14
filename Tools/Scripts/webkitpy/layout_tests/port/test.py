@@ -27,9 +27,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Dummy Port implementation used for testing."""
-from __future__ import with_statement
-
 import base64
 import sys
 import time
@@ -44,7 +41,7 @@ from webkitpy.common.system.filesystem_mock import MockFileSystem
 class TestInstance(object):
     def __init__(self, name):
         self.name = name
-        self.base = name[(name.rfind("/") + 1):name.rfind(".html")]
+        self.base = name[(name.rfind("/") + 1):name.rfind(".")]
         self.crash = False
         self.web_process_crash = False
         self.exception = False
@@ -182,6 +179,9 @@ layer at (0,0) size 800x34
     # For reftests.
     tests.add_reftest('passes/reftest.html', 'passes/reftest-expected.html', same_image=True)
     tests.add_reftest('passes/mismatch.html', 'passes/mismatch-expected-mismatch.html', same_image=False)
+    tests.add_reftest('passes/svgreftest.svg', 'passes/svgreftest-expected.svg', same_image=True)
+    tests.add_reftest('passes/xhtreftest.xht', 'passes/xhtreftest-expected.html', same_image=True)
+    tests.add_reftest('passes/phpreftest.php', 'passes/phpreftest-expected-mismatch.svg', same_image=False)
     tests.add_reftest('failures/expected/reftest.html', 'failures/expected/reftest-expected.html', same_image=False)
     tests.add_reftest('failures/expected/mismatch.html', 'failures/expected/mismatch-expected-mismatch.html', same_image=True)
     tests.add_reftest('failures/unexpected/reftest.html', 'failures/unexpected/reftest-expected.html', same_image=False)
@@ -223,8 +223,10 @@ layer at (0,0) size 800x34
 
 if sys.platform == 'win32':
     LAYOUT_TEST_DIR = 'c:/test.checkout/LayoutTests'
+    PERF_TEST_DIR = 'c:/test.checkout/PerformanceTests'
 else:
     LAYOUT_TEST_DIR = '/test.checkout/LayoutTests'
+    PERF_TEST_DIR = '/test.checkout/PerformanceTests'
 
 
 # Here we synthesize an in-memory filesystem from the test list
@@ -290,7 +292,7 @@ WONTFIX SKIP : failures/expected/exception.html = CRASH
     # Add each test and the expected output, if any.
     test_list = unit_test_list()
     for test in test_list.tests.values():
-        add_file(test, '.html', '')
+        add_file(test, test.name[test.name.rfind('.'):], '')
         if test.is_reftest:
             continue
         if test.actual_audio:
@@ -304,6 +306,8 @@ WONTFIX SKIP : failures/expected/exception.html = CRASH
 
 
 class TestPort(Port):
+    port_name = 'test'
+
     """Test implementation of the Port interface."""
     ALL_BASELINE_VARIANTS = (
         'test-mac-snowleopard', 'test-mac-leopard',
@@ -311,15 +315,20 @@ class TestPort(Port):
         'test-linux-x86_64',
     )
 
-    def __init__(self, host, port_name=None, **kwargs):
-        if not port_name or port_name == 'test':
-            port_name = 'test-mac-leopard'
+    @classmethod
+    def determine_full_port_name(cls, host, options, port_name):
+        if port_name == 'test':
+            return 'test-mac-leopard'
+        return port_name
 
+    def __init__(self, host, port_name=None, **kwargs):
+        # FIXME: Consider updating all of the callers to pass in a port_name so it can be a
+        # required parameter like all of the other Port objects.
+        port_name = port_name or 'test-mac-leopard'
+        Port.__init__(self, host, port_name, **kwargs)
         self._tests = unit_test_list()
         self._expectations_path = LAYOUT_TEST_DIR + '/platform/test/test_expectations.txt'
         self._results_directory = None
-
-        Port.__init__(self, host, port_name=port_name, **kwargs)
 
         self._operating_system = 'mac'
         if port_name.startswith('test-win'):
@@ -336,7 +345,6 @@ class TestPort(Port):
             'test-linux-x86_64': 'lucid',
         }
         self._version = version_map[port_name]
-
 
     def _path_to_driver(self):
         # This routine shouldn't normally be called, but it is called by
@@ -378,6 +386,12 @@ class TestPort(Port):
     def layout_tests_dir(self):
         return LAYOUT_TEST_DIR
 
+    def perf_tests_dir(self):
+        return PERF_TEST_DIR
+
+    def webkit_base(self):
+        return '/test.checkout'
+
     def name(self):
         return self._name
 
@@ -413,6 +427,15 @@ class TestPort(Port):
 
     def release_http_lock(self):
         pass
+
+    def _path_to_lighttpd(self):
+        return "/usr/sbin/lighttpd"
+
+    def _path_to_lighttpd_modules(self):
+        return "/usr/lib/lighttpd"
+
+    def _path_to_lighttpd_php(self):
+        return "/usr/bin/php-cgi"
 
     def path_to_test_expectations_file(self):
         return self._expectations_path
@@ -484,6 +507,9 @@ class TestDriver(Driver):
             test.actual_checksum, audio, crash=test.crash or test.web_process_crash,
             crashed_process_name=crashed_process_name,
             test_time=time.time() - start_time, timeout=test.timeout, error=test.error)
+
+    def start(self):
+        pass
 
     def stop(self):
         pass

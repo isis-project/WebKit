@@ -55,7 +55,7 @@
 #import <WebCore/AXObjectCache.h>
 #import <WebCore/AccessibilityObject.h>
 #import <WebCore/AnimationController.h>
-#import <WebCore/CSSMutableStyleDeclaration.h>
+#import <WebCore/CSSStyleDeclaration.h>
 #import <WebCore/CachedResourceLoader.h>
 #import <WebCore/Chrome.h>
 #import <WebCore/ColorMac.h>
@@ -87,8 +87,6 @@
 #import <WebCore/ScriptValue.h>
 #import <WebCore/SecurityOrigin.h>
 #import <WebCore/SmartReplace.h>
-#import <WebCore/SVGDocumentExtensions.h>
-#import <WebCore/SVGSMILElement.h>
 #import <WebCore/TextIterator.h>
 #import <WebCore/ThreadCheck.h>
 #import <WebCore/TypingCommand.h>
@@ -613,7 +611,8 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
         return @"";
 
     JSLock lock(SilenceAssertionsOnly);
-    return ustringToString(result.toString(_private->coreFrame->script()->globalObject(mainThreadNormalWorld())->globalExec()));
+    JSC::ExecState* exec = _private->coreFrame->script()->globalObject(mainThreadNormalWorld())->globalExec();
+    return ustringToString(result.toString(exec)->value(exec));
 }
 
 - (NSRect)_caretRectAtPosition:(const Position&)pos affinity:(NSSelectionAffinity)affinity
@@ -790,10 +789,10 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
 {
     if (!_private->coreFrame)
         return nil;
-    RefPtr<CSSMutableStyleDeclaration> typingStyle = _private->coreFrame->selection()->copyTypingStyle();
+    RefPtr<StylePropertySet> typingStyle = _private->coreFrame->selection()->copyTypingStyle();
     if (!typingStyle)
         return nil;
-    return kit(typingStyle.get());
+    return kit(typingStyle->ensureCSSStyleDeclaration());
 }
 
 - (void)_setTypingStyle:(DOMCSSStyleDeclaration *)style withUndoAction:(EditAction)undoAction
@@ -991,29 +990,6 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     return controller->pauseTransitionAtTime(coreNode->renderer(), name, time);
 }
 
-// Pause a given SVG animation on the target node at a specific time.
-// This method is only intended to be used for testing the SVG animation system.
-- (BOOL)_pauseSVGAnimation:(NSString*)elementId onSMILNode:(DOMNode *)node atTime:(NSTimeInterval)time
-{
-    Frame* frame = core(self);
-    if (!frame)
-        return false;
- 
-    Document* document = frame->document();
-    if (!document || !document->svgExtensions())
-        return false;
-
-    Node* coreNode = core(node);
-    if (!coreNode || !SVGSMILElement::isSMILElement(coreNode))
-        return false;
-
-#if ENABLE(SVG)
-    return document->accessSVGExtensions()->sampleAnimationAtTime(elementId, static_cast<SVGSMILElement*>(coreNode), time);
-#else
-    return false;
-#endif
-}
-
 - (unsigned) _numberOfActiveAnimations
 {
     Frame* frame = core(self);
@@ -1191,7 +1167,8 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
         return @"";
 
     JSLock lock(SilenceAssertionsOnly);
-    return ustringToString(result.toString(anyWorldGlobalObject->globalExec()));
+    JSC::ExecState* exec = anyWorldGlobalObject->globalExec();
+    return ustringToString(result.toString(exec)->value(exec));
 }
 
 - (JSGlobalContextRef)_globalContextForScriptWorld:(WebScriptWorld *)world
@@ -1482,7 +1459,7 @@ static NSURL *createUniqueWebDataURL()
     
     if (!MIMEType)
         MIMEType = @"text/html";
-    [self _loadData:data MIMEType:MIMEType textEncodingName:encodingName baseURL:baseURL unreachableURL:nil];
+    [self _loadData:data MIMEType:MIMEType textEncodingName:encodingName baseURL:[baseURL _webkit_URLFromURLOrPath] unreachableURL:nil];
 }
 
 - (void)_loadHTMLString:(NSString *)string baseURL:(NSURL *)baseURL unreachableURL:(NSURL *)unreachableURL

@@ -145,13 +145,6 @@ double JSCell::toNumber(ExecState* exec) const
     return static_cast<const JSObject*>(this)->toNumber(exec);
 }
 
-UString JSCell::toString(ExecState* exec) const
-{
-    if (isString())
-        return static_cast<const JSString*>(this)->toString(exec);
-    return static_cast<const JSObject*>(this)->toString(exec);
-}
-
 JSObject* JSCell::toObject(ExecState* exec, JSGlobalObject* globalObject) const
 {
     if (isString())
@@ -163,16 +156,6 @@ JSObject* JSCell::toObject(ExecState* exec, JSGlobalObject* globalObject) const
 void slowValidateCell(JSCell* cell)
 {
     ASSERT_GC_OBJECT_LOOKS_VALID(cell);
-}
-
-void JSCell::defineGetter(JSObject*, ExecState*, const Identifier&, JSObject*, unsigned)
-{
-    ASSERT_NOT_REACHED();
-}
-
-void JSCell::defineSetter(JSObject*, ExecState*, const Identifier&, JSObject*, unsigned)
-{
-    ASSERT_NOT_REACHED();
 }
 
 JSValue JSCell::defaultValue(const JSObject*, ExecState*, PreferredPrimitiveType)

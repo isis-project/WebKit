@@ -28,8 +28,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import with_statement
-
 import atexit
 import base64
 import codecs
@@ -757,11 +755,6 @@ Q1dTBx0AAAB42itg4GlgYJjGwMDDyODMxMDw34GBgQEAJPQDJA==
         commit_text = self.scm.commit_with_message("another test commit", username)
         self.assertEqual(self.scm.svn_revision_from_commit_text(commit_text), '6')
 
-        self.scm.dryrun = True
-        write_into_file_at_path('test_file', 'still more test content')
-        commit_text = self.scm.commit_with_message("yet another test commit", username)
-        self.assertEqual(self.scm.svn_revision_from_commit_text(commit_text), '0')
-
     def test_commit_in_subdir(self, username=None):
         write_into_file_at_path('test_dir/test_file3', 'more test content')
         os.chdir("test_dir")
@@ -1215,11 +1208,6 @@ class GitSVNTest(SCMTest):
         write_into_file_at_path('test_file', 'more test content')
         commit_text = self.scm.commit_with_message("another test commit")
         self.assertEqual(self.scm.svn_revision_from_commit_text(commit_text), '6')
-
-        self.scm.dryrun = True
-        write_into_file_at_path('test_file', 'still more test content')
-        commit_text = self.scm.commit_with_message("yet another test commit")
-        self.assertEqual(self.scm.svn_revision_from_commit_text(commit_text), '0')
 
     def test_commit_with_message_working_copy_only(self):
         write_into_file_at_path('test_file_commit1', 'more test content')

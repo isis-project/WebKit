@@ -320,7 +320,9 @@ public:
     void registerApplicationScheme(const String& scheme);
     void resolveApplicationSchemeRequest(QtNetworkRequestData);
     void sendApplicationSchemeReply(const QQuickNetworkReply*);
-#endif
+    void authenticationRequiredRequest(const String& hostname, const String& realm, const String& prefilledUsername, String& username, String& password);
+    void certificateVerificationRequest(const String& hostname, bool& ignoreErrors);
+#endif // PLATFORM(QT).
 
 #if PLATFORM(QT)
     void setComposition(const String& text, Vector<WebCore::CompositionUnderline> underlines, uint64_t selectionStart, uint64_t selectionEnd, uint64_t replacementRangeStart, uint64_t replacementRangeEnd);
@@ -380,6 +382,9 @@ public:
 #endif
 #if ENABLE(TOUCH_EVENTS)
     void handleTouchEvent(const NativeWebTouchEvent&);
+#if PLATFORM(QT)
+    void handlePotentialActivation(const WebCore::IntPoint&);
+#endif
 #endif
 
     void scrollBy(WebCore::ScrollDirection, WebCore::ScrollGranularity);
@@ -436,6 +441,8 @@ public:
 
     void setPaginationMode(WebCore::Page::Pagination::Mode);
     WebCore::Page::Pagination::Mode paginationMode() const { return m_paginationMode; }
+    void setPaginationBehavesLikeColumns(bool);
+    bool paginationBehavesLikeColumns() const { return m_paginationBehavesLikeColumns; }
     void setPageLength(double);
     double pageLength() const { return m_pageLength; }
     void setGapBetweenPages(double);
@@ -570,12 +577,18 @@ public:
     void setSmartInsertDeleteEnabled(bool);
 #endif
 
+#if PLATFORM(GTK)
+    String accessibilityPlugID() const { return m_accessibilityPlugID; }
+#endif
+
     void beginPrinting(WebFrameProxy*, const PrintInfo&);
     void endPrinting();
     void computePagesForPrinting(WebFrameProxy*, const PrintInfo&, PassRefPtr<ComputedPagesCallback>);
 #if PLATFORM(MAC) || PLATFORM(WIN)
     void drawRectToPDF(WebFrameProxy*, const PrintInfo&, const WebCore::IntRect&, PassRefPtr<DataCallback>);
     void drawPagesToPDF(WebFrameProxy*, const PrintInfo&, uint32_t first, uint32_t count, PassRefPtr<DataCallback>);
+#elif PLATFORM(GTK)
+    void drawPagesForPrinting(WebFrameProxy*, const PrintInfo&, PassRefPtr<VoidCallback>);
 #endif
 
     const String& pendingAPIRequestURL() const { return m_pendingAPIRequestURL; }
@@ -606,6 +619,8 @@ public:
     void setShouldSendEventsSynchronously(bool sync) { m_shouldSendEventsSynchronously = sync; };
 
     void printMainFrame();
+    
+    void setMediaVolume(float);
 
     // WebPopupMenuProxy::Client
     virtual NativeWebMouseEvent* currentlyProcessedMouseDownEvent();
@@ -642,6 +657,7 @@ private:
     void didReceiveTitleForFrame(uint64_t frameID, const String&, CoreIPC::ArgumentDecoder*);
     void didFirstLayoutForFrame(uint64_t frameID, CoreIPC::ArgumentDecoder*);
     void didFirstVisuallyNonEmptyLayoutForFrame(uint64_t frameID, CoreIPC::ArgumentDecoder*);
+    void didNewFirstVisuallyNonEmptyLayout(CoreIPC::ArgumentDecoder*);
     void didRemoveFrameFromHierarchy(uint64_t frameID, CoreIPC::ArgumentDecoder*);
     void didDisplayInsecureContentForFrame(uint64_t frameID, CoreIPC::ArgumentDecoder*);
     void didRunInsecureContentForFrame(uint64_t frameID, CoreIPC::ArgumentDecoder*);
@@ -703,13 +719,13 @@ private:
     void didChangeScrollOffsetPinningForMainFrame(bool pinnedToLeftSide, bool pinnedToRightSide);
     void didChangePageCount(unsigned);
     void didFailToInitializePlugin(const String& mimeType);
-    void numWheelEventHandlersChanged(unsigned count) { m_wheelEventHandlerCount = count; }
+    void setCanShortCircuitHorizontalWheelEvents(bool canShortCircuitHorizontalWheelEvents) { m_canShortCircuitHorizontalWheelEvents = canShortCircuitHorizontalWheelEvents; }
 
     void reattachToWebProcess();
     void reattachToWebProcessWithItem(WebBackForwardListItem*);
 
-    void requestNotificationPermission(uint64_t notificationID, const String& originIdentifier);
-    void showNotification(const String& title, const String& body, const String& originIdentifier, uint64_t notificationID);
+    void requestNotificationPermission(uint64_t notificationID, const String& originString);
+    void showNotification(const String& title, const String& body, const String& iconURL, const String& originString, uint64_t notificationID);
     
 #if USE(TILED_BACKING_STORE)
     void pageDidRequestScroll(const WebCore::IntPoint&);
@@ -718,7 +734,6 @@ private:
 #if PLATFORM(QT)
     void didChangeContentsSize(const WebCore::IntSize&);
     void didFindZoomableArea(const WebCore::IntPoint&, const WebCore::IntRect&);
-    void focusEditableArea(const WebCore::IntRect& caret, const WebCore::IntRect&);
 #endif
 #if ENABLE(TOUCH_EVENTS)
     void needTouchEvents(bool);
@@ -728,7 +743,7 @@ private:
 
     // Back/Forward list management
     void backForwardAddItem(uint64_t itemID);
-    void backForwardGoToItem(uint64_t itemID);
+    void backForwardGoToItem(uint64_t itemID, SandboxExtension::Handle&);
     void backForwardItemAtIndex(int32_t index, uint64_t& itemID);
     void backForwardBackListCount(int32_t& count);
     void backForwardForwardListCount(int32_t& count);
@@ -748,6 +763,7 @@ private:
 
 #if PLATFORM(GTK)
     void getEditorCommandsForKeyEvent(const AtomicString&, Vector<String>&);
+    void bindAccessibilityTree(const String&);
 #endif
 #if PLATFORM(EFL)
     void getEditorCommandsForKeyEvent(Vector<String>&);
@@ -933,6 +949,7 @@ private:
     WebCore::IntSize m_fixedLayoutSize;
 
     WebCore::Page::Pagination::Mode m_paginationMode;
+    bool m_paginationBehavesLikeColumns;
     double m_pageLength;
     double m_gapBetweenPages;
 
@@ -977,6 +994,10 @@ private:
     bool m_isSmartInsertDeleteEnabled;
 #endif
 
+#if PLATFORM(GTK)
+    String m_accessibilityPlugID;
+#endif
+
     int64_t m_spellDocumentTag;
     bool m_hasSpellDocumentTag;
     unsigned m_pendingLearnOrIgnoreWordMessageCount;
@@ -988,7 +1009,9 @@ private:
 
     bool m_mainFrameHasHorizontalScrollbar;
     bool m_mainFrameHasVerticalScrollbar;
-    int m_wheelEventHandlerCount;
+
+    // Whether horizontal wheel events can be handled directly for swiping purposes.
+    bool m_canShortCircuitHorizontalWheelEvents;
 
     bool m_mainFrameIsPinnedToLeftSide;
     bool m_mainFrameIsPinnedToRightSide;
@@ -1002,9 +1025,11 @@ private:
     static WKPageDebugPaintFlags s_debugPaintFlags;
 
     bool m_shouldSendEventsSynchronously;
+    
+    float m_mediaVolume;
 
 #if PLATFORM(QT)
-    WTF::HashSet<RefPtr<QtNetworkRequestData> > m_applicationSchemeRequests;
+    WTF::HashSet<RefPtr<QtRefCountedNetworkRequestData> > m_applicationSchemeRequests;
 #endif
 };
 

@@ -45,17 +45,6 @@
 #include <wtf/HashSet.h>
 #include <wtf/StdLibExtras.h>
 
-#if ENABLE(GAMEPAD)
-#include "GamepadList.h"
-#include "Gamepads.h"
-#endif
-
-#if ENABLE(MEDIA_STREAM)
-#include "NavigatorUserMediaErrorCallback.h"
-#include "NavigatorUserMediaSuccessCallback.h"
-#include "UserMediaRequest.h"
-#endif
-
 namespace WebCore {
 
 Navigator::Navigator(Frame* frame)
@@ -65,6 +54,17 @@ Navigator::Navigator(Frame* frame)
 
 Navigator::~Navigator()
 {
+}
+
+void Navigator::provideSupplement(const AtomicString& name, PassOwnPtr<NavigatorSupplement> supplement)
+{
+    ASSERT(!m_suppliments.get(name.impl()));
+    m_suppliments.set(name.impl(), supplement);
+}
+
+NavigatorSupplement* Navigator::requireSupplement(const AtomicString& name)
+{
+    return m_suppliments.get(name.impl());
 }
 
 void Navigator::resetGeolocation()
@@ -161,8 +161,8 @@ Geolocation* Navigator::geolocation() const
 #if ENABLE(POINTER_LOCK)
 PointerLock* Navigator::webkitPointer() const
 {
-    if (!m_pointer)
-        m_pointer = PointerLock::create();
+    if (!m_pointer && m_frame && m_frame->page())
+        m_pointer = PointerLock::create(m_frame);
     return m_pointer.get();
 }
 #endif
@@ -265,39 +265,6 @@ void Navigator::registerProtocolHandler(const String& scheme, const String& url,
         return;
 
     page->chrome()->registerProtocolHandler(scheme, baseURL, url, m_frame->displayStringModifiedByEncoding(title));
-}
-#endif
-
-#if ENABLE(MEDIA_STREAM)
-void Navigator::webkitGetUserMedia(const String& options, PassRefPtr<NavigatorUserMediaSuccessCallback> successCallback, PassRefPtr<NavigatorUserMediaErrorCallback> errorCallback, ExceptionCode& ec)
-{
-    if (!successCallback)
-        return;
-
-    if (!m_frame)
-        return;
-
-    Page* page = m_frame->page();
-    if (!page)
-        return;
-
-    RefPtr<UserMediaRequest> request = UserMediaRequest::create(m_frame->document(), page->userMediaClient(), options, successCallback, errorCallback);
-    if (!request) {
-        ec = NOT_SUPPORTED_ERR;
-        return;
-    }
-
-    request->start();
-}
-#endif
-
-#if ENABLE(GAMEPAD)
-GamepadList* Navigator::gamepads()
-{
-    if (!m_gamepads)
-        m_gamepads = GamepadList::create();
-    sampleGamepads(m_gamepads.get());
-    return m_gamepads.get();
 }
 #endif
 

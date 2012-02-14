@@ -29,9 +29,10 @@
  */
 
 #include "config.h"
-#include "ConsoleMessage.h"
 
 #if ENABLE(INSPECTOR)
+
+#include "ConsoleMessage.h"
 
 #include "Console.h"
 #include "InjectedScript.h"
@@ -117,7 +118,7 @@ static String messageTypeValue(MessageType type)
     case EndGroupMessageType: return "endGroup";
     case AssertMessageType: return "assert";
     }
-    return "other";
+    return "log";
 }
 
 static String messageLevelValue(MessageLevel level)

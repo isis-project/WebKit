@@ -20,24 +20,28 @@
 #include "config.h"
 #include "TextureMapper.h"
 
+#include "TextureMapperImageBuffer.h"
+
 #if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
 
 namespace WebCore {
 
 PassRefPtr<BitmapTexture> TextureMapper::acquireTextureFromPool(const IntSize& size)
 {
-    if (m_texturePool.isEmpty()) {
-        RefPtr<BitmapTexture> selectedTexture = createTexture();
-        selectedTexture->reset(size, false);
-        selectedTexture->lock();
-        return selectedTexture;
-    }
+    RefPtr<BitmapTexture> selectedTexture;
 
-    size_t index = 0;
-    RefPtr<BitmapTexture> selectedTexture = m_texturePool[0];
+    for (size_t i = 0; i < m_texturePool.size(); ++i) {
+        RefPtr<BitmapTexture>& texture = m_texturePool[i];
 
-    for (size_t i = 1; i < m_texturePool.size(); ++i) {
-        RefPtr<BitmapTexture> texture = m_texturePool[i];
+        // If the surface has only one reference (the one in m_texturePool), we can safely reuse it.
+        if (texture->refCount() > 1)
+            continue;
+
+        // We default to the first available texture.
+        if (!selectedTexture) {
+            selectedTexture = texture;
+            continue;
+        }
 
         IntSize textureSize = texture->size();
         IntSize selectedTextureSize = selectedTexture->size();
@@ -58,21 +62,23 @@ PassRefPtr<BitmapTexture> TextureMapper::acquireTextureFromPool(const IntSize& s
             continue;
 
         selectedTexture = texture;
-        index = i;
     }
 
-    m_texturePool.remove(index);
+    if (!selectedTexture) {
+        selectedTexture = createTexture();
+        m_texturePool.append(selectedTexture);
+    }
+
     selectedTexture->reset(size, false);
-    selectedTexture->lock();
     return selectedTexture;
 }
 
-void TextureMapper::releaseTextureToPool(BitmapTexture* texture)
+
+PassOwnPtr<TextureMapper> TextureMapper::create(AccelerationMode mode)
 {
-    if (!texture)
-        return;
-    m_texturePool.append(texture);
-    texture->unlock();
+    if (mode == SoftwareMode)
+        return TextureMapperImageBuffer::create();
+    return platformCreateAccelerated();
 }
 
 }

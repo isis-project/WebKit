@@ -32,6 +32,7 @@
 #include "DocumentFragment.h"
 #include "Element.h"
 #include "Frame.h"
+#include "HWndDC.h"
 #include "HitTestResult.h"
 #include "Image.h"
 #include "KURL.h"
@@ -41,6 +42,7 @@
 #include "RenderImage.h"
 #include "TextEncoding.h"
 #include "WebCoreInstanceHandle.h"
+#include "WindowsExtras.h"
 #include "markup.h"
 #include <wtf/text/CString.h>
 
@@ -87,11 +89,6 @@ Pasteboard* Pasteboard::generalPasteboard()
 
 Pasteboard::Pasteboard()
 {
-    HWND hWndParent = 0;
-#if !OS(WINCE)
-    hWndParent = HWND_MESSAGE;
-#endif
-
     WNDCLASS wc;
     memset(&wc, 0, sizeof(WNDCLASS));
     wc.lpfnWndProc    = PasteboardOwnerWndProc;
@@ -100,7 +97,7 @@ Pasteboard::Pasteboard()
     RegisterClass(&wc);
 
     m_owner = ::CreateWindow(L"PasteboardOwnerWindowClass", L"PasteboardOwnerWindow", 0, 0, 0, 0, 0,
-        hWndParent, 0, 0, 0);
+        HWND_MESSAGE, 0, 0, 0);
 
     HTMLClipboardFormat = ::RegisterClipboardFormat(L"HTML Format");
     BookmarkClipboardFormat = ::RegisterClipboardFormat(L"UniformResourceLocatorW");
@@ -223,7 +220,7 @@ void Pasteboard::writeImage(Node* node, const KURL&, const String&)
 
     clear();
 
-    HDC dc = GetDC(0);
+    HWndDC dc(0);
     HDC compatibleDC = CreateCompatibleDC(0);
     HDC sourceDC = CreateCompatibleDC(0);
     OwnPtr<HBITMAP> resultBitmap = adoptPtr(CreateCompatibleBitmap(dc, image->width(), image->height()));
@@ -243,7 +240,6 @@ void Pasteboard::writeImage(Node* node, const KURL&, const String&)
     SelectObject(compatibleDC, oldBitmap);
     DeleteDC(sourceDC);
     DeleteDC(compatibleDC);
-    ReleaseDC(0, dc);
 
     if (::OpenClipboard(m_owner)) {
         ::SetClipboardData(CF_BITMAP, resultBitmap.leakPtr());

@@ -86,28 +86,28 @@ struct Eina_Iterator_Ewk_Frame {
 #ifndef EWK_TYPE_CHECK
 #define EWK_FRAME_TYPE_CHECK(ewkFrame, ...) do { } while (0)
 #else
-#define EWK_FRAME_TYPE_CHECK(ewkFrame, ...)                                    \
-    do {                                                                \
-        const char* _tmp_otype = evas_object_type_get(ewkFrame);               \
-        if (EINA_UNLIKELY(_tmp_otype != EWK_FRAME_TYPE_STR)) {          \
-            EINA_LOG_CRIT                                               \
-                ("%p (%s) is not of an ewk_frame!", ewkFrame,                  \
-                _tmp_otype ? _tmp_otype : "(null)");                    \
-            return __VA_ARGS__;                                         \
-        }                                                               \
+#define EWK_FRAME_TYPE_CHECK(ewkFrame, ...) \
+    do { \
+        const char* _tmp_otype = evas_object_type_get(ewkFrame); \
+        if (EINA_UNLIKELY(_tmp_otype != EWK_FRAME_TYPE_STR)) { \
+            EINA_LOG_CRIT \
+                ("%p (%s) is not of an ewk_frame!", ewkFrame, \
+                _tmp_otype ? _tmp_otype : "(null)"); \
+            return __VA_ARGS__; \
+        } \
     } while (0)
 #endif
 
-#define EWK_FRAME_SD_GET(ewkFrame, ptr)                                \
-    Ewk_Frame_Smart_Data* ptr = static_cast<Ewk_Frame_Smart_Data*>(evas_object_smart_data_get(ewkFrame))
+#define EWK_FRAME_SD_GET(ewkFrame, pointer) \
+    Ewk_Frame_Smart_Data* pointer = static_cast<Ewk_Frame_Smart_Data*>(evas_object_smart_data_get(ewkFrame))
 
-#define EWK_FRAME_SD_GET_OR_RETURN(ewkFrame, ptr, ...)         \
-    EWK_FRAME_TYPE_CHECK(ewkFrame, __VA_ARGS__);               \
-    EWK_FRAME_SD_GET(ewkFrame, ptr);                           \
-    if (!ptr) {                                         \
-        CRITICAL("no smart data for object %p (%s)",    \
-                 ewkFrame, evas_object_type_get(ewkFrame));           \
-        return __VA_ARGS__;                             \
+#define EWK_FRAME_SD_GET_OR_RETURN(ewkFrame, pointer, ...) \
+    EWK_FRAME_TYPE_CHECK(ewkFrame, __VA_ARGS__); \
+    EWK_FRAME_SD_GET(ewkFrame, pointer); \
+    if (!pointer) { \
+        CRITICAL("no smart data for object %p (%s)", \
+                 ewkFrame, evas_object_type_get(ewkFrame)); \
+        return __VA_ARGS__; \
     }
 
 static Evas_Smart_Class _parent_sc = EVAS_SMART_CLASS_INIT_NULL;
@@ -436,7 +436,8 @@ char* ewk_frame_script_execute(Evas_Object* ewkFrame, const char* script)
         return 0;
 
     JSC::JSLock lock(JSC::SilenceAssertionsOnly);
-    resultString = WebCore::ustringToString(result.toString(smartData->frame->script()->globalObject(WebCore::mainThreadNormalWorld())->globalExec()));
+    JSC::ExecState* exec = smartData->frame->script()->globalObject(WebCore::mainThreadNormalWorld())->globalExec();
+    resultString = WebCore::ustringToString(result.toString(exec)->value(exec));
     return strdup(resultString.utf8().data());
 #else
     notImplemented();
@@ -458,6 +459,7 @@ Eina_Bool ewk_frame_editable_set(Evas_Object* ewkFrame, Eina_Bool editable)
     editable = !!editable;
     if (smartData->editable == editable)
         return true;
+    smartData->editable = editable;
     if (editable)
         smartData->frame->editor()->applyEditingStyleToBodyElement();
     return true;
@@ -467,10 +469,10 @@ char* ewk_frame_selection_get(const Evas_Object* ewkFrame)
 {
     EWK_FRAME_SD_GET_OR_RETURN(ewkFrame, smartData, 0);
     EINA_SAFETY_ON_NULL_RETURN_VAL(smartData->frame, 0);
-    WTF::CString s = smartData->frame->editor()->selectedText().utf8();
-    if (s.isNull())
+    WTF::CString selectedText = smartData->frame->editor()->selectedText().utf8();
+    if (selectedText.isNull())
         return 0;
-    return strdup(s.data());
+    return strdup(selectedText.data());
 }
 
 Eina_Bool ewk_frame_text_search(const Evas_Object* ewkFrame, const char* text, Eina_Bool caseSensitive, Eina_Bool forward, Eina_Bool wrap)
@@ -833,8 +835,8 @@ Eina_Bool ewk_frame_feed_focus_in(Evas_Object* ewkFrame)
 {
     EWK_FRAME_SD_GET_OR_RETURN(ewkFrame, smartData, false);
     EINA_SAFETY_ON_NULL_RETURN_VAL(smartData->frame, false);
-    WebCore::FocusController* c = smartData->frame->page()->focusController();
-    c->setFocusedFrame(smartData->frame);
+    WebCore::FocusController* focusController = smartData->frame->page()->focusController();
+    focusController->setFocusedFrame(smartData->frame);
     return true;
 }
 
@@ -1604,7 +1606,6 @@ Eina_Bool ewk_frame_mixed_content_run_get(const Evas_Object* ewkFrame)
 
 Ewk_Certificate_Status ewk_frame_certificate_status_get(Evas_Object* ewkFrame)
 {
-#if USE(SOUP)
     EWK_FRAME_SD_GET_OR_RETURN(ewkFrame, smartData, EWK_CERTIFICATE_STATUS_NO_CERTIFICATE);
     EINA_SAFETY_ON_NULL_RETURN_VAL(smartData->frame, EWK_CERTIFICATE_STATUS_NO_CERTIFICATE);
 
@@ -1624,9 +1625,6 @@ Ewk_Certificate_Status ewk_frame_certificate_status_get(Evas_Object* ewkFrame)
         return EWK_CERTIFICATE_STATUS_TRUSTED;
 
     return EWK_CERTIFICATE_STATUS_UNTRUSTED;
-#endif
-
-    return EWK_CERTIFICATE_STATUS_NO_CERTIFICATE;
 }
 
 /**
@@ -1773,7 +1771,7 @@ void ewk_frame_mixed_content_run_set(Evas_Object* ewkFrame, bool hasRun)
 
 namespace EWKPrivate {
 
-WebCore::Frame *coreFrame(const Evas_Object *ewkFrame)
+WebCore::Frame* coreFrame(const Evas_Object* ewkFrame)
 {
     EWK_FRAME_SD_GET_OR_RETURN(ewkFrame, smartData, 0);
     return smartData->frame;

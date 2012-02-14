@@ -185,12 +185,6 @@ void WebEditorClient::respondToChangedSelection(Frame* frame)
 
     EditorState state = m_page->editorState();
 
-#if PLATFORM(QT)
-    // FIXME: Move this to act on the vkb visibility change.
-    if (state.isContentEditable)
-        m_page->send(Messages::WebPageProxy::FocusEditableArea(state.cursorRect, state.editorRect));
-#endif
-
     m_page->send(Messages::WebPageProxy::EditorStateChanged(state));
 
 #if PLATFORM(WIN)
@@ -201,9 +195,11 @@ void WebEditorClient::respondToChangedSelection(Frame* frame)
     unsigned start;
     unsigned end;
     m_page->send(Messages::WebPageProxy::DidChangeCompositionSelection(frame->editor()->getCompositionSelection(start, end)));
+#elif PLATFORM(GTK)
+    setSelectionPrimaryClipboardIfNeeded(frame);
 #endif
 }
-    
+
 void WebEditorClient::didEndEditing()
 {
     DEFINE_STATIC_LOCAL(String, WebViewDidEndEditingNotification, ("WebViewDidEndEditingNotification"));

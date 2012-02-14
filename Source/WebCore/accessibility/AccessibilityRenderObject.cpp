@@ -707,9 +707,9 @@ bool AccessibilityRenderObject::isReadOnly() const
 bool AccessibilityRenderObject::isOffScreen() const
 {
     ASSERT(m_renderer);
-    LayoutRect contentRect = m_renderer->absoluteClippedOverflowRect();
+    IntRect contentRect = pixelSnappedIntRect(m_renderer->absoluteClippedOverflowRect());
     FrameView* view = m_renderer->frame()->view();
-    FloatRect viewRect = view->visibleContentRect();
+    IntRect viewRect = view->visibleContentRect();
     viewRect.intersect(contentRect);
     return viewRect.isEmpty();
 }
@@ -1212,7 +1212,7 @@ String AccessibilityRenderObject::stringValue() const
 static String accessibleNameForNode(Node* node)
 {
     if (node->isTextNode())
-        return static_cast<Text*>(node)->data();
+        return toText(node)->data();
 
     if (node->hasTagName(inputTag))
         return static_cast<HTMLInputElement*>(node)->value();
@@ -1428,14 +1428,14 @@ String AccessibilityRenderObject::accessibilityDescription() const
                 const AtomicString& title = static_cast<HTMLFrameElementBase*>(owner)->getAttribute(titleAttr);
                 if (!title.isEmpty())
                     return title;
-                return static_cast<HTMLFrameElementBase*>(owner)->getAttribute(nameAttr);
+                return static_cast<HTMLFrameElementBase*>(owner)->getNameAttribute();
             }
             if (owner->isHTMLElement())
-                return toHTMLElement(owner)->getAttribute(nameAttr);
+                return toHTMLElement(owner)->getNameAttribute();
         }
         owner = document->body();
         if (owner && owner->isHTMLElement())
-            return toHTMLElement(owner)->getAttribute(nameAttr);
+            return toHTMLElement(owner)->getNameAttribute();
     }
 
     return String();
@@ -1499,7 +1499,7 @@ LayoutSize AccessibilityRenderObject::size() const
     return rect.size();
 }
 
-LayoutPoint AccessibilityRenderObject::clickPoint()
+IntPoint AccessibilityRenderObject::clickPoint()
 {
     // Headings are usually much wider than their textual content. If the mid point is used, often it can be wrong.
     if (isHeading() && children().size() == 1)
@@ -1511,11 +1511,11 @@ LayoutPoint AccessibilityRenderObject::clickPoint()
     
     VisibleSelection visSelection = selection();
     VisiblePositionRange range = VisiblePositionRange(visSelection.visibleStart(), visSelection.visibleEnd());
-    LayoutRect bounds = boundsForVisiblePositionRange(range);
+    IntRect bounds = boundsForVisiblePositionRange(range);
 #if PLATFORM(MAC)
     bounds.setLocation(m_renderer->document()->view()->screenToContents(bounds.location()));
 #endif        
-    return LayoutPoint(bounds.x() + (bounds.width() / 2), bounds.y() - (bounds.height() / 2));
+    return IntPoint(bounds.x() + (bounds.width() / 2), bounds.y() - (bounds.height() / 2));
 }
     
 AccessibilityObject* AccessibilityRenderObject::internalLinkElement() const
@@ -2594,10 +2594,10 @@ bool AccessibilityRenderObject::nodeIsTextControl(const Node* node) const
     return axObjectForNode->isTextControl();
 }
 
-LayoutRect AccessibilityRenderObject::boundsForVisiblePositionRange(const VisiblePositionRange& visiblePositionRange) const
+IntRect AccessibilityRenderObject::boundsForVisiblePositionRange(const VisiblePositionRange& visiblePositionRange) const
 {
     if (visiblePositionRange.isNull())
-        return LayoutRect();
+        return IntRect();
     
     // Create a mutable VisiblePositionRange.
     VisiblePositionRange range(visiblePositionRange);
@@ -2630,9 +2630,9 @@ LayoutRect AccessibilityRenderObject::boundsForVisiblePositionRange(const Visibl
     }
     
 #if PLATFORM(MAC)
-    return m_renderer->document()->view()->contentsToScreen(ourrect);
+    return m_renderer->document()->view()->contentsToScreen(pixelSnappedIntRect(ourrect));
 #else
-    return ourrect;
+    return pixelSnappedIntRect(ourrect);
 #endif
 }
     
@@ -2675,7 +2675,7 @@ VisiblePosition AccessibilityRenderObject::visiblePositionForPoint(const LayoutP
     while (1) {
         LayoutPoint ourpoint;
 #if PLATFORM(MAC)
-        ourpoint = frameView->screenToContents(point);
+        ourpoint = frameView->screenToContents(roundedIntPoint(point));
 #else
         ourpoint = point;
 #endif
@@ -2811,14 +2811,14 @@ String AccessibilityRenderObject::doAXStringForRange(const PlainTextRange& range
 // The bounding rectangle of the text associated with this accessibility object that is
 // specified by the given range. This is the bounding rectangle a sighted user would see
 // on the display screen, in pixels.
-LayoutRect AccessibilityRenderObject::doAXBoundsForRange(const PlainTextRange& range) const
+IntRect AccessibilityRenderObject::doAXBoundsForRange(const PlainTextRange& range) const
 {
     if (allowsTextRanges())
         return boundsForVisiblePositionRange(visiblePositionRangeForRange(range));
-    return LayoutRect();
+    return IntRect();
 }
 
-AccessibilityObject* AccessibilityRenderObject::accessibilityImageMapHitTest(HTMLAreaElement* area, const IntPoint& point) const
+AccessibilityObject* AccessibilityRenderObject::accessibilityImageMapHitTest(HTMLAreaElement* area, const LayoutPoint& point) const
 {
     if (!area)
         return 0;
@@ -2854,7 +2854,7 @@ AccessibilityObject* AccessibilityRenderObject::accessibilityHitTest(const IntPo
     Node* node = hitTestResult.innerNode()->shadowAncestorNode();
 
     if (node->hasTagName(areaTag)) 
-        return accessibilityImageMapHitTest(static_cast<HTMLAreaElement*>(node), point);
+        return accessibilityImageMapHitTest(static_cast<HTMLAreaElement*>(node), roundedIntPoint(point));
     
     if (node->hasTagName(optionTag))
         node = static_cast<HTMLOptionElement*>(node)->ownerSelectElement();
@@ -3348,6 +3348,9 @@ bool AccessibilityRenderObject::canSetFocusAttribute() const
 {
     Node* node = this->node();
 
+    if (isWebArea())
+        return true;
+    
     // NOTE: It would be more accurate to ask the document whether setFocusedNode() would
     // do anything.  For example, setFocusedNode() will do nothing if the current focused
     // node will not relinquish the focus.
@@ -3935,6 +3938,35 @@ AccessibilityRole AccessibilityRenderObject::roleValueForMSAA() const
         m_roleForMSAA = roleValue();
 
     return m_roleForMSAA;
+}
+
+ScrollableArea* AccessibilityRenderObject::getScrollableAreaIfScrollable() const
+{
+    // If the parent is a scroll view, then this object isn't really scrollable, the parent ScrollView should handle the scrolling.
+    if (parentObject() && parentObject()->isAccessibilityScrollView())
+        return 0;
+
+    if (!m_renderer || !m_renderer->isBox())
+        return 0;
+
+    RenderBox* box = toRenderBox(m_renderer);
+    if (!box->canBeScrolledAndHasScrollableArea())
+        return 0;
+
+    return box->layer();
+}
+
+void AccessibilityRenderObject::scrollTo(const IntPoint& point) const
+{
+    if (!m_renderer || !m_renderer->isBox())
+        return;
+
+    RenderBox* box = toRenderBox(m_renderer);
+    if (!box->canBeScrolledAndHasScrollableArea())
+        return;
+
+    RenderLayer* layer = box->layer();
+    layer->scrollToOffset(point.x(), point.y(), RenderLayer::ScrollOffsetClamped);
 }
 
 } // namespace WebCore

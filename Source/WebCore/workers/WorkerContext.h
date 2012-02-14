@@ -131,15 +131,10 @@ namespace WebCore {
         virtual bool isContextThread() const;
         virtual bool isJSExecutionForbidden() const;
 
-#if ENABLE(BLOB)
-        DOMURL* webkitURL() const;
-#endif
-
 #if ENABLE(FILE_SYSTEM)
         enum FileSystemType {
             TEMPORARY,
             PERSISTENT,
-            EXTERNAL,
         };
         void webkitRequestFileSystem(int type, long long size, PassRefPtr<FileSystemCallback> successCallback, PassRefPtr<ErrorCallback>);
         PassRefPtr<DOMFileSystemSync> webkitRequestFileSystemSync(int type, long long size, ExceptionCode&);

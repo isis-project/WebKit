@@ -1,6 +1,6 @@
 // svg/dynamic-updates tests set enablePixelTesting=true, as we want to dump text + pixel results
-if (window.layoutTestController)
-    layoutTestController.dumpAsText(window.enablePixelTesting);
+if (self.layoutTestController)
+    layoutTestController.dumpAsText(self.enablePixelTesting);
 
 var description, debug, successfullyParsed, errorMessage;
 
@@ -48,11 +48,6 @@ var description, debug, successfullyParsed, errorMessage;
         span.innerHTML = msg + '<br />';
     };
 
-    function isWorker()
-    {
-        return typeof document === 'undefined';
-    }
-
     var css =
         ".pass {" +
             "font-weight: bold;" +
@@ -77,12 +72,20 @@ var description, debug, successfullyParsed, errorMessage;
     if (!isWorker())
         insertStyleSheet();
 
-    window.onerror = function(message)
+    self.onerror = function(message)
     {
         errorMessage = message;
     };
 
 })();
+
+function isWorker()
+{
+    // It's conceivable that someone would stub out 'document' in a worker so
+    // also check for childNodes, an arbitrary DOM-related object that is
+    // meaningless in a WorkerContext.
+    return (typeof document === 'undefined' || typeof document.childNodes === 'undefined') && !!self.importScripts;
+}
 
 function descriptionQuiet(msg) { description(msg, true); }
 
@@ -418,9 +421,60 @@ function isSuccessfullyParsed()
 function finishJSTest()
 {
     wasFinishJSTestCalled = true;
-    if (!window.wasPostTestScriptParsed)
+    if (!self.wasPostTestScriptParsed)
         return;
     isSuccessfullyParsed();
-    if (window.jsTestIsAsync && window.layoutTestController)
+    if (self.jsTestIsAsync && self.layoutTestController)
         layoutTestController.notifyDone();
+}
+
+function startWorker(testScriptURL)
+{
+    self.jsTestIsAsync = true;
+    debug('Starting worker: ' + testScriptURL);
+    var worker = new Worker(testScriptURL);
+    worker.onmessage = function(event)
+    {
+        var workerPrefix = "[Worker] ";
+        if (event.data.length < 5 || event.data.charAt(4) != ':') {
+          debug(workerPrefix + event.data);
+          return;
+        }
+        var code = event.data.substring(0, 4);
+        var payload = workerPrefix + event.data.substring(5);
+        if (code == "PASS")
+            testPassed(payload);
+        else if (code == "FAIL")
+            testFailed(payload);
+        else if (code == "DESC")
+            description(payload);
+        else if (code == "DONE")
+            finishJSTest();
+        else
+            debug(workerPrefix + event.data);
+    };
+
+    worker.onerror = function(event)
+    {
+        debug('Got error from worker: ' + event.message);
+        finishJSTest();
+    }
+}
+
+if (isWorker()) {
+    description = function(msg, quiet) {
+        postMessage('DESC:' + msg);
+    }
+    testFailed = function(msg) {
+        postMessage('FAIL:' + msg);
+    }
+    testPassed = function(msg) {
+        postMessage('PASS:' + msg);
+    }
+    finishJSTest = function() {
+        postMessage('DONE:');
+    }
+    debug = function(msg) {
+        postMessage(msg);
+    }
 }

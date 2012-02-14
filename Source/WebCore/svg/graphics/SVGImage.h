@@ -57,7 +57,11 @@ public:
     virtual bool isSVGImage() const { return true; }
     virtual IntSize size() const;
 
+    virtual bool hasRelativeWidth() const;
+    virtual bool hasRelativeHeight() const;
+
 private:
+    friend class SVGImageChromeClient;
     virtual ~SVGImage();
 
     virtual String filenameExtension() const;

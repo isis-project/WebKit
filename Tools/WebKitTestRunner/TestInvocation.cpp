@@ -59,16 +59,17 @@ static WKURLRef createWKURL(const char* pathOrURL)
     if (!length)
         return 0;
 
-    // FIXME: Remove the "localhost/" suffix once <http://webkit.org/b/55683> is fixed.
-    const char* filePrefix = "file://localhost/";
-    static const size_t prefixLength = strlen(filePrefix);
 #if OS(WINDOWS)
     const char separator = '\\';
     bool isAbsolutePath = length >= 3 && pathOrURL[1] == ':' && pathOrURL[2] == separator;
+    // FIXME: Remove the "localhost/" suffix once <http://webkit.org/b/55683> is fixed.
+    const char* filePrefix = "file://localhost/";
 #else
     const char separator = '/';
     bool isAbsolutePath = pathOrURL[0] == separator;
+    const char* filePrefix = "file://";
 #endif
+    static const size_t prefixLength = strlen(filePrefix);
 
     OwnArrayPtr<char> buffer;
     if (isAbsolutePath) {
@@ -92,6 +93,7 @@ TestInvocation::TestInvocation(const std::string& pathOrURL)
     : m_url(AdoptWK, createWKURL(pathOrURL.c_str()))
     , m_pathOrURL(pathOrURL)
     , m_dumpPixels(false)
+    , m_skipPixelTestOption(false)
     , m_gotInitialResponse(false)
     , m_gotFinalMessage(false)
     , m_gotRepaint(false)
@@ -105,6 +107,8 @@ TestInvocation::~TestInvocation()
 
 void TestInvocation::setIsPixelTest(const std::string& expectedPixelHash)
 {
+    if (m_skipPixelTestOption && !expectedPixelHash.length())
+        return;
     m_dumpPixels = true;
     m_expectedPixelHash = expectedPixelHash;
 }

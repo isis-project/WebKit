@@ -9,7 +9,7 @@
 
     This library is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERchANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
     Library General Public License for more details.
 
     You should have received a copy of the GNU Library General Public License
@@ -25,6 +25,7 @@
 #include "ewk_logging.h"
 #include "ewk_private.h"
 
+#include <Ecore_Evas.h>
 #include <Evas.h>
 #include <eina_safety_checks.h>
 #include <string.h>
@@ -57,6 +58,12 @@ static void _ewk_view_single_smart_add(Evas_Object* ewkView)
 static Evas_Object* _ewk_view_single_smart_backing_store_add(Ewk_View_Smart_Data* smartData)
 {
     Evas_Object* bs = evas_object_image_add(smartData->base.evas);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(bs, 0);
+    const Ecore_Evas* ecoreEvas = ecore_evas_ecore_evas_get(smartData->base.evas);
+    const char* engine = ecore_evas_engine_name_get(ecoreEvas);
+    if (!strncmp(engine, "opengl_x11", strlen("opengl_x11")))
+        evas_object_image_content_hint_set(bs, EVAS_IMAGE_CONTENT_HINT_DYNAMIC);
+
     evas_object_image_alpha_set(bs, false);
     evas_object_image_smooth_scale_set(bs, smartData->zoom_weak_smooth_scale);
 
@@ -209,8 +216,8 @@ static Eina_Bool _ewk_view_single_smart_repaints_process(Ewk_View_Smart_Data* sm
     Evas_Coord ow, oh;
     void* pixels;
     Eina_Rectangle* rect;
-    const Eina_Rectangle* pr;
-    const Eina_Rectangle* pr_end;
+    const Eina_Rectangle* paintRequest;
+    const Eina_Rectangle* paintRequestEnd;
     Eina_Tiler* tiler;
     Eina_Iterator* iterator;
     cairo_status_t status;
@@ -277,10 +284,10 @@ static Eina_Bool _ewk_view_single_smart_repaints_process(Ewk_View_Smart_Data* sm
 
     ewk_view_layout_if_needed_recursive(smartData->_priv);
 
-    pr = ewk_view_repaints_pop(smartData->_priv, &count);
-    pr_end = pr + count;
-    for (; pr < pr_end; pr++)
-        eina_tiler_rect_add(tiler, pr);
+    paintRequest = ewk_view_repaints_pop(smartData->_priv, &count);
+    paintRequestEnd = paintRequest + count;
+    for (; paintRequest < paintRequestEnd; paintRequest++)
+        eina_tiler_rect_add(tiler, paintRequest);
 
     iterator = eina_tiler_iterator_new(tiler);
     if (!iterator) {
@@ -396,7 +403,7 @@ Eina_Bool ewk_view_single_smart_set(Ewk_View_Smart_Class* api)
 
 static inline Evas_Smart* _ewk_view_single_smart_class_new(void)
 {
-    static Ewk_View_Smart_Class api = EWK_VIEW_SMART_CLASS_INIT_NAME_VERSION("Ewk_View_Single");
+    static Ewk_View_Smart_Class api = EWK_VIEW_SMART_CLASS_INIT_NAME_VERSION(ewkViewSingleName);
     static Evas_Smart* smart = 0;
 
     if (EINA_UNLIKELY(!smart)) {

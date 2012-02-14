@@ -26,19 +26,25 @@
 
 #include "config.h"
 #include "ShadowRoot.h"
-#include "Element.h"
 
 #include "Document.h"
+#include "Element.h"
+#include "HTMLContentElement.h"
+#include "HTMLContentSelector.h"
+#include "HTMLNames.h"
 #include "NodeRareData.h"
-#include "ShadowContentElement.h"
-#include "ShadowInclusionSelector.h"
+#include "SVGNames.h"
 #include "Text.h"
 
 namespace WebCore {
 
 ShadowRoot::ShadowRoot(Document* document)
-    : TreeScope(document, CreateShadowRoot)
+    : DocumentFragment(document, CreateShadowRoot)
+    , TreeScope(this)
+    , m_prev(0)
+    , m_next(0)
     , m_applyAuthorSheets(false)
+    , m_needsRecalculateContent(false)
 {
     ASSERT(document);
     
@@ -51,16 +57,72 @@ ShadowRoot::ShadowRoot(Document* document)
 
 ShadowRoot::~ShadowRoot()
 {
+    ASSERT(!m_prev);
+    ASSERT(!m_next);
+
+    // We must call clearRareData() here since a ShadowRoot class inherits TreeScope
+    // as well as Node. See a comment on TreeScope.h for the reason.
+    if (hasRareData())
+        clearRareData();
+}
+
+static bool allowsAuthorShadowRoot(Element* element)
+{
+    // FIXME: MEDIA recreates shadow root dynamically.
+    // https://bugs.webkit.org/show_bug.cgi?id=77936
+    if (element->hasTagName(HTMLNames::videoTag) || element->hasTagName(HTMLNames::audioTag))
+        return false;
+
+    // FIXME: ValidationMessage recreates shadow root dynamically.
+    // https://bugs.webkit.org/show_bug.cgi?id=77937
+    // Especially, INPUT recreates shadow root dynamically.
+    // https://bugs.webkit.org/show_bug.cgi?id=77930
+    if (element->isFormControlElement())
+        return false;
+
+    // FIXME: We disable multiple shadow subtrees for SVG for while, because there will be problems to support it.
+    // https://bugs.webkit.org/show_bug.cgi?id=78205
+    // Especially SVG TREF recreates shadow root dynamically.
+    // https://bugs.webkit.org/show_bug.cgi?id=77938
+    if (element->isSVGElement())
+        return false;
+
+    return true;
+}
+
+PassRefPtr<ShadowRoot> ShadowRoot::create(Element* element, ExceptionCode& ec)
+{
+    return create(element, CreatingAuthorShadowRoot, ec);
+}
+
+PassRefPtr<ShadowRoot> ShadowRoot::create(Element* element, ShadowRootCreationPurpose purpose, ExceptionCode& ec)
+{
+    if (!element || element->hasShadowRoot()) {
+        ec = HIERARCHY_REQUEST_ERR;
+        return 0;
+    }
+
+    // Since some elements recreates shadow root dynamically, multiple shadow subtrees won't work well in that element.
+    // Until they are fixed, we disable adding author shadow root for them.
+    if (purpose == CreatingAuthorShadowRoot && !allowsAuthorShadowRoot(element)) {
+        ec = HIERARCHY_REQUEST_ERR;
+        return 0;
+    }
+
+    ASSERT(purpose != CreatingUserAgentShadowRoot || !element->hasShadowRoot());
+    RefPtr<ShadowRoot> shadowRoot = create(element->document());
+
+    ec = 0;
+    element->setShadowRoot(shadowRoot, ec);
+    if (ec)
+        return 0;
+
+    return shadowRoot.release();
 }
 
 String ShadowRoot::nodeName() const
 {
     return "#shadow-root";
-}
-
-Node::NodeType ShadowRoot::nodeType() const
-{
-    return SHADOW_ROOT_NODE;
 }
 
 PassRefPtr<Node> ShadowRoot::cloneNode(bool)
@@ -86,42 +148,51 @@ bool ShadowRoot::childTypeAllowed(NodeType type) const
 
 void ShadowRoot::recalcShadowTreeStyle(StyleChange change)
 {
-    if (hasContentElement())
-        reattach();
+    if (needsReattachHostChildrenAndShadow())
+        reattachHostChildrenAndShadow();
     else {
         for (Node* n = firstChild(); n; n = n->nextSibling()) {
             if (n->isElementNode())
                 static_cast<Element*>(n)->recalcStyle(change);
             else if (n->isTextNode())
-                static_cast<Text*>(n)->recalcTextStyle(change);
+                toText(n)->recalcTextStyle(change);
         }
     }
 
+    clearNeedsReattachHostChildrenAndShadow();
     clearNeedsStyleRecalc();
     clearChildNeedsStyleRecalc();
 }
 
-ShadowContentElement* ShadowRoot::includerFor(Node* node) const
+void ShadowRoot::setNeedsReattachHostChildrenAndShadow()
 {
-    if (!m_inclusions)
+    m_needsRecalculateContent = true;
+    if (shadowHost())
+        shadowHost()->setNeedsStyleRecalc();
+}
+
+HTMLContentElement* ShadowRoot::insertionPointFor(Node* node) const
+{
+    if (!m_selector)
         return 0;
-    ShadowInclusion* found = m_inclusions->findFor(node);
+    HTMLContentSelection* found = m_selector->findFor(node);
     if (!found)
         return 0;
-    return found->includer();
+    return found->insertionPoint();
 }
 
 void ShadowRoot::hostChildrenChanged()
 {
     if (!hasContentElement())
         return;
+
     // This results in forced detaching/attaching of the shadow render tree. See ShadowRoot::recalcStyle().
-    setNeedsStyleRecalc();
+    setNeedsReattachHostChildrenAndShadow();
 }
 
-bool ShadowRoot::isInclusionSelectorActive() const
+bool ShadowRoot::isSelectorActive() const
 {
-    return m_inclusions && m_inclusions->hasCandidates();
+    return m_selector && m_selector->hasCandidates();
 }
 
 bool ShadowRoot::hasContentElement() const
@@ -146,26 +217,45 @@ void ShadowRoot::setApplyAuthorSheets(bool value)
 
 void ShadowRoot::attach()
 {
-    // Children of m_inclusions is populated lazily in
-    // ensureInclusions(), and here we just ensure that
+    // Children of m_selector is populated lazily in
+    // ensureSelector(), and here we just ensure that
     // it is in clean state.
-    ASSERT(!m_inclusions || !m_inclusions->hasCandidates());
-    TreeScope::attach();
-    if (m_inclusions)
-        m_inclusions->didSelect();
+    ASSERT(!m_selector || !m_selector->hasCandidates());
+    DocumentFragment::attach();
+    if (m_selector)
+        m_selector->didSelect();
 }
 
-ShadowInclusionSelector* ShadowRoot::inclusions() const
+void ShadowRoot::reattachHostChildrenAndShadow()
 {
-    return m_inclusions.get();
+    Node* hostNode = host();
+    if (!hostNode)
+        return;
+
+    for (Node* child = hostNode->firstChild(); child; child = child->nextSibling()) {
+        if (child->attached())
+            child->detach();
+    }
+
+    reattach();
+
+    for (Node* child = hostNode->firstChild(); child; child = child->nextSibling()) {
+        if (!child->attached())
+            child->attach();
+    }
 }
 
-ShadowInclusionSelector* ShadowRoot::ensureInclusions()
+HTMLContentSelector* ShadowRoot::selector() const
 {
-    if (!m_inclusions)
-        m_inclusions = adoptPtr(new ShadowInclusionSelector());
-    m_inclusions->willSelectOver(this);
-    return m_inclusions.get();
+    return m_selector.get();
+}
+
+HTMLContentSelector* ShadowRoot::ensureSelector()
+{
+    if (!m_selector)
+        m_selector = adoptPtr(new HTMLContentSelector());
+    m_selector->willSelectOver(this);
+    return m_selector.get();
 }
 
 

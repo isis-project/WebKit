@@ -118,12 +118,6 @@ class AbstractQueueTest(CommandsTest):
 
     def test_log_from_script_error_for_upload(self):
         self._assert_log_message(ScriptError("test"), "test")
-        # In python 2.5 unicode(Exception) is busted. See:
-        # http://bugs.python.org/issue2517
-        # With no good workaround, we just ignore these tests.
-        if not hasattr(Exception, "__unicode__"):
-            return
-
         unicode_tor = u"WebKit \u2661 Tor Arne Vestb\u00F8!"
         utf8_tor = unicode_tor.encode("utf-8")
         self._assert_log_message(ScriptError(unicode_tor), utf8_tor)
@@ -237,6 +231,8 @@ class CommitQueueTest(QueuesTest):
         return test_results.TestResult(testname, [test_failures.FailureTextMismatch()])
 
     def test_commit_queue(self):
+        tool = MockTool()
+        tool.filesystem.write_text_file('/mock-results/full_results.json', '')  # Otherwise the commit-queue will hit a KeyError trying to read the results from the MockFileSystem.
         expected_stderr = {
             "begin_work_queue": self._default_begin_work_queue_stderr("commit-queue"),
             "should_proceed_with_work_item": "MOCK: update_status: commit-queue Processing patch\n",
@@ -254,7 +250,7 @@ MOCK: release_work_item: commit-queue 10000
             "handle_unexpected_error": "MOCK setting flag 'commit-queue' to '-' on attachment '10000' with comment 'Rejecting attachment 10000 from commit-queue.' and additional comment 'Mock error message'\n",
             "handle_script_error": "ScriptError error message\n",
         }
-        self.assert_queue_outputs(CommitQueue(), expected_stderr=expected_stderr)
+        self.assert_queue_outputs(CommitQueue(), tool=tool, expected_stderr=expected_stderr)
 
     def test_commit_queue_failure(self):
         expected_stderr = {
@@ -317,7 +313,7 @@ MOCK: release_work_item: commit-queue 10000
 
     def test_rollout(self):
         tool = MockTool(log_executive=True)
-        tool.filesystem.write_text_file('/mock-results/results.html', '')  # Otherwise the commit-queue will hit a KeyError trying to read the results from the MockFileSystem.
+        tool.filesystem.write_text_file('/mock-results/full_results.json', '')  # Otherwise the commit-queue will hit a KeyError trying to read the results from the MockFileSystem.
         tool.buildbot.light_tree_on_fire()
         expected_stderr = {
             "begin_work_queue": self._default_begin_work_queue_stderr("commit-queue"),
@@ -390,7 +386,7 @@ MOCK: release_work_item: commit-queue 10005
     def test_manual_reject_during_processing(self):
         queue = SecondThoughtsCommitQueue(MockTool())
         queue.begin_work_queue()
-        queue._tool.filesystem.write_text_file('/mock-results/results.html', '')  # Otherwise the commit-queue will hit a KeyError trying to read the results from the MockFileSystem.
+        queue._tool.filesystem.write_text_file('/mock-results/full_results.json', '')  # Otherwise the commit-queue will hit a KeyError trying to read the results from the MockFileSystem.
         queue._options = Mock()
         queue._options.port = None
         expected_stderr = """MOCK: update_status: commit-queue Cleaned working directory

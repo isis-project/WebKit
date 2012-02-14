@@ -178,8 +178,6 @@ public:
     static bool allowsIndependentlyCompositedFrames(const FrameView*);
     bool shouldPropagateCompositingToEnclosingFrame() const;
 
-    HTMLFrameOwnerElement* enclosingFrameElement() const;
-
     static RenderLayerCompositor* frameContentsCompositor(RenderPart*);
     // Return true if the layers changed.
     static bool parentFrameContentLayers(RenderPart*);
@@ -187,7 +185,7 @@ public:
     // Update the geometry of the layers used for clipping and scrolling in frames.
     void frameViewDidChangeLocation(const LayoutPoint& contentsOffset);
     void frameViewDidChangeSize();
-    void frameViewDidScroll(const LayoutPoint& = LayoutPoint());
+    void frameViewDidScroll();
 
     String layerTreeAsText(bool showDebugInfo = false);
 
@@ -211,16 +209,16 @@ public:
     GraphicsLayer* layerForOverhangAreas() const { return m_layerForOverhangAreas.get(); }
 #endif
 
+    void documentBackgroundColorDidChange();
+
 private:
     // GraphicsLayerClient Implementation
     virtual void notifyAnimationStarted(const GraphicsLayer*, double) { }
     virtual void notifySyncRequired(const GraphicsLayer*) { scheduleLayerFlush(); }
     virtual void paintContents(const GraphicsLayer*, GraphicsContext&, GraphicsLayerPaintingPhase, const LayoutRect&);
 
-    // These calls return false always. They are saying that the layers associated with this client
-    // (the clipLayer and scrollLayer) should never show debugging info.
-    virtual bool showDebugBorders() const { return false; }
-    virtual bool showRepaintCounter() const { return false; }
+    virtual bool showDebugBorders(const GraphicsLayer*) const;
+    virtual bool showRepaintCounter(const GraphicsLayer*) const;
     
     // Whether the given RL needs a compositing layer.
     bool needsToBeComposited(const RenderLayer*) const;
@@ -295,6 +293,7 @@ private:
     bool requiresScrollCornerLayer() const;
 #if ENABLE(RUBBER_BANDING)
     bool requiresOverhangAreasLayer() const;
+    bool requiresContentShadowLayer() const;
 #endif
 
 #if ENABLE(THREADED_SCROLLING)
@@ -341,6 +340,7 @@ private:
     OwnPtr<GraphicsLayer> m_layerForScrollCorner;
 #if ENABLE(RUBBER_BANDING)
     OwnPtr<GraphicsLayer> m_layerForOverhangAreas;
+    OwnPtr<GraphicsLayer> m_contentShadowLayer;
 #endif
 #if PROFILE_LAYER_REBUILD
     int m_rootLayerUpdateCount;

@@ -134,11 +134,9 @@ namespace JSC {
 
         static void dumpStatistics();
 
-#if !defined(NDEBUG) || ENABLE_OPCODE_SAMPLING
         void dump(ExecState*) const;
         void printStructures(const Instruction*) const;
         void printStructure(const char* name, const Instruction*, int operand) const;
-#endif
 
         bool isStrictMode() const { return m_isStrictMode; }
 
@@ -354,17 +352,8 @@ namespace JSC {
         {
             m_shouldDiscardBytecode = true;
         }
-        void handleBytecodeDiscardingOpportunity()
-        {
-            if (!!alternative())
-                discardBytecode();
-            else
-                discardBytecodeLater();
-        }
         
-#ifndef NDEBUG
         bool usesOpcode(OpcodeID);
-#endif
 
         unsigned instructionCount() { return m_instructionCount; }
         void setInstructionCount(unsigned instructionCount) { m_instructionCount = instructionCount; }
@@ -388,7 +377,22 @@ namespace JSC {
         virtual JSObject* compileOptimized(ExecState*, ScopeChainNode*) = 0;
         virtual void jettison() = 0;
         virtual CodeBlock* replacement() = 0;
-        virtual bool canCompileWithDFG() = 0;
+
+        enum CompileWithDFGState {
+            CompileWithDFGFalse,
+            CompileWithDFGTrue,
+            CompileWithDFGUnset
+        };
+
+        virtual bool canCompileWithDFGInternal() = 0;
+        bool canCompileWithDFG()
+        {
+            bool result = canCompileWithDFGInternal();
+            m_canCompileWithDFGState = result ? CompileWithDFGTrue : CompileWithDFGFalse;
+            return result;
+        }
+        CompileWithDFGState canCompileWithDFGState() { return m_canCompileWithDFGState; }
+
         bool hasOptimizedReplacement()
         {
             ASSERT(getJITType() == JITCode::BaselineJIT);
@@ -507,6 +511,7 @@ namespace JSC {
         ValueProfile* addValueProfile(int bytecodeOffset)
         {
             ASSERT(bytecodeOffset != -1);
+            ASSERT(m_valueProfiles.isEmpty() || m_valueProfiles.last().m_bytecodeOffset < bytecodeOffset);
             m_valueProfiles.append(ValueProfile(bytecodeOffset));
             return &m_valueProfiles.last();
         }
@@ -521,6 +526,11 @@ namespace JSC {
         {
             ValueProfile* result = WTF::genericBinarySearch<ValueProfile, int, getValueProfileBytecodeOffset>(m_valueProfiles, m_valueProfiles.size(), bytecodeOffset);
             ASSERT(result->m_bytecodeOffset != -1);
+            ASSERT(!hasInstructions()
+                   || instructions()[bytecodeOffset + opcodeLength(
+                           m_globalData->interpreter->getOpcodeID(
+                               instructions()[
+                                   bytecodeOffset].u.opcode)) - 1].u.profile == result);
             return result;
         }
         
@@ -664,10 +674,22 @@ namespace JSC {
             return m_rareData && !!m_rareData->m_codeOrigins.size();
         }
         
-        CodeOrigin codeOriginForReturn(ReturnAddressPtr returnAddress)
+        bool codeOriginForReturn(ReturnAddressPtr returnAddress, CodeOrigin& codeOrigin)
         {
-            ASSERT(hasCodeOrigins());
-            return binarySearch<CodeOriginAtCallReturnOffset, unsigned, getCallReturnOffsetForCodeOrigin>(codeOrigins().begin(), codeOrigins().size(), getJITCode().offsetOf(returnAddress.value()))->codeOrigin;
+            if (!hasCodeOrigins())
+                return false;
+            unsigned offset = getJITCode().offsetOf(returnAddress.value());
+            CodeOriginAtCallReturnOffset* entry = binarySearch<CodeOriginAtCallReturnOffset, unsigned, getCallReturnOffsetForCodeOrigin>(codeOrigins().begin(), codeOrigins().size(), offset, WTF::KeyMustNotBePresentInArray);
+            if (entry->callReturnOffset != offset)
+                return false;
+            codeOrigin = entry->codeOrigin;
+            return true;
+        }
+        
+        CodeOrigin codeOrigin(unsigned index)
+        {
+            ASSERT(m_rareData);
+            return m_rareData->m_codeOrigins[index].codeOrigin;
         }
         
         bool addFrequentExitSite(const DFG::FrequentExitSite& site)
@@ -686,11 +708,14 @@ namespace JSC {
         Identifier& identifier(int index) { return m_identifiers[index]; }
 
         size_t numberOfConstantRegisters() const { return m_constantRegisters.size(); }
-        void addConstant(JSValue v)
+        unsigned addConstant(JSValue v)
         {
+            unsigned result = m_constantRegisters.size();
             m_constantRegisters.append(WriteBarrier<Unknown>());
             m_constantRegisters.last().set(m_globalObject->globalData(), m_ownerExecutable.get(), v);
+            return result;
         }
+        unsigned addOrFindConstant(JSValue);
         WriteBarrier<Unknown>& constantRegister(int index) { return m_constantRegisters[index - FirstConstantRegisterIndex]; }
         ALWAYS_INLINE bool isConstantRegisterIndex(int index) const { return index >= FirstConstantRegisterIndex; }
         ALWAYS_INLINE JSValue getConstant(int index) const { return m_constantRegisters[index - FirstConstantRegisterIndex].get(); }
@@ -981,7 +1006,6 @@ namespace JSC {
         void tallyFrequentExitSites() { }
 #endif
         
-#if !defined(NDEBUG) || ENABLE(OPCODE_SAMPLING)
         void dump(ExecState*, const Vector<Instruction>::const_iterator& begin, Vector<Instruction>::const_iterator&) const;
 
         CString registerName(ExecState*, int r) const;
@@ -991,7 +1015,6 @@ namespace JSC {
         void printGetByIdOp(ExecState*, int location, Vector<Instruction>::const_iterator&, const char* op) const;
         void printCallOp(ExecState*, int location, Vector<Instruction>::const_iterator&, const char* op) const;
         void printPutByIdOp(ExecState*, int location, Vector<Instruction>::const_iterator&, const char* op) const;
-#endif
         void visitStructures(SlotVisitor&, Instruction* vPC) const;
         
 #if ENABLE(DFG_JIT)
@@ -1170,6 +1193,9 @@ namespace JSC {
         friend void WTF::deleteOwnedPtr<RareData>(RareData*);
 #endif
         OwnPtr<RareData> m_rareData;
+#if ENABLE(JIT)
+        CompileWithDFGState m_canCompileWithDFGState;
+#endif
     };
 
     // Program code is not marked by any function, so we make the global object
@@ -1209,7 +1235,7 @@ namespace JSC {
         virtual JSObject* compileOptimized(ExecState*, ScopeChainNode*);
         virtual void jettison();
         virtual CodeBlock* replacement();
-        virtual bool canCompileWithDFG();
+        virtual bool canCompileWithDFGInternal();
 #endif
     };
 
@@ -1243,7 +1269,7 @@ namespace JSC {
         virtual JSObject* compileOptimized(ExecState*, ScopeChainNode*);
         virtual void jettison();
         virtual CodeBlock* replacement();
-        virtual bool canCompileWithDFG();
+        virtual bool canCompileWithDFGInternal();
 #endif
 
     private:
@@ -1280,7 +1306,7 @@ namespace JSC {
         virtual JSObject* compileOptimized(ExecState*, ScopeChainNode*);
         virtual void jettison();
         virtual CodeBlock* replacement();
-        virtual bool canCompileWithDFG();
+        virtual bool canCompileWithDFGInternal();
 #endif
     };
 

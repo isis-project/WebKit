@@ -41,7 +41,9 @@ PassRefPtr<IntentRequest> IntentRequest::create(ScriptExecutionContext* context,
                                                 PassRefPtr<IntentResultCallback> successCallback,
                                                 PassRefPtr<IntentResultCallback> errorCallback)
 {
-    return adoptRef(new IntentRequest(context, intent, successCallback, errorCallback));
+    RefPtr<IntentRequest> intentRequest(adoptRef(new IntentRequest(context, intent, successCallback, errorCallback)));
+    intentRequest->suspendIfNeeded();
+    return intentRequest.release();
 }
 
 IntentRequest::IntentRequest(ScriptExecutionContext* context,
@@ -53,7 +55,6 @@ IntentRequest::IntentRequest(ScriptExecutionContext* context,
     , m_successCallback(successCallback)
     , m_errorCallback(errorCallback)
 {
-    setPendingActivity(this);
 }
 
 void IntentRequest::contextDestroyed()
@@ -81,7 +82,6 @@ void IntentRequest::postResult(SerializedScriptValue* data)
 
     m_successCallback.clear();
     m_errorCallback.clear();
-    unsetPendingActivity(this);
 }
 
 void IntentRequest::postFailure(SerializedScriptValue* data)
@@ -96,7 +96,6 @@ void IntentRequest::postFailure(SerializedScriptValue* data)
 
     m_successCallback.clear();
     m_errorCallback.clear();
-    unsetPendingActivity(this);
 }
 
 } // namespace WebCore

@@ -43,6 +43,7 @@
 #include "RenderTextControlSingleLine.h"
 #include "RenderTheme.h"
 #include "ShadowRoot.h"
+#include "ShadowRootList.h"
 #include "TextControlInnerElements.h"
 #include "TextEvent.h"
 #include "TextIterator.h"
@@ -69,7 +70,7 @@ bool TextFieldInputType::isTextField() const
 
 bool TextFieldInputType::valueMissing(const String& value) const
 {
-    return value.isEmpty();
+    return element()->required() && value.isEmpty();
 }
 
 bool TextFieldInputType::canSetSuggestedValue()
@@ -77,9 +78,9 @@ bool TextFieldInputType::canSetSuggestedValue()
     return true;
 }
 
-void TextFieldInputType::setValue(const String& sanitizedValue, bool valueChanged, bool sendChangeEvent)
+void TextFieldInputType::setValue(const String& sanitizedValue, bool valueChanged, TextFieldEventBehavior eventBehavior)
 {
-    InputType::setValue(sanitizedValue, valueChanged, sendChangeEvent);
+    InputType::setValue(sanitizedValue, valueChanged, eventBehavior);
 
     if (valueChanged)
         element()->updateInnerTextValue();
@@ -161,6 +162,13 @@ void TextFieldInputType::forwardEvent(Event* event)
     }
 }
 
+void TextFieldInputType::handleBlurEvent()
+{
+    InputType::handleBlurEvent();
+    if (Frame* frame = element()->document()->frame())
+        frame->editor()->textFieldDidEndEditing(element());
+}
+
 bool TextFieldInputType::shouldSubmitImplicitly(Event* event)
 {
     return (event->type() == eventNames().textInputEvent && event->hasInterface(eventNames().interfaceForTextEvent) && static_cast<TextEvent*>(event)->data() == "\n") || InputType::shouldSubmitImplicitly(event);
@@ -182,6 +190,8 @@ bool TextFieldInputType::needsContainer() const
 
 void TextFieldInputType::createShadowSubtree()
 {
+    ASSERT(element()->hasShadowRoot());
+
     ASSERT(!m_innerText);
     ASSERT(!m_innerBlock);
     ASSERT(!m_innerSpinButton);
@@ -194,11 +204,11 @@ void TextFieldInputType::createShadowSubtree()
     ExceptionCode ec = 0;
     m_innerText = TextControlInnerTextElement::create(document);
     if (!createsContainer) {
-        element()->ensureShadowRoot()->appendChild(m_innerText, ec);
+        element()->shadowRootList()->oldestShadowRoot()->appendChild(m_innerText, ec);
         return;
     }
 
-    ShadowRoot* shadowRoot = element()->ensureShadowRoot();
+    ShadowRoot* shadowRoot = element()->shadowRootList()->oldestShadowRoot();
     m_container = HTMLDivElement::create(document);
     m_container->setShadowPseudoId("-webkit-textfield-decoration-container");
     shadowRoot->appendChild(m_container, ec);
@@ -360,7 +370,7 @@ void TextFieldInputType::updatePlaceholderText()
     if (!m_placeholder) {
         m_placeholder = HTMLDivElement::create(element()->document());
         m_placeholder->setShadowPseudoId("-webkit-input-placeholder");
-        element()->shadowRoot()->insertBefore(m_placeholder, m_container ? m_container->nextSibling() : innerTextElement()->nextSibling(), ec);
+        element()->shadowRootList()->oldestShadowRoot()->insertBefore(m_placeholder, m_container ? m_container->nextSibling() : innerTextElement()->nextSibling(), ec);
         ASSERT(!ec);
     }
     m_placeholder->setInnerText(placeholderText, ec);

@@ -493,7 +493,7 @@ WebCore::LayerChromium* WebPluginContainerImpl::platformLayer() const
 ScrollbarGroup* WebPluginContainerImpl::scrollbarGroup()
 {
     if (!m_scrollbarGroup)
-        m_scrollbarGroup = adoptPtr(new ScrollbarGroup(m_element->document()->frame()->page()));
+        m_scrollbarGroup = adoptPtr(new ScrollbarGroup(m_element->document()->frame()->view()));
     return m_scrollbarGroup.get();
 }
 
@@ -537,7 +537,7 @@ WebPluginContainerImpl::WebPluginContainerImpl(WebCore::HTMLPlugInElement* eleme
     , m_element(element)
     , m_webPlugin(webPlugin)
 #if USE(ACCELERATED_COMPOSITING)
-    , m_platformLayer(PluginLayerChromium::create(0))
+    , m_platformLayer(PluginLayerChromium::create())
 #endif
 {
 }

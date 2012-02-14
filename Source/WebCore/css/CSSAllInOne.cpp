@@ -26,14 +26,13 @@
 // This all-in-one cpp file cuts down on template bloat to allow us to build our Windows release build.
  
 #include "CSSAspectRatioValue.cpp"
+#include "CSSBorderImage.cpp"
 #include "CSSBorderImageSliceValue.cpp"
-#include "CSSBorderImageValue.cpp"
 #include "CSSCanvasValue.cpp"
 #include "CSSCharsetRule.cpp"
 #include "CSSComputedStyleDeclaration.cpp"
 #include "CSSCrossfadeValue.cpp"
 #include "CSSCursorImageValue.cpp"
-#include "CSSElementStyleDeclaration.cpp"
 #include "CSSFlexValue.cpp"
 #include "CSSFontFace.cpp"
 #include "CSSFontFaceRule.cpp"
@@ -49,7 +48,6 @@
 #include "CSSInitialValue.cpp"
 #include "CSSLineBoxContainValue.cpp"
 #include "CSSMediaRule.cpp"
-#include "CSSMutableStyleDeclaration.cpp"
 #include "CSSOMUtils.cpp"
 #include "CSSPageRule.cpp"
 #include "CSSParser.cpp"
@@ -73,3 +71,4 @@
 #include "CSSValueList.cpp"
 #include "CSSValuePool.cpp"
 #include "CSSWrapShapes.cpp"
+#include "StylePropertySet.cpp"

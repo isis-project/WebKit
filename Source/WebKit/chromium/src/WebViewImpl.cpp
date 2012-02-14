@@ -87,9 +87,10 @@
 #include "PlatformContextSkia.h"
 #include "PlatformKeyboardEvent.h"
 #include "PlatformMouseEvent.h"
-#include "PlatformScreen.h"
 #include "PlatformThemeChromiumLinux.h"
 #include "PlatformWheelEvent.h"
+#include "PointerLock.h"
+#include "PointerLockController.h"
 #include "PopupContainer.h"
 #include "PopupMenuClient.h"
 #include "ProgressTracker.h"
@@ -98,7 +99,6 @@
 #include "RenderWidget.h"
 #include "ResourceHandle.h"
 #include "SchemeRegistry.h"
-#include "ScrollAnimator.h"
 #include "SecurityOrigin.h"
 #include "SecurityPolicy.h"
 #include "Settings.h"
@@ -145,10 +145,6 @@
 
 #if ENABLE(GESTURE_EVENTS)
 #include "PlatformGestureEvent.h"
-#endif
-
-#if ENABLE(GESTURE_RECOGNIZER)
-#include "PlatformGestureRecognizer.h"
 #endif
 
 #if USE(CG)
@@ -374,9 +370,6 @@ WebViewImpl::WebViewImpl(WebViewClient* client)
 #endif
     , m_deviceOrientationClientProxy(adoptPtr(new DeviceOrientationClientProxy(client ? client->deviceOrientationClient() : 0)))
     , m_geolocationClientProxy(adoptPtr(new GeolocationClientProxy(client ? client->geolocationClient() : 0)))
-#if ENABLE(GESTURE_RECOGNIZER)
-    , m_gestureRecognizer(WebCore::PlatformGestureRecognizer::create())
-#endif
 #if ENABLE(MEDIA_STREAM)
     , m_userMediaClientImpl(this)
 #endif
@@ -399,7 +392,6 @@ WebViewImpl::WebViewImpl(WebViewClient* client)
 #if ENABLE(INPUT_SPEECH)
     pageClients.speechInputClient = m_speechInputClient.get();
 #endif
-    pageClients.deviceOrientationClient = m_deviceOrientationClientProxy.get();
     pageClients.geolocationClient = m_geolocationClientProxy.get();
 #if ENABLE(NOTIFICATIONS)
     pageClients.notificationClient = notificationPresenterImpl();
@@ -410,7 +402,7 @@ WebViewImpl::WebViewImpl(WebViewClient* client)
 #endif
 
     m_page = adoptPtr(new Page(pageClients));
-
+    provideDeviceOrientationTo(m_page.get(), m_deviceOrientationClientProxy.get());
     m_geolocationClientProxy->setController(m_page->geolocationController());
 
     m_page->setGroupName(pageGroupName);
@@ -629,6 +621,12 @@ bool WebViewImpl::gestureEvent(const WebGestureEvent& event)
 
     return handled;
 }
+
+void WebViewImpl::startPageScaleAnimation(const IntPoint& scroll, bool useAnchor, float newScale, double durationSec)
+{
+    if (m_layerTreeHost)
+        m_layerTreeHost->startPageScaleAnimation(IntSize(scroll.x(), scroll.y()), useAnchor, newScale, durationSec);
+}
 #endif
 
 bool WebViewImpl::keyEvent(const WebKeyboardEvent& event)
@@ -799,13 +797,6 @@ bool WebViewImpl::touchEvent(const WebTouchEvent& event)
 
     PlatformTouchEventBuilder touchEventBuilder(mainFrameImpl()->frameView(), event);
     bool defaultPrevented = mainFrameImpl()->frame()->eventHandler()->handleTouchEvent(touchEventBuilder);
-
-#if ENABLE(GESTURE_RECOGNIZER)
-    OwnPtr<Vector<WebCore::PlatformGestureEvent> > gestureEvents(m_gestureRecognizer->processTouchEventForGestures(touchEventBuilder, defaultPrevented));
-    for (unsigned int  i = 0; i < gestureEvents->size(); i++)
-        mainFrameImpl()->frame()->eventHandler()->handleGestureEvent(gestureEvents->at(i));
-#endif
-
     return defaultPrevented;
 }
 #endif
@@ -1205,7 +1196,7 @@ void WebViewImpl::doPixelReadbackToCanvas(WebCanvas* canvas, const IntRect& rect
     RefPtr<ByteArray> pixelArray(ByteArray::create(rect.width() * rect.height() * 4));
     if (imageBuffer && pixelArray) {
         m_layerTreeHost->compositeAndReadback(pixelArray->data(), invertRect);
-        imageBuffer->putPremultipliedImageData(pixelArray.get(), rect.size(), IntRect(IntPoint(), rect.size()), IntPoint());
+        imageBuffer->putByteArray(Premultiplied, pixelArray.get(), rect.size(), IntRect(IntPoint(), rect.size()), IntPoint());
         gc.save();
         gc.translate(IntSize(0, bitmapHeight));
         gc.scale(FloatSize(1.0f, -1.0f));
@@ -1270,6 +1261,14 @@ void WebViewImpl::composite(bool)
 #endif
 }
 
+void WebViewImpl::setNeedsRedraw()
+{
+#if USE(ACCELERATED_COMPOSITING)
+    if (m_layerTreeHost && isAcceleratedCompositingActive())
+        m_layerTreeHost->setNeedsRedraw();
+#endif
+}
+
 void WebViewImpl::loseCompositorContext(int numTimes)
 {
 #if USE(ACCELERATED_COMPOSITING)
@@ -1330,6 +1329,13 @@ bool WebViewImpl::handleInputEvent(const WebInputEvent& inputEvent)
         return true;
 
     m_currentInputEvent = &inputEvent;
+
+#if ENABLE(POINTER_LOCK)
+    if (isPointerLocked() && WebInputEvent::isMouseEventType(inputEvent.type)) {
+      pointerLockMouseEvent(inputEvent);
+      return true;
+    }
+#endif
 
     if (m_mouseCaptureNode && WebInputEvent::isMouseEventType(inputEvent.type)) {
         // Save m_mouseCaptureNode since mouseCaptureLost() will clear it.
@@ -1407,6 +1413,8 @@ bool WebViewImpl::handleInputEvent(const WebInputEvent& inputEvent)
     case WebInputEvent::GestureFlingStart:
     case WebInputEvent::GestureFlingCancel:
     case WebInputEvent::GestureTap:
+    case WebInputEvent::GestureTapDown:
+    case WebInputEvent::GestureDoubleTap:
         handled = gestureEvent(*static_cast<const WebGestureEvent*>(&inputEvent));
         break;
 #endif
@@ -1417,6 +1425,15 @@ bool WebViewImpl::handleInputEvent(const WebInputEvent& inputEvent)
     case WebInputEvent::TouchEnd:
     case WebInputEvent::TouchCancel:
         handled = touchEvent(*static_cast<const WebTouchEvent*>(&inputEvent));
+        break;
+#endif
+
+#if ENABLE(GESTURE_EVENTS)
+    case WebInputEvent::GesturePinchBegin:
+    case WebInputEvent::GesturePinchEnd:
+    case WebInputEvent::GesturePinchUpdate:
+        // FIXME: Once PlatformGestureEvent is updated to support pinch, this should call handleGestureEvent, just like it currently does for gesture scroll.
+        handled = false;
         break;
 #endif
 
@@ -1742,6 +1759,36 @@ bool WebViewImpl::isAcceleratedCompositingActive() const
 #endif
 }
 
+void WebViewImpl::didAcquirePointerLock()
+{
+#if ENABLE(POINTER_LOCK)
+    if (page())
+        page()->pointerLockController()->didAcquirePointerLock();
+#endif
+}
+
+void WebViewImpl::didNotAcquirePointerLock()
+{
+#if ENABLE(POINTER_LOCK)
+    if (page())
+        page()->pointerLockController()->didNotAcquirePointerLock();
+#endif
+}
+
+void WebViewImpl::didLosePointerLock()
+{
+#if ENABLE(POINTER_LOCK)
+    if (page())
+        page()->pointerLockController()->didLosePointerLock();
+#endif
+}
+
+void WebViewImpl::didChangeWindowResizerRect()
+{
+    if (mainFrameImpl()->frameView())
+        mainFrameImpl()->frameView()->windowResizerRectChanged();
+}
+
 // WebView --------------------------------------------------------------------
 
 WebSettings* WebViewImpl::settings()
@@ -1996,8 +2043,6 @@ void WebViewImpl::setPageScaleFactorPreservingScrollOffset(float scaleFactor)
 {
     // Pick a scale factor that is within the expected limits
     scaleFactor = clampPageScaleFactorToLimits(scaleFactor);
-    if (scaleFactor == pageScaleFactor())
-        return;
 
     IntPoint scrollOffsetAtNewScale(mainFrame()->scrollOffset().width, mainFrame()->scrollOffset().height);
     float deltaScale = scaleFactor / pageScaleFactor();
@@ -2035,30 +2080,6 @@ void WebViewImpl::setDeviceScaleFactor(float scaleFactor)
         return;
 
     page()->setDeviceScaleFactor(scaleFactor);
-}
-
-bool WebViewImpl::shouldLayoutFixedElementsRelativeToFrame() const
-{
-    if (!page())
-        return false;
-
-    Frame* frame = page()->mainFrame();
-    if (!frame || !frame->view())
-        return false;
-
-    return frame->view()->shouldLayoutFixedElementsRelativeToFrame();
-}
-
-void WebViewImpl::setShouldLayoutFixedElementsRelativeToFrame(bool enable)
-{
-    if (!page())
-        return;
-
-    Frame* frame = page()->mainFrame();
-    if (!frame || !frame->view())
-        return;
-
-    frame->view()->setShouldLayoutFixedElementsRelativeToFrame(enable);
 }
 
 bool WebViewImpl::isFixedLayoutModeEnabled() const
@@ -2649,7 +2670,7 @@ void WebView::removeAllUserContent()
     pageGroup->removeAllUserContent();
 }
 
-void WebViewImpl::didCommitLoad(bool* isNewNavigation)
+void WebViewImpl::didCommitLoad(bool* isNewNavigation, bool isNavigationWithinPage)
 {
     if (isNewNavigation)
         *isNewNavigation = m_observedNewNavigation;
@@ -2660,6 +2681,8 @@ void WebViewImpl::didCommitLoad(bool* isNewNavigation)
     m_newNavigationLoader = 0;
 #endif
     m_observedNewNavigation = false;
+    if (!isNavigationWithinPage)
+        m_pageScaleFactorIsSet = false;
 }
 
 void WebViewImpl::layoutUpdated(WebFrameImpl* webframe)
@@ -2742,9 +2765,6 @@ void WebViewImpl::startDragging(const WebDragData& dragData,
 void WebViewImpl::observeNewNavigation()
 {
     m_observedNewNavigation = true;
-    // FIXME: We need to make sure that m_pageScaleFactorIsSet is not reset
-    // on same page navigations.
-    m_pageScaleFactorIsSet = false;
 #ifndef NDEBUG
     m_newNavigationLoader = m_page->mainFrame()->loader()->documentLoader();
 #endif
@@ -2989,24 +3009,21 @@ void WebViewImpl::setIsAcceleratedCompositingActive(bool active)
     } else {
         TRACE_EVENT("WebViewImpl::setIsAcceleratedCompositingActive(true)", this, 0);
 
-        static const double defaultRefreshRate = 60.0;
-
         WebCore::CCSettings ccSettings;
         ccSettings.acceleratePainting = page()->settings()->acceleratedDrawingEnabled();
         ccSettings.compositeOffscreen = settings()->compositeToTextureEnabled();
         ccSettings.showFPSCounter = settings()->showFPSCounter();
         ccSettings.showPlatformLayerTree = settings()->showPlatformLayerTree();
-        ccSettings.refreshRate = screenRefreshRate(page()->mainFrame()->view());
-
-        ASSERT(ccSettings.refreshRate >= 0);
-        if (!ccSettings.refreshRate)
-            ccSettings.refreshRate = defaultRefreshRate;
 
         ccSettings.perTilePainting = page()->settings()->perTileDrawingEnabled();
         ccSettings.partialSwapEnabled = page()->settings()->partialSwapEnabled();
 
         m_nonCompositedContentHost = NonCompositedContentHost::create(WebViewImplContentPainter::create(this));
         m_nonCompositedContentHost->setShowDebugBorders(page()->settings()->showDebugBorders());
+
+        if (page() && page()->mainFrame()->view())
+            m_nonCompositedContentHost->setBackgroundColor(page()->mainFrame()->view()->documentBackgroundColor());
+
         m_layerTreeHost = CCLayerTreeHost::create(this, ccSettings);
         if (m_layerTreeHost) {
             m_layerTreeHost->setHaveWheelEventHandlers(m_haveWheelEventHandlers);
@@ -3170,10 +3187,46 @@ void WebViewImpl::setVisibilityState(WebPageVisibilityState visibilityState,
 #endif
 }
 
-#if ENABLE(GESTURE_RECOGNIZER)
-void WebViewImpl::resetGestureRecognizer()
+#if ENABLE(POINTER_LOCK)
+bool WebViewImpl::requestPointerLock()
 {
-    m_gestureRecognizer->reset();
+    return m_client && m_client->requestPointerLock();
+}
+
+void WebViewImpl::requestPointerUnlock()
+{
+    if (m_client)
+        m_client->requestPointerUnlock();
+}
+
+bool WebViewImpl::isPointerLocked()
+{
+    return m_client && m_client->isPointerLocked();
+}
+
+void WebViewImpl::pointerLockMouseEvent(const WebInputEvent& event)
+{
+    AtomicString eventType;
+    switch (event.type) {
+    case WebInputEvent::MouseDown:
+        eventType = eventNames().mousedownEvent;
+        break;
+    case WebInputEvent::MouseUp:
+        eventType = eventNames().mouseupEvent;
+        break;
+    case WebInputEvent::MouseMove:
+        eventType = eventNames().mousemoveEvent;
+        break;
+    default:
+        ASSERT_NOT_REACHED();
+    }
+
+    const WebMouseEvent& mouseEvent = static_cast<const WebMouseEvent&>(event);
+
+    if (page())
+        page()->pointerLockController()->dispatchLockedMouseEvent(
+            PlatformMouseEventBuilder(mainFrameImpl()->frameView(), mouseEvent),
+            eventType);
 }
 #endif
 

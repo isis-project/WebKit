@@ -34,12 +34,22 @@ IntPoint convertWidgetPointToScreenPoint(GtkWidget* widget, const IntPoint& poin
     if (!toplevelWidget || !gtk_widget_is_toplevel(toplevelWidget) || !GTK_IS_WINDOW(toplevelWidget))
         return point;
 
+    GdkWindow* gdkWindow = gtk_widget_get_window(toplevelWidget);
+    if (!gdkWindow)
+        return point;
+
     int xInWindow, yInWindow;
     gtk_widget_translate_coordinates(widget, toplevelWidget, point.x(), point.y(), &xInWindow, &yInWindow);
+
     int windowOriginX, windowOriginY;
-    gdk_window_get_origin(gtk_widget_get_window(toplevelWidget), &windowOriginX, &windowOriginY);
+    gdk_window_get_origin(gdkWindow, &windowOriginX, &windowOriginY);
 
     return IntPoint(windowOriginX + xInWindow, windowOriginY + yInWindow);
+}
+
+bool widgetIsOnscreenToplevelWindow(GtkWidget* widget)
+{
+    return gtk_widget_is_toplevel(widget) && GTK_IS_WINDOW(widget) && !GTK_IS_OFFSCREEN_WINDOW(widget);
 }
 
 } // namespace WebCore

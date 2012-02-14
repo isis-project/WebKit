@@ -31,6 +31,7 @@
 #include "FrameView.h"
 #include "GraphicsContext.h"
 #include "HTMLNames.h"
+#include "HWndDC.h"
 #include "HostWindow.h"
 #include "Page.h"
 #include "PlatformMouseEvent.h"
@@ -42,6 +43,8 @@
 #include "SimpleFontData.h"
 #include "TextRun.h"
 #include "WebCoreInstanceHandle.h"
+#include "WindowsExtras.h"
+
 #include <windows.h>
 #include <windowsx.h>
 #if OS(WINCE)
@@ -534,12 +537,12 @@ bool PopupMenuWin::scrollToRevealSelection()
     int index = focusedIndex();
 
     if (index < m_scrollOffset) {
-        ScrollableArea::scrollToYOffsetWithoutAnimation(index);
+        ScrollableArea::scrollToOffsetWithoutAnimation(VerticalScrollbar, index);
         return true;
     }
 
     if (index >= m_scrollOffset + visibleItems()) {
-        ScrollableArea::scrollToYOffsetWithoutAnimation(index - visibleItems() + 1);
+        ScrollableArea::scrollToOffsetWithoutAnimation(VerticalScrollbar, index - visibleItems() + 1);
         return true;
     }
 
@@ -566,7 +569,7 @@ void PopupMenuWin::paint(const IntRect& damageRect, HDC hdc)
         return;
 
     if (!m_DC) {
-        m_DC = ::CreateCompatibleDC(::GetDC(m_popup));
+        m_DC = ::CreateCompatibleDC(HWndDC(m_popup));
         if (!m_DC)
             return;
     }
@@ -660,12 +663,10 @@ void PopupMenuWin::paint(const IntRect& damageRect, HDC hdc)
     if (m_scrollbar)
         m_scrollbar->paint(&context, damageRect);
 
-    HDC localDC = hdc ? hdc : ::GetDC(m_popup);
+    HWndDC hWndDC;
+    HDC localDC = hdc ? hdc : hWndDC.setHWnd(m_popup);
 
     ::BitBlt(localDC, damageRect.x(), damageRect.y(), damageRect.width(), damageRect.height(), m_DC, damageRect.x(), damageRect.y(), SRCCOPY);
-
-    if (!hdc)
-        ::ReleaseDC(m_popup, localDC);
 }
 
 int PopupMenuWin::scrollSize(ScrollbarOrientation orientation) const
@@ -763,24 +764,14 @@ void PopupMenuWin::registerClass()
 
 LRESULT CALLBACK PopupMenuWin::PopupMenuWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-#if OS(WINCE)
-    LONG longPtr = GetWindowLong(hWnd, 0);
-#else
-    LONG_PTR longPtr = GetWindowLongPtr(hWnd, 0);
-#endif
-    
-    if (PopupMenuWin* popup = reinterpret_cast<PopupMenuWin*>(longPtr))
+    if (PopupMenuWin* popup = static_cast<PopupMenuWin*>(getWindowPointer(hWnd, 0)))
         return popup->wndProc(hWnd, message, wParam, lParam);
-    
+
     if (message == WM_CREATE) {
         LPCREATESTRUCT createStruct = reinterpret_cast<LPCREATESTRUCT>(lParam);
 
         // Associate the PopupMenu with the window.
-#if OS(WINCE)
-        ::SetWindowLong(hWnd, 0, (LONG)createStruct->lpCreateParams);
-#else
-        ::SetWindowLongPtr(hWnd, 0, (LONG_PTR)createStruct->lpCreateParams);
-#endif
+        setWindowPointer(hWnd, 0, createStruct->lpCreateParams);
         return 0;
     }
 

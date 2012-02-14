@@ -26,7 +26,7 @@
 #include "config.h"
 #include "RemoveCSSPropertyCommand.h"
 
-#include "CSSMutableStyleDeclaration.h"
+#include "StylePropertySet.h"
 #include <wtf/Assertions.h>
 
 namespace WebCore {
@@ -42,15 +42,15 @@ RemoveCSSPropertyCommand::RemoveCSSPropertyCommand(Document* document, PassRefPt
 
 void RemoveCSSPropertyCommand::doApply()
 {
-    CSSMutableStyleDeclaration* style = m_element->inlineStyleDecl();
+    StylePropertySet* style = m_element->inlineStyleDecl();
     m_oldValue = style->getPropertyValue(m_property);
-    m_important = style->getPropertyPriority(m_property);
+    m_important = style->propertyIsImportant(m_property);
     style->removeProperty(m_property);
 }
 
 void RemoveCSSPropertyCommand::doUnapply()
 {
-    CSSMutableStyleDeclaration* style = m_element->inlineStyleDecl();
+    StylePropertySet* style = m_element->inlineStyleDecl();
     style->setProperty(m_property, m_oldValue, m_important);
 }
 

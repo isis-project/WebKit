@@ -33,7 +33,6 @@
 #include "ApplyStyleCommand.h"
 #include "BackForwardController.h"
 #include "CSSComputedStyleDeclaration.h"
-#include "CSSMutableStyleDeclaration.h"
 #include "CSSProperty.h"
 #include "CSSPropertyNames.h"
 #include "CachedCSSStyleSheet.h"
@@ -80,6 +79,7 @@
 #include "ScriptSourceCode.h"
 #include "ScriptValue.h"
 #include "Settings.h"
+#include "StylePropertySet.h"
 #include "TextIterator.h"
 #include "TextResourceDecoder.h"
 #include "UserContentURLPattern.h"
@@ -290,11 +290,11 @@ void Frame::setDocument(PassRefPtr<Document> newDoc)
     // Update the cached 'document' property, which is now stale.
     m_script.updateDocument();
 
-    if (m_page) {
-        m_page->updateViewportArguments();
-        if (m_page->mainFrame() == this)
-            notifyChromeClientWheelEventHandlerCountChanged();
-    }
+    if (m_doc)
+        m_doc->updateViewportArguments();
+
+    if (m_page && m_page->mainFrame() == this)
+        notifyChromeClientWheelEventHandlerCountChanged();
 }
 
 #if ENABLE(ORIENTATION_EVENTS)
@@ -481,7 +481,7 @@ String Frame::matchLabelsAgainstElement(const Vector<String>& labels, Element* e
     // See 7538330 for one popular site that benefits from the id element check.
     // FIXME: This code is mirrored in FrameMac.mm. It would be nice to make the Mac code call the platform-agnostic
     // code, which would require converting the NSArray of NSStrings to a Vector of Strings somewhere along the way.
-    String resultFromNameAttribute = matchLabelsAgainstString(labels, element->getAttribute(nameAttr));
+    String resultFromNameAttribute = matchLabelsAgainstString(labels, element->getNameAttribute());
     if (!resultFromNameAttribute.isEmpty())
         return resultFromNameAttribute;
     
@@ -668,6 +668,9 @@ void Frame::pageDestroyed()
 
     if (m_domWindow) {
         m_domWindow->resetGeolocation();
+#if ENABLE(NOTIFICATIONS)
+        m_domWindow->resetNotifications();
+#endif
         m_domWindow->pageDestroyed();
     }
 
@@ -1068,8 +1071,8 @@ DragImageRef Frame::nodeImage(Node* node)
     m_doc->updateLayout();
     m_view->setNodeToDraw(node); // Enable special sub-tree drawing mode.
 
-    IntRect topLevelRect;
-    IntRect paintingRect = renderer->paintingRootRect(topLevelRect);
+    LayoutRect topLevelRect;
+    IntRect paintingRect = pixelSnappedIntRect(renderer->paintingRootRect(topLevelRect));
 
     OwnPtr<ImageBuffer> buffer(ImageBuffer::create(paintingRect.size()));
     if (!buffer)

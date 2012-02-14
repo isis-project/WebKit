@@ -33,7 +33,6 @@
 #include "RenderObject.h"
 #include "RenderSVGResource.h"
 #include "SVGElementInstance.h"
-#include "SVGImageBufferTools.h"
 #include "SVGNames.h"
 #include "SVGPreserveAspectRatio.h"
 
@@ -65,39 +64,54 @@ PassRefPtr<SVGFEImageElement> SVGFEImageElement::create(const QualifiedName& tag
 
 SVGFEImageElement::~SVGFEImageElement()
 {
-    if (m_cachedImage)
-        m_cachedImage->removeClient(this);
+    clearResourceReferences();
 }
 
-void SVGFEImageElement::invalidateImageResource()
+void SVGFEImageElement::clearResourceReferences()
 {
     if (m_cachedImage) {
         m_cachedImage->removeClient(this);
         m_cachedImage = 0;
     }
 
-    m_targetImage.clear();
+    ASSERT(document());
+    document()->accessSVGExtensions()->removeAllTargetReferencesForElement(this);
 }
 
 void SVGFEImageElement::requestImageResource()
 {
-    invalidateImageResource();
-
-    String fragmentIdentifier;
-    Element* hrefElement = SVGURIReference::targetElementFromIRIString(href(), document(), &fragmentIdentifier);
-
-    if (hrefElement && hrefElement->isSVGElement() && hrefElement->renderer())
-        return;
-
-    // We have what appears to be a local fragment identifier, but it didn't resolve yet.
-    if (!fragmentIdentifier.isEmpty())
-        return;
-
     ResourceRequest request(ownerDocument()->completeURL(href()));
-    m_cachedImage = ownerDocument()->cachedResourceLoader()->requestImage(request);
+    m_cachedImage = document()->cachedResourceLoader()->requestImage(request);
 
     if (m_cachedImage)
         m_cachedImage->addClient(this);
+}
+
+void SVGFEImageElement::buildPendingResource()
+{
+    clearResourceReferences();
+    if (!inDocument())
+        return;
+
+    String id;
+    Element* target = SVGURIReference::targetElementFromIRIString(href(), document(), &id);
+    if (!target) {
+        if (hasPendingResources())
+            return;
+
+        if (id.isEmpty())
+            requestImageResource();
+        else {
+            document()->accessSVGExtensions()->addPendingResource(id, this);
+            ASSERT(hasPendingResources());
+        }
+    } else if (target->isSVGElement()) {
+        // Register us with the target in the dependencies map. Any change of hrefElement
+        // that leads to relayout/repainting now informs us, so we can react to it.
+        document()->accessSVGExtensions()->addElementReferencingTarget(this, static_cast<SVGElement*>(target));
+    }
+
+    invalidate();
 }
 
 bool SVGFEImageElement::isSupportedAttribute(const QualifiedName& attrName)
@@ -112,10 +126,10 @@ bool SVGFEImageElement::isSupportedAttribute(const QualifiedName& attrName)
     return supportedAttributes.contains<QualifiedName, SVGAttributeHashTranslator>(attrName);
 }
 
-void SVGFEImageElement::parseMappedAttribute(Attribute* attr)
+void SVGFEImageElement::parseAttribute(Attribute* attr)
 {
     if (!isSupportedAttribute(attr->name())) {
-        SVGFilterPrimitiveStandardAttributes::parseMappedAttribute(attr);
+        SVGFilterPrimitiveStandardAttributes::parseAttribute(attr);
         return;
     }
 
@@ -125,14 +139,11 @@ void SVGFEImageElement::parseMappedAttribute(Attribute* attr)
         return;
     }
 
-    if (SVGURIReference::parseMappedAttribute(attr)) {
-        requestImageResource();
+    if (SVGURIReference::parseAttribute(attr))
         return;
-    }
-
-    if (SVGLangSpace::parseMappedAttribute(attr))
+    if (SVGLangSpace::parseAttribute(attr))
         return;
-    if (SVGExternalResourcesRequired::parseMappedAttribute(attr))
+    if (SVGExternalResourcesRequired::parseAttribute(attr))
         return;
 
     ASSERT_NOT_REACHED();
@@ -153,8 +164,7 @@ void SVGFEImageElement::svgAttributeChanged(const QualifiedName& attrName)
     }
 
     if (SVGURIReference::isKnownAttribute(attrName)) {
-        invalidateImageResource();
-        invalidate();
+        buildPendingResource();
         return;
     }
 
@@ -162,6 +172,18 @@ void SVGFEImageElement::svgAttributeChanged(const QualifiedName& attrName)
         return;
 
     ASSERT_NOT_REACHED();
+}
+
+void SVGFEImageElement::insertedIntoDocument()
+{
+    SVGFilterPrimitiveStandardAttributes::insertedIntoDocument();
+    buildPendingResource();
+}
+
+void SVGFEImageElement::removedFromDocument()
+{
+    SVGFilterPrimitiveStandardAttributes::removedFromDocument();
+    clearResourceReferences();
 }
 
 void SVGFEImageElement::notifyFinished(CachedResource*)
@@ -180,30 +202,9 @@ void SVGFEImageElement::notifyFinished(CachedResource*)
 
 PassRefPtr<FilterEffect> SVGFEImageElement::build(SVGFilterBuilder*, Filter* filter)
 {
-    if (!m_cachedImage && !m_targetImage)
-        requestImageResource();
-
-    if (!m_cachedImage && !m_targetImage) {
-        Element* hrefElement = SVGURIReference::targetElementFromIRIString(href(), document());
-        if (!hrefElement || !hrefElement->isSVGElement())
-            return 0;
-
-        RenderObject* renderer = hrefElement->renderer();
-        if (!renderer)
-            return 0;
-
-        IntRect targetRect = enclosingIntRect(renderer->objectBoundingBox());
-
-        if (targetRect.isEmpty())
-            return 0;
-
-        m_targetImage = ImageBuffer::create(targetRect.size(), ColorSpaceLinearRGB);
-
-        AffineTransform contentTransformation;
-        SVGImageBufferTools::renderSubtreeToImageBuffer(m_targetImage.get(), renderer, contentTransformation);
-    }
-
-    return FEImage::create(filter, m_targetImage ? m_targetImage->copyImage(CopyBackingStore) : m_cachedImage->imageForRenderer(renderer()), preserveAspectRatio());
+    if (m_cachedImage)
+        return FEImage::createWithImage(filter, m_cachedImage->imageForRenderer(renderer()), preserveAspectRatio());
+    return FEImage::createWithIRIReference(filter, document(), href(), preserveAspectRatio());
 }
 
 void SVGFEImageElement::addSubresourceAttributeURLs(ListHashSet<KURL>& urls) const

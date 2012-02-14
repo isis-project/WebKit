@@ -26,8 +26,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-import os
-
 from webkitpy.thirdparty.mock import Mock
 from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.tool.bot.queueengine import QueueEngine
@@ -69,14 +67,10 @@ class EarlyWarningSytemTest(QueuesTest):
 
     def _test_builder_ews(self, ews):
         ews.bind_to_tool(MockTool())
-        self.assert_queue_outputs(ews, expected_stderr=self._default_expected_stderr(ews))
-
-    def _test_committer_only_ews(self, ews):
-        ews.bind_to_tool(MockTool())
-        expected_stderr = self._default_expected_stderr(ews)
-        string_replacemnts = {"name": ews.name}
-        expected_stderr["process_work_item"] = "MOCK: update_status: %(name)s Error: %(name)s cannot process patches from non-committers :(\nMOCK: release_work_item: %(name)s 10000\n" % string_replacemnts
-        self.assert_queue_outputs(ews, expected_stderr=expected_stderr)
+        options = Mock()
+        options.port = None
+        options.run_tests = ews._default_run_tests
+        self.assert_queue_outputs(ews, expected_stderr=self._default_expected_stderr(ews), options=options)
 
     def _test_testing_ews(self, ews):
         ews.layout_test_results = lambda: None
@@ -85,11 +79,8 @@ class EarlyWarningSytemTest(QueuesTest):
         expected_stderr["handle_script_error"] = "ScriptError error message\n"
         self.assert_queue_outputs(ews, expected_stderr=expected_stderr)
 
-    def test_committer_only_ewses(self):
-        self._test_committer_only_ews(MacEWS())
-        self._test_committer_only_ews(ChromiumMacEWS())
-
     def test_builder_ewses(self):
+        self._test_builder_ews(MacEWS())
         self._test_builder_ews(ChromiumWindowsEWS())
         self._test_builder_ews(QtEWS())
         self._test_builder_ews(GtkEWS())

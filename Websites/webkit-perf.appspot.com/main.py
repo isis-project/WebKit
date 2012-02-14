@@ -1,0 +1,58 @@
+#!/usr/bin/env python
+#
+# Copyright 2007, 2011 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+import webapp2
+from google.appengine.ext.webapp import util
+
+import json
+
+from controller import CachedDashboardHandler
+from controller import CachedManifestHandler
+from controller import CachedRunsHandler
+from create_handler import CreateHandler
+from dashboard_handler import DashboardHandler
+from manifest_handler import ManifestHandler
+from report_handler import ReportHandler
+from report_handler import AdminReportHandler
+from report_process_handler import ReportProcessHandler
+from report_logs_handler import ReportLogsHandler
+from runs_handler import RunsHandler
+from merge_tests_handler import MergeTestsHandler
+
+routes = [
+    ('/admin/report/?', AdminReportHandler),
+    ('/admin/merge-tests/?', MergeTestsHandler),
+    ('/admin/report-logs/?', ReportLogsHandler),
+    ('/admin/create/(.*)', CreateHandler),
+    ('/api/test/?', CachedManifestHandler),
+    ('/api/test/update', ManifestHandler),
+    ('/api/test/report/?', ReportHandler),
+    ('/api/test/report/process', ReportProcessHandler),
+    ('/api/test/runs/?', CachedRunsHandler),
+    ('/api/test/runs/update', RunsHandler),
+    ('/api/test/dashboard/?', CachedDashboardHandler),
+    ('/api/test/dashboard/update', DashboardHandler),
+]
+
+
+def main():
+    application = webapp2.WSGIApplication(routes, debug=True)
+    util.run_wsgi_app(application)
+
+
+if __name__ == '__main__':
+    main()

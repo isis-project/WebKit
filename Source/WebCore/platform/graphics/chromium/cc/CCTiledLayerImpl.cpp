@@ -47,12 +47,19 @@ class ManagedTexture;
 class DrawableTile : public CCLayerTilingData::Tile {
     WTF_MAKE_NONCOPYABLE(DrawableTile);
 public:
-    DrawableTile() : m_textureId(0) { }
+    static PassOwnPtr<DrawableTile> create() { return adoptPtr(new DrawableTile()); }
 
     Platform3DObject textureId() const { return m_textureId; }
     void setTextureId(Platform3DObject textureId) { m_textureId = textureId; }
+
+    const IntRect& opaqueRect() const { return m_opaqueRect; }
+    void setOpaqueRect(const IntRect& opaqueRect) { m_opaqueRect = opaqueRect; }
+
 private:
+    DrawableTile() : m_textureId(0) { }
+
     Platform3DObject m_textureId;
+    IntRect m_opaqueRect;
 };
 
 CCTiledLayerImpl::CCTiledLayerImpl(int id)
@@ -98,9 +105,10 @@ DrawableTile* CCTiledLayerImpl::tileAt(int i, int j) const
 
 DrawableTile* CCTiledLayerImpl::createTile(int i, int j)
 {
-    RefPtr<DrawableTile> tile = adoptRef(new DrawableTile());
-    m_tiler->addTile(tile, i, j);
-    return tile.get();
+    OwnPtr<DrawableTile> tile(DrawableTile::create());
+    DrawableTile* addedTile = tile.get();
+    m_tiler->addTile(tile.release(), i, j);
+    return addedTile;
 }
 
 TransformationMatrix CCTiledLayerImpl::quadTransform() const
@@ -122,7 +130,12 @@ void CCTiledLayerImpl::appendQuads(CCQuadList& quadList, const CCSharedQuadState
 {
     const IntRect& layerRect = visibleLayerRect();
 
-    if (m_skipsDraw || !m_tiler || m_tiler->isEmpty() || layerRect.isEmpty())
+    if (m_skipsDraw)
+        return;
+
+    appendGutterQuads(quadList, sharedQuadState);
+
+    if (!m_tiler || !m_tiler->numTiles() || layerRect.isEmpty())
         return;
 
     int left, top, right, bottom;
@@ -143,6 +156,9 @@ void CCTiledLayerImpl::appendQuads(CCQuadList& quadList, const CCSharedQuadState
                 continue;
             }
 
+            IntRect tileOpaqueRect = tile->opaqueRect();
+            tileOpaqueRect.intersect(layerRect);
+
             // Keep track of how the top left has moved, so the texture can be
             // offset the same amount.
             IntSize displayOffset = tileRect.minXMinYCorner() - displayRect.minXMinYCorner();
@@ -159,7 +175,7 @@ void CCTiledLayerImpl::appendQuads(CCQuadList& quadList, const CCSharedQuadState
             bool bottomEdgeAA = j == m_tiler->numTilesY() - 1 && useAA;
 
             const GC3Dint textureFilter = m_tiler->hasBorderTexels() ? GraphicsContext3D::LINEAR : GraphicsContext3D::NEAREST;
-            quadList.append(CCTileDrawQuad::create(sharedQuadState, tileRect, tile->textureId(), textureOffset, textureSize, textureFilter, contentsSwizzled(), leftEdgeAA, topEdgeAA, rightEdgeAA, bottomEdgeAA));
+            quadList.append(CCTileDrawQuad::create(sharedQuadState, tileRect, tileOpaqueRect, tile->textureId(), textureOffset, textureSize, textureFilter, contentsSwizzled(), leftEdgeAA, topEdgeAA, rightEdgeAA, bottomEdgeAA));
 
             if (hasDebugBorders()) {
                 Color color(debugBorderColor().red(), debugBorderColor().green(), debugBorderColor().blue(), debugTileBorderAlpha);
@@ -178,14 +194,15 @@ void CCTiledLayerImpl::setTilingData(const CCLayerTilingData& tiler)
     *m_tiler = tiler;
 }
 
-void CCTiledLayerImpl::syncTextureId(int i, int j, Platform3DObject textureId)
+void CCTiledLayerImpl::pushTileProperties(int i, int j, Platform3DObject textureId, const IntRect& opaqueRect)
 {
     DrawableTile* tile = tileAt(i, j);
     if (!tile)
         tile = createTile(i, j);
     tile->setTextureId(textureId);
+    tile->setOpaqueRect(opaqueRect);
 }
 
-}
+} // namespace WebCore
 
 #endif // USE(ACCELERATED_COMPOSITING)

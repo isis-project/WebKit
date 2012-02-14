@@ -37,6 +37,7 @@
 #include <QPointF>
 
 BrowserWindow::BrowserWindow(WindowOptions* options)
+    : m_windowOptions(options)
 {
     setWindowTitle("MiniBrowser");
     setWindowFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
@@ -52,8 +53,7 @@ BrowserWindow::BrowserWindow(WindowOptions* options)
     engine()->rootContext()->setContextProperty("options", options);
     setSource(QUrl("qrc:/qml/BrowserWindow.qml"));
     connect(rootObject(), SIGNAL(pageTitleChanged(QString)), this, SLOT(setWindowTitle(QString)));
-    if (options->useTraditionalDesktopBehavior())
-        webView()->experimental()->setUseTraditionalDesktopBehaviour(true);
+    connect(rootObject(), SIGNAL(newWindow(QString)), this, SLOT(newWindow(QString)));
     if (options->startFullScreen())
         showFullScreen();
     else {
@@ -88,7 +88,7 @@ void BrowserWindow::focusAddressBar()
 
 BrowserWindow* BrowserWindow::newWindow(const QString& url)
 {
-    BrowserWindow* window = new BrowserWindow();
+    BrowserWindow* window = new BrowserWindow(m_windowOptions);
     window->load(url);
     return window;
 }
@@ -108,12 +108,14 @@ void BrowserWindow::updateVisualMockTouchPoints(const QList<QWindowSystemInterfa
             mockTouchPointItem->setParentItem(rootObject());
         }
 
-        QPointF position = touchPoint.area.topLeft();
+        QPointF position = touchPoint.area.center();
         position.rx() -= geometry().x();
         position.ry() -= geometry().y();
 
         mockTouchPointItem->setX(position.x());
         mockTouchPointItem->setY(position.y());
+        mockTouchPointItem->setWidth(touchPoint.area.width());
+        mockTouchPointItem->setHeight(touchPoint.area.height());
         mockTouchPointItem->setProperty("pressed", QVariant(touchPoint.state != Qt::TouchPointReleased));
     }
 }

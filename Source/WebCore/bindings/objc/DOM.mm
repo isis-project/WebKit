@@ -112,7 +112,6 @@ static void createElementClassMap()
     addElementClass(HTMLNames::imgTag, [DOMHTMLImageElement class]);
     addElementClass(HTMLNames::inputTag, [DOMHTMLInputElement class]);
     addElementClass(HTMLNames::insTag, [DOMHTMLModElement class]);
-    addElementClass(HTMLNames::isindexTag, [DOMHTMLIsIndexElement class]);
     addElementClass(HTMLNames::labelTag, [DOMHTMLLabelElement class]);
     addElementClass(HTMLNames::legendTag, [DOMHTMLLegendElement class]);
     addElementClass(HTMLNames::liTag, [DOMHTMLLIElement class]);
@@ -328,8 +327,6 @@ Class kitClass(WebCore::Node* impl)
             // FIXME: Create an XPath objective C wrapper
             // See http://bugs.webkit.org/show_bug.cgi?id=8755
             return nil;
-        case WebCore::Node::SHADOW_ROOT_NODE:
-            return [DOMNode class];
     }
     ASSERT_NOT_REACHED();
     return nil;

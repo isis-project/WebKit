@@ -38,6 +38,11 @@
 
 namespace WebCore {
 
+#if PLATFORM(CHROMIUM)
+class MediaStreamCenterInternal;
+#endif
+
+class MediaStreamComponent;
 class MediaStreamDescriptor;
 
 class MediaStreamSourcesQueryClient : public RefCounted<MediaStreamSourcesQueryClient> {
@@ -46,8 +51,10 @@ public:
 
     virtual bool audio() const = 0;
     virtual bool video() const = 0;
+    virtual bool cameraPreferenceUser() const = 0;
+    virtual bool cameraPreferenceEnvironment() const = 0;
 
-    virtual void mediaStreamSourcesQueryCompleted(const MediaStreamSourceVector&) = 0;
+    virtual void didCompleteQuery(const MediaStreamSourceVector& audioSources, const MediaStreamSourceVector& videoSources) = 0;
 };
 
 class MediaStreamCenter {
@@ -63,14 +70,19 @@ public:
     // FIXME: add a way to mute a MediaStreamSource from the WebKit API layer
 
     // Calls from the DOM objects to notify the platform
-    void didSetMediaStreamTrackEnabled(MediaStreamDescriptor*, unsigned componentIndex);
+    void didSetMediaStreamTrackEnabled(MediaStreamDescriptor*, MediaStreamComponent*);
     void didStopLocalMediaStream(MediaStreamDescriptor*);
+    void didConstructMediaStream(MediaStreamDescriptor*);
 
     // Calls from the platform to update the DOM objects
     void endLocalMediaStream(MediaStreamDescriptor*);
 
 private:
     MediaStreamCenter();
+
+#if PLATFORM(CHROMIUM)
+    OwnPtr<MediaStreamCenterInternal> m_private;
+#endif
 };
 
 } // namespace WebCore

@@ -26,75 +26,68 @@
 #include "HTMLTablePartElement.h"
 
 #include "Attribute.h"
+#include "CSSImageValue.h"
 #include "CSSPropertyNames.h"
 #include "CSSValueKeywords.h"
 #include "Document.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
+#include "HTMLTableElement.h"
 
 namespace WebCore {
 
 using namespace HTMLNames;
 
-bool HTMLTablePartElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
+bool HTMLTablePartElement::isPresentationAttribute(Attribute* attr) const
 {
-    if (attrName == backgroundAttr) {
-        result = (MappedAttributeEntry)(eLastEntry + document()->docID());
-        return false;
-    }
-    
-    if (attrName == bgcolorAttr ||
-        attrName == bordercolorAttr ||
-        attrName == valignAttr ||
-        attrName == heightAttr) {
-        result = eUniversal;
-        return false;
-    }
-    
-    if (attrName == alignAttr) {
-        result = eCell; // All table parts will just share in the TD space.
-        return false;
-    }
-
-    return HTMLElement::mapToEntry(attrName, result);
+    if (attr->name() == bgcolorAttr || attr->name() == backgroundAttr || attr->name() == bordercolorAttr || attr->name() == valignAttr || attr->name() == alignAttr || attr->name() == heightAttr)
+        return true;
+    return HTMLElement::isPresentationAttribute(attr);
 }
 
-void HTMLTablePartElement::parseMappedAttribute(Attribute* attr)
+void HTMLTablePartElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == bgcolorAttr)
-        addCSSColor(attr, CSSPropertyBackgroundColor, attr->value());
+        addHTMLColorToStyle(style, CSSPropertyBackgroundColor, attr->value());
     else if (attr->name() == backgroundAttr) {
         String url = stripLeadingAndTrailingHTMLSpaces(attr->value());
         if (!url.isEmpty())
-            addCSSImageProperty(attr, CSSPropertyBackgroundImage, document()->completeURL(url).string());
+            style->setProperty(CSSProperty(CSSPropertyBackgroundImage, CSSImageValue::create(document()->completeURL(url).string())));
     } else if (attr->name() == bordercolorAttr) {
         if (!attr->value().isEmpty()) {
-            addCSSColor(attr, CSSPropertyBorderColor, attr->value());
-            addCSSProperty(attr, CSSPropertyBorderTopStyle, CSSValueSolid);
-            addCSSProperty(attr, CSSPropertyBorderBottomStyle, CSSValueSolid);
-            addCSSProperty(attr, CSSPropertyBorderLeftStyle, CSSValueSolid);
-            addCSSProperty(attr, CSSPropertyBorderRightStyle, CSSValueSolid);
+            addHTMLColorToStyle(style, CSSPropertyBorderColor, attr->value());
+            style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
+            style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
+            style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
+            style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
         }
     } else if (attr->name() == valignAttr) {
         if (!attr->value().isEmpty())
-            addCSSProperty(attr, CSSPropertyVerticalAlign, attr->value());
+            style->setProperty(CSSPropertyVerticalAlign, attr->value());
     } else if (attr->name() == alignAttr) {
-        const AtomicString& v = attr->value();
-        if (equalIgnoringCase(v, "middle") || equalIgnoringCase(v, "center"))
-            addCSSProperty(attr, CSSPropertyTextAlign, CSSValueWebkitCenter);
-        else if (equalIgnoringCase(v, "absmiddle"))
-            addCSSProperty(attr, CSSPropertyTextAlign, CSSValueCenter);
-        else if (equalIgnoringCase(v, "left"))
-            addCSSProperty(attr, CSSPropertyTextAlign, CSSValueWebkitLeft);
-        else if (equalIgnoringCase(v, "right"))
-            addCSSProperty(attr, CSSPropertyTextAlign, CSSValueWebkitRight);
+        if (equalIgnoringCase(attr->value(), "middle") || equalIgnoringCase(attr->value(), "center"))
+            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitCenter);
+        else if (equalIgnoringCase(attr->value(), "absmiddle"))
+            style->setProperty(CSSPropertyTextAlign, CSSValueCenter);
+        else if (equalIgnoringCase(attr->value(), "left"))
+            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitLeft);
+        else if (equalIgnoringCase(attr->value(), "right"))
+            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitRight);
         else
-            addCSSProperty(attr, CSSPropertyTextAlign, v);
+            style->setProperty(CSSPropertyTextAlign, attr->value());
     } else if (attr->name() == heightAttr) {
         if (!attr->value().isEmpty())
-            addCSSLength(attr, CSSPropertyHeight, attr->value());
+            addHTMLLengthToStyle(style, CSSPropertyHeight, attr->value());
     } else
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::collectStyleForAttribute(attr, style);
+}
+
+HTMLTableElement* HTMLTablePartElement::findParentTable() const
+{
+    ContainerNode* parent = parentNode();
+    while (parent && !parent->hasTagName(tableTag))
+        parent = parent->parentNode();
+    return static_cast<HTMLTableElement*>(parent);
 }
 
 }

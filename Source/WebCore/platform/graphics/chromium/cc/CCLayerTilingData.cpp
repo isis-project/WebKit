@@ -74,29 +74,26 @@ const CCLayerTilingData& CCLayerTilingData::operator=(const CCLayerTilingData& t
     return *this;
 }
 
-void CCLayerTilingData::addTile(PassRefPtr<Tile> tile, int i, int j)
+void CCLayerTilingData::addTile(PassOwnPtr<Tile> tile, int i, int j)
 {
     ASSERT(!tileAt(i, j));
     tile->moveTo(i, j);
     m_tiles.add(make_pair(i, j), tile);
 }
 
-PassRefPtr<CCLayerTilingData::Tile> CCLayerTilingData::takeTile(int i, int j)
+PassOwnPtr<CCLayerTilingData::Tile> CCLayerTilingData::takeTile(int i, int j)
 {
     return m_tiles.take(make_pair(i, j));
 }
 
 CCLayerTilingData::Tile* CCLayerTilingData::tileAt(int i, int j) const
 {
-    Tile* tile = m_tiles.get(make_pair(i, j)).get();
-    ASSERT(!tile || tile->refCount() == 1);
-    return tile;
+    return m_tiles.get(make_pair(i, j));
 }
 
 void CCLayerTilingData::reset()
 {
     m_tiles.clear();
-    m_tilingData.setTotalSize(0, 0);
 }
 
 void CCLayerTilingData::layerRectToTileIndices(const IntRect& layerRect, int& left, int& top, int& right, int& bottom) const
@@ -118,6 +115,17 @@ IntRect CCLayerTilingData::tileRect(const Tile* tile) const
 void CCLayerTilingData::setBounds(const IntSize& size)
 {
     m_tilingData.setTotalSize(size.width(), size.height());
+
+    // Any tiles completely outside our new bounds are invalid and should be dropped.
+    int left, top, right, bottom;
+    layerRectToTileIndices(IntRect(IntPoint(), size), left, top, right, bottom);
+    Vector<TileMapKey> invalidTileKeys;
+    for (TileMap::const_iterator it = m_tiles.begin(); it != m_tiles.end(); ++it) {
+        if (it->first.first > right || it->first.second > bottom)
+            invalidTileKeys.append(it->first);
+    }
+    for (size_t i = 0; i < invalidTileKeys.size(); ++i)
+        m_tiles.remove(invalidTileKeys[i]);
 }
 
 IntSize CCLayerTilingData::bounds() const

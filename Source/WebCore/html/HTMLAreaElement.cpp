@@ -52,7 +52,7 @@ PassRefPtr<HTMLAreaElement> HTMLAreaElement::create(const QualifiedName& tagName
     return adoptRef(new HTMLAreaElement(tagName, document));
 }
 
-void HTMLAreaElement::parseMappedAttribute(Attribute* attr)
+void HTMLAreaElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == shapeAttr) {
         if (equalIgnoringCase(attr->value(), "default"))
@@ -70,7 +70,7 @@ void HTMLAreaElement::parseMappedAttribute(Attribute* attr)
     } else if (attr->name() == altAttr || attr->name() == accesskeyAttr) {
         // Do nothing.
     } else
-        HTMLAnchorElement::parseMappedAttribute(attr);
+        HTMLAnchorElement::parseAttribute(attr);
 }
 
 void HTMLAreaElement::invalidateCachedRegion()
@@ -252,9 +252,9 @@ String HTMLAreaElement::itemValueText() const
     return getURLAttribute(hrefAttr);
 }
 
-void HTMLAreaElement::setItemValueText(const String& value, ExceptionCode& ec)
+void HTMLAreaElement::setItemValueText(const String& value, ExceptionCode&)
 {
-    setAttribute(hrefAttr, value, ec);
+    setAttribute(hrefAttr, value);
 }
 #endif
 

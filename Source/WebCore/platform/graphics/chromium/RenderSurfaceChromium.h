@@ -39,6 +39,7 @@
 
 namespace WebCore {
 
+class FilterOperations;
 class LayerChromium;
 class LayerRendererChromium;
 class ManagedTexture;
@@ -51,7 +52,6 @@ public:
 
     bool prepareContentsTexture();
     void releaseContentsTexture();
-    void cleanupResources();
     void draw(const IntRect& targetSurfaceRect);
 
     // Returns the rect that encloses the RenderSurface including any reflection.
@@ -63,6 +63,8 @@ public:
     float drawOpacity() const { return m_drawOpacity; }
     void setDrawOpacity(float drawOpacity) { m_drawOpacity = drawOpacity; }
 
+    // This goes from content space with the origin in the center of the rect being transformed to the target space with the origin in the top left of the
+    // rect being transformed. Position the rect so that the origin is in the center of it before applying this transform.
     const TransformationMatrix& drawTransform() const { return m_drawTransform; }
     void setDrawTransform(const TransformationMatrix& drawTransform) { m_drawTransform = drawTransform; }
 
@@ -74,6 +76,11 @@ public:
 
     const IntRect& clipRect() const { return m_clipRect; }
     void setClipRect(const IntRect& clipRect) { m_clipRect = clipRect; }
+
+    // We don't care about filters here, but we need to satisfy 
+    // calculateDrawTransformsAndVisibilityInternal when templated on this
+    // class.
+    void setFilters(const FilterOperations&) { }
 
     bool skipsDraw() const { return m_skipsDraw; }
     void setSkipsDraw(bool skipsDraw) { m_skipsDraw = skipsDraw; }

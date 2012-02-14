@@ -44,6 +44,7 @@
 namespace WebKit {
 
 class WebInputEvent;
+class WebMouseEvent;
 class WebString;
 struct WebPoint;
 template <typename T> class WebVector;
@@ -105,6 +106,11 @@ public:
     // asynchronously and perform layout and animation internally. Do not call
     // animate or layout in this case.
     virtual void composite(bool finish) = 0;
+
+    // Temporary method for the embedder to notify the WebWidget that the widget
+    // has taken damage, e.g. due to a window expose. This method will be
+    // removed when the WebWidget inversion patch lands --- http://crbug.com/112837
+    virtual void setNeedsRedraw() { }
 
     // Called to inform the WebWidget of a change in theme.
     // Implementors that cache rendered copies of widgets need to re-render
@@ -169,6 +175,22 @@ public:
     // Returns true if the WebWidget uses GPU accelerated compositing
     // to render its contents.
     virtual bool isAcceleratedCompositingActive() const { return false; }
+
+    // Calling WebWidgetClient::requestPointerLock() will result in one
+    // return call to didAcquirePointerLock() or didNotAcquirePointerLock().
+    virtual void didAcquirePointerLock() { }
+    virtual void didNotAcquirePointerLock() { }
+
+    // Pointer lock was held, but has been lost. This may be due to a
+    // request via WebWidgetClient::requestPointerUnlock(), or for other
+    // reasons such as the user exiting lock, window focus changing, etc.
+    virtual void didLosePointerLock() { }
+
+    // Informs the WebWidget that the resizer rect changed. Happens for example
+    // on mac, when a widget appears below the WebWidget without changing the
+    // WebWidget's size (WebWidget::resize() automatically checks the resizer
+    // rect.)
+    virtual void didChangeWindowResizerRect() { }
 
 protected:
     ~WebWidget() { }

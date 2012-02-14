@@ -33,53 +33,131 @@ class Structure;
 MarkedSpace::MarkedSpace(Heap* heap)
     : m_waterMark(0)
     , m_nurseryWaterMark(0)
-    , m_highWaterMark(0)
     , m_heap(heap)
 {
-    for (size_t cellSize = preciseStep; cellSize <= preciseCutoff; cellSize += preciseStep)
-        sizeClassFor(cellSize).cellSize = cellSize;
+    for (size_t cellSize = preciseStep; cellSize <= preciseCutoff; cellSize += preciseStep) {
+        allocatorFor(cellSize).init(heap, this, cellSize, false);
+        destructorAllocatorFor(cellSize).init(heap, this, cellSize, true);
+    }
 
-    for (size_t cellSize = impreciseStep; cellSize <= impreciseCutoff; cellSize += impreciseStep)
-        sizeClassFor(cellSize).cellSize = cellSize;
+    for (size_t cellSize = impreciseStep; cellSize <= impreciseCutoff; cellSize += impreciseStep) {
+        allocatorFor(cellSize).init(heap, this, cellSize, false);
+        destructorAllocatorFor(cellSize).init(heap, this, cellSize, true);
+    }
 }
 
-void MarkedSpace::addBlock(SizeClass& sizeClass, MarkedBlock* block)
-{
-    ASSERT(!sizeClass.currentBlock);
-    ASSERT(!sizeClass.firstFreeCell);
-
-    sizeClass.blockList.append(block);
-    sizeClass.currentBlock = block;
-    sizeClass.firstFreeCell = block->sweep(MarkedBlock::SweepToFreeList);
-}
-
-void MarkedSpace::removeBlock(MarkedBlock* block)
-{
-    SizeClass& sizeClass = sizeClassFor(block->cellSize());
-    if (sizeClass.currentBlock == block)
-        sizeClass.currentBlock = 0;
-    sizeClass.blockList.remove(block);
-}
-
-void MarkedSpace::resetAllocator()
+void MarkedSpace::resetAllocators()
 {
     m_waterMark = 0;
     m_nurseryWaterMark = 0;
 
-    for (size_t cellSize = preciseStep; cellSize <= preciseCutoff; cellSize += preciseStep)
-        sizeClassFor(cellSize).resetAllocator();
+    for (size_t cellSize = preciseStep; cellSize <= preciseCutoff; cellSize += preciseStep) {
+        allocatorFor(cellSize).reset();
+        destructorAllocatorFor(cellSize).reset();
+    }
 
-    for (size_t cellSize = impreciseStep; cellSize <= impreciseCutoff; cellSize += impreciseStep)
-        sizeClassFor(cellSize).resetAllocator();
+    for (size_t cellSize = impreciseStep; cellSize <= impreciseCutoff; cellSize += impreciseStep) {
+        allocatorFor(cellSize).reset();
+        destructorAllocatorFor(cellSize).reset();
+    }
 }
 
 void MarkedSpace::canonicalizeCellLivenessData()
 {
-    for (size_t cellSize = preciseStep; cellSize <= preciseCutoff; cellSize += preciseStep)
-        sizeClassFor(cellSize).zapFreeList();
+    for (size_t cellSize = preciseStep; cellSize <= preciseCutoff; cellSize += preciseStep) {
+        allocatorFor(cellSize).zapFreeList();
+        destructorAllocatorFor(cellSize).zapFreeList();
+    }
 
-    for (size_t cellSize = impreciseStep; cellSize <= impreciseCutoff; cellSize += impreciseStep)
-        sizeClassFor(cellSize).zapFreeList();
+    for (size_t cellSize = impreciseStep; cellSize <= impreciseCutoff; cellSize += impreciseStep) {
+        allocatorFor(cellSize).zapFreeList();
+        destructorAllocatorFor(cellSize).zapFreeList();
+    }
 }
+
+
+void MarkedSpace::freeBlocks(MarkedBlock* head)
+{
+    MarkedBlock* next;
+    for (MarkedBlock* block = head; block; block = next) {
+        next = static_cast<MarkedBlock*>(block->next());
+        
+        m_blocks.remove(block);
+        block->sweep();
+        MutexLocker locker(m_heap->m_freeBlockLock);
+        m_heap->m_freeBlocks.append(block);
+        m_heap->m_numberOfFreeBlocks++;
+    }
+}
+
+class TakeIfUnmarked {
+public:
+    typedef MarkedBlock* ReturnType;
+    
+    TakeIfUnmarked(MarkedSpace*);
+    void operator()(MarkedBlock*);
+    ReturnType returnValue();
+    
+private:
+    MarkedSpace* m_markedSpace;
+    DoublyLinkedList<MarkedBlock> m_empties;
+};
+
+inline TakeIfUnmarked::TakeIfUnmarked(MarkedSpace* newSpace)
+    : m_markedSpace(newSpace)
+{
+}
+
+inline void TakeIfUnmarked::operator()(MarkedBlock* block)
+{
+    if (!block->markCountIsZero())
+        return;
+    
+    m_markedSpace->allocatorFor(block).removeBlock(block);
+    m_empties.append(block);
+}
+
+inline TakeIfUnmarked::ReturnType TakeIfUnmarked::returnValue()
+{
+    return m_empties.head();
+}
+
+void MarkedSpace::shrink()
+{
+    // We record a temporary list of empties to avoid modifying m_blocks while iterating it.
+    TakeIfUnmarked takeIfUnmarked(this);
+    freeBlocks(forEachBlock(takeIfUnmarked));
+}
+
+#if ENABLE(GGC)
+class GatherDirtyCells {
+    WTF_MAKE_NONCOPYABLE(GatherDirtyCells);
+public:
+    typedef void* ReturnType;
+    
+    explicit GatherDirtyCells(MarkedBlock::DirtyCellVector*);
+    void operator()(MarkedBlock*);
+    ReturnType returnValue() { return 0; }
+    
+private:
+    MarkedBlock::DirtyCellVector* m_dirtyCells;
+};
+
+inline GatherDirtyCells::GatherDirtyCells(MarkedBlock::DirtyCellVector* dirtyCells)
+    : m_dirtyCells(dirtyCells)
+{
+}
+
+inline void GatherDirtyCells::operator()(MarkedBlock* block)
+{
+    block->gatherDirtyCells(*m_dirtyCells);
+}
+
+void MarkedSpace::gatherDirtyCells(MarkedBlock::DirtyCellVector& dirtyCells)
+{
+    GatherDirtyCells gatherDirtyCells(&dirtyCells);
+    forEachBlock(gatherDirtyCells);
+}
+#endif
 
 } // namespace JSC

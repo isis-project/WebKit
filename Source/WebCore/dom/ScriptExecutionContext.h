@@ -53,6 +53,9 @@ class EventQueue;
 class EventTarget;
 class MessagePort;
 
+#if ENABLE(BLOB)
+class PublicURLManager;
+#endif
 #if ENABLE(SQL_DATABASE)
 class Database;
 class DatabaseTaskSynchronizer;
@@ -80,7 +83,7 @@ public:
     // When the database cleanup is done, cleanupSync will be signalled.
     void stopDatabases(DatabaseTaskSynchronizer*);
 #endif
-    virtual bool isContextThread() const = 0;
+    virtual bool isContextThread() const { return true; }
     virtual bool isJSExecutionForbidden() const = 0;
 
     const KURL& url() const { return virtualURL(); }
@@ -93,7 +96,11 @@ public:
     bool sanitizeScriptError(String& errorMessage, int& lineNumber, String& sourceURL);
     void reportException(const String& errorMessage, int lineNumber, const String& sourceURL, PassRefPtr<ScriptCallStack>);
     void addConsoleMessage(MessageSource, MessageType, MessageLevel, const String& message, const String& sourceURL = String(), unsigned lineNumber = 0, PassRefPtr<ScriptCallStack> = 0);
+    void addConsoleMessage(MessageSource, MessageType, MessageLevel, const String& message, PassRefPtr<ScriptCallStack>);
 
+#if ENABLE(BLOB)
+    PublicURLManager& publicURLManager();
+#endif
     // Active objects are not garbage collected even if inaccessible, e.g. because their activity may result in callbacks being invoked.
     bool canSuspendActiveDOMObjects();
     // Active objects can be asked to suspend even if canSuspendActiveDOMObjects() returns 'false' -
@@ -102,8 +109,14 @@ public:
     virtual void resumeActiveDOMObjects();
     virtual void stopActiveDOMObjects();
 
+    bool activeDOMObjectsAreSuspended() const { return m_activeDOMObjectsAreSuspended; }
+
+    // Called from the constructor and destructors of ActiveDOMObject.
     void didCreateActiveDOMObject(ActiveDOMObject*, void* upcastPointer);
     void willDestroyActiveDOMObject(ActiveDOMObject*);
+
+    // Called after the construction of an ActiveDOMObject to synchronize suspend state.
+    void suspendActiveDOMObjectIfNeeded(ActiveDOMObject*);
 
     typedef const HashMap<ActiveDOMObject*, void*> ActiveDOMObjectsMap;
     ActiveDOMObjectsMap& activeDOMObjects() const { return m_activeDOMObjects; }
@@ -204,6 +217,12 @@ private:
     bool m_inDispatchErrorEvent;
     class PendingException;
     OwnPtr<Vector<OwnPtr<PendingException> > > m_pendingExceptions;
+#if ENABLE(BLOB)
+    OwnPtr<PublicURLManager> m_publicURLManager;
+#endif
+
+    bool m_activeDOMObjectsAreSuspended;
+    ActiveDOMObject::ReasonForSuspension m_reasonForSuspendingActiveDOMObjects;
 
 #if ENABLE(SQL_DATABASE)
     RefPtr<DatabaseThread> m_databaseThread;

@@ -1,0 +1,45 @@
+application: webkit-perf
+version: 13
+runtime: python27
+api_version: 1
+threadsafe: false
+
+handlers:
+- url: /favicon\.ico
+  static_files: favicon.ico
+  upload: favicon\.ico
+
+- url: /admin/(.+\.html)
+  static_files: static/\1
+  upload: static
+  secure: always
+  login: admin
+
+- url: /
+  static_files: index.html
+  upload: index.html
+
+- url: /((index|embed|graph)\.html)
+  static_files: \1
+  upload: ((index|embed|graph)\.html)
+
+- url: /css
+  static_dir: css
+
+- url: /js
+  static_dir: js
+
+- url: /jq
+  static_dir: jq
+
+- url: /api/test/report
+  script: main.py
+  secure: always
+
+- url: /admin/
+  script: main.py
+  secure: always
+  login: admin
+
+- url: .*
+  script: main.py

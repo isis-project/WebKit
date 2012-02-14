@@ -48,62 +48,56 @@ PassRefPtr<HTMLHRElement> HTMLHRElement::create(const QualifiedName& tagName, Do
     return adoptRef(new HTMLHRElement(tagName, document));
 }
 
-bool HTMLHRElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
+bool HTMLHRElement::isPresentationAttribute(Attribute* attr) const
 {
-    if (attrName == alignAttr ||
-        attrName == widthAttr ||
-        attrName == colorAttr ||
-        attrName == sizeAttr ||
-        attrName == noshadeAttr) {
-        result = eHR;
-        return false;
-    }
-    return HTMLElement::mapToEntry(attrName, result);
+    if (attr->name() == alignAttr || attr->name() == widthAttr || attr->name() == colorAttr || attr->name() == noshadeAttr || attr->name() == sizeAttr)
+        return true;
+    return HTMLElement::isPresentationAttribute(attr);
 }
 
-void HTMLHRElement::parseMappedAttribute(Attribute* attr)
+void HTMLHRElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == alignAttr) {
         if (equalIgnoringCase(attr->value(), "left")) {
-            addCSSProperty(attr, CSSPropertyMarginLeft, "0");
-            addCSSProperty(attr, CSSPropertyMarginRight, CSSValueAuto);
+            style->setProperty(CSSPropertyMarginLeft, "0"); // FIXME: Pass as integer.
+            style->setProperty(CSSPropertyMarginRight, CSSValueAuto);
         } else if (equalIgnoringCase(attr->value(), "right")) {
-            addCSSProperty(attr, CSSPropertyMarginLeft, CSSValueAuto);
-            addCSSProperty(attr, CSSPropertyMarginRight, "0");
+            style->setProperty(CSSPropertyMarginLeft, CSSValueAuto);
+            style->setProperty(CSSPropertyMarginRight, "0"); // FIXME: Pass as integer.
         } else {
-            addCSSProperty(attr, CSSPropertyMarginLeft, CSSValueAuto);
-            addCSSProperty(attr, CSSPropertyMarginRight, CSSValueAuto);
+            style->setProperty(CSSPropertyMarginLeft, CSSValueAuto);
+            style->setProperty(CSSPropertyMarginRight, CSSValueAuto);
         }
     } else if (attr->name() == widthAttr) {
         bool ok;
         int v = attr->value().toInt(&ok);
         if (ok && !v)
-            addCSSLength(attr, CSSPropertyWidth, "1");
+            addHTMLLengthToStyle(style, CSSPropertyWidth, "1"); // FIXME: Pass as integer.
         else
-            addCSSLength(attr, CSSPropertyWidth, attr->value());
+            addHTMLLengthToStyle(style, CSSPropertyWidth, attr->value());
     } else if (attr->name() == colorAttr) {
-        addCSSProperty(attr, CSSPropertyBorderTopStyle, CSSValueSolid);
-        addCSSProperty(attr, CSSPropertyBorderRightStyle, CSSValueSolid);
-        addCSSProperty(attr, CSSPropertyBorderBottomStyle, CSSValueSolid);
-        addCSSProperty(attr, CSSPropertyBorderLeftStyle, CSSValueSolid);
-        addCSSColor(attr, CSSPropertyBorderColor, attr->value());
-        addCSSColor(attr, CSSPropertyBackgroundColor, attr->value());
+        style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
+        style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
+        style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
+        style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
+        addHTMLColorToStyle(style, CSSPropertyBorderColor, attr->value());
+        addHTMLColorToStyle(style, CSSPropertyBackgroundColor, attr->value());
     } else if (attr->name() == noshadeAttr) {
-        addCSSProperty(attr, CSSPropertyBorderTopStyle, CSSValueSolid);
-        addCSSProperty(attr, CSSPropertyBorderRightStyle, CSSValueSolid);
-        addCSSProperty(attr, CSSPropertyBorderBottomStyle, CSSValueSolid);
-        addCSSProperty(attr, CSSPropertyBorderLeftStyle, CSSValueSolid);
-        addCSSColor(attr, CSSPropertyBorderColor, String("grey"));
-        addCSSColor(attr, CSSPropertyBackgroundColor, String("grey"));
+        style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
+        style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
+        style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
+        style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
+        addHTMLColorToStyle(style, CSSPropertyBorderColor, String("grey")); // FIXME: Pass as rgb() value.
+        addHTMLColorToStyle(style, CSSPropertyBackgroundColor, String("grey")); // FIXME: Pass as rgb() value.
     } else if (attr->name() == sizeAttr) {
         StringImpl* si = attr->value().impl();
         int size = si->toInt();
         if (size <= 1)
-            addCSSProperty(attr, CSSPropertyBorderBottomWidth, String("0"));
+            style->setProperty(CSSPropertyBorderBottomWidth, String("0")); // FIXME: Pass as integer.
         else
-            addCSSLength(attr, CSSPropertyHeight, String::number(size-2));
+            addHTMLLengthToStyle(style, CSSPropertyHeight, String::number(size - 2)); // FIXME: Pass as integer.
     } else
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::collectStyleForAttribute(attr, style);
 }
 
 }

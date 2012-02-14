@@ -46,31 +46,13 @@ QQuickWebPage::~QQuickWebPage()
     delete d;
 }
 
-QtSGUpdateQueue *QQuickWebPage::sceneGraphUpdateQueue() const
-{
-    return &d->sgUpdateQueue;
-}
-
-void QQuickWebPage::geometryChanged(const QRectF& newGeometry, const QRectF& oldGeometry)
-{
-    QQuickItem::geometryChanged(newGeometry, oldGeometry);
-
-    if (!d->useTraditionalDesktopBehaviour)
-        return;
-
-    if (newGeometry.size() != oldGeometry.size())
-        d->setDrawingAreaSize(newGeometry.size().toSize());
-}
-
 QQuickWebPagePrivate::QQuickWebPagePrivate(QQuickWebPage* q, QQuickWebView* viewportItem)
     : q(q)
     , viewportItem(viewportItem)
     , webPageProxy(0)
-    , sgUpdateQueue(q)
     , paintingIsInitialized(false)
     , m_paintNode(0)
-    , contentScale(1)
-    , useTraditionalDesktopBehaviour(false)
+    , contentsScale(1)
 {
 }
 
@@ -100,16 +82,22 @@ void QQuickWebPagePrivate::setDrawingAreaSize(const QSize& size)
     drawingArea->setSize(WebCore::IntSize(size), WebCore::IntSize());
 }
 
+void QQuickWebPagePrivate::paint(QPainter* painter)
+{
+    if (webPageProxy->drawingArea())
+        webPageProxy->drawingArea()->paintLayerTree(painter);
+}
+
 void QQuickWebPagePrivate::paintToCurrentGLContext()
 {
     if (!q->isVisible())
         return;
 
     QTransform transform = q->itemTransform(0, 0);
-    transform.scale(contentScale, contentScale);
+    transform.scale(contentsScale, contentsScale);
 
     float opacity = computeEffectiveOpacity(q);
-    QRectF clipRect = q->parentItem()->mapRectToScene(q->parentItem()->boundingRect());
+    QRectF clipRect = viewportItem->mapRectToScene(viewportItem->boundingRect());
 
     if (!clipRect.isValid())
         return;
@@ -118,23 +106,7 @@ void QQuickWebPagePrivate::paintToCurrentGLContext()
     if (!drawingArea)
         return;
 
-    // Make sure that no GL error code stays from previous QT operations.
-    glGetError();
-
-    glEnable(GL_SCISSOR_TEST);
-    ASSERT(!glGetError());
-    const int left = clipRect.left();
-    const int width = clipRect.width();
-    const int bottom = q->canvas()->height() - (clipRect.bottom() + 1);
-    const int height = clipRect.height();
-
-    glScissor(left, bottom, width, height);
-    ASSERT(!glGetError());
-
-    drawingArea->paintToCurrentGLContext(transform, opacity);
-
-    glDisable(GL_SCISSOR_TEST);
-    ASSERT(!glGetError());
+    drawingArea->paintToCurrentGLContext(transform, opacity, clipRect);
 }
 
 struct PageProxyMaterial;
@@ -230,47 +202,37 @@ QSGNode* QQuickWebPage::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
     return proxyNode;
 }
 
-bool QQuickWebPage::usesTraditionalDesktopBehaviour() const
-{
-    return d->useTraditionalDesktopBehaviour;
-}
-
-void QQuickWebPage::setUsesTraditionalDesktopBehaviour(bool enable)
-{
-    d->useTraditionalDesktopBehaviour = enable;
-}
-
 QtWebPageEventHandler* QQuickWebPage::eventHandler() const
 {
     return d->eventHandler.data();
 }
 
-void QQuickWebPage::setContentSize(const QSizeF& size)
+void QQuickWebPage::setContentsSize(const QSizeF& size)
 {
-    if (size.isEmpty() || d->contentSize == size)
+    if (size.isEmpty() || d->contentsSize == size)
         return;
 
-    d->contentSize = size;
+    d->contentsSize = size;
     d->updateSize();
-    d->setDrawingAreaSize(d->contentSize.toSize());
+    d->setDrawingAreaSize(d->contentsSize.toSize());
 }
 
-const QSizeF& QQuickWebPage::contentSize() const
+const QSizeF& QQuickWebPage::contentsSize() const
 {
-    return d->contentSize;
+    return d->contentsSize;
 }
 
-void QQuickWebPage::setContentScale(qreal scale)
+void QQuickWebPage::setContentsScale(qreal scale)
 {
     ASSERT(scale > 0);
-    d->contentScale = scale;
+    d->contentsScale = scale;
     d->updateSize();
 }
 
-qreal QQuickWebPage::contentScale() const
+qreal QQuickWebPage::contentsScale() const
 {
-    ASSERT(d->contentScale > 0);
-    return d->contentScale;
+    ASSERT(d->contentsScale > 0);
+    return d->contentsScale;
 }
 
 QTransform QQuickWebPage::transformFromItem() const
@@ -280,13 +242,15 @@ QTransform QQuickWebPage::transformFromItem() const
 
 QTransform QQuickWebPage::transformToItem() const
 {
-    return QTransform(d->contentScale, 0, 0, 0, d->contentScale, 0, x(), y(), 1);
+    QPointF pos = d->viewportItem->pageItemPos();
+    return QTransform(d->contentsScale, 0, 0, 0, d->contentsScale, 0, pos.x(), pos.y(), 1);
 }
 
 void QQuickWebPagePrivate::updateSize()
 {
-    QSizeF scaledSize = contentSize * contentScale;
+    QSizeF scaledSize = contentsSize * contentsScale;
     q->setSize(scaledSize);
+    viewportItem->updateContentsSize(scaledSize);
 }
 
 void QQuickWebPagePrivate::resetPaintNode()

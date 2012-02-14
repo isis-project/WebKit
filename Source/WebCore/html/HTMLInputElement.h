@@ -121,14 +121,14 @@ public:
     virtual HTMLElement* placeholderElement() const;
 
     bool checked() const { return m_isChecked; }
-    void setChecked(bool, bool sendChangeEvent = false);
+    void setChecked(bool, TextFieldEventBehavior = DispatchNoEvent);
 
     // 'indeterminate' is a state independent of the checked state that causes the control to draw in a way that hides the actual state.
     bool indeterminate() const { return m_isIndeterminate; }
     void setIndeterminate(bool);
     // shouldAppearChecked is used by the rendering tree/CSS while checked() is used by JS to determine checked state
     bool shouldAppearChecked() const;
-    virtual bool isIndeterminate() const { return indeterminate(); }
+    virtual bool isIndeterminate() const;
 
     int size() const;
     bool sizeShouldIncludeDecoration(int& preferredSize) const;
@@ -136,7 +136,7 @@ public:
     void setType(const String&);
 
     String value() const;
-    void setValue(const String&, bool sendChangeEvent = false);
+    void setValue(const String&, TextFieldEventBehavior = DispatchNoEvent);
     void setValueForUser(const String&);
     // Checks if the specified string would be a valid value.
     // We should not call this for types with no string value such as CHECKBOX and RADIO.
@@ -160,7 +160,7 @@ public:
     void setValueAsDate(double, ExceptionCode&);
 
     double valueAsNumber() const;
-    void setValueAsNumber(double, ExceptionCode&, bool sendChangeEvent = false);
+    void setValueAsNumber(double, ExceptionCode&, TextFieldEventBehavior = DispatchNoEvent);
 
     virtual String placeholder() const;
     virtual void setPlaceholder(const String&);
@@ -225,7 +225,7 @@ public:
     // Otherwise, they would be private.
     CheckedRadioButtons& checkedRadioButtons() const;
     void updateCheckedRadioButtons();
-    void setValueInternal(const String&, bool sendChangeEvent);
+    void setValueInternal(const String&, TextFieldEventBehavior);
 
     void cacheSelectionInResponseToSetValue(int caretOffset) { cacheSelection(caretOffset, caretOffset, SelectionHasNoDirection); }
 
@@ -241,7 +241,6 @@ public:
 protected:
     HTMLInputElement(const QualifiedName&, Document*, HTMLFormElement*, bool createdByParser);
     void createShadowSubtree();
-    void setInitialName(const AtomicString&);
     virtual void defaultEventHandler(Event*);
 
 private:
@@ -276,8 +275,9 @@ private:
 
     virtual void accessKeyAction(bool sendMouseEvents);
 
-    virtual bool mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const;
-    virtual void parseMappedAttribute(Attribute*);
+    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual bool isPresentationAttribute(Attribute*) const OVERRIDE;
+    virtual void collectStyleForAttribute(Attribute*, StylePropertySet*) OVERRIDE;
     virtual void finishParsingChildren();
 
     virtual void copyNonAttributeProperties(const Element* source);
@@ -321,6 +321,7 @@ private:
     virtual bool isOptionalFormControl() const { return !isRequiredFormControl(); }
     virtual bool isRequiredFormControl() const;
     virtual bool recalcWillValidate() const;
+    virtual void requiredAttributeChanged() OVERRIDE;
 
     void updateType();
     
@@ -329,7 +330,7 @@ private:
     bool getAllowedValueStepWithDecimalPlaces(AnyStepHandling, double*, unsigned*) const;
 
     // Helper for stepUp()/stepDown().  Adds step value * count to the current value.
-    void applyStep(double count, AnyStepHandling, bool sendChangeEvent, ExceptionCode&);
+    void applyStep(double count, AnyStepHandling, TextFieldEventBehavior, ExceptionCode&);
     double alignValueForStep(double value, double step, unsigned currentDecimalPlaces, unsigned stepDecimalPlaces);
 
 #if ENABLE(DATALIST)

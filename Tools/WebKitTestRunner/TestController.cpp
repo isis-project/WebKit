@@ -63,6 +63,7 @@ TestController& TestController::shared()
 
 TestController::TestController(int argc, const char* argv[])
     : m_dumpPixels(false)
+    , m_skipPixelTestOption(false)
     , m_verbose(false)
     , m_printSeparators(false)
     , m_usingServerMode(false)
@@ -246,6 +247,12 @@ void TestController::initialize(int argc, const char* argv[])
             m_shortTimeout = defaultShortTimeout * m_longTimeout / defaultLongTimeout;
             continue;
         }
+
+        if (argument == "--skip-pixel-test-if-no-baseline") {
+            m_skipPixelTestOption = true;
+            continue;
+        }
+
         if (argument == "--pixel-tests") {
             m_dumpPixels = true;
             continue;
@@ -389,7 +396,8 @@ void TestController::initialize(int argc, const char* argv[])
         0, // didChangeBackForwardList
         0, // shouldGoToBackForwardListItem
         0, // didRunInsecureContentForFrame
-        0  // didDetectXSSForFrame
+        0, // didDetectXSSForFrame 
+        0  // didNewFirstVisuallyNonEmptyLayout 
     };
     WKPageSetPageLoaderClient(m_mainWebView->page(), &pageLoaderClient);
 }
@@ -415,6 +423,7 @@ bool TestController::resetStateToConsistentValues()
 
     // Reset preferences
     WKPreferencesRef preferences = WKPageGroupGetPreferences(m_pageGroup.get());
+    WKPreferencesResetTestRunnerOverrides(preferences);
     WKPreferencesSetOfflineWebApplicationCacheEnabled(preferences, true);
     WKPreferencesSetFontSmoothingLevel(preferences, kWKFontSmoothingLevelNoSubpixelAntiAliasing);
     WKPreferencesSetXSSAuditorEnabled(preferences, false);
@@ -427,6 +436,7 @@ bool TestController::resetStateToConsistentValues()
 #if ENABLE(FULLSCREEN_API)
     WKPreferencesSetFullScreenEnabled(preferences, true);
 #endif
+    WKPreferencesSetPageCacheEnabled(preferences, false);
 
 // [Qt][WK2]REGRESSION(r104881):It broke hundreds of tests
 // FIXME: https://bugs.webkit.org/show_bug.cgi?id=76247
@@ -486,6 +496,7 @@ bool TestController::runTest(const char* test)
     m_state = RunningTest;
 
     m_currentInvocation = adoptPtr(new TestInvocation(pathOrURL));
+    m_currentInvocation->setSkipPixelTestOption(m_skipPixelTestOption);
     if (m_dumpPixels)
         m_currentInvocation->setIsPixelTest(expectedPixelHash);    
 

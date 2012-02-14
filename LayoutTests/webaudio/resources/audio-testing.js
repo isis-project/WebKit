@@ -105,3 +105,31 @@ function finishAudioTest(event) {
     layoutTestController.setAudioData(audioData);
     layoutTestController.notifyDone();
 }
+
+// Create an impulse in a buffer of length sampleFrameLength
+function createImpulseBuffer(context, sampleFrameLength) {
+    var audioBuffer = context.createBuffer(1, sampleFrameLength, context.sampleRate);
+    var n = audioBuffer.length;
+    var dataL = audioBuffer.getChannelData(0);
+
+    for (var k = 0; k < n; ++k) {
+        dataL[k] = 0;
+    }
+    dataL[0] = 1;
+
+    return audioBuffer;
+}
+
+// Convert time (in seconds) to sample frames.
+function timeToSampleFrame(time, sampleRate) {
+    return Math.floor(0.5 + time * sampleRate);
+}
+
+// Compute the number of sample frames consumed by noteGrainOn with
+// the specified |grainOffset|, |duration|, and |sampleRate|.
+function grainLengthInSampleFrames(grainOffset, duration, sampleRate) {
+    var startFrame = timeToSampleFrame(grainOffset, sampleRate);
+    var endFrame = timeToSampleFrame(grainOffset + duration, sampleRate);
+
+    return endFrame - startFrame;
+}

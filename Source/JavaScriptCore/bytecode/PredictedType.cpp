@@ -36,7 +36,6 @@
 
 namespace JSC {
 
-#ifndef NDEBUG
 const char* predictionToString(PredictedType value)
 {
     if (value == PredictNone)
@@ -90,6 +89,11 @@ const char* predictionToString(PredictedType value)
     
     if (value & PredictUint8Array)
         ptr.strcat("Uint8array");
+    else
+        isTop = false;
+
+    if (value & PredictUint8ClampedArray)
+        ptr.strcat("Uint8clampedarray");
     else
         isTop = false;
     
@@ -155,7 +159,6 @@ const char* predictionToString(PredictedType value)
     
     return description;
 }
-#endif
 
 PredictedType predictionFromClassInfo(const ClassInfo* classInfo)
 {
@@ -184,6 +187,8 @@ PredictedType predictionFromClassInfo(const ClassInfo* classInfo)
             return PredictInt32Array;
         case TypedArrayUint8:
             return PredictUint8Array;
+        case TypedArrayUint8Clamped:
+            return PredictUint8ClampedArray;
         case TypedArrayUint16:
             return PredictUint16Array;
         case TypedArrayUint32:

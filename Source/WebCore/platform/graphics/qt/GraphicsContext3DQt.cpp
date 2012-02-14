@@ -146,7 +146,7 @@ void GraphicsContext3DPrivate::paintToTextureMapper(TextureMapper* textureMapper
 {
     blitMultisampleFramebufferAndRestoreContext();
 
-    if (textureMapper->isOpenGLBacked()) {
+    if (textureMapper->accelerationMode() == TextureMapper::OpenGLMode) {
         TextureMapperGL* texmapGL = static_cast<TextureMapperGL*>(textureMapper);
         texmapGL->drawTexture(m_context->m_texture, !m_context->m_attrs.alpha, FloatSize(1, 1), targetRect, matrix, opacity, mask, true /* flip */);
         return;
@@ -1636,6 +1636,10 @@ bool GraphicsContext3D::getImageData(Image* image,
 }
 
 void GraphicsContext3D::setContextLostCallback(PassOwnPtr<ContextLostCallback>)
+{
+}
+
+void GraphicsContext3D::setErrorMessageCallback(PassOwnPtr<ErrorMessageCallback>)
 {
 }
 

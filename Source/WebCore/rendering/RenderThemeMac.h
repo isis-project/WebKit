@@ -27,16 +27,12 @@
 #import <wtf/HashMap.h>
 #import <wtf/RetainPtr.h>
 
-class RenderProgress;
 
-#ifdef __OBJC__
-@class WebCoreRenderThemeNotificationObserver;
-#else
-class WebCoreRenderThemeNotificationObserver;
-#endif
+OBJC_CLASS WebCoreRenderThemeNotificationObserver;
 
 namespace WebCore {
 
+class RenderProgress;
 class RenderStyle;
 
 class RenderThemeMac : public RenderTheme {
@@ -49,7 +45,7 @@ public:
     // A general method asking if any control tinting is supported at all.
     virtual bool supportsControlTints() const { return true; }
 
-    virtual void adjustRepaintRect(const RenderObject*, IntRect&);
+    virtual void adjustRepaintRect(const RenderObject*, LayoutRect&);
 
     virtual bool isControlStyled(const RenderStyle*, const BorderData&,
                                  const FillLayer&, const Color& backgroundColor) const;
@@ -78,10 +74,12 @@ public:
     virtual int popupInternalPaddingTop(RenderStyle*) const;
     virtual int popupInternalPaddingBottom(RenderStyle*) const;
     
-    virtual bool paintCapsLockIndicator(RenderObject*, const PaintInfo&, const IntRect&);
+    virtual bool paintCapsLockIndicator(RenderObject*, const PaintInfo&, const LayoutRect&);
+
+    virtual bool popsMenuByArrowKeys() const OVERRIDE { return true; }
 
 #if ENABLE(METER_TAG)
-    virtual IntSize meterSizeForBounds(const RenderMeter*, const IntRect&) const;
+    virtual LayoutSize meterSizeForBounds(const RenderMeter*, const LayoutRect&) const;
     virtual bool paintMeter(RenderObject*, const PaintInfo&, const IntRect&);
     virtual bool supportsMeter(ControlPart) const;
 #endif
@@ -171,7 +169,7 @@ protected:
     virtual bool usesMediaControlStatusDisplay();
     virtual bool usesMediaControlVolumeSlider() const;
     virtual void adjustMediaSliderThumbSize(RenderStyle*) const;
-    virtual IntPoint volumeSliderOffsetFromMuteButton(RenderBox*, const IntSize&) const;
+    virtual LayoutPoint volumeSliderOffsetFromMuteButton(RenderBox*, const LayoutSize&) const;
 #endif
     
     virtual bool shouldShowPlaceholderWhenFocused() const;
@@ -179,14 +177,14 @@ protected:
 private:
     virtual String fileListNameForWidth(const Vector<String>& filenames, const Font&, int width, bool multipleFilesAllowed);
 
-    IntRect inflateRect(const IntRect&, const IntSize&, const int* margins, float zoomLevel = 1.0f) const;
+    LayoutRect inflateRect(const LayoutRect&, const IntSize&, const int* margins, float zoomLevel = 1.0f) const;
 
     FloatRect convertToPaintingRect(const RenderObject* inputRenderer, const RenderObject* partRenderer, const FloatRect& inputRect, const IntRect& r) const;
     
     // Get the control size based off the font.  Used by some of the controls (like buttons).
     NSControlSize controlSizeForFont(RenderStyle*) const;
     NSControlSize controlSizeForSystemFont(RenderStyle*) const;
-    void setControlSize(NSCell*, const IntSize* sizes, const IntSize& minSize, float zoomLevel = 1.0f);
+    void setControlSize(NSCell*, const IntSize* sizes, const LayoutSize& minSize, float zoomLevel = 1.0f);
     void setSizeFromFont(RenderStyle*, const IntSize* sizes) const;
     IntSize sizeForFont(RenderStyle*, const IntSize* sizes) const;
     IntSize sizeForSystemFont(RenderStyle*, const IntSize* sizes) const;
@@ -201,7 +199,7 @@ private:
 
     // Helpers for adjusting appearance and for painting
 
-    void setPopupButtonCellState(const RenderObject*, const IntRect&);
+    void setPopupButtonCellState(const RenderObject*, const LayoutRect&);
     const IntSize* popupButtonSizes() const;
     const int* popupButtonMargins() const;
     const int* popupButtonPadding(NSControlSize) const;

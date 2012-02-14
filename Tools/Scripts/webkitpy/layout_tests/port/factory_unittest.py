@@ -30,19 +30,18 @@ import unittest
 
 from webkitpy.tool.mocktool import MockOptions
 from webkitpy.common.system.systemhost_mock import MockSystemHost
-from webkitpy.layout_tests.port.factory import PortFactory
 
-import chromium_gpu
-import chromium_linux
-import chromium_mac
-import chromium_win
-import dryrun
-import google_chrome
-import gtk
-import mac
-import qt
-import test
-import win
+from webkitpy.layout_tests.port import chromium_gpu
+from webkitpy.layout_tests.port import chromium_linux
+from webkitpy.layout_tests.port import chromium_mac
+from webkitpy.layout_tests.port import chromium_win
+from webkitpy.layout_tests.port import factory
+from webkitpy.layout_tests.port import google_chrome
+from webkitpy.layout_tests.port import gtk
+from webkitpy.layout_tests.port import mac
+from webkitpy.layout_tests.port import qt
+from webkitpy.layout_tests.port import test
+from webkitpy.layout_tests.port import win
 
 
 class FactoryTest(unittest.TestCase):
@@ -52,19 +51,22 @@ class FactoryTest(unittest.TestCase):
 
     def setUp(self):
         self.webkit_options = MockOptions(pixel_tests=False)
-        self.chromium_options = MockOptions(pixel_tests=False, chromium=True)
 
     def assert_port(self, port_name=None, os_name=None, os_version=None, options=None, cls=None):
         host = MockSystemHost(os_name=os_name, os_version=os_version)
-        port = PortFactory(host).get(port_name, options=options)
+        port = factory.PortFactory(host).get(port_name, options=options)
         self.assertTrue(isinstance(port, cls))
 
     def test_mac(self):
-        self.assert_port(port_name='mac', cls=mac.MacPort)
+        self.assert_port(port_name='mac-leopard', cls=mac.MacPort)
+        self.assert_port(port_name='mac-leopard-wk2', cls=mac.MacPort)
+        self.assert_port(port_name='mac', os_name='mac', os_version='leopard', cls=mac.MacPort)
         self.assert_port(port_name=None,  os_name='mac', os_version='leopard', cls=mac.MacPort)
 
     def test_win(self):
-        self.assert_port(port_name='win', cls=win.WinPort)
+        self.assert_port(port_name='win-xp', cls=win.WinPort)
+        self.assert_port(port_name='win-xp-wk2', cls=win.WinPort)
+        self.assert_port(port_name='win', os_name='win', os_version='xp', cls=win.WinPort)
         self.assert_port(port_name=None, os_name='win', os_version='xp', cls=win.WinPort)
         self.assert_port(port_name=None, os_name='win', os_version='xp', options=self.webkit_options, cls=win.WinPort)
 
@@ -115,26 +117,26 @@ class FactoryTest(unittest.TestCase):
         self.assert_port(port_name='chromium-mac-leopard', cls=chromium_mac.ChromiumMacPort)
         self.assert_port(port_name='chromium-mac', os_name='mac', os_version='leopard',
                          cls=chromium_mac.ChromiumMacPort)
-        self.assert_port(port_name=None, os_name='mac', os_version='leopard', options=self.chromium_options,
+        self.assert_port(port_name='chromium', os_name='mac', os_version='leopard',
                          cls=chromium_mac.ChromiumMacPort)
 
     def test_chromium_linux(self):
         self.assert_port(port_name='chromium-linux', cls=chromium_linux.ChromiumLinuxPort)
-        self.assert_port(port_name=None, os_name='linux', os_version='lucid', options=self.chromium_options,
+        self.assert_port(port_name='chromium', os_name='linux', os_version='lucid',
                          cls=chromium_linux.ChromiumLinuxPort)
 
     def test_chromium_win(self):
         self.assert_port(port_name='chromium-win-xp', cls=chromium_win.ChromiumWinPort)
         self.assert_port(port_name='chromium-win', os_name='win', os_version='xp',
                          cls=chromium_win.ChromiumWinPort)
-        self.assert_port(port_name=None, os_name='win', os_version='xp', options=self.chromium_options,
+        self.assert_port(port_name='chromium', os_name='win', os_version='xp',
                          cls=chromium_win.ChromiumWinPort)
 
     def test_unknown_specified(self):
-        self.assertRaises(NotImplementedError, PortFactory(MockSystemHost()).get, port_name='unknown')
+        self.assertRaises(NotImplementedError, factory.PortFactory(MockSystemHost()).get, port_name='unknown')
 
     def test_unknown_default(self):
-        self.assertRaises(NotImplementedError, PortFactory(MockSystemHost(os_name='vms')).get)
+        self.assertRaises(NotImplementedError, factory.PortFactory(MockSystemHost(os_name='vms')).get)
 
 
 if __name__ == '__main__':

@@ -41,9 +41,7 @@
 #include "GraphicsContext3D.h"
 #include "LayerRendererChromium.h" // For the GLC() macro
 
-#if USE(SKIA)
-#include "GrContext.h"
-#endif
+#include "SkCanvas.h"
 
 namespace WebCore {
 
@@ -53,12 +51,13 @@ PassRefPtr<Canvas2DLayerChromium> Canvas2DLayerChromium::create(GraphicsContext3
 }
 
 Canvas2DLayerChromium::Canvas2DLayerChromium(GraphicsContext3D* context, const IntSize& size)
-    : CanvasLayerChromium(0)
+    : CanvasLayerChromium()
     , m_context(context)
     , m_size(size)
     , m_backTextureId(0)
     , m_fbo(0)
     , m_useDoubleBuffering(CCProxy::hasImplThread())
+    , m_canvas(0)
 {
     if (m_useDoubleBuffering)
         GLC(m_context, m_fbo = m_context->createFramebuffer());
@@ -81,6 +80,7 @@ void Canvas2DLayerChromium::contentChanged()
     if (layerTreeHost())
         layerTreeHost()->startRateLimiter(m_context);
 
+    m_updateRect = FloatRect(FloatPoint(), contentBounds());
     setNeedsDisplay();
 }
 
@@ -90,7 +90,12 @@ bool Canvas2DLayerChromium::drawsContent() const
         && m_context && (m_context->getExtensions()->getGraphicsResetStatusARB() == GraphicsContext3D::NO_ERROR);
 }
 
-void Canvas2DLayerChromium::paintContentsIfDirty()
+void Canvas2DLayerChromium::setCanvas(SkCanvas* canvas)
+{
+    m_canvas = canvas;
+}
+
+void Canvas2DLayerChromium::paintContentsIfDirty(const Region& /* occludedScreenSpace */)
 {
     if (!drawsContent())
         return;
@@ -106,29 +111,26 @@ void Canvas2DLayerChromium::paintContentsIfDirty()
     bool success = m_context->makeContextCurrent();
     ASSERT_UNUSED(success, success);
 
-#if USE(SKIA)
-    GrContext* grContext = m_context->grContext();
-    if (grContext)
-        grContext->flush();
-#endif
+    if (m_canvas)
+        m_canvas->flush();
 
     m_context->flush();
 }
 
 void Canvas2DLayerChromium::setLayerTreeHost(CCLayerTreeHost* host)
 {
-    if (layerTreeHost() != host)
-        setTextureManager(host ? host->contentsTextureManager() : 0);
-
     CanvasLayerChromium::setLayerTreeHost(host);
+
+    if (m_useDoubleBuffering && host)
+        setTextureManager(host->contentsTextureManager());
 }
 
 void Canvas2DLayerChromium::setTextureManager(TextureManager* textureManager)
 {
-    if (textureManager && m_useDoubleBuffering)
-        m_frontTexture = ManagedTexture::create(textureManager);
+    if (m_frontTexture)
+        m_frontTexture->setTextureManager(textureManager);
     else
-        m_frontTexture.clear();
+        m_frontTexture = ManagedTexture::create(textureManager);
 }
 
 void Canvas2DLayerChromium::updateCompositorResources(GraphicsContext3D* context, CCTextureUpdater& updater)
@@ -162,12 +164,6 @@ void Canvas2DLayerChromium::unreserveContentsTexture()
 {
     if (m_useDoubleBuffering)
         m_frontTexture->unreserve();
-}
-
-void Canvas2DLayerChromium::cleanupResources()
-{
-    if (m_useDoubleBuffering)
-        m_frontTexture.clear();
 }
 
 }

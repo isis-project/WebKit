@@ -66,7 +66,7 @@ messages -> WebPageProxy {
     DidChangeScrollOffsetPinningForMainFrame(bool hasHorizontalScrollbar, bool hasVerticalScrollbar)
     DidChangePageCount(unsigned pageCount);
     DidFailToInitializePlugin(WTF::String mimeType)
-    NumWheelEventHandlersChanged(unsigned count)
+    SetCanShortCircuitHorizontalWheelEvents(bool canShortCircuitHorizontalWheelEvents)
 
 #if USE(TILED_BACKING_STORE)
     PageDidRequestScroll(WebCore::IntPoint point)
@@ -74,7 +74,8 @@ messages -> WebPageProxy {
 #if PLATFORM(QT)
     DidChangeContentsSize(WebCore::IntSize newSize)
     DidFindZoomableArea(WebCore::IntPoint target, WebCore::IntRect area)
-    FocusEditableArea(WebCore::IntRect caret, WebCore::IntRect area)
+    AuthenticationRequiredRequest(WTF::String hostname, WTF::String realm, WTF::String prefilledUsername) -> (WTF::String username, WTF::String password)
+    CertificateVerificationRequest(WTF::String hostname) -> (bool ignoreErrors)
 #endif
 #if ENABLE(TOUCH_EVENTS)
     NeedTouchEvents(bool needTouchEvents)
@@ -105,6 +106,7 @@ messages -> WebPageProxy {
     DidFinishLoadForFrame(uint64_t frameID, WebKit::InjectedBundleUserMessageEncoder userData)
     DidFirstLayoutForFrame(uint64_t frameID, WebKit::InjectedBundleUserMessageEncoder userData)
     DidFirstVisuallyNonEmptyLayoutForFrame(uint64_t frameID, WebKit::InjectedBundleUserMessageEncoder userData)
+    DidNewFirstVisuallyNonEmptyLayout(WebKit::InjectedBundleUserMessageEncoder userData)
     DidReceiveServerRedirectForProvisionalLoadForFrame(uint64_t frameID, WTF::String url, WebKit::InjectedBundleUserMessageEncoder userData)
     DidRemoveFrameFromHierarchy(uint64_t frameID, WebKit::InjectedBundleUserMessageEncoder userData)
     DidStartProvisionalLoadForFrame(uint64_t frameID, WTF::String url, WTF::String unreachableURL, WebKit::InjectedBundleUserMessageEncoder userData)
@@ -147,11 +149,14 @@ messages -> WebPageProxy {
 #if PLATFORM(GTK)
     # Support for GTK+ platform keybindings
     GetEditorCommandsForKeyEvent(AtomicString eventType) -> (Vector<WTF::String> commandsList)
+
+    # Support for connecting the Accessibility worlds of the UI and the Web processes
+    BindAccessibilityTree(WTF::String plugID)
 #endif
 
     # BackForward messages
     BackForwardAddItem(uint64_t itemID)
-    BackForwardGoToItem(uint64_t itemID)
+    BackForwardGoToItem(uint64_t itemID) -> (WebKit::SandboxExtension::Handle sandboxExtensionHandle)
     BackForwardItemAtIndex(int32_t itemIndex) -> (uint64_t itemID)
     BackForwardBackListCount() -> (int32_t count)
     BackForwardForwardListCount() -> (int32_t count)
@@ -201,7 +206,7 @@ messages -> WebPageProxy {
     
     # Notification messages
     RequestNotificationPermission(uint64_t requestID, WTF::String originIdentifier)
-    ShowNotification(WTF::String title, WTF::String body, WTF::String originIdentifier, uint64_t notificationID)
+    ShowNotification(WTF::String title, WTF::String body, WTF::String iconURL, WTF::String originIdentifier, uint64_t notificationID)
 
     # Spelling and grammar messages
 #if USE(UNIFIED_TEXT_CHECKING)  

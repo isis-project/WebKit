@@ -47,6 +47,11 @@ bool WKBundleFrameIsMainFrame(WKBundleFrameRef frameRef)
     return toImpl(frameRef)->isMainFrame();
 }
 
+WKBundleFrameRef WKBundleFrameGetParentFrame(WKBundleFrameRef frameRef)
+{
+    return toAPI(toImpl(frameRef)->parentFrame());
+}
+
 WKURLRef WKBundleFrameCopyURL(WKBundleFrameRef frameRef)
 {
     return toCopiedURLAPI(toImpl(frameRef)->url());
@@ -244,8 +249,13 @@ void WKBundleFrameSetTextDirection(WKBundleFrameRef frameRef, WKStringRef direct
 
 WKDataRef WKBundleFrameCopyWebArchive(WKBundleFrameRef frameRef)
 {
+    return WKBundleFrameCopyWebArchiveFilteringSubframes(frameRef, 0, 0);
+}
+
+WKDataRef WKBundleFrameCopyWebArchiveFilteringSubframes(WKBundleFrameRef frameRef, WKBundleFrameFrameFilterCallback frameFilterCallback, void* context)
+{
 #if PLATFORM(MAC) || PLATFORM(WIN)
-    RetainPtr<CFDataRef> data = toImpl(frameRef)->webArchiveData();
+    RetainPtr<CFDataRef> data = toImpl(frameRef)->webArchiveData(frameFilterCallback, context);
     if (data)
         return WKDataCreate(CFDataGetBytePtr(data.get()), CFDataGetLength(data.get()));
 #endif

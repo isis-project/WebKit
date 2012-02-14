@@ -37,6 +37,7 @@
 #include "Arguments.h"
 #include "CallFrame.h"
 #include "CodeBlock.h"
+#include "CodeProfiling.h"
 #include "DFGOSREntry.h"
 #include "Debugger.h"
 #include "ExceptionHelpers.h"
@@ -101,6 +102,9 @@ SYMBOL_STRING(ctiTrampoline) ":" "\n"
     "popl %esi" "\n"
     "popl %ebp" "\n"
     "ret" "\n"
+".globl " SYMBOL_STRING(ctiTrampolineEnd) "\n"
+HIDE_SYMBOL(ctiTrampolineEnd) "\n"
+SYMBOL_STRING(ctiTrampolineEnd) ":" "\n"
 );
 
 asm (
@@ -158,6 +162,9 @@ SYMBOL_STRING(ctiTrampoline) ":" "\n"
     "popq %r12" "\n"
     "popq %rbp" "\n"
     "ret" "\n"
+".globl " SYMBOL_STRING(ctiTrampolineEnd) "\n"
+HIDE_SYMBOL(ctiTrampolineEnd) "\n"
+SYMBOL_STRING(ctiTrampolineEnd) ":" "\n"
 );
 
 asm (
@@ -400,6 +407,9 @@ SYMBOL_STRING(ctiTrampoline) ":" "\n"
     "popq %r12" "\n"
     "popq %rbp" "\n"
     "ret" "\n"
+".globl " SYMBOL_STRING(ctiTrampolineEnd) "\n"
+HIDE_SYMBOL(ctiTrampolineEnd) "\n"
+SYMBOL_STRING(ctiTrampolineEnd) ":" "\n"
 );
 
 asm (
@@ -560,6 +570,12 @@ SYMBOL_STRING(ctiTrampoline) ":" "\n"
     "ldr lr, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_RETURN_ADDRESS_OFFSET) "]" "\n"
     "add sp, sp, #" STRINGIZE_VALUE_OF(ENABLE_PROFILER_REFERENCE_OFFSET) "\n"
     "bx lr" "\n"
+".align 2" "\n"
+".globl " SYMBOL_STRING(ctiTrampolineEnd) "\n"
+HIDE_SYMBOL(ctiTrampolineEnd) "\n"
+".thumb" "\n"
+".thumb_func " THUMB_FUNC_PARAM(ctiTrampolineEnd) "\n"
+SYMBOL_STRING(ctiTrampolineEnd) ":" "\n"
 );
 
 asm (
@@ -953,7 +969,7 @@ NEVER_INLINE void JITThunks::tryCacheGetByID(CallFrame* callFrame, CodeBlock* co
     JIT::compileGetByIdChain(callFrame->scopeChain()->globalData, callFrame, codeBlock, stubInfo, structure, prototypeChain, count, propertyName, slot, offset, returnAddress);
 }
 
-#ifndef NDEBUG
+#if !defined(NDEBUG)
 
 extern "C" {
 
@@ -971,7 +987,8 @@ struct StackHack {
         : stackFrame(stackFrame)
         , savedReturnAddress(*stackFrame.returnAddressSlot())
     {
-        *stackFrame.returnAddressSlot() = ReturnAddressPtr(FunctionPtr(jscGeneratedNativeCode));
+        if (!CodeProfiling::enabled())
+            *stackFrame.returnAddressSlot() = ReturnAddressPtr(FunctionPtr(jscGeneratedNativeCode));
     }
 
     ALWAYS_INLINE ~StackHack() 
@@ -1303,10 +1320,8 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_add)
     JSValue v2 = stackFrame.args[1].jsValue();
     CallFrame* callFrame = stackFrame.callFrame;
 
-    if (v1.isString()) {
-        JSValue result = v2.isString()
-            ? jsString(callFrame, asString(v1), asString(v2))
-            : jsString(callFrame, asString(v1), v2.toPrimitiveString(callFrame));
+    if (v1.isString() && !v2.isObject()) {
+        JSValue result = jsString(callFrame, asString(v1), v2.toString(callFrame));
         CHECK_FOR_EXCEPTION_AT_END();
         return JSValue::encode(result);
     }
@@ -1477,7 +1492,8 @@ DEFINE_STUB_FUNCTION(JSObject*, op_put_by_id_transition_realloc)
 
     JSValue baseValue = stackFrame.args[0].jsValue();
     int32_t oldSize = stackFrame.args[3].int32();
-    int32_t newSize = stackFrame.args[4].int32();
+    Structure* newStructure = stackFrame.args[4].structure();
+    int32_t newSize = newStructure->propertyStorageCapacity();
 
     ASSERT(baseValue.isObject());
     JSObject* base = asObject(baseValue);
@@ -1915,16 +1931,16 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     unsigned bytecodeIndex = stackFrame.args[0].int32();
 
 #if ENABLE(JIT_VERBOSE_OSR)
-    printf("Entered optimize_from_loop with executeCounter = %d, reoptimizationRetryCounter = %u, optimizationDelayCounter = %u\n", codeBlock->jitExecuteCounter(), codeBlock->reoptimizationRetryCounter(), codeBlock->optimizationDelayCounter());
+    dataLog("Entered optimize_from_loop with executeCounter = %d, reoptimizationRetryCounter = %u, optimizationDelayCounter = %u\n", codeBlock->jitExecuteCounter(), codeBlock->reoptimizationRetryCounter(), codeBlock->optimizationDelayCounter());
 #endif
 
     if (codeBlock->hasOptimizedReplacement()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        printf("Considering loop OSR into %p(%p) with success/fail %u/%u.\n", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
+        dataLog("Considering loop OSR into %p(%p) with success/fail %u/%u.\n", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
 #endif
         if (codeBlock->replacement()->shouldReoptimizeFromLoopNow()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-            printf("Triggering reoptimization of %p(%p) (in loop).\n", codeBlock, codeBlock->replacement());
+            dataLog("Triggering reoptimization of %p(%p) (in loop).\n", codeBlock, codeBlock->replacement());
 #endif
             codeBlock->reoptimize();
             return;
@@ -1932,7 +1948,7 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     } else {
         if (!codeBlock->shouldOptimizeNow()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-            printf("Delaying optimization for %p (in loop) because of insufficient profiling.\n", codeBlock);
+            dataLog("Delaying optimization for %p (in loop) because of insufficient profiling.\n", codeBlock);
 #endif
             return;
         }
@@ -1942,14 +1958,14 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
         JSObject* error = codeBlock->compileOptimized(callFrame, scopeChain);
 #if ENABLE(JIT_VERBOSE_OSR)
         if (error)
-            fprintf(stderr, "WARNING: optimized compilation from loop failed.\n");
+            dataLog("WARNING: optimized compilation from loop failed.\n");
 #else
         UNUSED_PARAM(error);
 #endif
         
         if (codeBlock->replacement() == codeBlock) {
 #if ENABLE(JIT_VERBOSE_OSR)
-            printf("Optimizing %p from loop failed.\n", codeBlock);
+            dataLog("Optimizing %p from loop failed.\n", codeBlock);
 #endif
             
             ASSERT(codeBlock->getJITType() == JITCode::BaselineJIT);
@@ -1963,7 +1979,7 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     
     if (void* address = DFG::prepareOSREntry(callFrame, optimizedCodeBlock, bytecodeIndex)) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        printf("Optimizing %p from loop succeeded, performing OSR after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
+        dataLog("Optimizing %p from loop succeeded, performing OSR after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
 #endif
 
         codeBlock->optimizeSoon();
@@ -1973,7 +1989,7 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     }
     
 #if ENABLE(JIT_VERBOSE_OSR)
-    printf("Optimizing %p from loop succeeded, OSR failed, after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
+    dataLog("Optimizing %p from loop succeeded, OSR failed, after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
 #endif
 
     // Count the OSR failure as a speculation failure. If this happens a lot, then
@@ -1981,7 +1997,7 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     optimizedCodeBlock->countSpeculationFailure();
     
 #if ENABLE(JIT_VERBOSE_OSR)
-    printf("Encountered loop OSR failure into %p(%p) with success/fail %u/%u.\n", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
+    dataLog("Encountered loop OSR failure into %p(%p) with success/fail %u/%u.\n", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
 #endif
 
     // We are a lot more conservative about triggering reoptimization after OSR failure than
@@ -1994,7 +2010,7 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     // reoptimization trigger.
     if (optimizedCodeBlock->shouldReoptimizeNow()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        printf("Triggering reoptimization of %p(%p) (in loop after OSR fail).\n", codeBlock, codeBlock->replacement());
+        dataLog("Triggering reoptimization of %p(%p) (in loop after OSR fail).\n", codeBlock, codeBlock->replacement());
 #endif
         codeBlock->reoptimize();
         return;
@@ -2013,20 +2029,20 @@ DEFINE_STUB_FUNCTION(void, optimize_from_ret)
     CodeBlock* codeBlock = callFrame->codeBlock();
     
 #if ENABLE(JIT_VERBOSE_OSR)
-    printf("Entered optimize_from_ret with executeCounter = %d, reoptimizationRetryCounter = %u, optimizationDelayCounter = %u\n", codeBlock->jitExecuteCounter(), codeBlock->reoptimizationRetryCounter(), codeBlock->optimizationDelayCounter());
+    dataLog("Entered optimize_from_ret with executeCounter = %d, reoptimizationRetryCounter = %u, optimizationDelayCounter = %u\n", codeBlock->jitExecuteCounter(), codeBlock->reoptimizationRetryCounter(), codeBlock->optimizationDelayCounter());
 #endif
 
     if (codeBlock->hasOptimizedReplacement()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        printf("Returning from old JIT call frame with optimized replacement %p(%p), with success/fail %u/%u", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
+        dataLog("Returning from old JIT call frame with optimized replacement %p(%p), with success/fail %u/%u", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
         CallFrame* callerFrame = callFrame->callerFrame();
         if (callerFrame)
-            printf(", callerFrame = %p, returnPC = %p, caller code block = %p", callerFrame, callFrame->returnPC().value(), callerFrame->codeBlock());
-        printf("\n");
+            dataLog(", callerFrame = %p, returnPC = %p, caller code block = %p", callerFrame, callFrame->returnPC().value(), callerFrame->codeBlock());
+        dataLog("\n");
 #endif
         if (codeBlock->replacement()->shouldReoptimizeNow()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-            printf("Triggering reoptimization of %p(%p) (in return).\n", codeBlock, codeBlock->replacement());
+            dataLog("Triggering reoptimization of %p(%p) (in return).\n", codeBlock, codeBlock->replacement());
 #endif
             codeBlock->reoptimize();
         }
@@ -2037,7 +2053,7 @@ DEFINE_STUB_FUNCTION(void, optimize_from_ret)
     
     if (!codeBlock->shouldOptimizeNow()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        printf("Delaying optimization for %p (in return) because of insufficient profiling.\n", codeBlock);
+        dataLog("Delaying optimization for %p (in return) because of insufficient profiling.\n", codeBlock);
 #endif
         return;
     }
@@ -2046,11 +2062,11 @@ DEFINE_STUB_FUNCTION(void, optimize_from_ret)
 
     JSObject* error = codeBlock->compileOptimized(callFrame, scopeChain);
     if (error)
-        fprintf(stderr, "WARNING: optimized compilation from ret failed.\n");
+        dataLog("WARNING: optimized compilation from ret failed.\n");
     
     if (codeBlock->replacement() == codeBlock) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        printf("Optimizing %p from return failed.\n", codeBlock);
+        dataLog("Optimizing %p from return failed.\n", codeBlock);
 #endif
 
         ASSERT(codeBlock->getJITType() == JITCode::BaselineJIT);
@@ -2061,7 +2077,7 @@ DEFINE_STUB_FUNCTION(void, optimize_from_ret)
     ASSERT(codeBlock->replacement()->getJITType() == JITCode::DFGJIT);
 
 #if ENABLE(JIT_VERBOSE_OSR)
-    printf("Optimizing %p from return succeeded after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
+    dataLog("Optimizing %p from return succeeded after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
 #endif
     
     codeBlock->optimizeSoon();
@@ -2461,7 +2477,7 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_get_by_val)
         return JSValue::encode(result);
     }
     
-    Identifier property(callFrame, subscript.toString(callFrame));
+    Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
     JSValue result = baseValue.get(callFrame, property);
     CHECK_FOR_EXCEPTION_AT_END();
     return JSValue::encode(result);
@@ -2488,7 +2504,7 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_get_by_val_string)
                 ctiPatchCallByReturnAddress(callFrame->codeBlock(), STUB_RETURN_ADDRESS, FunctionPtr(cti_op_get_by_val));
         }
     } else {
-        Identifier property(callFrame, subscript.toString(callFrame));
+        Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
         result = baseValue.get(callFrame, property);
     }
     
@@ -2518,7 +2534,7 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_get_by_val_byte_array)
         if (!isJSByteArray(baseValue))
             ctiPatchCallByReturnAddress(callFrame->codeBlock(), STUB_RETURN_ADDRESS, FunctionPtr(cti_op_get_by_val));
     } else {
-        Identifier property(callFrame, subscript.toString(callFrame));
+        Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
         result = baseValue.get(callFrame, property);
     }
     
@@ -2579,7 +2595,7 @@ DEFINE_STUB_FUNCTION(void, op_put_by_val)
         } else
             baseValue.put(callFrame, i, value);
     } else {
-        Identifier property(callFrame, subscript.toString(callFrame));
+        Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
         if (!stackFrame.globalData->exception) { // Don't put to an object if toString threw an exception.
             PutPropertySlot slot(callFrame->codeBlock()->isStrictMode());
             baseValue.put(callFrame, property, value, slot);
@@ -2620,7 +2636,7 @@ DEFINE_STUB_FUNCTION(void, op_put_by_val_byte_array)
             ctiPatchCallByReturnAddress(callFrame->codeBlock(), STUB_RETURN_ADDRESS, FunctionPtr(cti_op_put_by_val));
         baseValue.put(callFrame, i, value);
     } else {
-        Identifier property(callFrame, subscript.toString(callFrame));
+        Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
         if (!stackFrame.globalData->exception) { // Don't put to an object if toString threw an exception.
             PutPropertySlot slot(callFrame->codeBlock()->isStrictMode());
             baseValue.put(callFrame, property, value, slot);
@@ -3386,7 +3402,7 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_in)
     if (propName.getUInt32(i))
         return JSValue::encode(jsBoolean(baseObj->hasProperty(callFrame, i)));
 
-    Identifier property(callFrame, propName.toString(callFrame));
+    Identifier property(callFrame, propName.toString(callFrame)->value(callFrame));
     CHECK_FOR_EXCEPTION();
     return JSValue::encode(jsBoolean(baseObj->hasProperty(callFrame, property)));
 }
@@ -3498,7 +3514,7 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_del_by_val)
         result = baseObj->methodTable()->deletePropertyByIndex(baseObj, callFrame, i);
     else {
         CHECK_FOR_EXCEPTION();
-        Identifier property(callFrame, subscript.toString(callFrame));
+        Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
         CHECK_FOR_EXCEPTION();
         result = baseObj->methodTable()->deleteProperty(baseObj, callFrame, property);
     }
@@ -3510,7 +3526,7 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_del_by_val)
     return JSValue::encode(jsBoolean(result));
 }
 
-DEFINE_STUB_FUNCTION(void, op_put_getter)
+DEFINE_STUB_FUNCTION(void, op_put_getter_setter)
 {
     STUB_INIT_STACK_FRAME(stackFrame);
 
@@ -3518,20 +3534,20 @@ DEFINE_STUB_FUNCTION(void, op_put_getter)
 
     ASSERT(stackFrame.args[0].jsValue().isObject());
     JSObject* baseObj = asObject(stackFrame.args[0].jsValue());
-    ASSERT(stackFrame.args[2].jsValue().isObject());
-    baseObj->methodTable()->defineGetter(baseObj, callFrame, stackFrame.args[1].identifier(), asObject(stackFrame.args[2].jsValue()), 0);
-}
 
-DEFINE_STUB_FUNCTION(void, op_put_setter)
-{
-    STUB_INIT_STACK_FRAME(stackFrame);
+    GetterSetter* accessor = GetterSetter::create(callFrame);
 
-    CallFrame* callFrame = stackFrame.callFrame;
+    JSValue getter = stackFrame.args[2].jsValue();
+    JSValue setter = stackFrame.args[3].jsValue();
+    ASSERT(getter.isObject() || getter.isUndefined());
+    ASSERT(setter.isObject() || setter.isUndefined());
+    ASSERT(getter.isObject() || setter.isObject());
 
-    ASSERT(stackFrame.args[0].jsValue().isObject());
-    JSObject* baseObj = asObject(stackFrame.args[0].jsValue());
-    ASSERT(stackFrame.args[2].jsValue().isObject());
-    baseObj->methodTable()->defineSetter(baseObj, callFrame, stackFrame.args[1].identifier(), asObject(stackFrame.args[2].jsValue()), 0);
+    if (!getter.isUndefined())
+        accessor->setGetter(callFrame->globalData(), asObject(getter));
+    if (!setter.isUndefined())
+        accessor->setSetter(callFrame->globalData(), asObject(setter));
+    baseObj->putDirectAccessor(callFrame->globalData(), stackFrame.args[1].identifier(), accessor, Accessor);
 }
 
 DEFINE_STUB_FUNCTION(void, op_throw_reference_error)
@@ -3539,7 +3555,7 @@ DEFINE_STUB_FUNCTION(void, op_throw_reference_error)
     STUB_INIT_STACK_FRAME(stackFrame);
 
     CallFrame* callFrame = stackFrame.callFrame;
-    UString message = stackFrame.args[0].jsValue().toString(callFrame);
+    UString message = stackFrame.args[0].jsValue().toString(callFrame)->value(callFrame);
     stackFrame.globalData->exception = createReferenceError(callFrame, message);
     VM_THROW_EXCEPTION_AT_END();
 }

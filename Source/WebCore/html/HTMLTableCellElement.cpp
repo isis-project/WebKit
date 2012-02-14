@@ -75,23 +75,34 @@ int HTMLTableCellElement::cellIndex() const
     return index;
 }
 
-bool HTMLTableCellElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
+bool HTMLTableCellElement::isPresentationAttribute(Attribute* attr) const
 {
-    if (attrName == nowrapAttr) {
-        result = eUniversal;
-        return false;
-    }
-    
-    if (attrName == widthAttr ||
-        attrName == heightAttr) {
-        result = eCell; // Because of the quirky behavior of ignoring 0 values, cells are special.
-        return false;
-    }
-
-    return HTMLTablePartElement::mapToEntry(attrName, result);
+    if (attr->name() == nowrapAttr || attr->name() == widthAttr || attr->name() == heightAttr)
+        return true;
+    return HTMLTablePartElement::isPresentationAttribute(attr);
 }
 
-void HTMLTableCellElement::parseMappedAttribute(Attribute* attr)
+void HTMLTableCellElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
+{
+    if (attr->name() == nowrapAttr) {
+        style->setProperty(CSSPropertyWhiteSpace, CSSValueWebkitNowrap);
+    } else if (attr->name() == widthAttr) {
+        if (!attr->value().isEmpty()) {
+            int widthInt = attr->value().toInt();
+            if (widthInt > 0) // width="0" is ignored for compatibility with WinIE.
+                addHTMLLengthToStyle(style, CSSPropertyWidth, attr->value());
+        }
+    } else if (attr->name() == heightAttr) {
+        if (!attr->value().isEmpty()) {
+            int heightInt = attr->value().toInt();
+            if (heightInt > 0) // height="0" is ignored for compatibility with WinIE.
+                addHTMLLengthToStyle(style, CSSPropertyHeight, attr->value());
+        }
+    } else
+        HTMLTablePartElement::collectStyleForAttribute(attr, style);
+}
+
+void HTMLTableCellElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == rowspanAttr) {
         if (renderer() && renderer()->isTableCell())
@@ -99,34 +110,15 @@ void HTMLTableCellElement::parseMappedAttribute(Attribute* attr)
     } else if (attr->name() == colspanAttr) {
         if (renderer() && renderer()->isTableCell())
             toRenderTableCell(renderer())->colSpanOrRowSpanChanged();
-    } else if (attr->name() == nowrapAttr) {
-        if (!attr->isNull())
-            addCSSProperty(attr, CSSPropertyWhiteSpace, CSSValueWebkitNowrap);
-    } else if (attr->name() == widthAttr) {
-        if (!attr->value().isEmpty()) {
-            int widthInt = attr->value().toInt();
-            if (widthInt > 0) // width="0" is ignored for compatibility with WinIE.
-                addCSSLength(attr, CSSPropertyWidth, attr->value());
-        }
-    } else if (attr->name() == heightAttr) {
-        if (!attr->value().isEmpty()) {
-            int heightInt = attr->value().toInt();
-            if (heightInt > 0) // height="0" is ignored for compatibility with WinIE.
-                addCSSLength(attr, CSSPropertyHeight, attr->value());
-        }
     } else
-        HTMLTablePartElement::parseMappedAttribute(attr);
+        HTMLTablePartElement::parseAttribute(attr);
 }
 
-// used by table cells to share style decls created by the enclosing table.
-void HTMLTableCellElement::additionalAttributeStyleDecls(Vector<CSSMutableStyleDeclaration*>& results)
+StylePropertySet* HTMLTableCellElement::additionalAttributeStyle()
 {
-    ContainerNode* p = parentNode();
-    while (p && !p->hasTagName(tableTag))
-        p = p->parentNode();
-    if (!p)
-        return;
-    static_cast<HTMLTableElement*>(p)->addSharedCellDecls(results);
+    if (HTMLTableElement* table = findParentTable())
+        return table->additionalCellStyle();
+    return 0;
 }
 
 bool HTMLTableCellElement::isURLAttribute(Attribute *attr) const

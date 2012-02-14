@@ -23,6 +23,7 @@
 #ifndef CSSParser_h
 #define CSSParser_h
 
+#include "CSSCalculationValue.h"
 #include "CSSGradientValue.h"
 #include "CSSParserValues.h"
 #include "CSSPropertySourceData.h"
@@ -42,8 +43,6 @@
 namespace WebCore {
 
 class CSSBorderImageSliceValue;
-class CSSMappedAttributeDeclaration;
-class CSSMutableStyleDeclaration;
 class CSSPrimitiveValue;
 class CSSValuePool;
 class CSSProperty;
@@ -57,6 +56,7 @@ class CSSWrapShape;
 class Document;
 class MediaList;
 class MediaQueryExp;
+class StylePropertySet;
 class StyledElement;
 class WebKitCSSKeyframeRule;
 class WebKitCSSKeyframesRule;
@@ -69,14 +69,12 @@ public:
     void parseSheet(CSSStyleSheet*, const String&, int startLineNumber = 0, StyleRuleRangeMap* ruleRangeMap = 0);
     PassRefPtr<CSSRule> parseRule(CSSStyleSheet*, const String&);
     PassRefPtr<WebKitCSSKeyframeRule> parseKeyframeRule(CSSStyleSheet*, const String&);
-    static bool parseValue(CSSMutableStyleDeclaration*, int propId, const String&, bool important, bool strict);
+    static bool parseValue(StylePropertySet*, int propId, const String&, bool important, bool strict);
     static bool parseColor(RGBA32& color, const String&, bool strict = false);
     static bool parseSystemColor(RGBA32& color, const String&, Document*);
     PassRefPtr<CSSPrimitiveValue> parseValidPrimitive(int propId, CSSParserValue*);
-    bool parseDeclaration(CSSMutableStyleDeclaration*, const String&, RefPtr<CSSStyleSourceData>* = 0, CSSStyleSheet* contextStyleSheet = 0);
+    bool parseDeclaration(StylePropertySet*, const String&, RefPtr<CSSStyleSourceData>* = 0, CSSStyleSheet* contextStyleSheet = 0);
     bool parseMediaQuery(MediaList*, const String&);
-
-    static bool parseMappedAttributeValue(CSSMappedAttributeDeclaration*, StyledElement*, int propertyId, const String&);
 
     Document* findDocument() const;
 
@@ -158,7 +156,6 @@ public:
 
     static bool fastParseColor(RGBA32&, const String&, bool strict);
 
-    bool parseFontStyle(bool important);
     bool parseFontVariant(bool important);
     bool parseFontWeight(bool important);
     bool parseFontFaceSrc();
@@ -173,7 +170,7 @@ public:
 
     // CSS3 Parsing Routines (for properties specific to CSS3)
     PassRefPtr<CSSValueList> parseShadow(CSSParserValueList*, int propId);
-    bool parseBorderImage(int propId, RefPtr<CSSValue>&);
+    bool parseBorderImage(int propId, RefPtr<CSSValue>&, bool important = false);
     bool parseBorderImageRepeat(RefPtr<CSSValue>&);
     bool parseBorderImageSlice(int propId, RefPtr<CSSBorderImageSliceValue>&);
     bool parseBorderImageWidth(RefPtr<CSSPrimitiveValue>&);
@@ -211,6 +208,7 @@ public:
     bool parseTextEmphasisStyle(bool important);
 
     bool parseLineBoxContain(bool important);
+    bool parseCalculation(CSSParserValue*);
 
     bool parseFontFeatureTag(CSSValueList*);
     bool parseFontFeatureSettings(bool important);
@@ -317,12 +315,29 @@ public:
     void resetRuleBodyMarks() { m_ruleBodyRange.start = m_ruleBodyRange.end = 0; }
     void resetPropertyMarks() { m_propertyRange.start = m_propertyRange.end = UINT_MAX; }
     int lex(void* yylval);
-    int token() { return yyTok; }
-    UChar* text(int* length);
-    void countLines();
-    int lex();
+    int token() { return m_token; }
 
+    PassRefPtr<CSSPrimitiveValue> createPrimitiveNumericValue(CSSParserValue*);
+    PassRefPtr<CSSPrimitiveValue> createPrimitiveStringValue(CSSParserValue*);
+        
 private:
+    inline bool isIdentifierStart();
+
+    static inline UChar* checkAndSkipString(UChar*, UChar);
+
+    void parseEscape(UChar*&);
+    inline void parseIdentifier(UChar*&, bool&);
+    inline void parseString(UChar*&, UChar);
+    inline void parseURI(UChar*&, UChar*&);
+    inline bool parseUnicodeRange();
+    bool parseNthChild();
+    bool parseNthChildExtra();
+    inline void detectFunctionTypeToken(int);
+    inline void detectMediaQueryToken(int);
+    inline void detectNumberToken(UChar*, int);
+    inline void detectDashToken(int);
+    inline void detectAtToken(int, bool);
+
     void setStyleSheet(CSSStyleSheet*);
     void ensureCSSValuePool();
 
@@ -339,7 +354,7 @@ private:
     bool isGeneratedImageValue(CSSParserValue*) const;
     bool parseGeneratedImage(CSSParserValueList*, RefPtr<CSSValue>&);
 
-    bool parseValue(CSSMutableStyleDeclaration*, int propId, const String&, bool important, CSSStyleSheet* contextStyleSheet = 0);
+    bool parseValue(StylePropertySet*, int propId, const String&, bool important, CSSStyleSheet* contextStyleSheet = 0);
 
     enum SizeParameterType {
         None,
@@ -358,15 +373,17 @@ private:
 
     bool parseColor(const String&);
 
-    OwnArrayPtr<UChar> m_data;
-    UChar* yytext;
-    UChar* yy_c_buf_p;
-    UChar yy_hold_char;
-    int yy_last_accepting_state;
-    UChar* yy_last_accepting_cpos;
-    int yyleng;
-    int yyTok;
-    int yy_start;
+    enum ParsingMode {
+        NormalMode,
+        MediaQueryMode,
+        NthChildMode
+    };
+
+    ParsingMode m_parsingMode;
+    OwnArrayPtr<UChar> m_dataStart;
+    UChar* m_currentCharacter;
+    UChar* m_tokenStart;
+    int m_token;
     int m_lineNumber;
     int m_lastSelectorLineNumber;
 
@@ -388,6 +405,8 @@ private:
     Vector<OwnPtr<CSSParserSelector> > m_reusableSelectorVector;
     Vector<OwnPtr<CSSParserSelector> > m_reusableRegionSelectorVector;
 
+    RefPtr<CSSCalcValue> m_parsedCalculation;
+
     // defines units allowed for a certain property, used in parseUnit
     enum Units {
         FUnknown   = 0x0000,
@@ -407,13 +426,19 @@ private:
         return static_cast<Units>(static_cast<unsigned>(a) | static_cast<unsigned>(b));
     }
 
-    static bool validUnit(CSSParserValue*, Units, bool strict);
+    bool validCalculationUnit(CSSParserValue*, Units);
+    bool validUnit(CSSParserValue*, Units, bool strict);
 
     bool parseBorderImageQuad(Units, RefPtr<CSSPrimitiveValue>&);
+    int colorIntFromValue(CSSParserValue*);
 
-    PassRefPtr<CSSPrimitiveValue> createPrimitiveNumericValue(CSSParserValue*);
-    PassRefPtr<CSSPrimitiveValue> createPrimitiveStringValue(CSSParserValue*);
-
+    enum ReleaseParsedCalcValueCondition {
+        ReleaseParsedCalcValue,
+        DoNotReleaseParsedCalcValue
+    };    
+    double parsedDouble(CSSParserValue*, ReleaseParsedCalcValueCondition releaseCalc = DoNotReleaseParsedCalcValue);
+    bool isCalculation(CSSParserValue*);
+    
     friend class TransformOperationInfo;
 #if ENABLE(CSS_FILTERS)
     friend class FilterOperationInfo;

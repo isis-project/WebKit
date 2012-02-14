@@ -52,6 +52,12 @@ WKPreferencesRef WKPreferencesCreateWithIdentifier(WKStringRef identifierRef)
     return toAPI(preferences.release().leakRef());
 }
 
+WKPreferencesRef WKPreferencesCreateCopy(WKPreferencesRef preferencesRef)
+{
+    RefPtr<WebPreferences> preferences = WebPreferences::create(*toImpl(preferencesRef));
+    return toAPI(preferences.release().leakRef());
+}
+
 void WKPreferencesSetJavaScriptEnabled(WKPreferencesRef preferencesRef, bool javaScriptEnabled)
 {
     toImpl(preferencesRef)->setJavaScriptEnabled(javaScriptEnabled);
@@ -382,6 +388,16 @@ bool WKPreferencesGetCompositingRepaintCountersVisible(WKPreferencesRef preferen
     return toImpl(preferencesRef)->compositingRepaintCountersVisible();
 }
 
+void WKPreferencesSetCSSCustomFilterEnabled(WKPreferencesRef preferencesRef, bool flag)
+{
+    toImpl(preferencesRef)->setCSSCustomFilterEnabled(flag);
+}
+
+bool WKPreferencesGetCSSCustomFilterEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->cssCustomFilterEnabled();
+}
+
 void WKPreferencesSetWebGLEnabled(WKPreferencesRef preferencesRef, bool flag)
 {
     toImpl(preferencesRef)->setWebGLEnabled(flag);
@@ -710,4 +726,21 @@ void WKPreferencesSetShouldDisplayTextDescriptions(WKPreferencesRef preferencesR
 bool WKPreferencesGetShouldDisplayTextDescriptions(WKPreferencesRef preferencesRef)
 {
     return toImpl(preferencesRef)->shouldDisplayTextDescriptions();
+}
+
+void WKPreferencesSetNotificationsEnabled(WKPreferencesRef preferencesRef, bool enabled)
+{
+    toImpl(preferencesRef)->setNotificationsEnabled(enabled);
+}
+
+bool WKPreferencesGetNotificationsEnabled(WKPreferencesRef preferencesRef)
+{
+    return toImpl(preferencesRef)->notificationsEnabled();
+}
+
+void WKPreferencesResetTestRunnerOverrides(WKPreferencesRef preferencesRef)
+{
+    // Currently we reset the overrides on the web process when preferencesDidChange() is called. Since WTR preferences
+    // are usually always the same (in the UI process), they are not sent to web process, not triggering the reset.
+    toImpl(preferencesRef)->forceUpdate();
 }

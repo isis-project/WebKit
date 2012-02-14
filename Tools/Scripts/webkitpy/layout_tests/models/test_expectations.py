@@ -32,14 +32,9 @@ for layout tests.
 """
 
 import itertools
+import json
 import logging
 import re
-
-try:
-    import json
-except ImportError:
-    # python 2.5 compatibility
-    import webkitpy.thirdparty.simplejson as json
 
 from webkitpy.layout_tests.models.test_configuration import TestConfiguration, TestConfigurationConverter
 
@@ -108,15 +103,14 @@ def strip_comments(line):
 
 
 class ParseError(Exception):
-    def __init__(self, fatal, errors):
-        self.fatal = fatal
-        self.errors = errors
+    def __init__(self, warnings):
+        self.warnings = warnings
 
     def __str__(self):
-        return '\n'.join(map(str, self.errors))
+        return '\n'.join(map(str, self.warnings))
 
     def __repr__(self):
-        return 'ParseError(fatal=%s, errors=%s)' % (self.fatal, self.errors)
+        return 'ParseError(warnings=%s)' % self.warnings
 
 
 class TestExpectationSerializer(object):
@@ -126,7 +120,7 @@ class TestExpectationSerializer(object):
         self._parsed_expectation_to_string = dict([[parsed_expectation, expectation_string] for expectation_string, parsed_expectation in TestExpectations.EXPECTATIONS.items()])
 
     def to_string(self, expectation_line):
-        if expectation_line.is_malformed():
+        if expectation_line.is_invalid():
             return expectation_line.original_string or ''
 
         if expectation_line.name is None:
@@ -184,9 +178,11 @@ class TestExpectationSerializer(object):
 class TestExpectationParser(object):
     """Provides parsing facilities for lines in the test_expectation.txt file."""
 
+    DUMMY_BUG_MODIFIER = "bug_dummy"
     BUG_MODIFIER_PREFIX = 'bug'
     BUG_MODIFIER_REGEX = 'bug\d+'
     REBASELINE_MODIFIER = 'rebaseline'
+    FAIL_EXPECTATION = 'fail'
     SKIP_MODIFIER = 'skip'
     SLOW_MODIFIER = 'slow'
     WONTFIX_MODIFIER = 'wontfix'
@@ -199,15 +195,36 @@ class TestExpectationParser(object):
         self._full_test_list = full_test_list
         self._allow_rebaseline_modifier = allow_rebaseline_modifier
 
-    def parse(self, expectation_line):
+    def parse(self, expectations_string):
+        expectations = TestExpectationParser._tokenize_list(expectations_string)
+        for expectation_line in expectations:
+            self._parse_line(expectation_line)
+        return expectations
+
+    def expectation_for_skipped_test(self, test_name):
+        expectation_line = TestExpectationLine()
+        expectation_line.original_string = test_name
+        expectation_line.modifiers = [TestExpectationParser.DUMMY_BUG_MODIFIER, TestExpectationParser.SKIP_MODIFIER]
+        expectation_line.name = test_name
+        expectation_line.expectations = [TestExpectationParser.FAIL_EXPECTATION]
+        self._parse_line(expectation_line)
+        return expectation_line
+
+    def _parse_line(self, expectation_line):
         if not expectation_line.name:
             return
 
         self._check_modifiers_against_expectations(expectation_line)
-        if self._check_path_does_not_exist(expectation_line):
+
+        expectation_line.is_file = self._port.test_isfile(expectation_line.name)
+        if not expectation_line.is_file and self._check_path_does_not_exist(expectation_line):
             return
 
-        expectation_line.path = self._port.normalize_test_name(expectation_line.name)
+        if expectation_line.is_file:
+            expectation_line.path = expectation_line.name
+        else:
+            expectation_line.path = self._port.normalize_test_name(expectation_line.name)
+
         self._collect_matching_tests(expectation_line)
 
         self._parse_modifiers(expectation_line)
@@ -215,6 +232,7 @@ class TestExpectationParser(object):
 
     def _parse_modifiers(self, expectation_line):
         has_wontfix = False
+        has_bugid = False
         parsed_specifiers = set()
         for modifier in expectation_line.modifiers:
             if modifier in TestExpectations.MODIFIERS:
@@ -222,34 +240,35 @@ class TestExpectationParser(object):
                 if modifier == self.WONTFIX_MODIFIER:
                     has_wontfix = True
             elif modifier.startswith(self.BUG_MODIFIER_PREFIX):
+                has_bugid = True
                 if re.match(self.BUG_MODIFIER_REGEX, modifier):
-                    expectation_line.errors.append('BUG\d+ is not allowed, must be one of BUGCR\d+, BUGWK\d+, BUGV8_\d+, or a non-numeric bug identifier.')
+                    expectation_line.warnings.append('BUG\d+ is not allowed, must be one of BUGCR\d+, BUGWK\d+, BUGV8_\d+, or a non-numeric bug identifier.')
                 else:
                     expectation_line.parsed_bug_modifiers.append(modifier)
             else:
                 parsed_specifiers.add(modifier)
 
-        if not expectation_line.parsed_bug_modifiers and not has_wontfix:
+        if not expectation_line.parsed_bug_modifiers and not has_wontfix and not has_bugid:
             expectation_line.warnings.append('Test lacks BUG modifier.')
 
         if self._allow_rebaseline_modifier and self.REBASELINE_MODIFIER in expectation_line.modifiers:
-            expectation_line.errors.append('REBASELINE should only be used for running rebaseline.py. Cannot be checked in.')
+            expectation_line.warnings.append('REBASELINE should only be used for running rebaseline.py. Cannot be checked in.')
 
-        expectation_line.matching_configurations = self._test_configuration_converter.to_config_set(parsed_specifiers, expectation_line.errors)
+        expectation_line.matching_configurations = self._test_configuration_converter.to_config_set(parsed_specifiers, expectation_line.warnings)
 
     def _parse_expectations(self, expectation_line):
         result = set()
         for part in expectation_line.expectations:
             expectation = TestExpectations.expectation_from_string(part)
             if expectation is None:  # Careful, PASS is currently 0.
-                expectation_line.errors.append('Unsupported expectation: %s' % part)
+                expectation_line.warnings.append('Unsupported expectation: %s' % part)
                 continue
             result.add(expectation)
         expectation_line.parsed_expectations = result
 
     def _check_modifiers_against_expectations(self, expectation_line):
         if self.SLOW_MODIFIER in expectation_line.modifiers and self.TIMEOUT_EXPECTATION in expectation_line.expectations:
-            expectation_line.errors.append('A test can not be both SLOW and TIMEOUT. If it times out indefinitely, then it should be just TIMEOUT.')
+            expectation_line.warnings.append('A test can not be both SLOW and TIMEOUT. If it times out indefinitely, then it should be just TIMEOUT.')
 
     def _check_path_does_not_exist(self, expectation_line):
         # WebKit's way of skipping tests is to add a -disabled suffix.
@@ -277,7 +296,7 @@ class TestExpectationParser(object):
             expectation_line.matching_tests = [expectation_line.path]
             return
 
-        if self._port.test_isdir(expectation_line.path):
+        if not expectation_line.is_file:
             # this is a test category, return all the tests of the category.
             expectation_line.matching_tests = [test for test in self._full_test_list if test.startswith(expectation_line.path)]
             return
@@ -288,7 +307,7 @@ class TestExpectationParser(object):
             expectation_line.matching_tests.append(expectation_line.path)
 
     @classmethod
-    def tokenize(cls, expectation_string, line_number=None):
+    def _tokenize(cls, expectation_string, line_number=None):
         """Tokenizes a line from test_expectations.txt and returns an unparsed TestExpectationLine instance.
 
         The format of a test expectation line is:
@@ -313,13 +332,13 @@ class TestExpectationParser(object):
 
         parts = remaining_string.split(':')
         if len(parts) != 2:
-            expectation_line.errors.append("Missing a ':'" if len(parts) < 2 else "Extraneous ':'")
+            expectation_line.warnings.append("Missing a ':'" if len(parts) < 2 else "Extraneous ':'")
         else:
             test_and_expectation = parts[1].split('=')
             if len(test_and_expectation) != 2:
-                expectation_line.errors.append("Missing expectations" if len(test_and_expectation) < 2 else "Extraneous '='")
+                expectation_line.warnings.append("Missing expectations" if len(test_and_expectation) < 2 else "Extraneous '='")
 
-        if not expectation_line.is_malformed():
+        if not expectation_line.is_invalid():
             expectation_line.modifiers = cls._split_space_separated(parts[0])
             expectation_line.name = test_and_expectation[0].strip()
             expectation_line.expectations = cls._split_space_separated(test_and_expectation[1])
@@ -327,13 +346,13 @@ class TestExpectationParser(object):
         return expectation_line
 
     @classmethod
-    def tokenize_list(cls, expectations_string):
+    def _tokenize_list(cls, expectations_string):
         """Returns a list of TestExpectationLines, one for each line in expectations_string."""
         expectation_lines = []
         line_number = 0
         for line in expectations_string.split("\n"):
             line_number += 1
-            expectation_lines.append(cls.tokenize(line, line_number))
+            expectation_lines.append(cls._tokenize(line, line_number))
         return expectation_lines
 
     @classmethod
@@ -360,14 +379,10 @@ class TestExpectationLine:
         self.parsed_expectations = set()
         self.comment = None
         self.matching_tests = []
-        self.errors = []
         self.warnings = []
 
-    def is_malformed(self):
-        return len(self.errors) > 0
-
     def is_invalid(self):
-        return self.is_malformed() or len(self.warnings) > 0
+        return len(self.warnings) > 0
 
     def is_flaky(self):
         return len(self.parsed_expectations) > 1
@@ -451,7 +466,7 @@ class TestExpectationsModel(object):
         return self._test_to_expectations[test]
 
     def add_expectation_line(self, expectation_line, overrides_allowed):
-        """Returns a list of errors, encountered while matching modifiers."""
+        """Returns a list of warnings encountered while matching modifiers."""
 
         if expectation_line.is_invalid():
             return
@@ -514,8 +529,6 @@ class TestExpectationsModel(object):
             self._remove_from_sets(test, self._timeline_to_tests)
             self._remove_from_sets(test, self._result_type_to_tests)
 
-        self._test_to_expectation_line[test] = expectation_line
-
     def _remove_from_sets(self, test, dict):
         """Removes the given test from the sets in the dictionary.
 
@@ -569,20 +582,20 @@ class TestExpectationsModel(object):
         # to be warnings and return False".
 
         if prev_expectation_line.matching_configurations == expectation_line.matching_configurations:
-            expectation_line.errors.append('Duplicate or ambiguous %s.' % expectation_source)
+            expectation_line.warnings.append('Duplicate or ambiguous %s.' % expectation_source)
             return True
 
         if prev_expectation_line.matching_configurations >= expectation_line.matching_configurations:
-            expectation_line.errors.append('More specific entry on line %d overrides line %d' % (expectation_line.line_number, prev_expectation_line.line_number))
+            expectation_line.warnings.append('More specific entry on line %d overrides line %d' % (expectation_line.line_number, prev_expectation_line.line_number))
             # FIXME: return False if we want more specific to win.
             return True
 
         if prev_expectation_line.matching_configurations <= expectation_line.matching_configurations:
-            expectation_line.errors.append('More specific entry on line %d overrides line %d' % (prev_expectation_line.line_number, expectation_line.line_number))
+            expectation_line.warnings.append('More specific entry on line %d overrides line %d' % (prev_expectation_line.line_number, expectation_line.line_number))
             return True
 
         if prev_expectation_line.matching_configurations & expectation_line.matching_configurations:
-            expectation_line.errors.append('Entries on line %d and line %d match overlapping sets of configurations' % (prev_expectation_line.line_number, expectation_line.line_number))
+            expectation_line.warnings.append('Entries on line %d and line %d match overlapping sets of configurations' % (prev_expectation_line.line_number, expectation_line.line_number))
             return True
 
         # Configuration sets are disjoint, then.
@@ -683,8 +696,8 @@ class TestExpectations(object):
             test_config: specific values to check against when
                 parsing the file (usually port.test_config(),
                 but may be different when linting or doing other things).
-            is_lint_mode: If True, just parse the expectations string
-                looking for errors.
+            is_lint_mode: If True, parse the expectations string and raise
+                an exception if warnings are encountered.
             overrides: test expectations that are allowed to override any
                 entries in |expectations|. This is used by callers
                 that need to manage two sets of expectations (e.g., upstream
@@ -696,20 +709,19 @@ class TestExpectations(object):
         self._model = TestExpectationsModel()
         self._parser = TestExpectationParser(port, tests, is_lint_mode)
         self._port = port
-        self._test_configuration_converter = TestConfigurationConverter(port.all_test_configurations(), port.configuration_specifier_macros())
         self._skipped_tests_warnings = []
 
-        self._expectations = TestExpectationParser.tokenize_list(expectations)
+        self._expectations = self._parser.parse(expectations)
         self._add_expectations(self._expectations, overrides_allowed=False)
-        self._add_skipped_tests(port.skipped_tests())
+        self._add_skipped_tests(port.skipped_tests(tests))
 
         if overrides:
-            overrides_expectations = TestExpectationParser.tokenize_list(overrides)
+            overrides_expectations = self._parser.parse(overrides)
             self._add_expectations(overrides_expectations, overrides_allowed=True)
             self._expectations += overrides_expectations
 
         self._has_warnings = False
-        self._report_errors()
+        self._report_warnings()
         self._process_tests_without_expectations()
 
     # TODO(ojan): Allow for removing skipped tests when getting the list of
@@ -776,34 +788,22 @@ class TestExpectations(object):
     def is_rebaselining(self, test):
         return self._model.has_modifier(test, REBASELINE)
 
-    def _report_errors(self):
-        errors = []
+    def _report_warnings(self):
         warnings = []
+        test_expectation_path = self._port.path_to_test_expectations_file()
+        if test_expectation_path.startswith(self._port.path_from_webkit_base()):
+            test_expectation_path = self._port.host.filesystem.relpath(test_expectation_path, self._port.path_from_webkit_base())
         for expectation in self._expectations:
-            for error in expectation.errors:
-                errors.append("Line:%s %s %s" % (expectation.line_number, error, expectation.name if expectation.expectations else expectation.original_string))
             for warning in expectation.warnings:
-                warnings.append("Line:%s %s %s" % (expectation.line_number, warning, expectation.name if expectation.expectations else expectation.original_string))
+                warnings.append('%s:%d %s %s' % (test_expectation_path, expectation.line_number, warning, expectation.name if expectation.expectations else expectation.original_string))
 
         for warning in self._skipped_tests_warnings:
-            warnings.append(warning)
+            warnings.append('%s%s' % (test_expectation_path, warning))
 
-        if len(errors) or len(warnings):
-            test_expectation_path = self._port.path_to_test_expectations_file()
-            failure_title = "FAILURES FOR %s in %s" % (str(self._test_config), test_expectation_path)
-            _log.error(failure_title)
-
-            for error in errors:
-                _log.error(error)
-            for warning in warnings:
-                _log.error(warning)
-
-            if len(errors):
-                raise ParseError(fatal=True, errors=[failure_title] + errors)
-            if len(warnings):
-                self._has_warnings = True
-                if self._is_lint_mode:
-                    raise ParseError(fatal=False, errors=[failure_title] + warnings)
+        if warnings:
+            self._has_warnings = True
+            if self._is_lint_mode:
+                raise ParseError(warnings)
 
     def _process_tests_without_expectations(self):
         if self._full_test_list:
@@ -817,7 +817,7 @@ class TestExpectations(object):
     def remove_rebaselined_tests(self, except_these_tests):
         """Returns a copy of the expectations with the tests removed."""
         def without_rebaseline_modifier(expectation):
-            return not (not expectation.is_malformed() and expectation.name in except_these_tests and "rebaseline" in expectation.modifiers)
+            return not (not expectation.is_invalid() and expectation.name in except_these_tests and "rebaseline" in expectation.modifiers)
 
         return TestExpectationSerializer.list_to_string(filter(without_rebaseline_modifier, self._expectations))
 
@@ -826,8 +826,7 @@ class TestExpectations(object):
             if not expectation_line.expectations:
                 continue
 
-            self._parser.parse(expectation_line)
-            if self._test_config in expectation_line.matching_configurations:
+            if self._is_lint_mode or self._test_config in expectation_line.matching_configurations:
                 self._model.add_expectation_line(expectation_line, overrides_allowed)
 
     def _add_skipped_tests(self, tests_to_skip):
@@ -835,9 +834,6 @@ class TestExpectations(object):
             return
         for index, test in enumerate(self._expectations, start=1):
             if test.name and test.name in tests_to_skip:
-                self._skipped_tests_warnings.append('The %s test from test_expectations.txt in line %d is also in Skipped!' %
-                            (test.name, index))
-        skipped_tests = '\n'.join(map(lambda test_path: 'BUG_SKIPPED SKIP : %s = FAIL' % test_path, tests_to_skip))
-        for test in TestExpectationParser.tokenize_list(skipped_tests):
-            self._parser.parse(test)
-            self._model.add_expectation_line(test, overrides_allowed=True)
+                self._skipped_tests_warnings.append(':%d %s is also in a Skipped file.' % (index, test.name))
+        for test_name in tests_to_skip:
+            self._model.add_expectation_line(self._parser.expectation_for_skipped_test(test_name), overrides_allowed=True)

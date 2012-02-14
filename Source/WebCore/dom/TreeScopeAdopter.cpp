@@ -28,12 +28,13 @@
 #include "Document.h"
 #include "NodeRareData.h"
 #include "ShadowRoot.h"
+#include "ShadowRootList.h"
 
 namespace WebCore {
 
 static inline ShadowRoot* shadowRootFor(Node* node)
 {
-    return node->isElementNode() ? toElement(node)->shadowRoot() : 0;
+    return node->isElementNode() && toElement(node)->hasShadowRoot() ? toElement(node)->shadowRootList()->youngestShadowRoot() : 0;
 }
 
 void TreeScopeAdopter::moveTreeToNewScope(Node* root) const
@@ -44,8 +45,8 @@ void TreeScopeAdopter::moveTreeToNewScope(Node* root) const
     // that element may contain stale data as changes made to it will have updated the DOMTreeVersion
     // of the document it was moved to. By increasing the DOMTreeVersion of the donating document here
     // we ensure that the collection cache will be invalidated as needed when the element is moved back.
-    Document* oldDocument = m_oldScope ? m_oldScope->document() : 0;
-    Document* newDocument = m_newScope->document();
+    Document* oldDocument = m_oldScope ? m_oldScope->rootNode()->document() : 0;
+    Document* newDocument = m_newScope->rootNode()->document();
     bool willMoveToNewDocument = oldDocument != newDocument;
     if (oldDocument && willMoveToNewDocument)
         oldDocument->incDOMTreeVersion();
@@ -96,10 +97,8 @@ inline void TreeScopeAdopter::moveNodeToNewDocument(Node* node, Document* oldDoc
     ASSERT(!node->inDocument() || oldDocument != newDocument);
 
     newDocument->guardRef();
-    if (oldDocument) {
+    if (oldDocument)
         oldDocument->moveNodeIteratorsToNewDocument(node, newDocument);
-        oldDocument->guardDeref();
-    }
 
     node->setDocument(newDocument);
 
@@ -110,6 +109,9 @@ inline void TreeScopeAdopter::moveNodeToNewDocument(Node* node, Document* oldDoc
 
     node->didMoveToNewDocument(oldDocument);
     ASSERT(didMoveToNewDocumentWasCalled);
+    
+    if (oldDocument)
+        oldDocument->guardDeref();
 }
 
 }

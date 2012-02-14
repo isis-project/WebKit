@@ -26,8 +26,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import with_statement
-
 import codecs
 import os
 import shutil
@@ -42,6 +40,7 @@ from webkitpy.common.system.executive import Executive, ScriptError
 from webkitpy.common.system.filesystem import FileSystem  # FIXME: This should not be needed.
 from webkitpy.common.system.filesystem_mock import MockFileSystem
 from webkitpy.common.system.executive_mock import MockExecutive
+from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.thirdparty.mock import Mock
 
 
@@ -252,3 +251,13 @@ class CheckoutTest(unittest.TestCase):
         checkout = self._make_checkout()
         checkout._scm.checkout_root = "/foo/bar"
         self.assertEqual(checkout.chromium_deps()._path, '/foo/bar/Source/WebKit/chromium/DEPS')
+
+    def test_apply_patch(self):
+        checkout = self._make_checkout()
+        checkout._executive = MockExecutive(should_log=True)
+        checkout._scm.script_path = lambda script: script
+        mock_patch = Mock()
+        mock_patch.contents = lambda: "foo"
+        mock_patch.reviewer = lambda: None
+        expected_stderr = "MOCK run_command: ['svn-apply', '--force'], cwd=/mock-checkout\n"
+        OutputCapture().assert_outputs(self, checkout.apply_patch, [mock_patch], expected_stderr=expected_stderr)

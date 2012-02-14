@@ -64,28 +64,28 @@ public:
         fixup();
         
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Graph after propagation fixup:\n");
+        dataLog("Graph after propagation fixup:\n");
         m_graph.dump(m_codeBlock);
 #endif
 
         localCSE();
 
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Graph after CSE:\n");
+        dataLog("Graph after CSE:\n");
         m_graph.dump(m_codeBlock);
 #endif
 
         allocateVirtualRegisters();
 
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Graph after virtual register allocation:\n");
+        dataLog("Graph after virtual register allocation:\n");
         m_graph.dump(m_codeBlock);
 #endif
 
         globalCFA();
 
 #if DFG_ENABLE(DEBUG_VERBOSE)
-        printf("Graph after propagation:\n");
+        dataLog("Graph after propagation:\n");
         m_graph.dump(m_codeBlock);
 #endif
     }
@@ -118,7 +118,7 @@ private:
             flags = node.rawArithNodeFlags();
         
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("   %s @%u: %s ", Graph::opName(op), m_compileIndex, arithNodeFlagsAsString(flags));
+        dataLog("   %s @%u: %s ", Graph::opName(op), m_compileIndex, arithNodeFlagsAsString(flags));
 #endif
         
         flags &= NodeUsedAsMask;
@@ -138,8 +138,6 @@ private:
             break;
         }
             
-        case ValueToNumber:
-        case ValueToDouble:
         case UInt32ToNumber: {
             changed |= m_graph[node.child1()].mergeArithNodeFlags(flags);
             break;
@@ -147,7 +145,7 @@ private:
             
         case ArithAdd:
         case ValueAdd: {
-            if (isNotNegZero(node.child1()) || isNotNegZero(node.child2()))
+            if (isNotNegZero(node.child1().index()) || isNotNegZero(node.child2().index()))
                 flags &= ~NodeNeedsNegZero;
             
             changed |= m_graph[node.child1()].mergeArithNodeFlags(flags);
@@ -156,7 +154,7 @@ private:
         }
             
         case ArithSub: {
-            if (isNotZero(node.child1()) || isNotZero(node.child2()))
+            if (isNotZero(node.child1().index()) || isNotZero(node.child2().index()))
                 flags &= ~NodeNeedsNegZero;
             
             changed |= m_graph[node.child1()].mergeArithNodeFlags(flags);
@@ -210,13 +208,13 @@ private:
                 for (unsigned childIdx = node.firstChild(); childIdx < node.firstChild() + node.numChildren(); childIdx++)
                     changed |= m_graph[m_graph.m_varArgChildren[childIdx]].mergeArithNodeFlags(flags);
             } else {
-                if (node.child1() == NoNode)
+                if (!node.child1())
                     break;
                 changed |= m_graph[node.child1()].mergeArithNodeFlags(flags);
-                if (node.child2() == NoNode)
+                if (!node.child2())
                     break;
                 changed |= m_graph[node.child2()].mergeArithNodeFlags(flags);
-                if (node.child3() == NoNode)
+                if (!node.child3())
                     break;
                 changed |= m_graph[node.child3()].mergeArithNodeFlags(flags);
             }
@@ -224,7 +222,7 @@ private:
         }
 
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("%s\n", changed ? "CHANGED" : "");
+        dataLog("%s\n", changed ? "CHANGED" : "");
 #endif
         
         m_changed |= changed;
@@ -233,7 +231,7 @@ private:
     void propagateArithNodeFlagsForward()
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Propagating arithmetic node flags forward [%u]\n", ++m_count);
+        dataLog("Propagating arithmetic node flags forward [%u]\n", ++m_count);
 #endif
         for (m_compileIndex = 0; m_compileIndex < m_graph.size(); ++m_compileIndex)
             propagateArithNodeFlags(m_graph[m_compileIndex]);
@@ -242,7 +240,7 @@ private:
     void propagateArithNodeFlagsBackward()
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Propagating arithmetic node flags backward [%u]\n", ++m_count);
+        dataLog("Propagating arithmetic node flags backward [%u]\n", ++m_count);
 #endif
         for (m_compileIndex = m_graph.size(); m_compileIndex-- > 0;)
             propagateArithNodeFlags(m_graph[m_compileIndex]);
@@ -295,7 +293,7 @@ private:
         NodeType op = node.op;
 
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("   %s @%u: ", Graph::opName(op), m_compileIndex);
+        dataLog("   %s @%u: ", Graph::opName(op), m_compileIndex);
 #endif
         
         bool changed = false;
@@ -363,26 +361,13 @@ private:
             break;
         }
 
-        case ValueToNumber: {
-            PredictedType prediction = m_graph[node.child1()].prediction();
-            
-            if (prediction) {
-                if (!(prediction & PredictDouble) && nodeCanSpeculateInteger(node.arithNodeFlags()))
-                    changed |= mergePrediction(PredictInt32);
-                else
-                    changed |= mergePrediction(PredictNumber);
-            }
-            
-            break;
-        }
-
         case ValueAdd: {
             PredictedType left = m_graph[node.child1()].prediction();
             PredictedType right = m_graph[node.child2()].prediction();
             
             if (left && right) {
                 if (isNumberPrediction(left) && isNumberPrediction(right)) {
-                    if (isInt32Prediction(mergePredictions(left, right)) && nodeCanSpeculateInteger(node.arithNodeFlags()))
+                    if (m_graph.addShouldSpeculateInteger(node, m_codeBlock))
                         changed |= mergePrediction(PredictInt32);
                     else
                         changed |= mergePrediction(PredictDouble);
@@ -396,7 +381,19 @@ private:
         }
             
         case ArithAdd:
-        case ArithSub:
+        case ArithSub: {
+            PredictedType left = m_graph[node.child1()].prediction();
+            PredictedType right = m_graph[node.child2()].prediction();
+            
+            if (left && right) {
+                if (m_graph.addShouldSpeculateInteger(node, m_codeBlock))
+                    changed |= mergePrediction(PredictInt32);
+                else
+                    changed |= mergePrediction(PredictDouble);
+            }
+            break;
+        }
+            
         case ArithMul:
         case ArithMin:
         case ArithMax:
@@ -454,15 +451,21 @@ private:
                 bool isInt16Array = m_graph[node.child1()].shouldSpeculateInt16Array();
                 bool isInt32Array = m_graph[node.child1()].shouldSpeculateInt32Array();
                 bool isUint8Array = m_graph[node.child1()].shouldSpeculateUint8Array();
+                bool isUint8ClampedArray = m_graph[node.child1()].shouldSpeculateUint8ClampedArray();
                 bool isUint16Array = m_graph[node.child1()].shouldSpeculateUint16Array();
                 bool isUint32Array = m_graph[node.child1()].shouldSpeculateUint32Array();
                 bool isFloat32Array = m_graph[node.child1()].shouldSpeculateFloat32Array();
                 bool isFloat64Array = m_graph[node.child1()].shouldSpeculateFloat64Array();
-                if (isArray || isString || isByteArray || isInt8Array || isInt16Array || isInt32Array || isUint8Array || isUint16Array || isUint32Array || isFloat32Array || isFloat64Array)
+                if (isArray || isString || isByteArray || isInt8Array || isInt16Array || isInt32Array || isUint8Array || isUint8ClampedArray || isUint16Array || isUint32Array || isFloat32Array || isFloat64Array)
                     changed |= mergePrediction(PredictInt32);
             }
             break;
         }
+            
+        case GetByIdFlush:
+            if (node.getHeapPrediction())
+                changed |= mergePrediction(node.getHeapPrediction());
+            break;
             
         case GetByVal: {
             if (m_graph[node.child1()].shouldSpeculateUint32Array() || m_graph[node.child1()].shouldSpeculateFloat32Array() || m_graph[node.child1()].shouldSpeculateFloat64Array())
@@ -579,13 +582,13 @@ private:
             break;
         }
             
-        case ValueToDouble:
         case GetArrayLength:
         case GetByteArrayLength:
         case GetInt8ArrayLength:
         case GetInt16ArrayLength:
         case GetInt32ArrayLength:
         case GetUint8ArrayLength:
+        case GetUint8ClampedArrayLength:
         case GetUint16ArrayLength:
         case GetUint32ArrayLength:
         case GetFloat32ArrayLength:
@@ -633,7 +636,7 @@ private:
         }
 
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("%s\n", predictionToString(m_graph[m_compileIndex].prediction()));
+        dataLog("%s\n", predictionToString(m_graph[m_compileIndex].prediction()));
 #endif
         
         m_changed |= changed;
@@ -642,7 +645,7 @@ private:
     void propagatePredictionsForward()
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Propagating predictions forward [%u]\n", ++m_count);
+        dataLog("Propagating predictions forward [%u]\n", ++m_count);
 #endif
         for (m_compileIndex = 0; m_compileIndex < m_graph.size(); ++m_compileIndex)
             propagateNodePredictions(m_graph[m_compileIndex]);
@@ -651,27 +654,25 @@ private:
     void propagatePredictionsBackward()
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Propagating predictions backward [%u]\n", ++m_count);
+        dataLog("Propagating predictions backward [%u]\n", ++m_count);
 #endif
         for (m_compileIndex = m_graph.size(); m_compileIndex-- > 0;)
             propagateNodePredictions(m_graph[m_compileIndex]);
     }
     
-    void vote(NodeIndex nodeIndex, VariableAccessData::Ballot ballot)
+    void vote(NodeUse nodeUse, VariableAccessData::Ballot ballot)
     {
-        switch (m_graph[nodeIndex].op) {
-        case ValueToNumber:
-        case ValueToDouble:
+        switch (m_graph[nodeUse].op) {
         case ValueToInt32:
         case UInt32ToNumber:
-            nodeIndex = m_graph[nodeIndex].child1();
+            nodeUse = m_graph[nodeUse].child1();
             break;
         default:
             break;
         }
         
-        if (m_graph[nodeIndex].op == GetLocal)
-            m_graph[nodeIndex].variableAccessData()->vote(ballot);
+        if (m_graph[nodeUse].op == GetLocal)
+            m_graph[nodeUse].variableAccessData()->vote(ballot);
     }
     
     void vote(Node& node, VariableAccessData::Ballot ballot)
@@ -682,13 +683,13 @@ private:
             return;
         }
         
-        if (node.child1() == NoNode)
+        if (!node.child1())
             return;
         vote(node.child1(), ballot);
-        if (node.child2() == NoNode)
+        if (!node.child2())
             return;
         vote(node.child2(), ballot);
-        if (node.child3() == NoNode)
+        if (!node.child3())
             return;
         vote(node.child3(), ballot);
     }
@@ -696,7 +697,7 @@ private:
     void doRoundOfDoubleVoting()
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Voting on double uses of locals [%u]\n", m_count);
+        dataLog("Voting on double uses of locals [%u]\n", m_count);
 #endif
         for (unsigned i = 0; i < m_graph.m_variableAccessData.size(); ++i)
             m_graph.m_variableAccessData[i].find()->clearVotes();
@@ -705,7 +706,23 @@ private:
             switch (node.op) {
             case ValueAdd:
             case ArithAdd:
-            case ArithSub:
+            case ArithSub: {
+                PredictedType left = m_graph[node.child1()].prediction();
+                PredictedType right = m_graph[node.child2()].prediction();
+                
+                VariableAccessData::Ballot ballot;
+                
+                if (isNumberPrediction(left) && isNumberPrediction(right)
+                    && !m_graph.addShouldSpeculateInteger(node, m_codeBlock))
+                    ballot = VariableAccessData::VoteDouble;
+                else
+                    ballot = VariableAccessData::VoteValue;
+                
+                vote(node.child1(), ballot);
+                vote(node.child2(), ballot);
+                break;
+            }
+                
             case ArithMul:
             case ArithMin:
             case ArithMax:
@@ -738,11 +755,6 @@ private:
                 
             case ArithSqrt:
                 vote(node.child1(), VariableAccessData::VoteDouble);
-                break;
-                
-            case ValueToNumber:
-            case ValueToDouble:
-                // Don't vote.
                 break;
                 
             case SetLocal: {
@@ -800,16 +812,6 @@ private:
         } while (m_changed);
     }
     
-    void toDouble(NodeIndex nodeIndex)
-    {
-        if (m_graph[nodeIndex].op == ValueToNumber) {
-#if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-            printf("  @%u -> ValueToDouble", nodeIndex);
-#endif
-            m_graph[nodeIndex].op = ValueToDouble;
-        }
-    }
-
     void fixupNode(Node& node)
     {
         if (!node.shouldGenerate())
@@ -818,70 +820,10 @@ private:
         NodeType op = node.op;
 
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("   %s @%u: ", Graph::opName(op), m_compileIndex);
+        dataLog("   %s @%u: ", Graph::opName(op), m_compileIndex);
 #endif
         
         switch (op) {
-        case ValueAdd: {
-            if (!nodeCanSpeculateInteger(node.arithNodeFlags())) {
-                toDouble(node.child1());
-                toDouble(node.child2());
-                break;
-            }
-            
-            PredictedType left = m_graph[node.child1()].prediction();
-            PredictedType right = m_graph[node.child2()].prediction();
-            
-            if (left && right
-                && isNumberPrediction(left) && isNumberPrediction(right)
-                && ((left & PredictDouble) || (right & PredictDouble))) {
-                toDouble(node.child1());
-                toDouble(node.child2());
-            }
-            break;
-        }
-            
-        case ArithAdd:
-        case ArithSub:
-        case ArithMul:
-        case ArithMin:
-        case ArithMax:
-        case ArithMod:
-        case ArithDiv: {
-            if (!nodeCanSpeculateInteger(node.arithNodeFlags())) {
-                toDouble(node.child1());
-                toDouble(node.child2());
-                break;
-            }
-            
-            PredictedType left = m_graph[node.child1()].prediction();
-            PredictedType right = m_graph[node.child2()].prediction();
-            
-            if (left && right
-                && ((left & PredictDouble) || (right & PredictDouble))) {
-                toDouble(node.child1());
-                toDouble(node.child2());
-            }
-            break;
-        }
-            
-        case ArithAbs: {
-            if (!nodeCanSpeculateInteger(node.arithNodeFlags())) {
-                toDouble(node.child1());
-                break;
-            }
-            
-            PredictedType prediction = m_graph[node.child1()].prediction();
-            if (prediction & PredictDouble)
-                toDouble(node.child1());
-            break;
-        }
-            
-        case ArithSqrt: {
-            toDouble(node.child1());
-            break;
-        }
-            
         case GetById: {
             if (!isInt32Prediction(m_graph[m_compileIndex].prediction()))
                 break;
@@ -894,15 +836,16 @@ private:
             bool isInt16Array = m_graph[node.child1()].shouldSpeculateInt16Array();
             bool isInt32Array = m_graph[node.child1()].shouldSpeculateInt32Array();
             bool isUint8Array = m_graph[node.child1()].shouldSpeculateUint8Array();
+            bool isUint8ClampedArray = m_graph[node.child1()].shouldSpeculateUint8ClampedArray();
             bool isUint16Array = m_graph[node.child1()].shouldSpeculateUint16Array();
             bool isUint32Array = m_graph[node.child1()].shouldSpeculateUint32Array();
             bool isFloat32Array = m_graph[node.child1()].shouldSpeculateFloat32Array();
             bool isFloat64Array = m_graph[node.child1()].shouldSpeculateFloat64Array();
-            if (!isArray && !isString && !isByteArray && !isInt8Array && !isInt16Array && !isInt32Array && !isUint8Array && !isUint16Array && !isUint32Array && !isFloat32Array && !isFloat64Array)
+            if (!isArray && !isString && !isByteArray && !isInt8Array && !isInt16Array && !isInt32Array && !isUint8Array && !isUint8ClampedArray && !isUint16Array && !isUint32Array && !isFloat32Array && !isFloat64Array)
                 break;
             
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-            printf("  @%u -> %s", m_compileIndex, isArray ? "GetArrayLength" : "GetStringLength");
+            dataLog("  @%u -> %s", m_compileIndex, isArray ? "GetArrayLength" : "GetStringLength");
 #endif
             if (isArray)
                 node.op = GetArrayLength;
@@ -918,6 +861,8 @@ private:
                 node.op = GetInt32ArrayLength;
             else if (isUint8Array)
                 node.op = GetUint8ArrayLength;
+            else if (isUint8ClampedArray)
+                node.op = GetUint8ClampedArrayLength;
             else if (isUint16Array)
                 node.op = GetUint16ArrayLength;
             else if (isUint32Array)
@@ -945,8 +890,8 @@ private:
         case GetByVal:
         case StringCharAt:
         case StringCharCodeAt: {
-            if (node.child3() != NoNode && m_graph[node.child3()].op == Nop)
-                node.children.fixed.child3 = NoNode;
+            if (!!node.child3() && m_graph[node.child3()].op == Nop)
+                node.children.child3() = NodeUse();
             break;
         }
         default:
@@ -954,14 +899,14 @@ private:
         }
 
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("\n");
+        dataLog("\n");
 #endif
     }
     
     void fixup()
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Performing Fixup\n");
+        dataLog("Performing Fixup\n");
 #endif
         for (m_compileIndex = 0; m_compileIndex < m_graph.size(); ++m_compileIndex)
             fixupNode(m_graph[m_compileIndex]);
@@ -972,13 +917,14 @@ private:
         if (nodeIndex == NoNode)
             return NoNode;
         
-        if (m_graph[nodeIndex].op == ValueToNumber)
-            nodeIndex = m_graph[nodeIndex].child1();
-        
         if (m_graph[nodeIndex].op == ValueToInt32)
-            nodeIndex = m_graph[nodeIndex].child1();
+            nodeIndex = m_graph[nodeIndex].child1().index();
         
         return nodeIndex;
+    }
+    NodeIndex canonicalize(NodeUse nodeUse)
+    {
+        return canonicalize(nodeUse.indexUnchecked());
     }
     
     // Computes where the search for a candidate for CSE should start. Don't call
@@ -1021,7 +967,7 @@ private:
     {
         NodeIndex result = computeStartIndexForChildren(child1, child2, child3);
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("  lookback %u: ", result);
+        dataLog("  lookback %u: ", result);
 #endif
         return result;
     }
@@ -1029,7 +975,10 @@ private:
     NodeIndex startIndex()
     {
         Node& node = m_graph[m_compileIndex];
-        return startIndexForChildren(node.child1(), node.child2(), node.child3());
+        return startIndexForChildren(
+            node.child1().indexUnchecked(),
+            node.child2().indexUnchecked(),
+            node.child3().indexUnchecked());
     }
     
     NodeIndex endIndexForPureCSE()
@@ -1041,7 +990,7 @@ private:
             result++;
         ASSERT(result <= m_compileIndex);
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("  limit %u: ", result);
+        dataLog("  limit %u: ", result);
 #endif
         return result;
     }
@@ -1175,7 +1124,7 @@ private:
                 break;
             case PutGlobalVar:
                 if (node.varNumber() == varNumber && m_codeBlock->globalObjectFor(node.codeOrigin) == globalObject)
-                    return node.child1();
+                    return node.child1().index();
                 break;
             default:
                 break;
@@ -1203,7 +1152,7 @@ private:
                 if (!byValIsPure(node))
                     return NoNode;
                 if (node.child1() == child1 && canonicalize(node.child2()) == canonicalize(child2))
-                    return node.child3();
+                    return node.child3().index();
                 // We must assume that the PutByVal will clobber the location we're getting from.
                 // FIXME: We can do better; if we know that the PutByVal is accessing an array of a
                 // different type than the GetByVal, then we know that they won't clobber each other.
@@ -1296,7 +1245,7 @@ private:
             case PutByOffset:
                 if (m_graph.m_storageAccessData[node.storageAccessDataIndex()].identifierNumber == identifierNumber) {
                     if (node.child2() == child1)
-                        return node.child3();
+                        return node.child3().index();
                     return NoNode;
                 }
                 break;
@@ -1410,22 +1359,22 @@ private:
         return NoNode;
     }
     
-    void performSubstitution(NodeIndex& child, bool addRef = true)
+    void performSubstitution(NodeUse& child, bool addRef = true)
     {
         // Check if this operand is actually unused.
-        if (child == NoNode)
+        if (!child)
             return;
         
         // Check if there is any replacement.
-        NodeIndex replacement = m_replacements[child];
+        NodeIndex replacement = m_replacements[child.index()];
         if (replacement == NoNode)
             return;
         
-        child = replacement;
+        child.setIndex(replacement);
         
         // There is definitely a replacement. Assert that the replacement does not
         // have a replacement.
-        ASSERT(m_replacements[child] == NoNode);
+        ASSERT(m_replacements[child.index()] == NoNode);
         
         if (addRef)
             m_graph[child].ref();
@@ -1442,7 +1391,7 @@ private:
             return;
         
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("   Replacing @%u -> @%u", m_compileIndex, replacement);
+        dataLog("   Replacing @%u -> @%u", m_compileIndex, replacement);
 #endif
         
         Node& node = m_graph[m_compileIndex];
@@ -1456,7 +1405,7 @@ private:
     void eliminate()
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("   Eliminating @%u", m_compileIndex);
+        dataLog("   Eliminating @%u", m_compileIndex);
 #endif
         
         Node& node = m_graph[m_compileIndex];
@@ -1473,16 +1422,16 @@ private:
             for (unsigned childIdx = node.firstChild(); childIdx < node.firstChild() + node.numChildren(); childIdx++)
                 performSubstitution(m_graph.m_varArgChildren[childIdx], shouldGenerate);
         } else {
-            performSubstitution(node.children.fixed.child1, shouldGenerate);
-            performSubstitution(node.children.fixed.child2, shouldGenerate);
-            performSubstitution(node.children.fixed.child3, shouldGenerate);
+            performSubstitution(node.children.child1(), shouldGenerate);
+            performSubstitution(node.children.child2(), shouldGenerate);
+            performSubstitution(node.children.child3(), shouldGenerate);
         }
         
         if (!shouldGenerate)
             return;
         
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("   %s @%u: ", Graph::opName(m_graph[m_compileIndex].op), m_compileIndex);
+        dataLog("   %s @%u: ", Graph::opName(m_graph[m_compileIndex].op), m_compileIndex);
 #endif
         
         // NOTE: there are some nodes that we deliberately don't CSE even though we
@@ -1517,6 +1466,7 @@ private:
         case GetInt16ArrayLength:
         case GetInt32ArrayLength:
         case GetUint8ArrayLength:
+        case GetUint8ClampedArrayLength:
         case GetUint16ArrayLength:
         case GetUint32ArrayLength:
         case GetFloat32ArrayLength:
@@ -1569,37 +1519,37 @@ private:
             
         case GetByVal:
             if (byValIsPure(node))
-                setReplacement(getByValLoadElimination(node.child1(), node.child2()));
+                setReplacement(getByValLoadElimination(node.child1().index(), node.child2().index()));
             break;
             
         case PutByVal:
-            if (byValIsPure(node) && getByValLoadElimination(node.child1(), node.child2()) != NoNode)
+            if (byValIsPure(node) && getByValLoadElimination(node.child1().index(), node.child2().index()) != NoNode)
                 node.op = PutByValAlias;
             break;
             
         case CheckStructure:
-            if (checkStructureLoadElimination(node.structureSet(), node.child1()))
+            if (checkStructureLoadElimination(node.structureSet(), node.child1().index()))
                 eliminate();
             break;
 
         case CheckFunction:
-            if (checkFunctionElimination(node.function(), node.child1()))
+            if (checkFunctionElimination(node.function(), node.child1().index()))
                 eliminate();
             break;
                 
         case GetIndexedPropertyStorage: {
             PredictedType basePrediction = m_graph[node.child2()].prediction();
             bool nodeHasIntegerIndexPrediction = !(!(basePrediction & PredictInt32) && basePrediction);
-            setReplacement(getIndexedPropertyStorageLoadElimination(node.child1(), nodeHasIntegerIndexPrediction));
+            setReplacement(getIndexedPropertyStorageLoadElimination(node.child1().index(), nodeHasIntegerIndexPrediction));
             break;
         }
 
         case GetPropertyStorage:
-            setReplacement(getPropertyStorageLoadElimination(node.child1()));
+            setReplacement(getPropertyStorageLoadElimination(node.child1().index()));
             break;
 
         case GetByOffset:
-            setReplacement(getByOffsetLoadElimination(m_graph.m_storageAccessData[node.storageAccessDataIndex()].identifierNumber, node.child1()));
+            setReplacement(getByOffsetLoadElimination(m_graph.m_storageAccessData[node.storageAccessDataIndex()].identifierNumber, node.child1().index()));
             break;
             
         default:
@@ -1609,7 +1559,7 @@ private:
         
         m_lastSeen[node.op & NodeIdMask] = m_compileIndex;
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("\n");
+        dataLog("\n");
 #endif
     }
     
@@ -1624,7 +1574,7 @@ private:
     void localCSE()
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("Performing local CSE:");
+        dataLog("Performing local CSE:");
 #endif
         for (unsigned block = 0; block < m_graph.m_blocks.size(); ++block)
             performBlockCSE(*m_graph.m_blocks[block]);
@@ -1633,9 +1583,9 @@ private:
     void allocateVirtualRegisters()
     {
 #if DFG_ENABLE(DEBUG_VERBOSE)
-        printf("Preserved vars: ");
-        m_graph.m_preservedVars.dump(stdout);
-        printf("\n");
+        dataLog("Preserved vars: ");
+        m_graph.m_preservedVars.dump(WTF::dataFile());
+        dataLog("\n");
 #endif
         ScoreBoard scoreBoard(m_graph, m_graph.m_preservedVars);
         unsigned sizeExcludingPhiNodes = m_graph.m_blocks.last()->end;
@@ -1679,7 +1629,7 @@ private:
         if ((unsigned)m_codeBlock->m_numCalleeRegisters < calleeRegisters)
             m_codeBlock->m_numCalleeRegisters = calleeRegisters;
 #if DFG_ENABLE(DEBUG_VERBOSE)
-        printf("Num callee registers: %u\n", calleeRegisters);
+        dataLog("Num callee registers: %u\n", calleeRegisters);
 #endif
     }
     
@@ -1689,42 +1639,42 @@ private:
         if (!block->cfaShouldRevisit)
             return;
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("   Block #%u (bc#%u):\n", blockIndex, block->bytecodeBegin);
+        dataLog("   Block #%u (bc#%u):\n", blockIndex, block->bytecodeBegin);
 #endif
         state.beginBasicBlock(block);
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("      head vars: ");
-        dumpOperands(block->valuesAtHead, stdout);
-        printf("\n");
+        dataLog("      head vars: ");
+        dumpOperands(block->valuesAtHead, WTF::dataFile());
+        dataLog("\n");
 #endif
         for (NodeIndex nodeIndex = block->begin; nodeIndex < block->end; ++nodeIndex) {
             if (!m_graph[nodeIndex].shouldGenerate())
                 continue;
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-            printf("      %s @%u: ", Graph::opName(m_graph[nodeIndex].op), nodeIndex);
-            state.dump(stdout);
-            printf("\n");
+            dataLog("      %s @%u: ", Graph::opName(m_graph[nodeIndex].op), nodeIndex);
+            state.dump(WTF::dataFile());
+            dataLog("\n");
 #endif
             if (!state.execute(nodeIndex))
                 break;
         }
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("      tail regs: ");
-        state.dump(stdout);
-        printf("\n");
+        dataLog("      tail regs: ");
+        state.dump(WTF::dataFile());
+        dataLog("\n");
 #endif
         m_changed |= state.endBasicBlock(AbstractState::MergeToSuccessors);
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("      tail vars: ");
-        dumpOperands(block->valuesAtTail, stdout);
-        printf("\n");
+        dataLog("      tail vars: ");
+        dumpOperands(block->valuesAtTail, WTF::dataFile());
+        dataLog("\n");
 #endif
     }
     
     void performForwardCFA(AbstractState& state)
     {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("CFA [%u]\n", ++m_count);
+        dataLog("CFA [%u]\n", ++m_count);
 #endif
         
         for (BlockIndex block = 0; block < m_graph.m_blocks.size(); ++block)

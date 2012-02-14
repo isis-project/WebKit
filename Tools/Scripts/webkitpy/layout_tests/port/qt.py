@@ -31,6 +31,7 @@
 import logging
 import re
 import sys
+import os
 
 import webkit
 
@@ -46,26 +47,28 @@ class QtPort(WebKitPort):
     ALL_VERSIONS = ['linux', 'win', 'mac']
     port_name = "qt"
 
+    def _wk2_port_name(self):
+        return "qt-5.0-wk2"
+
     def _port_flag_for_scripts(self):
         return "--qt"
 
+    @classmethod
+    def determine_full_port_name(cls, host, options, port_name):
+        if port_name and port_name != cls.port_name:
+            return port_name
+        return port_name + '-' + host.platform.os_name
+
     # sys_platform exists only for unit testing.
-    def __init__(self, host, port_name=None, **kwargs):
-        port_name = port_name or self.port_name
-        WebKitPort.__init__(self, host, port_name=None, **kwargs)
-        self._operating_system = host.platform.os_name
-        self._version = self.operating_system()
+    def __init__(self, host, port_name, **kwargs):
+        WebKitPort.__init__(self, host, port_name, **kwargs)
 
         # FIXME: This will allow WebKitPort.baseline_search_path and WebKitPort._skipped_file_search_paths
         # to do the right thing, but doesn't include support for qt-4.8 or qt-arm (seen in LayoutTests/platform) yet.
+        self._operating_system = port_name.replace('qt-', '')
 
-        if port_name != self.port_name:
-            self._name = port_name
-        else:
-            name_components = [self.port_name]
-            if self.operating_system():
-                name_components.append(self.operating_system())
-            self._name = "-".join(name_components)
+        # FIXME: Why is this being set at all?
+        self._version = self.operating_system()
 
     def _generate_all_test_configurations(self):
         configurations = []
@@ -123,10 +126,10 @@ class QtPort(WebKitPort):
             search_paths.add('qt-4.8')
         elif version:
             search_paths.add('qt-5.0')
-        if self.get_option('webkit_test_runner'):
-            search_paths.update(['qt-wk2', 'wk2'])
-        else:
-            search_paths.add('qt-wk1')
+            if self.get_option('webkit_test_runner'):
+                search_paths.update(['qt-5.0-wk2', 'wk2'])
+            else:
+                search_paths.add('qt-5.0-wk1')
         return search_paths
 
     def _runtime_feature_list(self):
@@ -149,3 +152,12 @@ class QtPort(WebKitPort):
 
     def operating_system(self):
         return self._operating_system
+
+    def check_sys_deps(self, needs_http):
+        result = super(QtPort, self).check_sys_deps(needs_http)
+        if not 'WEBKIT_TESTFONTS' in os.environ:
+            _log.error('\nThe WEBKIT_TESTFONTS environment variable is not defined or not set properly.')
+            _log.error('You must set it before running the tests.')
+            _log.error('Use git to grab the actual fonts from http://gitorious.org/qtwebkit/testfonts')
+            return False
+        return result

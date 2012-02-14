@@ -96,6 +96,9 @@ WebInspector.ElementsPanel = function()
 
     this._registerShortcuts();
 
+    this._popoverHelper = new WebInspector.PopoverHelper(document.body, this._getPopoverAnchor.bind(this), this._showPopover.bind(this));
+    this._popoverHelper.setTimeout(0);
+
     WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.NodeRemoved, this._nodeRemoved, this);
     WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.DocumentUpdated, this._documentUpdated, this);
     WebInspector.domAgent.addEventListener(WebInspector.DOMAgent.Events.InspectElementRequested, this._inspectElementRequested, this);
@@ -146,6 +149,7 @@ WebInspector.ElementsPanel.prototype = {
         WebInspector.domAgent.hideDOMNodeHighlight();
         this.setSearchingForNode(false);
         this.treeOutline.setVisible(false);
+        this._popoverHelper.hidePopover();
 
         // Detach heavy component on hide
         this.contentElement.removeChild(this.treeOutline.element);
@@ -167,6 +171,16 @@ WebInspector.ElementsPanel.prototype = {
 
         this.updateBreadcrumb(false);
 
+        this._updateSidebars();
+
+        if (selectedNode) {
+            ConsoleAgent.addInspectedNode(selectedNode.id);
+            this._lastValidSelectedNode = selectedNode;
+        }
+    },
+
+    _updateSidebars: function()
+    {
         for (var pane in this.sidebarPanes)
            this.sidebarPanes[pane].needsUpdate = true;
 
@@ -174,11 +188,6 @@ WebInspector.ElementsPanel.prototype = {
         this.updateMetrics();
         this.updateProperties();
         this.updateEventListeners();
-
-        if (selectedNode) {
-            ConsoleAgent.addInspectedNode(selectedNode.id);
-            this._lastValidSelectedNode = selectedNode;
-        }
     },
 
     _reset: function()
@@ -324,6 +333,114 @@ WebInspector.ElementsPanel.prototype = {
             contextMenu.appendSeparator();
             var pane = this.sidebarPanes.domBreakpoints;
             pane.populateNodeContextMenu(node, contextMenu);
+        }
+    },
+
+    _getPopoverAnchor: function(element)
+    {
+        var anchor = element.enclosingNodeOrSelfWithClass("webkit-html-resource-link");
+        if (anchor) {
+            if (!anchor.href)
+                return null;
+
+            var resource = WebInspector.resourceTreeModel.resourceForURL(anchor.href);
+            if (!resource || resource.type !== WebInspector.Resource.Type.Image)
+                return null;
+
+            anchor.removeAttribute("title");
+        }
+        return anchor;
+    },
+    
+    _loadDimensionsForNode: function(treeElement, callback)
+    {
+        // We get here for CSS properties, too, so bail out early for non-DOM treeElements.
+        if (treeElement.treeOutline !== this.treeOutline) {
+            callback();
+            return;
+        }
+        
+        var node = /** @type {WebInspector.DOMNode} */ treeElement.representedObject;
+
+        if (!node.nodeName() || node.nodeName().toLowerCase() !== "img") {
+            callback();
+            return;
+        }
+
+        WebInspector.RemoteObject.resolveNode(node, "", resolvedNode);
+
+        function resolvedNode(object)
+        {
+            if (!object) {
+                callback();
+                return;
+            }
+
+            object.callFunctionJSON(dimensions, callback);
+            object.release();
+
+            function dimensions()
+            {
+                return { offsetWidth: this.offsetWidth, offsetHeight: this.offsetHeight, naturalWidth: this.naturalWidth, naturalHeight: this.naturalHeight };
+            }
+        }
+    },
+
+    _showPopover: function(anchor, popover)
+    {
+        var listItem = anchor.enclosingNodeOrSelfWithNodeNameInArray(["li"]);
+        if (listItem && listItem.treeElement)
+            this._loadDimensionsForNode(listItem.treeElement, dimensionsCallback);
+        else
+            dimensionsCallback();
+
+        function dimensionsCallback(dimensions)
+        {
+            var imageElement = document.createElement("img");
+            imageElement.addEventListener("load", showPopover.bind(null, imageElement, dimensions), false);
+            var resource = WebInspector.resourceTreeModel.resourceForURL(anchor.href);
+            if (!resource)
+                return;
+    
+            resource.populateImageSource(imageElement);
+        }
+
+        function showPopover(imageElement, dimensions)
+        {
+            var contents = buildPopoverContents(imageElement, dimensions);
+            popover.show(contents, anchor);
+        }
+
+        function buildPopoverContents(imageElement, nodeDimensions)
+        {
+            const maxImageWidth = 100;
+            const maxImageHeight = 100;
+            var container = document.createElement("table");
+            container.className = "image-preview-container";
+            var naturalWidth = nodeDimensions ? nodeDimensions.naturalWidth : imageElement.naturalWidth;
+            var naturalHeight = nodeDimensions ? nodeDimensions.naturalHeight : imageElement.naturalHeight;
+            var offsetWidth = nodeDimensions ? nodeDimensions.offsetWidth : naturalWidth;
+            var offsetHeight = nodeDimensions ? nodeDimensions.offsetHeight : naturalHeight;
+            var description;
+            if (offsetHeight === naturalHeight && offsetWidth === naturalWidth)
+                description = WebInspector.UIString("%d \xd7 %d pixels", offsetWidth, offsetHeight);
+            else
+                description = WebInspector.UIString("%d \xd7 %d pixels (Natural: %d \xd7 %d pixels)", offsetWidth, offsetHeight, naturalWidth, naturalHeight);
+
+            if (naturalWidth > naturalHeight) {
+                if (naturalWidth > maxImageWidth) {
+                    imageElement.style.width = maxImageWidth + "px";
+                    imageElement.style.height = (naturalHeight * maxImageWidth / naturalWidth) + "px";
+                }
+            } else {
+                if (naturalHeight > maxImageHeight) {
+                    imageElement.style.width = (naturalWidth * maxImageHeight / naturalHeight) + "px";
+                    imageElement.style.height = maxImageHeight + "px";
+                }
+            }
+            container.createChild("tr").createChild("td", "image-container").appendChild(imageElement);
+            container.createChild("tr").createChild("td").createChild("span", "description").textContent = description;
+            return container;
         }
     },
 
@@ -899,6 +1016,7 @@ WebInspector.ElementsPanel.prototype = {
         ];
         section.addRelatedKeys(keys, WebInspector.UIString("Expand/collapse"));
         section.addKey(shortcut.shortcutToString(shortcut.Keys.Enter), WebInspector.UIString("Edit attribute"));
+        section.addKey(shortcut.shortcutToString(shortcut.Keys.F2), WebInspector.UIString("Toggle edit as HTML"));
 
         this.sidebarPanes.styles.registerShortcuts();
     },
@@ -907,7 +1025,7 @@ WebInspector.ElementsPanel.prototype = {
     {
         // Cmd/Control + Shift + C should be a shortcut to clicking the Node Search Button.
         // This shortcut matches Firebug.
-        if (event.keyIdentifier === "U+0043") {     // C key
+        if (event.keyIdentifier === "U+0043") { // C key
             if (WebInspector.isMac())
                 var isNodeSearchKey = event.metaKey && !event.ctrlKey && !event.altKey && event.shiftKey;
             else
@@ -918,7 +1036,15 @@ WebInspector.ElementsPanel.prototype = {
                 event.handled = true;
                 return;
             }
+            return;
         }
+
+        if (WebInspector.KeyboardShortcut.eventHasCtrlOrMeta(event) && event.keyIdentifier === "U+005A") { // Z key
+            WebInspector.domAgent.undo(this._updateSidebars.bind(this));
+            return;
+        }
+
+        this.treeOutline.handleShortcut(event);
     },
 
     handleCopyEvent: function(event)

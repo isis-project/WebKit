@@ -1,3 +1,468 @@
+2012-02-08  Hajime Morrita  <morrita@chromium.org>
+
+        [PerformanceTests] sunspider-crypto-md5.html and sunspider-crypto-sha1.html are timing out on cr-mac perf bot
+        https://bugs.webkit.org/show_bug.cgi?id=78174
+
+        Reviewed by Ryosuke Niwa.
+
+        Pulled back removed files.
+
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-crypto-md5.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-crypto-sha1.html: Added.
+
+2012-02-02  Hajime Morrita  <morrita@chromium.org>
+
+        [PerformanceTests] Each Dromaeo test needs its landing html.
+        https://bugs.webkit.org/show_bug.cgi?id=77504
+
+        Reviewed by Ryosuke Niwa.
+
+        - Added landing pages for each test which are listed in MANIFEST.json
+        - Removed some tests which depends on the library whose license is incompatible to WebKit.
+        - Added local copy of corresponding library. And replace the references to the remote sources
+          to the local copies.
+        - Removed old library files under Dromaeo/resources/dromaeo/web/lib/.
+        - Skipped Sunsupier and v8 test. Such JS centric test should have its own test instead of
+          running as a part of Dromaeo.
+
+        * Dromaeo/cssquery-dojo.html: Added.
+        * Dromaeo/cssquery-jquery.html: Added.
+        * Dromaeo/cssquery-prototype.html: Added.
+        * Dromaeo/dom-attr.html: Added.
+        * Dromaeo/dom-modify.html: Added.
+        * Dromaeo/dom-traverse.html: Added.
+        * Dromaeo/dromaeo-3d-cube.html: Added.
+        * Dromaeo/dromaeo-core-eval.html: Added.
+        * Dromaeo/dromaeo-object-array.html: Added.
+        * Dromaeo/dromaeo-object-regexp.html: Added.
+        * Dromaeo/dromaeo-object-string.html: Added.
+        * Dromaeo/dromaeo-string-base64.html: Added.
+        * Dromaeo/jslib-attr-jquery.html: Added.
+        * Dromaeo/jslib-attr-prototype.html: Added.
+        * Dromaeo/jslib-event-jquery.html: Added.
+        * Dromaeo/jslib-event-prototype.html: Added.
+        * Dromaeo/jslib-modify-jquery.html: Added.
+        * Dromaeo/jslib-modify-prototype.html: Added.
+        * Dromaeo/jslib-style-jquery.html: Added.
+        * Dromaeo/jslib-style-prototype.html: Added.
+        * Dromaeo/jslib-traverse-jquery.html: Added.
+        * Dromaeo/jslib-traverse-prototype.html: Added.
+        * Dromaeo/resources/dromaeo/web/lib/dojo.js: Removed.
+        * Dromaeo/resources/dromaeo/web/lib/dojo-1.6.1.js: Added.
+        * Dromaeo/resources/dromaeo/web/lib/jquery.js: Removed.
+        * Dromaeo/resources/dromaeo/web/lib/jquery-1.6.4.js: Added.
+        * Dromaeo/resources/dromaeo/web/lib/mootools.js: Removed.
+        * Dromaeo/resources/dromaeo/web/lib/prototype.js: Removed.
+        * Dromaeo/resources/dromaeo/web/lib/prototype-1.7.js: Added.
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-dojo.html:
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-jquery.html:
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-mootools.html: Removed.
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-prototype.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-attr-jquery.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-attr-prototype.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-event-jquery.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-event-prototype.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-modify-jquery.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-modify-prototype.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-style-jquery.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-style-prototype.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-traverse-jquery.html:
+        * Dromaeo/resources/dromaeo/web/tests/jslib-traverse-prototype.html:
+        * Dromaeo/sunspider-3d-morph.html: Added.
+        * Dromaeo/sunspider-3d-raytrace.html: Added.
+        * Dromaeo/sunspider-access-binary-trees.html: Added.
+        * Dromaeo/sunspider-access-fannkuch.html: Added.
+        * Dromaeo/sunspider-access-nbody.html: Added.
+        * Dromaeo/sunspider-access-nsieve.html: Added.
+        * Dromaeo/sunspider-bitops-3bit-bits-in-byte.html: Added.
+        * Dromaeo/sunspider-bitops-bits-in-byte.html: Added.
+        * Dromaeo/sunspider-bitops-bitwise-and.html: Added.
+        * Dromaeo/sunspider-bitops-nsieve-bits.html: Added.
+        * Dromaeo/sunspider-controlflow-recursive.html: Added.
+        * Dromaeo/sunspider-crypto-aes.html: Added.
+        * Dromaeo/sunspider-crypto-md5.html: Added.
+        * Dromaeo/sunspider-crypto-sha1.html: Added.
+        * Dromaeo/sunspider-date-format-tofte.html: Added.
+        * Dromaeo/sunspider-date-format-xparb.html: Added.
+        * Dromaeo/sunspider-math-cordic.html: Added.
+        * Dromaeo/sunspider-math-partial-sums.html: Added.
+        * Dromaeo/sunspider-math-spectral-norm.html: Added.
+        * Dromaeo/sunspider-regexp-dna.html: Added.
+        * Dromaeo/sunspider-string-fasta.html: Added.
+        * Dromaeo/sunspider-string-tagcloud.html: Added.
+        * Dromaeo/sunspider-string-unpack-code.html: Added.
+        * Dromaeo/sunspider-string-validate-input.html: Added.
+        * Dromaeo/v8-crypto.html: Added.
+        * Dromaeo/v8-deltablue.html: Added.
+        * Dromaeo/v8-earley-boyer.html: Added.
+        * Dromaeo/v8-raytrace.html: Added.
+        * Dromaeo/v8-richards.html: Added.
+        * Skipped:
+
+2012-02-02  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r106543.
+        http://trac.webkit.org/changeset/106543
+        https://bugs.webkit.org/show_bug.cgi?id=77671
+
+        Made tests less stable (Requested by rniwa on #webkit).
+
+        * resources/init.html: Removed.
+
+2012-02-02  Ryosuke Niwa  <rniwa@webkit.org>
+
+        [PerformanceTests] tests have dependencies
+        https://bugs.webkit.org/show_bug.cgi?id=77506
+
+        Reviewed by Hajime Morita.
+
+        * resources/init.html: Added.
+
+2012-02-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Fix after r106386. The empty anchor element was generating an erroneous whitespace.
+
+        * Bindings/event-target-wrapper.html:
+
+2012-02-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Another fix after r106379.
+
+        * Parser/html5-full-render.html:
+
+2012-01-31  Hajime Morrita  <morrita@chromium.org>
+
+        Import Dromaeo to WebKit repository.
+        https://bugs.webkit.org/show_bug.cgi?id=77328
+
+        Reviewed by Ryosuke Niwa.
+
+        Imported a modified version of Dromaeo which is able to
+        run on the DRT.
+
+        The imported version originally came from:
+        https://github.com/omo/dromaeo/commit/c942a1452109cdd5f759b3c4aee8d68d490d44a2
+
+        * Dromaeo/resources/dromaeo/web/application.css: Added.
+        * Dromaeo/resources/dromaeo/web/favicon.ico: Added.
+        * Dromaeo/resources/dromaeo/web/favicon.png: Added.
+        * Dromaeo/resources/dromaeo/web/htmlrunner.js: Added.
+        * Dromaeo/resources/dromaeo/web/ie.css: Added.
+        * Dromaeo/resources/dromaeo/web/images/bg.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/clouds.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/clouds2.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/comets.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/dino1.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/dino2.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/dino3.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/dino4.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/dino5.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/dino6.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/dino7.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/dino8.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/left.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/logo.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/logo2.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/logo3.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/right.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/top.png: Added.
+        * Dromaeo/resources/dromaeo/web/images/water.png: Added.
+        * Dromaeo/resources/dromaeo/web/index.html: Added.
+        * Dromaeo/resources/dromaeo/web/jquery.js: Added.
+        * Dromaeo/resources/dromaeo/web/lib/dojo.js: Added.
+        * Dromaeo/resources/dromaeo/web/lib/jquery.js: Added.
+        * Dromaeo/resources/dromaeo/web/lib/mootools.js: Added.
+        * Dromaeo/resources/dromaeo/web/lib/prototype.js: Added.
+        * Dromaeo/resources/dromaeo/web/pngfix.js: Added.
+        * Dromaeo/resources/dromaeo/web/reset.css: Added.
+        * Dromaeo/resources/dromaeo/web/test-head.html: Added.
+        * Dromaeo/resources/dromaeo/web/test-head.js: Added.
+        * Dromaeo/resources/dromaeo/web/test-tail.html: Added.
+        * Dromaeo/resources/dromaeo/web/test-tail.js: Added.
+        * Dromaeo/resources/dromaeo/web/tests/MANIFEST.json: Added.
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-dojo.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-jquery.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-mootools.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-prototype.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/cssquery-yui.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dom-attr.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dom-modify.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dom-query.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dom-traverse.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dromaeo-3d-cube.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dromaeo-core-eval.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dromaeo-object-array.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dromaeo-object-regexp.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dromaeo-object-string.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/dromaeo-string-base64.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-attr-jquery.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-attr-prototype.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-event-jquery.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-event-prototype.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-modify-jquery.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-modify-prototype.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-style-jquery.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-style-prototype.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-traverse-jquery.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/jslib-traverse-prototype.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-3d-morph.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-3d-raytrace.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-access-binary-trees.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-access-fannkuch.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-access-nbody.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-access-nsieve.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-bitops-3bit-bits-in-byte.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-bitops-bits-in-byte.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-bitops-bitwise-and.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-bitops-nsieve-bits.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-controlflow-recursive.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-crypto-aes.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-crypto-md5.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-crypto-sha1.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-date-format-tofte.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-date-format-xparb.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-math-cordic.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-math-partial-sums.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-math-spectral-norm.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-regexp-dna.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-string-fasta.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-string-tagcloud.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-string-unpack-code.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/sunspider-string-validate-input.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/v8-crypto.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/v8-deltablue.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/v8-earley-boyer.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/v8-raytrace.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/v8-richards.html: Added.
+        * Dromaeo/resources/dromaeo/web/tests/72px.png: Added.
+        * Dromaeo/resources/dromaeo/web/web-style.css: Added.
+        * Dromaeo/resources/dromaeo/web/webrunner.js: Added.
+        * Skipped: Unskip the dromaeo driver.
+
+2012-01-31  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Fix Parser/html5-full-render.html after r106379.
+
+        * Parser/html5-full-render.html:
+
+2012-01-31  Ryosuke Niwa  <rniwa@webkit.org>
+
+        PerfTestRunner should automatically create pre#log
+        https://bugs.webkit.org/show_bug.cgi?id=77469
+
+        Reviewed by Tony Chang.
+
+        Automatically generate <pre id="log"></pre> if there isn't one.
+
+        * Bindings/event-target-wrapper.html:
+        * DOM/Accessors.html:
+        * DOM/CloneNodes.html:
+        * DOM/CreateNodes.html:
+        * DOM/DOMDivWalk.html:
+        * DOM/DOMTable.html:
+        * DOM/DOMWalk.html:
+        * DOM/Events.html:
+        * DOM/GetElement.html:
+        * DOM/GridSort.html:
+        * DOM/Template.html:
+        * Dromaeo/dom-query.html:
+        * Dromaeo/resources/dromaeorunner.js:
+        * Parser/html-parser.html:
+        * Parser/html5-full-render.html:
+        * Parser/simple-url.html:
+        * Parser/tiny-innerHTML.html:
+        * Parser/url-parser.html:
+        * Parser/xml-parser.html:
+        * resources/runner.js:
+        (PerfTestRunner.log):
+        (PerfTestRunner.printStatistics):
+
+2012-01-31  Ryosuke Niwa  <rniwa@webkit.org>
+
+        runner.js in performance tests should define a class
+        https://bugs.webkit.org/show_bug.cgi?id=77074
+
+        Reviewed by Eric Seidel.
+
+        Wrap all functions in runner.js by PerfTestRunner and update tests that runner.js accordingly.
+        Also replace compute* functions in runner.js by more robust code from dom-perf.js.
+
+        * Bindings/event-target-wrapper.html:
+        * DOM/DOMTable.html:
+        * DOM/resources/dom-perf.js:
+        (BenchmarkSuite.prototype.RunSingle):
+        (runBenchmarkSuite):
+        * Mutation/append-child-deep.html:
+        * Mutation/append-child.html:
+        * Mutation/inner-html.html:
+        * Mutation/remove-child-deep.html:
+        * Mutation/remove-child.html:
+        * Parser/html-parser.html:
+        * Parser/html5-full-render.html:
+        * Parser/simple-url.html:
+        * Parser/tiny-innerHTML.html:
+        * Parser/url-parser.html:
+        * Parser/xml-parser.html:
+        * resources/runner.js:
+        (PerfTestRunner.log):
+        (PerfTestRunner.logInfo):
+        (PerfTestRunner.loadFile):
+        (PerfTestRunner.computeStatistics):
+        (PerfTestRunner.logStatistics):
+        (PerfTestRunner._runLoop.else):
+        (PerfTestRunner._runLoop):
+        (PerfTestRunner._runner):
+
+2012-01-31  Hajime Morrita  <morrita@chromium.org>
+
+        [PerformanceTests] Add landing html for Dromaeo dom-query test
+        https://bugs.webkit.org/show_bug.cgi?id=77329
+
+        Reviewed by Ryosuke Niwa.
+
+        Added a "landing html" which includes actual dromaemo page and
+        send messages to interact with it. The landing html also dumps the
+        score in run-perf-tests friendly format.
+
+        This test isn't enabled until Dromaemo itself is available for run-perf-tests.
+        It will happen in a separate change.
+
+        * Dromaeo/dom-query.html: Added.
+        * Dromaeo/resources/dromaeorunner.js: Added.
+        * Skipped: Skipping this for now.
+
+2012-01-30  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Skip inspector tests since they have been timing out.
+
+        * Skipped:
+
+2012-01-29  Ryosuke Niwa  <rniwa@webkit.org>
+
+        DOM/DOMDivWalk.html result is unreliable
+        https://bugs.webkit.org/show_bug.cgi?id=77313
+
+        Reviewed by Adam Birth.
+
+        Trigger garbage collection manually between test runs to avoid GC
+        to occur in the middle of runs.
+
+        * DOM/resources/dom-perf.js:
+        (BenchmarkSuite.prototype.RunSingle):
+        * resources/runner.js:
+        (gc.else.gcRec):
+        (gc):
+        (runLoop):
+
+2012-01-26  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Import Chromium's dom_perf test
+        https://bugs.webkit.org/show_bug.cgi?id=77175
+
+        Reviewed by Adam Barth.
+
+        Import dom_perf.
+
+        Note resources/dom/suites.js isn't used by any html file yet but it will be used by Chromium port
+        once its perf bots start pulling test files from WebKit repository instead of Google's internal repository.
+
+        * DOM: Added.
+        * DOM/Accessors.html: Added.
+        * DOM/CloneNodes.html: Added.
+        * DOM/CreateNodes.html: Added.
+        * DOM/DOMDivWalk.html: Added.
+        * DOM/DOMTable.html: Added.
+        * DOM/DOMWalk.html: Added.
+        * DOM/Events.html: Added.
+        * DOM/GetElement.html: Added.
+        * DOM/GridSort.html: Added.
+        * DOM/Template.html: Added.
+        * DOM/resources: Added.
+        * DOM/resources/dom-perf.js: Added.
+        * DOM/resources/dom-perf: Added.
+        * DOM/resources/dom-perf/accessors.js: Added.
+        * DOM/resources/dom-perf/clonenodes.js: Added.
+        * DOM/resources/dom-perf/createnodes.js: Added.
+        * DOM/resources/dom-perf/domdivwalk.js: Added.
+        * DOM/resources/dom-perf/domtable.js: Added.
+        * DOM/resources/dom-perf/domwalk.js: Added.
+        * DOM/resources/dom-perf/events.js: Added.
+        * DOM/resources/dom-perf/getelement.js: Added.
+        * DOM/resources/dom-perf/gridsort.js: Added.
+        * DOM/resources/dom-perf/suites.js: Added.
+        * DOM/resources/dom-perf/template.js: Added.
+        * resources/runner.js:
+
+2012-01-25  Ryosuke Niwa  <rniwa@webkit.org>
+
+        html5-full-render.html fails due to a log
+        https://bugs.webkit.org/show_bug.cgi?id=77046
+
+        Reviewed by Adam Barth.
+
+        Replace the call to log() in html5-full-render.html by a call to newly added logInfo(),
+        which doesn't print anything inside DRT.
+
+        * Parser/html5-full-render.html:
+        * resources/runner.js:
+        (logInfo):
+
+2012-01-19  Adam Barth  <abarth@webkit.org>
+
+        PerformanceTests's runner.js shouldn't be Parser-specific
+        https://bugs.webkit.org/show_bug.cgi?id=76670
+
+        Reviewed by Ryosuke Niwa.
+
+        This runner script is used by a bunch of difference performance tests.
+        It shouldn't be in the Parser directory anymore.
+
+        * Bindings/event-target-wrapper.html:
+        * Mutation/append-child-deep.html:
+        * Mutation/append-child.html:
+        * Mutation/inner-html.html:
+        * Mutation/remove-child-deep.html:
+        * Mutation/remove-child.html:
+        * Parser/html-parser.html:
+        * Parser/html5-full-render.html:
+        * Parser/resources/runner.js: Removed.
+        * Parser/simple-url.html:
+        * Parser/tiny-innerHTML.html:
+        * Parser/url-parser.html:
+        * Parser/xml-parser.html:
+        * resources: Added.
+        * resources/runner.js: Copied from PerformanceTests/Parser/resources/runner.js.
+
+2012-01-19  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Some perf tests time out when ran by run-perf-tests
+        https://bugs.webkit.org/show_bug.cgi?id=76612
+
+        Reviewed by Dirk Pranke and Eric Seidel.
+
+        Replace all images in html5.html by geenbox.png to avoid accessing whatwg.org when
+        running the parser tests. Also call dumpAsText, waitUntilDone, and notifyDone automatically
+        inside runner.js to avoid having to call them in individual tests.
+
+        * Bindings/event-target-wrapper.html: Removed calls to layoutTestController methods since
+        they are now called by runner.js automatically.
+        * Parser/resources/greenbox.png: Copied from LayoutTests/fast/css/resources/greenbox.png.
+        * Parser/resources/html5.html:
+        * Parser/resources/runner.js:
+        (runLoop):
+
+2012-01-18  Ryosuke Niwa  <rniwa@webkit.org>
+
+        run-perf-tests should support Skipped list
+        https://bugs.webkit.org/show_bug.cgi?id=76594
+
+        Reviewed by Adam Barth.
+
+        Add Skipped list to be used by run-perf-tests as it can only runs tests in
+        Bindings, Parser, and inspector at the moment.
+
+        * Skipped: Added.
+
 2012-01-12  Ilya Tikhonovsky  <loislo@chromium.org>
 
         Web Inspector: performance: restore 'log 300 messages into console' test.

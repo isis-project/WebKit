@@ -32,6 +32,7 @@
 #include "WebViewHost.h"
 
 #include "LayoutTestController.h"
+#include "MockWebSpeechInputController.h"
 #include "TestNavigationController.h"
 #include "TestShell.h"
 #include "TestWebPlugin.h"
@@ -55,7 +56,6 @@
 #include "platform/WebRect.h"
 #include "WebScreenInfo.h"
 #include "platform/WebSize.h"
-#include "WebSpeechInputControllerMock.h"
 #include "WebStorageNamespace.h"
 #include "WebTextCheckingCompletion.h"
 #include "WebTextCheckingResult.h"
@@ -272,6 +272,13 @@ WebStorageNamespace* WebViewHost::createSessionStorageNamespace(unsigned quota)
     return WebKit::WebStorageNamespace::createSessionStorageNamespace(quota);
 }
 
+WebKit::WebGraphicsContext3D* WebViewHost::createGraphicsContext3D(const WebKit::WebGraphicsContext3D::Attributes& attributes, bool direct)
+{
+    if (!webView())
+        return 0;
+    return webkit_support::CreateGraphicsContext3D(attributes, webView(), direct);
+}
+
 void WebViewHost::didAddMessageToConsole(const WebConsoleMessage& message, const WebString& sourceName, unsigned sourceLine)
 {
     // This matches win DumpRenderTree's UIDelegate.cpp.
@@ -464,7 +471,10 @@ void WebViewHost::finishLastTextCheck()
         m_spellcheck.spellCheckWord(WebString(text.characters(), text.length()), &misspelledPosition, &misspelledLength);
         if (!misspelledLength)
             break;
-        results.append(WebTextCheckingResult(WebTextCheckingResult::ErrorSpelling, offset + misspelledPosition, misspelledLength));
+        Vector<WebString> suggestions;
+        m_spellcheck.fillSuggestionList(WebString(text.characters() + misspelledPosition, misspelledLength), &suggestions);
+        results.append(WebTextCheckingResult(WebTextCheckingTypeSpelling, offset + misspelledPosition, misspelledLength,
+                                             suggestions.isEmpty() ? WebString() : suggestions[0]));
         text = text.substring(misspelledPosition + misspelledLength);
         offset += misspelledPosition + misspelledLength;
     }
@@ -678,7 +688,7 @@ WebKit::WebGeolocationClientMock* WebViewHost::geolocationClientMock()
 WebSpeechInputController* WebViewHost::speechInputController(WebKit::WebSpeechInputListener* listener)
 {
     if (!m_speechInputControllerMock)
-        m_speechInputControllerMock = adoptPtr(WebSpeechInputControllerMock::create(listener));
+        m_speechInputControllerMock = MockWebSpeechInputController::create(listener);
     return m_speechInputControllerMock.get();
 }
 
@@ -771,6 +781,57 @@ WebScreenInfo WebViewHost::screenInfo()
     return info;
 }
 
+#if ENABLE(POINTER_LOCK)
+bool WebViewHost::requestPointerLock()
+{
+    switch (m_pointerLockPlannedResult) {
+    case PointerLockWillSucceed:
+        postDelayedTask(new HostMethodTask(this, &WebViewHost::didAcquirePointerLock), 0);
+        return true;
+    case PointerLockWillFailAsync:
+        ASSERT(!m_pointerLocked);
+        postDelayedTask(new HostMethodTask(this, &WebViewHost::didNotAcquirePointerLock), 0);
+        return true;
+    case PointerLockWillFailSync:
+        ASSERT(!m_pointerLocked);
+        return false;
+    default:
+        ASSERT_NOT_REACHED();
+        return false;
+    }
+}
+
+void WebViewHost::requestPointerUnlock()
+{
+    postDelayedTask(new HostMethodTask(this, &WebViewHost::didLosePointerLock), 0);
+}
+
+bool WebViewHost::isPointerLocked()
+{
+    return m_pointerLocked;
+}
+
+void WebViewHost::didAcquirePointerLock()
+{
+    m_pointerLocked = true;
+    webWidget()->didAcquirePointerLock();
+}
+
+void WebViewHost::didNotAcquirePointerLock()
+{
+    ASSERT(!m_pointerLocked);
+    m_pointerLocked = false;
+    webWidget()->didNotAcquirePointerLock();
+}
+
+void WebViewHost::didLosePointerLock()
+{
+    ASSERT(m_pointerLocked);
+    m_pointerLocked = false;
+    webWidget()->didLosePointerLock();
+}
+#endif
+
 void WebViewHost::show(WebNavigationPolicy)
 {
     m_hasWindow = true;
@@ -832,11 +893,18 @@ WebRect WebViewHost::windowResizerRect()
 
 void WebViewHost::runModal()
 {
+    if (m_shell->isDisplayingModalDialog()) {
+        // DumpRenderTree doesn't support modal dialogs, so a test shouldn't try to start two modal dialogs at the same time.
+        ASSERT_NOT_REACHED();
+        return;
+    }
+    m_shell->setIsDisplayingModalDialog(true);
     bool oldState = webkit_support::MessageLoopNestableTasksAllowed();
     webkit_support::MessageLoopSetNestableTasksAllowed(true);
     m_inModalLoop = true;
     webkit_support::RunMessageLoop();
     webkit_support::MessageLoopSetNestableTasksAllowed(oldState);
+    m_shell->setIsDisplayingModalDialog(false);
 }
 
 bool WebViewHost::enterFullScreen()
@@ -855,7 +923,7 @@ void WebViewHost::exitFullScreen()
 WebPlugin* WebViewHost::createPlugin(WebFrame* frame, const WebPluginParams& params)
 {
     if (params.mimeType == TestWebPlugin::mimeType())
-        return new TestWebPlugin(frame, params);
+        return new TestWebPlugin(this, frame, params);
 
     return webkit_support::CreateWebPlugin(frame, params);
 }
@@ -1302,6 +1370,10 @@ void WebViewHost::reset()
     m_requestReturnNull = false;
     m_isPainting = false;
     m_canvas.clear();
+#if ENABLE(POINTER_LOCK)
+    m_pointerLocked = false;
+    m_pointerLockPlannedResult = PointerLockWillSucceed;
+#endif
 
     m_navigationController = adoptPtr(new TestNavigationController(this));
 
@@ -1714,4 +1786,13 @@ void WebViewHost::discardBackingStore()
 void WebViewHost::displayRepaintMask()
 {
     canvas()->drawARGB(167, 0, 0, 0);
+}
+
+// Simulate a print by going into print mode and then exit straight away.
+void WebViewHost::printPage(WebKit::WebFrame* frame)
+{
+    WebSize pageSizeInPixels = webWidget()->size();
+
+    frame->printBegin(pageSizeInPixels);
+    frame->printEnd();
 }

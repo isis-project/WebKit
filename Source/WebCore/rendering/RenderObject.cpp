@@ -965,7 +965,7 @@ void RenderObject::drawLineForBoxSide(GraphicsContext* graphicsContext, LayoutUn
                 // this matters for rects in transformed contexts.
                 bool wasAntialiased = graphicsContext->shouldAntialias();
                 graphicsContext->setShouldAntialias(antialias);
-                graphicsContext->drawRect(IntRect(x1, y1, x2 - x1, y2 - y1));
+                graphicsContext->drawRect(pixelSnappedIntRect(LayoutRect(x1, y1, x2 - x1, y2 - y1)));
                 graphicsContext->setShouldAntialias(wasAntialiased);
                 graphicsContext->setStrokeStyle(oldStrokeStyle);
                 return;
@@ -1110,7 +1110,7 @@ void RenderObject::addPDFURLRect(GraphicsContext* context, const LayoutRect& rec
     const AtomicString& href = static_cast<Element*>(n)->getAttribute(hrefAttr);
     if (href.isNull())
         return;
-    context->setURLForRect(n->document()->completeURL(href), rect);
+    context->setURLForRect(n->document()->completeURL(href), pixelSnappedIntRect(rect));
 }
 
 void RenderObject::paintOutline(GraphicsContext* graphicsContext, const LayoutRect& paintRect)
@@ -2230,6 +2230,18 @@ void RenderObject::willBeDestroyed()
     animation()->cancelAnimations(this);
 
     remove();
+
+#ifndef NDEBUG
+    if (!documentBeingDestroyed() && view() && view()->hasRenderFlowThreads()) {
+        // After remove, the object and the associated information should not be in any flow thread.
+        const RenderFlowThreadList* flowThreadList = view()->renderFlowThreadList();
+        for (RenderFlowThreadList::const_iterator iter = flowThreadList->begin(); iter != flowThreadList->end(); ++iter) {
+            const RenderFlowThread* renderFlowThread = *iter;
+            ASSERT(!renderFlowThread->hasChild(this));
+            ASSERT(!renderFlowThread->hasChildInfo(this));
+        }
+    }
+#endif
 
     // If this renderer had a parent, remove should have destroyed any counters
     // attached to this renderer and marked the affected other counters for

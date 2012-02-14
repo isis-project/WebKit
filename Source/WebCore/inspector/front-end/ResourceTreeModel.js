@@ -186,11 +186,8 @@ WebInspector.ResourceTreeModel.prototype = {
 
         if (frame.parentFrame)
             frame.parentFrame._removeChildFrame(frame);
-        else {
-            // Report that root is detached
-            frame._removeChildFrames();
-            this.dispatchEventToListeners(WebInspector.ResourceTreeModel.EventTypes.FrameDetached, frame);
-        }
+        else
+            frame._remove();
     },
 
     /**
@@ -524,9 +521,8 @@ WebInspector.ResourceTreeFrame.prototype = {
      */
     _removeChildFrame: function(frame)
     {
-        frame._removeChildFrames();
         this._childFrames.remove(frame);
-        this._model.dispatchEventToListeners(WebInspector.ResourceTreeModel.EventTypes.FrameDetached, frame);
+        frame._remove();
     },
 
     _removeChildFrames: function()
@@ -534,6 +530,13 @@ WebInspector.ResourceTreeFrame.prototype = {
         var copy = this._childFrames.slice();
         for (var i = 0; i < copy.length; ++i)
             this._removeChildFrame(copy[i]); 
+    },
+
+    _remove: function()
+    {
+        this._removeChildFrames();
+        delete this._model._frames[this.id];
+        this._model.dispatchEventToListeners(WebInspector.ResourceTreeModel.EventTypes.FrameDetached, this);
     },
 
     /**
@@ -610,17 +613,11 @@ WebInspector.PageDispatcher.prototype = {
     domContentEventFired: function(time)
     {
         this._resourceTreeModel.dispatchEventToListeners(WebInspector.ResourceTreeModel.EventTypes.DOMContentLoaded, time);
-
-        // FIXME: the only client is HAR, fix it there.
-        WebInspector.mainResourceDOMContentTime = time;
     },
 
     loadEventFired: function(time)
     {
         this._resourceTreeModel.dispatchEventToListeners(WebInspector.ResourceTreeModel.EventTypes.OnLoad, time);
-
-        // FIXME: the only client is HAR, fix it there.
-        WebInspector.mainResourceLoadTime = time;
     },
 
     frameNavigated: function(frame)

@@ -28,15 +28,14 @@
 
 #if ENABLE(DFG_JIT)
 
-#include <dfg/DFGJITCompiler.h>
+#include "DFGJITCompiler.h"
+#include "PutKind.h"
 
 namespace JSC {
 
 struct GlobalResolveInfo;
 
 namespace DFG {
-
-enum PutKind { Direct, NotDirect };
 
 extern "C" {
 
@@ -104,7 +103,8 @@ EncodedJSValue DFG_OPERATION operationGetById(ExecState*, EncodedJSValue, Identi
 EncodedJSValue DFG_OPERATION operationGetByIdBuildList(ExecState*, EncodedJSValue, Identifier*);
 EncodedJSValue DFG_OPERATION operationGetByIdProtoBuildList(ExecState*, EncodedJSValue, Identifier*);
 EncodedJSValue DFG_OPERATION operationGetByIdOptimize(ExecState*, EncodedJSValue, Identifier*);
-EncodedJSValue DFG_OPERATION operationGetMethodOptimize(ExecState*, EncodedJSValue, Identifier*);
+EncodedJSValue DFG_OPERATION operationCallCustomGetter(ExecState*, JSCell*, PropertySlot::GetValueFunc, Identifier*);
+EncodedJSValue DFG_OPERATION operationCallGetter(ExecState*, JSCell*, JSCell*);
 EncodedJSValue DFG_OPERATION operationResolve(ExecState*, Identifier*);
 EncodedJSValue DFG_OPERATION operationResolveBase(ExecState*, Identifier*);
 EncodedJSValue DFG_OPERATION operationResolveBaseStrictPut(ExecState*, Identifier*);
@@ -129,6 +129,10 @@ void DFG_OPERATION operationPutByIdStrictOptimize(ExecState*, EncodedJSValue enc
 void DFG_OPERATION operationPutByIdNonStrictOptimize(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
 void DFG_OPERATION operationPutByIdDirectStrictOptimize(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
 void DFG_OPERATION operationPutByIdDirectNonStrictOptimize(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
+void DFG_OPERATION operationPutByIdStrictBuildList(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
+void DFG_OPERATION operationPutByIdNonStrictBuildList(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
+void DFG_OPERATION operationPutByIdDirectStrictBuildList(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
+void DFG_OPERATION operationPutByIdDirectNonStrictBuildList(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
 // These comparisons return a boolean within a size_t such that the value is zero extended to fill the register.
 size_t DFG_OPERATION operationCompareLess(ExecState*, EncodedJSValue encodedOp1, EncodedJSValue encodedOp2);
 size_t DFG_OPERATION operationCompareLessEq(ExecState*, EncodedJSValue encodedOp1, EncodedJSValue encodedOp2);
@@ -181,6 +185,7 @@ inline DFGHandlerEncoded dfgHandlerEncoded(ExecState* exec, void* handler)
 }
 #endif
 DFGHandlerEncoded DFG_OPERATION lookupExceptionHandler(ExecState*, uint32_t);
+DFGHandlerEncoded DFG_OPERATION lookupExceptionHandlerInStub(ExecState*, StructureStubInfo*);
 
 // These operations implement the implicitly called ToInt32, ToNumber, and ToBoolean conversions from ES5.
 double DFG_OPERATION dfgConvertJSValueToNumber(ExecState*, EncodedJSValue);

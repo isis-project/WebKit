@@ -115,13 +115,31 @@ body.inactive .heap-snapshot-sidebar-tree-item.wait.selected .icon {
     text-align: right;
 }
 
+.detailed-heapshot-view .data-grid td.distanceToWindow-column {
+    text-align: right;
+}
+
+.detailed-heapshot-view .data-grid span.percent-column {
+    color: grey;
+    width: 32px;
+    float: right;
+}
+
 .detailed-heapshot-view .console-formatted-object, .console-formatted-node {
     display: inline;
     position: static;
 }
 
+.detached-dom-tree-node {
+    background-color: #FF9999;
+}
+
 .detailed-heapshot-view .console-formatted-string {
     white-space: nowrap;
+}
+
+.detailed-heapshot-view .console-formatted-id {
+    color: grey;
 }
 
 .detailed-heapshot-view .data-grid tr.selected * {
@@ -169,6 +187,30 @@ body.inactive .heap-snapshot-sidebar-tree-item.wait.selected .icon {
     right: 0;
 }
 
+.detailed-heapshot-view .constructors-view-grid {
+    top: 22px;
+}
+
+.detailed-heapshot-view .constructors-view-toolbar {
+    height: 22px;
+    background-color: #DDD;
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+}
+
+.detailed-heapshot-view .constructors-view-toolbar input.constructors-view-filter {
+    width: 200px;
+    height: 18px;
+    font-size: 11px;
+    padding: 2px;
+    margin: 2px 10px;
+    background-color: white;
+    border: solid 1px #BBB;
+}
+
 .detailed-heapshot-view .retainers-view-header {
     background-image: url(Images/statusbarResizerVertical.png), url(Images/statusbarBackground.png);
     background-repeat: no-repeat, repeat-x;
@@ -198,6 +240,10 @@ body.inactive .heap-snapshot-sidebar-tree-item.wait.selected .icon {
     background-color: rgb(255, 255, 200);
 }
 
+.detailed-heapshot-view td.object-column span.grayed {
+    color: gray;
+}
+
 .heapshot-help-status-bar-item .glyph {
     -webkit-mask-position: -160px 0;
 }
@@ -210,3 +256,8 @@ div.retaining-paths-view td.path-column div:hover {
     text-decoration: underline;
     color: blue;
 }
+
+.cycled-ancessor-node {
+    opacity: 0.6;
+}
+

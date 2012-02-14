@@ -19,11 +19,6 @@ InspectorTest.findNode = function(matchFunction, callback)
                 callback(result);
                 return;
             }
-            if (childNode.shadowRoot && matchFunction(childNode.shadowRoot)) {
-                result = childNode.shadowRoot;
-                callback(result);
-                return;
-            }
             pendingRequests++;
             childNode.getChildNodes(processChildren.bind(null, false));
         }
@@ -110,6 +105,19 @@ InspectorTest.selectNodeAndWaitForStyles = function(idValue, callback)
     }
 }
 
+InspectorTest.selectNodeAndWaitForStylesWithComputed = function(idValue, callback)
+{
+    callback = InspectorTest.safeWrap(callback);
+
+    function stylesCallback(targetNode)
+    {
+        InspectorTest.addSniffer(WebInspector.SidebarPane.prototype, "expand", callback);
+        WebInspector.panels.elements.sidebarPanes.computedStyle.expand();
+    }
+
+    InspectorTest.selectNodeAndWaitForStyles(idValue, stylesCallback);
+}
+
 InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatched, omitLonghands)
 {
     function extractText(element)
@@ -137,11 +145,10 @@ InspectorTest.dumpSelectedElementStyles = function(excludeComputed, excludeMatch
             var chainEntries = section.titleElement.children;
             for (var j = 0; j < chainEntries.length; ++j) {
                 var chainEntry = chainEntries[j];
-                var entryLine = chainEntry.children[0].textContent;
+                var entryLine = chainEntry.children[1].textContent;
                 if (chainEntry.children[2])
-                    entryLine += " " + chainEntry.children[1].textContent;
-                if (chainEntry.children.length > 1)
-                    entryLine += " (" + extractText(chainEntry.lastChild) + ")";
+                    entryLine += " " + chainEntry.children[2].textContent;
+                entryLine += " (" + extractText(chainEntry.children[0]) + ")";
                 InspectorTest.addResult(entryLine);
             }
             section.expand();
@@ -387,6 +394,37 @@ InspectorTest.rangeText = function(range)
     if (!range)
         return "[undefined-undefined]";
     return "[" + range.start + "-" + range.end + "]";
-};
+}
+
+InspectorTest.generateUndoTest = function(testBody)
+{
+    function result(next)
+    {
+        var testNode = InspectorTest.expandedNodeWithId(/function\s([^(]*)/.exec(testBody)[1]);
+        InspectorTest.addResult("Initial:");
+        InspectorTest.dumpElementsTree(testNode);
+
+        testBody(step1);
+
+        function step1()
+        {
+            InspectorTest.addResult("Post-action:");
+            InspectorTest.dumpElementsTree(testNode);
+            WebInspector.domAgent.undo(step2);
+        }
+
+        function step2()
+        {
+            InspectorTest.addResult("Post-undo (initial):");
+            InspectorTest.dumpElementsTree(testNode);
+            next();
+        }
+    }
+    result.toString = function()
+    {
+        return testBody.toString();
+    }
+    return result;
+}
 
 };

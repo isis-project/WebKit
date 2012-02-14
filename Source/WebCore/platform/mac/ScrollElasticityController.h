@@ -30,6 +30,7 @@
 
 #include "FloatPoint.h"
 #include "FloatSize.h"
+#include "ScrollTypes.h"
 #include <wtf/Noncopyable.h>
 
 namespace WebCore {
@@ -47,6 +48,7 @@ public:
     virtual bool pinnedInDirection(const FloatSize&) = 0;
     virtual bool canScrollHorizontally() = 0;
     virtual bool canScrollVertically() = 0;
+    virtual bool shouldRubberBandInDirection(ScrollDirection) = 0;
 
     // Return the absolute scroll position, not relative to the scroll origin.
     virtual WebCore::IntPoint absoluteScrollPosition() = 0;
@@ -63,15 +65,14 @@ class ScrollElasticityController {
 public:
     explicit ScrollElasticityController(ScrollElasticityControllerClient*);
 
-    void beginScrollGesture();
-    void endScrollGesture();
-
     bool handleWheelEvent(const PlatformWheelEvent&);
     void snapRubberBandTimerFired();
 
 private:
     void stopSnapRubberbandTimer();
     void snapRubberBand();
+
+    bool shouldRubberBandInHorizontalDirection(const PlatformWheelEvent&);
 
     ScrollElasticityControllerClient* m_client;
 

@@ -21,8 +21,8 @@ equals(BUILD_TOOLS, 1) {
 }
 
 !no_webkit2 {
-    SUBDIRS += MiniBrowser/qt/MiniBrowser.pro
-    linux-g++*: SUBDIRS += WebKitTestRunner/WebKitTestRunner.pro
+    SUBDIRS += MiniBrowser/qt/MiniBrowser.pro \
+               WebKitTestRunner/WebKitTestRunner.pro
 }
 
 !win32:contains(DEFINES, ENABLE_NETSCAPE_PLUGIN_API=1) {
@@ -30,3 +30,16 @@ equals(BUILD_TOOLS, 1) {
     SUBDIRS += DumpRenderTree/qt/TestNetscapePlugin/TestNetscapePlugin.pro
 }
 }
+
+OTHER_FILES = \
+    Scripts/* \
+    qmake/README \
+    qmake/configure.pro \
+    qmake/sync.profile \
+    qmake/config.tests/README \
+    qmake/config.tests/fontconfig/* \
+    qmake/mkspecs/modules/* \
+    qmake/mkspecs/features/*.prf \
+    qmake/mkspecs/features/mac/*.prf \
+    qmake/mkspecs/features/unix/*.prf \
+    qmake/mkspecs/features/win32/*.prf

@@ -74,7 +74,12 @@ public:
     
     void addFlowChild(RenderObject* newChild, RenderObject* beforeChild = 0);
     void removeFlowChild(RenderObject*);
+    void removeFlowChildInfo(RenderObject*);
     bool hasChildren() const { return !m_flowThreadChildList.isEmpty(); }
+#ifndef NDEBUG
+    bool hasChild(RenderObject* child) const { return m_flowThreadChildList.contains(child); }
+    bool hasChildInfo(RenderObject* child) const { return child && child->isBox() && m_regionRangeMap.contains(toRenderBox(child)); }
+#endif
 
     void addRegionToThread(RenderRegion*);
     void removeRegionFromThread(RenderRegion*);
@@ -100,6 +105,7 @@ public:
 
     void repaintRectangleInRegions(const LayoutRect&, bool immediate);
 
+    LayoutUnit regionLogicalTopForLine(LayoutUnit position) const;
     LayoutUnit regionLogicalWidthForLine(LayoutUnit position) const;
     LayoutUnit regionLogicalHeightForLine(LayoutUnit position) const;
     LayoutUnit regionRemainingLogicalHeightForLine(LayoutUnit position, PageBoundaryRule = IncludePageBoundary) const;
@@ -123,7 +129,11 @@ public:
     void setRegionRangeForBox(const RenderBox*, LayoutUnit offsetFromLogicalTopOfFirstPage);
     void getRegionRangeForBox(const RenderBox*, RenderRegion*& startRegion, RenderRegion*& endRegion) const;
 
+    void clearRenderBoxCustomStyle(const RenderBox*,
+                                      const RenderRegion* oldStartRegion = 0, const RenderRegion* oldEndRegion = 0,
+                                      const RenderRegion* newStartRegion = 0, const RenderRegion* newEndRegion = 0);
     WebKitNamedFlow* ensureNamedFlow();
+    void computeOverflowStateForRegions(LayoutUnit oldClientAfterEdge);
 
 private:
     virtual const char* renderName() const { return "RenderFlowThread"; }

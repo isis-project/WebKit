@@ -51,9 +51,6 @@ sub new {
     bless($reference, $object);
 }
 
-sub finish {
-}
-
 my $licenceTemplate = << "EOF";
 /*
     This file is part of the WebKit open source project.
@@ -155,9 +152,10 @@ sub GetCoreObject {
 
 sub SkipAttribute {
     my $attribute = shift;
-    
-    if ($attribute->signature->extendedAttributes->{"CustomGetter"} ||
-        $attribute->signature->extendedAttributes->{"CustomSetter"}) {
+
+    if ($attribute->signature->extendedAttributes->{"Custom"}
+        || $attribute->signature->extendedAttributes->{"CustomGetter"}
+        || $attribute->signature->extendedAttributes->{"CustomSetter"}) {
         return 1;
     }
 
@@ -190,10 +188,11 @@ sub SkipFunction {
     my $prefix = shift;
 
     my $functionName = "webkit_dom_" . $decamelize . "_" . $prefix . decamelize($function->signature->name);
-    my $isCustomFunction = $function->signature->extendedAttributes->{"Custom"} ||
-        $function->signature->extendedAttributes->{"CustomArgumentHandling"};
+    my $isCustomFunction = $function->signature->extendedAttributes->{"Custom"};
+    my $callWith = $function->signature->extendedAttributes->{"CallWith"};
+    my $isUnsupportedCallWith = $codeGenerator->ExtendedAttributeContains($callWith, "ScriptArguments") || $codeGenerator->ExtendedAttributeContains($callWith, "CallStack");
 
-    if ($isCustomFunction &&
+    if (($isCustomFunction || $isUnsupportedCallWith) &&
         $functionName ne "webkit_dom_node_replace_child" &&
         $functionName ne "webkit_dom_node_insert_before" &&
         $functionName ne "webkit_dom_node_remove_child" &&
@@ -740,10 +739,6 @@ sub GenerateFunction {
 
     my @callImplParams;
 
-    # skip some custom functions for now
-    my $isCustomFunction = $function->signature->extendedAttributes->{"Custom"} ||
-                       $function->signature->extendedAttributes->{"CustomArgumentHandling"};
-
     foreach my $param (@{$function->parameters}) {
         my $paramIDLType = $param->type;
         if ($paramIDLType eq "EventListener" || $paramIDLType eq "MediaQueryListListener") {
@@ -870,7 +865,7 @@ sub GenerateFunction {
 
             push(@cBody, "    }\n");
         }
-        $returnParamName = "converted_".$paramName if $param->extendedAttributes->{"Return"};
+        $returnParamName = "converted_".$paramName if $param->extendedAttributes->{"CustomReturn"};
     }
 
     my $assign = "";
@@ -1172,68 +1167,6 @@ sub GenerateEndHeader {
     push(@hPrefixGuardEnd, "#endif /* $guard */\n");
 }
 
-sub GeneratePrivateHeader {
-    my $object = shift;
-    my $dataNode = shift;
-
-    my $interfaceName = $dataNode->name;
-    my $filename = "$outputDir/" . $className . "Private.h";
-    my $guard = uc(decamelize($className)) . "_PRIVATE_H";
-    my $parentClassName = GetParentClassName($dataNode);
-    my $hasLegacyParent = $dataNode->extendedAttributes->{"LegacyParent"};
-    my $hasRealParent = @{$dataNode->parents} > 0;
-    my $hasParent = $hasLegacyParent || $hasRealParent;
-    
-    open(PRIVHEADER, ">$filename") or die "Couldn't open file $filename for writing";
-    
-    print PRIVHEADER split("\r", $licenceTemplate);
-    print PRIVHEADER "\n";
-    
-    my $text = << "EOF";
-#ifndef $guard
-#define $guard
-
-#include <glib-object.h>
-#include <webkit/${parentClassName}.h>
-#include "${interfaceName}.h"
-EOF
-
-    print PRIVHEADER $text;
-    
-    print PRIVHEADER map { "#include \"$_\"\n" } sort keys(%hdrPropIncludes);
-    print PRIVHEADER "\n" if keys(%hdrPropIncludes);
-    
-    $text = << "EOF";
-namespace WebKit {
-    ${className} *
-    wrap${interfaceName}(WebCore::${interfaceName} *coreObject);
-
-    WebCore::${interfaceName} *
-    core(${className} *request);
-
-EOF
-
-    print PRIVHEADER $text;
-
-    if ($className ne "WebKitDOMNode") {
-        $text = << "EOF";
-    ${className}*
-    kit(WebCore::${interfaceName}* node);
-
-EOF
-        print PRIVHEADER $text;
-    }
-
-    $text = << "EOF";
-} // namespace WebKit
-
-#endif /* ${guard} */
-EOF
-    print PRIVHEADER $text;
-
-    close(PRIVHEADER);
-}
-
 sub UsesManualKitImplementation {
     my $type = shift;
 
@@ -1296,9 +1229,6 @@ EOF
 sub Generate {
     my ($object, $dataNode) = @_;
 
-    my $hasLegacyParent = $dataNode->extendedAttributes->{"LegacyParent"};
-    my $hasRealParent = @{$dataNode->parents} > 0;
-    my $hasParent = $hasLegacyParent || $hasRealParent;
     my $parentClassName = GetParentClassName($dataNode);
     my $parentGObjType = GetParentGObjType($dataNode);
     my $interfaceName = $dataNode->name;
@@ -1349,16 +1279,71 @@ EOF
     $object->GenerateHeader($interfaceName, $parentClassName);
     $object->GenerateCFile($interfaceName, $parentClassName, $parentGObjType, $dataNode);
     $object->GenerateEndHeader();
-    $object->GeneratePrivateHeader($dataNode);
-
 }
 
 # Internal helper
 sub WriteData {
-    my ($object, $name) = @_;
+    my $object = shift;
+    my $dataNode = shift;
+
+    # Write a private header.
+    my $interfaceName = $dataNode->name;
+    my $filename = "$outputDir/" . $className . "Private.h";
+    my $guard = uc(decamelize($className)) . "_PRIVATE_H";
+    my $parentClassName = GetParentClassName($dataNode);
+
+    open(PRIVHEADER, ">$filename") or die "Couldn't open file $filename for writing";
+
+    print PRIVHEADER split("\r", $licenceTemplate);
+    print PRIVHEADER "\n";
+
+    my $text = << "EOF";
+#ifndef $guard
+#define $guard
+
+#include <glib-object.h>
+#include <webkit/${parentClassName}.h>
+#include "${interfaceName}.h"
+EOF
+
+    print PRIVHEADER $text;
+    print PRIVHEADER map { "#include \"$_\"\n" } sort keys(%hdrPropIncludes);
+    print PRIVHEADER "\n" if keys(%hdrPropIncludes);
+    $text = << "EOF";
+namespace WebKit {
+    ${className} *
+    wrap${interfaceName}(WebCore::${interfaceName} *coreObject);
+
+    WebCore::${interfaceName} *
+    core(${className} *request);
+
+EOF
+
+    print PRIVHEADER $text;
+
+    if ($className ne "WebKitDOMNode") {
+        $text = << "EOF";
+    ${className}*
+    kit(WebCore::${interfaceName}* node);
+
+EOF
+        print PRIVHEADER $text;
+    }
+
+    $text = << "EOF";
+} // namespace WebKit
+
+#endif /* ${guard} */
+EOF
+    print PRIVHEADER $text;
+
+    close(PRIVHEADER);
+
+    my $basename = FileNamePrefix . $interfaceName;
+    $basename =~ s/_//g;
 
     # Write public header.
-    my $hdrFName = "$outputDir/" . $name . ".h";
+    my $hdrFName = "$outputDir/" . $basename . ".h";
     open(HEADER, ">$hdrFName") or die "Couldn't open file $hdrFName";
 
     print HEADER @hPrefix;
@@ -1376,7 +1361,7 @@ sub WriteData {
     close(HEADER);
 
     # Write the implementation sources
-    my $implFileName = "$outputDir/" . $name . ".cpp";
+    my $implFileName = "$outputDir/" . $basename . ".cpp";
     open(IMPL, ">$implFileName") or die "Couldn't open file $implFileName";
 
     print IMPL @cPrefix;
@@ -1407,16 +1392,12 @@ sub WriteData {
 
 sub GenerateInterface {
     my ($object, $dataNode, $defines) = @_;
-    my $name = $dataNode->name;
 
     # Set up some global variables
     $className = GetClassName($dataNode->name);
-    $object->Generate($dataNode);
 
-    # Write changes
-    my $fname = FileNamePrefix . $name;
-    $fname =~ s/_//g;
-    $object->WriteData($fname);
+    $object->Generate($dataNode);
+    $object->WriteData($dataNode);
 }
 
 1;

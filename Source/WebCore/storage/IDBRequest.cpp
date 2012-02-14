@@ -45,7 +45,9 @@ namespace WebCore {
 
 PassRefPtr<IDBRequest> IDBRequest::create(ScriptExecutionContext* context, PassRefPtr<IDBAny> source, IDBTransaction* transaction)
 {
-    return adoptRef(new IDBRequest(context, source, transaction));
+    RefPtr<IDBRequest> request(adoptRef(new IDBRequest(context, source, transaction)));
+    request->suspendIfNeeded();
+    return request.release();
 }
 
 IDBRequest::IDBRequest(ScriptExecutionContext* context, PassRefPtr<IDBAny> source, IDBTransaction* transaction)
@@ -231,7 +233,10 @@ void IDBRequest::onSuccess(PassRefPtr<IDBDatabaseBackendInterface> backend)
 void IDBRequest::onSuccess(PassRefPtr<IDBKey> idbKey)
 {
     ASSERT(!m_errorCode && m_errorMessage.isNull() && !m_result);
-    m_result = IDBAny::create(idbKey);
+    if (idbKey && idbKey->valid())
+        m_result = IDBAny::create(idbKey);
+    else
+        m_result = IDBAny::create(SerializedScriptValue::undefinedValue());
     enqueueEvent(createSuccessEvent());
 }
 

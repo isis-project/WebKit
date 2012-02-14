@@ -1782,14 +1782,12 @@ public:
         return b.m_offset - a.m_offset;
     }
     
-    PassRefPtr<ExecutableMemoryHandle> executableCopy(JSGlobalData& globalData)
+    PassRefPtr<ExecutableMemoryHandle> executableCopy(JSGlobalData& globalData, void* ownerUID)
     {
-        return m_formatter.executableCopy(globalData);
+        return m_formatter.executableCopy(globalData, ownerUID);
     }
 
-#ifndef NDEBUG
     unsigned debugOffset() { return m_formatter.debugOffset(); }
-#endif
 
     void nop()
     {
@@ -2132,14 +2130,12 @@ private:
         bool isAligned(int alignment) const { return m_buffer.isAligned(alignment); }
         void* data() const { return m_buffer.data(); }
 
-        PassRefPtr<ExecutableMemoryHandle> executableCopy(JSGlobalData& globalData)
+        PassRefPtr<ExecutableMemoryHandle> executableCopy(JSGlobalData& globalData, void* ownerUID)
         {
-            return m_buffer.executableCopy(globalData);
+            return m_buffer.executableCopy(globalData, ownerUID);
         }
 
-#ifndef NDEBUG
         unsigned debugOffset() { return m_buffer.debugOffset(); }
-#endif
 
     private:
 

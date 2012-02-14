@@ -389,6 +389,13 @@ void LayoutTestController::addMockSpeechInputResult(JSStringRef, double, JSStrin
     notImplemented();
 }
 
+void LayoutTestController::setMockSpeechInputDumpRect(bool)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+    notImplemented();
+}
+
 void LayoutTestController::startSpeechInput(JSContextRef inputElement)
 {
     // FIXME: Implement for speech input layout tests.
@@ -609,11 +616,6 @@ bool LayoutTestController::pauseTransitionAtTimeOnElementWithId(JSStringRef prop
     return DumpRenderTreeSupportEfl::pauseTransition(browser->mainFrame(), propertyName->ustring().utf8().data(), elementId->ustring().utf8().data(), time);
 }
 
-bool LayoutTestController::sampleSVGAnimationForElementAtTime(JSStringRef animationId, double time, JSStringRef elementId)
-{
-    return DumpRenderTreeSupportEfl::pauseSVGAnimation(browser->mainFrame(), animationId->ustring().utf8().data(), elementId->ustring().utf8().data(), time);
-}
-
 unsigned LayoutTestController::numberOfActiveAnimations() const
 {
     return DumpRenderTreeSupportEfl::activeAnimationsCount(browser->mainFrame());
@@ -734,9 +736,12 @@ bool LayoutTestController::hasGrammarMarker(int, int)
     return false;
 }
 
-void LayoutTestController::dumpConfigurationForViewport(int, int, int, int, int)
+void LayoutTestController::dumpConfigurationForViewport(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight)
 {
-    notImplemented();
+    DumpRenderTreeSupportEfl::dumpConfigurationForViewport(browser->mainView(),
+            deviceDPI,
+            WebCore::IntSize(deviceWidth, deviceHeight),
+            WebCore::IntSize(availableWidth, availableHeight));
 }
 
 void LayoutTestController::setSerializeHTTPLoads(bool)

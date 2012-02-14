@@ -3,11 +3,13 @@ TEMPLATE = app
 VPATH += $$_PRO_FILE_PWD_
 TARGET = tst_$$TARGET
 
-SOURCES += $${TARGET}.cpp \
-           ../util.cpp
+HEADERS += ../bytearraytestdata.h
+
+SOURCES += ../util.cpp \
+           ../bytearraytestdata.cpp
 INCLUDEPATH += $$PWD
 
-QT += testlib declarative widgets
+QT += testlib declarative widgets quick
 
 CONFIG += qtwebkit
 

@@ -24,20 +24,20 @@
 #include "WebKitBackForwardListPrivate.h"
 #include "WebKitEnumTypes.h"
 #include "WebKitError.h"
+#include "WebKitHitTestResultPrivate.h"
+#include "WebKitLoaderClient.h"
 #include "WebKitMarshal.h"
+#include "WebKitPolicyClient.h"
+#include "WebKitPrivate.h"
 #include "WebKitSettingsPrivate.h"
 #include "WebKitUIClient.h"
 #include "WebKitWebContextPrivate.h"
-#include "WebKitWebLoaderClient.h"
 #include "WebKitWebViewBasePrivate.h"
 #include "WebKitWebViewPrivate.h"
 #include "WebKitWindowPropertiesPrivate.h"
-#include "WebKitPrivate.h"
 #include "WebPageProxy.h"
 #include <WebCore/DragIcon.h>
-#include <WebKit2/WKBase.h>
-#include <WebKit2/WKRetainPtr.h>
-#include <WebKit2/WKURL.h>
+#include <WebCore/GtkUtilities.h>
 #include <glib/gi18n-lib.h>
 #include <wtf/gobject/GOwnPtr.h>
 #include <wtf/gobject/GRefPtr.h>
@@ -57,6 +57,10 @@ enum {
     SCRIPT_ALERT,
     SCRIPT_CONFIRM,
     SCRIPT_PROMPT,
+
+    DECIDE_POLICY,
+
+    MOUSE_TARGET_CHANGED,
 
     LAST_SIGNAL
 };
@@ -79,11 +83,12 @@ struct _WebKitWebViewPrivate {
     CString activeURI;
     bool replacingContent;
 
-    GRefPtr<WebKitWebLoaderClient> loaderClient;
-    GRefPtr<WebKitUIClient> uiClient;
     GRefPtr<WebKitBackForwardList> backForwardList;
     GRefPtr<WebKitSettings> settings;
     GRefPtr<WebKitWindowProperties> windowProperties;
+
+    GRefPtr<WebKitHitTestResult> mouseTargetHitTestResult;
+    unsigned mouseTargetModifiers;
 };
 
 static guint signals[LAST_SIGNAL] = { 0, };
@@ -111,7 +116,7 @@ static GtkWidget* webkitWebViewCreate(WebKitWebView*)
 static GtkWidget* webkitWebViewCreateJavaScriptDialog(WebKitWebView* webView, GtkMessageType type, GtkButtonsType buttons, int defaultResponse, const char* message)
 {
     GtkWidget* parent = gtk_widget_get_toplevel(GTK_WIDGET(webView));
-    GtkWidget* dialog = gtk_message_dialog_new(gtk_widget_is_toplevel(parent) ? GTK_WINDOW(parent) : 0,
+    GtkWidget* dialog = gtk_message_dialog_new(widgetIsOnscreenToplevelWindow(parent) ? GTK_WINDOW(parent) : 0,
                                                GTK_DIALOG_DESTROY_WITH_PARENT, type, buttons, "%s", message);
     GOwnPtr<char> title(g_strdup_printf("JavaScript - %s", webkit_web_view_get_uri(webView)));
     gtk_window_set_title(GTK_WINDOW(dialog), title.get());
@@ -149,10 +154,10 @@ static gboolean webkitWebViewScriptPrompt(WebKitWebView* webView, const char* me
     return TRUE;
 }
 
-static void webkitWebViewSetLoaderClient(WebKitWebView* webView, WebKitWebLoaderClient* loaderClient, WKPageRef wkPage)
+static gboolean webkitWebViewDecidePolicy(WebKitWebView*, WebKitPolicyDecision* decision, WebKitPolicyDecisionType)
 {
-    webView->priv->loaderClient = loaderClient;
-    webkitWebLoaderClientAttachLoaderClientToPage(loaderClient, wkPage);
+    webkit_policy_decision_use(decision);
+    return TRUE;
 }
 
 static void webkitWebViewConstructed(GObject* object)
@@ -166,15 +171,11 @@ static void webkitWebViewConstructed(GObject* object)
 
     webkitWebViewBaseCreateWebPage(webViewBase, webkitWebContextGetWKContext(priv->context), 0);
 
+    attachLoaderClientToView(webView);
+    attachUIClientToView(webView);
+    attachPolicyClientToPage(webView);
+
     WebPageProxy* page = webkitWebViewBaseGetPage(webViewBase);
-
-    static GRefPtr<WebKitWebLoaderClient> defaultLoaderClient = adoptGRef(WEBKIT_WEB_LOADER_CLIENT(g_object_new(WEBKIT_TYPE_WEB_LOADER_CLIENT, NULL)));
-    webkitWebViewSetLoaderClient(webView, defaultLoaderClient.get(), toAPI(page));
-
-    static GRefPtr<WebKitUIClient> defaultUIClient = adoptGRef(WEBKIT_UI_CLIENT(g_object_new(WEBKIT_TYPE_UI_CLIENT, NULL)));
-    priv->uiClient = defaultUIClient.get();
-    webkitUIClientAttachUIClientToPage(priv->uiClient.get(), toAPI(page));
-
     priv->backForwardList = adoptGRef(webkitBackForwardListCreate(WKPageGetBackForwardList(toAPI(page))));
     priv->settings = adoptGRef(webkit_settings_new());
     webkitSettingsAttachSettingsToPage(priv->settings.get(), toAPI(page));
@@ -185,9 +186,11 @@ static void webkitWebViewSetProperty(GObject* object, guint propId, const GValue
     WebKitWebView* webView = WEBKIT_WEB_VIEW(object);
 
     switch (propId) {
-    case PROP_WEB_CONTEXT:
-        webView->priv->context = WEBKIT_WEB_CONTEXT(g_value_get_object(value));
+    case PROP_WEB_CONTEXT: {
+        gpointer webContext = g_value_get_object(value);
+        webView->priv->context = webContext ? WEBKIT_WEB_CONTEXT(webContext) : webkit_web_context_get_default();
         break;
+    }
     case PROP_ZOOM_LEVEL:
         webkit_web_view_set_zoom_level(webView, g_value_get_double(value));
         break;
@@ -259,6 +262,7 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
     webViewClass->script_alert = webkitWebViewScriptAlert;
     webViewClass->script_confirm = webkitWebViewScriptConfirm;
     webViewClass->script_prompt = webkitWebViewScriptPrompt;
+    webViewClass->decide_policy = webkitWebViewDecidePolicy;
 
     g_type_class_add_private(webViewClass, sizeof(WebKitWebViewPrivate));
 
@@ -557,6 +561,92 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
                          G_TYPE_BOOLEAN, 3,
                          G_TYPE_STRING, G_TYPE_STRING, G_TYPE_POINTER);
 
+    /**
+     * WebKitWebView::decide-policy:
+     * @web_view: the #WebKitWebView on which the signal is emitted
+     * @decision: the #WebKitPolicyDecision
+     * @decision_type: a #WebKitPolicyDecisionType denoting the type of @decision
+     *
+     * This signal is emitted when WebKit is requesting the client to decide a policy
+     * decision, such as whether to navigate to a page, open a new window or whether or
+     * not to download a resource. The #WebKitNavigationPolicyDecision passed in the
+     * @decision argument is a generic type, but should be casted to a more
+     * specific type when making the decision. For example:
+     *
+     * <informalexample><programlisting>
+     * static gboolean
+     * decide_policy_cb (WebKitWebView *web_view,
+     *                   WebKitPolicyDecision *decision,
+     *                   WebKitPolicyDecisionType type)
+     * {
+     *     switch (type) {
+     *     case WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION:
+     *         WebKitNavigationPolicyDecision *navigation_decision = WEBKIT_NAVIGATION_POLICY_DECISION (decision);
+     *         /<!-- -->* Make a policy decision here. *<!-- -->/
+     *         break;
+     *     case WEBKIT_POLICY_DECISION_TYPE_NEW_WINDOW_ACTION:
+     *         WebKitNavigationPolicyDecision *navigation_decision = WEBKIT_NAVIGATION_POLICY_DECISION (decision);
+     *         /<!-- -->* Make a policy decision here. *<!-- -->/
+     *         break;
+     *     case WEBKIT_POLICY_DECISION_TYPE_RESPONSE:
+     *         WebKitResponsePolicyDecision *response = WEBKIT_RESPONSE_POLICY_DECISION (decision);
+     *         /<!-- -->* Make a policy decision here. *<!-- -->/
+     *         break;
+     *     default:
+     *         /<!-- -->* Making no decision results in webkit_policy_decision_use(). *<!-- -->/
+     *         return FALSE;
+     *     }
+     *     return TRUE;
+     * }
+     * </programlisting></informalexample>
+     *
+     * It is possible to make policy decision asynchronously, by simply calling g_object_ref()
+     * on the @decision argument and returning %TRUE to block the default signal handler.
+     * If the last reference is removed on a #WebKitPolicyDecision and no decision has been
+     * made explicitly, webkit_policy_decision_use() will be the default policy decision. The
+     * default signal handler will simply call webkit_policy_decision_use(). Only the first
+     * policy decision chosen for a given #WebKitPolicyDecision will have any affect.
+     *
+     * Returns: %TRUE to stop other handlers from being invoked for the event.
+     *   %FALSE to propagate the event further.
+     *
+     */
+    signals[DECIDE_POLICY] =
+        g_signal_new("decide-policy",
+                     G_TYPE_FROM_CLASS(webViewClass),
+                     G_SIGNAL_RUN_LAST,
+                     G_STRUCT_OFFSET(WebKitWebViewClass, decide_policy),
+                     g_signal_accumulator_true_handled, 0 /* accumulator data */,
+                     webkit_marshal_BOOLEAN__OBJECT_ENUM,
+                     G_TYPE_BOOLEAN, 2, /* number of parameters */
+                     WEBKIT_TYPE_POLICY_DECISION,
+                     WEBKIT_TYPE_POLICY_DECISION_TYPE);
+
+    /**
+     * WebKitWebView::mouse-target-changed:
+     * @web_view: the #WebKitWebView on which the signal is emitted
+     * @hit_test_result: a #WebKitHitTestResult
+     * @modifiers: a bitmask of #GdkModifierType
+     *
+     * This signal is emitted when the mouse cursor moves over an
+     * element such as a link, image or a media element. To determine
+     * what type of element the mouse cursor is over, a Hit Test is performed
+     * on the current mouse coordinates and the result is passed in the
+     * @hit_test_result argument. The @modifiers argument is a bitmask of
+     * #GdkModifierType flags indicating the state of modifier keys.
+     * The signal is emitted again when the mouse is moved out of the
+     * current element with a new @hit_test_result.
+     */
+     signals[MOUSE_TARGET_CHANGED] =
+         g_signal_new("mouse-target-changed",
+                      G_TYPE_FROM_CLASS(webViewClass),
+                      G_SIGNAL_RUN_LAST,
+                      G_STRUCT_OFFSET(WebKitWebViewClass, mouse_target_changed),
+                      0, 0,
+                      webkit_marshal_VOID__OBJECT_UINT,
+                      G_TYPE_NONE, 2,
+                      WEBKIT_TYPE_HIT_TEST_RESULT,
+                      G_TYPE_UINT);
 }
 
 void webkitWebViewLoadChanged(WebKitWebView* webView, WebKitLoadEvent loadEvent)
@@ -660,6 +750,25 @@ WKStringRef webkitWebViewRunJavaScriptPrompt(WebKitWebView* webView, const CStri
     GOwnPtr<char> text;
     g_signal_emit(webView, signals[SCRIPT_PROMPT], 0, message.data(), defaultText.data(), &text.outPtr(), &returnValue);
     return text ? WKStringCreateWithUTF8CString(text.get()) : 0;
+}
+
+void webkitWebViewMakePolicyDecision(WebKitWebView* webView, WebKitPolicyDecisionType type, WebKitPolicyDecision* decision)
+{
+    gboolean returnValue;
+    g_signal_emit(webView, signals[DECIDE_POLICY], 0, decision, type, &returnValue);
+}
+
+void webkitWebViewMouseTargetChanged(WebKitWebView* webView, WKHitTestResultRef wkHitTestResult, unsigned modifiers)
+{
+    WebKitWebViewPrivate* priv = webView->priv;
+    if (priv->mouseTargetHitTestResult
+        && priv->mouseTargetModifiers == modifiers
+        && webkitHitTestResultCompare(priv->mouseTargetHitTestResult.get(), wkHitTestResult))
+        return;
+
+    priv->mouseTargetModifiers = modifiers;
+    priv->mouseTargetHitTestResult = adoptGRef(webkitHitTestResultCreate(wkHitTestResult));
+    g_signal_emit(webView, signals[MOUSE_TARGET_CHANGED], 0, priv->mouseTargetHitTestResult.get(), modifiers);
 }
 
 /**
@@ -1204,4 +1313,78 @@ gdouble webkit_web_view_get_zoom_level(WebKitWebView* webView)
 
     WKPageRef wkPage = toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView)));
     return WKPageGetPageZoomFactor(wkPage);
+}
+
+
+static void didValidateCommand(WKStringRef command, bool isEnabled, int32_t state, WKErrorRef, void* context)
+{
+    GRefPtr<GSimpleAsyncResult> result = adoptGRef(G_SIMPLE_ASYNC_RESULT(context));
+    g_simple_async_result_set_op_res_gboolean(result.get(), isEnabled);
+    g_simple_async_result_complete(result.get());
+}
+
+/**
+ * webkit_web_view_can_execute_editing_command:
+ * @web_view: a #WebKitWebView
+ * @command: the command to check
+ * @callback: (scope async): a #GAsyncReadyCallback to call when the request is satisfied
+ * @user_data: (closure): the data to pass to callback function
+ *
+ * Asynchronously execute the given editing command.
+ *
+ * When the operation is finished, @callback will be called. You can then call
+ * webkit_web_view_can_execute_editing_command_finish() to get the result of the operation.
+ */
+void webkit_web_view_can_execute_editing_command(WebKitWebView* webView, const char* command, GAsyncReadyCallback callback, gpointer userData)
+{
+    g_return_if_fail(WEBKIT_IS_WEB_VIEW(webView));
+    g_return_if_fail(command);
+
+    GSimpleAsyncResult* result = g_simple_async_result_new(G_OBJECT(webView), callback, userData,
+                                                           reinterpret_cast<gpointer>(webkit_web_view_can_execute_editing_command));
+    WebPageProxy* page = webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView));
+    WKRetainPtr<WKStringRef> wkCommand(AdoptWK, WKStringCreateWithUTF8CString(command));
+    WKPageValidateCommand(toAPI(page), wkCommand.get(), result, didValidateCommand);
+}
+
+/**
+ * webkit_web_view_can_execute_editing_command_finish:
+ * @web_view: a #WebKitWebView
+ * @result: a #GAsyncResult
+ * @error: return location for error or %NULL to ignore
+ *
+ * Finish an asynchronous operation started with webkit_web_view_can_execute_editing_command().
+ *
+ * Returns: %TRUE if a selection can be cut or %FALSE otherwise
+ */
+gboolean webkit_web_view_can_execute_editing_command_finish(WebKitWebView* webView, GAsyncResult* result, GError** error)
+{
+    g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(webView), FALSE);
+    g_return_val_if_fail(G_IS_ASYNC_RESULT(result), FALSE);
+
+    GSimpleAsyncResult* simple = G_SIMPLE_ASYNC_RESULT(result);
+    g_warn_if_fail(g_simple_async_result_get_source_tag(simple) == webkit_web_view_can_execute_editing_command);
+
+    if (g_simple_async_result_propagate_error(simple, error))
+        return FALSE;
+    return g_simple_async_result_get_op_res_gboolean(simple);
+}
+
+/**
+ * webkit_web_view_execute_editing_command:
+ * @web_view: a #WebKitWebView
+ * @command: the command to execute
+ *
+ * Request to execute the given @command for @web_view. You can use
+ * webkit_web_view_can_execute_editing_command() to check whether
+ * it's possible to execute the command.
+ */
+void webkit_web_view_execute_editing_command(WebKitWebView* webView, const char* command)
+{
+    g_return_if_fail(WEBKIT_IS_WEB_VIEW(webView));
+    g_return_if_fail(command);
+
+    WebPageProxy* page = webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView));
+    WKRetainPtr<WKStringRef> wkCommand(AdoptWK, WKStringCreateWithUTF8CString(command));
+    WKPageExecuteCommand(toAPI(page), wkCommand.get());
 }

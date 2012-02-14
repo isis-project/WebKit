@@ -33,9 +33,11 @@
 #include "LayoutTestController.h"
 
 #include "DRTDevToolsAgent.h"
+#include "MockWebSpeechInputController.h"
 #include "TestShell.h"
 #include "WebAnimationController.h"
 #include "WebBindings.h"
+#include "WebWorkerInfo.h"
 #include "WebConsoleMessage.h"
 #include "platform/WebData.h"
 #include "WebDeviceOrientation.h"
@@ -54,7 +56,6 @@
 #include "WebSecurityPolicy.h"
 #include "WebSettings.h"
 #include "platform/WebSize.h"
-#include "WebSpeechInputControllerMock.h"
 #include "platform/WebURL.h"
 #include "WebView.h"
 #include "WebViewHost.h"
@@ -90,12 +91,16 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     // by CppBoundClass, the parent to LayoutTestController).
     bindMethod("addFileToPasteboardOnDrag", &LayoutTestController::addFileToPasteboardOnDrag);
     bindMethod("addMockSpeechInputResult", &LayoutTestController::addMockSpeechInputResult);
+    bindMethod("setMockSpeechInputDumpRect", &LayoutTestController::setMockSpeechInputDumpRect);
     bindMethod("addOriginAccessWhitelistEntry", &LayoutTestController::addOriginAccessWhitelistEntry);
     bindMethod("addUserScript", &LayoutTestController::addUserScript);
     bindMethod("addUserStyleSheet", &LayoutTestController::addUserStyleSheet);
     bindMethod("clearAllDatabases", &LayoutTestController::clearAllDatabases);
     bindMethod("closeWebInspector", &LayoutTestController::closeWebInspector);
     bindMethod("counterValueForElementById", &LayoutTestController::counterValueForElementById);
+#if ENABLE(POINTER_LOCK)
+    bindMethod("didLosePointerLock", &LayoutTestController::didLosePointerLock);
+#endif
     bindMethod("disableImageLoading", &LayoutTestController::disableImageLoading);
     bindMethod("display", &LayoutTestController::display);
     bindMethod("displayInvalidatedRegion", &LayoutTestController::displayInvalidatedRegion);
@@ -154,7 +159,6 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("repaintSweepHorizontally", &LayoutTestController::repaintSweepHorizontally);
     bindMethod("resetPageVisibility", &LayoutTestController::resetPageVisibility);
     bindMethod("resumeAnimations", &LayoutTestController::resumeAnimations);
-    bindMethod("sampleSVGAnimationForElementAtTime", &LayoutTestController::sampleSVGAnimationForElementAtTime);
     bindMethod("setAcceptsEditing", &LayoutTestController::setAcceptsEditing);
     bindMethod("setAllowDisplayOfInsecureContent", &LayoutTestController::setAllowDisplayOfInsecureContent);
     bindMethod("setAllowFileAccessFromFileURLs", &LayoutTestController::setAllowFileAccessFromFileURLs);
@@ -181,6 +185,10 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("setMockGeolocationPosition", &LayoutTestController::setMockGeolocationPosition);
     bindMethod("setPageVisibility", &LayoutTestController::setPageVisibility);
     bindMethod("setPluginsEnabled", &LayoutTestController::setPluginsEnabled);
+#if ENABLE(POINTER_LOCK)
+    bindMethod("setPointerLockWillFailAsynchronously", &LayoutTestController::setPointerLockWillFailAsynchronously);
+    bindMethod("setPointerLockWillFailSynchronously", &LayoutTestController::setPointerLockWillFailSynchronously);
+#endif
     bindMethod("setPopupBlockingEnabled", &LayoutTestController::setPopupBlockingEnabled);
     bindMethod("setPOSIXLocale", &LayoutTestController::setPOSIXLocale);
     bindMethod("setPrinting", &LayoutTestController::setPrinting);
@@ -252,6 +260,7 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindProperty("titleTextDirection", &m_titleTextDirection);
     bindProperty("platformName", &m_platformName);
     bindProperty("interceptPostMessage", &m_interceptPostMessage);
+    bindProperty("workerThreadCount", &LayoutTestController::workerThreadCount);
 }
 
 LayoutTestController::~LayoutTestController()
@@ -1136,19 +1145,6 @@ void LayoutTestController::resumeAnimations(const CppArgumentList&, CppVariant* 
     result->setNull();
 }
 
-void LayoutTestController::sampleSVGAnimationForElementAtTime(const CppArgumentList& arguments, CppVariant* result)
-{
-    if (arguments.size() != 3) {
-        result->setNull();
-        return;
-    }
-    WebString animationId = cppVariantToWebString(arguments[0]);
-    double time = arguments[1].toDouble();
-    WebString elementId = cppVariantToWebString(arguments[2]);
-    bool success = m_shell->webView()->mainFrame()->pauseSVGAnimation(animationId, time, elementId);
-    result->set(success);
-}
-
 void LayoutTestController::disableImageLoading(const CppArgumentList&, CppVariant* result)
 {
     m_shell->preferences()->loadsImagesAutomatically = false;
@@ -1925,8 +1921,18 @@ void LayoutTestController::addMockSpeechInputResult(const CppArgumentList& argum
     if (arguments.size() < 3 || !arguments[0].isString() || !arguments[1].isNumber() || !arguments[2].isString())
         return;
 
-    if (WebSpeechInputControllerMock* controller = m_shell->webViewHost()->speechInputControllerMock())
+    if (MockWebSpeechInputController* controller = m_shell->webViewHost()->speechInputControllerMock())
         controller->addMockRecognitionResult(cppVariantToWebString(arguments[0]), arguments[1].toDouble(), cppVariantToWebString(arguments[2]));
+}
+
+void LayoutTestController::setMockSpeechInputDumpRect(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    if (arguments.size() < 1 || !arguments[0].isBool())
+        return;
+
+    if (MockWebSpeechInputController* controller = m_shell->webViewHost()->speechInputControllerMock())
+        controller->setDumpRect(arguments[0].value.boolValue);
 }
 
 void LayoutTestController::startSpeechInput(const CppArgumentList& arguments, CppVariant* result)
@@ -2107,6 +2113,11 @@ void LayoutTestController::setFixedLayoutSize(const CppArgumentList& arguments, 
     m_shell->webView()->setFixedLayoutSize(WebSize(width, height));
 }
 
+void LayoutTestController::workerThreadCount(CppVariant* result)
+{
+    result->set(static_cast<int>(WebWorkerInfo::dedicatedWorkerCount()));
+}
+
 void LayoutTestController::setPluginsEnabled(const CppArgumentList& arguments, CppVariant* result)
 {
     if (arguments.size() > 0 && arguments[0].isBool()) {
@@ -2171,3 +2182,23 @@ void LayoutTestController::setAudioData(const CppArgumentList& arguments, CppVar
 
     setShouldDumpAsAudio(true);
 }
+
+#if ENABLE(POINTER_LOCK)
+void LayoutTestController::didLosePointerLock(const CppArgumentList&, CppVariant* result)
+{
+    m_shell->webViewHost()->didLosePointerLock();
+    result->setNull();
+}
+
+void LayoutTestController::setPointerLockWillFailAsynchronously(const CppArgumentList&, CppVariant* result)
+{
+    m_shell->webViewHost()->setPointerLockWillFailAsynchronously();
+    result->setNull();
+}
+
+void LayoutTestController::setPointerLockWillFailSynchronously(const CppArgumentList&, CppVariant* result)
+{
+    m_shell->webViewHost()->setPointerLockWillFailSynchronously();
+    result->setNull();
+}
+#endif

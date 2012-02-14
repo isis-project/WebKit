@@ -40,7 +40,6 @@
 #import "PDFViewController.h"
 #import "PageClientImpl.h"
 #import "PasteboardTypes.h"
-#import "RunLoop.h"
 #import "TextChecker.h"
 #import "TextCheckerState.h"
 #import "TiledCoreAnimationDrawingAreaProxy.h"
@@ -70,6 +69,7 @@
 #import <WebCore/PlatformEventFactoryMac.h>
 #import <WebCore/PlatformScreen.h>
 #import <WebCore/Region.h>
+#import <WebCore/RunLoop.h>
 #import <WebKitSystemInterface.h>
 #import <wtf/RefPtr.h>
 #import <wtf/RetainPtr.h>
@@ -1709,7 +1709,7 @@ static bool maybeCreateSandboxExtensionFromPasteboard(NSPasteboard *pasteboard, 
 
 - (void)_updateWindowVisibility
 {
-    _data->_page->updateWindowIsVisible(![[self window] isMiniaturized]);
+    _data->_page->updateWindowIsVisible([[self window] isVisible]);
 }
 
 - (BOOL)_ownsWindowGrowBox
@@ -1776,9 +1776,9 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
                                                      name:NSWindowDidMiniaturizeNotification object:window];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_windowDidDeminiaturize:)
                                                      name:NSWindowDidDeminiaturizeNotification object:window];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_windowFrameDidChange:)
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_windowDidMove:)
                                                      name:NSWindowDidMoveNotification object:window];
-        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_windowFrameDidChange:) 
+        [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_windowDidResize:) 
                                                      name:NSWindowDidResizeNotification object:window];
         [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_windowDidOrderOffScreen:) 
                                                      name:@"NSWindowDidOrderOffScreenNotification" object:window];
@@ -1834,10 +1834,12 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
         [self _updateWindowVisibility];
         [self _updateWindowAndViewFrames];
 
-        _data->_flagsChangedEventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSFlagsChangedMask handler:^(NSEvent *flagsChangedEvent) {
-            [self _postFakeMouseMovedEventForFlagsChangedEvent:flagsChangedEvent];
-            return flagsChangedEvent;
-        }];
+        if (!_data->_flagsChangedEventMonitor) {
+            _data->_flagsChangedEventMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSFlagsChangedMask handler:^(NSEvent *flagsChangedEvent) {
+                [self _postFakeMouseMovedEventForFlagsChangedEvent:flagsChangedEvent];
+                return flagsChangedEvent;
+            }];
+        }
 
         [self _accessibilityRegisterUIProcessTokens];
     } else {
@@ -1904,8 +1906,15 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
     [self _updateWindowVisibility];
 }
 
-- (void)_windowFrameDidChange:(NSNotification *)notification
+- (void)_windowDidMove:(NSNotification *)notification
 {
+    [self _updateWindowAndViewFrames];    
+}
+
+- (void)_windowDidResize:(NSNotification *)notification
+{
+    _data->_windowHasValidBackingStore = NO;
+
     [self _updateWindowAndViewFrames];
 }
 
@@ -1915,6 +1924,7 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
     // we hide it first and then update the active state.
     _data->_page->viewStateDidChange(WebPageProxy::ViewIsVisible);
     _data->_page->viewStateDidChange(WebPageProxy::ViewWindowIsActive);
+    [self _updateWindowVisibility];
 }
 
 - (void)_windowDidOrderOnScreen:(NSNotification *)notification
@@ -1923,6 +1933,7 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
     // we update the active state first and then make it visible.
     _data->_page->viewStateDidChange(WebPageProxy::ViewWindowIsActive);
     _data->_page->viewStateDidChange(WebPageProxy::ViewIsVisible);
+    [self _updateWindowVisibility];
 }
 
 - (void)_windowDidChangeBackingProperties:(NSNotification *)notification
@@ -2139,9 +2150,9 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
 }
 
 #if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
-- (void)quickLookPreviewItemsAtWindowLocation:(NSPoint)location
+- (void)quickLookWithEvent:(NSEvent *)event
 {
-    NSPoint locationInViewCoordinates = [self convertPoint:location fromView:nil];
+    NSPoint locationInViewCoordinates = [self convertPoint:[event locationInWindow] fromView:nil];
     _data->_page->performDictionaryLookupAtLocation(FloatPoint(locationInViewCoordinates.x, locationInViewCoordinates.y));
 }
 #endif
@@ -2550,6 +2561,9 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
         return;
     
     _data->_dragHasStarted = YES;
+    IntSize size([image size]);
+    size.scale(1.0 / _data->_page->deviceScaleFactor());
+    [image setSize:size];
     
     // The call to super could release this WKView.
     RetainPtr<WKView> protector(self);
@@ -2725,6 +2739,7 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
     _data->_pageClient = PageClientImpl::create(self);
     _data->_page = toImpl(contextRef)->createWebPage(_data->_pageClient.get(), toImpl(pageGroupRef));
     _data->_page->initializeWebPage();
+    _data->_page->setIntrinsicDeviceScaleFactor([self _intrinsicDeviceScaleFactor]);
 #if ENABLE(FULLSCREEN_API)
     _data->_page->fullScreenManager()->setWebView(self);
 #endif

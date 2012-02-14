@@ -139,18 +139,6 @@ void JSDOMWindowShell::getOwnPropertyNames(JSObject* object, ExecState* exec, Pr
     thisObject->window()->methodTable()->getOwnPropertyNames(thisObject->window(), exec, propertyNames, mode);
 }
 
-void JSDOMWindowShell::defineGetter(JSObject* object, ExecState* exec, const Identifier& propertyName, JSObject* getterFunction, unsigned attributes)
-{
-    JSDOMWindowShell* thisObject = jsCast<JSDOMWindowShell*>(object);
-    thisObject->window()->methodTable()->defineGetter(thisObject->window(), exec, propertyName, getterFunction, attributes);
-}
-
-void JSDOMWindowShell::defineSetter(JSObject* object, ExecState* exec, const Identifier& propertyName, JSObject* setterFunction, unsigned attributes)
-{
-    JSDOMWindowShell* thisObject = jsCast<JSDOMWindowShell*>(object);
-    thisObject->window()->methodTable()->defineSetter(thisObject->window(), exec, propertyName, setterFunction, attributes);
-}
-
 
 // ----
 // JSDOMWindow methods
@@ -159,16 +147,6 @@ void JSDOMWindowShell::defineSetter(JSObject* object, ExecState* exec, const Ide
 DOMWindow* JSDOMWindowShell::impl() const
 {
     return window()->impl();
-}
-
-void* JSDOMWindowShell::operator new(size_t size)
-{
-    Heap& heap = JSDOMWindow::commonJSGlobalData()->heap;
-#if ENABLE(GC_VALIDATION)
-    ASSERT(!heap.globalData()->isInitializingObject());
-    heap.globalData()->setInitializingObject(true);
-#endif
-    return heap.allocate(size);
 }
 
 // ----

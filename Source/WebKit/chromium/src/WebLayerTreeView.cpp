@@ -45,9 +45,7 @@ WebLayerTreeView::Settings::operator CCSettings() const
     settings.refreshRate = refreshRate;
     settings.partialSwapEnabled = partialSwapEnabled;
 
-    // FIXME: showFPSCounter / showPlatformLayerTree aren't supported currently.
-    settings.showFPSCounter = false;
-    settings.showPlatformLayerTree = false;
+    // FIXME: showFPSCounter / showPlatformLayerTree / perTilePainting / maxPartialTextureUpdates aren't supported currently.
     return settings;
 }
 
@@ -116,6 +114,11 @@ WebLayerTreeView& WebLayerTreeView::operator=(const PassRefPtr<CCLayerTreeHost>&
 WebLayerTreeView::operator PassRefPtr<CCLayerTreeHost>() const
 {
     return m_private.get();
+}
+
+void WebLayerTreeView::setNeedsRedraw()
+{
+    m_private->setNeedsRedraw();
 }
 
 } // namespace WebKit

@@ -29,12 +29,9 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Unit tests for run_webkit_tests."""
-
-from __future__ import with_statement
-
 import codecs
 import itertools
+import json
 import logging
 import Queue
 import re
@@ -46,20 +43,9 @@ import unittest
 
 from webkitpy.common.system import path
 
-try:
-    import multiprocessing
-except ImportError:
-    multiprocessing = None
-
-try:
-    import json
-except ImportError:
-    # python 2.5 compatibility
-    import webkitpy.thirdparty.simplejson as json
-
 # FIXME: remove this when we fix test-webkitpy to work properly on cygwin
 # (bug 63846).
-SHOULD_TEST_PROCESSES = multiprocessing and sys.platform not in ('cygwin', 'win32')
+SHOULD_TEST_PROCESSES = sys.platform not in ('cygwin', 'win32')
 
 from webkitpy.common import array_stream
 from webkitpy.common.system import outputcapture
@@ -71,6 +57,7 @@ from webkitpy.layout_tests import run_webkit_tests
 from webkitpy.layout_tests.port import Port
 from webkitpy.layout_tests.port.test import TestPort, TestDriver
 from webkitpy.test.skip import skip_if
+from webkitpy.tool.mocktool import MockOptions
 
 
 def parse_args(extra_args=None, record_results=False, tests_included=False, new_results=False, print_nothing=True):
@@ -150,8 +137,11 @@ def get_tests_run(extra_args=None, tests_included=False, flatten_batches=False,
 
     class RecordingTestDriver(TestDriver):
         def __init__(self, port, worker_number):
-            TestDriver.__init__(self, port, worker_number, pixel_tests=port.get_option('pixel_test'))
+            TestDriver.__init__(self, port, worker_number, pixel_tests=port.get_option('pixel_test'), no_timeout=False)
             self._current_test_batch = None
+
+        def start(self):
+            pass
 
         def stop(self):
             self._current_test_batch = None
@@ -186,6 +176,76 @@ def get_tests_run(extra_args=None, tests_included=False, flatten_batches=False,
 # Update this magic number if you add an unexpected test to webkitpy.layout_tests.port.test
 # FIXME: It's nice to have a routine in port/test.py that returns this number.
 unexpected_tests_count = 12
+
+
+class LintTest(unittest.TestCase):
+    def test_all_configurations(self):
+
+        class FakePort(object):
+            def __init__(self, name, path):
+                self.name = name
+                self.path = path
+
+            def test_expectations(self):
+                return ''
+
+            def path_to_test_expectations_file(self):
+                return self.path
+
+            def test_configuration(self):
+                return None
+
+            def test_expectations_overrides(self):
+                return None
+
+        class FakeFactory(object):
+            def __init__(self, host, ports):
+                self.host = host
+                self.ports = {}
+                for port in ports:
+                    self.ports[port.name] = port
+                    port.host = host
+                    port.factory = self
+
+            def get(self, port_name, *args, **kwargs):
+                return self.ports[port_name]
+
+            def all_port_names(self):
+                return sorted(self.ports.keys())
+
+        class FakeExpectationsParser(object):
+            def __init__(self, port, *args, **kwargs):
+                port.host.ports_parsed.append(port.name)
+
+        host = MockHost()
+        host.ports_parsed = []
+        host.port_factory = FakeFactory(host, (FakePort('a', 'path-to-a'),
+                                               FakePort('b', 'path-to-b'),
+                                               FakePort('b-win', 'path-to-b')))
+
+        self.assertEquals(run_webkit_tests.lint(host.port_factory.ports['a'], MockOptions(platform=None), FakeExpectationsParser), 0)
+        self.assertEquals(host.ports_parsed, ['a', 'b'])
+
+        host.ports_parsed = []
+        self.assertEquals(run_webkit_tests.lint(host.port_factory.ports['a'], MockOptions(platform='a'), FakeExpectationsParser), 0)
+        self.assertEquals(host.ports_parsed, ['a'])
+
+    def test_lint_test_files(self):
+        res, out, err, user = logging_run(['--lint-test-files'])
+        self.assertEqual(res, 0)
+        self.assertTrue(out.empty())
+        self.assertTrue(any(['Lint succeeded' in msg for msg in err.get()]))
+
+    def test_lint_test_files__errors(self):
+        options, parsed_args = parse_args(['--lint-test-files'])
+        host = MockHost()
+        port_obj = host.port_factory.get(options.platform, options=options)
+        port_obj.test_expectations = lambda: "# syntax error"
+        res, out, err = run_and_capture(port_obj, options, parsed_args)
+
+        self.assertEqual(res, -1)
+        self.assertTrue(out.empty())
+        self.assertTrue(any(['Lint failed' in msg for msg in err.get()]))
 
 
 class MainTest(unittest.TestCase):
@@ -284,23 +344,6 @@ class MainTest(unittest.TestCase):
             ['failures/expected/keyboard.html', '--worker-model', 'inline'],
             tests_included=True)
 
-    def test_lint_test_files(self):
-        res, out, err, user = logging_run(['--lint-test-files'])
-        self.assertEqual(res, 0)
-        self.assertTrue(out.empty())
-        self.assertTrue(any(['Lint succeeded' in msg for msg in err.get()]))
-
-    def test_lint_test_files__errors(self):
-        options, parsed_args = parse_args(['--lint-test-files'])
-        host = MockHost()
-        port_obj = host.port_factory.get(options.platform, options=options)
-        port_obj.test_expectations = lambda: "# syntax error"
-        res, out, err = run_and_capture(port_obj, options, parsed_args)
-
-        self.assertEqual(res, -1)
-        self.assertTrue(out.empty())
-        self.assertTrue(any(['Lint failed' in msg for msg in err.get()]))
-
     def test_no_tests_found(self):
         res, out, err, user = logging_run(['resources'], tests_included=True)
         self.assertEqual(res, -1)
@@ -331,10 +374,27 @@ class MainTest(unittest.TestCase):
         tests_run = get_tests_run(['--repeat-each', '2'] + tests_to_run, tests_included=True, flatten_batches=True)
         self.assertEquals(tests_run, ['passes/image.html', 'passes/image.html', 'passes/text.html', 'passes/text.html'])
 
+    def test_skip_pixel_test_if_no_baseline_option(self):
+        tests_to_run = ['passes/image.html', 'passes/text.html']
+        tests_run = get_tests_run(['--skip-pixel-test-if-no-baseline'] + tests_to_run, tests_included=True, flatten_batches=True)
+        self.assertEquals(tests_run, ['passes/image.html', 'passes/text.html'])
+
     def test_iterations(self):
         tests_to_run = ['passes/image.html', 'passes/text.html']
         tests_run = get_tests_run(['--iterations', '2'] + tests_to_run, tests_included=True, flatten_batches=True)
         self.assertEquals(tests_run, ['passes/image.html', 'passes/text.html', 'passes/image.html', 'passes/text.html'])
+
+    def test_repeat_each_iterations_num_tests(self):
+        # The total number of tests should be: number_of_tests *
+        # repeat_each * iterations
+        host = MockHost()
+        res, out, err, _ = logging_run(['--iterations', '2',
+                                        '--repeat-each', '4',
+                                        '--print', 'everything',
+                                        'passes/text.html', 'failures/expected/text.html'],
+                                       tests_included=True, host=host, record_results=True)
+        self.assertTrue("=> Results: 8/16 tests passed (50.0%)\n" in out.get())
+        self.assertTrue(err.get()[-2] == "All 16 tests ran as expected.\n")
 
     def test_run_chunk(self):
         # Test that we actually select the right chunk
@@ -867,22 +927,6 @@ class RebaselineTest(unittest.TestCase):
             "/platform/test-mac-leopard/passes/image", [".txt", ".png"], err)
         self.assertBaselines(file_list,
             "/platform/test-mac-leopard/failures/expected/missing_image", [".txt", ".png"], err)
-
-
-class DryrunTest(unittest.TestCase):
-    # FIXME: it's hard to know which platforms are safe to test; the
-    # chromium platforms require a chromium checkout, and the mac platform
-    # requires fcntl, so it can't be tested on win32, etc. There is
-    # probably a better way of handling this.
-    def disabled_test_darwin(self):
-        if sys.platform != "darwin":
-            return
-
-        self.assertTrue(passing_run(['--platform', 'dryrun', 'fast/html'], tests_included=True))
-        self.assertTrue(passing_run(['--platform', 'dryrun-mac', 'fast/html'], tests_included=True))
-
-    def test_test(self):
-        self.assertTrue(passing_run(['--platform', 'dryrun-test', '--pixel-tests']))
 
 
 if __name__ == '__main__':

@@ -23,11 +23,12 @@
 module svg {
 
     interface [
-        GenerateNativeConverter,
-        Conditional=SVG
+        JSGenerateToNativeObject,
+        Conditional=SVG,
+        V8CustomToJSObject
     ] SVGElement : Element {
         attribute [Reflect] DOMString id;
-        attribute [ConvertNullToNullString] DOMString xmlbase setter raises(DOMException);
+        attribute [TreatNullAs=NullString] DOMString xmlbase setter raises(DOMException);
         readonly attribute SVGSVGElement ownerSVGElement;
         readonly attribute SVGElement viewportElement;
     };

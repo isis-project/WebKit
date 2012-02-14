@@ -330,68 +330,52 @@ void RegExp::compileIfNecessary(JSGlobalData& globalData, Yarr::YarrCharSize cha
     compile(&globalData, charSize);
 }
 
-
-int RegExp::match(JSGlobalData& globalData, const UString& s, int startOffset, Vector<int, 32>* ovector)
+int RegExp::match(JSGlobalData& globalData, const UString& s, unsigned startOffset, Vector<int, 32>* ovector)
 {
-    if (startOffset < 0)
-        startOffset = 0;
-
 #if ENABLE(REGEXP_TRACING)
     m_rtMatchCallCount++;
 #endif
 
-    if (static_cast<unsigned>(startOffset) > s.length() || s.isNull())
-        return -1;
+    ASSERT(m_state != ParseError);
+    compileIfNecessary(globalData, s.is8Bit() ? Yarr::Char8 : Yarr::Char16);
 
-    if (m_state != ParseError) {
-        compileIfNecessary(globalData, s.is8Bit() ? Yarr::Char8 : Yarr::Char16);
+    int offsetVectorSize = (m_numSubpatterns + 1) * 2;
+    int* offsetVector;
+    Vector<int, 32> nonReturnedOvector;
+    if (ovector) {
+        ovector->resize(offsetVectorSize);
+        offsetVector = ovector->data();
+    } else {
+        nonReturnedOvector.resize(offsetVectorSize);
+        offsetVector = nonReturnedOvector.data();
+    }
+    ASSERT(offsetVector);
 
-        int offsetVectorSize = (m_numSubpatterns + 1) * 2;
-        int* offsetVector;
-        Vector<int, 32> nonReturnedOvector;
-        if (ovector) {
-            ovector->resize(offsetVectorSize);
-            offsetVector = ovector->data();
-        } else {
-            nonReturnedOvector.resize(offsetVectorSize);
-            offsetVector = nonReturnedOvector.data();
-        }
-
-        ASSERT(offsetVector);
-        // Initialize offsetVector with the return value (index 0) and the 
-        // first subpattern start indicies (even index values) set to -1.
-        // No need to init the subpattern end indicies.
-        for (unsigned j = 0, i = 0; i < m_numSubpatterns + 1; j += 2, i++)            
-            offsetVector[j] = -1;
-
-        int result;
+    int result;
 #if ENABLE(YARR_JIT)
-        if (m_state == JITCode) {
-            if (s.is8Bit())
-                result = Yarr::execute(m_representation->m_regExpJITCode, s.characters8(), startOffset, s.length(), offsetVector);
-            else
-                result = Yarr::execute(m_representation->m_regExpJITCode, s.characters16(), startOffset, s.length(), offsetVector);
+    if (m_state == JITCode) {
+        if (s.is8Bit())
+            result = Yarr::execute(m_representation->m_regExpJITCode, s.characters8(), startOffset, s.length(), offsetVector);
+        else
+            result = Yarr::execute(m_representation->m_regExpJITCode, s.characters16(), startOffset, s.length(), offsetVector);
 #if ENABLE(YARR_JIT_DEBUG)
-            matchCompareWithInterpreter(s, startOffset, offsetVector, result);
+        matchCompareWithInterpreter(s, startOffset, offsetVector, result);
 #endif
-        } else
+    } else
 #endif
-            result = Yarr::interpret(m_representation->m_regExpBytecode.get(), s, startOffset, s.length(), offsetVector);
-        ASSERT(result >= -1);
+        result = Yarr::interpret(m_representation->m_regExpBytecode.get(), s, startOffset, s.length(), offsetVector);
+    ASSERT(result >= -1);
 
 #if REGEXP_FUNC_TEST_DATA_GEN
-        RegExpFunctionalTestCollector::get()->outputOneTest(this, s, startOffset, offsetVector, result);
+    RegExpFunctionalTestCollector::get()->outputOneTest(this, s, startOffset, offsetVector, result);
 #endif
 
 #if ENABLE(REGEXP_TRACING)
-        if (result != -1)
-            m_rtMatchFoundCount++;
+    if (result != -1)
+        m_rtMatchFoundCount++;
 #endif
 
-        return result;
-    }
-
-    return -1;
+    return result;
 }
 
 void RegExp::invalidateCode()
@@ -429,24 +413,24 @@ void RegExp::matchCompareWithInterpreter(const UString& s, int startOffset, int*
             differences++;
 
     if (differences) {
-        fprintf(stderr, "RegExp Discrepency for /%s/\n    string input ", pattern().utf8().data());
+        dataLog("RegExp Discrepency for /%s/\n    string input ", pattern().utf8().data());
         unsigned segmentLen = s.length() - static_cast<unsigned>(startOffset);
 
-        fprintf(stderr, (segmentLen < 150) ? "\"%s\"\n" : "\"%148s...\"\n", s.utf8().data() + startOffset);
+        dataLog((segmentLen < 150) ? "\"%s\"\n" : "\"%148s...\"\n", s.utf8().data() + startOffset);
 
         if (jitResult != interpreterResult) {
-            fprintf(stderr, "    JIT result = %d, blah interpreted result = %d\n", jitResult, interpreterResult);
+            dataLog("    JIT result = %d, blah interpreted result = %d\n", jitResult, interpreterResult);
             differences--;
         } else {
-            fprintf(stderr, "    Correct result = %d\n", jitResult);
+            dataLog("    Correct result = %d\n", jitResult);
         }
 
         if (differences) {
             for (unsigned j = 2, i = 0; i < m_numSubpatterns; j +=2, i++) {
                 if (offsetVector[j] != interpreterOffsetVector[j])
-                    fprintf(stderr, "    JIT offset[%d] = %d, interpreted offset[%d] = %d\n", j, offsetVector[j], j, interpreterOffsetVector[j]);
+                    dataLog("    JIT offset[%d] = %d, interpreted offset[%d] = %d\n", j, offsetVector[j], j, interpreterOffsetVector[j]);
                 if ((offsetVector[j] >= 0) && (offsetVector[j+1] != interpreterOffsetVector[j+1]))
-                    fprintf(stderr, "    JIT offset[%d] = %d, interpreted offset[%d] = %d\n", j+1, offsetVector[j+1], j+1, interpreterOffsetVector[j+1]);
+                    dataLog("    JIT offset[%d] = %d, interpreted offset[%d] = %d\n", j+1, offsetVector[j+1], j+1, interpreterOffsetVector[j+1]);
             }
         }
     }

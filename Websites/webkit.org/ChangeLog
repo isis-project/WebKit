@@ -1,3 +1,52 @@
+2012-01-23  Seo Sanghyeon  <sh4.seo@samsung.com>
+
+        website: Reword WEBKITOUTPUTDIR documentation on Building WebKit page
+        https://bugs.webkit.org/show_bug.cgi?id=76544
+
+        Reviewed by Darin Adler.
+
+        WEBKITOUTPUTDIR is not only for Windows.
+
+        * building/build.html:
+
+2012-01-20  Kent Tamura  <tkent@chromium.org>
+
+        Each style rule should have its own ID.
+        https://bugs.webkit.org/show_bug.cgi?id=76428
+
+        Reviewed by David Levin.
+
+        * coding/coding-style.html: Add an id attribute to each of li elements,
+        and add code to set title="#id-name" and to make li elements clickable.
+
+2012-01-19  Daniel Bates  <dbates@webkit.org>
+
+        Remove "Safari 5.1 shipped" text from debugging instructions; move misplaced </ol>
+
+        Rubber-stamped by Sam Weinig.
+
+        * building/debug.html:
+
+2012-01-19  Daniel Bates  <dbates@webkit.org>
+
+        Update Debugging on Mac OS X instructions for Safari 5.1/WebKit 2
+        https://bugs.webkit.org/show_bug.cgi?id=67102
+
+        Reviewed by Eric Seidel.
+
+        Add instructions for debugging UIProcess and WebProcess using Xcode 4.
+
+        * building/active-scheme-xcode4.png: Added.
+        * building/build-settings-tab-xcode4.png: Added.
+        * building/build-window.png: Removed.
+        * building/custom-executable-xcode4.png: Added.
+        * building/custom-executable.png: Removed.
+        * building/debug-mac-uiprocess.html: Added.
+        * building/debug.html:
+        * building/debug.png: Removed.
+        * building/info-tab.png: Removed.
+        * building/run-xcode4.png: Added.
+
 2012-01-11  Antti Koivisto  <antti@apple.com>
 
         Remove S60 reference from webkit.org

@@ -26,15 +26,15 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import with_statement
-
 import codecs
 import os
 import tempfile
 import unittest
 
+# Do not import changelog_unittest.ChangeLogTest directly as that will cause it to be run again.
+from webkitpy.common.checkout import changelog_unittest
+
 from webkitpy.common.checkout.changelog import ChangeLog
-from webkitpy.common.checkout.changelog_unittest import ChangeLogTest
 from webkitpy.tool.steps.preparechangelogforrevert import *
 
 
@@ -109,7 +109,7 @@ class UpdateChangeLogsForRevertTest(unittest.TestCase):
 """
 
     def _assert_message_for_revert_output(self, args, expected_entry):
-        changelog_contents = u"%s\n%s" % (ChangeLogTest._new_entry_boilerplate, ChangeLogTest._example_changelog)
+        changelog_contents = u"%s\n%s" % (changelog_unittest.ChangeLogTest._new_entry_boilerplate, changelog_unittest.ChangeLogTest._example_changelog)
         changelog_path = self._write_tmp_file_with_contents(changelog_contents.encode("utf-8"))
         changelog = ChangeLog(changelog_path)
         changelog.update_with_unreviewed_message(PrepareChangeLogForRevert._message_for_revert(*args))

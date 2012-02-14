@@ -27,6 +27,7 @@
 #define CCLayerImpl_h
 
 #include "Color.h"
+#include "FilterOperations.h"
 #include "FloatRect.h"
 #include "IntRect.h"
 #include "TextStream.h"
@@ -72,6 +73,7 @@ public:
 #endif
 
     PassOwnPtr<CCSharedQuadState> createSharedQuadState() const;
+    virtual void willDraw(LayerRendererChromium*) { }
     virtual void appendQuads(CCQuadList&, const CCSharedQuadState*);
     void appendDebugBorderQuad(CCQuadList&, const CCSharedQuadState*) const;
 
@@ -96,6 +98,12 @@ public:
 
     void setBackgroundColor(const Color&);
     Color backgroundColor() const { return m_backgroundColor; }
+
+    void setBackgroundCoversViewport(bool);
+    bool backgroundCoversViewport() const { return m_backgroundCoversViewport; }
+
+    void setFilters(const FilterOperations&);
+    const FilterOperations& filters() const { return m_filters; }
 
     void setMasksToBounds(bool);
     bool masksToBounds() const { return m_masksToBounds; }
@@ -204,6 +212,8 @@ protected:
     // Transformation used to transform quads provided in appendQuads.
     virtual TransformationMatrix quadTransform() const;
 
+    void appendGutterQuads(CCQuadList&, const CCSharedQuadState*);
+
 private:
     void setParent(CCLayerImpl* parent) { m_parent = parent; }
     friend class TreeSynchronizer;
@@ -233,6 +243,7 @@ private:
     IntPoint m_scrollPosition;
     bool m_scrollable;
     Color m_backgroundColor;
+    bool m_backgroundCoversViewport;
 
     // Whether the "back" of this layer should draw.
     bool m_doubleSided;
@@ -280,6 +291,8 @@ private:
     // Debug borders.
     Color m_debugBorderColor;
     float m_debugBorderWidth;
+
+    FilterOperations m_filters;
 
     TransformationMatrix m_drawTransform;
     TransformationMatrix m_screenSpaceTransform;

@@ -28,6 +28,7 @@
 #include "AXObjectCache.h"
 #include "Attr.h"
 #include "Attribute.h"
+#include "BeforeLoadEvent.h"
 #include "ChildListMutationScope.h"
 #include "Chrome.h"
 #include "ChromeClient.h"
@@ -85,6 +86,7 @@
 #include "ScopedEventQueue.h"
 #include "SelectorQuery.h"
 #include "ShadowRoot.h"
+#include "ShadowRootList.h"
 #include "StaticNodeList.h"
 #include "StorageEvent.h"
 #include "TagNodeList.h"
@@ -93,8 +95,6 @@
 #include "TreeScopeAdopter.h"
 #include "UIEvent.h"
 #include "UIEventWithKeyState.h"
-#include "WebKitAnimationEvent.h"
-#include "WebKitTransitionEvent.h"
 #include "WheelEvent.h"
 #include "WindowEventContext.h"
 #include "XMLNames.h"
@@ -160,8 +160,6 @@ void Node::dumpStatistics()
     HashMap<String, size_t> perTagCount;
 
     size_t attributes = 0;
-    size_t mappedAttributes = 0;
-    size_t mappedAttributesWithStyleDecl = 0;
     size_t attributesWithAttr = 0;
     size_t attrMaps = 0;
 
@@ -189,11 +187,6 @@ void Node::dumpStatistics()
                         Attribute* attr = attrMap->attributeItem(i);
                         if (attr->attr())
                             ++attributesWithAttr;
-                        if (attr->isMappedAttribute()) {
-                            ++mappedAttributes;
-                            if (attr->style())
-                                ++mappedAttributesWithStyleDecl;
-                        }
                     }
                 }
                 break;
@@ -235,7 +228,10 @@ void Node::dumpStatistics()
                 break;
             }
             case DOCUMENT_FRAGMENT_NODE: {
-                ++fragmentNodes;
+                if (node->isShadowRoot())
+                    ++shadowRootNodes;
+                else
+                    ++fragmentNodes;
                 break;
             }
             case NOTATION_NODE: {
@@ -244,10 +240,6 @@ void Node::dumpStatistics()
             }
             case XPATH_NAMESPACE_NODE: {
                 ++xpathNSNodes;
-                break;
-            }
-            case SHADOW_ROOT_NODE: {
-                ++shadowRootNodes;
                 break;
             }
         }
@@ -278,8 +270,6 @@ void Node::dumpStatistics()
 
     printf("Attribute Maps:\n");
     printf("  Number of Attributes (non-Node and Node): %zu [%zu]\n", attributes, sizeof(Attribute));
-    printf("  Number of Attributes that are mapped: %zu\n", mappedAttributes);
-    printf("  Number of Attributes with a StyleDeclaration: %zu\n", mappedAttributesWithStyleDecl);
     printf("  Number of Attributes with an Attr: %zu\n", attributesWithAttr);
     printf("  Number of NamedNodeMaps: %zu [%zu]\n", attrMaps, sizeof(NamedNodeMap));
 #endif
@@ -362,8 +352,7 @@ Node::StyleChange Node::diff(const RenderStyle* s1, const RenderStyle* s2)
     if ((s1 && s2) && (s1->flowThread() != s2->flowThread()))
         ch = Detach;
 
-    // When either the region thread or the region index has changed,
-    // we need to prepare a separate render region object.
+    // When the region thread has changed, we need to prepare a separate render region object.
     if ((s1 && s2) && (s1->regionThread() != s2->regionThread()))
         ch = Detach;
 
@@ -552,7 +541,13 @@ void Node::setNodeValue(const String& /*nodeValue*/, ExceptionCode& ec)
 
 PassRefPtr<NodeList> Node::childNodes()
 {
-    return ChildNodeList::create(this, ensureRareData()->ensureChildNodeListCache());
+    NodeRareData* data = ensureRareData();
+    if (data->childNodeList())
+        return PassRefPtr<NodeList>(data->childNodeList());
+
+    RefPtr<ChildNodeList> list = ChildNodeList::create(this);
+    data->setChildNodeList(list.get());
+    return list.release();
 }
 
 Node *Node::lastDescendant() const
@@ -636,7 +631,7 @@ void Node::normalize()
             continue;
         }
 
-        Text* text = static_cast<Text*>(node.get());
+        RefPtr<Text> text = toText(node.get());
 
         // Remove empty text nodes.
         if (!text->length()) {
@@ -651,7 +646,7 @@ void Node::normalize()
         while (Node* nextSibling = node->nextSibling()) {
             if (nextSibling->nodeType() != TEXT_NODE)
                 break;
-            RefPtr<Text> nextText = static_cast<Text*>(nextSibling);
+            RefPtr<Text> nextText = toText(nextSibling);
 
             // Remove empty text nodes.
             if (!nextText->length()) {
@@ -814,7 +809,7 @@ bool Node::hasNonEmptyBoundingBox() const
 
 inline static ShadowRoot* shadowRoot(Node* node)
 {
-    return node->isElementNode() ? toElement(node)->shadowRoot() : 0;
+    return node->isElementNode() && toElement(node)->hasShadowRoot() ? toElement(node)->shadowRootList()->youngestShadowRoot() : 0;
 }
 
 inline void Node::setStyleChange(StyleChangeType changeType)
@@ -1074,6 +1069,12 @@ void Node::removeCachedLabelsNodeList(DynamicSubtreeNodeList* list)
     data->m_labelsNodeListCache = 0;
 }
 
+void Node::removeCachedChildNodeList()
+{
+    ASSERT(rareData());
+    rareData()->setChildNodeList(0);
+}
+
 Node* Node::traverseNextNode(const Node* stayWithin) const
 {
     if (firstChild())
@@ -1176,8 +1177,11 @@ void Node::checkSetPrefix(const AtomicString& prefix, ExceptionCode& ec)
     // Perform error checking as required by spec for setting Node.prefix. Used by
     // Element::setPrefix() and Attr::setPrefix()
 
-    // FIXME: Implement support for INVALID_CHARACTER_ERR: Raised if the specified prefix contains an illegal character.
-    
+    if (!prefix.isEmpty() && !Document::isValidName(prefix)) {
+        ec = INVALID_CHARACTER_ERR;
+        return;
+    }
+
     if (isReadOnlyNode()) {
         ec = NO_MODIFICATION_ALLOWED_ERR;
         return;
@@ -1532,7 +1536,7 @@ Element* Node::parentOrHostElement() const
         return 0;
 
     if (parent->isShadowRoot())
-        parent = parent->shadowHost();
+        return parent->shadowHost();
 
     if (!parent->isElementNode())
         return 0;
@@ -1750,14 +1754,18 @@ bool Node::isEqualNode(Node* other) const
     if (nodeValue() != other->nodeValue())
         return false;
     
-    NamedNodeMap* attributes = this->attributes();
-    NamedNodeMap* otherAttributes = other->attributes();
-    
-    if (!attributes && otherAttributes)
-        return false;
-    
-    if (attributes && !attributes->mapsEquivalent(otherAttributes))
-        return false;
+    if (isElementNode()) {
+        NamedNodeMap* attributes = toElement(this)->updatedAttributes();
+        NamedNodeMap* otherAttributes = toElement(other)->updatedAttributes();
+
+        if (attributes) {
+            if (!attributes->mapsEquivalent(otherAttributes))
+                return false;
+        } else if (otherAttributes) {
+            if (!otherAttributes->mapsEquivalent(attributes))
+                return false;
+        }
+    }
     
     Node* child = firstChild();
     Node* otherChild = other->firstChild();
@@ -1816,10 +1824,8 @@ bool Node::isDefaultNamespace(const AtomicString& namespaceURIMaybeEmpty) const
                 return elem->namespaceURI() == namespaceURI;
 
             if (elem->hasAttributes()) {
-                NamedNodeMap* attrs = elem->attributes();
-                
-                for (unsigned i = 0; i < attrs->length(); i++) {
-                    Attribute* attr = attrs->attributeItem(i);
+                for (unsigned i = 0; i < elem->attributeCount(); i++) {
+                    Attribute* attr = elem->attributeItem(i);
                     
                     if (attr->localName() == xmlnsAtom)
                         return attr->value() == namespaceURI;
@@ -1839,7 +1845,6 @@ bool Node::isDefaultNamespace(const AtomicString& namespaceURIMaybeEmpty) const
         case NOTATION_NODE:
         case DOCUMENT_TYPE_NODE:
         case DOCUMENT_FRAGMENT_NODE:
-        case SHADOW_ROOT_NODE:
             return false;
         case ATTRIBUTE_NODE: {
             const Attr* attr = static_cast<const Attr*>(this);
@@ -1873,7 +1878,6 @@ String Node::lookupPrefix(const AtomicString &namespaceURI) const
         case NOTATION_NODE:
         case DOCUMENT_FRAGMENT_NODE:
         case DOCUMENT_TYPE_NODE:
-        case SHADOW_ROOT_NODE:
             return String();
         case ATTRIBUTE_NODE: {
             const Attr *attr = static_cast<const Attr *>(this);
@@ -1904,10 +1908,8 @@ String Node::lookupNamespaceURI(const String &prefix) const
                 return elem->namespaceURI();
             
             if (elem->hasAttributes()) {
-                NamedNodeMap *attrs = elem->attributes();
-                
-                for (unsigned i = 0; i < attrs->length(); i++) {
-                    Attribute *attr = attrs->attributeItem(i);
+                for (unsigned i = 0; i < elem->attributeCount(); i++) {
+                    Attribute* attr = elem->attributeItem(i);
                     
                     if (attr->prefix() == xmlnsAtom && attr->localName() == prefix) {
                         if (!attr->value().isEmpty())
@@ -1934,7 +1936,6 @@ String Node::lookupNamespaceURI(const String &prefix) const
         case NOTATION_NODE:
         case DOCUMENT_TYPE_NODE:
         case DOCUMENT_FRAGMENT_NODE:
-        case SHADOW_ROOT_NODE:
             return String();
         case ATTRIBUTE_NODE: {
             const Attr *attr = static_cast<const Attr *>(this);
@@ -1959,15 +1960,14 @@ String Node::lookupNamespacePrefix(const AtomicString &_namespaceURI, const Elem
     if (originalElement->lookupNamespaceURI(prefix()) == _namespaceURI)
         return prefix();
     
-    if (hasAttributes()) {
-        NamedNodeMap *attrs = attributes();
-        
-        for (unsigned i = 0; i < attrs->length(); i++) {
-            Attribute *attr = attrs->attributeItem(i);
+    ASSERT(isElementNode());
+    const Element* thisElement = toElement(this);
+    if (thisElement->hasAttributes()) {
+        for (unsigned i = 0; i < thisElement->attributeCount(); i++) {
+            Attribute* attr = thisElement->attributeItem(i);
             
-            if (attr->prefix() == xmlnsAtom &&
-                attr->value() == _namespaceURI &&
-                originalElement->lookupNamespaceURI(attr->localName()) == _namespaceURI)
+            if (attr->prefix() == xmlnsAtom && attr->value() == _namespaceURI
+                    && originalElement->lookupNamespaceURI(attr->localName()) == _namespaceURI)
                 return attr->localName();
         }
     }
@@ -2003,7 +2003,6 @@ static void appendTextContent(const Node* node, bool convertBRsToNewlines, bool&
     case Node::ENTITY_NODE:
     case Node::ENTITY_REFERENCE_NODE:
     case Node::DOCUMENT_FRAGMENT_NODE:
-    case Node::SHADOW_ROOT_NODE:
         isNullString = false;
         for (Node* child = node->firstChild(); child; child = child->nextSibling()) {
             if (child->nodeType() == Node::COMMENT_NODE || child->nodeType() == Node::PROCESSING_INSTRUCTION_NODE)
@@ -2041,8 +2040,7 @@ void Node::setTextContent(const String& text, ExceptionCode& ec)
         case ATTRIBUTE_NODE:
         case ENTITY_NODE:
         case ENTITY_REFERENCE_NODE:
-        case DOCUMENT_FRAGMENT_NODE:
-        case SHADOW_ROOT_NODE: {
+        case DOCUMENT_FRAGMENT_NODE: {
             ContainerNode* container = toContainerNode(this);
 #if ENABLE(MUTATION_OBSERVERS)
             ChildListMutationScope mutation(this);
@@ -2105,17 +2103,17 @@ unsigned short Node::compareDocumentPosition(Node* otherNode)
         chain2.append(attr2);
     
     if (attr1 && attr2 && start1 == start2 && start1) {
-        // We are comparing two attributes on the same node.  Crawl our attribute map
-        // and see which one we hit first.
-        NamedNodeMap* map = attr1->ownerElement()->attributes(true);
-        unsigned length = map->length();
+        // We are comparing two attributes on the same node. Crawl our attribute map and see which one we hit first.
+        Element* owner1 = attr1->ownerElement();
+        owner1->updatedAttributes(); // Force update invalid attributes.
+        unsigned length = owner1->attributeCount();
         for (unsigned i = 0; i < length; ++i) {
             // If neither of the two determining nodes is a child node and nodeType is the same for both determining nodes, then an 
             // implementation-dependent order between the determining nodes is returned. This order is stable as long as no nodes of
             // the same nodeType are inserted into or removed from the direct container. This would be the case, for example, 
             // when comparing two attributes of the same element, and inserting or removing additional attributes might change 
             // the order between existing attributes.
-            Attribute* attr = map->attributeItem(i);
+            Attribute* attr = owner1->attributeItem(i);
             if (attr1->attr() == attr)
                 return DOCUMENT_POSITION_IMPLEMENTATION_SPECIFIC | DOCUMENT_POSITION_FOLLOWING;
             if (attr2->attr() == attr)
@@ -2796,6 +2794,17 @@ void Node::dispatchSimulatedClick(PassRefPtr<Event> event, bool sendMouseEvents,
     EventDispatcher::dispatchSimulatedClick(this, event, sendMouseEvents, showPressedLook);
 }
 
+bool Node::dispatchBeforeLoadEvent(const String& sourceURL)
+{
+    if (!document()->hasListenerType(Document::BEFORELOAD_LISTENER))
+        return true;
+
+    RefPtr<Node> protector(this);
+    RefPtr<BeforeLoadEvent> beforeLoadEvent = BeforeLoadEvent::create(sourceURL);
+    dispatchEvent(beforeLoadEvent.get());
+    return !beforeLoadEvent->defaultPrevented();
+}
+
 bool Node::dispatchWheelEvent(const PlatformWheelEvent& event)
 {
     return EventDispatcher::dispatchEvent(this, WheelEventDispatchMediator::create(event, document()->defaultView()));
@@ -2935,13 +2944,8 @@ void NodeRareData::createNodeLists(Node* node)
 
 void NodeRareData::clearChildNodeListCache()
 {
-    if (!m_childNodeListCache)
-        return;
-
-    if (m_childNodeListCache->hasOneRef())
-        m_childNodeListCache.clear();
-    else
-        m_childNodeListCache->reset();
+    if (m_childNodeList)
+        m_childNodeList->invalidateCache();
 }
 
 } // namespace WebCore

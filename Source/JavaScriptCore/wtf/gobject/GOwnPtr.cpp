@@ -37,6 +37,11 @@ template <> void freeOwnedGPtr<GList>(GList* ptr)
     g_list_free(ptr);
 }
 
+template <> void freeOwnedGPtr<GSList>(GSList* ptr)
+{
+    g_slist_free(ptr);
+}
+
 template <> void freeOwnedGPtr<GPatternSpec>(GPatternSpec* ptr)
 {
     if (ptr)
@@ -47,6 +52,18 @@ template <> void freeOwnedGPtr<GDir>(GDir* ptr)
 {
     if (ptr)
         g_dir_close(ptr);
+}
+
+template <> void freeOwnedGPtr<GTimer>(GTimer* ptr)
+{
+    if (ptr)
+        g_timer_destroy(ptr);
+}
+
+template <> void freeOwnedGPtr<GKeyFile>(GKeyFile* ptr)
+{
+    if (ptr)
+        g_key_file_free(ptr);
 }
 
 } // namespace WTF

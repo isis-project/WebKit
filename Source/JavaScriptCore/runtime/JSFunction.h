@@ -42,6 +42,8 @@ namespace JSC {
 
     JS_EXPORT_PRIVATE EncodedJSValue JSC_HOST_CALL callHostFunctionAsConstructor(ExecState*);
 
+    JS_EXPORT_PRIVATE UString getCalculatedDisplayName(CallFrame*, JSObject*);
+    
     class JSFunction : public JSNonFinalObject {
         friend class JIT;
         friend class DFG::SpeculativeJIT;
@@ -62,10 +64,8 @@ namespace JSC {
             return function;
         }
         
-        static void destroy(JSCell*);
-
         JS_EXPORT_PRIVATE const UString& name(ExecState*);
-        const UString displayName(ExecState*);
+        JS_EXPORT_PRIVATE const UString displayName(ExecState*);
         const UString calculatedDisplayName(ExecState*);
 
         ScopeChainNode* scope()

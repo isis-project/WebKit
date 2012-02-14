@@ -30,7 +30,6 @@
 #include "AXObjectCache.h"
 #include "ApplyStyleCommand.h"
 #include "CSSComputedStyleDeclaration.h"
-#include "CSSMutableStyleDeclaration.h"
 #include "CSSProperty.h"
 #include "CSSPropertyNames.h"
 #include "CSSStyleSelector.h"
@@ -78,6 +77,7 @@
 #include "Sound.h"
 #include "SpellChecker.h"
 #include "SpellingCorrectionCommand.h"
+#include "StylePropertySet.h"
 #include "Text.h"
 #include "TextCheckerClient.h"
 #include "TextCheckingHelper.h"
@@ -400,7 +400,7 @@ bool Editor::shouldInsertFragment(PassRefPtr<DocumentFragment> fragment, PassRef
 
 void Editor::replaceSelectionWithFragment(PassRefPtr<DocumentFragment> fragment, bool selectReplacement, bool smartReplace, bool matchStyle)
 {
-    if (m_frame->selection()->isNone() || !fragment)
+    if (m_frame->selection()->isNone() || !m_frame->selection()->isContentEditable() || !fragment)
         return;
 
     ReplaceSelectionCommand::CommandOptions options = ReplaceSelectionCommand::PreventNesting | ReplaceSelectionCommand::SanitizeFragment;
@@ -466,11 +466,6 @@ bool Editor::tryDHTMLPaste()
     return !dispatchCPPEvent(eventNames().pasteEvent, ClipboardReadable);
 }
 
-void Editor::writeSelectionToPasteboard(Pasteboard* pasteboard)
-{
-    pasteboard->writeSelection(selectedRange().get(), canSmartCopyOrDelete(), m_frame);
-}
-
 bool Editor::shouldInsertText(const String& text, Range* range, EditorInsertAction action) const
 {
     return client() && client()->shouldInsertText(text, range, action);
@@ -526,7 +521,7 @@ WritingDirection Editor::textDirectionForSelection(bool& hasNestedOrMultipleEmbe
             if (!n->isStyledElement())
                 continue;
 
-            RefPtr<CSSComputedStyleDeclaration> style = computedStyle(n);
+            RefPtr<CSSComputedStyleDeclaration> style = CSSComputedStyleDeclaration::create(n);
             RefPtr<CSSValue> unicodeBidi = style->getPropertyCSSValue(CSSPropertyUnicodeBidi);
             if (!unicodeBidi || !unicodeBidi->isPrimitiveValue())
                 continue;
@@ -556,7 +551,7 @@ WritingDirection Editor::textDirectionForSelection(bool& hasNestedOrMultipleEmbe
         if (!node->isStyledElement())
             continue;
 
-        RefPtr<CSSComputedStyleDeclaration> style = computedStyle(node);
+        RefPtr<CSSComputedStyleDeclaration> style = CSSComputedStyleDeclaration::create(node);
         RefPtr<CSSValue> unicodeBidi = style->getPropertyCSSValue(CSSPropertyUnicodeBidi);
         if (!unicodeBidi || !unicodeBidi->isPrimitiveValue())
             continue;
@@ -1351,9 +1346,9 @@ void Editor::setBaseWritingDirection(WritingDirection direction)
         return;
     }
 
-    RefPtr<CSSMutableStyleDeclaration> style = CSSMutableStyleDeclaration::create();
+    RefPtr<StylePropertySet> style = StylePropertySet::create();
     style->setProperty(CSSPropertyDirection, direction == LeftToRightWritingDirection ? "ltr" : direction == RightToLeftWritingDirection ? "rtl" : "inherit", false);
-    applyParagraphStyleToSelection(style.get(), EditActionSetWritingDirection);
+    applyParagraphStyleToSelection(style->ensureCSSStyleDeclaration(), EditActionSetWritingDirection);
 }
 
 void Editor::selectComposition()
@@ -1457,8 +1452,11 @@ void Editor::setComposition(const String& text, const Vector<CompositionUnderlin
         // We check the composition status and choose an appropriate composition event since this
         // function is used for three purposes:
         // 1. Starting a new composition.
-        //    Send a compositionstart event when this function creates a new composition node, i.e.
+        //    Send a compositionstart and a compositionupdate event when this function creates
+        //    a new composition node, i.e.
         //    m_compositionNode == 0 && !text.isEmpty().
+        //    Sending a compositionupdate event at this time ensures that at least one
+        //    compositionupdate event is dispatched.
         // 2. Updating the existing composition node.
         //    Send a compositionupdate event when this function updates the existing composition
         //    node, i.e. m_compositionNode != 0 && !text.isEmpty().
@@ -1469,8 +1467,10 @@ void Editor::setComposition(const String& text, const Vector<CompositionUnderlin
         if (!m_compositionNode) {
             // We should send a compositionstart event only when the given text is not empty because this
             // function doesn't create a composition node when the text is empty.
-            if (!text.isEmpty())
-                event = CompositionEvent::create(eventNames().compositionstartEvent, m_frame->domWindow(), text);
+            if (!text.isEmpty()) {
+                target->dispatchEvent(CompositionEvent::create(eventNames().compositionstartEvent, m_frame->domWindow(), text));
+                event = CompositionEvent::create(eventNames().compositionupdateEvent, m_frame->domWindow(), text);
+            }
         } else {
             if (!text.isEmpty())
                 event = CompositionEvent::create(eventNames().compositionupdateEvent, m_frame->domWindow(), text);
@@ -1502,7 +1502,7 @@ void Editor::setComposition(const String& text, const Vector<CompositionUnderlin
         unsigned extentOffset = extent.deprecatedEditingOffset();
 
         if (baseNode && baseNode == extentNode && baseNode->isTextNode() && baseOffset + text.length() == extentOffset) {
-            m_compositionNode = static_cast<Text*>(baseNode);
+            m_compositionNode = toText(baseNode);
             m_compositionStart = baseOffset;
             m_compositionEnd = extentOffset;
             m_customCompositionUnderlines = underlines;
@@ -2090,7 +2090,7 @@ void Editor::markAndReplaceFor(PassRefPtr<SpellCheckRequest> request, const Vect
             RefPtr<Range> misspellingRange = paragraph.subrange(resultLocation, resultLength);
             if (!m_spellingCorrector->isSpellingMarkerAllowed(misspellingRange))
                 continue;
-            misspellingRange->startContainer()->document()->markers()->addMarker(misspellingRange.get(), DocumentMarker::Spelling);
+            misspellingRange->startContainer()->document()->markers()->addMarker(misspellingRange.get(), DocumentMarker::Spelling, result->replacement);
         } else if (shouldMarkGrammar && result->type == TextCheckingTypeGrammar && paragraph.checkingRangeCovers(resultLocation, resultLength)) {
             ASSERT(resultLength > 0 && resultLocation >= 0);
             for (unsigned j = 0; j < result->details.size(); j++) {
@@ -2318,7 +2318,7 @@ void Editor::deletedAutocorrectionAtPosition(const Position& position, const Str
     m_spellingCorrector->deletedAutocorrectionAtPosition(position, originalString);
 }
 
-PassRefPtr<Range> Editor::rangeForPoint(const LayoutPoint& windowPoint)
+PassRefPtr<Range> Editor::rangeForPoint(const IntPoint& windowPoint)
 {
     Document* document = m_frame->documentAtPoint(windowPoint);
     if (!document)
@@ -2633,7 +2633,7 @@ String Editor::selectedText() const
 
 IntRect Editor::firstRectForRange(Range* range) const
 {
-    int extraWidthToEndOfLine = 0;
+    LayoutUnit extraWidthToEndOfLine = 0;
     ASSERT(range->startContainer());
     ASSERT(range->endContainer());
 
@@ -2742,19 +2742,13 @@ void Editor::applyEditingStyleToElement(Element* element) const
 {
     if (!element)
         return;
-
-    CSSStyleDeclaration* style = element->style();
-    ASSERT(style);
-    if (!style)
+    ASSERT(element->isStyledElement());
+    if (!element->isStyledElement())
         return;
-
-    ExceptionCode ec = 0;
-    style->setProperty(CSSPropertyWordWrap, "break-word", false, ec);
-    ASSERT(!ec);
-    style->setProperty(CSSPropertyWebkitNbspMode, "space", false, ec);
-    ASSERT(!ec);
-    style->setProperty(CSSPropertyWebkitLineBreak, "after-white-space", false, ec);
-    ASSERT(!ec);
+    StylePropertySet* style = static_cast<StyledElement*>(element)->ensureInlineStyleDecl();
+    style->setProperty(CSSPropertyWordWrap, "break-word", false);
+    style->setProperty(CSSPropertyWebkitNbspMode, "space", false);
+    style->setProperty(CSSPropertyWebkitLineBreak, "after-white-space", false);
 }
 
 // Searches from the beginning of the document if nothing is selected.
@@ -3075,6 +3069,8 @@ TextCheckingTypeMask Editor::resolveTextCheckingTypeMask(TextCheckingTypeMask te
         checkingTypes |= TextCheckingTypeGrammar;
     if (shouldCheckForCorrection)
         checkingTypes |= TextCheckingTypeCorrection;
+    if (shouldShowCorrectionPanel)
+        checkingTypes |= TextCheckingTypeShowCorrectionPanel;
 
 #if USE(AUTOMATIC_TEXT_REPLACEMENT)
     bool shouldPerformReplacement = textCheckingOptions & TextCheckingTypeReplacement;
