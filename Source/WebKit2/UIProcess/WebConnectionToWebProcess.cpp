@@ -30,6 +30,8 @@
 #include "WebContextUserMessageCoders.h"
 #include "WebProcessProxy.h"
 
+using namespace WebCore;
+
 namespace WebKit {
 
 PassRefPtr<WebConnectionToWebProcess> WebConnectionToWebProcess::create(WebProcessProxy* process, CoreIPC::Connection::Identifier connectionIdentifier, RunLoop* runLoop)
@@ -107,6 +109,7 @@ void WebConnectionToWebProcess::didClose(CoreIPC::Connection* connection)
 
 void WebConnectionToWebProcess::didReceiveInvalidMessage(CoreIPC::Connection* connection, CoreIPC::MessageID messageID)
 {
+    RefPtr<WebConnectionToWebProcess> protector = this;
     RefPtr<WebProcessProxy> process = m_process;
 
     // This will invalidate the CoreIPC::Connection and the WebProcessProxy member

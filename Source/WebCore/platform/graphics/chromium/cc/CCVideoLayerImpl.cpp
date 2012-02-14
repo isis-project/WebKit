@@ -32,9 +32,10 @@
 #include "Extensions3DChromium.h"
 #include "GraphicsContext3D.h"
 #include "LayerRendererChromium.h"
-#include "ProgramBinding.h"
 #include "NotImplemented.h"
+#include "ProgramBinding.h"
 #include "cc/CCProxy.h"
+#include "cc/CCVideoDrawQuad.h"
 #include <wtf/text/WTFString.h>
 
 namespace WebCore {
@@ -125,11 +126,15 @@ void CCVideoLayerImpl::draw(LayerRendererChromium* layerRenderer)
         return;
     GC3Denum format = convertVFCFormatToGC3DFormat(frame->format());
 
-    if (format == GraphicsContext3D::INVALID_VALUE)
+    if (format == GraphicsContext3D::INVALID_VALUE) {
+        m_provider->putCurrentFrame(frame);
         return;
+    }
 
-    if (!copyFrameToTextures(frame, format, layerRenderer))
+    if (!copyFrameToTextures(frame, format, layerRenderer)) {
+        m_provider->putCurrentFrame(frame);
         return;
+    }
 
     switch (format) {
     case GraphicsContext3D::LUMINANCE:
@@ -148,6 +153,12 @@ void CCVideoLayerImpl::draw(LayerRendererChromium* layerRenderer)
     for (unsigned plane = 0; plane < frame->planes(); ++plane)
         m_textures[plane].m_texture->unreserve();
     m_provider->putCurrentFrame(frame);
+}
+
+void CCVideoLayerImpl::appendQuads(CCQuadList& quadList, const CCSharedQuadState* sharedQuadState)
+{
+    IntRect quadRect(IntPoint(), bounds());
+    quadList.append(CCVideoDrawQuad::create(sharedQuadState, quadRect, this));
 }
 
 bool CCVideoLayerImpl::copyFrameToTextures(const VideoFrameChromium* frame, GC3Denum format, LayerRendererChromium* layerRenderer)
@@ -235,10 +246,15 @@ bool CCVideoLayerImpl::reserveTextures(const VideoFrameChromium* frame, GC3Denum
             if (!m_textures[plane].m_texture)
                 return false;
             m_textures[plane].m_visibleSize = IntSize();
+        } else {
+            // The renderSurfaceTextureManager may have been destroyed and recreated since the last frame, so pass the new one.
+            // This is a no-op if the TextureManager is still around.
+            m_textures[plane].m_texture->setTextureManager(layerRenderer->renderSurfaceTextureManager());
         }
         if (m_textures[plane].m_texture->size() != requiredTextureSize)
             m_textures[plane].m_visibleSize = computeVisibleSize(frame, plane);
-        m_textures[plane].m_texture->reserve(requiredTextureSize, format);
+        if (!m_textures[plane].m_texture->reserve(requiredTextureSize, format))
+            return false;
     }
     return true;
 }

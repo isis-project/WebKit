@@ -69,7 +69,7 @@ DynamicsCompressorKernel::DynamicsCompressorKernel(float sampleRate)
 void DynamicsCompressorKernel::setPreDelayTime(float preDelayTime)
 {
     // Re-configure look-ahead section pre-delay if delay time has changed.
-    unsigned preDelayFrames = preDelayTime / sampleRate();
+    unsigned preDelayFrames = preDelayTime * sampleRate();
     if (preDelayFrames > MaxPreDelayFrames - 1)
         preDelayFrames = MaxPreDelayFrames - 1;
         
@@ -82,9 +82,9 @@ void DynamicsCompressorKernel::setPreDelayTime(float preDelayTime)
     }
 }
 
-void DynamicsCompressorKernel::process(float* sourceL,
+void DynamicsCompressorKernel::process(const float* sourceL,
                                        float* destinationL,
-                                       float* sourceR, /* stereo-linked */
+                                       const float* sourceR, /* stereo-linked */
                                        float* destinationR,
                                        unsigned framesToProcess,
 

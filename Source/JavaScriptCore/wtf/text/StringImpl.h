@@ -52,6 +52,7 @@ namespace WTF {
 struct CStringTranslator;
 struct HashAndCharactersTranslator;
 struct HashAndUTF8CharactersTranslator;
+struct SubstringTranslator;
 struct UCharBufferTranslator;
 
 enum TextCaseSensitivity { TextCaseSensitive, TextCaseInsensitive };
@@ -68,6 +69,7 @@ class StringImpl {
     friend struct WTF::CStringTranslator;
     friend struct WTF::HashAndCharactersTranslator;
     friend struct WTF::HashAndUTF8CharactersTranslator;
+    friend struct WTF::SubstringTranslator;
     friend struct WTF::UCharBufferTranslator;
     friend class AtomicStringImpl;
 
@@ -548,7 +550,7 @@ template <>
 ALWAYS_INLINE const LChar* StringImpl::getCharacters<LChar>() const { return characters8(); }
 
 template <>
-ALWAYS_INLINE const UChar* StringImpl::getCharacters<UChar>() const { return characters16(); }
+ALWAYS_INLINE const UChar* StringImpl::getCharacters<UChar>() const { return characters(); }
 
 WTF_EXPORT_PRIVATE bool equal(const StringImpl*, const StringImpl*);
 WTF_EXPORT_PRIVATE bool equal(const StringImpl*, const LChar*);
@@ -718,6 +720,7 @@ ALWAYS_INLINE bool equal(const UChar* a, const LChar* b, unsigned length)
 WTF_EXPORT_PRIVATE bool equalIgnoringCase(StringImpl*, StringImpl*);
 WTF_EXPORT_PRIVATE bool equalIgnoringCase(StringImpl*, const LChar*);
 inline bool equalIgnoringCase(const LChar* a, StringImpl* b) { return equalIgnoringCase(b, a); }
+WTF_EXPORT_PRIVATE bool equalIgnoringCase(const LChar*, const LChar*, unsigned);
 WTF_EXPORT_PRIVATE bool equalIgnoringCase(const UChar*, const LChar*, unsigned);
 inline bool equalIgnoringCase(const UChar* a, const char* b, unsigned length) { return equalIgnoringCase(a, reinterpret_cast<const LChar*>(b), length); }
 inline bool equalIgnoringCase(const LChar* a, const UChar* b, unsigned length) { return equalIgnoringCase(b, a, length); }

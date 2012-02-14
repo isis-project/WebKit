@@ -42,8 +42,8 @@ class MacPort(ApplePort):
     # and the order of fallback between them.  Matches ORWT.
     VERSION_FALLBACK_ORDER = ["mac-leopard", "mac-snowleopard", "mac-lion", "mac"]
 
-    def __init__(self, host, **kwargs):
-        ApplePort.__init__(self, host, **kwargs)
+    def __init__(self, host, port_name, **kwargs):
+        ApplePort.__init__(self, host, port_name, **kwargs)
         self._leak_detector = LeakDetector(self)
         if self.get_option("leaks"):
             # DumpRenderTree slows down noticably if we run more than about 1000 tests in a batch
@@ -51,12 +51,8 @@ class MacPort(ApplePort):
             self.set_option_default("batch_size", 1000)
 
     def baseline_search_path(self):
-        try:
-            fallback_index = self.VERSION_FALLBACK_ORDER.index(self._port_name_with_version())
-            fallback_names = list(self.VERSION_FALLBACK_ORDER[fallback_index:])
-        except ValueError:
-            # Unknown versions just fall back to the base port results.
-            fallback_names = [self.port_name]
+        fallback_index = self.VERSION_FALLBACK_ORDER.index(self._port_name_with_version())
+        fallback_names = list(self.VERSION_FALLBACK_ORDER[fallback_index:])
         if self.get_option('webkit_test_runner'):
             fallback_names.insert(0, self._wk2_port_name())
             # Note we do not add 'wk2' here, even though it's included in _skipped_search_paths().
@@ -90,6 +86,12 @@ class MacPort(ApplePort):
     # Belongs on a Platform object.
     def is_crash_reporter(self, process_name):
         return re.search(r'ReportCrash', process_name)
+
+    def default_child_processes(self):
+        if self.is_snowleopard():
+            _log.warn("Cannot run tests in parallel on Snow Leopard due to rdar://problem/10621525.")
+            return 1
+        return super(MacPort, self).default_child_processes()
 
     def _build_java_test_support(self):
         java_tests_path = self._filesystem.join(self.layout_tests_dir(), "java")

@@ -31,9 +31,8 @@
 #include "config.h"
 #include "WebScreenInfoFactory.h"
 
+#include "HWndDC.h"
 #include "WebScreenInfo.h"
-
-#include <wtf/win/HwndDCWin.h>
 
 #include <windows.h>
 
@@ -62,7 +61,7 @@ WebScreenInfo WebScreenInfoFactory::screenInfo(HWND window)
     devMode.dmDriverExtra = 0;
     EnumDisplaySettings(monitorInfo.szDevice, ENUM_CURRENT_SETTINGS, &devMode);
 
-    HwndDC hdc(0);
+    WebCore::HWndDC hdc(0);
     ASSERT(hdc);
 
     WebScreenInfo results;

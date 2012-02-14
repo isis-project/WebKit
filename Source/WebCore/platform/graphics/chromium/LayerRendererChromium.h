@@ -56,10 +56,6 @@
 #include <wtf/RetainPtr.h>
 #endif
 
-#if USE(SKIA)
-class GrContext;
-#endif
-
 namespace WebCore {
 
 class CCHeadsUpDisplay;
@@ -167,7 +163,9 @@ private:
     void drawRenderSurfaceQuad(const CCRenderSurfaceDrawQuad*);
     void drawSolidColorQuad(const CCSolidColorDrawQuad*);
     void drawTileQuad(const CCTileDrawQuad*);
-    void drawCustomLayerQuad(const CCCustomLayerDrawQuad*);
+    void drawCanvasQuad(const CCCanvasDrawQuad*);
+    void drawVideoQuad(const CCVideoDrawQuad*);
+    void drawPluginQuad(const CCPluginDrawQuad*);
 
     ManagedTexture* getOffscreenLayerTexture();
     void copyOffscreenTextureToDisplay();
@@ -175,7 +173,7 @@ private:
     void setDrawViewportRect(const IntRect&, bool flipY);
 
     bool useRenderSurface(CCRenderSurface*);
-    void clearSurfaceForDebug(CCRenderSurface*, CCRenderSurface* rootRenderSurface, const FloatRect& surfaceDamageRect);
+    void clearRenderSurface(CCRenderSurface*, CCRenderSurface* rootRenderSurface, const FloatRect& surfaceDamageRect);
 
     void releaseRenderSurfaceTextures();
 

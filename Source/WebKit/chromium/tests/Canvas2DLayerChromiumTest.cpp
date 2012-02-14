@@ -29,6 +29,7 @@
 #include "CCSchedulerTestCommon.h"
 #include "FakeWebGraphicsContext3D.h"
 #include "GraphicsContext3DPrivate.h"
+#include "Region.h"
 #include "TextureManager.h"
 #include "cc/CCCanvasLayerImpl.h"
 #include "cc/CCSingleThreadProxy.h"
@@ -74,12 +75,6 @@ namespace WebCore {
 
 class Canvas2DLayerChromiumTest : public Test {
 protected:
-    // This indirection is needed because individual tests aren't friends of Canvas2DLayerChromium.
-    void setTextureManager(Canvas2DLayerChromium* layer, TextureManager* manager)
-    {
-        layer->setTextureManager(manager);
-    }
-
     void fullLifecycleTest(bool threaded)
     {
         GraphicsContext3D::Attributes attrs;
@@ -132,13 +127,14 @@ protected:
 
         RefPtr<Canvas2DLayerChromium> canvas = Canvas2DLayerChromium::create(mainContext.get(), size);
         canvas->setIsDrawable(true);
-        setTextureManager(canvas.get(), textureManager.get());
+        canvas->setTextureManager(textureManager.get());
         canvas->setBounds(IntSize(600, 300));
         canvas->setTextureId(backTextureId);
 
         canvas->contentChanged();
         EXPECT_TRUE(canvas->needsDisplay());
-        canvas->paintContentsIfDirty();
+        Region occludedScreenSpace;
+        canvas->paintContentsIfDirty(occludedScreenSpace);
         EXPECT_FALSE(canvas->needsDisplay());
         {
             DebugScopedSetImplThread scopedImplThread;

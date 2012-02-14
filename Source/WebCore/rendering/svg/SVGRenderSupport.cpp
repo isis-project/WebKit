@@ -27,6 +27,7 @@
 #if ENABLE(SVG)
 #include "SVGRenderSupport.h"
 
+#include "Frame.h"
 #include "FrameView.h"
 #include "ImageBuffer.h"
 #include "NodeRenderStyle.h"
@@ -38,6 +39,7 @@
 #include "RenderSVGResourceMarker.h"
 #include "RenderSVGResourceMasker.h"
 #include "RenderSVGRoot.h"
+#include "RenderSVGViewportContainer.h"
 #include "SVGResources.h"
 #include "SVGResourcesCache.h"
 #include "SVGStyledElement.h"
@@ -87,8 +89,12 @@ bool SVGRenderSupport::prepareToRenderSVGContent(RenderObject* object, PaintInfo
     const SVGRenderStyle* svgStyle = style->svgStyle();
     ASSERT(svgStyle);
 
+    bool isRenderingMask = false;
+    if (object->frame() && object->frame()->view())
+        isRenderingMask = object->frame()->view()->paintBehavior() & PaintBehaviorRenderingSVGMask;
+
     // Setup transparency layers before setting up SVG resources!
-    float opacity = style->opacity();
+    float opacity = isRenderingMask ? 1 : style->opacity();
     const ShadowData* shadow = svgStyle->shadow();
     if (opacity < 1 || shadow) {
         FloatRect repaintRect = object->repaintRectInLocalCoordinates();
@@ -114,9 +120,11 @@ bool SVGRenderSupport::prepareToRenderSVGContent(RenderObject* object, PaintInfo
         return true;
     }
 
-    if (RenderSVGResourceMasker* masker = resources->masker()) {
-        if (!masker->applyResource(object, style, paintInfo.context, ApplyToDefaultMode))
-            return false;
+    if (!isRenderingMask) {
+        if (RenderSVGResourceMasker* masker = resources->masker()) {
+            if (!masker->applyResource(object, style, paintInfo.context, ApplyToDefaultMode))
+                return false;
+        }
     }
 
     if (RenderSVGResourceClipper* clipper = resources->clipper()) {
@@ -125,9 +133,11 @@ bool SVGRenderSupport::prepareToRenderSVGContent(RenderObject* object, PaintInfo
     }
 
 #if ENABLE(FILTERS)
-    if (RenderSVGResourceFilter* filter = resources->filter()) {
-        if (!filter->applyResource(object, style, paintInfo.context, ApplyToDefaultMode))
-            return false;
+    if (!isRenderingMask) {
+        if (RenderSVGResourceFilter* filter = resources->filter()) {
+            if (!filter->applyResource(object, style, paintInfo.context, ApplyToDefaultMode))
+                return false;
+        }
     }
 #endif
 
@@ -167,20 +177,30 @@ void SVGRenderSupport::finishRenderSVGContent(RenderObject* object, PaintInfo& p
 
 void SVGRenderSupport::computeContainerBoundingBoxes(const RenderObject* container, FloatRect& objectBoundingBox, FloatRect& strokeBoundingBox, FloatRect& repaintBoundingBox)
 {
+    bool isFirstChild = true;
+
     for (RenderObject* current = container->firstChild(); current; current = current->nextSibling()) {
         if (current->isSVGHiddenContainer())
             continue;
 
         const AffineTransform& transform = current->localToParentTransform();
         if (transform.isIdentity()) {
-            objectBoundingBox.unite(current->objectBoundingBox());
+            if (isFirstChild)
+                objectBoundingBox = current->objectBoundingBox();
+            else
+                objectBoundingBox.uniteEvenIfEmpty(current->objectBoundingBox());
             strokeBoundingBox.unite(current->strokeBoundingBox());
             repaintBoundingBox.unite(current->repaintRectInLocalCoordinates());
         } else {
-            objectBoundingBox.unite(transform.mapRect(current->objectBoundingBox()));
+            if (isFirstChild)
+                objectBoundingBox = transform.mapRect(current->objectBoundingBox());
+            else
+                objectBoundingBox.uniteEvenIfEmpty(transform.mapRect(current->objectBoundingBox()));
             strokeBoundingBox.unite(transform.mapRect(current->strokeBoundingBox()));
             repaintBoundingBox.unite(transform.mapRect(current->repaintRectInLocalCoordinates()));
         }
+
+        isFirstChild = false;
     }
 }
 
@@ -212,9 +232,22 @@ static inline void invalidateResourcesOfChildren(RenderObject* start)
         invalidateResourcesOfChildren(child);
 }
 
+static inline bool layoutSizeOfNearestViewportChanged(const RenderObject* start)
+{
+    while (start && !start->isSVGRoot() && !start->isSVGViewportContainer())
+        start = start->parent();
+
+    ASSERT(start);
+    ASSERT(start->isSVGRoot() || start->isSVGViewportContainer());
+    if (start->isSVGViewportContainer())
+        return toRenderSVGViewportContainer(start)->isLayoutSizeChanged();
+
+    return toRenderSVGRoot(start)->isLayoutSizeChanged();
+}
+
 void SVGRenderSupport::layoutChildren(RenderObject* start, bool selfNeedsLayout)
 {
-    bool layoutSizeChanged = findTreeRootObject(start)->isLayoutSizeChanged();
+    bool layoutSizeChanged = layoutSizeOfNearestViewportChanged(start);
     HashSet<RenderObject*> notlayoutedObjects;
 
     for (RenderObject* child = start->firstChild(); child; child = child->nextSibling()) {

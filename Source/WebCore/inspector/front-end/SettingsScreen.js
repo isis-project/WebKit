@@ -38,13 +38,17 @@ WebInspector.SettingsScreen = function()
 
     this._leftColumnElement = document.createElement("td");
     this._rightColumnElement = document.createElement("td");
+    var p;
 
-    if (Preferences.showDockToRight) {
-        var p = this._appendSection(WebInspector.UIString("General"));
-        p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Dock to right"), WebInspector.settings.dockToRight));
+    if (Preferences.showDockToRight || Preferences.exposeDisableCache) {
+        p = this._appendSection(WebInspector.UIString("General"));
+        if (Preferences.showDockToRight)
+            p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Dock to right"), WebInspector.settings.dockToRight));
+        if (Preferences.exposeDisableCache)
+            p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Disable cache"), WebInspector.settings.cacheDisabled));
     }
 
-    var p = this._appendSection(WebInspector.UIString("Elements"));
+    p = this._appendSection(WebInspector.UIString("Elements"));
     p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Word wrap"), WebInspector.settings.domWordWrap));
 
     p = this._appendSection(WebInspector.UIString("Styles"));
@@ -63,10 +67,9 @@ WebInspector.SettingsScreen = function()
             [ WebInspector.UIString("Tab character"), WebInspector.TextEditorModel.Indent.TabCharacter ]
         ], WebInspector.settings.textEditorIndent));
 
-    p = this._appendSection(WebInspector.UIString("Network"), true);
-    if (Preferences.exposeDisableCache)
-        p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Disable cache"), WebInspector.settings.cacheDisabled));
+    p = this._appendSection(WebInspector.UIString("User Agent"), true);
     p.appendChild(this._createUserActionControl());
+    p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Emulate touch events"), WebInspector.settings.emulateTouchEvents));
 
     p = this._appendSection(WebInspector.UIString("Scripts"), true);
     p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Show script folders"), WebInspector.settings.showScriptFolders));
@@ -304,6 +307,13 @@ WebInspector.SettingsScreen.prototype = {
             ["iPad \u2014 iOS 4", "Mozilla/5.0 (iPad; CPU OS 4_3_2 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Gecko) Version/5.0.2 Mobile/8H7 Safari/6533.18.5"],
 
             ["Android 2.3 \u2014 Nexus S", "Mozilla/5.0 (Linux; U; Android 2.3.6; en-us; Nexus S Build/GRK39F) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1"],
+
+            ["BlackBerry \u2014 PlayBook 1.0","Mozilla/5.0 (PlayBook; U; RIM Tablet OS 1.0.0; en-US) AppleWebKit/534.11+ (KHTML, like Gecko) Version/7.1.0.7 Safari/534.11+"],
+            ["BlackBerry \u2014 PlayBook 2.0", "Mozilla/5.0 (PlayBook; U; RIM Tablet OS 2.0.0; en-US) AppleWebKit/535.8+ (KHTML, like Gecko) Version/7.2.0.0 Safari/535.8+"],
+            ["BlackBerry \u2014 9900", "Mozilla/5.0 (BlackBerry; U; BlackBerry 9900; en-US) AppleWebKit/534.11+ (KHTML, like Gecko) Version/7.0.0.187 Mobile Safari/534.11+"],
+
+            ["MeeGo \u2014 Nokia N9", "Mozilla/5.0 (MeeGo; NokiaN9) AppleWebKit/534.13 (KHTML, like Gecko) NokiaBrowser/8.5.0 Mobile Safari/534.13"],
+
             [WebInspector.UIString("Other..."), "Other"]
         ];
 

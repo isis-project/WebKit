@@ -68,7 +68,7 @@ DrawingAreaImpl::DrawingAreaImpl(WebPage* webPage, const WebPageCreationParamete
     , m_displayTimer(WebProcess::shared().runLoop(), this, &DrawingAreaImpl::displayTimerFired)
     , m_exitCompositingTimer(WebProcess::shared().runLoop(), this, &DrawingAreaImpl::exitAcceleratedCompositingMode)
 {
-    if (webPage->corePage()->settings()->acceleratedDrawingEnabled())
+    if (webPage->corePage()->settings()->acceleratedDrawingEnabled() || webPage->corePage()->settings()->forceCompositingMode())
         m_alwaysUseCompositing = true;
         
     if (m_alwaysUseCompositing)
@@ -667,7 +667,7 @@ void DrawingAreaImpl::display(UpdateInfo& updateInfo)
     m_displayTimer.stop();
 }
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER) && USE(TILED_BACKING_STORE)
 void DrawingAreaImpl::didReceiveLayerTreeHostMessage(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments)
 {
     if (m_layerTreeHost)

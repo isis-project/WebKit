@@ -102,8 +102,10 @@ PassRefPtr<AudioContext> AudioContext::create(Document* document)
     ASSERT(isMainThread());
     if (s_hardwareContextCount >= MaxHardwareContexts)
         return 0;
-        
-    return adoptRef(new AudioContext(document));
+
+    RefPtr<AudioContext> audioContext(adoptRef(new AudioContext(document)));
+    audioContext->suspendIfNeeded();
+    return audioContext.release();
 }
 
 PassRefPtr<AudioContext> AudioContext::createOfflineContext(Document* document, unsigned numberOfChannels, size_t numberOfFrames, float sampleRate, ExceptionCode& ec)
@@ -118,7 +120,9 @@ PassRefPtr<AudioContext> AudioContext::createOfflineContext(Document* document, 
         return 0;
     }
 
-    return adoptRef(new AudioContext(document, numberOfChannels, numberOfFrames, sampleRate));
+    RefPtr<AudioContext> audioContext(new AudioContext(document, numberOfChannels, numberOfFrames, sampleRate));
+    audioContext->suspendIfNeeded();
+    return audioContext.release();
 }
 
 // Constructor for rendering to the audio hardware.
@@ -172,8 +176,6 @@ void AudioContext::constructCommon()
     FFTFrame::initialize();
     
     m_listener = AudioListener::create();
-    m_temporaryMonoBus = adoptPtr(new AudioBus(1, AudioNode::ProcessingSizeInFrames));
-    m_temporaryStereoBus = adoptPtr(new AudioBus(2, AudioNode::ProcessingSizeInFrames));
 }
 
 AudioContext::~AudioContext()
@@ -238,13 +240,6 @@ void AudioContext::uninitialize()
 
         deleteMarkedNodes();
 
-        // Because the AudioBuffers are garbage collected, we can't delete them here.
-        // Instead, at least release the potentially large amount of allocated memory for the audio data.
-        // Note that we do this *after* the context is uninitialized and stops processing audio.
-        for (unsigned i = 0; i < m_allocatedBuffers.size(); ++i)
-            m_allocatedBuffers[i]->releaseMemory();
-        m_allocatedBuffers.clear();
-    
         m_isInitialized = false;
     }
 }
@@ -293,11 +288,6 @@ Document* AudioContext::document() const
 bool AudioContext::hasDocument()
 {
     return m_document;
-}
-
-void AudioContext::refBuffer(PassRefPtr<AudioBuffer> buffer)
-{
-    m_allocatedBuffers.append(buffer);
 }
 
 PassRefPtr<AudioBuffer> AudioContext::createBuffer(unsigned numberOfChannels, size_t numberOfFrames, float sampleRate, ExceptionCode& ec)

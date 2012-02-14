@@ -74,9 +74,14 @@ class GTKDoc(object):
     interactive        -- Whether or not errors or warnings should prompt the user
                           to continue or not. When this value is false, generation
                           will continue despite warnings. (default False)
+
+    virtual_root       -- A temporary installation directory which is used as the root
+                          where the actual installation prefix lives; this is mostly
+                          useful for packagers, and should be set to what is given to
+                          make install as DESTDIR.
     """
 
-    def __init__(self, **args):
+    def __init__(self, args):
 
         # Parameters specific to scanning.
         self.module_name = ''
@@ -94,6 +99,9 @@ class GTKDoc(object):
         self.output_dir = ''
         self.doc_dir = ''
         self.main_sgml_file = ''
+
+        # Parameters specific to gtkdoc-fixxref.
+        self.cross_reference_deps = []
 
         self.interactive = False
 
@@ -253,6 +261,9 @@ class GTKDoc(object):
         output_file.write(self.version)
         output_file.close()
 
+    def _ignored_files_basenames(self):
+        return ' '.join([os.path.basename(x) for x in self.ignored_files])
+
     def _run_gtkdoc_scan(self):
         args = ['gtkdoc-scan',
                 '--module=%s' % self.module_name,
@@ -271,10 +282,9 @@ class GTKDoc(object):
         # gtkdoc-scan wants the basenames of ignored headers, so strip the
         # dirname. Different from "--source-dir", the headers should be
         # specified as one long string.
-        if self.ignored_files:
-            ignored_files_basenames = \
-                [os.path.basename(x) for x in self.ignored_files]
-            args.append('--ignore-headers=%s' % ' '.join(ignored_files_basenames))
+        ignored_files_basenames = self._ignored_files_basenames()
+        if ignored_files_basenames:
+            args.append('--ignore-headers=%s' % ignored_files_basenames)
 
         self._run_command(args)
 
@@ -290,9 +300,9 @@ class GTKDoc(object):
                 env['RUN'] = 'LD_LIBRARY_PATH="%s" ' % self.library_path
 
         if ldflags:
-            env['LDFLAGS'] = ldflags
+            env['LDFLAGS'] = '%s %s' % (ldflags, env.get('LDFLAGS', ''))
         if self.cflags:
-            env['CFLAGS'] = self.cflags
+            env['CFLAGS'] = '%s %s' % (self.cflags, env.get('CFLAGS', ''))
 
         if 'CFLAGS' in env:
             self.logger.debug('CFLAGS=%s', env['CFLAGS'])
@@ -318,6 +328,10 @@ class GTKDoc(object):
                 '--output-format=xml',
                 '--sgml-mode']
 
+        ignored_files_basenames = self._ignored_files_basenames()
+        if ignored_files_basenames:
+            args.append('--ignore-files=%s' % ignored_files_basenames)
+
         # Each directory should be have its own "--source-dir=" prefix.
         args.extend(['--source-dir=%s' % path for path in self.source_dirs])
         self._run_command(args, cwd=self.output_dir)
@@ -340,11 +354,23 @@ class GTKDoc(object):
                           cwd=html_dest_dir)
 
     def _run_gtkdoc_fixxref(self):
-        self._run_command(['gtkdoc-fixxref',
-                           '--module-dir=html',
-                           '--html-dir=html'],
-                          cwd=self.output_dir,
-                          ignore_warnings=True)
+        args = ['gtkdoc-fixxref',
+                '--module-dir=html',
+                '--html-dir=html']
+        args.extend(['--extra-dir=%s' % extra_dir for extra_dir in self.cross_reference_deps])
+        self._run_command(args, cwd=self.output_dir, ignore_warnings=True)
+
+    def rebase_installed_docs(self):
+        html_dir = os.path.join(self.virtual_root + self.prefix, 'share', 'gtk-doc', 'html', self.module_name)
+        if not os.path.isdir(html_dir):
+            return
+        args = ['gtkdoc-rebase',
+                '--relative',
+                '--html-dir=%s' % html_dir]
+        args.extend(['--other-dir=%s' % extra_dir for extra_dir in self.cross_reference_deps])
+        if self.virtual_root:
+            args.extend(['--dest-dir=%s' % self.virtual_root])
+        self._run_command(args, cwd=self.output_dir)
 
 
 class PkgConfigGTKDoc(GTKDoc):
@@ -360,8 +386,8 @@ class PkgConfigGTKDoc(GTKDoc):
       pkg_config_path -- Path to the pkgconfig file for the library. Required.
     """
 
-    def __init__(self, pkg_config_path, **args):
-        super(PkgConfigGTKDoc, self).__init__(**args)
+    def __init__(self, pkg_config_path, args):
+        super(PkgConfigGTKDoc, self).__init__(args)
 
         if not os.path.exists(pkg_config_path):
             raise Exception('Could not find pkg-config file at: %s'
@@ -376,3 +402,6 @@ class PkgConfigGTKDoc(GTKDoc):
         self.version = self._run_command(['pkg-config',
                                           pkg_config_path,
                                           '--modversion'], print_output=False)
+        self.prefix = self._run_command(['pkg-config',
+                                         pkg_config_path,
+                                         '--variable=prefix'], print_output=False)

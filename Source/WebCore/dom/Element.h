@@ -42,6 +42,7 @@ class DOMTokenList;
 class ElementRareData;
 class IntSize;
 class ShadowRoot;
+class ShadowRootList;
 class WebKitAnimationList;
 
 enum SpellcheckAttributeState {
@@ -130,6 +131,9 @@ public:
 #endif
 
     bool hasAttributes() const;
+    // This variant will not update the potentially invalid attributes. To be used when not interested
+    // in style attribute or one of the SVG animation attributes.
+    bool hasAttributesWithoutUpdate() const;
 
     bool hasAttribute(const String& name) const;
     bool hasAttributeNS(const String& namespaceURI, const String& localName) const;
@@ -144,10 +148,19 @@ public:
     const AtomicString& getIdAttribute() const;
     void setIdAttribute(const AtomicString&);
 
+    const AtomicString& getNameAttribute() const;
+
     // Call this to get the value of the id attribute for style resolution purposes.
     // The value will already be lowercased if the document is in compatibility mode,
     // so this function is not suitable for non-style uses.
     const AtomicString& idForStyleResolution() const;
+
+    // Internal methods that assume the existence of attribute storage, one should use hasAttributes()
+    // before calling them.
+    size_t attributeCount() const;
+    Attribute* attributeItem(unsigned index) const;
+    Attribute* getAttributeItem(const QualifiedName&) const;
+    void removeAttribute(unsigned index);
 
     void scrollIntoView(bool alignToTop = true);
     void scrollIntoViewIfNeeded(bool centerIfNeeded = true);
@@ -177,7 +190,7 @@ public:
     PassRefPtr<ClientRect> getBoundingClientRect();
     
     // Returns the absolute bounding box translated into screen coordinates:
-    LayoutRect screenRect() const;
+    IntRect screenRect() const;
 
     void removeAttribute(const String& name);
     void removeAttributeNS(const String& namespaceURI, const String& localName);
@@ -214,15 +227,22 @@ public:
 
     void setBooleanAttribute(const QualifiedName& name, bool);
 
-    NamedNodeMap* attributes(bool readonly = false) const;
+    // For exposing to DOM only.
+    NamedNodeMap* attributes() const { return ensureUpdatedAttributes(); }
+
+    NamedNodeMap* ensureUpdatedAttributes() const;
+    NamedNodeMap* updatedAttributes() const;
 
     // This method is called whenever an attribute is added, changed or removed.
-    virtual void attributeChanged(Attribute*, bool preserveDecls = false);
+    virtual void attributeChanged(Attribute*);
 
     // Only called by the parser immediately after element construction.
     void parserSetAttributeMap(PassOwnPtr<NamedNodeMap>, FragmentScriptingPermission);
 
-    NamedNodeMap* attributeMap() const { return m_attributeMap.get(); }
+    ElementAttributeData* attributeData() const { return m_attributeMap ? m_attributeMap->attributeData() : 0; }
+    ElementAttributeData* ensureAttributeData() const;
+    ElementAttributeData* updatedAttributeData() const;
+    ElementAttributeData* ensureUpdatedAttributeData() const;
 
     void setAttributesFromElement(const Element&);
 
@@ -233,7 +253,11 @@ public:
     virtual RenderObject* createRenderer(RenderArena*, RenderStyle*);
     void recalcStyle(StyleChange = NoChange);
 
-    ShadowRoot* shadowRoot() const;
+    bool hasShadowRoot() const;
+    ShadowRootList* shadowRootList() const;
+
+    // FIXME: These API will be moved to ShadowRootList.
+    // https://bugs.webkit.org/show_bug.cgi?id=78313
     void setShadowRoot(PassRefPtr<ShadowRoot>, ExceptionCode&);
     ShadowRoot* ensureShadowRoot();
     void removeShadowRoot();
@@ -302,6 +326,13 @@ public:
     Element* nextElementSibling() const;
     unsigned childElementCount() const;
 
+#if ENABLE(STYLE_SCOPED)
+    void registerScopedHTMLStyleChild();
+    void unregisterScopedHTMLStyleChild();
+    bool hasScopedHTMLStyleChild() const;
+    size_t numberOfScopedHTMLStyleChildren() const;
+#endif
+
     bool webkitMatchesSelector(const String& selectors, ExceptionCode&);
 
     DOMTokenList* classList();
@@ -368,6 +399,10 @@ public:
     
     PassRefPtr<RenderStyle> styleForRenderer();
 
+    PassRefPtr<Attribute> createAttribute(const QualifiedName&, const AtomicString& value);
+
+    const AtomicString& webkitRegionOverflow() const;
+
 protected:
     Element(const QualifiedName& tagName, Document* document, ConstructionType type)
         : ContainerNode(document, type)
@@ -398,6 +433,8 @@ protected:
     HTMLCollection* ensureCachedHTMLCollection(CollectionType);
 
 private:
+    void updateInvalidAttributes() const;
+
     void scrollByUnits(int units, ScrollGranularity);
 
     virtual void setPrefix(const AtomicString&, ExceptionCode&);
@@ -405,8 +442,7 @@ private:
     virtual bool childTypeAllowed(NodeType) const;
 
     void setAttributeInternal(size_t index, const QualifiedName&, const AtomicString& value);
-    virtual PassRefPtr<Attribute> createAttribute(const QualifiedName&, const AtomicString& value);
-    
+
 #ifndef NDEBUG
     virtual void formatForDebugger(char* buffer, unsigned length) const;
 #endif
@@ -489,25 +525,59 @@ inline Element* Node::parentElement() const
     return parent && parent->isElementNode() ? toElement(parent) : 0;
 }
 
-inline NamedNodeMap* Element::attributes(bool readonly) const
+inline Element* Element::previousElementSibling() const
 {
-    if (!isStyleAttributeValid())
-        updateStyleAttribute();
+    Node* n = previousSibling();
+    while (n && !n->isElementNode())
+        n = n->previousSibling();
+    return static_cast<Element*>(n);
+}
 
-#if ENABLE(SVG)
-    if (!areSVGAttributesValid())
-        updateAnimatedSVGAttribute(anyQName());
-#endif
+inline Element* Element::nextElementSibling() const
+{
+    Node* n = nextSibling();
+    while (n && !n->isElementNode())
+        n = n->nextSibling();
+    return static_cast<Element*>(n);
+}
 
-    if (!readonly && !m_attributeMap)
+inline NamedNodeMap* Element::ensureUpdatedAttributes() const
+{
+    updateInvalidAttributes();
+    if (!m_attributeMap)
         createAttributeMap();
     return m_attributeMap.get();
 }
 
+inline NamedNodeMap* Element::updatedAttributes() const
+{
+    updateInvalidAttributes();
+    return m_attributeMap.get();
+}
+
+inline ElementAttributeData* Element::ensureAttributeData() const
+{
+    if (!m_attributeMap)
+        createAttributeMap();
+    return m_attributeMap->attributeData();
+}
+
+inline ElementAttributeData* Element::updatedAttributeData() const
+{
+    updateInvalidAttributes();
+    return attributeData();
+}
+
+inline ElementAttributeData* Element::ensureUpdatedAttributeData() const
+{
+    updateInvalidAttributes();
+    return ensureAttributeData();
+}
+
 inline void Element::setAttributesFromElement(const Element& other)
 {
-    if (NamedNodeMap* attributeMap = other.attributes(true))
-        attributes(false)->setAttributes(*attributeMap);
+    if (ElementAttributeData* attributeData = other.updatedAttributeData())
+        ensureUpdatedAttributeData()->setAttributes(*attributeData, this);
 }
 
 inline void Element::updateName(const AtomicString& oldName, const AtomicString& newName)
@@ -562,10 +632,15 @@ inline const AtomicString& Element::fastGetAttribute(const QualifiedName& name) 
     return nullAtom;
 }
 
+inline bool Element::hasAttributesWithoutUpdate() const
+{
+    return m_attributeMap && !m_attributeMap->isEmpty();
+}
+
 inline const AtomicString& Element::idForStyleResolution() const
 {
     ASSERT(hasID());
-    return m_attributeMap->idForStyleResolution();
+    return attributeData()->idForStyleResolution();
 }
 
 inline bool Element::isIdAttributeName(const QualifiedName& attributeName) const
@@ -579,12 +654,52 @@ inline bool Element::isIdAttributeName(const QualifiedName& attributeName) const
 
 inline const AtomicString& Element::getIdAttribute() const
 {
-    return fastGetAttribute(document()->idAttributeName());
+    return hasID() ? fastGetAttribute(document()->idAttributeName()) : nullAtom;
+}
+
+inline const AtomicString& Element::getNameAttribute() const
+{
+    return hasName() ? fastGetAttribute(HTMLNames::nameAttr) : nullAtom;
 }
 
 inline void Element::setIdAttribute(const AtomicString& value)
 {
     setAttribute(document()->idAttributeName(), value);
+}
+
+inline size_t Element::attributeCount() const
+{
+    ASSERT(m_attributeMap);
+    return m_attributeMap->length();
+}
+
+inline Attribute* Element::attributeItem(unsigned index) const
+{
+    ASSERT(m_attributeMap);
+    return m_attributeMap->attributeItem(index);
+}
+
+inline Attribute* Element::getAttributeItem(const QualifiedName& name) const
+{
+    ASSERT(m_attributeMap);
+    return m_attributeMap->getAttributeItem(name);
+}
+
+inline void Element::removeAttribute(unsigned index)
+{
+    ASSERT(m_attributeMap);
+    m_attributeMap->removeAttribute(index);
+}
+
+inline void Element::updateInvalidAttributes() const
+{
+    if (!isStyleAttributeValid())
+        updateStyleAttribute();
+
+#if ENABLE(SVG)
+    if (!areSVGAttributesValid())
+        updateAnimatedSVGAttribute(anyQName());
+#endif
 }
 
 inline Element* firstElementChild(const ContainerNode* container)

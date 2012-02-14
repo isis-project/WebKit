@@ -31,7 +31,6 @@
 #include "config.h"
 #include "V8Proxy.h"
 
-#include "CSSMutableStyleDeclaration.h"
 #include "CachedMetadata.h"
 #include "DateExtension.h"
 #include "Document.h"
@@ -43,9 +42,12 @@
 #include "IDBFactoryBackendInterface.h"
 #include "InspectorInstrumentation.h"
 #include "PlatformSupport.h"
+#include "ScriptCallStack.h"
+#include "ScriptCallStackFactory.h"
 #include "ScriptSourceCode.h"
 #include "SecurityOrigin.h"
 #include "Settings.h"
+#include "StylePropertySet.h"
 #include "V8Binding.h"
 #include "V8BindingState.h"
 #include "V8Collection.h"
@@ -68,6 +70,10 @@
 #include <wtf/StringExtras.h>
 #include <wtf/UnusedParam.h>
 #include <wtf/text/WTFString.h>
+
+#if PLATFORM(CHROMIUM)
+#include "TraceEvent.h"
+#endif
 
 namespace WebCore {
 
@@ -137,10 +143,12 @@ void V8Proxy::reportUnsafeAccessTo(Frame* target)
     String str = "Unsafe JavaScript attempt to access frame with URL " + targetDocument->url().string() +
                  " from frame with URL " + sourceDocument->url().string() + ". Domains, protocols and ports must match.\n";
 
+    RefPtr<ScriptCallStack> stackTrace = createScriptCallStack(ScriptCallStack::maxCallStackSizeToCapture, true);
+
     // NOTE: Safari prints the message in the target page, but it seems like
     // it should be in the source page. Even for delayed messages, we put it in
     // the source page.
-    sourceDocument->addConsoleMessage(JSMessageSource, LogMessageType, ErrorMessageLevel, str);
+    sourceDocument->addConsoleMessage(JSMessageSource, LogMessageType, ErrorMessageLevel, str, stackTrace.release());
 }
 
 static void handleFatalErrorInV8()
@@ -190,7 +198,7 @@ bool V8Proxy::handleOutOfMemory()
     Frame* frame = V8Proxy::retrieveFrame(context);
 
     V8Proxy* proxy = V8Proxy::retrieve(frame);
-    if (proxy && frame->script()->canExecuteScripts(NotAboutToExecuteScript)) {
+    if (proxy) {
         // Clean m_context, and event handlers.
         proxy->clearForClose();
 
@@ -331,7 +339,7 @@ v8::Local<v8::Value> V8Proxy::evaluate(const ScriptSourceCode& source, Node* nod
         // Compile the script.
         v8::Local<v8::String> code = v8ExternalString(source.source());
 #if PLATFORM(CHROMIUM)
-        PlatformSupport::traceEventBegin("v8.compile", node, "");
+        TRACE_EVENT_BEGIN0("v8", "v8.compile");
 #endif
         OwnPtr<v8::ScriptData> scriptData = precompileScript(code, source.cachedScript());
 
@@ -339,15 +347,11 @@ v8::Local<v8::Value> V8Proxy::evaluate(const ScriptSourceCode& source, Node* nod
         // 1, whereas v8 starts at 0.
         v8::Handle<v8::Script> script = compileScript(code, source.url(), source.startPosition(), scriptData.get());
 #if PLATFORM(CHROMIUM)
-        PlatformSupport::traceEventEnd("v8.compile", node, "");
-
-        PlatformSupport::traceEventBegin("v8.run", node, "");
+        TRACE_EVENT_END0("v8", "v8.compile");
+        TRACE_EVENT0("v8", "v8.run");
 #endif
         result = runScript(script);
     }
-#if PLATFORM(CHROMIUM)
-    PlatformSupport::traceEventEnd("v8.run", node, "");
-#endif
 
     InspectorInstrumentation::didEvaluateScript(cookie);
 
@@ -374,7 +378,7 @@ v8::Local<v8::Value> V8Proxy::runScript(v8::Handle<v8::Script> script)
     v8::TryCatch tryCatch;
     tryCatch.SetVerbose(true);
     {
-        V8RecursionScope recursionScope;
+        V8RecursionScope recursionScope(frame()->document());
         result = script->Run();
     }
 
@@ -400,10 +404,10 @@ v8::Local<v8::Value> V8Proxy::callFunction(v8::Handle<v8::Function> function, v8
 {
     // Keep Frame (and therefore ScriptController and V8Proxy) alive.
     RefPtr<Frame> protect(frame());
-    return V8Proxy::instrumentedCallFunction(m_frame->page(), function, receiver, argc, args);
+    return V8Proxy::instrumentedCallFunction(frame(), function, receiver, argc, args);
 }
 
-v8::Local<v8::Value> V8Proxy::instrumentedCallFunction(Page* page, v8::Handle<v8::Function> function, v8::Handle<v8::Object> receiver, int argc, v8::Handle<v8::Value> args[])
+v8::Local<v8::Value> V8Proxy::instrumentedCallFunction(Frame* frame, v8::Handle<v8::Function> function, v8::Handle<v8::Object> receiver, int argc, v8::Handle<v8::Value> args[])
 {
     V8GCController::checkMemoryUsage();
 
@@ -411,7 +415,7 @@ v8::Local<v8::Value> V8Proxy::instrumentedCallFunction(Page* page, v8::Handle<v8
         return handleMaxRecursionDepthExceeded();
 
     InspectorInstrumentationCookie cookie;
-    if (InspectorInstrumentation::hasFrontends()) {
+    if (InspectorInstrumentation::hasFrontends() && frame) {
         String resourceName("undefined");
         int lineNumber = 1;
         v8::ScriptOrigin origin = function->GetScriptOrigin();
@@ -419,12 +423,15 @@ v8::Local<v8::Value> V8Proxy::instrumentedCallFunction(Page* page, v8::Handle<v8
             resourceName = toWebCoreString(origin.ResourceName());
             lineNumber = function->GetScriptLineNumber() + 1;
         }
-        cookie = InspectorInstrumentation::willCallFunction(page, resourceName, lineNumber);
+        cookie = InspectorInstrumentation::willCallFunction(frame->page(), resourceName, lineNumber);
     }
 
     v8::Local<v8::Value> result;
     {
-        V8RecursionScope recursionScope;
+#if PLATFORM(CHROMIUM)
+        TRACE_EVENT0("v8", "v8.callFunction");
+#endif
+        V8RecursionScope recursionScope(frame ? frame->document() : 0);
         result = function->Call(receiver, argc, args);
     }
 
@@ -438,6 +445,10 @@ v8::Local<v8::Value> V8Proxy::instrumentedCallFunction(Page* page, v8::Handle<v8
 
 v8::Local<v8::Value> V8Proxy::newInstance(v8::Handle<v8::Function> constructor, int argc, v8::Handle<v8::Value> args[])
 {
+#if PLATFORM(CHROMIUM)
+    TRACE_EVENT0("v8", "v8.newInstance");
+#endif
+
     // No artificial limitations on the depth of recursion, see comment in
     // V8Proxy::callFunction.
     v8::Local<v8::Value> result;
@@ -486,6 +497,14 @@ Frame* V8Proxy::retrieveFrameForCurrentContext()
     if (context.IsEmpty())
         return 0;
     return retrieveFrame(context);
+}
+
+DOMWindow* V8Proxy::retrieveWindowForCallingContext()
+{
+    v8::Handle<v8::Context> context = v8::Context::GetCalling();
+    if (context.IsEmpty())
+        return 0;
+    return retrieveWindow(context);
 }
 
 Frame* V8Proxy::retrieveFrameForCallingContext()
@@ -706,11 +725,8 @@ int V8Proxy::contextDebugId(v8::Handle<v8::Context> context)
 v8::Local<v8::Context> toV8Context(ScriptExecutionContext* context, const WorldContextHandle& worldContext)
 {
     if (context->isDocument()) {
-        if (V8Proxy* proxy = V8Proxy::retrieve(context)) {
-            Frame* frame = static_cast<Document*>(context)->frame();
-            if (frame->script()->canExecuteScripts(NotAboutToExecuteScript))
-                return worldContext.adjustedContext(proxy);
-        }
+        if (V8Proxy* proxy = V8Proxy::retrieve(context))
+            return worldContext.adjustedContext(proxy);
 #if ENABLE(WORKERS)
     } else if (context->isWorkerContext()) {
         if (WorkerContextExecutionProxy* proxy = static_cast<WorkerContext*>(context)->script()->proxy())

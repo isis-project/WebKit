@@ -230,6 +230,22 @@ class PortTest(unittest.TestCase):
         self.assertTrue('canvas' in dirs)
         self.assertTrue('css2.1' in dirs)
 
+    def test_skipped_perf_tests(self):
+        port = self.make_port()
+
+        def add_text_file(dirname, filename, content='some content'):
+            dirname = port.host.filesystem.join(port.perf_tests_dir(), dirname)
+            port.host.filesystem.maybe_make_directory(dirname)
+            port.host.filesystem.write_text_file(port.host.filesystem.join(dirname, filename), content)
+
+        add_text_file('inspector', 'test1.html')
+        add_text_file('inspector', 'unsupported_test1.html')
+        add_text_file('inspector', 'test2.html')
+        add_text_file('inspector/resources', 'resource_file.html')
+        add_text_file('unsupported', 'unsupported_test2.html')
+        add_text_file('', 'Skipped', '\n'.join(['Layout', '', 'SunSpider', 'Supported/some-test.html']))
+        self.assertEqual(port.skipped_perf_tests(), ['Layout', 'SunSpider', 'Supported/some-test.html'])
+
     def test_get_option__set(self):
         options, args = optparse.OptionParser().parse_args([])
         options.foo = 'bar'
@@ -308,10 +324,15 @@ class PortTest(unittest.TestCase):
         filesystem = MockFileSystem()
         self.assertTrue(Port._is_test_file(filesystem, '', 'foo.html'))
         self.assertTrue(Port._is_test_file(filesystem, '', 'foo.shtml'))
+        self.assertTrue(Port._is_test_file(filesystem, '', 'foo.svg'))
         self.assertTrue(Port._is_test_file(filesystem, '', 'test-ref-test.html'))
         self.assertFalse(Port._is_test_file(filesystem, '', 'foo.png'))
         self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected.html'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected.svg'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected.xht'))
         self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected-mismatch.html'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected-mismatch.svg'))
+        self.assertFalse(Port._is_test_file(filesystem, '', 'foo-expected-mismatch.xhtml'))
         self.assertFalse(Port._is_test_file(filesystem, '', 'foo-ref.html'))
         self.assertFalse(Port._is_test_file(filesystem, '', 'foo-notref.html'))
         self.assertFalse(Port._is_test_file(filesystem, '', 'foo-notref.xht'))
@@ -333,6 +354,12 @@ class PortTest(unittest.TestCase):
         self.assertEqual(reftest_list, {'bar/test.html': [('==', 'bar/test-ref.html')],
             'bar/test-2.html': [('!=', 'bar/test-notref.html')],
             'bar/test-3.html': [('==', 'bar/test-ref.html'), ('==', 'bar/test-ref2.html'), ('!=', 'bar/test-notref.html')]})
+
+    def test_reference_files(self):
+        port = self.make_port(with_tests=True)
+        self.assertEqual(port.reference_files('passes/svgreftest.svg'), [('==', port.layout_tests_dir() + '/passes/svgreftest-expected.svg')])
+        self.assertEqual(port.reference_files('passes/xhtreftest.svg'), [('==', port.layout_tests_dir() + '/passes/xhtreftest-expected.html')])
+        self.assertEqual(port.reference_files('passes/phpreftest.php'), [('!=', port.layout_tests_dir() + '/passes/phpreftest-expected-mismatch.svg')])
 
     def test_operating_system(self):
         self.assertEqual('mac', self.make_port().operating_system())

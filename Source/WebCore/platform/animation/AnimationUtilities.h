@@ -35,6 +35,11 @@ inline int blend(int from, int to, double progress)
     return static_cast<int>(lround(static_cast<double>(from) + static_cast<double>(to - from) * progress));
 }
 
+inline unsigned blend(unsigned from, unsigned to, double progress)
+{
+    return static_cast<unsigned>(lround(to > from ? static_cast<double>(from) + static_cast<double>(to - from) * progress : static_cast<double>(from) - static_cast<double>(from - to) * progress));
+}
+
 inline double blend(double from, double to, double progress)
 {  
     return from + (to - from) * progress;

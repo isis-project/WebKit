@@ -27,6 +27,7 @@ WebKitCacheModel
 webkit_web_context_get_default
 webkit_web_context_get_cache_model
 webkit_web_context_set_cache_model
+webkit_web_context_download_uri
 
 <SUBSECTION Standard>
 WebKitWebContextClass
@@ -47,6 +48,14 @@ webkit_web_context_get_type
 <TITLE>WebKitWebView</TITLE>
 WebKitWebView
 WebKitLoadEvent
+WebKitPolicyDecisionType
+
+<SUBSECTION Editing Commands>
+WEBKIT_EDITING_COMMAND_CUT
+WEBKIT_EDITING_COMMAND_COPY
+WEBKIT_EDITING_COMMAND_PASTE
+
+<SUBSECTION>
 webkit_web_view_new
 webkit_web_view_new_with_context
 webkit_web_view_get_context
@@ -74,6 +83,9 @@ webkit_web_view_get_settings
 webkit_web_view_get_window_properties
 webkit_web_view_set_zoom_level
 webkit_web_view_get_zoom_level
+webkit_web_view_can_execute_editing_command
+webkit_web_view_can_execute_editing_command_finish
+webkit_web_view_execute_editing_command
 
 <SUBSECTION Standard>
 WebKitWebViewClass
@@ -202,6 +214,10 @@ webkit_settings_get_enable_caret_browsing
 webkit_settings_set_enable_caret_browsing
 webkit_settings_get_enable_fullscreen
 webkit_settings_set_enable_fullscreen
+webkit_settings_get_print_backgrounds
+webkit_settings_set_print_backgrounds
+webkit_settings_get_enable_webaudio
+webkit_settings_set_enable_webaudio
 
 <SUBSECTION Standard>
 WebKitSettingsClass
@@ -285,15 +301,135 @@ webkit_window_properties_get_type
 </SECTION>
 
 <SECTION>
+<FILE>WebKitDownload</FILE>
+WebKitDownload
+webkit_download_get_destination
+webkit_download_set_destination
+webkit_download_get_response
+webkit_download_cancel
+webkit_download_get_estimated_progress
+webkit_download_get_elapsed_time
+
+<SUBSECTION Standard>
+WebKitDownloadClass
+WEBKIT_TYPE_DOWNLOAD
+WEBKIT_DOWNLOAD
+WEBKIT_IS_DOWNLOAD
+WEBKIT_DOWNLOAD_CLASS
+WEBKIT_IS_DOWNLOAD_CLASS
+WEBKIT_DOWNLOAD_GET_CLASS
+
+<SUBSECTION Private>
+WebKitDownloadPrivate
+webkit_download_get_type
+</SECTION>
+
+<SECTION>
+<FILE>WebKitPolicyDecision</FILE>
+WebKitPolicyDecision
+webkit_policy_decision_download
+webkit_policy_decision_ignore
+webkit_policy_decision_use
+
+<SUBSECTION Standard>
+WebKitPolicyDecisionClass
+WEBKIT_TYPE_POLICY_DECISION
+WEBKIT_POLICY_DECISION
+WEBKIT_IS_POLICY_DECISION
+WEBKIT_POLICY_DECISION_CLASS
+WEBKIT_IS_POLICY_DECISION_CLASS
+WEBKIT_POLICY_DECISION_GET_CLASS
+
+<SUBSECTION Private>
+WebKitPolicyDecisionPrivate
+webkit_policy_decision_get_type
+</SECTION>
+
+<SECTION>
+<FILE>WebKitNavigationPolicyDecision</FILE>
+WebKitNavigationPolicyDecision
+WebKitNavigationType
+webkit_navigation_policy_decision_get_frame_name
+webkit_navigation_policy_decision_get_modifiers
+webkit_navigation_policy_decision_get_mouse_button
+webkit_navigation_policy_decision_get_navigation_type
+webkit_navigation_policy_decision_get_request
+
+<SUBSECTION Standard>
+WebKitNavigationPolicyDecisionClass
+WEBKIT_TYPE_NAVIGATION_POLICY_DECISION
+WEBKIT_NAVIGATION_POLICY_DECISION
+WEBKIT_IS_NAVIGATION_POLICY_DECISION
+WEBKIT_NAVIGATION_POLICY_DECISION_CLASS
+WEBKIT_IS_NAVIGATION_POLICY_DECISION_CLASS
+WEBKIT_NAVIGATION_POLICY_DECISION_GET_CLASS
+
+<SUBSECTION Private>
+WebKitNavigationPolicyDecisionPrivate
+webkit_navigation_policy_decision_get_type
+</SECTION>
+
+<SECTION>
+<FILE>WebKitResponsePolicyDecision</FILE>
+WebKitResponsePolicyDecision
+webkit_response_policy_decision_get_request
+webkit_response_policy_decision_get_response
+
+<SUBSECTION Standard>
+WebKitResponsePolicyDecisionClass
+WEBKIT_TYPE_RESPONSE_POLICY_DECISION
+WEBKIT_RESPONSE_POLICY_DECISION
+WEBKIT_IS_RESPONSE_POLICY_DECISION
+WEBKIT_RESPONSE_POLICY_DECISION_CLASS
+WEBKIT_IS_RESPONSE_POLICY_DECISION_CLASS
+WEBKIT_RESPONSE_POLICY_DECISION_GET_CLASS
+
+<SUBSECTION Private>
+WebKitResponsePolicyDecisionPrivate
+webkit_response_policy_decision_get_type
+</SECTION>
+
+<SECTION>
+<FILE>WebKitHitTestResult</FILE>
+WebKitHitTestResult
+WebKitHitTestResultContext
+webkit_hit_test_result_get_context
+webkit_hit_test_result_context_is_link
+webkit_hit_test_result_context_is_image
+webkit_hit_test_result_context_is_media
+webkit_hit_test_result_get_link_uri
+webkit_hit_test_result_get_link_title
+webkit_hit_test_result_get_link_label
+webkit_hit_test_result_get_image_uri
+webkit_hit_test_result_get_media_uri
+
+<SUBSECTION Standard>
+WebKitHitTestResultClass
+WEBKIT_TYPE_HIT_TEST_RESULT
+WEBKIT_HIT_TEST_RESULT
+WEBKIT_IS_HIT_TEST_RESULT
+WEBKIT_HIT_TEST_RESULT_CLASS
+WEBKIT_IS_HIT_TEST_RESULT_CLASS
+WEBKIT_HIT_TEST_RESULT_GET_CLASS
+
+<SUBSECTION Private>
+WebKitHitTestResultPrivate
+webkit_hit_test_result_get_type
+</SECTION>
+
+<SECTION>
 <FILE>WebKitError</FILE>
 WEBKIT_NETWORK_ERROR
 WEBKIT_PLUGIN_ERROR
 WEBKIT_POLICY_ERROR
+WEBKIT_DOWNLOAD_ERROR
 WebKitNetworkError
 WebKitPluginError
 WebKitPolicyError
+WebKitDownloadError
 webkit_network_error_quark
 webkit_plugin_error_quark
 webkit_policy_error_quark
+webkit_download_error_quark
 </SECTION>
 

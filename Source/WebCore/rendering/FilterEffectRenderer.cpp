@@ -29,6 +29,7 @@
 
 #include "FilterEffectRenderer.h"
 
+#include "Document.h"
 #include "FEColorMatrix.h"
 #include "FEComponentTransfer.h"
 #include "FEDropShadow.h"
@@ -67,11 +68,11 @@ static inline void lastMatrixRow(Vector<float>& parameters)
     
     
 #if ENABLE(CSS_SHADERS) && ENABLE(WEBGL)
-static bool isWebGLEnabled(Document* document)
+static bool isCSSCustomFilterEnabled(Document* document)
 {
     // We only want to enable shaders if WebGL is also enabled on this platform.
     Settings* settings = document->settings();
-    return settings && settings->webGLEnabled();
+    return settings && settings->isCSSCustomFilterEnabled() && settings->webGLEnabled();
 }
 #endif
 
@@ -105,9 +106,9 @@ void FilterEffectRenderer::build(Document* document, const FilterOperations& ope
 
     m_effects.clear();
 
-    RefPtr<FilterEffect> effect;
     RefPtr<FilterEffect> previousEffect;
     for (size_t i = 0; i < operations.operations().size(); ++i) {
+        RefPtr<FilterEffect> effect;
         FilterOperation* filterOperation = operations.operations().at(i).get();
         switch (filterOperation->getOperationType()) {
         case FilterOperation::REFERENCE: {
@@ -215,7 +216,8 @@ void FilterEffectRenderer::build(Document* document, const FilterOperations& ope
             BasicComponentTransferFilterOperation* componentTransferOperation = static_cast<BasicComponentTransferFilterOperation*>(filterOperation);
             ComponentTransferFunction transferFunction;
             transferFunction.type = FECOMPONENTTRANSFER_TYPE_LINEAR;
-            transferFunction.slope = narrowPrecisionToFloat(componentTransferOperation->amount());
+            transferFunction.slope = 1;
+            transferFunction.intercept = narrowPrecisionToFloat(componentTransferOperation->amount());
 
             ComponentTransferFunction nullFunction;
             effect = FEComponentTransfer::create(this, transferFunction, transferFunction, transferFunction, nullFunction);
@@ -248,7 +250,7 @@ void FilterEffectRenderer::build(Document* document, const FilterOperations& ope
 #if ENABLE(CSS_SHADERS)
         case FilterOperation::CUSTOM: {
 #if ENABLE(WEBGL)
-            if (!isWebGLEnabled(document))
+            if (!isCSSCustomFilterEnabled(document))
                 continue;
             
             CustomFilterOperation* customFilterOperation = static_cast<CustomFilterOperation*>(filterOperation);
@@ -256,7 +258,7 @@ void FilterEffectRenderer::build(Document* document, const FilterOperations& ope
             cachedCustomFilterPrograms.append(program);
             program->addClient(this);
             if (program->isLoaded()) {
-                effect = FECustomFilter::create(this, document, program,
+                effect = FECustomFilter::create(this, document, program, customFilterOperation->parameters(),
                                                 customFilterOperation->meshRows(), customFilterOperation->meshColumns(),
                                                 customFilterOperation->meshBoxType(), customFilterOperation->meshType());
             }
@@ -275,12 +277,12 @@ void FilterEffectRenderer::build(Document* document, const FilterOperations& ope
             if (previousEffect)
                 effect->inputEffects().append(previousEffect);
             m_effects.append(effect);
-            previousEffect = effect;
+            previousEffect = effect.release();
         }
     }
 
     // If we didn't make a real filter, create a null-op (FEMerge with one input).
-    if (!effect)
+    if (!previousEffect)
         m_effects.append(FEMerge::create(this));
 
     m_effects.first()->inputEffects().append(m_sourceGraphic);

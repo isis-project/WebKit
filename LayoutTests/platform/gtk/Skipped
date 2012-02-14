@@ -101,12 +101,6 @@ fast/forms/multiple-form-submission-protection-mouse.html
 # This test crashes whatever test follows it. Perhaps it's related to the previous failure.
 fast/dom/gc-10.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=50744
-inspector/debugger/open-close-open.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=55135
-http/tests/incremental/slow-utf8-html.pl
-
 # [GTK] fast/workers/storage/use-same-database-in-page-and-workers.html fails an ASSERT
 # https://bugs.webkit.org/show_bug.cgi?id=56147 
 # Fails assertion: ASSERT(m_workerContext->hasOneRef());
@@ -129,6 +123,9 @@ editing/pasteboard/interchange-newline-2.html
 editing/pasteboard/paste-text-008.html
 editing/undo/undo-smart-delete-reversed-selection.html
 editing/selection/directionality-after-undo-replace.html
+
+# EditorClient::checkTextOfParagraph() is not implemented
+editing/spelling/spelling-marker-description.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=64530
 editing/selection/editable-html-element.html
@@ -235,6 +232,7 @@ fast/events/touch
 
 # IndexedDB is not yet enabled.
 storage/indexeddb
+http/tests/inspector/indexeddb
 
 # StorageTracker is not enabled.
 storage/domstorage/localstorage/storagetracker
@@ -281,6 +279,8 @@ http/tests/filesystem
 http/tests/security/filesystem-iframe-from-remote.html
 http/tests/websocket/tests/hybi/send-file-blob.html
 http/tests/websocket/tests/hybi/send-file-blob-fail.html
+http/tests/workers/terminate-during-sync-operation.html
+fast/mutation/filesystem-callback-delivery.html
 
 # Requires WebP support.
 fast/canvas/canvas-toDataURL-webp.html
@@ -292,6 +292,8 @@ media/media-captions.html
 # DataTransferItems is not yet implemented.
 editing/pasteboard/data-transfer-items.html
 editing/pasteboard/data-transfer-items-image-png.html
+editing/pasteboard/data-transfer-items-drag-drop-file.html
+editing/pasteboard/data-transfer-items-drag-drop-string.html
 
 # Custom MIME type support in DataTransfer is not yet implemented.
 editing/pasteboard/clipboard-customData.html
@@ -349,6 +351,10 @@ fast/css-grid-layout
 # <style scoped> is not yet enabled. http://webkit.org/b/49142
 fast/css/style-scoped
 
+# ENABLE(SHADOW_DOM) is disabled.
+fast/dom/shadow/shadow-root-js-api.html
+fast/dom/shadow/shadow-disable.html
+
 # CSS Regions support not yet enabled. http://webkit.org/b/57312
 fast/regions
 
@@ -366,11 +372,10 @@ http/tests/security/text-track-crossorigin.html
 # CSS Filters is disabled
 css3/filters
 
-# MutationObservers are net yet enabled. http://webkit.org/b/68729
-fast/mutation
-
 # layoutTestController.overridePreference("WebKit*FontMap"...) is not
 # supported.
+fast/text/international/content-language-font-selection.html
+fast/text/international/content-language-with-subtags.html
 fast/text/international/locale-sensitive-fonts.html
 
 # Needs layoutTestController.enableAutoResizeMode()
@@ -454,18 +459,8 @@ fast/forms/select-double-onchange.html
 fast/forms/select-script-onchange.html
 fast/html/tab-order.html
 
-# The box isn't empty after a test run with this test.
-# https://bugs.webkit.org/show_bug.cgi?id=53644
- editing/deleting/5408255.html
-
 # Missing delegates:
-# Need proper frame loader callbacks reporting
-# See https://bugs.webkit.org/show_bug.cgi?id=32170
-http/tests/security/mixedContent/empty-url-plugin-in-frame.html
-fast/loader/file-protocol-fragment.html
-# Tests failing because of missing resource load delegate callbacks.
-fast/loader/main-document-url-for-non-http-loads.html
-http/tests/misc/link-rel-icon-beforeload.html
+
 # Tests failing because of missing policy delegate callbacks.
 fast/loader/onload-policy-ignore-for-frame.html
 fast/loader/policy-delegate-action-hit-test-zoomed.html
@@ -517,13 +512,6 @@ fast/dom/Window/window-resize.html
 
 # The background is not clipped in this test, as observed in the pixel output.
 fast/backgrounds/background-clip-text.html
-
-# These fast XMLHttpRequest tests fail because 3D_CANVAS is not enabled.
-fast/xmlhttprequest/xmlhttprequest-responsetype-abort.html
-fast/xmlhttprequest/xmlhttprequest-responsetype-arraybuffer.html
-fast/xmlhttprequest/xmlhttprequest-responsetype-document.html
-fast/xmlhttprequest/xmlhttprequest-responsetype-text.html
-http/tests/xmlhttprequest/send-array-buffer.html
 
 # Possible bug in eventSender.zoomPageOut() ? https://bugs.webkit.org/show_bug.cgi?id=30575
 fast/dom/elementFromPoint-relative-to-viewport.html
@@ -630,10 +618,6 @@ plugins/clicking-missing-plugin-fires-delegate.html
 # Need to implement getFormValue().
 plugins/form-value.html
 
-# Tests in security/ directory
-#   Tests failing
-security/set-form-autocomplete-attribute.html
-
 # Tests that failed because we don't have an eventSender implementation
 http/tests/plugins/plugin-document-has-focus.html
 
@@ -677,6 +661,7 @@ svg/text/caret-in-svg-text.xhtml
 # No authentication challenge handling
 # https://bugs.webkit.org/show_bug.cgi?id=51104
 http/tests/loading/basic-credentials-sent-automatically.html
+http/tests/loading/authentication-after-redirect-stores-wrong-credentials/authentication-after-redirect-stores-wrong-credentials.html
 http/tests/cache/subresource-fragment-identifier.html
 http/tests/misc/authentication-redirect-1/authentication-sent-to-redirect-cross-origin.html
 http/tests/misc/authentication-redirect-2/authentication-sent-to-redirect-same-origin.html
@@ -704,13 +689,8 @@ http/tests/xmlhttprequest/origin-whitelisting-removal.html
 # https://bugs.webkit.org/show_bug.cgi?id=55682
 fast/images/support-broken-image-delegate.html
 
-# Fail due to an extra "CONSOLE MESSAGE: line 1: SyntaxError: Parse error"
-fast/loader/onload-willSendRequest-null-for-script.html
-fast/loader/willSendRequest-null-for-preload.html
-
 # Requires willSendRequestReturnsNullOnRedirect + willSendRequest + didFinishLoading
 http/tests/misc/will-send-request-returns-null-on-redirect.html
-http/tests/misc/favicon-loads-with-icon-loading-override.html
 # Requires willPerformClientRedirectToURL
 # https://bugs.webkit.org/show_bug.cgi?id=58526
 http/tests/loading/onload-vs-immediate-refresh.pl
@@ -817,11 +797,6 @@ fast/text/midword-break-after-breakable-char.html
 fast/text/capitalize-boundaries.html
 # https://bugs.webkit.org/show_bug.cgi?id=54189
 fast/replaced/border-radius-clip.html
-
-# New test needs enhanced frameloader delegate logging in DRT
-# Discussed in https://bugs.webkit.org/show_bug.cgi?id=38928
-fast/loader/recursive-before-unload-crash.html 
-fast/loader/null-request-after-willSendRequest.html
 
 # Need to dump context menu items on eventSender.contextClick(true).
 # https://bugs.webkit.org/show_bug.cgi?id=39102
@@ -948,35 +923,9 @@ canvas/philip/tests/2d.pattern.paint.repeatx.outside.html
 canvas/philip/tests/2d.pattern.paint.repeaty.coord1.html
 canvas/philip/tests/2d.pattern.paint.repeaty.outside.html
 
-# Tests that user modal dialogs fail in the DRT for some reason.
-# https://bugs.webkit.org/show_bug.cgi?id=53600
-fast/animation/request-animation-frame-during-modal.html
+# This modal dialog test still fails because the blur event is not dispatched on the opener
+# window when running the modal dialog.
 fast/events/show-modal-dialog-onblur-onfocus.html
-fast/events/scroll-event-during-modal-dialog.html
-fast/harness/show-modal-dialog.html
-inspector/console/console-long-eval-crash.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T10.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T11.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T2.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T2.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T4.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T4.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T6.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T6.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T8.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T8.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T10.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T11.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T1.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T1.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T3.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T3.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T5.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T5.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T7.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T7.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T9.html
-sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T9.html
 
 # pastes a space instead of a tab
 # https://bugs.webkit.org/show_bug.cgi?id=38437
@@ -1110,6 +1059,7 @@ sputnik/Unicode/Unicode_510/S7.6_A5.3_T2.html
 # https://bugs.webkit.org/show_bug.cgi?id=43332
 inspector/debugger/dom-breakpoints.html
 inspector/debugger/event-listener-breakpoints.html
+inspector/debugger/step-through-event-listeners.html
 inspector/debugger/xhr-breakpoints.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=40300
@@ -1308,10 +1258,7 @@ http/tests/navigation/post-307-response.html
 
 # failing dropzone test(http://bugs.webkit.org/show_bug.cgi?id=61630)
 fast/events/dropzone-002.html
-
-# [GTK] DumpRenderTree doesn't block external requests
-# https://bugs.webkit.org/show_bug.cgi?id=62585
-fast/workers/worker-crash-with-invalid-location.html
+fast/events/dropzone-005.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=64085
 http/tests/misc/iframe-reparenting-id-collision.html
@@ -1497,6 +1444,7 @@ svg/W3C-SVG-1.1-SE/types-dom-07-f.svg
 svg/css/composite-shadow-example.html
 svg/css/composite-shadow-with-opacity.html
 svg/css/stars-with-shadow.html
+svg/carto.net/tabgroup.svg
 
 # https://bugs.webkit.org/show_bug.cgi?id=73409
 fast/forms/placeholder-set-attribute.html
@@ -1624,3 +1572,47 @@ fast/text/international/spaces-combined-in-vertical-text.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=76048
 fast/text/font-kerning.html
+
+# Needs custom policy delegate enhancement to log downloads
+http/tests/download
+
+# https://bugs.webkit.org/show_bug.cgi?id=76632
+fast/forms/implicit-submission.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=77015
+fast/events/clear-drag-state.html
+fast/events/clear-edit-drag-state.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=77019
+http/tests/media/video-buffering-repaints-controls.html
+
+# ENABLE(SHADOW_DOM) is disabled
+# https://bugs.webkit.org/show_bug.cgi?id=76439
+fast/dom/shadow/content-element-api.html
+fast/dom/shadow/content-element-outside-shadow.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=77413
+fast/parser/nested-fragment-parser-crash.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=77631
+fast/multicol/span/span-as-immediate-child-property-removal.html
+fast/multicol/span/span-as-immediate-columns-child-removal.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=77633
+fast/forms/listbox-clear-restore.html
+
+# Synthetic bold is illegible under some scaling transforms
+# https://bugs.webkit.org/show_bug.cgi?id=78044
+fast/text/synthetic-bold-transformed.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=78345
+security/block-test.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=78434
+fast/dom/Window/window-custom-prototype.html
+http/tests/security/cross-frame-access-object-getPrototypeOf.html
+
+# GTK port DRT doesn't support some API like scheduleAsynchronousKeyDown.
+# http://webkit.org/b/78481, http://webkit.org/b/78290
+fast/mutation/end-of-task-delivery.html
+fast/mutation/inline-event-listener.html

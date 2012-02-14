@@ -37,14 +37,14 @@
 namespace JSC {
 
 template<typename CodeBlockType>
-inline bool jitCompileIfAppropriate(ExecState* exec, OwnPtr<CodeBlockType>& codeBlock, JITCode& jitCode, JITCode::JITType jitType)
+inline bool jitCompileIfAppropriate(JSGlobalData& globalData, OwnPtr<CodeBlockType>& codeBlock, JITCode& jitCode, JITCode::JITType jitType)
 {
-    if (!exec->globalData().canUseJIT())
+    if (!globalData.canUseJIT())
         return true;
     
     bool dfgCompiled = false;
     if (jitType == JITCode::DFGJIT)
-        dfgCompiled = DFG::tryCompile(exec, codeBlock.get(), jitCode);
+        dfgCompiled = DFG::tryCompile(globalData, codeBlock.get(), jitCode);
     if (dfgCompiled) {
         if (codeBlock->alternative())
             codeBlock->alternative()->unlinkIncomingCalls();
@@ -53,26 +53,21 @@ inline bool jitCompileIfAppropriate(ExecState* exec, OwnPtr<CodeBlockType>& code
             codeBlock = static_pointer_cast<CodeBlockType>(codeBlock->releaseAlternative());
             return false;
         }
-        jitCode = JIT::compile(&exec->globalData(), codeBlock.get());
+        jitCode = JIT::compile(&globalData, codeBlock.get());
     }
-#if !ENABLE(OPCODE_SAMPLING)
-    if (!BytecodeGenerator::dumpsGeneratedCode())
-        codeBlock->handleBytecodeDiscardingOpportunity();
-#endif
     codeBlock->setJITCode(jitCode, MacroAssemblerCodePtr());
     
     return true;
 }
 
-inline bool jitCompileFunctionIfAppropriate(ExecState* exec, OwnPtr<FunctionCodeBlock>& codeBlock, JITCode& jitCode, MacroAssemblerCodePtr& jitCodeWithArityCheck, SharedSymbolTable*& symbolTable, JITCode::JITType jitType)
+inline bool jitCompileFunctionIfAppropriate(JSGlobalData& globalData, OwnPtr<FunctionCodeBlock>& codeBlock, JITCode& jitCode, MacroAssemblerCodePtr& jitCodeWithArityCheck, SharedSymbolTable*& symbolTable, JITCode::JITType jitType)
 {
-    JSGlobalData& globalData = exec->globalData();
     if (!globalData.canUseJIT())
         return true;
     
     bool dfgCompiled = false;
     if (jitType == JITCode::DFGJIT)
-        dfgCompiled = DFG::tryCompileFunction(exec, codeBlock.get(), jitCode, jitCodeWithArityCheck);
+        dfgCompiled = DFG::tryCompileFunction(globalData, codeBlock.get(), jitCode, jitCodeWithArityCheck);
     if (dfgCompiled) {
         if (codeBlock->alternative())
             codeBlock->alternative()->unlinkIncomingCalls();
@@ -84,10 +79,6 @@ inline bool jitCompileFunctionIfAppropriate(ExecState* exec, OwnPtr<FunctionCode
         }
         jitCode = JIT::compile(&globalData, codeBlock.get(), &jitCodeWithArityCheck);
     }
-#if !ENABLE(OPCODE_SAMPLING)
-    if (!BytecodeGenerator::dumpsGeneratedCode())
-        codeBlock->handleBytecodeDiscardingOpportunity();
-#endif
     
     codeBlock->setJITCode(jitCode, jitCodeWithArityCheck);
     

@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <body>
-<pre id="log"></pre>
-<script src="../Parser/resources/runner.js"></script>
-<a href="#">Click here to start</a>
+<script src="../resources/runner.js"></script>
+<p><a href="#">Click here to start</a></p>
 <script>
 var link = document.getElementsByTagName('a')[0];
 var evt = null;
@@ -13,23 +12,15 @@ link.addEventListener('click', function(event) {
     window.evt = event;
     event.preventDefault();
 
-    start(20, function() {
+    PerfTestRunner.run(function () {
         var e = window.evt;
         for (var x = 0; x < kIteratonsPerTest; x++) {
             e.target;
         }
-    }, 10, function() {
-        if (window.layoutTestController)
-            layoutTestController.notifyDone();
     });
 
     return false;
 }, false);
-
-if (window.layoutTestController) {
-    layoutTestController.waitUntilDone();
-    layoutTestController.dumpAsText();
-}
 
 if (window.eventSender) {
     eventSender.mouseMoveTo(link.offsetLeft + 5, link.offsetTop + 5);

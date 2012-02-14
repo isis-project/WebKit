@@ -114,9 +114,6 @@ fast/forms/multiple-form-submission-protection-mouse.html
 # The animation causes the result of this test to depend on the speed of executing it, and that will cause it to be flaky
 fast/dom/HTMLProgressElement/progress-element.html
 
-# event.dataTransfer.setData('text/uri-list') not correctly implemented on Mac
-editing/pasteboard/dataTransfer-setData-getData.html
-
 # eventSender needs to propagate the event to the calling window, not the main frame always.
 http/tests/plugins/plugin-document-has-focus.html
 
@@ -172,6 +169,7 @@ canvas/philip/tests/2d.drawImage.outsidesource.html
 
 # IndexedDB is not yet enabled.
 storage/indexeddb
+http/tests/inspector/indexeddb
 
 # This port doesn't support DeviceMotion or DeviceOrientation.
 fast/dom/DeviceMotion
@@ -261,6 +259,7 @@ inspector/debugger/selected-call-frame-after-formatting-source.html
 # https://bugs.webkit.org/show_bug.cgi?id=43332
 inspector/debugger/dom-breakpoints.html
 inspector/debugger/event-listener-breakpoints.html
+inspector/debugger/step-through-event-listeners.html
 inspector/debugger/xhr-breakpoints.html
 
 # Skipping newly added tests while I'm finding out what is wrong.
@@ -304,6 +303,7 @@ http/tests/filesystem
 http/tests/security/filesystem-iframe-from-remote.html
 http/tests/websocket/tests/hybi/send-file-blob.html
 http/tests/websocket/tests/hybi/send-file-blob-fail.html
+fast/mutation/filesystem-callback-delivery.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=46223
 # The WebKit plugin implementation does not support iframe shims.
@@ -340,6 +340,12 @@ compositing/webgl/webgl-nonpremultiplied-blend.html
 # DataTransferItems is not yet implemented.
 editing/pasteboard/data-transfer-items.html
 editing/pasteboard/data-transfer-items-image-png.html
+editing/pasteboard/data-transfer-items-drag-drop-file.html
+editing/pasteboard/data-transfer-items-drag-drop-string.html
+
+# Replacement text for misspelling is not given from NSSpellChecker.
+# https://bugs.webkit.org/show_bug.cgi?id=77934
+editing/spelling/spelling-marker-description.html
 
 # Custom MIME type support in DataTransfer is not yet implemented.
 editing/pasteboard/clipboard-customData.html
@@ -413,6 +419,10 @@ fast/css-grid-layout
 # <style scoped> is not yet enabled. http://webkit.org/b/49142
 fast/css/style-scoped
 
+# ENABLE(SHADOW_DOM) is disabled.
+fast/dom/shadow/shadow-root-js-api.html
+fast/dom/shadow/shadow-disable.html
+
 # JSC does not support setIsolatedWorldSecurityOrigin (http://webkit.org/b/61540)
 http/tests/security/isolatedWorld/cross-origin-xhr.html
 
@@ -427,9 +437,6 @@ compositing/rtl/rtl-iframe-relative.html
 
 # For now, Web Audio API is disabled
 webaudio/
-
-# MutationObservers are net yet enabled. http://webkit.org/b/68729
-fast/mutation
 
 # Microdata DOM API is not yet enabled.
 fast/dom/MicroData
@@ -489,6 +496,8 @@ fast/canvas/webgl/uniform-location-length-limits.html
 fast/repaint/table-extra-bottom-grow.html
 
 # DRT doesn't support overridePreference("WebKit*FontMap"...)
+fast/text/international/content-language-font-selection.html
+fast/text/international/content-language-with-subtags.html
 fast/text/international/locale-sensitive-fonts.html
 
 # Web Intents is not yet enabled.
@@ -509,11 +518,6 @@ fast/canvas/webgl/webgl-texture-binding-preserved.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=73493
 fast/canvas/webgl/arraybuffer-transfer-of-control.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=73977
-http/tests/security/mixedContent/insecure-video-in-main-frame.html
-http/tests/security/mixedContent/redirect-http-to-https-video-in-main-frame.html
-http/tests/security/mixedContent/redirect-https-to-http-video-in-main-frame.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=73974
 fast/canvas/webgl/canvas-2d-webgl-texture.html
@@ -541,3 +545,7 @@ media/W3C/video/canPlayType/canPlayType_two_implies_one_3.html
 media/W3C/video/canPlayType/canPlayType_two_implies_one_4.html
 media/W3C/video/canPlayType/canPlayType_two_implies_one_5.html
 media/W3C/video/canPlayType/canPlayType_two_implies_one_6.html
+
+# Fails because MutationObservers are not notified at end-of-task
+# https://bugs.webkit.org/show_bug.cgi?id=78290
+fast/mutation/end-of-task-delivery.html

@@ -84,13 +84,9 @@ namespace JSC {
     public:
         typedef JSCell Base;
 
-        JS_EXPORT_PRIVATE static void destroy(JSCell*);
-
         JS_EXPORT_PRIVATE static void visitChildren(JSCell*, SlotVisitor&);
 
         JS_EXPORT_PRIVATE static UString className(const JSObject*);
-
-        static void finalize(JSCell*);
 
         JSValue prototype() const;
         void setPrototype(JSGlobalData&, JSValue prototype);
@@ -120,6 +116,7 @@ namespace JSC {
         void putDirect(JSGlobalData&, const Identifier& propertyName, JSValue, unsigned attributes = 0);
         void putDirect(JSGlobalData&, const Identifier& propertyName, JSValue, PutPropertySlot&);
         void putDirectWithoutTransition(JSGlobalData&, const Identifier& propertyName, JSValue, unsigned attributes = 0);
+        void putDirectAccessor(JSGlobalData&, const Identifier& propertyName, JSValue, unsigned attributes);
 
         bool propertyIsEnumerable(ExecState*, const Identifier& propertyName) const;
 
@@ -141,7 +138,7 @@ namespace JSC {
         JS_EXPORT_PRIVATE bool toBoolean(ExecState*) const;
         bool getPrimitiveNumber(ExecState*, double& number, JSValue&) const;
         JS_EXPORT_PRIVATE double toNumber(ExecState*) const;
-        JS_EXPORT_PRIVATE UString toString(ExecState*) const;
+        JS_EXPORT_PRIVATE JSString* toString(ExecState*) const;
 
         // NOTE: JSObject and its subclasses must be able to gracefully handle ExecState* = 0,
         // because this call may come from inside the compiler.
@@ -193,17 +190,11 @@ namespace JSC {
         void putDirectOffset(JSGlobalData& globalData, size_t offset, JSValue value) { propertyStorage()[offset].set(globalData, this, value); }
         void putUndefinedAtDirectOffset(size_t offset) { propertyStorage()[offset].setUndefined(); }
 
-        JS_EXPORT_PRIVATE void fillGetterPropertySlot(PropertySlot&, WriteBarrierBase<Unknown>* location);
-        void initializeGetterSetterProperty(ExecState*, const Identifier&, GetterSetter*, unsigned attributes);
-
-        JS_EXPORT_PRIVATE static void defineGetter(JSObject*, ExecState*, const Identifier& propertyName, JSObject* getterFunction, unsigned attributes = 0);
-        JS_EXPORT_PRIVATE static void defineSetter(JSObject*, ExecState*, const Identifier& propertyName, JSObject* setterFunction, unsigned attributes = 0);
-        JS_EXPORT_PRIVATE JSValue lookupGetter(ExecState*, const Identifier& propertyName);
-        JS_EXPORT_PRIVATE JSValue lookupSetter(ExecState*, const Identifier& propertyName);
         JS_EXPORT_PRIVATE static bool defineOwnProperty(JSObject*, ExecState*, const Identifier& propertyName, PropertyDescriptor&, bool shouldThrow);
 
         bool isGlobalObject() const;
         bool isVariableObject() const;
+        bool isStaticScopeObject() const;
         bool isActivationObject() const;
         bool isErrorInstance() const;
         bool isGlobalThis() const;
@@ -296,6 +287,7 @@ namespace JSC {
         bool putDirectInternal(JSGlobalData&, const Identifier& propertyName, JSValue, unsigned attr, PutPropertySlot&, JSCell*);
 
         bool inlineGetOwnPropertySlot(ExecState*, const Identifier& propertyName, PropertySlot&);
+        JS_EXPORT_PRIVATE void fillGetterPropertySlot(PropertySlot&, WriteBarrierBase<Unknown>* location);
 
         const HashEntry* findPropertyHashEntry(ExecState*, const Identifier& propertyName) const;
         Structure* createInheritorID(JSGlobalData&);
@@ -329,8 +321,6 @@ COMPILE_ASSERT((JSFinalObject_inlineStorageCapacity >= JSNonFinalObject_inlineSt
             return Structure::create(globalData, globalObject, prototype, TypeInfo(ObjectType, StructureFlags), &s_info);
         }
 
-        JS_EXPORT_PRIVATE static void destroy(JSCell*);
-
     protected:
         explicit JSNonFinalObject(JSGlobalData& globalData, Structure* structure)
             : JSObject(globalData, structure, m_inlineStorage)
@@ -349,6 +339,8 @@ COMPILE_ASSERT((JSFinalObject_inlineStorageCapacity >= JSNonFinalObject_inlineSt
         WriteBarrier<Unknown> m_inlineStorage[JSNonFinalObject_inlineStorageCapacity];
     };
 
+    class JSFinalObject;
+
     // JSFinalObject is a type of JSObject that contains sufficent internal
     // storage to fully make use of the colloctor cell containing it.
     class JSFinalObject : public JSObject {
@@ -357,13 +349,7 @@ COMPILE_ASSERT((JSFinalObject_inlineStorageCapacity >= JSNonFinalObject_inlineSt
     public:
         typedef JSObject Base;
 
-        static JSFinalObject* create(ExecState* exec, Structure* structure)
-        {
-            JSFinalObject* finalObject = new (NotNull, allocateCell<JSFinalObject>(*exec->heap())) JSFinalObject(exec->globalData(), structure);
-            finalObject->finishCreation(exec->globalData());
-            return finalObject;
-        }
-
+        static JSFinalObject* create(ExecState*, Structure*);
         static Structure* createStructure(JSGlobalData& globalData, JSGlobalObject* globalObject, JSValue prototype)
         {
             return Structure::create(globalData, globalObject, prototype, TypeInfo(FinalObjectType, StructureFlags), &s_info);
@@ -380,8 +366,6 @@ COMPILE_ASSERT((JSFinalObject_inlineStorageCapacity >= JSNonFinalObject_inlineSt
             ASSERT(classInfo());
         }
 
-        static void destroy(JSCell*);
-
     private:
         explicit JSFinalObject(JSGlobalData& globalData, Structure* structure)
             : JSObject(globalData, structure, m_inlineStorage)
@@ -392,6 +376,13 @@ COMPILE_ASSERT((JSFinalObject_inlineStorageCapacity >= JSNonFinalObject_inlineSt
 
         WriteBarrierBase<Unknown> m_inlineStorage[JSFinalObject_inlineStorageCapacity];
     };
+
+inline JSFinalObject* JSFinalObject::create(ExecState* exec, Structure* structure)
+{
+    JSFinalObject* finalObject = new (NotNull, allocateCell<JSFinalObject>(*exec->heap())) JSFinalObject(exec->globalData(), structure);
+    finalObject->finishCreation(exec->globalData());
+    return finalObject;
+}
 
 inline bool isJSFinalObject(JSCell* cell)
 {
@@ -427,6 +418,11 @@ inline bool JSObject::isGlobalObject() const
 inline bool JSObject::isVariableObject() const
 {
     return structure()->typeInfo().type() >= VariableObjectType;
+}
+
+inline bool JSObject::isStaticScopeObject() const
+{
+    return structure()->typeInfo().type() == StaticScopeObjectType;
 }
 
 inline bool JSObject::isActivationObject() const
@@ -644,6 +640,7 @@ template<JSObject::PutMode mode>
 inline bool JSObject::putDirectInternal(JSGlobalData& globalData, const Identifier& propertyName, JSValue value, unsigned attributes, PutPropertySlot& slot, JSCell* specificFunction)
 {
     ASSERT(value);
+    ASSERT(value.isGetterSetter() == !!(attributes & Accessor));
     ASSERT(!Heap::heap(value) || Heap::heap(value) == Heap::heap(this));
 
     if (structure()->isDictionary()) {
@@ -763,17 +760,20 @@ inline bool JSObject::putOwnDataProperty(JSGlobalData& globalData, const Identif
 
 inline void JSObject::putDirect(JSGlobalData& globalData, const Identifier& propertyName, JSValue value, unsigned attributes)
 {
+    ASSERT(!value.isGetterSetter() && !(attributes & Accessor));
     PutPropertySlot slot;
     putDirectInternal<PutModeDefineOwnProperty>(globalData, propertyName, value, attributes, slot, getJSFunction(value));
 }
 
 inline void JSObject::putDirect(JSGlobalData& globalData, const Identifier& propertyName, JSValue value, PutPropertySlot& slot)
 {
+    ASSERT(!value.isGetterSetter());
     putDirectInternal<PutModeDefineOwnProperty>(globalData, propertyName, value, 0, slot, getJSFunction(value));
 }
 
 inline void JSObject::putDirectWithoutTransition(JSGlobalData& globalData, const Identifier& propertyName, JSValue value, unsigned attributes)
 {
+    ASSERT(!value.isGetterSetter() && !(attributes & Accessor));
     size_t currentCapacity = structure()->propertyStorageCapacity();
     size_t offset = structure()->addPropertyWithoutTransition(globalData, propertyName, attributes, getJSFunction(value));
     if (currentCapacity != structure()->propertyStorageCapacity())

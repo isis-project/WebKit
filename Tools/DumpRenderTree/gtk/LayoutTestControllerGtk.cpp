@@ -373,7 +373,7 @@ void LayoutTestController::setSmartInsertDeleteEnabled(bool flag)
 
 static gboolean waitToDumpWatchdogFired(void*)
 {
-    waitToDumpWatchdog = 0;
+    setWaitToDumpWatchdog(0);
     gLayoutTestController->waitToDumpWatchdogTimerFired();
     return FALSE;
 }
@@ -383,8 +383,8 @@ void LayoutTestController::setWaitToDump(bool waitUntilDone)
     static const int timeoutSeconds = 30;
 
     m_waitToDump = waitUntilDone;
-    if (m_waitToDump && !waitToDumpWatchdog)
-        waitToDumpWatchdog = g_timeout_add_seconds(timeoutSeconds, waitToDumpWatchdogFired, 0);
+    if (m_waitToDump && shouldSetWaitToDumpWatchdog())
+        setWaitToDumpWatchdog(g_timeout_add_seconds(timeoutSeconds, waitToDumpWatchdogFired, 0));
 }
 
 int LayoutTestController::windowCount()
@@ -526,6 +526,12 @@ void LayoutTestController::addMockSpeechInputResult(JSStringRef result, double c
     // See https://bugs.webkit.org/show_bug.cgi?id=39485.
 }
 
+void LayoutTestController::setMockSpeechInputDumpRect(bool flag)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
 void LayoutTestController::startSpeechInput(JSContextRef inputElement)
 {
     // FIXME: Implement for speech input layout tests.
@@ -579,8 +585,7 @@ void LayoutTestController::setPluginsEnabled(bool flag)
 
 bool LayoutTestController::elementDoesAutoCompleteForElementWithId(JSStringRef id) 
 {
-    // FIXME: implement
-    return false;
+    return DumpRenderTreeSupportGtk::elementDoesAutoCompleteForElementWithId(mainFrame, id);
 }
 
 void LayoutTestController::execCommand(JSStringRef name, JSStringRef value)
@@ -777,16 +782,6 @@ bool LayoutTestController::pauseTransitionAtTimeOnElementWithId(JSStringRef prop
     gchar* name = JSStringCopyUTF8CString(propertyName);
     gchar* element = JSStringCopyUTF8CString(elementId);
     bool returnValue = DumpRenderTreeSupportGtk::pauseTransition(mainFrame, name, time, element);
-    g_free(name);
-    g_free(element);
-    return returnValue;
-}
-
-bool LayoutTestController::sampleSVGAnimationForElementAtTime(JSStringRef animationId, double time, JSStringRef elementId)
-{    
-    gchar* name = JSStringCopyUTF8CString(animationId);
-    gchar* element = JSStringCopyUTF8CString(elementId);
-    bool returnValue = DumpRenderTreeSupportGtk::pauseSVGAnimation(mainFrame, name, time, element);
     g_free(name);
     g_free(element);
     return returnValue;

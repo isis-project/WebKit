@@ -38,27 +38,24 @@ using namespace MathMLNames;
     
 static const double gOverSpacingAdjustment = 0.5;
     
-RenderMathMLUnderOver::RenderMathMLUnderOver(Node* expression) 
-    : RenderMathMLBlock(expression) 
+RenderMathMLUnderOver::RenderMathMLUnderOver(Element* element)
+    : RenderMathMLBlock(element)
 {
-    Element* element = static_cast<Element*>(expression);
     // Determine what kind of under/over expression we have by element name
-    
     if (element->hasLocalName(MathMLNames::munderTag))
         m_kind = Under;
     else if (element->hasLocalName(MathMLNames::moverTag))
         m_kind = Over;
-    else if (element->hasLocalName(MathMLNames::munderoverTag))
+    else {
+        ASSERT(element->hasLocalName(MathMLNames::munderoverTag));
         m_kind = UnderOver;
-    else 
-        m_kind = Under;
-    
+    }
 }
 
 void RenderMathMLUnderOver::addChild(RenderObject* child, RenderObject* beforeChild)
 {    
     RenderMathMLBlock* row = new (renderArena()) RenderMathMLBlock(node());
-    RefPtr<RenderStyle> rowStyle = makeBlockStyle();
+    RefPtr<RenderStyle> rowStyle = createBlockStyle();
     row->setStyle(rowStyle.release());
     row->setIsAnonymous(true);
     
@@ -244,13 +241,13 @@ void RenderMathMLUnderOver::layout()
     RenderBlock::layout();
 }
 
-int RenderMathMLUnderOver::baselinePosition(FontBaseline, bool firstLine, LineDirectionMode direction, LinePositionMode linePositionMode) const
+LayoutUnit RenderMathMLUnderOver::baselinePosition(FontBaseline, bool firstLine, LineDirectionMode direction, LinePositionMode linePositionMode) const
 {
     RenderObject* current = firstChild();
     if (!current || linePositionMode == PositionOfInteriorLineBoxes)
         return RenderBlock::baselinePosition(AlphabeticBaseline, firstLine, direction, linePositionMode);
 
-    int baseline = 0;
+    LayoutUnit baseline = 0;
     switch (m_kind) {
     case UnderOver:
     case Over:
@@ -291,6 +288,5 @@ int RenderMathMLUnderOver::nonOperatorHeight() const
 }
 
 }
-
 
 #endif // ENABLE(MATHML)

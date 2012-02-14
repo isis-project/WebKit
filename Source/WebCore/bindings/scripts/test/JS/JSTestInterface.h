@@ -47,6 +47,7 @@ public:
     static void put(JSC::JSCell*, JSC::ExecState*, const JSC::Identifier& propertyName, JSC::JSValue, JSC::PutPropertySlot&);
     bool putDelegate(JSC::ExecState*, const JSC::Identifier&, JSC::JSValue, JSC::PutPropertySlot&);
     static void destroy(JSC::JSCell*);
+    ~JSTestInterface();
     static const JSC::ClassInfo s_info;
 
     static JSC::Structure* createStructure(JSC::JSGlobalData& globalData, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
@@ -159,6 +160,14 @@ void setJSTestInterfaceSupplementalStr2(JSC::ExecState*, JSC::JSObject*, JSC::JS
 JSC::JSValue jsTestInterfaceSupplementalStr3(JSC::ExecState*, JSC::JSValue, const JSC::Identifier&);
 void setJSTestInterfaceSupplementalStr3(JSC::ExecState*, JSC::JSObject*, JSC::JSValue);
 JSC::JSValue jsTestInterfaceConstructor(JSC::ExecState*, JSC::JSValue, const JSC::Identifier&);
+// Constants
+
+#if ENABLE(Condition11) || ENABLE(Condition12)
+JSC::JSValue jsTestInterfaceSUPPLEMENTALCONSTANT1(JSC::ExecState*, JSC::JSValue, const JSC::Identifier&);
+#endif
+#if ENABLE(Condition11) || ENABLE(Condition12)
+JSC::JSValue jsTestInterfaceSUPPLEMENTALCONSTANT2(JSC::ExecState*, JSC::JSValue, const JSC::Identifier&);
+#endif
 
 } // namespace WebCore
 

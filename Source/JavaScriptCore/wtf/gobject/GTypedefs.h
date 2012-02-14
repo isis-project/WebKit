@@ -53,11 +53,14 @@ typedef struct _GInputStream GInputStream;
 typedef struct _GList GList;
 typedef struct _GPatternSpec GPatternSpec;
 typedef struct _GPollableOutputStream GPollableOutputStream;
+typedef struct _GSList GSList;
 typedef struct _GSocketClient GSocketClient;
 typedef struct _GSocketConnection GSocketConnection;
 typedef struct _GSource GSource;
 typedef struct _GVariant GVariant;
 typedef union _GdkEvent GdkEvent;
+typedef struct _GTimer GTimer;
+typedef struct _GKeyFile GKeyFile;
 
 #if USE(CAIRO)
 typedef struct _cairo_surface cairo_surface_t;

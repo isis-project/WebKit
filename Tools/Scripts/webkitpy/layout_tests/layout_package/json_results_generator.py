@@ -26,8 +26,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import json
 import logging
-import os
 import subprocess
 import sys
 import time
@@ -35,12 +35,6 @@ import urllib2
 import xml.dom.minidom
 
 from webkitpy.common.net.file_uploader import FileUploader
-
-try:
-    import json
-except ImportError:
-    # python 2.5 compatibility
-    import webkitpy.thirdparty.simplejson as json
 
 # A JSON results generator for generic tests.
 # FIXME: move this code out of the layout_package directory.
@@ -321,11 +315,11 @@ class JSONResultsGeneratorBase(object):
             for file in json_files]
 
         url = "http://%s/testfile/upload" % self._test_results_server
-        uploader = FileUploader(url)
+        # Set uploading timeout in case appengine server is having problems.
+        # 120 seconds are more than enough to upload test results.
+        uploader = FileUploader(url, 120)
         try:
-            # Set uploading timeout in case appengine server is having problem.
-            # 120 seconds are more than enough to upload test results.
-            uploader.upload(attrs, files, 120)
+            uploader.upload_as_multipart_form_data(self._filesystem, files, attrs)
         except Exception, err:
             _log.error("Upload failed: %s" % err)
             return
@@ -528,6 +522,10 @@ class JSONResultsGeneratorBase(object):
 
         # Include SVN revisions for the given repositories.
         for (name, path) in self._svn_repositories:
+            # Note: for JSON file's backward-compatibility we use 'chrome' rather
+            # than 'chromium' here.
+            if name == 'chromium':
+                name = 'chrome'
             self._insert_item_into_raw_list(results_for_builder,
                 self._get_svn_revision(path),
                 name + 'Revision')

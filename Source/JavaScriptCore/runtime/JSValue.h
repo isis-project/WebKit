@@ -197,8 +197,7 @@ namespace JSC {
         // toNumber conversion is expected to be side effect free if an exception has
         // been set in the ExecState already.
         double toNumber(ExecState*) const;
-        UString toString(ExecState*) const;
-        JSString* toPrimitiveString(ExecState*) const;
+        JSString* toString(ExecState*) const;
         JSObject* toObject(ExecState*) const;
         JSObject* toObject(ExecState*, JSGlobalObject*) const;
 
@@ -233,9 +232,7 @@ namespace JSC {
         JSCell* asCell() const;
         JS_EXPORT_PRIVATE bool isValidCallee();
 
-#ifndef NDEBUG
         char* description();
-#endif
 
     private:
         template <class T> JSValue(WriteBarrierBase<T>);
@@ -245,6 +242,7 @@ namespace JSC {
 
         inline const JSValue asValue() const { return *this; }
         JS_EXPORT_PRIVATE double toNumberSlowCase(ExecState*) const;
+        JS_EXPORT_PRIVATE JSString* toStringSlowCase(ExecState*) const;
         JS_EXPORT_PRIVATE JSObject* toObjectSlowCase(ExecState*, JSGlobalObject*) const;
         JS_EXPORT_PRIVATE JSObject* toThisObjectSlowCase(ExecState*) const;
 

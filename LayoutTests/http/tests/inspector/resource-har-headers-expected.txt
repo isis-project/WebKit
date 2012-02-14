@@ -19,7 +19,6 @@ Resource:{
     }
 }
 HAR:{
-    pageref : "http://example.com/inspector-test.js"
     startedDateTime : <object>
     time : <number>
     request : {
@@ -53,8 +52,8 @@ HAR:{
         ]
         content : {
             size : 1000
-            compression : 500
             mimeType : "text/html"
+            compression : 500
         }
         redirectURL : ""
         headersSize : 39

@@ -31,19 +31,21 @@
  * @extends {WebInspector.Object}
  * @constructor
  */
-WebInspector.ScriptsNavigator = function(presentationModel)
+WebInspector.ScriptsNavigator = function()
 {
     WebInspector.Object.call(this);
     
     this._tabbedPane = new WebInspector.TabbedPane();
     this._tabbedPane.shrinkableTabs = true;
 
-    this._presentationModel = presentationModel;
-
     this._tabbedPane.element.id = "scripts-navigator-tabbed-pane";
+    
+    this._tabbedPane.element.tabIndex = 0;
+    this._tabbedPane.element.addEventListener("focus", this.focus.bind(this), false);
   
     this._treeSearchBox = document.createElement("div");
     this._treeSearchBox.id = "scripts-navigator-tree-search-box";
+    this._tabbedPane.element.appendChild(this._treeSearchBox);
 
     this._navigatorScriptsTreeElement = document.createElement("ol");
     var scriptsView = new WebInspector.View();
@@ -67,9 +69,6 @@ WebInspector.ScriptsNavigator = function(presentationModel)
     this._scriptTreeElementsByUISourceCode = new Map();
     
     WebInspector.settings.showScriptFolders.addChangeListener(this._showScriptFoldersSettingChanged.bind(this));
-    
-    WebInspector.debuggerModel.addEventListener(WebInspector.DebuggerModel.Events.DebuggerWasDisabled, this._reset, this);
-    this._presentationModel.addEventListener(WebInspector.DebuggerPresentationModel.Events.DebuggerReset, this._reset, this);
 }
 
 WebInspector.ScriptsNavigator.ScriptsTab = "scripts";
@@ -81,7 +80,23 @@ WebInspector.ScriptsNavigator.prototype = {
      */
     get defaultFocusedElement()
     {
-        return this._navigatorScriptsTreeElement
+        return this._navigatorScriptsTreeElement;
+    },
+
+    /**
+     * @type {WebInspector.View}
+     */
+    get view()
+    {
+        return this._tabbedPane;
+    },
+
+    /**
+     * @type {Element}
+     */
+    get element()
+    {
+        return this._tabbedPane.element;
     },
 
     /**
@@ -90,7 +105,14 @@ WebInspector.ScriptsNavigator.prototype = {
     show: function(element)
     {
         this._tabbedPane.show(element);
-        element.appendChild(this._treeSearchBox);
+    },
+
+    focus: function()
+    {
+        if (this._tabbedPane.selectedTabId === WebInspector.ScriptsNavigator.ScriptsTab)
+            WebInspector.setCurrentFocusElement(this._navigatorScriptsTreeElement);
+        else
+            WebInspector.setCurrentFocusElement(this._navigatorContentScriptsTreeElement);
     },
 
     /**
@@ -128,7 +150,7 @@ WebInspector.ScriptsNavigator.prototype = {
         this._tabbedPane.selectTab(uiSourceCode.isContentScript ? WebInspector.ScriptsNavigator.ContentScriptsTab : WebInspector.ScriptsNavigator.ScriptsTab);
 
         var scriptTreeElement = this._scriptTreeElementsByUISourceCode.get(uiSourceCode);
-        scriptTreeElement.revealAndSelect();
+        scriptTreeElement.revealAndSelect(true);
     },
 
     /**
@@ -146,16 +168,21 @@ WebInspector.ScriptsNavigator.prototype = {
      */
     replaceUISourceCodes: function(oldUISourceCodeList, uiSourceCodeList)
     {
+        var added = false;
         var selected = false;
         for (var i = 0; i < oldUISourceCodeList.length; ++i) {
             var uiSourceCode = oldUISourceCodeList[i];
-            var treeElement = this._scriptTreeElementsByUISourceCode.get(uiSourceCode);
-            if (treeElement) {
-                if (this._lastSelectedUISourceCode && this._lastSelectedUISourceCode === uiSourceCode)
-                    selected = true;
-                this.removeUISourceCode(uiSourceCode);
-            }
+            if (!this._scriptTreeElementsByUISourceCode.get(uiSourceCode))
+                continue;
+            added = true;
+
+            if (this._lastSelectedUISourceCode === uiSourceCode)
+                selected = true;
+            this._removeUISourceCode(uiSourceCode);
         }
+        
+        if (!added)
+            return;
             
         for (var i = 0; i < uiSourceCodeList.length; ++i)
             this.addUISourceCode(uiSourceCodeList[i]);
@@ -170,13 +197,13 @@ WebInspector.ScriptsNavigator.prototype = {
     scriptSelected: function(uiSourceCode)
     {
         this._lastSelectedUISourceCode = uiSourceCode;
-        this.dispatchEventToListeners(WebInspector.ScriptsPanel.FileSelector.Events.ScriptSelected, uiSourceCode);
+        this.dispatchEventToListeners(WebInspector.ScriptsPanel.FileSelector.Events.FileSelected, uiSourceCode);
     },
     
     /**
      * @param {WebInspector.UISourceCode} uiSourceCode
      */
-    removeUISourceCode: function(uiSourceCode)
+    _removeUISourceCode: function(uiSourceCode)
     {
         var treeElement = this._scriptTreeElementsByUISourceCode.get(uiSourceCode);
         while (treeElement) {
@@ -196,20 +223,21 @@ WebInspector.ScriptsNavigator.prototype = {
     {
         var uiSourceCodes = this._navigatorScriptsTree.scriptTreeElements();
         uiSourceCodes = uiSourceCodes.concat(this._navigatorContentScriptsTree.scriptTreeElements());
-        this._reset();
+        this.reset();
         for (var i = 0; i < uiSourceCodes.length; ++i)
             this.addUISourceCode(uiSourceCodes[i]);
         
         this.revealUISourceCode(this._lastSelectedUISourceCode);
     },
     
-    _reset: function()
+    reset: function()
     {
         this._navigatorScriptsTree.stopSearch();
         this._navigatorScriptsTree.removeChildren();
         this._navigatorContentScriptsTree.stopSearch();
         this._navigatorContentScriptsTree.removeChildren();
         this._folderTreeElements = {};
+        this._scriptTreeElementsByUISourceCode.clear();
     },
 
     /**

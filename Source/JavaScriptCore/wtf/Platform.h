@@ -387,6 +387,9 @@
 #define WTF_OS_WINDOWS 1
 #endif
 
+#define WTF_OS_WIN ERROR "USE WINDOWS WITH OS NOT WIN"
+#define WTF_OS_MAC ERROR "USE MAC_OS_X WITH OS NOT MAC"
+
 /* OS(UNIX) - Any Unix-like system */
 #if   OS(AIX)              \
     || OS(ANDROID)          \
@@ -457,7 +460,7 @@
 #define WTF_USE_CA 1
 #endif
 
-/* USE(SKIA) for Win/Linux, CG for Mac, unless enabled */
+/* USE(SKIA) for Win/Linux/Mac/Android */
 #if PLATFORM(CHROMIUM)
 #if OS(DARWIN)
 #if USE(SKIA_ON_MAC_CHROMIUM)
@@ -468,6 +471,9 @@
 #define WTF_USE_ATSUI 1
 #define WTF_USE_CORE_TEXT 1
 #define WTF_USE_ICCJPEG 1
+#elif OS(ANDROID)
+#define WTF_USE_SKIA 1
+#define WTF_USE_GLES2_RENDERING 0
 #else
 #define WTF_USE_SKIA 1
 #define WTF_USE_CHROMIUM_NET 1
@@ -548,7 +554,9 @@
 #define ENABLE_SMOOTH_SCROLLING 1
 #define ENABLE_WEB_ARCHIVE 1
 #define ENABLE_WEB_AUDIO 1
+#if defined(ENABLE_VIDEO)
 #define ENABLE_VIDEO_TRACK 1
+#endif
 #endif /* PLATFORM(MAC) && !PLATFORM(IOS) */
 
 #if PLATFORM(CHROMIUM) && OS(DARWIN)
@@ -566,8 +574,6 @@
 #if PLATFORM(QT) && OS(DARWIN)
 #define WTF_USE_CF 1
 #define HAVE_DISPATCH_H 1
-/* FIXME: This is a hack to work around a conflict of MacTypes.h defining a Fixed type. */
-#define CF_OPEN_SOURCE 1
 #endif
 
 #if OS(DARWIN) && !PLATFORM(GTK) && !PLATFORM(QT)
@@ -674,7 +680,7 @@
 #endif
 #endif
 
-#if !OS(WINDOWS) && !OS(SOLARIS) && !OS(QNX) \
+#if !OS(WINDOWS) && !OS(SOLARIS) \
     && !OS(RVCT) \
     && !OS(ANDROID)
 #define HAVE_TM_GMTOFF 1
@@ -728,6 +734,8 @@
 
 #define HAVE_ERRNO_H 1
 #define HAVE_MMAP 1
+#define HAVE_MADV_FREE_REUSE 1
+#define HAVE_MADV_FREE 1
 #define HAVE_SBRK 1
 #define HAVE_STRINGS_H 1
 #define HAVE_SYS_PARAM_H 1
@@ -857,10 +865,6 @@
 
 #if !defined(ENABLE_GEOLOCATION)
 #define ENABLE_GEOLOCATION 0
-#endif
-
-#if !defined(ENABLE_GESTURE_RECOGNIZER)
-#define ENABLE_GESTURE_RECOGNIZER 0
 #endif
 
 #if !defined(ENABLE_VIEWPORT)
@@ -1113,7 +1117,11 @@
    since most ports try to support sub-project independence, adding new headers
    to WTF causes many ports to break, and so this way we can address the build
    breakages one port at a time. */
+#if PLATFORM(MAC) || PLATFORM(QT)
+#define WTF_USE_EXPORT_MACROS 1
+#else
 #define WTF_USE_EXPORT_MACROS 0
+#endif
 
 #if (PLATFORM(QT) && !OS(DARWIN)) || PLATFORM(GTK) || PLATFORM(EFL)
 #define WTF_USE_UNIX_DOMAIN_SOCKETS 1
@@ -1123,7 +1131,7 @@
 #define ENABLE_COMPARE_AND_SWAP 1
 #endif
 
-#if !defined(ENABLE_PARALLEL_GC) && (PLATFORM(MAC) || PLATFORM(IOS)) && ENABLE(COMPARE_AND_SWAP)
+#if !defined(ENABLE_PARALLEL_GC) && (PLATFORM(MAC) || PLATFORM(IOS) || PLATFORM(QT)) && ENABLE(COMPARE_AND_SWAP)
 #define ENABLE_PARALLEL_GC 1
 #endif
 
@@ -1135,6 +1143,10 @@
 
 #if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
 #define WTF_USE_AVFOUNDATION 1
+#endif
+
+#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+#define WTF_USE_COREMEDIA 1
 #endif
 
 #if PLATFORM(MAC) || PLATFORM(GTK) || PLATFORM(EFL) || (PLATFORM(WIN) && !OS(WINCE) && !PLATFORM(WIN_CAIRO)) || PLATFORM(QT)
@@ -1166,5 +1178,12 @@
 /* Using V8 implies not using JSC and vice versa */
 #define WTF_USE_JSC !WTF_USE_V8
 
+#if ENABLE(NOTIFICATIONS) && PLATFORM(MAC)
+#define ENABLE_TEXT_NOTIFICATIONS_ONLY 1
+#endif
+
+#if !defined(WTF_USE_WTFURL)
+#define WTF_USE_WTFURL 0
+#endif
 
 #endif /* WTF_Platform_h */

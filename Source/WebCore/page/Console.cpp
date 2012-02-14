@@ -128,6 +128,13 @@ static void printMessageSourceAndLevelPrefix(MessageSource source, MessageLevel 
     printf("%s %s:", sourceString, levelString);
 }
 
+void addMessage(MessageSource, MessageType, MessageLevel, const String& message, PassRefPtr<ScriptCallStack>);
+
+void Console::addMessage(MessageSource source, MessageType type, MessageLevel level, const String& message, PassRefPtr<ScriptCallStack> callStack)
+{
+    addMessage(source, type, level, message, String(), 0, callStack);
+}
+
 void Console::addMessage(MessageSource source, MessageType type, MessageLevel level, const String& message, const String& sourceURL, unsigned lineNumber, PassRefPtr<ScriptCallStack> callStack)
 {
     Page* page = this->page();
@@ -229,7 +236,7 @@ void Console::trace(PassRefPtr<ScriptArguments> arguments, PassRefPtr<ScriptCall
     }
 }
 
-void Console::assertCondition(bool condition, PassRefPtr<ScriptArguments> arguments, PassRefPtr<ScriptCallStack> callStack)
+void Console::assertCondition(PassRefPtr<ScriptArguments> arguments, PassRefPtr<ScriptCallStack> callStack, bool condition)
 {
     if (condition)
         return;
@@ -292,16 +299,14 @@ void Console::time(const String& title)
 {
     InspectorInstrumentation::startConsoleTiming(page(), title);
 #if PLATFORM(CHROMIUM)
-    if (PlatformSupport::isTraceEventEnabled())
-        PlatformSupport::traceEventBegin(title.utf8().data(), 0, 0);
+    TRACE_EVENT_COPY_BEGIN0("webkit", title.utf8().data());
 #endif
 }
 
-void Console::timeEnd(const String& title, PassRefPtr<ScriptArguments>, PassRefPtr<ScriptCallStack> callStack)
+void Console::timeEnd(PassRefPtr<ScriptArguments>, PassRefPtr<ScriptCallStack> callStack, const String& title)
 {
 #if PLATFORM(CHROMIUM)
-    if (PlatformSupport::isTraceEventEnabled())
-        PlatformSupport::traceEventEnd(title.utf8().data(), 0, 0);
+    TRACE_EVENT_COPY_END0("webkit", title.utf8().data());
 #endif
     InspectorInstrumentation::stopConsoleTiming(page(), title, callStack);
 }

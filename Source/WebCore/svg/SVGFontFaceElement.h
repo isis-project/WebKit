@@ -28,7 +28,6 @@
 namespace WebCore {
 
 class CSSFontFaceRule;
-class CSSMutableStyleDeclaration;
 class SVGFontElement;
 
 class SVGFontFaceElement : public SVGElement {
@@ -54,15 +53,13 @@ public:
 private:
     SVGFontFaceElement(const QualifiedName&, Document*);
 
-    virtual void parseMappedAttribute(Attribute*);
+    virtual void parseAttribute(Attribute*) OVERRIDE;
 
     virtual void childrenChanged(bool changedByParser = false, Node* beforeChange = 0, Node* afterChange = 0, int childCountDelta = 0);
     virtual void insertedIntoDocument();
     virtual void removedFromDocument();
 
     RefPtr<CSSFontFaceRule> m_fontFaceRule;
-    RefPtr<CSSMutableStyleDeclaration> m_styleDeclaration;
-
     RefPtr<SVGFontElement> m_fontElement;
 };
 

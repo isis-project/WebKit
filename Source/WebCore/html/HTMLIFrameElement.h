@@ -35,8 +35,9 @@ public:
 private:
     HTMLIFrameElement(const QualifiedName&, Document*);
 
-    virtual bool mapToEntry(const QualifiedName&, MappedAttributeEntry&) const;
-    virtual void parseMappedAttribute(Attribute*);
+    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual bool isPresentationAttribute(Attribute*) const OVERRIDE;
+    virtual void collectStyleForAttribute(Attribute*, StylePropertySet*) OVERRIDE;
 
     virtual void insertedIntoDocument();
     virtual void removedFromDocument();

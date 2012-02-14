@@ -645,9 +645,9 @@ public:
         return m_buffer.codeSize();
     }
 
-    PassRefPtr<ExecutableMemoryHandle> executableCopy(JSGlobalData& globalData)
+    PassRefPtr<ExecutableMemoryHandle> executableCopy(JSGlobalData& globalData, void* ownerUID)
     {
-        RefPtr<ExecutableMemoryHandle> result = m_buffer.executableCopy(globalData);
+        RefPtr<ExecutableMemoryHandle> result = m_buffer.executableCopy(globalData, ownerUID);
         if (!result)
             return 0;
 
@@ -655,9 +655,7 @@ public:
         return result.release();
     }
 
-#ifndef NDEBUG
     unsigned debugOffset() { return m_buffer.debugOffset(); }
-#endif
 
     static unsigned getCallReturnOffset(AssemblerLabel call)
     {

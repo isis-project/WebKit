@@ -38,6 +38,7 @@
 #include "JSDOMWindowCustom.h"
 #include "JSDOMWindowShell.h"
 #include "JSHTMLCollection.h"
+#include "JSMainThreadExecState.h"
 #include "SegmentedString.h"
 #include "DocumentParser.h"
 #include <runtime/Error.h>
@@ -113,7 +114,7 @@ JSValue JSHTMLDocument::open(ExecState* exec)
                 CallType callType = ::getCallData(function, callData);
                 if (callType == CallTypeNone)
                     return throwTypeError(exec);
-                return JSC::call(exec, function, callType, callData, wrapper, ArgList(exec));
+                return JSMainThreadExecState::call(exec, function, callType, callData, wrapper, ArgList(exec));
             }
         }
         return jsUndefined();
@@ -136,14 +137,14 @@ static inline void documentWrite(ExecState* exec, HTMLDocument* document, Newlin
 
     size_t size = exec->argumentCount();
 
-    UString firstString = exec->argument(0).toString(exec);
+    UString firstString = exec->argument(0).toString(exec)->value(exec);
     SegmentedString segmentedString = ustringToString(firstString);
     if (size != 1) {
         if (!size)
             segmentedString.clear();
         else {
             for (size_t i = 1; i < size; ++i) {
-                UString subsequentString = exec->argument(i).toString(exec);
+                UString subsequentString = exec->argument(i).toString(exec)->value(exec);
                 segmentedString.append(SegmentedString(ustringToString(subsequentString)));
             }
         }

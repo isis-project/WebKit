@@ -157,10 +157,10 @@ bool SVGAnimationElement::isSupportedAttribute(const QualifiedName& attrName)
     return supportedAttributes.contains<QualifiedName, SVGAttributeHashTranslator>(attrName);
 }
      
-void SVGAnimationElement::parseMappedAttribute(Attribute* attr)
+void SVGAnimationElement::parseAttribute(Attribute* attr)
 {
     if (!isSupportedAttribute(attr->name())) {
-        SVGSMILElement::parseMappedAttribute(attr);
+        SVGSMILElement::parseAttribute(attr);
         return;
     }
 
@@ -193,20 +193,20 @@ void SVGAnimationElement::parseMappedAttribute(Attribute* attr)
         return;
     }
 
-    if (SVGTests::parseMappedAttribute(attr))
+    if (SVGTests::parseAttribute(attr))
         return;
-    if (SVGExternalResourcesRequired::parseMappedAttribute(attr))
+    if (SVGExternalResourcesRequired::parseAttribute(attr))
         return;
 
     ASSERT_NOT_REACHED();
 }
 
-void SVGAnimationElement::attributeChanged(Attribute* attr, bool preserveDecls)
+void SVGAnimationElement::attributeChanged(Attribute* attr)
 {
     // Assumptions may not hold after an attribute change.
     m_animationValid = false;
     setInactive();
-    SVGSMILElement::attributeChanged(attr, preserveDecls);
+    SVGSMILElement::attributeChanged(attr);
 }
 
 float SVGAnimationElement::getStartTime() const
@@ -232,7 +232,7 @@ void SVGAnimationElement::beginElement()
 void SVGAnimationElement::beginElementAt(float offset)
 {
     SMILTime elapsed = this->elapsed();
-    addBeginTime(elapsed, elapsed + offset);
+    addBeginTime(elapsed, elapsed + offset, SMILTimeWithOrigin::ScriptOrigin);
 }
 
 void SVGAnimationElement::endElement()
@@ -243,7 +243,7 @@ void SVGAnimationElement::endElement()
 void SVGAnimationElement::endElementAt(float offset)
 {
     SMILTime elapsed = this->elapsed();
-    addEndTime(elapsed, elapsed + offset);
+    addEndTime(elapsed, elapsed + offset, SMILTimeWithOrigin::ScriptOrigin);
 }
 
 AnimationMode SVGAnimationElement::animationMode() const
@@ -622,10 +622,6 @@ void SVGAnimationElement::updateAnimation(float percent, unsigned repeat, SVGSMI
         effectivePercent = percent;
 
     calculateAnimatedValue(effectivePercent, repeat, resultElement);
-}
-
-void SVGAnimationElement::endedActiveInterval()
-{
 }
 
 }

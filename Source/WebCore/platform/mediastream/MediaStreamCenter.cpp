@@ -55,8 +55,10 @@ void MediaStreamCenter::endLocalMediaStream(MediaStreamDescriptor* streamDescrip
         streamDescriptor->setEnded();
 }
 
-// FIXME: remove when real implementations are available
-// Empty implementations for ports that build with MEDIA_STREAM enabled by default.
+#if !PLATFORM(CHROMIUM)
+
+// Empty implementations for ports that build with MEDIA_STREAM enabled by default, but haven't yet implemented MediaStreamCenter.
+
 MediaStreamCenter::MediaStreamCenter()
 {
 }
@@ -67,17 +69,23 @@ MediaStreamCenter::~MediaStreamCenter()
 
 void MediaStreamCenter::queryMediaStreamSources(PassRefPtr<MediaStreamSourcesQueryClient> client)
 {
-    MediaStreamSourceVector sources;
-    client->mediaStreamSourcesQueryCompleted(sources);
+    MediaStreamSourceVector audioSources, videoSources;
+    client->didCompleteQuery(audioSources, videoSources);
 }
 
-void MediaStreamCenter::didSetMediaStreamTrackEnabled(MediaStreamDescriptor*, unsigned)
+void MediaStreamCenter::didSetMediaStreamTrackEnabled(MediaStreamDescriptor*, MediaStreamComponent*)
 {
 }
 
 void MediaStreamCenter::didStopLocalMediaStream(MediaStreamDescriptor*)
 {
 }
+
+void MediaStreamCenter::didConstructMediaStream(MediaStreamDescriptor*)
+{
+}
+
+#endif // !PLATFORM(CHROMIUM)
 
 } // namespace WebCore
 

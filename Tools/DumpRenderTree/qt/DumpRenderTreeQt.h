@@ -102,11 +102,12 @@ public:
     WebPage *webPage() const { return m_page; }
     QList<WebPage*> getAllPages() const;
 
-    static void initializeFonts();
-
     void processArgsLine(const QStringList&);
     void setRedirectOutputFileName(const QString& fileName) { m_redirectOutputFileName = fileName; }
     void setRedirectErrorFileName(const QString& fileName) { m_redirectErrorFileName = fileName; }
+
+    void setTimeout(int);
+    void setShouldTimeout(bool flag);
 
 public Q_SLOTS:
     void initJSObjects();

@@ -24,10 +24,6 @@
 #include "WebKitWindowPropertiesPrivate.h"
 #include "WebURLRequest.h"
 #include <WebCore/IntRect.h>
-#include <WebKit2/WKDictionary.h>
-#include <WebKit2/WKNumber.h>
-#include <WebKit2/WKRetainPtr.h>
-#include <WebKit2/WKString.h>
 #include <glib/gi18n-lib.h>
 
 /**
@@ -42,7 +38,7 @@
  * scrollbar, statusbar, locationbar should be visible to the user,
  * and the request to show the #WebKitWebView fullscreen.
  *
- * The #WebKitWebView:ready-to-show signal handler is the proper place
+ * The #WebKitWebView::ready-to-show signal handler is the proper place
  * to apply the initial window properties. Then you can monitor the
  * #WebKitWindowProperties by connecting to ::notify signal.
  *

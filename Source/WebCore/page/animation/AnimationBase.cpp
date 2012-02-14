@@ -84,6 +84,11 @@ static inline int blendFunc(const AnimationBase*, int from, int to, double progr
     return blend(from, to, progress);
 }
 
+static inline unsigned blendFunc(const AnimationBase*, unsigned from, unsigned to, double progress)
+{
+    return blend(from, to, progress);
+}
+
 static inline double blendFunc(const AnimationBase*, double from, double to, double progress)
 {  
     return blend(from, to, progress);
@@ -446,6 +451,23 @@ public:
         dst->setTransform(blendFunc(anim, a->transform(), b->transform(), progress));
     }
 };
+
+#if ENABLE(CSS_FILTERS)
+class PropertyWrapperAcceleratedFilter : public PropertyWrapper<const FilterOperations&> {
+public:
+    PropertyWrapperAcceleratedFilter()
+        : PropertyWrapper<const FilterOperations&>(CSSPropertyWebkitFilter, &RenderStyle::filter, &RenderStyle::setFilter)
+    {
+    }
+    
+    virtual bool animationIsAccelerated() const { return true; }
+
+    virtual void blend(const AnimationBase* anim, RenderStyle* dst, const RenderStyle* a, const RenderStyle* b, double progress) const
+    {
+        dst->setFilter(blendFunc(anim, a->filter(), b->filter(), progress));
+    }
+};
+#endif
 #endif // USE(ACCELERATED_COMPOSITING)
 
 static inline size_t shadowListLength(const ShadowData* shadow)
@@ -950,10 +972,10 @@ void AnimationBase::ensurePropertyMap()
         gPropertyWrappers->append(new PropertyWrapper<Length>(CSSPropertyMinHeight, &RenderStyle::minHeight, &RenderStyle::setMinHeight));
         gPropertyWrappers->append(new PropertyWrapper<Length>(CSSPropertyMaxHeight, &RenderStyle::maxHeight, &RenderStyle::setMaxHeight));
 
-        gPropertyWrappers->append(new PropertyWrapper<unsigned short>(CSSPropertyBorderLeftWidth, &RenderStyle::borderLeftWidth, &RenderStyle::setBorderLeftWidth));
-        gPropertyWrappers->append(new PropertyWrapper<unsigned short>(CSSPropertyBorderRightWidth, &RenderStyle::borderRightWidth, &RenderStyle::setBorderRightWidth));
-        gPropertyWrappers->append(new PropertyWrapper<unsigned short>(CSSPropertyBorderTopWidth, &RenderStyle::borderTopWidth, &RenderStyle::setBorderTopWidth));
-        gPropertyWrappers->append(new PropertyWrapper<unsigned short>(CSSPropertyBorderBottomWidth, &RenderStyle::borderBottomWidth, &RenderStyle::setBorderBottomWidth));
+        gPropertyWrappers->append(new PropertyWrapper<unsigned>(CSSPropertyBorderLeftWidth, &RenderStyle::borderLeftWidth, &RenderStyle::setBorderLeftWidth));
+        gPropertyWrappers->append(new PropertyWrapper<unsigned>(CSSPropertyBorderRightWidth, &RenderStyle::borderRightWidth, &RenderStyle::setBorderRightWidth));
+        gPropertyWrappers->append(new PropertyWrapper<unsigned>(CSSPropertyBorderTopWidth, &RenderStyle::borderTopWidth, &RenderStyle::setBorderTopWidth));
+        gPropertyWrappers->append(new PropertyWrapper<unsigned>(CSSPropertyBorderBottomWidth, &RenderStyle::borderBottomWidth, &RenderStyle::setBorderBottomWidth));
         gPropertyWrappers->append(new PropertyWrapper<Length>(CSSPropertyMarginLeft, &RenderStyle::marginLeft, &RenderStyle::setMarginLeft));
         gPropertyWrappers->append(new PropertyWrapper<Length>(CSSPropertyMarginRight, &RenderStyle::marginRight, &RenderStyle::setMarginRight));
         gPropertyWrappers->append(new PropertyWrapper<Length>(CSSPropertyMarginTop, &RenderStyle::marginTop, &RenderStyle::setMarginTop));
@@ -971,7 +993,9 @@ void AnimationBase::ensurePropertyMap()
         gPropertyWrappers->append(new StyleImagePropertyWrapper(CSSPropertyWebkitMaskImage, &RenderStyle::maskImage, &RenderStyle::setMaskImage));
 
         gPropertyWrappers->append(new StyleImagePropertyWrapper(CSSPropertyBorderImageSource, &RenderStyle::borderImageSource, &RenderStyle::setBorderImageSource));
-        gPropertyWrappers->append(new PropertyWrapper<const NinePieceImage&>(CSSPropertyBorderImage, &RenderStyle::borderImage, &RenderStyle::setBorderImage));
+        gPropertyWrappers->append(new PropertyWrapper<LengthBox>(CSSPropertyBorderImageSlice, &RenderStyle::borderImageSlices, &RenderStyle::setBorderImageSlices));
+        gPropertyWrappers->append(new PropertyWrapper<LengthBox>(CSSPropertyBorderImageWidth, &RenderStyle::borderImageWidth, &RenderStyle::setBorderImageWidth));
+        gPropertyWrappers->append(new PropertyWrapper<LengthBox>(CSSPropertyBorderImageOutset, &RenderStyle::borderImageOutset, &RenderStyle::setBorderImageOutset));
 
         gPropertyWrappers->append(new StyleImagePropertyWrapper(CSSPropertyWebkitMaskBoxImageSource, &RenderStyle::maskBoxImageSource, &RenderStyle::setMaskBoxImageSource));
         gPropertyWrappers->append(new PropertyWrapper<const NinePieceImage&>(CSSPropertyWebkitMaskBoxImage, &RenderStyle::maskBoxImage, &RenderStyle::setMaskBoxImage));
@@ -1018,13 +1042,15 @@ void AnimationBase::ensurePropertyMap()
 #if USE(ACCELERATED_COMPOSITING)
         gPropertyWrappers->append(new PropertyWrapperAcceleratedOpacity());
         gPropertyWrappers->append(new PropertyWrapperAcceleratedTransform());
+#if ENABLE(CSS_FILTERS)
+        gPropertyWrappers->append(new PropertyWrapperAcceleratedFilter());
+#endif
 #else
         gPropertyWrappers->append(new PropertyWrapper<float>(CSSPropertyOpacity, &RenderStyle::opacity, &RenderStyle::setOpacity));
         gPropertyWrappers->append(new PropertyWrapper<const TransformOperations&>(CSSPropertyWebkitTransform, &RenderStyle::transform, &RenderStyle::setTransform));
-#endif
-
 #if ENABLE(CSS_FILTERS)
         gPropertyWrappers->append(new PropertyWrapper<const FilterOperations&>(CSSPropertyWebkitFilter, &RenderStyle::filter, &RenderStyle::setFilter));
+#endif
 #endif
 
         gPropertyWrappers->append(new PropertyWrapperVisitedAffectedColor(CSSPropertyWebkitColumnRuleColor, MaybeInvalidColor, &RenderStyle::columnRuleColor, &RenderStyle::setColumnRuleColor, &RenderStyle::visitedLinkColumnRuleColor, &RenderStyle::setVisitedLinkColumnRuleColor));
@@ -1112,6 +1138,7 @@ static void addShorthandProperties()
         CSSPropertyBorderRadius,
         CSSPropertyBorderWidth,
         CSSPropertyBorder,
+        CSSPropertyBorderImage,
         CSSPropertyBorderSpacing,
         CSSPropertyListStyle, // for list-style-image
         CSSPropertyMargin,
@@ -1665,7 +1692,9 @@ double AnimationBase::fractionalTime(double scale, double elapsedTime, double of
         integralTime = min(integralTime, m_animation->iterationCount() - 1);
     fractionalTime -= integralTime;
 
-    if ((m_animation->direction() == Animation::AnimationDirectionAlternate) && (integralTime & 1))
+    if (((m_animation->direction() == Animation::AnimationDirectionAlternate) && (integralTime & 1))
+        || ((m_animation->direction() == Animation::AnimationDirectionAlternateReverse) && !(integralTime & 1))
+        || m_animation->direction() == Animation::AnimationDirectionReverse)
         fractionalTime = 1 - fractionalTime;
 
     if (scale != 1 || offset)

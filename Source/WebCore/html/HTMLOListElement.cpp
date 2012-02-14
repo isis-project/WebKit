@@ -54,30 +54,33 @@ PassRefPtr<HTMLOListElement> HTMLOListElement::create(const QualifiedName& tagNa
     return adoptRef(new HTMLOListElement(tagName, document));
 }
 
-bool HTMLOListElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
+bool HTMLOListElement::isPresentationAttribute(Attribute* attr) const
 {
-    if (attrName == typeAttr) {
-        result = eListItem; // Share with <li>
-        return false;
-    }
-    
-    return HTMLElement::mapToEntry(attrName, result);
+    if (attr->name() == typeAttr)
+        return true;
+    return HTMLElement::isPresentationAttribute(attr);
 }
 
-void HTMLOListElement::parseMappedAttribute(Attribute* attr)
+void HTMLOListElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == typeAttr) {
         if (attr->value() == "a")
-            addCSSProperty(attr, CSSPropertyListStyleType, CSSValueLowerAlpha);
+            style->setProperty(CSSPropertyListStyleType, CSSValueLowerAlpha);
         else if (attr->value() == "A")
-            addCSSProperty(attr, CSSPropertyListStyleType, CSSValueUpperAlpha);
+            style->setProperty(CSSPropertyListStyleType, CSSValueUpperAlpha);
         else if (attr->value() == "i")
-            addCSSProperty(attr, CSSPropertyListStyleType, CSSValueLowerRoman);
+            style->setProperty(CSSPropertyListStyleType, CSSValueLowerRoman);
         else if (attr->value() == "I")
-            addCSSProperty(attr, CSSPropertyListStyleType, CSSValueUpperRoman);
+            style->setProperty(CSSPropertyListStyleType, CSSValueUpperRoman);
         else if (attr->value() == "1")
-            addCSSProperty(attr, CSSPropertyListStyleType, CSSValueDecimal);
-    } else if (attr->name() == startAttr) {
+            style->setProperty(CSSPropertyListStyleType, CSSValueDecimal);
+    } else
+        HTMLElement::collectStyleForAttribute(attr, style);
+}
+
+void HTMLOListElement::parseAttribute(Attribute* attr)
+{
+    if (attr->name() == startAttr) {
         int oldStart = start();
         bool canParse;
         int parsedStart = attr->value().toInt(&canParse);
@@ -93,7 +96,7 @@ void HTMLOListElement::parseMappedAttribute(Attribute* attr)
         m_isReversed = reversed;
         updateItemValues();
     } else
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::parseAttribute(attr);
 }
 
 void HTMLOListElement::setStart(int start)

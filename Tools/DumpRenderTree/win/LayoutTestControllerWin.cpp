@@ -450,6 +450,12 @@ void LayoutTestController::addMockSpeechInputResult(JSStringRef result, double c
     // See https://bugs.webkit.org/show_bug.cgi?id=39485.
 }
 
+void LayoutTestController::setMockSpeechInputDumpRect(bool flag)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
 void LayoutTestController::startSpeechInput(JSContextRef inputElement)
 {
     // FIXME: Implement for speech input layout tests.
@@ -1087,31 +1093,6 @@ bool LayoutTestController::pauseTransitionAtTimeOnElementWithId(JSStringRef prop
     BOOL wasRunning = FALSE;
     hr = framePrivate->pauseTransition(nameBSTR, element.get(), time, &wasRunning);
     SysFreeString(nameBSTR);
-
-    return SUCCEEDED(hr) && wasRunning;
-}
-
-bool LayoutTestController::sampleSVGAnimationForElementAtTime(JSStringRef animationId, double time, JSStringRef elementId)
-{
-    COMPtr<IDOMDocument> document;
-    if (FAILED(frame->DOMDocument(&document)))
-        return false;
-
-    BSTR idBSTR = JSStringCopyBSTR(animationId);
-    COMPtr<IDOMElement> element;
-    HRESULT hr = document->getElementById(idBSTR, &element);
-    SysFreeString(idBSTR);
-    if (FAILED(hr))
-        return false;
-
-    COMPtr<IWebFramePrivate> framePrivate(Query, frame);
-    if (!framePrivate)
-        return false;
-
-    BSTR elementIdBSTR = JSStringCopyBSTR(elementId);
-    BOOL wasRunning = FALSE;
-    hr = framePrivate->pauseSVGAnimation(elementIdBSTR, element.get(), time, &wasRunning);
-    SysFreeString(elementIdBSTR);
 
     return SUCCEEDED(hr) && wasRunning;
 }

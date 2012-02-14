@@ -1,5 +1,5 @@
 {
-    "version": { "major": "0", "minor": "1" },
+    "version": { "major": "1", "minor": "0" },
     "domains": [{
         "domain": "Inspector",
         "hidden": true,
@@ -68,6 +68,16 @@
                 "description": "Number of JS event listeners by event type."
             },
             {
+                "id": "StringStatistics",
+                "type": "object",
+                "properties": [
+                    { "name": "dom", "type": "integer" },
+                    { "name": "js", "type": "integer" },
+                    { "name": "shared", "type": "integer" }
+                ],
+                "description": "Character data statistics for the page."
+            },
+            {
                 "id": "DOMGroup",
                 "type": "object",
                 "properties": [
@@ -83,7 +93,8 @@
             {
                 "name": "getDOMNodeCount",
                 "returns": [
-                    { "name": "count", "type": "array", "items": { "$ref": "DOMGroup" }}
+                    { "name": "domGroups", "type": "array", "items": { "$ref": "DOMGroup" }},
+                    { "name": "strings", "$ref": "StringStatistics" }
                 ]
             }
         ]
@@ -214,13 +225,11 @@
                 "description": "Reloads given page optionally ignoring the cache."
             },
             {
-                "name": "open",
+                "name": "navigate",
                 "parameters": [
-                    { "name": "url", "type": "string", "description": "URL to open." },
-                    { "name": "newWindow", "optional": true, "type": "boolean", "description": "If true, opens given URL in a new window or tab." }
+                    { "name": "url", "type": "string", "description": "URL to navigate the page to." }
                 ],
-                "description": "Opens given URL either in the inspected page or in a new tab / window.",
-                "hidden": true
+                "description": "Navigates current page to the given URL."
             },
             {
                 "name": "getCookies",
@@ -288,6 +297,24 @@
                     { "name": "result", "type": "array", "items": { "$ref": "SearchResult" }, "description": "List of search results." }
                 ],
                 "hidden": true
+            },
+            {
+                "name": "setDocumentContent",
+                "description": "Sets given markup as the document's HTML.",
+                "parameters": [
+                    { "name": "frameId", "$ref": "Network.FrameId", "description": "Frame id to set HTML for." },
+                    { "name": "html", "type": "string", "description": "HTML content to set."  }
+                ],
+                "hidden": true
+            },
+            {
+                "name": "setScreenSizeOverride",
+                "description": "Overrides the values of window.screen.width, window.screen.height, window.innerWidth, window.innerHeight, and \"device-width\"/\"device-height\"-related CSS media query results",
+                "parameters": [
+                    { "name": "width", "type": "integer", "description": "Overriding width value in pixels (minimum 0, maximum 10000000). 0 disables the override." },
+                    { "name": "height", "type": "integer", "description": "Overriding height value in pixels (minimum 0, maximum 10000000). 0 disables the override." }
+                ],
+                "hidden": true
             }
         ],
         "events": [
@@ -350,7 +377,7 @@
                 "properties": [
                     { "name": "name", "type": "string", "description": "Property name." },
                     { "name": "value", "$ref": "RemoteObject", "optional": true, "description": "The value associated with the property." },
-                    { "name": "writable", "type": "boolean", "description": "True if the value associated with the property may be changed (data descriptors only)." },
+                    { "name": "writable", "type": "boolean", "optional": true, "description": "True if the value associated with the property may be changed (data descriptors only)." },
                     { "name": "get", "$ref": "RemoteObject", "optional": true, "description": "A function which serves as a getter for the property, or <code>undefined</code> if there is no getter (accessor descriptors only)." },
                     { "name": "set", "$ref": "RemoteObject", "optional": true, "description": "A function which serves as a setter for the property, or <code>undefined</code> if there is no setter (accessor descriptors only)." },
                     { "name": "configurable", "type": "boolean", "description": "True if the type of this property descriptor may be changed and if the property may be deleted from the corresponding object." },
@@ -364,7 +391,7 @@
                 "description": "Represents function call argument. Either remote object id <code>objectId</code> or primitive <code>value</code> or neither of (for undefined) them should be specified.",
                 "properties": [
                     { "name": "value", "type": "any", "optional": true, "description": "Primitive value." },
-                    { "name": "objectId", "$ref": "RemoteObject", "optional": true, "description": "Remote object handle." }
+                    { "name": "objectId", "$ref": "RemoteObjectId", "optional": true, "description": "Remote object handle." }
                 ]
             }
         ],
@@ -629,7 +656,7 @@
                 "properties": [
                     { "name": "url", "type": "string", "description": "Resource URL." },
                     { "name": "type", "$ref": "Page.ResourceType", "description": "Type of this resource." },
-                    { "name": "response", "$ref": "Response", "description": "Cached response data." },
+                    { "name": "response", "$ref": "Response", "optional": true, "description": "Cached response data." },
                     { "name": "bodySize", "type": "number", "description": "Cached response body size." }
                 ]
             },
@@ -906,13 +933,43 @@
         "hidden": true,
         "types": [
             {
-                "id": "FrameWithDatabaseNames",
+                "id": "SecurityOriginWithDatabaseNames",
                 "type": "object",
-                "description": "Origin with database names and frame ids.",
+                "description": "Security origin with database names.",
                 "properties": [
-                    { "name": "frameId", "$ref": "Network.FrameId", "description": "Frame id." },
                     { "name": "securityOrigin", "type": "string", "description": "Security origin." },
                     { "name": "databaseNames", "type": "array", "items": { "type": "string" }, "description": "Database names for this origin." }
+                ]
+            },
+            {
+                "id": "DatabaseWithObjectStores",
+                "type": "object",
+                "description": "Database with an array of object stores.",
+                "properties": [
+                    { "name": "name", "type": "string", "description": "Database name." },
+                    { "name": "version", "type": "string", "description": "Database version." },
+                    { "name": "objectStores", "type": "array", "items": { "$ref": "ObjectStore" }, "description": "Object stores in this database." }
+                ]
+            },
+            {
+                "id": "ObjectStore",
+                "type": "object",
+                "description": "Object store.",
+                "properties": [
+                    { "name": "name", "type": "string", "description": "Object store name." },
+                    { "name": "keyPath", "type": "string", "description": "Object store key path." },
+                    { "name": "indexes", "type": "array", "items": { "$ref": "ObjectStoreIndex" }, "description": "Indexes in this object store." }
+                ]
+            },
+            {
+                "id": "ObjectStoreIndex",
+                "type": "object",
+                "description": "Object store index.",
+                "properties": [
+                    { "name": "name", "type": "string", "description": "Index name." },
+                    { "name": "keyPath", "type": "string", "description": "Index key path." },
+                    { "name": "unique", "type": "boolean", "description": "If true, index is unique." },
+                    { "name": "multiEntry", "type": "boolean", "description": "If true, index allows multiple entries for a key." }
                 ]
             }
         ],
@@ -928,16 +985,34 @@
             {
                 "name": "requestDatabaseNamesForFrame",
                 "parameters": [
-                    { "name": "frameId", "$ref": "Network.FrameId" }
+                    { "name": "requestId", "type": "integer", "description": "Request id." },
+                    { "name": "frameId", "$ref": "Network.FrameId", "description": "Frame id." }
                 ],
                 "description": "Requests database names for given frame's security origin."
+            },
+            {
+                "name": "requestDatabase",
+                "parameters": [
+                    { "name": "requestId", "type": "integer", "description": "Request id." },
+                    { "name": "frameId", "$ref": "Network.FrameId" },
+                    { "name": "databaseName", "type": "string" }
+                ],
+                "description": "Requests database with given name in given frame."
             }
         ],
         "events": [
             {
                 "name": "databaseNamesLoaded",
                 "parameters": [
-                    { "name": "frameWithDatabaseNames", "$ref": "FrameWithDatabaseNames", "description": "Frame with database names." }
+                    { "name": "requestId", "type": "number", "description": "Request id." },
+                    { "name": "securityOriginWithDatabaseNames", "$ref": "SecurityOriginWithDatabaseNames", "description": "Frame with database names." }
+                ]
+            },
+            {
+                "name": "databaseLoaded",
+                "parameters": [
+                    { "name": "requestId", "type": "integer", "description": "Request id." },
+                    { "name": "databaseWithObjectStores", "$ref": "DatabaseWithObjectStores", "description": "Database with an array of object stores." }
                 ]
             }
         ]
@@ -1143,7 +1218,8 @@
                     { "name": "internalSubset", "type": "string", "optional": true, "description": "<code>DocumentType</code>'s internalSubset." },
                     { "name": "xmlVersion", "type": "string", "optional": true, "description": "<code>Document</code>'s XML version in case of XML documents." },
                     { "name": "name", "type": "string", "optional": true, "description": "<code>Attr</code>'s name." },
-                    { "name": "value", "type": "string", "optional": true, "description": "<code>Attr</code>'s value." }
+                    { "name": "value", "type": "string", "optional": true, "description": "<code>Attr</code>'s value." },
+                    { "name": "contentDocument", "$ref": "Node", "optional": true, "description": "Content document for frame owner elements." }
                 ],
                 "description": "DOM interaction is implemented in terms of mirror objects that represent the actual DOM nodes. DOMNode is a base node mirror type."
             },
@@ -1283,14 +1359,6 @@
                     { "name": "listeners", "type": "array", "items": { "$ref": "EventListener"}, "description": "Array of relevant listeners." }
                 ],
                 "description": "Returns event listeners relevant to the node.",
-                "hidden": true
-            },
-            {
-                "name": "copyNode",
-                "parameters": [
-                    { "name": "nodeId", "$ref": "NodeId", "description": "Id of the node to copy." }
-                ],
-                "description": "Copies node's HTML markup into the clipboard.",
                 "hidden": true
             },
             {
@@ -1440,6 +1508,24 @@
                     { "name": "nodeId", "$ref": "NodeId", "description": "New id of the moved node." }
                 ],
                 "description": "Moves node into the new container, places it before the given anchor."
+            },
+            {
+                "name": "setTouchEmulationEnabled",
+                "parameters": [
+                    { "name": "enabled", "type": "boolean", "description": "Whether the touch event emulation should be enabled." }
+                ],
+                "description": "Toggles mouse event-based touch event emulation.",
+                "hidden": true
+            },
+            {
+                "name": "undo",
+                "description": "Undoes the last performed action.",
+                "hidden": true
+            },
+            {
+                "name": "markUndoableState",
+                "description": "Marks last undoable state.",
+                "hidden": true
             }
         ],
         "events": [
@@ -1521,10 +1607,14 @@
         "description": "This domain exposes CSS read/write operations. All CSS objects, like stylesheets, rules, and styles, have an associated <code>id</code> used in subsequent operations on the related object. Each object type has a specific <code>id</code> structure, and those are not interchangeable between objects of different kinds. CSS objects can be loaded using the <code>get*ForNode()</code> calls (which accept a DOM node id). Alternatively, a client can discover all the existing stylesheets with the <code>getAllStyleSheets()</code> method and subsequently load the required stylesheet contents using the <code>getStyleSheet[Text]()</code> methods.",
         "types": [
             {
+                "id": "StyleSheetId",
+                "type": "string"
+            },
+            {
                 "id": "CSSStyleId",
                 "type": "object",
                 "properties": [
-                    { "name": "styleSheetId", "type": "string", "description": "Enclosing stylesheet identifier." },
+                    { "name": "styleSheetId", "$ref": "StyleSheetId", "description": "Enclosing stylesheet identifier." },
                     { "name": "ordinal", "type": "integer", "description": "The style ordinal within the stylesheet." }
                 ],
                 "description": "This object identifies a CSS style in a unique way."
@@ -1533,7 +1623,7 @@
                 "id": "CSSRuleId",
                 "type": "object",
                 "properties": [
-                    { "name": "styleSheetId", "type": "string", "description": "Enclosing stylesheet identifier." },
+                    { "name": "styleSheetId", "$ref": "StyleSheetId", "description": "Enclosing stylesheet identifier." },
                     { "name": "ordinal", "type": "integer", "description": "The rule ordinal within the stylesheet." }
                 ],
                 "description": "This object identifies a CSS rule in a unique way."
@@ -1569,7 +1659,7 @@
                 "id": "CSSStyleSheetHeader",
                 "type": "object",
                 "properties": [
-                    { "name": "styleSheetId", "type": "string", "description": "The stylesheet identifier."},
+                    { "name": "styleSheetId", "$ref": "StyleSheetId", "description": "The stylesheet identifier."},
                     { "name": "sourceURL", "type": "string", "description": "Stylesheet resource URL."},
                     { "name": "title", "type": "string", "description": "Stylesheet title."},
                     { "name": "disabled", "type": "boolean", "description": "Denotes whether the stylesheet is disabled."}
@@ -1580,7 +1670,7 @@
                 "id": "CSSStyleSheetBody",
                 "type": "object",
                 "properties": [
-                    { "name": "styleSheetId", "type": "string", "description": "The stylesheet identifier."},
+                    { "name": "styleSheetId", "$ref": "StyleSheetId", "description": "The stylesheet identifier."},
                     { "name": "rules", "type": "array", "items": { "$ref": "CSSRule" }, "description": "Stylesheet resource URL."},
                     { "name": "text", "type": "string", "optional": true, "description": "Stylesheet resource contents (if available)."}
                 ],
@@ -1631,8 +1721,8 @@
                     { "name": "shorthandEntries", "type": "array", "items": { "$ref": "ShorthandEntry" }, "description": "Computed values for all shorthands found in the style." },
                     { "name": "cssText", "type": "string", "optional": true, "description": "Style declaration text (if available)." },
                     { "name": "range", "$ref": "SourceRange", "optional": true, "description": "Style declaration range in the enclosing stylesheet (if available)." },
-                    { "name": "width", "type": "string", "description": "The effective \"width\" property value from this style." },
-                    { "name": "height", "type": "string", "description": "The effective \"height\" property value from this style." }
+                    { "name": "width", "type": "string", "optional": true, "description": "The effective \"width\" property value from this style." },
+                    { "name": "height", "type": "string", "optional": true, "description": "The effective \"height\" property value from this style." }
                 ],
                 "description": "CSS style representation."
             },
@@ -1657,7 +1747,7 @@
                 "type": "object",
                 "properties": [
                     { "name": "text", "type": "string", "description": "Media query text." },
-                    { "name": "source", "type": "string", "enum": ["mediaRule", "importRule", "stylesheet"], "optional": true, "description": "Source of the media query: \"mediaRule\" if specified by a @media rule, \"importRule\" if specified by an @import rule, \"stylesheet\" (implied if absent) if specified by a \"media\" attribute in a stylesheet's LINK or STYLE tag." },
+                    { "name": "source", "type": "string", "enum": ["mediaRule", "importRule", "linkedSheet", "inlineSheet"], "description": "Source of the media query: \"mediaRule\" if specified by a @media rule, \"importRule\" if specified by an @import rule, \"linkedSheet\" if specified by a \"media\" attribute in a linked stylesheet's LINK tag, \"inlineSheet\" if specified by a \"media\" attribute in an inline stylesheet's STYLE tag." },
                     { "name": "sourceURL", "type": "string", "optional": true, "description": "URL of the document containing the media query description." },
                     { "name": "sourceLine", "type": "integer", "optional": true, "description": "Line in the document containing the media query (not defined for the \"stylesheet\" source)." }
                 ],
@@ -1716,7 +1806,7 @@
                 ],
                 "returns": [
                     { "name": "inlineStyle", "$ref": "CSSStyle", "optional": true, "description": "Inline style for the specified DOM node." },
-                    { "name": "styleAttributes", "type": "array", "items": { "$ref": "CSSStyleAttribute" }, "optional": true, "description": "Entries for style-related element attributes (e.g. width=20)."}
+                    { "name": "attributesStyle", "$ref": "CSSStyle", "optional": true, "description": "Attribute-defined element style (e.g. resulting from \"width=20 height=100%\")."}
                 ],
                 "description": "Returns the styles defined inline (explicitly in the \"style\" attribute and implicitly, using DOM attributes) for a DOM node identified by <code>nodeId</code>."
             },
@@ -1741,7 +1831,7 @@
             {
                 "name": "getStyleSheet",
                 "parameters": [
-                    { "name": "styleSheetId", "type": "string" }
+                    { "name": "styleSheetId", "$ref": "StyleSheetId" }
                 ],
                 "returns": [
                     { "name": "styleSheet", "$ref": "CSSStyleSheetBody", "description": "Stylesheet contents for the specified <code>styleSheetId</code>." }
@@ -1751,7 +1841,7 @@
             {
                 "name": "getStyleSheetText",
                 "parameters": [
-                    { "name": "styleSheetId", "type": "string" }
+                    { "name": "styleSheetId", "$ref": "StyleSheetId" }
                 ],
                 "returns": [
                     { "name": "text", "type": "string", "description": "The stylesheet text." }
@@ -1761,7 +1851,7 @@
             {
                 "name": "setStyleSheetText",
                 "parameters": [
-                    { "name": "styleSheetId", "type": "string" },
+                    { "name": "styleSheetId", "$ref": "StyleSheetId" },
                     { "name": "text", "type": "string" }
                 ],
                 "description": "Sets the new stylesheet text, thereby invalidating all existing <code>CSSStyleId</code>'s and <code>CSSRuleId</code>'s contained by this stylesheet."
@@ -1834,6 +1924,13 @@
             {
                 "name": "mediaQueryResultChanged",
                 "description": "Fires whenever a MediaQuery result changes (for example, after a browser window has been resized.) The current implementation considers only viewport-dependent media features."
+            },
+            {
+                "name": "styleSheetChanged",
+                "parameters": [
+                    { "name": "styleSheetId", "$ref": "StyleSheetId" }
+                ],
+                "description": "Fired whenever a stylesheet is changed as a result of the client operation."
             }
         ]
     },
@@ -1863,6 +1960,14 @@
             {
                 "name": "stop",
                 "description": "Stops capturing instrumentation events."
+            },
+            {
+                "name": "setIncludeMemoryDetails",
+                "parameters": [
+                    { "name": "enabled", "type": "boolean", "description": "True to start collecting DOM counters." }
+                ],
+                "hidden": true,
+                "description": "Starts calculating various DOM statistics and sending them as part of timeline events."
             }
         ],
         "events": [
@@ -1903,6 +2008,18 @@
                     { "name": "columnNumber", "type": "integer", "optional": true, "description": "Column number in the script." }
                 ],
                 "description": "Location in the source code."
+            },
+            {
+                "id": "FunctionDetails",
+                "hidden": true,
+                "type": "object",
+                "properties": [
+                    { "name": "location", "$ref": "Location", "description": "Location of the function." },
+                    { "name": "name", "type": "string", "optional": true, "description": "Name of the function. Not present for anonymous functions." },
+                    { "name": "displayName", "type": "string", "optional": true, "description": "Display name of the function(specified in 'displayName' property on the function object)." },
+                    { "name": "inferredName", "type": "string", "optional": true, "description": "Name of the function inferred from its initial assignment." }
+                ],
+                "description": "Information about the function."
             },
             {
                 "id": "CallFrame",
@@ -2063,14 +2180,15 @@
                 "description": "Returns source for the script with given id."
             },
             {
-                "name": "getFunctionLocation",
+                "name": "getFunctionDetails",
+                "hidden": true,
                 "parameters": [
                     { "name": "functionId", "$ref": "Runtime.RemoteObjectId", "description": "Id of the function to get location for." }
                 ],
                 "returns": [
-                    { "name": "location", "$ref": "Location", "description": "Function location." }
+                    { "name": "details", "$ref": "FunctionDetails", "description": "Information about the function." }
                 ],
-                "description": "Returns location of given function."
+                "description": "Returns detailed informtation on given function."
             },
             {
                 "name": "setPauseOnExceptions",
@@ -2179,7 +2297,7 @@
             {
                 "name": "setEventListenerBreakpoint",
                 "parameters": [
-                    { "name": "eventName", "type": "string", "description": "Event name to stop on (any DOM event will do)." }
+                    { "name": "eventName", "type": "string", "description": "DOM Event name to stop on (any DOM event will do)." }
                 ],
                 "description": "Sets breakpoint on particular DOM event."
             },
@@ -2189,6 +2307,22 @@
                     { "name": "eventName", "type": "string", "description": "Event name." }
                 ],
                 "description": "Removes breakpoint on particular DOM event."
+            },
+            {
+                "name": "setInstrumentationBreakpoint",
+                "parameters": [
+                    { "name": "eventName", "type": "string", "description": "Instrumentation name to stop on." }
+                ],
+                "description": "Sets breakpoint on particular native event.",
+                "hidden": true
+            },
+            {
+                "name": "removeInstrumentationBreakpoint",
+                "parameters": [
+                    { "name": "eventName", "type": "string", "description": "Instrumentation name to stop on." }
+                ],
+                "description": "Sets breakpoint on particular native event.",
+                "hidden": true
             },
             {
                 "name": "setXHRBreakpoint",
@@ -2287,7 +2421,8 @@
             {
                 "name": "getObjectByHeapObjectId",
                 "parameters": [
-                    { "name": "objectId", "type": "integer" }
+                    { "name": "objectId", "type": "integer" },
+                    { "name": "objectGroup", "type": "string", "optional": true, "description": "Symbolic group name that can be used to release multiple objects." }
                 ],
                 "returns": [
                     { "name": "result", "$ref": "Runtime.RemoteObject", "description": "Evaluation result." }

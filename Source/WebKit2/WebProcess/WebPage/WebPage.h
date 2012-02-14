@@ -41,6 +41,7 @@
 #include "InjectedBundlePageResourceLoadClient.h"
 #include "InjectedBundlePageUIClient.h"
 #include "MessageSender.h"
+#include "TapHighlightController.h"
 #include "Plugin.h"
 #include "SandboxExtension.h"
 #include "ShareableBitmap.h"
@@ -70,6 +71,8 @@
 
 #if PLATFORM(GTK)
 #include "ArgumentCodersGtk.h"
+#include "WebPageAccessibilityObject.h"
+#include "WebPrintOperationGtk.h"
 #endif
 
 #if ENABLE(TOUCH_EVENTS)
@@ -249,6 +252,7 @@ public:
 
     String renderTreeExternalRepresentation() const;
     uint64_t renderTreeSize() const;
+    void setPaintedObjectsCounterThreshold(uint64_t);
 
     void setTracksRepaints(bool);
     bool isTrackingRepaints() const;
@@ -275,6 +279,7 @@ public:
     void setFixedLayoutSize(const WebCore::IntSize&);
 
     void setPaginationMode(uint32_t /* WebCore::Page::Pagination::Mode */);
+    void setPaginationBehavesLikeColumns(bool);
     void setPageLength(double);
     void setGapBetweenPages(double);
 
@@ -315,6 +320,10 @@ public:
     static const WebEvent* currentEvent();
 
     FindController& findController() { return m_findController; }
+#if PLATFORM(QT)
+    TapHighlightController& tapHighlightController() { return m_tapHighlightController; }
+#endif
+
     GeolocationPermissionRequestManager& geolocationPermissionRequestManager() { return m_geolocationPermissionRequestManager; }
     NotificationPermissionRequestManager* notificationPermissionRequestManager();
 
@@ -397,6 +406,9 @@ public:
     void gestureWillBegin(const WebCore::IntPoint&, bool& canBeginPanning);
     void gestureDidScroll(const WebCore::IntSize&);
     void gestureDidEnd();
+
+#elif PLATFORM(GTK)
+    void updateAccessibilityTree();
 #endif
 
     void setCompositionForTesting(const String& compositionString, uint64_t from, uint64_t length);
@@ -436,7 +448,11 @@ public:
 #if PLATFORM(MAC) || PLATFORM(WIN)
     void drawRectToPDF(uint64_t frameID, const PrintInfo&, const WebCore::IntRect&, uint64_t callbackID);
     void drawPagesToPDF(uint64_t frameID, const PrintInfo&, uint32_t first, uint32_t count, uint64_t callbackID);
+#elif PLATFORM(GTK)
+    void drawPagesForPrinting(uint64_t frameID, const PrintInfo&, uint64_t callbackID);
 #endif
+
+    void setMediaVolume(float);
 
     bool mainFrameHasCustomRepresentation() const;
 
@@ -484,6 +500,9 @@ public:
     void gestureEvent(const WebGestureEvent&);
 #endif
 
+    void numWheelEventHandlersChanged(unsigned);
+    void recomputeShortCircuitHorizontalWheelEventsState();
+
 private:
     WebPage(uint64_t pageID, const WebPageCreationParameters&);
 
@@ -517,10 +536,10 @@ private:
     void loadAlternateHTMLString(const String& htmlString, const String& baseURL, const String& unreachableURL);
     void loadPlainTextString(const String&);
     void linkClicked(const String& url, const WebMouseEvent&);
-    void reload(bool reloadFromOrigin);
-    void goForward(uint64_t, const SandboxExtension::Handle&);
-    void goBack(uint64_t, const SandboxExtension::Handle&);
-    void goToBackForwardItem(uint64_t, const SandboxExtension::Handle&);
+    void reload(bool reloadFromOrigin, const SandboxExtension::Handle&);
+    void goForward(uint64_t);
+    void goBack(uint64_t);
+    void goToBackForwardItem(uint64_t);
     void tryRestoreScrollPosition();
     void setActive(bool);
     void setFocused(bool);
@@ -538,6 +557,9 @@ private:
 #if ENABLE(TOUCH_EVENTS)
     void touchEvent(const WebTouchEvent&);
     void touchEventSyncForTesting(const WebTouchEvent&, bool& handled);
+#if PLATFORM(QT)
+    void highlightPotentialActivation(const WebCore::IntPoint&);
+#endif
 #endif
     void contextMenuHidden() { m_isShowingContextMenu = false; }
 
@@ -545,7 +567,7 @@ private:
     static void logicalScroll(WebCore::Page*, WebCore::ScrollLogicalDirection, WebCore::ScrollGranularity);
 
     uint64_t restoreSession(const SessionState&);
-    void restoreSessionAndNavigateToCurrentItem(const SessionState&, const SandboxExtension::Handle&);
+    void restoreSessionAndNavigateToCurrentItem(const SessionState&);
 
     void didRemoveBackForwardItem(uint64_t);
 
@@ -596,9 +618,9 @@ private:
     void didChangeSelectedIndexForActivePopupMenu(int32_t newIndex);
     void setTextForActivePopupMenu(int32_t index);
 
-#if PLATFORM(GTK)    
+#if PLATFORM(GTK)
     void failedToShowPopupMenu();
-#endif    
+#endif
 
     void didChooseFilesForOpenPanel(const Vector<String>&);
     void didCancelForOpenPanel();
@@ -675,9 +697,11 @@ private:
     HWND m_nativeWindow;
 
     RefPtr<WebCore::Node> m_gestureTargetNode;
+#elif PLATFORM(GTK)
+    WebPageAccessibilityObject* m_accessibilityObject;
 #endif
     
-    RunLoop::Timer<WebPage> m_setCanStartMediaTimer;
+    WebCore::RunLoop::Timer<WebPage> m_setCanStartMediaTimer;
 
     HashMap<uint64_t, RefPtr<WebUndoStep> > m_undoStepMap;
 
@@ -695,11 +719,13 @@ private:
 #endif
 
 #if USE(TILED_BACKING_STORE)
-    WebCore::IntSize m_resizesToContentsLayoutSize;
     WebCore::IntSize m_viewportSize;
 #endif
 
     FindController m_findController;
+#if PLATFORM(QT)
+    TapHighlightController m_tapHighlightController;
+#endif
     RefPtr<PageOverlay> m_pageOverlay;
 
     RefPtr<WebPage> m_underlayPage;
@@ -717,6 +743,9 @@ private:
     RefPtr<NotificationPermissionRequestManager> m_notificationPermissionRequestManager;
 
     OwnPtr<WebCore::PrintContext> m_printContext;
+#if PLATFORM(GTK)
+    RefPtr<WebPrintOperationGtk> m_printOperation;
+#endif
 
     SandboxExtensionTracker m_sandboxExtensionTracker;
     uint64_t m_pageID;
@@ -730,6 +759,8 @@ private:
 
     bool m_cachedMainFrameIsPinnedToLeftSide;
     bool m_cachedMainFrameIsPinnedToRightSide;
+    bool m_canShortCircuitHorizontalWheelEvents;
+    unsigned m_numWheelEventHandlers;
 
     unsigned m_cachedPageCount;
 

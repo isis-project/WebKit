@@ -53,13 +53,12 @@ public:
 private:
     HTMLTableCellElement(const QualifiedName&, Document*);
 
-    virtual bool mapToEntry(const QualifiedName&, MappedAttributeEntry&) const;
-    virtual void parseMappedAttribute(Attribute*);
+    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual bool isPresentationAttribute(Attribute*) const OVERRIDE;
+    virtual void collectStyleForAttribute(Attribute*, StylePropertySet*) OVERRIDE;
 
-    // used by table cells to share style decls created by the enclosing table.
-    virtual bool canHaveAdditionalAttributeStyleDecls() const { return true; }
-    virtual void additionalAttributeStyleDecls(Vector<CSSMutableStyleDeclaration*>&);
-    
+    virtual StylePropertySet* additionalAttributeStyle() OVERRIDE;
+
     virtual bool isURLAttribute(Attribute*) const;
 
     virtual void addSubresourceAttributeURLs(ListHashSet<KURL>&) const;

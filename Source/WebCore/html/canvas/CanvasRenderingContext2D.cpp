@@ -33,7 +33,6 @@
 
 #include "AffineTransform.h"
 #include "CSSFontSelector.h"
-#include "CSSMutableStyleDeclaration.h"
 #include "CSSParser.h"
 #include "CSSPropertyNames.h"
 #include "CSSStyleSelector.h"
@@ -60,6 +59,7 @@
 #include "SecurityOrigin.h"
 #include "Settings.h"
 #include "StrokeStyleApplier.h"
+#include "StylePropertySet.h"
 #include "TextMetrics.h"
 #include "TextRun.h"
 
@@ -219,6 +219,7 @@ CanvasRenderingContext2D::State::State(const State& other)
     , m_globalComposite(other.m_globalComposite)
     , m_transform(other.m_transform)
     , m_invertibleCTM(other.m_invertibleCTM)
+    , m_lineDashOffset(other.m_lineDashOffset)
     , m_textAlign(other.m_textAlign)
     , m_textBaseline(other.m_textBaseline)
     , m_unparsedFont(other.m_unparsedFont)
@@ -314,7 +315,7 @@ void CanvasRenderingContext2D::setAllAttributesToDefault()
     if (!context)
         return;
 
-    context->setLegacyShadow(FloatSize(), 0, Color::transparent, ColorSpaceDeviceRGB);
+    applyShadow();
     context->setAlpha(1);
     context->setCompositeOperation(CompositeSourceOver);
 }
@@ -495,7 +496,6 @@ void CanvasRenderingContext2D::setShadowColor(const String& color)
 {
     if (!parseColorOrCurrentColor(state().m_shadowColor, color, canvas()))
         return;
-
     applyShadow();
 }
 
@@ -1101,26 +1101,6 @@ void CanvasRenderingContext2D::strokeRect(float x, float y, float width, float h
     didDraw(boundingRect);
 }
 
-#if USE(CG)
-static inline CGSize adjustedShadowSize(CGFloat width, CGFloat height)
-{
-    // Work around <rdar://problem/5539388> by ensuring that shadow offsets will get truncated
-    // to the desired integer.
-    static const CGFloat extraShadowOffset = narrowPrecisionToCGFloat(1.0 / 128);
-    if (width > 0)
-        width += extraShadowOffset;
-    else if (width < 0)
-        width -= extraShadowOffset;
-
-    if (height > 0)
-        height += extraShadowOffset;
-    else if (height < 0)
-        height -= extraShadowOffset;
-
-    return CGSizeMake(width, height);
-}
-#endif
-
 void CanvasRenderingContext2D::setShadow(float width, float height, float blur)
 {
     state().m_shadowOffset = FloatSize(width, height);
@@ -1144,12 +1124,7 @@ void CanvasRenderingContext2D::setShadow(float width, float height, float blur, 
     state().m_shadowOffset = FloatSize(width, height);
     state().m_shadowBlur = blur;
     state().m_shadowColor = makeRGBA32FromFloats(grayLevel, grayLevel, grayLevel, 1.0f);
-
-    GraphicsContext* c = drawingContext();
-    if (!c)
-        return;
-
-    c->setLegacyShadow(FloatSize(width, -height), state().m_shadowBlur, state().m_shadowColor, ColorSpaceDeviceRGB);
+    applyShadow();
 }
 
 void CanvasRenderingContext2D::setShadow(float width, float height, float blur, const String& color, float alpha)
@@ -1162,12 +1137,7 @@ void CanvasRenderingContext2D::setShadow(float width, float height, float blur, 
     state().m_shadowColor = colorWithOverrideAlpha(rgba, alpha);
     state().m_shadowOffset = FloatSize(width, height);
     state().m_shadowBlur = blur;
-
-    GraphicsContext* c = drawingContext();
-    if (!c)
-        return;
-
-    c->setLegacyShadow(FloatSize(width, -height), state().m_shadowBlur, state().m_shadowColor, ColorSpaceDeviceRGB);
+    applyShadow();
 }
 
 void CanvasRenderingContext2D::setShadow(float width, float height, float blur, float grayLevel, float alpha)
@@ -1175,12 +1145,7 @@ void CanvasRenderingContext2D::setShadow(float width, float height, float blur, 
     state().m_shadowOffset = FloatSize(width, height);
     state().m_shadowBlur = blur;
     state().m_shadowColor = makeRGBA32FromFloats(grayLevel, grayLevel, grayLevel, alpha);
-
-    GraphicsContext* c = drawingContext();
-    if (!c)
-        return;
-
-    c->setLegacyShadow(FloatSize(width, -height), state().m_shadowBlur, state().m_shadowColor, ColorSpaceDeviceRGB);
+    applyShadow();
 }
 
 void CanvasRenderingContext2D::setShadow(float width, float height, float blur, float r, float g, float b, float a)
@@ -1188,12 +1153,7 @@ void CanvasRenderingContext2D::setShadow(float width, float height, float blur, 
     state().m_shadowOffset = FloatSize(width, height);
     state().m_shadowBlur = blur;
     state().m_shadowColor = makeRGBA32FromFloats(r, g, b, a);
-
-    GraphicsContext* c = drawingContext();
-    if (!c)
-        return;
-
-    c->setLegacyShadow(FloatSize(width, -height), state().m_shadowBlur, state().m_shadowColor, ColorSpaceDeviceRGB);
+    applyShadow();
 }
 
 void CanvasRenderingContext2D::setShadow(float width, float height, float blur, float c, float m, float y, float k, float a)
@@ -1201,20 +1161,7 @@ void CanvasRenderingContext2D::setShadow(float width, float height, float blur, 
     state().m_shadowOffset = FloatSize(width, height);
     state().m_shadowBlur = blur;
     state().m_shadowColor = makeRGBAFromCMYKA(c, m, y, k, a);
-
-    GraphicsContext* dc = drawingContext();
-    if (!dc)
-        return;
-#if USE(CG)
-    const CGFloat components[5] = { c, m, y, k, a };
-    CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceCMYK();
-    CGColorRef shadowColor = CGColorCreate(colorSpace, components);
-    CGColorSpaceRelease(colorSpace);
-    CGContextSetShadowWithColor(dc->platformContext(), adjustedShadowSize(width, -height), blur, shadowColor);
-    CGColorRelease(shadowColor);
-#else
-    dc->setLegacyShadow(FloatSize(width, -height), blur, state().m_shadowColor, ColorSpaceDeviceRGB);
-#endif
+    applyShadow();
 }
 
 void CanvasRenderingContext2D::clearShadow()
@@ -1231,9 +1178,17 @@ void CanvasRenderingContext2D::applyShadow()
     if (!c)
         return;
 
-    float width = state().m_shadowOffset.width();
-    float height = state().m_shadowOffset.height();
-    c->setLegacyShadow(FloatSize(width, -height), state().m_shadowBlur, state().m_shadowColor, ColorSpaceDeviceRGB);
+    if (shouldDrawShadows()) {
+        float width = state().m_shadowOffset.width();
+        float height = state().m_shadowOffset.height();
+        c->setLegacyShadow(FloatSize(width, -height), state().m_shadowBlur, state().m_shadowColor, ColorSpaceDeviceRGB);
+    } else
+        c->setLegacyShadow(FloatSize(), 0, Color::transparent, ColorSpaceDeviceRGB);
+}
+
+bool CanvasRenderingContext2D::shouldDrawShadows() const
+{
+    return alphaChannel(state().m_shadowColor) && (state().m_shadowBlur || !state().m_shadowOffset.isZero());
 }
 
 static LayoutSize size(HTMLImageElement* image)
@@ -1285,10 +1240,6 @@ void CanvasRenderingContext2D::drawImage(HTMLImageElement* image,
     float sx, float sy, float sw, float sh,
     float dx, float dy, float dw, float dh, ExceptionCode& ec)
 {
-    if (!image) {
-        ec = TYPE_MISMATCH_ERR;
-        return;
-    }
     drawImage(image, FloatRect(sx, sy, sw, sh), FloatRect(dx, dy, dw, dh), ec);
 }
 
@@ -1355,38 +1306,22 @@ void CanvasRenderingContext2D::drawImage(HTMLImageElement* image, const FloatRec
     }
 }
 
-void CanvasRenderingContext2D::drawImage(HTMLCanvasElement* canvas, float x, float y, ExceptionCode& ec)
+void CanvasRenderingContext2D::drawImage(HTMLCanvasElement* sourceCanvas, float x, float y, ExceptionCode& ec)
 {
-    if (!canvas) {
-        ec = TYPE_MISMATCH_ERR;
-        return;
-    }
-
-    // In order to emulate drawing the result of toDataURL() into the canvas, we
-    // need to deflate the size of the source rectangle by the source canvas's
-    // backing store scale factor.
-    // See https://www.w3.org/Bugs/Public/show_bug.cgi?id=15041 for motivation.
-
-    FloatSize logicalSize = canvas->convertDeviceToLogical(canvas->size());
-
-    drawImage(canvas, 0, 0, logicalSize.width(), logicalSize.height(), x, y, canvas->width(), canvas->height(), ec);
+    drawImage(sourceCanvas, 0, 0, sourceCanvas->width(), sourceCanvas->height(), x, y, sourceCanvas->width(), sourceCanvas->height(), ec);
 }
 
-void CanvasRenderingContext2D::drawImage(HTMLCanvasElement* canvas,
+void CanvasRenderingContext2D::drawImage(HTMLCanvasElement* sourceCanvas,
     float x, float y, float width, float height, ExceptionCode& ec)
 {
-    if (!canvas) {
-        ec = TYPE_MISMATCH_ERR;
-        return;
-    }
-    drawImage(canvas, FloatRect(0, 0, canvas->width(), canvas->height()), FloatRect(x, y, width, height), ec);
+    drawImage(sourceCanvas, FloatRect(0, 0, sourceCanvas->width(), sourceCanvas->height()), FloatRect(x, y, width, height), ec);
 }
 
-void CanvasRenderingContext2D::drawImage(HTMLCanvasElement* canvas,
+void CanvasRenderingContext2D::drawImage(HTMLCanvasElement* sourceCanvas,
     float sx, float sy, float sw, float sh,
     float dx, float dy, float dw, float dh, ExceptionCode& ec)
 {
-    drawImage(canvas, FloatRect(sx, sy, sw, sh), FloatRect(dx, dy, dw, dh), ec);
+    drawImage(sourceCanvas, FloatRect(sx, sy, sw, sh), FloatRect(dx, dy, dw, dh), ec);
 }
 
 void CanvasRenderingContext2D::drawImage(HTMLCanvasElement* sourceCanvas, const FloatRect& srcRect,
@@ -1969,7 +1904,7 @@ void CanvasRenderingContext2D::putImageData(ImageData* data, float dx, float dy,
     IntRect sourceRect(destRect);
     sourceRect.move(-destOffset);
 
-    buffer->putUnmultipliedImageData(data->data()->data(), IntSize(data->width(), data->height()), sourceRect, IntPoint(destOffset));
+    buffer->putByteArray(Unmultiplied, data->data()->data(), IntSize(data->width(), data->height()), sourceRect, IntPoint(destOffset));
     didDraw(destRect, CanvasDidDrawApplyNone); // ignore transform, shadow and clip
 }
 
@@ -1980,13 +1915,13 @@ String CanvasRenderingContext2D::font() const
 
 void CanvasRenderingContext2D::setFont(const String& newFont)
 {
-    RefPtr<CSSMutableStyleDeclaration> tempDecl = CSSMutableStyleDeclaration::create();
+    RefPtr<StylePropertySet> tempDecl = StylePropertySet::create();
     CSSParser parser(!m_usesCSSCompatibilityParseMode);
 
     String declarationText("font: ");
     declarationText += newFont;
     parser.parseDeclaration(tempDecl.get(), declarationText);
-    if (!tempDecl->length())
+    if (tempDecl->isEmpty())
         return;
 
     // The parse succeeded.

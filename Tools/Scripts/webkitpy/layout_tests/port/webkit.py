@@ -32,9 +32,9 @@
 """WebKit implementations of the Port interface."""
 
 import base64
+import itertools
 import logging
 import operator
-import os
 import re
 import sys
 import time
@@ -51,8 +51,8 @@ _log = logging.getLogger(__name__)
 
 
 class WebKitPort(Port):
-    def __init__(self, host, **kwargs):
-        Port.__init__(self, host, **kwargs)
+    def __init__(self, host, port_name=None, **kwargs):
+        Port.__init__(self, host, port_name=port_name, **kwargs)
 
         # FIXME: Disable pixel tests until they are run by default on build.webkit.org.
         self.set_option_default("pixel_tests", False)
@@ -305,35 +305,43 @@ class WebKitPort(Port):
             "MHTMLArchive": ["mhtml"],
         }
 
-    def _skipped_tests_for_unsupported_features(self):
-        # If the port supports runtime feature detection, disable any tests
-        # for features missing from the runtime feature list.
-        supported_feature_list = self._runtime_feature_list()
-        # If _runtime_feature_list returns a non-None value, then prefer
-        # runtime feature detection over static feature detection.
-        if supported_feature_list is not None:
-            return reduce(operator.add, [directories for feature, directories in self._missing_feature_to_skipped_tests().items() if feature not in supported_feature_list])
+    def _has_test_in_directories(self, directory_lists, test_list):
+        if not test_list:
+            return False
 
-        # Runtime feature detection not supported, fallback to static dectection:
-        # Disable any tests for symbols missing from the webcore symbol string.
-        webcore_symbols_string = self._webcore_symbols_string()
-        if webcore_symbols_string is not None:
-            return reduce(operator.add, [directories for symbol_substring, directories in self._missing_symbol_to_skipped_tests().items() if symbol_substring not in webcore_symbols_string], [])
+        directories = itertools.chain.from_iterable(directory_lists)
+        for directory, test in itertools.product(directories, test_list):
+            if test.startswith(directory):
+                return True
+        return False
+
+    def _skipped_tests_for_unsupported_features(self, test_list):
+        # Only check the runtime feature list of there are tests in the test_list that might get skipped.
+        # This is a performance optimization to avoid the subprocess call to DRT.
+        if self._has_test_in_directories(self._missing_feature_to_skipped_tests().values(), test_list):
+            # If the port supports runtime feature detection, disable any tests
+            # for features missing from the runtime feature list.
+            supported_feature_list = self._runtime_feature_list()
+            # If _runtime_feature_list returns a non-None value, then prefer
+            # runtime feature detection over static feature detection.
+            if supported_feature_list is not None:
+                return reduce(operator.add, [directories for feature, directories in self._missing_feature_to_skipped_tests().items() if feature not in supported_feature_list])
+
+        # Only check the symbols of there are tests in the test_list that might get skipped.
+        # This is a performance optimization to avoid the calling nm.
+        if self._has_test_in_directories(self._missing_symbol_to_skipped_tests().values(), test_list):
+            # Runtime feature detection not supported, fallback to static dectection:
+            # Disable any tests for symbols missing from the webcore symbol string.
+            webcore_symbols_string = self._webcore_symbols_string()
+            if webcore_symbols_string is not None:
+                return reduce(operator.add, [directories for symbol_substring, directories in self._missing_symbol_to_skipped_tests().items() if symbol_substring not in webcore_symbols_string], [])
+
         # Failed to get any runtime or symbol information, don't skip any tests.
         return []
 
-    def _tests_from_skipped_file_contents(self, skipped_file_contents):
-        tests_to_skip = []
-        for line in skipped_file_contents.split('\n'):
-            line = line.strip()
-            line = line.rstrip('/')  # Best to normalize directory names to not include the trailing slash.
-            if line.startswith('#') or not len(line):
-                continue
-            tests_to_skip.append(line)
-        return tests_to_skip
-
     def _wk2_port_name(self):
-        # By current convention, the WebKit2 name is always mac-wk2, win-wk2, not mac-leopard-wk2, etc.
+        # By current convention, the WebKit2 name is always mac-wk2, win-wk2, not mac-leopard-wk2, etc,
+        # except for Qt because WebKit2 is only supported by Qt 5.0 (therefore: qt-5.0-wk2).
         return "%s-wk2" % self.port_name
 
     def _skipped_file_search_paths(self):
@@ -351,18 +359,6 @@ class WebKitPort(Port):
             search_paths.update([self._wk2_port_name(), "wk2"])
         return search_paths
 
-    def _expectations_from_skipped_files(self):
-        tests_to_skip = []
-        for search_path in self._skipped_file_search_paths():
-            filename = self._filesystem.join(self._webkit_baseline_path(search_path), "Skipped")
-            if not self._filesystem.exists(filename):
-                _log.debug("Skipped does not exist: %s" % filename)
-                continue
-            _log.debug("Using Skipped file: %s" % filename)
-            skipped_file_contents = self._filesystem.read_text_file(filename)
-            tests_to_skip.extend(self._tests_from_skipped_file_contents(skipped_file_contents))
-        return tests_to_skip
-
     def test_expectations(self):
         # This allows ports to use a combination of test_expectations.txt files and Skipped lists.
         expectations = ''
@@ -372,21 +368,24 @@ class WebKitPort(Port):
             expectations = self._filesystem.read_text_file(expectations_path)
         return expectations
 
-    def skipped_layout_tests(self):
+    def skipped_layout_tests(self, test_list):
         # Use a set to allow duplicates
-        tests_to_skip = set(self._expectations_from_skipped_files())
+        tests_to_skip = set(self._expectations_from_skipped_files(self._skipped_file_search_paths()))
         tests_to_skip.update(self._tests_for_other_platforms())
-        tests_to_skip.update(self._skipped_tests_for_unsupported_features())
+        tests_to_skip.update(self._skipped_tests_for_unsupported_features(test_list))
         return tests_to_skip
 
-    def skipped_tests(self):
-        return self.skipped_layout_tests()
+    def skipped_tests(self, test_list):
+        return self.skipped_layout_tests(test_list)
 
     def _build_path(self, *comps):
         # --root is used for running with a pre-built root (like from a nightly zip).
-        build_directory = self.get_option('root')
+        build_directory = self.get_option('root') or self.get_option('build_directory')
         if not build_directory:
             build_directory = self._config.build_directory(self.get_option('configuration'))
+            # Set --build-directory here Since this modifies the options object used by the worker subprocesses,
+            # it avoids the slow call out to build_directory in each subprocess.
+            self.set_option_default('build_directory', build_directory)
         return self._filesystem.join(build_directory, *comps)
 
     def _path_to_driver(self):
@@ -443,8 +442,8 @@ class WebKitPort(Port):
 class WebKitDriver(Driver):
     """WebKit implementation of the DumpRenderTree/WebKitTestRunner interface."""
 
-    def __init__(self, port, worker_number, pixel_tests):
-        Driver.__init__(self, port, worker_number, pixel_tests)
+    def __init__(self, port, worker_number, pixel_tests, no_timeout=False):
+        Driver.__init__(self, port, worker_number, pixel_tests, no_timeout)
         self._driver_tempdir = port._filesystem.mkdtemp(prefix='%s-' % self._port.driver_name())
         # WebKitTestRunner can report back subprocess crashes by printing
         # "#CRASHED - PROCESSNAME".  Since those can happen at any time
@@ -468,6 +467,8 @@ class WebKitDriver(Driver):
     def cmd_line(self):
         cmd = self._command_wrapper(self._port.get_option('wrapper'))
         cmd.append(self._port._path_to_driver())
+        if self._port.get_option('skip_pixel_test_if_no_baseline'):
+            cmd.append('--skip-pixel-test-if-no-baseline')
         if self._pixel_tests:
             cmd.append('--pixel-tests')
         if self._port.get_option('gc_between_tests'):
@@ -476,6 +477,8 @@ class WebKitDriver(Driver):
             cmd.append('--complex-text')
         if self._port.get_option('threaded'):
             cmd.append('--threaded')
+        if self._no_timeout:
+            cmd.append('--no-timeout')
         # FIXME: We need to pass --timeout=SECONDS to WebKitTestRunner for WebKit2.
 
         cmd.extend(self._port.get_option('additional_drt_flag', []))
@@ -641,6 +644,10 @@ class WebKitDriver(Driver):
 
         block.decode_content()
         return block
+
+    def start(self):
+        if not self._server_process:
+            self._start()
 
     def stop(self):
         if self._server_process:

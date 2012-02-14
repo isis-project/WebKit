@@ -349,10 +349,11 @@ void MarkupAccumulator::appendElement(StringBuilder& out, Element* element, Name
 {
     appendOpenTag(out, element, namespaces);
 
-    NamedNodeMap* attributes = element->attributes();
-    unsigned length = attributes->length();
-    for (unsigned int i = 0; i < length; i++)
-        appendAttribute(out, element, *attributes->attributeItem(i), namespaces);
+    if (element->hasAttributes()) {
+        unsigned length = element->attributeCount();
+        for (unsigned int i = 0; i < length; i++)
+            appendAttribute(out, element, *element->attributeItem(i), namespaces);
+    }
 
     // Give an opportunity to subclasses to add their own attributes.
     appendCustomAttributes(out, element, namespaces);
@@ -418,7 +419,7 @@ void MarkupAccumulator::appendStartMarkup(StringBuilder& result, const Node* nod
 
     switch (node->nodeType()) {
     case Node::TEXT_NODE:
-        appendText(result, static_cast<Text*>(const_cast<Node*>(node)));
+        appendText(result, toText(const_cast<Node*>(node)));
         break;
     case Node::COMMENT_NODE:
         appendComment(result, static_cast<const Comment*>(node)->data());
@@ -443,7 +444,6 @@ void MarkupAccumulator::appendStartMarkup(StringBuilder& result, const Node* nod
     case Node::ENTITY_REFERENCE_NODE:
     case Node::NOTATION_NODE:
     case Node::XPATH_NAMESPACE_NODE:
-    case Node::SHADOW_ROOT_NODE:
         ASSERT_NOT_REACHED();
         break;
     }

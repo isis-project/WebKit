@@ -82,6 +82,7 @@ svg/animations/animate-calcMode-spline-to.html
 svg/animations/animate-calcMode-spline-values.html
 svg/animations/animate-color-calcMode-discrete.html
 svg/animations/animate-color-fill-currentColor.html
+svg/animations/animate-color-fill-from-by.html
 svg/animations/animate-color-rgba-calcMode-discrete.html
 svg/animations/animate-color-transparent.html
 svg/animations/animate-currentColor.html
@@ -192,7 +193,6 @@ compositing/video-page-visibility.html
 css3/filters/custom-filter.html
 fast/canvas/webgl/framebuffer-object-attachment.html
 fast/canvas/webgl/gl-vertex-attrib-zero-issues.html
-fast/events/pagehide-timeout.html
 fast/canvas/webgl/gl-getshadersource.html
 fast/canvas/webgl/tex-sub-image-2d-bad-args.html
 fast/canvas/webgl/WebGLContextEvent.html
@@ -287,42 +287,15 @@ fast/canvas/webgl/uniform-location.html
 fast/canvas/webgl/viewport-unchanged-upon-resize.html
 fast/canvas/webgl/webgl-array-invalid-ranges.html
 fast/canvas/webgl/webgl-specific.html
-fast/dom/Geolocation/no-page-cache.html
-fast/dom/Window/timer-resume-on-navigation-back.html
-fast/events/onunload-back-to-page-cache.html
-fast/events/pageshow-pagehide-on-back-cached-with-frames.html
-fast/events/pageshow-pagehide-on-back-cached.html
-fast/events/tab-focus-anchor.html
-fast/frames/frame-crash-with-page-cache.html
 fast/harness/override-preferences-2.html
-fast/harness/override-preferences.html
-fast/harness/page-cache-crash-on-data-urls.html
-fast/harness/use-page-cache.html
-fast/history/timed-refresh-in-cached-frame.html
 fast/images/animated-gif-restored-from-bfcache.html
-fast/loader/frames-with-unload-handlers-in-page-cache.html
-fast/loader/input-element-page-cache-crash.html
-fast/loader/scroll-position-restored-on-back.html
-fast/loader/stateobjects/popstate-fires-with-page-cache.html
-fast/loader/unschedule-relayout-after-unload.html
-fast/parser/noscript-with-javascript-disabled.html
-fast/parser/noscript-with-javascript-enabled.html
 fast/repaint/no-caret-repaint-in-non-content-editable-element.html
 fast/text/zero-font-size.html
+fast/text/international/content-language-font-selection.html
+fast/text/international/content-language-with-subtags.html
 fast/text/international/locale-sensitive-fonts.html
-http/tests/appcache/disabled.html
-css3/filters/custom-filter-shader-cache.html
-css3/filters/effect-blur.html
-css3/filters/effect-brightness.html
-css3/filters/effect-contrast.html
-css3/filters/effect-drop-shadow.html
-css3/filters/effect-grayscale.html
-css3/filters/effect-hue-rotate.html
-css3/filters/effect-invert.html
-css3/filters/effect-opacity.html
-css3/filters/effect-saturate.html
-css3/filters/effect-sepia.html
-css3/filters/missing-custom-filter-shader.html
+css3/filters/effect-combined.html
+css3/filters/filter-repaint.html
 
 # LayoutTestController::applicationCacheDiskUsageForOrigin isn't implemented - https://bugs.webkit.org/show_bug.cgi?id=57127
 http/tests/appcache/origin-usage.html
@@ -434,31 +407,6 @@ webarchive/loading/cache-expired-subresource.html
 webarchive/loading/test-loading-archive.html
 webarchive/loading/test-loading-archive-subresource-null-mimetype.html
 
-# WebKitTestRunner needs layoutTestController.clearBackForwardList
-# <https://bugs.webkit.org/show_bug.cgi?id=42333>
-fast/dom/location-hash.html
-fast/history/form-submit-in-frame-via-onclick.html
-fast/history/form-submit-in-frame.html
-fast/history/gesture-before-onload-form-submit.html
-fast/history/gesture-before-onload-location-href.html
-fast/history/history-length.html
-fast/history/redirect-via-iframe.html
-fast/loader/location-port.html
-fast/loader/stateobjects/document-destroyed-navigate-back-with-fragment-scroll.html
-fast/loader/stateobjects/document-destroyed-navigate-back.html
-fast/loader/stateobjects/popstate-after-load-complete-addeventlistener.html
-fast/loader/stateobjects/popstate-after-load-complete-body-attribute.html
-fast/loader/stateobjects/popstate-after-load-complete-body-inline-attribute.html
-fast/loader/stateobjects/popstate-after-load-complete-window-attribute.html
-fast/loader/stateobjects/pushstate-clears-forward-history.html
-fast/loader/stateobjects/pushstate-then-replacestate.html
-fast/loader/stateobjects/pushstate-updates-location.html
-fast/loader/stateobjects/pushstate-with-fragment-urls-and-hashchange.html
-fast/loader/stateobjects/pushstate-within-popstate-handler-assert.html
-fast/loader/stateobjects/pushstate-without-history.html
-fast/loader/stateobjects/replacestate-then-pushstate.html
-http/tests/loading/state-object-security-exception.html
-
 # WebKitTestRunner needs textInputController
 # <https://bugs.webkit.org/show_bug.cgi?id=42337>
 editing/input/setting-input-value-cancel-ime-composition.html
@@ -514,6 +462,8 @@ storage/quota-tracking.html
 # <https://bugs.webkit.org/show_bug.cgi?id=42543>
 fast/dom/HTMLScriptElement/dont-load-unknown-type.html
 fast/preloader/document-write-noscript.html
+fast/preloader/first-base-tag-scanned-wins.html
+fast/preloader/first-base-tag-wins.html
 fast/preloader/image.html
 fast/preloader/input.html
 fast/preloader/link.html
@@ -522,6 +472,7 @@ fast/preloader/scan-body-from-head-import.html
 fast/preloader/scan-body-from-head-script.html
 fast/preloader/script.html
 fast/preloader/style.html
+fast/preloader/understands-base-tag.html
 http/tests/loading/preload-slow-loading.php
 http/tests/loading/preload-append-scan.php
 http/tests/mime/uppercase-mime-type.html
@@ -529,9 +480,9 @@ platform/mac/fast/loader/file-url-mimetypes-2.html
 platform/mac/fast/loader/file-url-mimetypes-3.html
 platform/mac/fast/loader/file-url-mimetypes.html
 
-# WebKitTestRunner needs layoutTestController.setGeolocationPermission
-# <https://bugs.webkit.org/show_bug.cgi?id=42545>
-fast/dom/Geolocation/argument-types.html
+# WebKitTestRunner needs layoutTestController.setMockGeolocationPosition
+# and layoutTestController.setMockGeolocationError
+# <https://bugs.webkit.org/show_bug.cgi?id=59201>
 fast/dom/Geolocation/callback-exception.html
 fast/dom/Geolocation/callback-to-deleted-context.html
 fast/dom/Geolocation/callback-to-remote-context.html
@@ -547,7 +498,6 @@ fast/dom/Geolocation/disconnected-frame.html
 fast/dom/Geolocation/error.html
 fast/dom/Geolocation/maximum-age.html
 fast/dom/Geolocation/multiple-requests.html
-fast/dom/Geolocation/notimer-after-unload.html
 fast/dom/Geolocation/permission-denied-already-clear-watch.html
 fast/dom/Geolocation/permission-denied-already-error.html
 fast/dom/Geolocation/permission-denied-already-success.html
@@ -557,19 +507,13 @@ fast/dom/Geolocation/position-string.html
 fast/dom/Geolocation/reentrant-error.html
 fast/dom/Geolocation/reentrant-permission-denied.html
 fast/dom/Geolocation/reentrant-success.html
-fast/dom/Geolocation/remove-remote-context-in-error-callback-crash.html
 fast/dom/Geolocation/success.html
 fast/dom/Geolocation/timeout.html
+fast/dom/Geolocation/timeout-clear-watch.html
+fast/dom/Geolocation/timeout-zero.html
 fast/dom/Geolocation/timestamp.html
 fast/dom/Geolocation/watch.html
 fast/dom/Geolocation/window-close-crash.html
-
-# WebKitTestRunner needs layoutTestController.setMockGeolocationPosition
-# and layoutTestController.setMockGeolocationError
-# <https://bugs.webkit.org/show_bug.cgi?id=59201>
-fast/dom/Geolocation/timeout-clear-watch.html
-fast/dom/Geolocation/timeout-zero.html
-
 
 # WebKitTestRunner needs layoutTestController.setCustomPolicyDelegate
 # <https://bugs.webkit.org/show_bug.cgi?id=42546>
@@ -579,6 +523,7 @@ fast/loader/reload-policy-delegate.html
 http/tests/misc/policy-delegate-called-twice.html
 http/tests/misc/redirect-to-external-url.html
 http/tests/security/feed-urls-from-remote.html
+http/tests/download
 
 # WebKitTestRunner needs layoutTestController.setDashboardCompatibilityMode
 # <https://bugs.webkit.org/show_bug.cgi?id=42547>
@@ -701,6 +646,7 @@ editing/selection/5195166-1.html
 editing/selection/collapse-selection-in-bidi.html
 editing/selection/context-menu-text-selection.html
 editing/selection/directionality-after-undo-replace.html
+editing/selection/extend-selection-after-double-click.html
 editing/selection/move-by-word-visually-crash-test-4.html
 editing/selection/move-by-word-visually-crash-test-3.html
 editing/selection/move-left-right-by-word-mac.html
@@ -709,6 +655,7 @@ editing/selection/move-by-word-visually-crash-test-textarea.html
 editing/selection/move-by-word-visually-crash-test-2.html
 editing/selection/move-by-word-visually-textarea.html
 editing/selection/programmatic-selection-on-mac-is-directionless.html
+editing/selection/selection-extend-should-not-move-across-caret-on-mac.html
 editing/execCommand/query-command-state.html
 editing/execCommand/query-text-alignment.html
 editing/execCommand/toggle-compound-styles.html
@@ -865,24 +812,6 @@ http/tests/security/contentSecurityPolicy/report-uri-from-child-frame.html
 # https://bugs.webkit.org/show_bug.cgi?id=71896
 http/tests/security/contentSecurityPolicy/block-mixed-content-hides-warning.html
 
-# WebKitTestRunner needs layoutTestController.setPopupBlockingEnabled
-# https://bugs.webkit.org/show_bug.cgi?id=63458
-fast/events/popup-blocked-from-untrusted-click-event-on-anchor.html
-fast/events/popup-blocked-from-iframe-src.html
-fast/events/popup-allowed-from-gesture-initiated-event.html
-fast/events/popup-allowed-from-gesture-initiated-form-submit.html
-fast/events/popup-blocked-from-fake-button-click.html
-fast/events/popup-blocked-from-fake-focus.html
-fast/events/popup-blocked-from-fake-user-gesture.html
-fast/events/popup-blocked-from-history-reload.html
-fast/events/popup-blocked-from-iframe-script.html
-fast/events/popup-blocked-from-mousemove.html
-fast/events/popup-blocked-from-untrusted-mouse-click.html
-fast/events/popup-blocked-from-window-open.html
-fast/events/popup-blocked-to-post-blank.html
-fast/events/popup-blocking-timers.html
-plugins/plugin-initiate-popup-window.html
-
 # WebKitTestRunner needs an implementation of allowRoundingHacks
 # http://webkit.org/b/63477
 platform/mac/fast/text/rounding-hacks.html
@@ -891,9 +820,6 @@ platform/mac/fast/text/rounding-hacks-expansion.html
 # Sometimes fails
 # http://webkit.org/b/58990
 editing/undo/undo-iframe-location-change.html
-
-# Skipped until new WebSocket protocol is implemented. http://webkit.org/b/50099
-http/tests/websocket/tests/hybi/
 
 # Times out
 # https://bugs.webkit.org/show_bug.cgi?id=63806
@@ -959,6 +885,7 @@ fast/images/move-image-to-new-document.html
 http/tests/misc/authentication-redirect-1/authentication-sent-to-redirect-cross-origin.html
 http/tests/misc/authentication-redirect-2/authentication-sent-to-redirect-same-origin.html
 http/tests/misc/authentication-redirect-3/authentication-sent-to-redirect-same-origin-with-location-credentials.html
+http/tests/loading/authentication-after-redirect-stores-wrong-credentials/authentication-after-redirect-stores-wrong-credentials.html
 http/tests/loading/basic-auth-resend-wrong-credentials.html
 http/tests/loading/basic-credentials-sent-automatically.html
 http/tests/security/401-logout/401-logout.php
@@ -1139,6 +1066,7 @@ fast/forms/number/number-input-changeevent.html
 
 # eventSender.contextClick() is unimplemented
 editing/spelling/spellcheck-input-search-crash.html
+editing/selection/5354455-2.html
 
 # missing window.internals.createShadowContentElement
 fast/dom/shadow/create-content-element.html
@@ -1146,6 +1074,9 @@ fast/dom/shadow/create-content-element.html
 # WTR needs an implementation for eventSender.continuousMouseScrollBy
 # https://bugs.webkit.org/show_bug.cgi?id=69417
 fast/events/wheelevent-direction-inverted-from-device.html
+
+# eventSender.clearKillRing() is unimplemented
+editing/pasteboard/emacs-cntl-y-001.html
 
 ### END OF (2) Classified failures without bug reports (yet)
 ########################################
@@ -1228,6 +1159,7 @@ fast/dom/StyleSheet/detached-style-pi.xhtml
 fast/dom/StyleSheet/detached-style.html
 fast/dom/Window/window-appendages-cleared.html
 fast/dom/tab-in-right-alignment.html
+fast/events/popup-blocked-from-fake-user-gesture.html
 fast/frames/frame-element-name.html
 fast/frames/iframe-onload-remove-self-no-crash.html
 fast/frames/iframe-reparenting-adopt-node.html
@@ -1267,6 +1199,7 @@ media/controls-after-reload.html
 media/controls-styling.html
 platform/mac/fast/loader/non-html-load-event.html
 plugins/embed-attributes-style.html
+plugins/plugin-initiate-popup-window.html
 storage/open-database-while-transaction-in-progress.html
 svg/custom/clip-path-referencing-use2.svg
 svg/dom/fuzz-path-parser.html
@@ -1306,7 +1239,9 @@ plugins/destroy-on-setwindow.html
 # Sporadically fails in WebKit2 for unknown reasons.
 fast/forms/input-align.html
 
-# WebProcess sometimes terminates when running this test
+# WebProcess sometimes terminates when running these tests
+fast/dom/Geolocation/notimer-after-unload.html
+fast/dom/Geolocation/remove-remote-context-in-error-callback-crash.html
 fast/forms/form-associated-element-crash.html
 
 # New history tests added in r76205 fail on WebKit2 (perhaps the change

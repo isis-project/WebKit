@@ -44,6 +44,7 @@
 #include "RenderObject.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
+#include "ShadowRootList.h"
 #include "Text.h"
 #include <wtf/PassOwnPtr.h>
 
@@ -119,7 +120,7 @@ static void adjustBubblePosition(const LayoutRect& hostRect, HTMLElement* bubble
         hostY -= containerLocation.y() + container->borderTop();
     }
 
-    CSSInlineStyleDeclaration* style = bubble->ensureInlineStyleDecl();
+    StylePropertySet* style = bubble->ensureInlineStyleDecl();
     style->setProperty(CSSPropertyTop, hostY + hostRect.height(), CSSPrimitiveValue::CSS_PX);
     // The 'left' value of ::-webkit-validation-bubble-arrow.
     const int bubbleArrowTopOffset = 32;
@@ -187,7 +188,7 @@ void ValidationMessage::deleteBubbleTree(Timer<ValidationMessage>*)
         m_messageBody = 0;
         HTMLElement* host = toHTMLElement(m_element);
         ExceptionCode ec;
-        host->shadowRoot()->removeChild(m_bubble.get(), ec);
+        host->shadowRootList()->oldestShadowRoot()->removeChild(m_bubble.get(), ec);
         m_bubble = 0;
     }
     m_message = String();

@@ -27,45 +27,72 @@
 #ifndef ShadowRoot_h
 #define ShadowRoot_h
 
+#include "DocumentFragment.h"
+#include "ExceptionCode.h"
 #include "TreeScope.h"
+#include <wtf/DoublyLinkedList.h>
 
 namespace WebCore {
 
 class Document;
-class ShadowContentElement;
-class ShadowInclusionSelector;
+class HTMLContentElement;
+class HTMLContentSelector;
 
-class ShadowRoot : public TreeScope {
+class ShadowRoot : public DocumentFragment, public TreeScope, public DoublyLinkedListNode<ShadowRoot> {
+    friend class WTF::DoublyLinkedListNode<ShadowRoot>;
 public:
     static PassRefPtr<ShadowRoot> create(Document*);
+    static PassRefPtr<ShadowRoot> create(Element*, ExceptionCode&);
+
+    // FIXME: We will support multiple shadow subtrees, however current implementation does not work well
+    // if a shadow root is dynamically created. So we prohibit multiple shadow subtrees
+    // in several elements for a while.
+    // See https://bugs.webkit.org/show_bug.cgi?id=77503 and related bugs.
+    enum ShadowRootCreationPurpose {
+        CreatingUserAgentShadowRoot,
+        CreatingAuthorShadowRoot,
+    };
+    static PassRefPtr<ShadowRoot> create(Element*, ShadowRootCreationPurpose, ExceptionCode& = ASSERT_NO_EXCEPTION);
 
     void recalcShadowTreeStyle(StyleChange);
 
-    ShadowContentElement* includerFor(Node*) const;
+    void setNeedsReattachHostChildrenAndShadow();
+    void clearNeedsReattachHostChildrenAndShadow();
+    bool needsReattachHostChildrenAndShadow();
+
+    HTMLContentElement* insertionPointFor(Node*) const;
     void hostChildrenChanged();
-    bool isInclusionSelectorActive() const;
+    bool isSelectorActive() const;
 
     virtual void attach();
+    void reattachHostChildrenAndShadow();
 
     virtual bool applyAuthorSheets() const;
     void setApplyAuthorSheets(bool);
 
-    ShadowInclusionSelector* inclusions() const;
-    ShadowInclusionSelector* ensureInclusions();
+    Element* host() const { return shadowHost(); }
+
+    HTMLContentSelector* selector() const;
+    HTMLContentSelector* ensureSelector();
+
+    ShadowRoot* youngerShadowRoot() const { return prev(); }
+    ShadowRoot* olderShadowRoot() const { return next(); }
 
 private:
     ShadowRoot(Document*);
     virtual ~ShadowRoot();
 
     virtual String nodeName() const;
-    virtual NodeType nodeType() const;
     virtual PassRefPtr<Node> cloneNode(bool deep);
     virtual bool childTypeAllowed(NodeType) const;
 
     bool hasContentElement() const;
 
-    bool m_applyAuthorSheets;
-    OwnPtr<ShadowInclusionSelector> m_inclusions;
+    ShadowRoot* m_prev;
+    ShadowRoot* m_next;
+    bool m_applyAuthorSheets : 1;
+    bool m_needsRecalculateContent : 1;
+    OwnPtr<HTMLContentSelector> m_selector;
 };
 
 inline PassRefPtr<ShadowRoot> ShadowRoot::create(Document* document)
@@ -73,9 +100,19 @@ inline PassRefPtr<ShadowRoot> ShadowRoot::create(Document* document)
     return adoptRef(new ShadowRoot(document));
 }
 
+inline void ShadowRoot::clearNeedsReattachHostChildrenAndShadow()
+{
+    m_needsRecalculateContent = false;
+}
+
+inline bool ShadowRoot::needsReattachHostChildrenAndShadow()
+{
+    return m_needsRecalculateContent || hasContentElement();
+}
+
 inline ShadowRoot* toShadowRoot(Node* node)
 {
-    ASSERT(!node || node->nodeType() == Node::SHADOW_ROOT_NODE);
+    ASSERT(!node || node->isShadowRoot());
     return static_cast<ShadowRoot*>(node);
 }
 

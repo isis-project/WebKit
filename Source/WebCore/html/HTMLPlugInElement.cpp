@@ -110,6 +110,21 @@ PassScriptInstance HTMLPlugInElement::getInstance()
     return m_instance;
 }
 
+bool HTMLPlugInElement::guardedDispatchBeforeLoadEvent(const String& sourceURL)
+{
+    // FIXME: Our current plug-in loading design can't guarantee the following
+    // assertion is true, since plug-in loading can be initiated during layout,
+    // and synchronous layout can be initiated in a beforeload event handler!
+    // See <http://webkit.org/b/71264>.
+    // ASSERT(!m_inBeforeLoadEventHandler);
+    m_inBeforeLoadEventHandler = true;
+    // static_cast is used to avoid a compile error since dispatchBeforeLoadEvent
+    // is intentionally undefined on this class.
+    bool beforeLoadAllowedLoad = static_cast<HTMLFrameOwnerElement*>(this)->dispatchBeforeLoadEvent(sourceURL);
+    m_inBeforeLoadEventHandler = false;
+    return beforeLoadAllowedLoad;
+}
+
 Widget* HTMLPlugInElement::pluginWidget()
 {
     if (m_inBeforeLoadEventHandler) {
@@ -125,40 +140,29 @@ Widget* HTMLPlugInElement::pluginWidget()
     return renderWidget->widget();
 }
 
-bool HTMLPlugInElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
+bool HTMLPlugInElement::isPresentationAttribute(Attribute* attr) const
 {
-    if (attrName == widthAttr ||
-        attrName == heightAttr ||
-        attrName == vspaceAttr ||
-        attrName == hspaceAttr) {
-            result = eUniversal;
-            return false;
-    }
-    
-    if (attrName == alignAttr) {
-        result = eReplaced; // Share with <img> since the alignment behavior is the same.
-        return false;
-    }
-    
-    return HTMLFrameOwnerElement::mapToEntry(attrName, result);
+    if (attr->name() == widthAttr || attr->name() == heightAttr || attr->name() == vspaceAttr || attr->name() == hspaceAttr || attr->name() == alignAttr)
+        return true;
+    return HTMLFrameOwnerElement::isPresentationAttribute(attr);
 }
 
-void HTMLPlugInElement::parseMappedAttribute(Attribute* attr)
+void HTMLPlugInElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == widthAttr)
-        addCSSLength(attr, CSSPropertyWidth, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyWidth, attr->value());
     else if (attr->name() == heightAttr)
-        addCSSLength(attr, CSSPropertyHeight, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyHeight, attr->value());
     else if (attr->name() == vspaceAttr) {
-        addCSSLength(attr, CSSPropertyMarginTop, attr->value());
-        addCSSLength(attr, CSSPropertyMarginBottom, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyMarginTop, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyMarginBottom, attr->value());
     } else if (attr->name() == hspaceAttr) {
-        addCSSLength(attr, CSSPropertyMarginLeft, attr->value());
-        addCSSLength(attr, CSSPropertyMarginRight, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyMarginLeft, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyMarginRight, attr->value());
     } else if (attr->name() == alignAttr)
-        addHTMLAlignment(attr);
+        applyAlignmentAttributeToStyle(attr, style);
     else
-        HTMLFrameOwnerElement::parseMappedAttribute(attr);
+        HTMLFrameOwnerElement::collectStyleForAttribute(attr, style);
 }
 
 void HTMLPlugInElement::defaultEventHandler(Event* event)

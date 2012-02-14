@@ -83,7 +83,7 @@ double NumberInputType::valueAsNumber() const
     return parseToDouble(element()->value(), numeric_limits<double>::quiet_NaN());
 }
 
-void NumberInputType::setValueAsNumber(double newValue, bool sendChangeEvent, ExceptionCode& ec) const
+void NumberInputType::setValueAsNumber(double newValue, TextFieldEventBehavior eventBehavior, ExceptionCode& ec) const
 {
     if (newValue < -numeric_limits<float>::max()) {
         ec = INVALID_STATE_ERR;
@@ -93,7 +93,7 @@ void NumberInputType::setValueAsNumber(double newValue, bool sendChangeEvent, Ex
         ec = INVALID_STATE_ERR;
         return;
     }
-    element()->setValue(serialize(newValue), sendChangeEvent);
+    element()->setValue(serialize(newValue), eventBehavior);
 }
 
 bool NumberInputType::typeMismatchFor(const String& value) const
@@ -283,29 +283,41 @@ void NumberInputType::handleBlurEvent()
     element()->updateInnerTextValue();
 }
 
+static bool isE(UChar ch)
+{
+    return ch == 'e' || ch == 'E';
+}
+
 String NumberInputType::visibleValue() const
 {
     String currentValue = element()->value();
     if (currentValue.isEmpty())
         return currentValue;
+    // We don't localize scientific notations.
+    if (currentValue.find(isE) != notFound)
+        return currentValue;
+    // FIXME: The following three lines should be removed when we
+    // remove the second argument of convertToLocalizedNumber().
     double doubleValue = numeric_limits<double>::quiet_NaN();
     unsigned decimalPlace;
     parseToDoubleForNumberTypeWithDecimalPlaces(currentValue, &doubleValue, &decimalPlace);
-    String localized = formatLocalizedNumber(doubleValue, decimalPlace);
-    return localized.isEmpty() ? currentValue : localized;
+    return convertToLocalizedNumber(currentValue, decimalPlace);
 }
 
 String NumberInputType::convertFromVisibleValue(const String& visibleValue) const
 {
     if (visibleValue.isEmpty())
         return visibleValue;
-    double parsedNumber = parseLocalizedNumber(visibleValue);
-    return isfinite(parsedNumber) ? serializeForNumberType(parsedNumber) : visibleValue;
+    // We don't localize scientific notations.
+    if (visibleValue.find(isE) != notFound)
+        return visibleValue;
+    return convertFromLocalizedNumber(visibleValue);
 }
 
 bool NumberInputType::isAcceptableValue(const String& proposedValue)
 {
-    return proposedValue.isEmpty() || isfinite(parseLocalizedNumber(proposedValue)) || parseToDoubleForNumberType(proposedValue, 0);
+    String standardValue = convertFromVisibleValue(proposedValue);
+    return standardValue.isEmpty() || parseToDoubleForNumberType(standardValue, 0);
 }
 
 String NumberInputType::sanitizeValue(const String& proposedValue) const

@@ -46,8 +46,8 @@ static const float gLineThick = 3.f;
 static const float gFractionBarWidth = 0.05f;
 static const float gDenominatorPad = 0.1f;
 
-RenderMathMLFraction::RenderMathMLFraction(Element* fraction) 
-    : RenderMathMLBlock(fraction)
+RenderMathMLFraction::RenderMathMLFraction(Element* element)
+    : RenderMathMLBlock(element)
     , m_lineThickness(gLineMedium)
 {
     setChildrenInline(false);
@@ -101,7 +101,7 @@ void RenderMathMLFraction::updateFromElement()
 void RenderMathMLFraction::addChild(RenderObject* child, RenderObject* beforeChild)
 {
     RenderBlock* row = new (renderArena()) RenderMathMLBlock(node());
-    RefPtr<RenderStyle> rowStyle = makeBlockStyle();
+    RefPtr<RenderStyle> rowStyle = createBlockStyle();
     
     rowStyle->setTextAlign(CENTER);
     Length pad(static_cast<int>(rowStyle->fontSize() * gHorizontalPad), Fixed);
@@ -153,7 +153,7 @@ void RenderMathMLFraction::paint(PaintInfo& info, const LayoutPoint& paintOffset
             verticalOffset = numerator->offsetHeight();        
     }
     
-    LayoutPoint adjustedPaintOffset = paintOffset + location();
+    IntPoint adjustedPaintOffset = roundedIntPoint(paintOffset + location());
     adjustedPaintOffset.setY(adjustedPaintOffset.y() + verticalOffset);
     
     GraphicsContextStateSaver stateSaver(*info.context);
@@ -165,7 +165,7 @@ void RenderMathMLFraction::paint(PaintInfo& info, const LayoutPoint& paintOffset
     info.context->drawLine(adjustedPaintOffset, IntPoint(adjustedPaintOffset.x() + offsetWidth(), adjustedPaintOffset.y()));
 }
 
-int RenderMathMLFraction::baselinePosition(FontBaseline, bool firstLine, LineDirectionMode lineDirection, LinePositionMode linePositionMode) const
+LayoutUnit RenderMathMLFraction::baselinePosition(FontBaseline, bool firstLine, LineDirectionMode lineDirection, LinePositionMode linePositionMode) const
 {
     if (firstChild() && firstChild()->isRenderMathMLBlock()) {
         RenderMathMLBlock* numerator = toRenderMathMLBlock(firstChild());
@@ -181,6 +181,5 @@ int RenderMathMLFraction::baselinePosition(FontBaseline, bool firstLine, LineDir
 }
 
 }
-
 
 #endif // ENABLE(MATHML)

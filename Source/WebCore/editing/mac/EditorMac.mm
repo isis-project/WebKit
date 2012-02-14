@@ -112,7 +112,7 @@ static RenderStyle* styleForSelectionStart(Frame* frame, Node *&nodeToRemove)
 
     RefPtr<Element> styleElement = frame->document()->createElement(spanTag, false);
 
-    String styleText = typingStyle->style()->cssText() + " display: inline";
+    String styleText = typingStyle->style()->asText() + " display: inline";
     styleElement->setAttribute(styleAttr, styleText.impl());
 
     styleElement->appendChild(frame->document()->createEditingTextNode(""), ASSERT_NO_EXCEPTION);
@@ -289,15 +289,13 @@ void Editor::takeFindStringFromSelection()
 
 void Editor::writeSelectionToPasteboard(const String& pasteboardName, const Vector<String>& pasteboardTypes)
 {
-    RetainPtr<NSMutableArray> types(AdoptNS, [[NSMutableArray alloc] init]);    
-    for (size_t i = 0; i < pasteboardTypes.size(); ++i)
-        [types.get() addObject:pasteboardTypes[i]];
-    Pasteboard::writeSelection([NSPasteboard pasteboardWithName:pasteboardName], types.get(), selectedRange().get(), true, m_frame);
+    Pasteboard pasteboard(pasteboardName);
+    pasteboard.writeSelectionForTypes(pasteboardTypes, selectedRange().get(), true, m_frame);
 }
     
 void Editor::readSelectionFromPasteboard(const String& pasteboardName)
 {
-    Pasteboard pasteboard([NSPasteboard pasteboardWithName:pasteboardName]);
+    Pasteboard pasteboard(pasteboardName);
     if (m_frame->selection()->isContentRichlyEditable())
         pasteWithPasteboard(&pasteboard, true);
     else

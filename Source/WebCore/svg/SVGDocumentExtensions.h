@@ -56,7 +56,7 @@ public:
     void startAnimations();
     void pauseAnimations();
     void unpauseAnimations();
-    bool sampleAnimationAtTime(const String& elementId, SVGSMILElement*, double time);
+    void dispatchSVGLoadEventToOutermostSVGElements();
     
     void addAnimationElementToTarget(SVGSMILElement*, SVGElement*);
     void removeAnimationElementFromTarget(SVGSMILElement*, SVGElement*);
@@ -67,12 +67,18 @@ public:
 
     SVGResourcesCache* resourcesCache() const { return m_resourcesCache.get(); }
 
+    HashSet<SVGElement*>* setOfElementsReferencingTarget(SVGElement* referencedElement) const;
+    void addElementReferencingTarget(SVGElement* referencingElement, SVGElement* referencedElement);
+    void removeAllTargetReferencesForElement(SVGElement* referencingElement);
+    void removeAllElementReferencesForTarget(SVGElement* referencedElement);
+
 private:
     Document* m_document; // weak reference
     HashSet<SVGSVGElement*> m_timeContainers; // For SVG 1.2 support this will need to be made more general.
     HashMap<SVGElement*, HashSet<SVGSMILElement*>* > m_animatedElements;
     HashMap<AtomicString, RenderSVGResourceContainer*> m_resources;
     HashMap<AtomicString, SVGPendingElements*> m_pendingResources;
+    HashMap<SVGElement*, OwnPtr<HashSet<SVGElement*> > > m_elementDependencies;
     OwnPtr<SVGResourcesCache> m_resourcesCache;
 
 public:
@@ -80,10 +86,12 @@ public:
     // which are referenced by any object in the SVG document, but do NOT exist yet.
     // For instance, dynamically build gradients / patterns / clippers...
     void addPendingResource(const AtomicString& id, SVGStyledElement*);
-    bool hasPendingResources(const AtomicString& id) const;
-    bool isElementInPendingResources(SVGStyledElement*) const;
+    bool hasPendingResource(const AtomicString& id) const;
+    bool isElementPendingResources(SVGStyledElement*) const;
+    bool isElementPendingResource(SVGStyledElement*, const AtomicString& id) const;
     void removeElementFromPendingResources(SVGStyledElement*);
     PassOwnPtr<SVGPendingElements> removePendingResource(const AtomicString& id);
+    void removePendingResourceForElement(const AtomicString& id, SVGStyledElement*);
 };
 
 }

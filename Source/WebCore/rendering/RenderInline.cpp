@@ -47,7 +47,6 @@ namespace WebCore {
 
 RenderInline::RenderInline(Node* node)
     : RenderBoxModelObject(node)
-    , m_lineHeight(-1)
     , m_alwaysCreateLineBoxes(false)
 {
     setChildrenInline(true);
@@ -137,17 +136,16 @@ void RenderInline::styleDidChange(StyleDifference diff, const RenderStyle* oldSt
     // e.g., <font>foo <h4>goo</h4> moo</font>.  The <font> inlines before
     // and after the block share the same style, but the block doesn't
     // need to pass its style on to anyone else.
+    RenderStyle* newStyle = style();
     for (RenderInline* currCont = inlineElementContinuation(); currCont; currCont = currCont->inlineElementContinuation()) {
         RenderBoxModelObject* nextCont = currCont->continuation();
         currCont->setContinuation(0);
-        currCont->setStyle(style());
+        currCont->setStyle(newStyle);
         currCont->setContinuation(nextCont);
     }
 
-    m_lineHeight = -1;
-
     if (!m_alwaysCreateLineBoxes) {
-        bool alwaysCreateLineBoxes = hasSelfPaintingLayer() || hasBoxDecorations() || style()->hasPadding() || style()->hasMargin() || hasOutline();
+        bool alwaysCreateLineBoxes = hasSelfPaintingLayer() || hasBoxDecorations() || newStyle->hasPadding() || newStyle->hasMargin() || hasOutline();
         if (oldStyle && alwaysCreateLineBoxes) {
             dirtyLineBoxes(false);
             setNeedsLayout(true);
@@ -385,7 +383,7 @@ void RenderInline::splitFlow(RenderObject* beforeChild, RenderBlock* newBlockBox
         madeNewBeforeBlock = true;
     }
 
-    RenderBlock* post = block->createAnonymousBlock();
+    RenderBlock* post = block->createAnonymousBlockWithSameTypeAs(pre);
 
     RenderObject* boxFirst = madeNewBeforeBlock ? block->firstChild() : pre->nextSibling();
     if (madeNewBeforeBlock)
@@ -1268,11 +1266,8 @@ LayoutUnit RenderInline::lineHeight(bool firstLine, LineDirectionMode /*directio
         if (s != style())
             return s->computedLineHeight();
     }
-    
-    if (m_lineHeight == -1)
-        m_lineHeight = style()->computedLineHeight();
-    
-    return m_lineHeight;
+
+    return style()->computedLineHeight();
 }
 
 LayoutUnit RenderInline::baselinePosition(FontBaseline baselineType, bool firstLine, LineDirectionMode direction, LinePositionMode linePositionMode) const

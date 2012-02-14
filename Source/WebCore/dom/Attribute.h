@@ -25,13 +25,11 @@
 #ifndef Attribute_h
 #define Attribute_h
 
-#include "CSSMappedAttributeDeclaration.h"
 #include "QualifiedName.h"
 
 namespace WebCore {
 
 class Attr;
-class CSSStyleDeclaration;
 class Element;
 class NamedNodeMap;
 
@@ -43,15 +41,11 @@ class Attribute : public RefCounted<Attribute> {
 public:
     static PassRefPtr<Attribute> create(const QualifiedName& name, const AtomicString& value)
     {
-        return adoptRef(new Attribute(name, value, false, 0));
+        return adoptRef(new Attribute(name, value));
     }
-    static PassRefPtr<Attribute> createMapped(const QualifiedName& name, const AtomicString& value)
+    static PassRefPtr<Attribute> create(const AtomicString& name, const AtomicString& value)
     {
-        return adoptRef(new Attribute(name, value, true, 0));
-    }
-    static PassRefPtr<Attribute> createMapped(const AtomicString& name, const AtomicString& value)
-    {
-        return adoptRef(new Attribute(name, value, true, 0));
+        return adoptRef(new Attribute(name, value));
     }
 
     const AtomicString& value() const { return m_value; }
@@ -69,50 +63,37 @@ public:
     
     PassRefPtr<Attribute> clone() const;
 
-    // An extension to get the style information for presentational attributes.
-    CSSStyleDeclaration* style() const { return m_styleDecl.get(); }
-    CSSMappedAttributeDeclaration* decl() const { return m_styleDecl.get(); }
-    void setDecl(PassRefPtr<CSSMappedAttributeDeclaration> decl) { m_styleDecl = decl; }
-
     void setValue(const AtomicString& value) { m_value = value; }
     void setPrefix(const AtomicString& prefix) { m_name.setPrefix(prefix); }
 
     // Note: This API is only for HTMLTreeBuilder.  It is not safe to change the
-    // name of an attribute once parseMappedAttribute has been called as DOM
+    // name of an attribute once parseAttribute has been called as DOM
     // elements may have placed the Attribute in a hash by name.
     void parserSetName(const QualifiedName& name) { m_name = name; }
 
-    bool isMappedAttribute() { return m_isMappedAttribute; }
-
 private:
-    Attribute(const QualifiedName& name, const AtomicString& value, bool isMappedAttribute, CSSMappedAttributeDeclaration* styleDecl)
-        : m_isMappedAttribute(isMappedAttribute)
-        , m_hasAttr(false)
+    Attribute(const QualifiedName& name, const AtomicString& value)
+        : m_hasAttr(false)
         , m_name(name)
         , m_value(value)
-        , m_styleDecl(styleDecl)
     {
     }
 
-    Attribute(const AtomicString& name, const AtomicString& value, bool isMappedAttribute, CSSMappedAttributeDeclaration* styleDecl)
-        : m_isMappedAttribute(isMappedAttribute)
-        , m_hasAttr(false)
+    Attribute(const AtomicString& name, const AtomicString& value)
+        : m_hasAttr(false)
         , m_name(nullAtom, name, nullAtom)
         , m_value(value)
-        , m_styleDecl(styleDecl)
     {
     }
 
     void bindAttr(Attr*);
     void unbindAttr(Attr*);
 
-    // These booleans will go into the spare 32-bits of padding from RefCounted in 64-bit.
-    bool m_isMappedAttribute;
+    // This boolean will go into the spare 32-bits of padding from RefCounted in 64-bit.
     bool m_hasAttr;
     
     QualifiedName m_name;
     AtomicString m_value;
-    RefPtr<CSSMappedAttributeDeclaration> m_styleDecl;
 };
 
 } // namespace WebCore

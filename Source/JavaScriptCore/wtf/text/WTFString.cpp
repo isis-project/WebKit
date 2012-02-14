@@ -24,6 +24,8 @@
 
 #include <stdarg.h>
 #include <wtf/ASCIICType.h>
+#include <wtf/DataLog.h>
+#include <wtf/MathExtras.h>
 #include <wtf/text/CString.h>
 #include <wtf/StringExtras.h>
 #include <wtf/Vector.h>
@@ -687,6 +689,13 @@ CString String::latin1() const
     // preserved, characters outside of this range are converted to '?'.
 
     unsigned length = this->length();
+
+    if (!length)
+        return CString("", 0);
+
+    if (is8Bit())
+        return CString(reinterpret_cast<const char*>(this->characters8()), length);
+
     const UChar* characters = this->characters();
 
     char* characterBuffer;
@@ -1044,9 +1053,9 @@ static inline double toDoubleType(const CharType* data, size_t length, bool* ok,
     bytes[length] = '\0';
     char* start = bytes.data();
     char* end;
-    double val = WTF::strtod(start, &end);
+    double val = WTF::strtod<WTF::DisallowTrailingJunk>(start, &end);
     if (ok)
-        *ok = (end == 0 || *end == '\0');
+        *ok = (end == 0 || *end == '\0') && !isnan(val);
     if (didReadNumber)
         *didReadNumber = end - start;
     return val;
@@ -1090,7 +1099,7 @@ Vector<char> asciiDebug(String& string);
 
 void String::show() const
 {
-    fprintf(stderr, "%s\n", asciiDebug(impl()).data());
+    dataLog("%s\n", asciiDebug(impl()).data());
 }
 
 String* string(const char* s)

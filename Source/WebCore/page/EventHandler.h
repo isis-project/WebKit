@@ -131,7 +131,8 @@ public:
 #if ENABLE(DRAG_SUPPORT)
     bool updateDragAndDrop(const PlatformMouseEvent&, Clipboard*);
     void cancelDragAndDrop(const PlatformMouseEvent&, Clipboard*);
-    void performDragAndDrop(const PlatformMouseEvent&, Clipboard*);
+    bool performDragAndDrop(const PlatformMouseEvent&, Clipboard*);
+    void updateDragStateAfterEditDragIfNeeded(Element* rootEditableElement);
 #endif
 
     void scheduleHoverStateUpdate();
@@ -270,6 +271,10 @@ private:
 
     void fakeMouseMoveEventTimerFired(Timer<EventHandler>*);
     void cancelFakeMouseMoveEvent();
+
+#if ENABLE(TOUCH_EVENTS)
+    bool dispatchSyntheticTouchEventIfEnabled(const PlatformMouseEvent&);
+#endif
 
     void invalidateClick();
 

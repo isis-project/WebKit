@@ -79,8 +79,6 @@ public:
 
     HTMLFormElement* form() const { return virtualForm(); }
 
-    static void addHTMLAlignmentToStyledElement(StyledElement*, Attribute*);
-
     HTMLFormElement* findFormAncestor() const;
 
     TextDirection directionalityIfhasDirAutoAttribute(bool& isAuto) const;
@@ -93,11 +91,15 @@ public:
 protected:
     HTMLElement(const QualifiedName& tagName, Document*);
 
-    void addHTMLAlignment(Attribute*);
+    static void addHTMLLengthToStyle(StylePropertySet*, int propertyID, const String& value);
+    static void addHTMLColorToStyle(StylePropertySet*, int propertyID, const String& color);
 
-    virtual bool mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const;
-    virtual void parseMappedAttribute(Attribute*);
-    void applyBorderAttribute(Attribute*);
+    void applyAlignmentAttributeToStyle(Attribute*, StylePropertySet*);
+    void applyBorderAttributeToStyle(Attribute*, StylePropertySet*);
+
+    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual bool isPresentationAttribute(Attribute*) const OVERRIDE;
+    virtual void collectStyleForAttribute(Attribute*, StylePropertySet*) OVERRIDE;
 
     virtual void childrenChanged(bool changedByParser = false, Node* beforeChange = 0, Node* afterChange = 0, int childCountDelta = 0);
     void calculateAndAdjustDirectionality();
@@ -107,9 +109,7 @@ protected:
 private:
     virtual String nodeName() const;
 
-    void mapLanguageAttributeToLocale(Attribute*);
-
-    void setContentEditable(Attribute*);
+    void mapLanguageAttributeToLocale(Attribute*, StylePropertySet*);
 
     virtual HTMLFormElement* virtualForm() const;
 

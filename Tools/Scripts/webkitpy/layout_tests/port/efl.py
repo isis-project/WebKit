@@ -38,11 +38,7 @@ _log = logging.getLogger(__name__)
 
 
 class EflPort(WebKitPort):
-    port_name = "efl"
-
-    def __init__(self, host, **kwargs):
-        WebKitPort.__init__(self, host, **kwargs)
-        self._version = self.port_name
+    port_name = 'efl'
 
     def _port_flag_for_scripts(self):
         return "--efl"
@@ -51,10 +47,10 @@ class EflPort(WebKitPort):
         return [TestConfiguration(version=self._version, architecture='x86', build_type=build_type, graphics_type='cpu') for build_type in self.ALL_BUILD_TYPES]
 
     def _path_to_driver(self):
-        return self._build_path('Programs', self.driver_name())
+        return self._build_path('bin', self.driver_name())
 
     def _path_to_image_diff(self):
-        return self._build_path('Programs', 'ImageDiff')
+        return self._build_path('bin', 'ImageDiff')
 
     # FIXME: I doubt EFL wants to override this method.
     def check_build(self, needs_http):

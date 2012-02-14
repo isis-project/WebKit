@@ -21,13 +21,13 @@
 module html {
 
     interface HTMLInputElement : HTMLElement {
-        attribute [ConvertNullToNullString] DOMString defaultValue;
+        attribute [TreatNullAs=NullString] DOMString defaultValue;
         attribute [Reflect=checked] boolean defaultChecked;
         attribute [Reflect] DOMString dirName;
         readonly attribute HTMLFormElement form;
         attribute [Reflect, URL] DOMString formAction;
-        attribute [ConvertNullToNullString] DOMString formEnctype;
-        attribute [ConvertNullToNullString] DOMString formMethod;
+        attribute [TreatNullAs=NullString] DOMString formEnctype;
+        attribute [TreatNullAs=NullString] DOMString formMethod;
         attribute [Reflect] boolean formNoValidate;
         attribute [Reflect] DOMString formTarget;
         readonly attribute ValidityState validity;
@@ -50,16 +50,16 @@ module html {
         attribute [Reflect] boolean readOnly;
         attribute [Reflect] boolean required;
 #if defined(LANGUAGE_OBJECTIVE_C) && LANGUAGE_OBJECTIVE_C
-        attribute [ConvertToString] DOMString size; // DOM level 2 changed this to a long, but our existing API is a string
+        attribute [Reflect] DOMString accessKey;
+        attribute [ObjCImplementedAsUnsignedLong] DOMString size; // DOM level 2 changed this to a long, but ObjC API is a string
 #else
-        // FIXME: The spec says this should be a long, not an unsigned long.
-        attribute unsigned long size; // Changed string -> long as part of DOM level 2
+        attribute unsigned long size; // Changed string -> long -> unsigned long
 #endif
         attribute [Reflect, URL] DOMString src;
         attribute [Reflect] DOMString step;
-        attribute [ConvertNullToNullString] DOMString type; // readonly dropped as part of DOM level 2
+        attribute [TreatNullAs=NullString] DOMString type; // readonly dropped as part of DOM level 2
         attribute [Reflect] DOMString useMap;
-        attribute [ConvertNullToNullString] DOMString value;
+        attribute [TreatNullAs=NullString] DOMString value;
 #if !defined(LANGUAGE_CPP) || !LANGUAGE_CPP
         attribute Date valueAsDate setter raises(DOMException);
 #endif
@@ -73,12 +73,15 @@ module html {
         readonly attribute boolean willValidate;
         readonly attribute DOMString validationMessage;
         boolean checkValidity();
-        void setCustomValidity(in [ConvertUndefinedOrNullToNullString] DOMString error);
+        void setCustomValidity(in [TreatNullAs=NullString, TreatUndefinedAs=NullString] DOMString error);
         void select();
+
+#if defined(LANGUAGE_OBJECTIVE_C) && LANGUAGE_OBJECTIVE_C
         void click();
+#endif
 
 #if !defined(LANGUAGE_JAVASCRIPT) || !LANGUAGE_JAVASCRIPT
-        void setValueForUser(in [ConvertNullToNullString] DOMString value);
+        void setValueForUser(in [TreatNullAs=NullString] DOMString value);
 #endif
 
         // WinIE extension:
@@ -91,8 +94,8 @@ module html {
 #if defined(LANGUAGE_OBJECTIVE_C) && LANGUAGE_OBJECTIVE_C
         [Custom] void setSelectionRange(in long start, in long end);
 #else
-        [Custom] void setSelectionRange(in [Optional=CallWithDefaultValue] long start, 
-                                        in [Optional=CallWithDefaultValue] long end, 
+        [Custom] void setSelectionRange(in [Optional=DefaultIsUndefined] long start, 
+                                        in [Optional=DefaultIsUndefined] long end, 
                                         in [Optional] DOMString direction);
 #endif
 
@@ -105,9 +108,9 @@ module html {
         readonly attribute FileList files;
         readonly attribute NodeList labels;
 
-        attribute [Conditional=INPUT_SPEECH, Reflect, EnabledAtRuntime] boolean webkitSpeech;
-        attribute [Conditional=INPUT_SPEECH, Reflect, EnabledAtRuntime] boolean webkitGrammar;
-        attribute [Conditional=INPUT_SPEECH, DontEnum] EventListener onwebkitspeechchange;
+        attribute [Conditional=INPUT_SPEECH, Reflect, V8EnabledAtRuntime] boolean webkitSpeech;
+        attribute [Conditional=INPUT_SPEECH, Reflect, V8EnabledAtRuntime] boolean webkitGrammar;
+        attribute [Conditional=INPUT_SPEECH, NotEnumerable] EventListener onwebkitspeechchange;
     };
 
 }

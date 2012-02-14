@@ -137,6 +137,7 @@
 #include "SegmentedString.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
+#include "ShadowRootList.h"
 #include "StaticHashSetNodeList.h"
 #include "StyleSheetList.h"
 #include "TextResourceDecoder.h"
@@ -173,6 +174,7 @@
 #include "SVGDocumentExtensions.h"
 #include "SVGElementFactory.h"
 #include "SVGNames.h"
+#include "SVGSVGElement.h"
 #include "SVGStyleElement.h"
 #endif
 
@@ -198,6 +200,10 @@
 #if ENABLE(MICRODATA)
 #include "MicroDataItemList.h"
 #include "NodeRareData.h"
+#endif
+
+#if ENABLE(THREADED_SCROLLING)
+#include "ScrollingCoordinator.h"
 #endif
 
 using namespace std;
@@ -373,7 +379,8 @@ private:
 uint64_t Document::s_globalTreeVersion = 0;
 
 Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
-    : TreeScope(0)
+    : ContainerNode(0)
+    , TreeScope(this)
     , m_guardRefCount(0)
     , m_compatibilityMode(NoQuirksMode)
     , m_compatibilityModeLocked(false)
@@ -539,7 +546,6 @@ Document::~Document()
     ASSERT(!m_parser || m_parser->refCount() == 1);
     detachParser();
     m_document = 0;
-    m_cachedResourceLoader.clear();
 
     m_renderArena.clear();
 
@@ -571,6 +577,14 @@ Document::~Document()
 
     if (m_mediaQueryMatcher)
         m_mediaQueryMatcher->documentDestroyed();
+
+    clearStyleSelector(); // We need to destory CSSFontSelector before destroying m_cachedResourceLoader.
+    m_cachedResourceLoader.clear();
+
+    // We must call clearRareData() here since a Document class inherits TreeScope
+    // as well as Node. See a comment on TreeScope.h for the reason.
+    if (hasRareData())
+        clearRareData();
 }
 
 void Document::removedLastRef()
@@ -642,16 +656,22 @@ Element* Document::getElementByAccessKey(const String& key)
     return m_elementsByAccessKey.get(key.impl());
 }
 
-void Document::buildAccessKeyMap(TreeScope* root)
+void Document::buildAccessKeyMap(TreeScope* scope)
 {
-     for (Node* n = root; n; n = n->traverseNextNode(root)) {
-        if (!n->isElementNode())
+    ASSERT(scope);
+    Node* rootNode = scope->rootNode();
+    for (Node* node = rootNode; node; node = node->traverseNextNode(rootNode)) {
+        if (!node->isElementNode())
             continue;
-        Element* element = static_cast<Element*>(n);
+        Element* element = static_cast<Element*>(node);
         const AtomicString& accessKey = element->getAttribute(accesskeyAttr);
         if (!accessKey.isEmpty())
             m_elementsByAccessKey.set(accessKey.impl(), element);
-        buildAccessKeyMap(element->shadowRoot());
+
+        if (element->hasShadowRoot()) {
+            for (ShadowRoot* root = element->shadowRootList()->youngestShadowRoot(); root; root = root->olderShadowRoot())
+                buildAccessKeyMap(root);
+        }
     }
 }
 
@@ -722,7 +742,7 @@ DOMImplementation* Document::implementation()
 
 void Document::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
 {
-    TreeScope::childrenChanged(changedByParser, beforeChange, afterChange, childCountDelta);
+    ContainerNode::childrenChanged(changedByParser, beforeChange, afterChange, childCountDelta);
     
     Element* newDocumentElement = firstElementChild(this);
     if (newDocumentElement == m_documentElement)
@@ -802,7 +822,7 @@ PassRefPtr<EditingText> Document::createEditingTextNode(const String& text)
 
 PassRefPtr<CSSStyleDeclaration> Document::createCSSStyleDeclaration()
 {
-    return CSSMutableStyleDeclaration::create();
+    return StylePropertySet::create()->ensureCSSStyleDeclaration();
 }
 
 PassRefPtr<Node> Document::importNode(Node* importedNode, bool deep, ExceptionCode& ec)
@@ -833,7 +853,7 @@ PassRefPtr<Node> Document::importNode(Node* importedNode, bool deep, ExceptionCo
         Element* oldElement = static_cast<Element*>(importedNode);
         // FIXME: The following check might be unnecessary. Is it possible that
         // oldElement has mismatched prefix/namespace?
-        if (hasPrefixNamespaceMismatch(oldElement->tagQName())) {
+        if (!hasValidNamespaceForElements(oldElement->tagQName())) {
             ec = NAMESPACE_ERR;
             return 0;
         }
@@ -841,15 +861,7 @@ PassRefPtr<Node> Document::importNode(Node* importedNode, bool deep, ExceptionCo
         if (ec)
             return 0;
 
-        NamedNodeMap* attrs = oldElement->attributes(true);
-        if (attrs) {
-            unsigned length = attrs->length();
-            for (unsigned i = 0; i < length; i++) {
-                Attribute* attr = attrs->attributeItem(i);
-                newElement->setAttribute(attr->name(), attr->value().impl());
-            }
-        }
-
+        newElement->setAttributesFromElement(*oldElement);
         newElement->copyNonAttributeProperties(oldElement);
 
         if (deep) {
@@ -868,6 +880,11 @@ PassRefPtr<Node> Document::importNode(Node* importedNode, bool deep, ExceptionCo
     case ATTRIBUTE_NODE:
         return Attr::create(0, this, static_cast<Attr*>(importedNode)->attr()->clone());
     case DOCUMENT_FRAGMENT_NODE: {
+        if (importedNode->isShadowRoot()) {
+            // ShadowRoot nodes should not be explicitly importable.
+            // Either they are imported along with their host node, or created implicitly.
+            break;
+        }
         DocumentFragment* oldFragment = static_cast<DocumentFragment*>(importedNode);
         RefPtr<DocumentFragment> newFragment = createDocumentFragment();
         if (deep) {
@@ -890,9 +907,6 @@ PassRefPtr<Node> Document::importNode(Node* importedNode, bool deep, ExceptionCo
     case DOCUMENT_NODE:
     case DOCUMENT_TYPE_NODE:
     case XPATH_NAMESPACE_NODE:
-    case SHADOW_ROOT_NODE:
-        // ShadowRoot nodes should not be explicitly importable.
-        // Either they are imported along with their host node, or created implicitly.
         break;
     }
     ec = NOT_SUPPORTED_ERR;
@@ -948,22 +962,33 @@ PassRefPtr<Node> Document::adoptNode(PassRefPtr<Node> source, ExceptionCode& ec)
     return source;
 }
 
-bool Document::hasPrefixNamespaceMismatch(const QualifiedName& qName)
+bool Document::hasValidNamespaceForElements(const QualifiedName& qName)
 {
     // These checks are from DOM Core Level 2, createElementNS
     // http://www.w3.org/TR/DOM-Level-2-Core/core.html#ID-DocCrElNS
     if (!qName.prefix().isEmpty() && qName.namespaceURI().isNull()) // createElementNS(null, "html:div")
-        return true;
+        return false;
     if (qName.prefix() == xmlAtom && qName.namespaceURI() != XMLNames::xmlNamespaceURI) // createElementNS("http://www.example.com", "xml:lang")
-        return true;
+        return false;
 
     // Required by DOM Level 3 Core and unspecified by DOM Level 2 Core:
     // http://www.w3.org/TR/2004/REC-DOM-Level-3-Core-20040407/core.html#ID-DocCrElNS
     // createElementNS("http://www.w3.org/2000/xmlns/", "foo:bar"), createElementNS(null, "xmlns:bar")
     if ((qName.prefix() == xmlnsAtom && qName.namespaceURI() != XMLNSNames::xmlnsNamespaceURI) || (qName.prefix() != xmlnsAtom && qName.namespaceURI() == XMLNSNames::xmlnsNamespaceURI))
-        return true;
+        return false;
 
-    return false;
+    return true;
+}
+
+bool Document::hasValidNamespaceForAttributes(const QualifiedName& qName)
+{
+    // Spec: DOM Level 2 Core: http://www.w3.org/TR/DOM-Level-2-Core/core.html#ID-ElSetAttrNS
+    if (qName.prefix().isEmpty() && qName.localName() == xmlnsAtom) {
+        // Note: The case of an "xmlns" qualified name with a namespace of
+        // xmlnsNamespaceURI is specifically allowed (See <http://www.w3.org/2000/xmlns/>).
+        return qName.namespaceURI() == XMLNSNames::xmlnsNamespaceURI;
+    }
+    return hasValidNamespaceForElements(qName);
 }
 
 // FIXME: This should really be in a possible ElementFactory class
@@ -1010,7 +1035,7 @@ PassRefPtr<Element> Document::createElementNS(const String& namespaceURI, const 
         return 0;
 
     QualifiedName qName(prefix, localName, namespaceURI);
-    if (hasPrefixNamespaceMismatch(qName)) {
+    if (!hasValidNamespaceForElements(qName)) {
         ec = NAMESPACE_ERR;
         return 0;
     }
@@ -1080,6 +1105,16 @@ void Document::setCharset(const String& charset)
     if (!decoder())
         return;
     decoder()->setEncoding(charset, TextResourceDecoder::UserChosenEncoding);
+}
+
+void Document::setContentLanguage(const String& language)
+{
+    if (m_contentLanguage == language)
+        return;
+    m_contentLanguage = language;
+
+    // Recalculate style so language is used when selecting the initial font.
+    styleSelectorChanged(DeferRecalcStyle);
 }
 
 void Document::setXMLVersion(const String& version, ExceptionCode& ec)
@@ -1829,7 +1864,7 @@ void Document::attach()
     RenderObject* render = renderer();
     setRenderer(0);
 
-    TreeScope::attach();
+    ContainerNode::attach();
 
     setRenderer(render);
 }
@@ -1883,7 +1918,7 @@ void Document::detach()
     m_focusedNode = 0;
     m_activeNode = 0;
 
-    TreeScope::detach();
+    ContainerNode::detach();
 
     unscheduleStyleRecalc();
 
@@ -1917,10 +1952,11 @@ void Document::suspendActiveDOMObjects(ActiveDOMObject::ReasonForSuspension why)
     if (!page())
         return;
 
-    if (page()->deviceMotionController())
-        page()->deviceMotionController()->suspendEventsForAllListeners(domWindow());
-    if (page()->deviceOrientationController())
-        page()->deviceOrientationController()->suspendEventsForAllListeners(domWindow());
+    if (DeviceMotionController* controller = DeviceMotionController::from(page()))
+        controller->suspendEventsForAllListeners(domWindow());
+    if (DeviceOrientationController* controller = DeviceOrientationController::from(page()))
+        controller->suspendEventsForAllListeners(domWindow());
+
 #endif
 }
 
@@ -1932,10 +1968,10 @@ void Document::resumeActiveDOMObjects()
     if (!page())
         return;
 
-    if (page()->deviceMotionController())
-        page()->deviceMotionController()->resumeEventsForAllListeners(domWindow());
-    if (page()->deviceOrientationController())
-        page()->deviceOrientationController()->resumeEventsForAllListeners(domWindow());
+    if (DeviceMotionController* controller = DeviceMotionController::from(page()))
+        controller->resumeEventsForAllListeners(domWindow());
+    if (DeviceOrientationController* controller = DeviceOrientationController::from(page()))
+        controller->resumeEventsForAllListeners(domWindow());
 #endif
 }
 
@@ -2231,6 +2267,15 @@ void Document::implicitClose()
 
     ImageLoader::dispatchPendingBeforeLoadEvents();
     ImageLoader::dispatchPendingLoadEvents();
+
+#if ENABLE(SVG)
+    // To align the HTML load event and the SVGLoad event for the outermost <svg> element, fire it from
+    // here, instead of doing it from SVGElement::finishedParsingChildren (if externalResourcesRequired="false",
+    // which is the default, for ='true' its fired at a later time, once all external resources finished loading).
+    if (svgExtensions())
+        accessSVGExtensions()->dispatchSVGLoadEventToOutermostSVGElements();
+#endif
+
     dispatchWindowLoadEvent();
     enqueuePageshowEvent(PageshowEventNotPersisted);
     enqueuePopstateEvent(m_pendingStateObject ? m_pendingStateObject.release() : SerializedScriptValue::nullValue());
@@ -2300,9 +2345,6 @@ void Document::implicitClose()
 #endif
 
 #if ENABLE(SVG)
-    // FIXME: Officially, time 0 is when the outermost <svg> receives its
-    // SVGLoad event, but we don't implement those yet.  This is close enough
-    // for now.  In some cases we should have fired earlier.
     if (svgExtensions())
         accessSVGExtensions()->startAnimations();
 #endif
@@ -2768,11 +2810,13 @@ void Document::processViewport(const String& features)
     m_viewportArguments = ViewportArguments(ViewportArguments::ViewportMeta);
     processArguments(features, (void*)&m_viewportArguments, &setViewportFeature);
 
-    Frame* frame = this->frame();
-    if (!frame || !frame->page())
-        return;
+    updateViewportArguments();
+}
 
-    frame->page()->updateViewportArguments();
+void Document::updateViewportArguments()
+{
+    if (page() && page()->mainFrame() == frame())
+        page()->chrome()->dispatchViewportPropertiesDidChange(m_viewportArguments);
 }
 
 void Document::processReferrerPolicy(const String& policy)
@@ -2818,7 +2862,6 @@ bool Document::childTypeAllowed(NodeType type) const
     case NOTATION_NODE:
     case TEXT_NODE:
     case XPATH_NAMESPACE_NODE:
-    case SHADOW_ROOT_NODE:
         return false;
     case COMMENT_NODE:
     case PROCESSING_INSTRUCTION_NODE:
@@ -2888,9 +2931,6 @@ bool Document::canReplaceChild(Node* newChild, Node* oldChild)
             case ELEMENT_NODE:
                 numElements++;
                 break;
-            case SHADOW_ROOT_NODE:
-                ASSERT_NOT_REACHED();
-                return false;
             }
         }
     } else {
@@ -2904,7 +2944,6 @@ bool Document::canReplaceChild(Node* newChild, Node* oldChild)
         case NOTATION_NODE:
         case TEXT_NODE:
         case XPATH_NAMESPACE_NODE:
-        case SHADOW_ROOT_NODE:
             return false;
         case COMMENT_NODE:
         case PROCESSING_INSTRUCTION_NODE:
@@ -3433,6 +3472,13 @@ bool Document::setFocusedNode(PassRefPtr<Node> prpNewFocusedNode)
         }
 
         m_focusedNode->dispatchFocusInEvent(eventNames().focusinEvent, oldFocusedNode); // DOM level 3 bubbling focus event.
+
+        if (m_focusedNode != newFocusedNode) {
+            // handler shifted focus
+            focusChangeBlocked = true;
+            goto SetFocusedNodeDone;
+        }
+
         // FIXME: We should remove firing DOMFocusInEvent event when we are sure no content depends
         // on it, probably when <rdar://problem/8503958> is m.
         m_focusedNode->dispatchFocusInEvent(eventNames().DOMFocusInEvent, oldFocusedNode); // DOM level 2 for compatibility.
@@ -4000,17 +4046,22 @@ void Document::setDecoder(PassRefPtr<TextResourceDecoder> decoder)
     m_decoder = decoder;
 }
 
-KURL Document::completeURL(const String& url) const
+KURL Document::completeURL(const String& url, const KURL& baseURLOverride) const
 {
     // Always return a null URL when passed a null string.
     // FIXME: Should we change the KURL constructor to have this behavior?
     // See also [CSS]StyleSheet::completeURL(const String&)
     if (url.isNull())
         return KURL();
-    const KURL& baseURL = ((m_baseURL.isEmpty() || m_baseURL == blankURL()) && parentDocument()) ? parentDocument()->baseURL() : m_baseURL;
+    const KURL& baseURL = ((baseURLOverride.isEmpty() || baseURLOverride == blankURL()) && parentDocument()) ? parentDocument()->baseURL() : baseURLOverride;
     if (!m_decoder)
         return KURL(baseURL, url);
     return KURL(baseURL, url, m_decoder->encoding());
+}
+
+KURL Document::completeURL(const String& url) const
+{
+    return completeURL(url, m_baseURL);
 }
 
 void Document::setInPageCache(bool flag)
@@ -4037,9 +4088,6 @@ void Document::setInPageCache(bool flag)
         ASSERT(m_renderArena);
         setRenderer(m_savedRenderer);
         m_savedRenderer = 0;
-
-        if (frame() && frame()->page())
-            frame()->page()->updateViewportArguments();
 
         if (childNeedsStyleRecalc())
             scheduleStyleRecalc();
@@ -4081,6 +4129,8 @@ void Document::documentDidResumeFromPageCache()
 
     ASSERT(m_frame);
     m_frame->loader()->client()->dispatchDidBecomeFrameset(isFrameSet());
+
+    updateViewportArguments();
 }
 
 void Document::registerForPageCacheSuspensionCallbacks(Element* e)
@@ -4287,20 +4337,13 @@ PassRefPtr<Attr> Document::createAttributeNS(const String& namespaceURI, const S
         return 0;
 
     QualifiedName qName(prefix, localName, namespaceURI);
-    if (!shouldIgnoreNamespaceChecks && hasPrefixNamespaceMismatch(qName)) {
+
+    if (!shouldIgnoreNamespaceChecks && !hasValidNamespaceForAttributes(qName)) {
         ec = NAMESPACE_ERR;
         return 0;
     }
 
-    // Spec: DOM Level 2 Core: http://www.w3.org/TR/DOM-Level-2-Core/core.html#ID-DocCrAttrNS
-    if (!shouldIgnoreNamespaceChecks && qName.localName() == xmlnsAtom && qName.namespaceURI() != XMLNSNames::xmlnsNamespaceURI) {
-        ec = NAMESPACE_ERR;
-        return 0;
-    }
-
-    // FIXME: Assume this is a mapped attribute, since createAttribute isn't namespace-aware.  There's no harm to XML
-    // documents if we're wrong.
-    return Attr::create(0, this, Attribute::createMapped(qName, StringImpl::empty()));
+    return Attr::create(0, this, Attribute::create(qName, StringImpl::empty()));
 }
 
 #if ENABLE(SVG)
@@ -4934,6 +4977,8 @@ void Document::windowScreenDidChange(PlatformDisplayID displayID)
 #if ENABLE(REQUEST_ANIMATION_FRAME)
     if (m_scriptedAnimationController)
         m_scriptedAnimationController->windowScreenDidChange(displayID);
+#else
+    UNUSED_PARAM(displayID);
 #endif
 }
 
@@ -5323,12 +5368,35 @@ PassRefPtr<TouchList> Document::createTouchList(ExceptionCode&) const
 }
 #endif
 
+static void wheelEventHandlerCountChanged(Document* document)
+{
+#if ENABLE(THREADED_SCROLLING)
+    Page* page = document->page();
+    if (!page)
+        return;
+
+    ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator();
+    if (!scrollingCoordinator)
+        return;
+
+    FrameView* frameView = document->view();
+    if (!frameView)
+        return;
+
+    scrollingCoordinator->frameViewWheelEventHandlerCountChanged(frameView);
+#else
+    UNUSED_PARAM(document);
+#endif
+}
+
 void Document::didAddWheelEventHandler()
 {
     ++m_wheelEventHandlerCount;
     Frame* mainFrame = page() ? page()->mainFrame() : 0;
     if (mainFrame)
         mainFrame->notifyChromeClientWheelEventHandlerCountChanged();
+
+    wheelEventHandlerCountChanged(this);
 }
 
 void Document::didRemoveWheelEventHandler()
@@ -5338,6 +5406,8 @@ void Document::didRemoveWheelEventHandler()
     Frame* mainFrame = page() ? page()->mainFrame() : 0;
     if (mainFrame)
         mainFrame->notifyChromeClientWheelEventHandlerCountChanged();
+
+    wheelEventHandlerCountChanged(this);
 }
 
 bool Document::visualUpdatesAllowed() const

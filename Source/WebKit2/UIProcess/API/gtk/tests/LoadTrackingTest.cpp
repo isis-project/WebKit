@@ -110,8 +110,6 @@ void LoadTrackingTest::provisionalLoadReceivedServerRedirect()
 void LoadTrackingTest::provisionalLoadFailed(const gchar* failingURI, GError* error)
 {
     m_loadEvents.append(ProvisionalLoadFailed);
-    if (m_runLoadUntilCompletion)
-        g_main_loop_quit(m_mainLoop);
 }
 
 void LoadTrackingTest::loadCommitted()
@@ -138,3 +136,37 @@ void LoadTrackingTest::estimatedProgressChanged()
     m_estimatedProgress = progress;
 }
 
+void LoadTrackingTest::loadURI(const char* uri)
+{
+    m_loadEvents.clear();
+    m_estimatedProgress = 0;
+    WebViewTest::loadURI(uri);
+}
+
+void LoadTrackingTest::loadHtml(const char* html, const char* baseURI)
+{
+    m_loadEvents.clear();
+    m_estimatedProgress = 0;
+    WebViewTest::loadHtml(html, baseURI);
+}
+
+void LoadTrackingTest::loadPlainText(const char* plainText)
+{
+    m_loadEvents.clear();
+    m_estimatedProgress = 0;
+    WebViewTest::loadPlainText(plainText);
+}
+
+void LoadTrackingTest::loadRequest(WebKitURIRequest* request)
+{
+    m_loadEvents.clear();
+    m_estimatedProgress = 0;
+    WebViewTest::loadRequest(request);
+}
+
+void LoadTrackingTest::reload()
+{
+    m_loadEvents.clear();
+    m_estimatedProgress = 0;
+    webkit_web_view_reload(m_webView);
+}

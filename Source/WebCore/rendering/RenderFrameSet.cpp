@@ -80,9 +80,9 @@ static Color borderFillColor()
     return Color(208, 208, 208);
 }
 
-void RenderFrameSet::paintColumnBorder(const PaintInfo& paintInfo, const IntRect& borderRect)
+void RenderFrameSet::paintColumnBorder(const PaintInfo& paintInfo, const LayoutRect& borderRect)
 {
-    if (!paintInfo.rect.intersects(borderRect))
+    if (!paintInfo.rect.intersects(pixelSnappedIntRect(borderRect)))
         return;
         
     // FIXME: We should do something clever when borders from distinct framesets meet at a join.
@@ -100,9 +100,9 @@ void RenderFrameSet::paintColumnBorder(const PaintInfo& paintInfo, const IntRect
     }
 }
 
-void RenderFrameSet::paintRowBorder(const PaintInfo& paintInfo, const IntRect& borderRect)
+void RenderFrameSet::paintRowBorder(const PaintInfo& paintInfo, const LayoutRect& borderRect)
 {
-    if (!paintInfo.rect.intersects(borderRect))
+    if (!paintInfo.rect.intersects(pixelSnappedIntRect(borderRect)))
         return;
 
     // FIXME: We should do something clever when borders from distinct framesets meet at a join.
@@ -167,7 +167,7 @@ bool RenderFrameSet::nodeAtPoint(const HitTestRequest& request, HitTestResult& r
         || m_isResizing;
 
     if (inside && frameSet()->noResize()
-            && !request.readOnly() && !result.innerNode()) {
+            && !request.readOnly() && !result.innerNode() && !request.touchMove()) {
         result.setInnerNode(node());
         result.setInnerNonSharedNode(node());
     }
@@ -571,7 +571,7 @@ void RenderFrameSet::positionFramesWithFlattening()
         int height = m_rows.m_sizes[r];
 
         for (int c = 0; c < cols; c++) {
-            IntRect oldFrameRect = child->frameRect();
+            IntRect oldFrameRect = pixelSnappedIntRect(child->frameRect());
 
             int width = m_cols.m_sizes[c];
 
@@ -619,7 +619,7 @@ void RenderFrameSet::positionFramesWithFlattening()
         xPos = 0;
         for (int c = 0; c < cols; c++) {
             // ensure the rows and columns are filled
-            IntRect oldRect = child->frameRect();
+            IntRect oldRect = pixelSnappedIntRect(child->frameRect());
 
             child->setLocation(IntPoint(xPos, yPos));
             child->setHeight(m_rows.m_sizes[r]);
@@ -802,7 +802,7 @@ bool RenderFrameSet::isChildAllowed(RenderObject* child, RenderStyle*) const
 
 CursorDirective RenderFrameSet::getCursor(const LayoutPoint& point, Cursor& cursor) const
 {
-    if (canResizeRow(point)) {
+    if (canResizeRow(roundedIntPoint(point))) {
         cursor = rowResizeCursor();
         return SetCursor;
     }

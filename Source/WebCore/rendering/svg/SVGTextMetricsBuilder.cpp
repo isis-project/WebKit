@@ -25,7 +25,6 @@
 #include "RenderSVGInlineText.h"
 #include "RenderSVGText.h"
 #include "SVGTextRunRenderingContext.h"
-#include "WidthIterator.h"
 
 namespace WebCore {
 
@@ -145,7 +144,7 @@ void SVGTextMetricsBuilder::measureTextRenderer(RenderSVGInlineText* text, Measu
 {
     ASSERT(text);
 
-    SVGTextLayoutAttributes* attributes = &text->layoutAttributes();
+    SVGTextLayoutAttributes* attributes = text->layoutAttributes();
     Vector<SVGTextMetrics>* textMetricsValues = &attributes->textMetricsValues();
     if (data->processRenderer) {
         if (data->allCharactersMap)
@@ -170,11 +169,8 @@ void SVGTextMetricsBuilder::measureTextRenderer(RenderSVGInlineText* text, Measu
         if (data->processRenderer) {
             if (data->allCharactersMap) {
                 const SVGCharacterDataMap::const_iterator it = data->allCharactersMap->find(data->valueListPosition + m_textPosition - data->skippedCharacters + 1);
-                if (it != data->allCharactersMap->end()) {
-                    // FIXME: Yes this is nonsense for now. This will use attributes->characterDataMap(), as soon as its available, in a follow-up commit.
-                    SVGCharacterDataMap map;
-                    map.set(m_textPosition + 1, it->second);
-                }
+                if (it != data->allCharactersMap->end())
+                    attributes->characterDataMap().set(m_textPosition + 1, it->second);
             }
             textMetricsValues->append(m_currentMetrics);
         }

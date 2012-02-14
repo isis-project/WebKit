@@ -30,23 +30,17 @@
 
 import errno
 import socket
-
 import sys
 import time
 import unittest
 
-# Handle Python < 2.6 where multiprocessing isn't available.
-try:
-    import multiprocessing
-except ImportError:
-    multiprocessing = None
-
-from webkitpy.layout_tests.servers import http_server_base
-
 from webkitpy.common.system.filesystem_mock import MockFileSystem
-from webkitpy.tool.mocktool import MockOptions
 from webkitpy.common.system.executive_mock import MockExecutive
 from webkitpy.common.system.systemhost_mock import MockSystemHost
+from webkitpy.layout_tests.servers import http_server_base
+from webkitpy.layout_tests.servers import http_server_base
+from webkitpy.layout_tests.port import factory
+from webkitpy.tool.mocktool import MockOptions
 
 
 class PortTestCase(unittest.TestCase):
@@ -58,18 +52,18 @@ class PortTestCase(unittest.TestCase):
     os_name = None
     os_version = None
     port_maker = None
+    expected_default_worker_model = 'processes'
 
-    def make_port(self, host=None, options=None, os_name=None, os_version=None, **kwargs):
+    def make_port(self, host=None, port_name=None, options=None, os_name=None, os_version=None, **kwargs):
         host = host or MockSystemHost(os_name=(os_name or self.os_name), os_version=(os_version or self.os_version))
         options = options or MockOptions(configuration='Release')
-        return self.port_maker(host, options=options, **kwargs)
+        port_name = port_name or self.port_name
+        port_name = self.port_maker.determine_full_port_name(host, options, port_name)
+        return self.port_maker(host, port_name, options=options, **kwargs)
 
     def test_default_worker_model(self):
         port = self.make_port()
-        if multiprocessing:
-            self.assertEqual(port.default_worker_model(), 'processes')
-        else:
-            self.assertEqual(port.default_worker_model(), 'inline')
+        self.assertEqual(port.default_worker_model(), self.expected_default_worker_model)
 
     def test_driver_cmd_line(self):
         port = self.make_port()

@@ -283,7 +283,7 @@ void WebPageSerializerImpl::encodeAndFlushBuffer(
         return;
 
     String content = m_dataBuffer.toString();
-    m_dataBuffer = StringBuilder();
+    m_dataBuffer.clear();
 
     // Convert the unicode content to target encoding
     CString encodedContent = param->textEncoding.encode(
@@ -307,13 +307,12 @@ void WebPageSerializerImpl::openTagToString(Element* element,
     // Add open tag
     result += "<" + element->nodeName().lower();
     // Go through all attributes and serialize them.
-    const NamedNodeMap *attrMap = element->attributes(true);
-    if (attrMap) {
-        unsigned numAttrs = attrMap->length();
+    if (element->hasAttributes()) {
+        unsigned numAttrs = element->attributeCount();
         for (unsigned i = 0; i < numAttrs; i++) {
             result += " ";
             // Add attribute pair
-            const Attribute *attribute = attrMap->attributeItem(i);
+            const Attribute *attribute = element->attributeItem(i);
             result += attribute->name().toString();
             result += "=\"";
             if (!attribute->value().isEmpty()) {
@@ -418,7 +417,6 @@ void WebPageSerializerImpl::buildContentForNode(Node* node,
     case Node::ATTRIBUTE_NODE:
     case Node::DOCUMENT_NODE:
     case Node::DOCUMENT_FRAGMENT_NODE:
-    case Node::SHADOW_ROOT_NODE:
         // Should not exist.
         ASSERT_NOT_REACHED();
         break;

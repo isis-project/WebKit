@@ -48,30 +48,26 @@ PassRefPtr<HTMLBRElement> HTMLBRElement::create(const QualifiedName& tagName, Do
     return adoptRef(new HTMLBRElement(tagName, document));
 }
 
-bool HTMLBRElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
+bool HTMLBRElement::isPresentationAttribute(Attribute* attr) const
 {
-    if (attrName == clearAttr) {
-        result = eUniversal;
-        return false;
-    }
-    
-    return HTMLElement::mapToEntry(attrName, result);
+    if (attr->name() == clearAttr)
+        return true;
+    return HTMLElement::isPresentationAttribute(attr);
 }
 
-void HTMLBRElement::parseMappedAttribute(Attribute* attr)
+void HTMLBRElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == clearAttr) {
-        // If the string is empty, then don't add the clear property. 
+        // If the string is empty, then don't add the clear property.
         // <br clear> and <br clear=""> are just treated like <br> by Gecko, Mac IE, etc. -dwh
-        const AtomicString& str = attr->value();
-        if (!str.isEmpty()) {
-            if (equalIgnoringCase(str, "all"))
-                addCSSProperty(attr, CSSPropertyClear, "both");
+        if (!attr->isEmpty()) {
+            if (equalIgnoringCase(attr->value(), "all"))
+                style->setProperty(CSSPropertyClear, "both");
             else
-                addCSSProperty(attr, CSSPropertyClear, str);
+                style->setProperty(CSSPropertyClear, attr->value());
         }
     } else
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::collectStyleForAttribute(attr, style);
 }
 
 RenderObject* HTMLBRElement::createRenderer(RenderArena* arena, RenderStyle* style)

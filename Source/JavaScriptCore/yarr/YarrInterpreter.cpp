@@ -30,6 +30,7 @@
 #include "UString.h"
 #include "Yarr.h"
 #include <wtf/BumpPointerAllocator.h>
+#include <wtf/DataLog.h>
 #include <wtf/text/CString.h>
 
 #ifndef NDEBUG
@@ -565,7 +566,10 @@ public:
         if (matchEnd == -1)
             return true;
 
-        ASSERT((matchBegin == -1) || (matchBegin <= matchEnd));
+        if (matchBegin == -1)
+            return true;
+
+        ASSERT(matchBegin <= matchEnd);
 
         if (matchBegin == matchEnd)
             return true;
@@ -607,7 +611,11 @@ public:
 
         int matchBegin = output[(term.atom.subpatternId << 1)];
         int matchEnd = output[(term.atom.subpatternId << 1) + 1];
-        ASSERT((matchBegin == -1) || (matchBegin <= matchEnd));
+
+        if (matchBegin == -1)
+            return false;
+
+        ASSERT(matchBegin <= matchEnd);
 
         if (matchBegin == matchEnd)
             return false;
@@ -1443,12 +1451,15 @@ public:
 
     int interpret()
     {
+        if (input.isNotAvailableInput(0))
+            return -1;
+
+        for (unsigned i = 0; i < pattern->m_body->m_numSubpatterns + 1; ++i)
+            output[i << 1] = -1;
+
         allocatorPool = pattern->m_allocator->startAllocator();
         if (!allocatorPool)
             CRASH();
-
-        for (unsigned i = 0; i < ((pattern->m_body->m_numSubpatterns + 1) << 1); ++i)
-            output[i] = -1;
 
         DisjunctionContext* context = allocDisjunctionContext(pattern->m_body.get());
 
@@ -1462,7 +1473,6 @@ public:
 
         pattern->m_allocator->stopAllocator();
 
-        // RegExp.cpp currently expects all error to be converted to -1.
         ASSERT((result == JSRegExpMatch) == (output[0] != -1));
         return output[0];
     }
@@ -1673,10 +1683,10 @@ public:
 #ifndef NDEBUG
     void dumpDisjunction(ByteDisjunction* disjunction)
     {
-        printf("ByteDisjunction(%p):\n\t", disjunction);
+        dataLog("ByteDisjunction(%p):\n\t", disjunction);
         for (unsigned i = 0; i < disjunction->terms.size(); ++i)
-            printf("{ %d } ", disjunction->terms[i].type);
-        printf("\n");
+            dataLog("{ %d } ", disjunction->terms[i].type);
+        dataLog("\n");
     }
 #endif
 

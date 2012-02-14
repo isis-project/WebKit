@@ -70,9 +70,6 @@
 
 #if USE(ACCELERATED_COMPOSITING)
 #include "RenderLayerCompositor.h"
-#if PLATFORM(CHROMIUM)
-#include "TraceEvent.h"
-#endif
 #endif
 
 #if ENABLE(SVG)
@@ -131,9 +128,6 @@ FrameView::FrameView(Frame* frame)
     , m_fixedObjectCount(0)
     , m_layoutTimer(this, &FrameView::layoutTimerFired)
     , m_layoutRoot(0)
-#if ENABLE(SVG)
-    , m_inLayoutParentView(false)
-#endif
     , m_inSynchronousPostLayout(false)
     , m_postLayoutTasksTimer(this, &FrameView::postLayoutTimerFired)
     , m_isTransparent(false)
@@ -155,16 +149,17 @@ FrameView::FrameView(Frame* frame)
 {
     init();
 
-    if (m_frame) {
-        if (Page* page = m_frame->page()) {
-            m_page = page;
-            m_page->addScrollableArea(this);
+    // FIXME: Can m_frame ever be null here?
+    if (!m_frame)
+        return;
 
-            if (m_frame == m_page->mainFrame()) {
-                ScrollableArea::setVerticalScrollElasticity(ScrollElasticityAllowed);
-                ScrollableArea::setHorizontalScrollElasticity(ScrollElasticityAllowed);
-            }
-        }
+    Page* page = m_frame->page();
+    if (!page)
+        return;
+
+    if (m_frame == page->mainFrame()) {
+        ScrollableArea::setVerticalScrollElasticity(ScrollElasticityAllowed);
+        ScrollableArea::setHorizontalScrollElasticity(ScrollElasticityAllowed);
     }
 }
 
@@ -205,9 +200,6 @@ FrameView::~FrameView()
     ASSERT(!m_scrollCorner);
     ASSERT(m_actionScheduler->isEmpty());
 
-    if (m_page)
-        m_page->removeScrollableArea(this);
-
     if (m_frame) {
         ASSERT(m_frame->view() != this || !m_frame->contentRenderer());
         RenderPart* renderer = m_frame->ownerRenderer();
@@ -221,7 +213,6 @@ void FrameView::reset()
     m_cannotBlitToWindow = false;
     m_isOverlapped = false;
     m_contentIsOpaque = false;
-    m_shouldLayoutFixedElementsRelativeToFrame = false;
     m_borderX = 30;
     m_borderY = 30;
     m_layoutTimer.stop();
@@ -327,27 +318,19 @@ void FrameView::detachCustomScrollbars()
     }
 }
 
-void FrameView::didAddHorizontalScrollbar(Scrollbar* scrollbar)
-{
-    if (m_frame && m_frame->document())
-        m_frame->document()->didAddWheelEventHandler();
-    ScrollView::didAddHorizontalScrollbar(scrollbar);
-}
-
-void FrameView::willRemoveHorizontalScrollbar(Scrollbar* scrollbar)
-{
-    ScrollView::willRemoveHorizontalScrollbar(scrollbar);
-    // FIXME: maybe need a separate ScrollableArea::didRemoveHorizontalScrollbar callback?
-    if (m_frame && m_frame->document())
-        m_frame->document()->didRemoveWheelEventHandler();
-}
-
 void FrameView::recalculateScrollbarOverlayStyle()
 {
     ScrollbarOverlayStyle oldOverlayStyle = scrollbarOverlayStyle();
     ScrollbarOverlayStyle overlayStyle = ScrollbarOverlayStyleDefault;
 
     Color backgroundColor = documentBackgroundColor();
+#if USE(ACCELERATED_COMPOSITING)
+    if (RenderView* root = rootRenderer(this)) {
+        RenderLayerCompositor* compositor = root->compositor();
+        compositor->documentBackgroundColorDidChange();
+    }
+#endif
+
     if (backgroundColor.isValid()) {
         // Reduce the background color from RGB to a lightness value
         // and determine which scrollbar style to use based on a lightness
@@ -745,7 +728,7 @@ bool FrameView::syncCompositingStateForThisFrame(Frame* rootFrameForSync)
     root->compositor()->flushPendingLayerChanges(rootFrameForSync == m_frame);
 
 #if ENABLE(FULLSCREEN_API)
-    // The fullScreenRenderer's graphicsLayer  has been re-parented, and the above recursive syncCompositingState
+    // The fullScreenRenderer's graphicsLayer has been re-parented, and the above recursive syncCompositingState
     // call will not cause the subtree under it to repaint.  Explicitly call the syncCompositingState on 
     // the fullScreenRenderer's graphicsLayer here:
     Document* document = m_frame->document();
@@ -900,9 +883,6 @@ static inline void collectFrameViewChildren(FrameView* frameView, Vector<RefPtr<
 inline void FrameView::forceLayoutParentViewIfNeeded()
 {
 #if ENABLE(SVG)
-    if (m_inLayoutParentView)
-        return;
-
     RenderPart* ownerRenderer = m_frame->ownerRenderer();
     if (!ownerRenderer || !ownerRenderer->frame())
         return;
@@ -912,28 +892,22 @@ inline void FrameView::forceLayoutParentViewIfNeeded()
         return;
 
     RenderSVGRoot* svgRoot = toRenderSVGRoot(contentBox);
-    if (!svgRoot->needsSizeNegotiationWithHostDocument())
+    if (svgRoot->everHadLayout() && !svgRoot->needsLayout())
         return;
 
-    ASSERT(!m_inLayoutParentView);
-    TemporaryChange<bool> resetInLayoutParentView(m_inLayoutParentView, true);
-
-    // Clear needs-size-negotiation flag in RenderSVGRoot, so the next call to our
-    // layout() method won't fire the size negotiation logic again.
-    svgRoot->scheduledSizeNegotiationWithHostDocument();
-    ASSERT(!svgRoot->needsSizeNegotiationWithHostDocument());
+    // If the embedded SVG document appears the first time, the ownerRenderer has already finished
+    // layout without knowing about the existence of the embedded SVG document, because RenderReplaced
+    // embeddedContentBox() returns 0, as long as the embedded document isn't loaded yet. Before
+    // bothering to lay out the SVG document, mark the ownerRenderer needing layout and ask its
+    // FrameView for a layout. After that the RenderEmbeddedObject (ownerRenderer) carries the
+    // correct size, which RenderSVGRoot::computeReplacedLogicalWidth/Height rely on, when laying
+    // out for the first time, or when the RenderSVGRoot size has changed dynamically (eg. via <script>).
+    RefPtr<FrameView> frameView = ownerRenderer->frame()->view();
 
     // Mark the owner renderer as needing layout.
     ownerRenderer->setNeedsLayoutAndPrefWidthsRecalc();
 
-    // Immediately relayout the child widgets, which can now calculate the SVG documents
-    // intrinsic size, negotiating with the parent object/embed/iframe.
-    RenderView* rootView = ownerRenderer->frame()->contentRenderer();
-    ASSERT(rootView);
-    rootView->updateWidgetPositions();
-
     // Synchronously enter layout, to layout the view containing the host object/embed/iframe.
-    FrameView* frameView = ownerRenderer->frame()->view();
     ASSERT(frameView);
     frameView->layout();
 #endif
@@ -1072,7 +1046,7 @@ void FrameView::layout(bool allowSubtree)
 
                     m_firstLayout = false;
                     m_firstLayoutCallbackPending = true;
-                    m_lastLayoutSize = LayoutSize(width(), height());
+                    m_lastLayoutSize = LayoutSize(layoutWidth(), layoutHeight());
                     m_lastZoomFactor = root->style()->zoom();
 
                     // Set the initial vMode to AlwaysOn if we're auto.
@@ -1120,6 +1094,7 @@ void FrameView::layout(bool allowSubtree)
 
             m_inLayout = true;
             beginDeferredRepaints();
+            forceLayoutParentViewIfNeeded();
             root->layout();
             endDeferredRepaints();
             m_inLayout = false;
@@ -1207,7 +1182,6 @@ void FrameView::layout(bool allowSubtree)
         return;
 
     page->chrome()->client()->layoutUpdated(frame());
-    forceLayoutParentViewIfNeeded();
 }
 
 RenderBox* FrameView::embeddedContentBox() const
@@ -1250,26 +1224,6 @@ void FrameView::removeWidgetToUpdate(RenderEmbeddedObject* object)
         return;
 
     m_widgetUpdateSet->remove(object);
-}
-
-void FrameView::zoomAnimatorTransformChanged(float scale, float x, float y, ZoomAnimationState state)
-{
-    if (state == ZoomAnimationFinishing) {
-        m_page->setPageScaleFactor(m_page->pageScaleFactor() * scale,
-                                   IntPoint(scale * scrollX() - x, scale * scrollY() - y));
-        scrollAnimator()->resetZoom();
-    }
-
-#if USE(ACCELERATED_COMPOSITING)
-    if (RenderView* root = rootRenderer(this)) {
-        if (root->usesCompositing()) {
-            root->compositor()->scheduleLayerFlush();
-#if PLATFORM(CHROMIUM)
-            TRACE_EVENT("FrameView::zoomAnimatorTransformChanged", this, 0);
-#endif
-        }
-    }
-#endif
 }
 
 void FrameView::setMediaType(const String& mediaType)
@@ -1358,32 +1312,66 @@ void FrameView::setCannotBlitToWindow()
 
 void FrameView::addSlowRepaintObject()
 {
-    if (!m_slowRepaintObjectCount)
+    if (!m_slowRepaintObjectCount++) {
         updateCanBlitOnScrollRecursively();
-    m_slowRepaintObjectCount++;
+
+#if ENABLE(THREADED_SCROLLING)
+        if (Page* page = m_frame->page()) {
+            if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
+                scrollingCoordinator->frameViewHasSlowRepaintObjectsDidChange(this);
+        }
+#endif
+    }
 }
 
 void FrameView::removeSlowRepaintObject()
 {
     ASSERT(m_slowRepaintObjectCount > 0);
     m_slowRepaintObjectCount--;
-    if (!m_slowRepaintObjectCount)
+    if (!m_slowRepaintObjectCount) {
         updateCanBlitOnScrollRecursively();
+
+#if ENABLE(THREADED_SCROLLING)
+        if (Page* page = m_frame->page()) {
+            if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
+                scrollingCoordinator->frameViewHasSlowRepaintObjectsDidChange(this);
+        }
+#endif
+    }
 }
 
 void FrameView::addFixedObject()
 {
-    if (!m_fixedObjectCount && platformWidget())
-        updateCanBlitOnScrollRecursively();
-    ++m_fixedObjectCount;
+    if (!m_fixedObjectCount++) {
+        if (platformWidget())
+            updateCanBlitOnScrollRecursively();
+
+#if ENABLE(THREADED_SCROLLING)
+        if (Page* page = m_frame->page()) {
+            if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
+                scrollingCoordinator->frameViewHasFixedObjectsDidChange(this);
+        }
+#endif
+    }
 }
 
 void FrameView::removeFixedObject()
 {
     ASSERT(m_fixedObjectCount > 0);
     --m_fixedObjectCount;
-    if (!m_fixedObjectCount)
+
+    if (!m_fixedObjectCount) {
+#if ENABLE(THREADED_SCROLLING)
+        if (Page* page = m_frame->page()) {
+            if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
+                scrollingCoordinator->frameViewHasFixedObjectsDidChange(this);
+        }
+#endif
+
+        // FIXME: In addFixedObject() we only call this if there's a platform widget,
+        // why isn't the same check being made here?
         updateCanBlitOnScrollRecursively();
+    }
 }
 
 int FrameView::scrollXForFixedPosition() const
@@ -1416,7 +1404,7 @@ int FrameView::scrollXForFixedPosition() const
     // When the page is scaled, the scaled "viewport" with respect to which fixed object are positioned
     // doesn't move as fast as the content view, so that when the content is scrolled all the way to the
     // end, the bottom of the scaled "viewport" touches the bottom of the real viewport.
-    float dragFactor = shouldLayoutFixedElementsRelativeToFrame() ? 1 : (contentsWidth() - visibleContentWidth * frameScaleFactor) / maxX;
+    float dragFactor = fixedElementsLayoutRelativeToFrame() ? 1 : (contentsWidth() - visibleContentWidth * frameScaleFactor) / maxX;
 
     return x * dragFactor / frameScaleFactor;
 }
@@ -1447,7 +1435,7 @@ int FrameView::scrollYForFixedPosition() const
         return y;
 
     float frameScaleFactor = m_frame->frameScaleFactor();
-    float dragFactor = shouldLayoutFixedElementsRelativeToFrame() ? 1 : (contentsHeight() - visibleContentHeight * frameScaleFactor) / maxY;
+    float dragFactor = fixedElementsLayoutRelativeToFrame() ? 1 : (contentsHeight() - visibleContentHeight * frameScaleFactor) / maxY;
     return y * dragFactor / frameScaleFactor;
 }
 
@@ -1456,18 +1444,15 @@ IntSize FrameView::scrollOffsetForFixedPosition() const
     return IntSize(scrollXForFixedPosition(), scrollYForFixedPosition());
 }
 
-void FrameView::setShouldLayoutFixedElementsRelativeToFrame(bool shouldLayoutFixedElementsRelativeToFrame)
+bool FrameView::fixedElementsLayoutRelativeToFrame() const
 {
-    if (shouldLayoutFixedElementsRelativeToFrame == m_shouldLayoutFixedElementsRelativeToFrame)
-        return;
+    ASSERT(m_frame);
+    if (!m_frame->settings())
+        return false;
 
-    m_shouldLayoutFixedElementsRelativeToFrame = shouldLayoutFixedElementsRelativeToFrame;
-
-    if (!hasFixedObjects())
-        return;
-
-    setNeedsLayout();
+    return m_frame->settings()->fixedElementsLayoutRelativeToFrame();
 }
+
 IntPoint FrameView::currentMousePosition() const
 {
     return m_frame ? m_frame->eventHandler()->currentMousePosition() : IntPoint();
@@ -1496,6 +1481,10 @@ bool FrameView::scrollContentsFastPath(const IntSize& scrollDelta, const IntRect
         RenderBox* renderBox = *it;
         if (renderBox->style()->position() != FixedPosition)
             continue;
+#if USE(ACCELERATED_COMPOSITING)
+        if (renderBox->layer()->isComposited())
+            continue;
+#endif
         IntRect updateRect = renderBox->layer()->repaintRectIncludingDescendants();
         updateRect = contentsToRootView(updateRect);
         if (!isCompositedContentLayer && clipsRepaints())
@@ -1714,6 +1703,14 @@ void FrameView::setScrollPosition(const IntPoint& scrollPoint)
     ScrollView::setScrollPosition(scrollPoint);
 }
 
+void FrameView::delegatesScrollingDidChange()
+{
+#if USE(ACCELERATED_COMPOSITING)
+    // When we switch to delgatesScrolling mode, we should destroy the scrolling/clipping layers in RenderLayerCompositor.
+    clearBackingStores();
+#endif
+}
+
 void FrameView::setFixedVisibleContentRect(const IntRect& visibleContentRect)
 {
     IntSize offset = scrollOffset();
@@ -1737,7 +1734,7 @@ void FrameView::scrollPositionChanged()
 #if USE(ACCELERATED_COMPOSITING)
     if (RenderView* root = rootRenderer(this)) {
         if (root->usesCompositing())
-            root->compositor()->frameViewDidScroll(scrollPosition());
+            root->compositor()->frameViewDidScroll();
     }
 #endif
 }
@@ -1763,6 +1760,20 @@ bool FrameView::shouldRubberBandInDirection(ScrollDirection direction) const
     if (!page)
         return ScrollView::shouldRubberBandInDirection(direction);
     return page->chrome()->client()->shouldRubberBandInDirection(direction);
+}
+
+bool FrameView::requestScrollPositionUpdate(const IntPoint& position)
+{
+#if ENABLE(THREADED_SCROLLING)
+    if (Page* page = m_frame->page()) {
+        if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
+            return scrollingCoordinator->requestScrollPositionUpdate(this, position);
+    }
+#else
+    UNUSED_PARAM(position);
+#endif
+
+    return false;
 }
 
 HostWindow* FrameView::hostWindow() const
@@ -1795,7 +1806,7 @@ void FrameView::repaintContentRectangle(const IntRect& r, bool immediate)
         if (m_repaintCount == cRepaintRectUnionThreshold) {
             IntRect unionedRect;
             for (unsigned i = 0; i < cRepaintRectUnionThreshold; ++i)
-                unionedRect.unite(m_repaintRects[i]);
+                unionedRect.unite(pixelSnappedIntRect(m_repaintRects[i]));
             m_repaintRects.clear();
             m_repaintRects.append(unionedRect);
         }
@@ -1910,11 +1921,11 @@ void FrameView::doDeferredRepaints()
     for (unsigned i = 0; i < size; i++) {
 #if USE(TILED_BACKING_STORE)
         if (frame()->tiledBackingStore()) {
-            frame()->tiledBackingStore()->invalidate(m_repaintRects[i]);
+            frame()->tiledBackingStore()->invalidate(pixelSnappedIntRect(m_repaintRects[i]));
             continue;
         }
 #endif
-        ScrollView::repaintContentRectangle(m_repaintRects[i], false);
+        ScrollView::repaintContentRectangle(pixelSnappedIntRect(m_repaintRects[i]), false);
     }
     m_repaintRects.clear();
     m_repaintCount = 0;
@@ -2105,8 +2116,11 @@ void FrameView::unscheduleRelayout()
 #if ENABLE(REQUEST_ANIMATION_FRAME)
 void FrameView::serviceScriptedAnimations(DOMTimeStamp time)
 {
-    Vector<RefPtr<Document> > documents;
+    Vector<AnimationController*> animations;
+    for (Frame* frame = m_frame.get(); frame; frame = frame->tree()->traverseNext())
+        frame->animation()->serviceAnimations();
 
+    Vector<RefPtr<Document> > documents;
     for (Frame* frame = m_frame.get(); frame; frame = frame->tree()->traverseNext())
         documents.append(frame->document());
 
@@ -2288,6 +2302,10 @@ void FrameView::performPostLayoutTasks()
         if (m_firstLayoutCallbackPending) {
             m_firstLayoutCallbackPending = false;
             m_frame->loader()->didFirstLayout();
+            if (Page* page = m_frame->page()) {
+                if (page->mainFrame() == m_frame)
+                    page->startCountingRelevantRepaintedObjects();
+            }
         }
 
         // Ensure that we always send this eventually.
@@ -2311,12 +2329,19 @@ void FrameView::performPostLayoutTasks()
             break;
     }
 
+#if ENABLE(THREADED_SCROLLING)
+    if (Page* page = m_frame->page()) {
+        if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
+            scrollingCoordinator->frameViewLayoutUpdated(this);
+    }
+#endif
+
     scrollToAnchor();
 
     m_actionScheduler->resume();
 
     if (!root->printing()) {
-        LayoutSize currentSize = LayoutSize(width(), height());
+        LayoutSize currentSize = LayoutSize(layoutWidth(), layoutHeight());
         float currentZoomFactor = root->style()->zoom();
         bool resized = !m_firstLayout && (currentSize != m_lastLayoutSize || currentZoomFactor != m_lastZoomFactor);
         m_lastLayoutSize = currentSize;
@@ -2478,9 +2503,9 @@ IntRect FrameView::windowClipRectForLayer(const RenderLayer* layer, bool clipToL
     // Apply the clip from the layer.
     IntRect clipRect;
     if (clipToLayerContents)
-        clipRect = layer->childrenClipRect();
+        clipRect = pixelSnappedIntRect(layer->childrenClipRect());
     else
-        clipRect = layer->selfClipRect();
+        clipRect = pixelSnappedIntRect(layer->selfClipRect());
     clipRect = contentsToWindow(clipRect); 
     return intersection(clipRect, windowClipRect());
 }
@@ -2548,6 +2573,12 @@ ScrollableArea* FrameView::enclosingScrollableArea() const
     return 0;
 }
 
+IntRect FrameView::scrollableAreaBoundingBox() const
+{
+    // FIXME: This isn't correct for transformed frames. We probably need to ask the renderer instead.
+    return frameRect();
+}
+
 bool FrameView::shouldSuspendScrollAnimations() const
 {
     return m_frame->loader()->state() != FrameStateComplete;
@@ -2572,18 +2603,16 @@ void FrameView::setAnimatorsAreActive()
     if (!page)
         return;
 
-    const HashSet<ScrollableArea*>* scrollableAreas = page->scrollableAreaSet();
-    if (!scrollableAreas)
+    scrollAnimator()->setIsActive();
+
+    if (!m_scrollableAreas)
         return;
 
-    HashSet<ScrollableArea*>::const_iterator end = scrollableAreas->end(); 
-    for (HashSet<ScrollableArea*>::const_iterator it = scrollableAreas->begin(); it != end; ++it) {
-        // FIXME: This extra check to make sure the ScrollableArea is on an active page needs 
-        // to be here as long as the ScrollableArea HashSet lives on Page. But it should really be
-        // moved to the top-level Document or a similar class that really represents a single 
-        // web page. https://bugs.webkit.org/show_bug.cgi?id=62762
-        if ((*it)->isOnActivePage())
-            (*it)->scrollAnimator()->setIsActive();
+    for (HashSet<ScrollableArea*>::const_iterator it = m_scrollableAreas->begin(), end = m_scrollableAreas->end(); it != end; ++it) {
+        ScrollableArea* scrollableArea = *it;
+
+        ASSERT(scrollableArea->isOnActivePage());
+        scrollableArea->scrollAnimator()->setIsActive();
     }
 }
 
@@ -2593,21 +2622,28 @@ void FrameView::notifyPageThatContentAreaWillPaint() const
     if (!page)
         return;
 
-    const HashSet<ScrollableArea*>* scrollableAreas = page->scrollableAreaSet();
-    if (!scrollableAreas)
+    contentAreaWillPaint();
+
+    if (!m_scrollableAreas)
         return;
 
-    HashSet<ScrollableArea*>::const_iterator end = scrollableAreas->end(); 
-    for (HashSet<ScrollableArea*>::const_iterator it = scrollableAreas->begin(); it != end; ++it)
-        (*it)->contentAreaWillPaint();
+    for (HashSet<ScrollableArea*>::const_iterator it = m_scrollableAreas->begin(), end = m_scrollableAreas->end(); it != end; ++it) {
+        ScrollableArea* scrollableArea = *it;
+
+        if (!scrollableArea->isOnActivePage())
+            continue;
+
+        scrollableArea->contentAreaWillPaint();
+    }
 }
 
 bool FrameView::scrollAnimatorEnabled() const
 {
 #if ENABLE(SMOOTH_SCROLLING)
-    if (m_page && m_page->settings())
-        return m_page->settings()->scrollAnimatorEnabled();
+    if (Page* page = m_frame->page())
+        return page->settings()->scrollAnimatorEnabled();
 #endif
+
     return false;
 }
 
@@ -2860,7 +2896,7 @@ void FrameView::paintContents(GraphicsContext* p, const IntRect& rect)
     FontCachePurgePreventer fontCachePurgePreventer;
 
 #if USE(ACCELERATED_COMPOSITING)
-    if (!p->paintingDisabled())
+    if (!p->paintingDisabled() && !document->printing())
         syncCompositingStateForThisFrame(m_frame.get());
 #endif
 
@@ -3257,6 +3293,43 @@ void FrameView::setTracksRepaints(bool trackRepaints)
     
     m_trackedRepaintRects.clear();
     m_isTrackingRepaints = trackRepaints;
+}
+
+void FrameView::addScrollableArea(ScrollableArea* scrollableArea)
+{
+    if (!m_scrollableAreas)
+        m_scrollableAreas = adoptPtr(new ScrollableAreaSet);
+    m_scrollableAreas->add(scrollableArea);
+}
+
+void FrameView::removeScrollableArea(ScrollableArea* scrollableArea)
+{
+    if (!m_scrollableAreas)
+        return;
+    m_scrollableAreas->remove(scrollableArea);
+}
+
+bool FrameView::containsScrollableArea(ScrollableArea* scrollableArea) const
+{
+    if (!m_scrollableAreas)
+        return false;
+    return m_scrollableAreas->contains(scrollableArea);
+}
+
+void FrameView::addChild(PassRefPtr<Widget> widget)
+{
+    if (widget->isFrameView())
+        addScrollableArea(static_cast<FrameView*>(widget.get()));
+
+    ScrollView::addChild(widget);
+}
+
+void FrameView::removeChild(Widget* widget)
+{
+    if (widget->isFrameView())
+        removeScrollableArea(static_cast<FrameView*>(widget));
+
+    ScrollView::removeChild(widget);
 }
 
 bool FrameView::isVerticalDocument() const

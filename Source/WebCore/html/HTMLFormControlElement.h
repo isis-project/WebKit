@@ -114,7 +114,8 @@ public:
 protected:
     HTMLFormControlElement(const QualifiedName& tagName, Document*, HTMLFormElement*);
 
-    virtual void parseMappedAttribute(Attribute*);
+    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual void requiredAttributeChanged();
     virtual void attach();
     virtual void insertedIntoTree(bool deep);
     virtual void removedFromTree(bool deep);

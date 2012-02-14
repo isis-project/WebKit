@@ -23,7 +23,6 @@
 #include "config.h"
 #include "ContainerNode.h"
 
-#include "BeforeLoadEvent.h"
 #include "ChildListMutationScope.h"
 #include "ContainerNodeAlgorithms.h"
 #include "DeleteButtonController.h"
@@ -70,7 +69,7 @@ static inline void collectNodes(Node* node, NodeVector& nodes)
 
 static void collectTargetNodes(Node* node, NodeVector& nodes)
 {
-    if (node->nodeType() != Node::DOCUMENT_FRAGMENT_NODE) {
+    if (node->nodeType() != Node::DOCUMENT_FRAGMENT_NODE || node->isShadowRoot()) {
         nodes.append(node);
         return;
     }
@@ -115,6 +114,8 @@ bool ContainerNode::insertBefore(PassRefPtr<Node> newChild, Node* refChild, Exce
     // Check that this node is not "floating".
     // If it is, it can be deleted as a side effect of sending mutation events.
     ASSERT(refCount() || parentOrHostNode());
+
+    RefPtr<Node> protect(this);
 
     ec = 0;
 
@@ -261,6 +262,8 @@ bool ContainerNode::replaceChild(PassRefPtr<Node> newChild, Node* oldChild, Exce
     // If it is, it can be deleted as a side effect of sending mutation events.
     ASSERT(refCount() || parentOrHostNode());
 
+    RefPtr<Node> protect(this);
+
     ec = 0;
 
     if (oldChild == newChild) // nothing to do
@@ -295,7 +298,7 @@ bool ContainerNode::replaceChild(PassRefPtr<Node> newChild, Node* oldChild, Exce
     // that no callers call with ref count == 0 and parent = 0 (as of this
     // writing, there are definitely callers who call that way).
 
-    bool isFragment = newChild->nodeType() == DOCUMENT_FRAGMENT_NODE;
+    bool isFragment = newChild->nodeType() == DOCUMENT_FRAGMENT_NODE && !newChild->isShadowRoot();
 
     // Add the new child(ren)
     RefPtr<Node> child = isFragment ? newChild->firstChild() : newChild;
@@ -426,6 +429,8 @@ bool ContainerNode::removeChild(Node* oldChild, ExceptionCode& ec)
     // Check that this node is not "floating".
     // If it is, it can be deleted as a side effect of sending mutation events.
     ASSERT(refCount() || parentOrHostNode());
+
+    RefPtr<Node> protect(this);
 
     ec = 0;
 
@@ -605,6 +610,8 @@ void ContainerNode::removeChildren()
 
 bool ContainerNode::appendChild(PassRefPtr<Node> newChild, ExceptionCode& ec, bool shouldLazyAttach)
 {
+    RefPtr<ContainerNode> protect(this);
+
     // Check that this node is not "floating".
     // If it is, it can be deleted as a side effect of sending mutation events.
     ASSERT(refCount() || parentOrHostNode());
@@ -1158,17 +1165,6 @@ static void dispatchChildRemovalEvents(Node* child)
         for (; c; c = c->traverseNextNode(child))
             c->dispatchScopedEvent(MutationEvent::create(eventNames().DOMNodeRemovedFromDocumentEvent, false));
     }
-}
-
-bool ContainerNode::dispatchBeforeLoadEvent(const String& sourceURL)
-{
-    if (!document()->hasListenerType(Document::BEFORELOAD_LISTENER))
-        return true;
-
-    RefPtr<ContainerNode> protector(this);
-    RefPtr<BeforeLoadEvent> beforeLoadEvent = BeforeLoadEvent::create(sourceURL);
-    dispatchEvent(beforeLoadEvent.get());
-    return !beforeLoadEvent->defaultPrevented();
 }
 
 } // namespace WebCore

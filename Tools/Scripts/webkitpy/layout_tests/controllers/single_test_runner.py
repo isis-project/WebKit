@@ -55,6 +55,7 @@ class SingleTestRunner:
         self._timeout = test_input.timeout
         self._worker_name = worker_name
         self._test_name = test_input.test_name
+        self._should_run_pixel_test = test_input.should_run_pixel_test
 
         self._is_reftest = False
         self._reference_files = port.reference_files(self._test_name)
@@ -77,6 +78,8 @@ class SingleTestRunner:
                                  self._port.expected_audio(self._test_name))
 
     def _should_fetch_expected_checksum(self):
+        if not self._should_run_pixel_test:
+            return False
         return (self._options.pixel_tests and
                 not (self._options.new_baseline or self._options.reset_results))
 
@@ -104,6 +107,11 @@ class SingleTestRunner:
     def _run_compare_test(self):
         driver_output = self._driver.run_test(self._driver_input())
         expected_driver_output = self._expected_driver_output()
+
+        if self._options.ignore_metrics:
+            expected_driver_output.strip_metrics()
+            driver_output.strip_metrics()
+
         test_result = self._compare_output(driver_output, expected_driver_output)
         if self._options.new_test_results:
             self._add_missing_baselines(test_result, driver_output)
@@ -216,7 +224,7 @@ class SingleTestRunner:
         failures = []
         if (expected_text and actual_text and
             # Assuming expected_text is already normalized.
-            self._port.compare_text(self._get_normalized_output_text(actual_text), expected_text)):
+            self._port.do_text_results_differ(self._get_normalized_output_text(actual_text), expected_text)):
             failures.append(test_failures.FailureTextMismatch())
         elif actual_text and not expected_text:
             failures.append(test_failures.FailureMissingResult())
@@ -225,7 +233,7 @@ class SingleTestRunner:
     def _compare_audio(self, actual_audio, expected_audio):
         failures = []
         if (expected_audio and actual_audio and
-            self._port.compare_audio(actual_audio, expected_audio)):
+            self._port.do_audio_results_differ(actual_audio, expected_audio)):
             failures.append(test_failures.FailureAudioMismatch())
         elif actual_audio and not expected_audio:
             failures.append(test_failures.FailureMissingAudio())

@@ -41,6 +41,7 @@ PassRefPtr<PeerConnection> PeerConnection::create(ScriptExecutionContext* contex
     RefPtr<PeerConnection> connection = adoptRef(new PeerConnection(context, serverConfiguration, signalingCallback));
     connection->setPendingActivity(connection.get());
     connection->scheduleInitialNegotiation();
+    connection->suspendIfNeeded();
 
     return connection.release();
 }
@@ -115,14 +116,16 @@ void PeerConnection::send(const String& text, ExceptionCode& ec)
 
 void PeerConnection::addStream(PassRefPtr<MediaStream> prpStream, ExceptionCode& ec)
 {
+    RefPtr<MediaStream> stream = prpStream;
+    if (!stream) {
+        ec =  TYPE_MISMATCH_ERR;
+        return;
+    }
+
     if (m_readyState == CLOSED) {
         ec = INVALID_STATE_ERR;
         return;
     }
-
-    // The MediaStream object is guaranteed to exist since StrictTypeChecking is set in the idl.
-
-    RefPtr<MediaStream> stream = prpStream;
 
     if (m_localStreams->contains(stream.get()))
         return;
@@ -148,7 +151,10 @@ void PeerConnection::removeStream(MediaStream* stream, ExceptionCode& ec)
         return;
     }
 
-    // The MediaStream object is guaranteed to exist since StrictTypeChecking is set in the idl.
+    if (!stream) {
+        ec = TYPE_MISMATCH_ERR;
+        return;
+    }
 
     if (!m_localStreams->contains(stream))
         return;
@@ -362,6 +368,8 @@ void PeerConnection::changeReadyState(ReadyState readyState)
     case CLOSED:
         break;
     }
+
+    dispatchEvent(Event::create(eventNames().statechangeEvent, false, false));
 }
 
 } // namespace WebCore

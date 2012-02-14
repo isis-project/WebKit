@@ -3,8 +3,6 @@ SET(WTF_HEADERS
     AVLTree.h
     Alignment.h
     AlwaysInline.h
-    ArrayBuffer.cpp
-    ArrayBufferView.cpp
     Assertions.h
     Atomics.h
     BitVector.h
@@ -17,6 +15,7 @@ SET(WTF_HEADERS
     CryptographicallyRandomNumber.h
     CurrentTime.h
     DateMath.h
+    DataLog.h
     DecimalNumber.h
     Decoder.h
     Deque.h
@@ -45,7 +44,6 @@ SET(WTF_HEADERS
     MallocZoneSupport.h
     MathExtras.h
     MessageQueue.h
-    MetaAllocator.cpp
     MetaAllocator.h
     MetaAllocatorHandle.h
     NonCopyingSort.h
@@ -53,6 +51,7 @@ SET(WTF_HEADERS
     Noncopyable.h
     NotFound.h
     NullPtr.h
+    NumberOfCores.h
     OSAllocator.h
     OSRandomSource.h
     OwnArrayPtr.h
@@ -133,19 +132,24 @@ SET(WTF_HEADERS
 )
 
 SET(WTF_SOURCES
+    ArrayBuffer.cpp
+    ArrayBufferView.cpp
     Assertions.cpp
     BitVector.cpp
     ByteArray.cpp
     CryptographicallyRandomNumber.cpp
     CurrentTime.cpp
     DateMath.cpp
+    DataLog.cpp
     DecimalNumber.cpp
     DynamicAnnotations.cpp
     FastMalloc.cpp
     HashTable.cpp
-    MainThread.cpp
     MD5.cpp
+    MainThread.cpp
+    MetaAllocator.cpp
     OSRandomSource.cpp
+    NumberOfCores.cpp
     PageAllocationAligned.cpp
     PageBlock.cpp
     ParallelJobsGeneric.cpp
@@ -187,9 +191,6 @@ SET(WTF_INCLUDE_DIRECTORIES
     "${JAVASCRIPTCORE_DIR}/wtf/dtoa"
     "${JavaScriptCore_INCLUDE_DIRECTORIES}"
     "${THIRDPARTY_DIR}"
-)
-
-SET(WTF_LIBRARIES
 )
 
 IF (ENABLE_FAST_MALLOC)

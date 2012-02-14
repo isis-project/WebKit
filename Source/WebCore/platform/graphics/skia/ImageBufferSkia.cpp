@@ -46,6 +46,7 @@
 #include "PlatformContextSkia.h"
 #include "SharedGraphicsContext3D.h"
 #include "SkColorPriv.h"
+#include "SkDeferredCanvas.h"
 #include "SkGpuDevice.h"
 #include "SkiaUtils.h"
 #include "WEBPImageEncoder.h"
@@ -65,7 +66,24 @@ ImageBufferData::ImageBufferData(const IntSize& size)
 {
 }
 
-static SkCanvas* createAcceleratedCanvas(const IntSize& size, ImageBufferData* data)
+class AcceleratedDeviceContext : public SkDeferredCanvas::DeviceContext {
+public:
+    AcceleratedDeviceContext(GraphicsContext3D* context3D)
+    {
+        ASSERT(context3D);
+        m_context3D = context3D;
+    }
+
+    virtual void prepareForDraw()
+    {
+        m_context3D->makeContextCurrent();
+    }
+
+private:
+    GraphicsContext3D* m_context3D;
+};
+
+static SkCanvas* createAcceleratedCanvas(const IntSize& size, ImageBufferData* data, DeferralMode deferralMode)
 {
     GraphicsContext3D* context3D = SharedGraphicsContext3D::get();
     if (!context3D)
@@ -83,12 +101,18 @@ static SkCanvas* createAcceleratedCanvas(const IntSize& size, ImageBufferData* d
     SkAutoTUnref<GrTexture> texture(gr->createUncachedTexture(desc, 0, 0));
     if (!texture.get())
         return 0;
-    SkCanvas* canvas = new SkCanvas();
-    canvas->setDevice(new SkGpuDevice(gr, texture.get()))->unref();
+    SkCanvas* canvas;
+    SkAutoTUnref<SkDevice> device(new SkGpuDevice(gr, texture.get()));
+    if (deferralMode == Deferred) {
+        SkAutoTUnref<AcceleratedDeviceContext> deviceContext(new AcceleratedDeviceContext(context3D));
+        canvas = new SkDeferredCanvas(device.get(), deviceContext.get());
+    } else
+        canvas = new SkCanvas(device.get());
     data->m_platformContext.setGraphicsContext3D(context3D);
 #if USE(ACCELERATED_COMPOSITING)
     data->m_platformLayer = Canvas2DLayerChromium::create(context3D, size);
     data->m_platformLayer->setTextureId(texture.get()->getTextureHandle());
+    data->m_platformLayer->setCanvas(canvas);
 #endif
     return canvas;
 }
@@ -100,14 +124,14 @@ static SkCanvas* createNonPlatformCanvas(const IntSize& size)
     return canvas;
 }
 
-ImageBuffer::ImageBuffer(const IntSize& size, ColorSpace, RenderingMode renderingMode, bool& success)
+ImageBuffer::ImageBuffer(const IntSize& size, ColorSpace, RenderingMode renderingMode, DeferralMode deferralMode, bool& success)
     : m_data(size)
     , m_size(size)
 {
     OwnPtr<SkCanvas> canvas;
 
     if (renderingMode == Accelerated)
-        canvas = adoptPtr(createAcceleratedCanvas(size, &m_data));
+        canvas = adoptPtr(createAcceleratedCanvas(size, &m_data, deferralMode));
     else if (renderingMode == UnacceleratedNonPlatformBuffer)
         canvas = adoptPtr(createNonPlatformCanvas(size));
 
@@ -226,65 +250,18 @@ PassRefPtr<ByteArray> getImageData(const IntRect& rect, SkCanvas* canvas,
         || rect.maxY() > size.height())
         memset(data, 0, result->length());
 
-    int originX = rect.x();
-    int destX = 0;
-    if (originX < 0) {
-        destX = -originX;
-        originX = 0;
-    }
-    int endX = rect.maxX();
-    if (endX > size.width())
-        endX = size.width();
-    int numColumns = endX - originX;
-
-    if (numColumns <= 0)
-        return result.release();
-
-    int originY = rect.y();
-    int destY = 0;
-    if (originY < 0) {
-        destY = -originY;
-        originY = 0;
-    }
-    int endY = rect.maxY();
-    if (endY > size.height())
-        endY = size.height();
-    int numRows = endY - originY;
-
-    if (numRows <= 0)
-        return result.release();
-
-    SkBitmap srcBitmap;
-    if (!canvas->readPixels(SkIRect::MakeXYWH(originX, originY, numColumns, numRows), &srcBitmap))
-        return result.release();
-
     unsigned destBytesPerRow = 4 * rect.width();
-    unsigned char* destRow = data + destY * destBytesPerRow + destX * 4;
+    SkBitmap destBitmap;
+    destBitmap.setConfig(SkBitmap::kARGB_8888_Config, rect.width(), rect.height(), destBytesPerRow);
+    destBitmap.setPixels(data);
 
-    // Do conversion of byte order and alpha divide (if necessary)
-    for (int y = 0; y < numRows; ++y) {
-        SkPMColor* srcBitmapRow = srcBitmap.getAddr32(0, y);
-        for (int x = 0; x < numColumns; ++x) {
-            SkPMColor srcPMColor = srcBitmapRow[x];
-            unsigned char* destPixel = &destRow[x * 4];
-            if (multiplied == Unmultiplied) {
-                unsigned char a = SkGetPackedA32(srcPMColor);
-                destPixel[0] = a ? SkGetPackedR32(srcPMColor) * 255 / a : 0;
-                destPixel[1] = a ? SkGetPackedG32(srcPMColor) * 255 / a : 0;
-                destPixel[2] = a ? SkGetPackedB32(srcPMColor) * 255 / a : 0;
-                destPixel[3] = a;
-            } else {
-                // Input and output are both pre-multiplied, we just need to re-arrange the
-                // bytes from the bitmap format to RGBA.
-                destPixel[0] = SkGetPackedR32(srcPMColor);
-                destPixel[1] = SkGetPackedG32(srcPMColor);
-                destPixel[2] = SkGetPackedB32(srcPMColor);
-                destPixel[3] = SkGetPackedA32(srcPMColor);
-            }
-        }
-        destRow += destBytesPerRow;
-    }
+    SkCanvas::Config8888 config8888;
+    if (multiplied == Premultiplied)
+        config8888 = SkCanvas::kRGBA_Premul_Config8888;
+    else
+        config8888 = SkCanvas::kRGBA_Unpremul_Config8888;
 
+    canvas->readPixels(&destBitmap, rect.x(), rect.y(), config8888);
     return result.release();
 }
 
@@ -298,34 +275,33 @@ PassRefPtr<ByteArray> ImageBuffer::getPremultipliedImageData(const IntRect& rect
     return getImageData<Premultiplied>(rect, context()->platformContext()->canvas(), m_size);
 }
 
-template <Multiply multiplied>
-void putImageData(ByteArray*& source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint,
-                  SkCanvas* canvas, const IntSize& size)
+void ImageBuffer::putByteArray(Multiply multiplied, ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
 {
+    SkCanvas* canvas = context()->platformContext()->canvas();
     ASSERT(sourceRect.width() > 0);
     ASSERT(sourceRect.height() > 0);
 
     int originX = sourceRect.x();
     int destX = destPoint.x() + sourceRect.x();
     ASSERT(destX >= 0);
-    ASSERT(destX < size.width());
+    ASSERT(destX < m_size.width());
     ASSERT(originX >= 0);
     ASSERT(originX < sourceRect.maxX());
 
     int endX = destPoint.x() + sourceRect.maxX();
-    ASSERT(endX <= size.width());
+    ASSERT(endX <= m_size.width());
 
     int numColumns = endX - destX;
 
     int originY = sourceRect.y();
     int destY = destPoint.y() + sourceRect.y();
     ASSERT(destY >= 0);
-    ASSERT(destY < size.height());
+    ASSERT(destY < m_size.height());
     ASSERT(originY >= 0);
     ASSERT(originY < sourceRect.maxY());
 
     int endY = destPoint.y() + sourceRect.maxY();
-    ASSERT(endY <= size.height());
+    ASSERT(endY <= m_size.height());
     int numRows = endY - destY;
 
     unsigned srcBytesPerRow = 4 * sourceSize.width();
@@ -340,16 +316,6 @@ void putImageData(ByteArray*& source, const IntSize& sourceSize, const IntRect& 
         config8888 = SkCanvas::kRGBA_Unpremul_Config8888;
 
     canvas->writePixels(srcBitmap, destX, destY, config8888);
-}
-
-void ImageBuffer::putUnmultipliedImageData(ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
-{
-    putImageData<Unmultiplied>(source, sourceSize, sourceRect, destPoint, context()->platformContext()->canvas(), m_size);
-}
-
-void ImageBuffer::putPremultipliedImageData(ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
-{
-    putImageData<Premultiplied>(source, sourceSize, sourceRect, destPoint, context()->platformContext()->canvas(), m_size);
 }
 
 template <typename T>

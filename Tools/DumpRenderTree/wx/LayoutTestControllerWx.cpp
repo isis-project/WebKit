@@ -376,6 +376,12 @@ void LayoutTestController::addMockSpeechInputResult(JSStringRef result, double c
     // See https://bugs.webkit.org/show_bug.cgi?id=39485.
 }
 
+void LayoutTestController::setMockSpeechInputDumpRect(bool flag)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
 void LayoutTestController::startSpeechInput(JSContextRef inputElement)
 {
     // FIXME: Implement for speech input layout tests.
@@ -388,12 +394,6 @@ void LayoutTestController::setIconDatabaseEnabled(bool iconDatabaseEnabled)
 }
 
 bool LayoutTestController::pauseAnimationAtTimeOnElementWithId(JSStringRef animationName, double time, JSStringRef elementId)
-{
-    // FIXME: implement
-    return false;
-}
-
-bool LayoutTestController::sampleSVGAnimationForElementAtTime(JSStringRef animationId, double time, JSStringRef elementId)
 {
     // FIXME: implement
     return false;

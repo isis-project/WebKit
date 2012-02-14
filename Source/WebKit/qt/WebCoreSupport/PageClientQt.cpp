@@ -29,12 +29,8 @@
 #endif
 
 #if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
-#include "TextureMapperQt.h"
+#include "TextureMapper.h"
 #include "texmap/TextureMapperNode.h"
-
-#if USE(TEXTURE_MAPPER_GL)
-#include "opengl/TextureMapperGL.h"
-#endif
 #endif
 
 namespace WebCore {
@@ -77,7 +73,7 @@ void PageClientQWidget::setRootGraphicsLayer(GraphicsLayer* layer)
 {
     if (layer) {
         textureMapperNodeClient = adoptPtr(new TextureMapperNodeClientQt(page->mainFrame(), layer));
-        textureMapperNodeClient->setTextureMapper(adoptPtr(new TextureMapperQt));
+        textureMapperNodeClient->setTextureMapper(TextureMapper::create());
         textureMapperNodeClient->syncRootLayer();
         return;
     }
@@ -275,11 +271,11 @@ void PageClientQGraphicsWidget::setRootGraphicsLayer(GraphicsLayer* layer)
 #if USE(TEXTURE_MAPPER_GL)
         QGraphicsView* graphicsView = view->scene()->views()[0];
         if (graphicsView && graphicsView->viewport() && graphicsView->viewport()->inherits("QGLWidget")) {
-            textureMapperNodeClient->setTextureMapper(TextureMapperGL::create());
+            textureMapperNodeClient->setTextureMapper(TextureMapper::create(TextureMapper::OpenGLMode));
             return;
         }
 #endif
-        textureMapperNodeClient->setTextureMapper(TextureMapperQt::create());
+        textureMapperNodeClient->setTextureMapper(TextureMapper::create());
         return;
     }
     textureMapperNodeClient.clear();

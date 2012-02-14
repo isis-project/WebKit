@@ -592,10 +592,10 @@ void Interpreter::dumpCallFrame(CallFrame* callFrame)
 
 void Interpreter::dumpRegisters(CallFrame* callFrame)
 {
-    printf("Register frame: \n\n");
-    printf("-----------------------------------------------------------------------------\n");
-    printf("            use            |   address  |                value               \n");
-    printf("-----------------------------------------------------------------------------\n");
+    dataLog("Register frame: \n\n");
+    dataLog("-----------------------------------------------------------------------------\n");
+    dataLog("            use            |   address  |                value               \n");
+    dataLog("-----------------------------------------------------------------------------\n");
 
     CodeBlock* codeBlock = callFrame->codeBlock();
     const Register* it;
@@ -605,30 +605,30 @@ void Interpreter::dumpRegisters(CallFrame* callFrame)
     it = callFrame->registers() - RegisterFile::CallFrameHeaderSize - codeBlock->numParameters();
     v = (*it).jsValue();
 #if USE(JSVALUE32_64)
-    printf("[this]                     | %10p | %-16s 0x%llx \n", it, v.description(), JSValue::encode(v)); ++it;
+    dataLog("[this]                     | %10p | %-16s 0x%llx \n", it, v.description(), JSValue::encode(v)); ++it;
 #else
-    printf("[this]                     | %10p | %-16s %p \n", it, v.description(), JSValue::encode(v)); ++it;
+    dataLog("[this]                     | %10p | %-16s %p \n", it, v.description(), JSValue::encode(v)); ++it;
 #endif
     end = it + max(codeBlock->numParameters() - 1, 0); // - 1 to skip "this"
     if (it != end) {
         do {
             v = (*it).jsValue();
 #if USE(JSVALUE32_64)
-            printf("[param]                    | %10p | %-16s 0x%llx \n", it, v.description(), JSValue::encode(v));
+            dataLog("[param]                    | %10p | %-16s 0x%llx \n", it, v.description(), JSValue::encode(v));
 #else
-            printf("[param]                    | %10p | %-16s %p \n", it, v.description(), JSValue::encode(v));
+            dataLog("[param]                    | %10p | %-16s %p \n", it, v.description(), JSValue::encode(v));
 #endif
             ++it;
         } while (it != end);
     }
-    printf("-----------------------------------------------------------------------------\n");
-    printf("[CodeBlock]                | %10p | %p \n", it, (*it).codeBlock()); ++it;
-    printf("[ScopeChain]               | %10p | %p \n", it, (*it).scopeChain()); ++it;
-    printf("[CallerRegisters]          | %10p | %d \n", it, (*it).i()); ++it;
-    printf("[ReturnPC]                 | %10p | %p \n", it, (*it).vPC()); ++it;
-    printf("[ArgumentCount]            | %10p | %d \n", it, (*it).i()); ++it;
-    printf("[Callee]                   | %10p | %p \n", it, (*it).function()); ++it;
-    printf("-----------------------------------------------------------------------------\n");
+    dataLog("-----------------------------------------------------------------------------\n");
+    dataLog("[CodeBlock]                | %10p | %p \n", it, (*it).codeBlock()); ++it;
+    dataLog("[ScopeChain]               | %10p | %p \n", it, (*it).scopeChain()); ++it;
+    dataLog("[CallerRegisters]          | %10p | %d \n", it, (*it).i()); ++it;
+    dataLog("[ReturnPC]                 | %10p | %p \n", it, (*it).vPC()); ++it;
+    dataLog("[ArgumentCount]            | %10p | %d \n", it, (*it).i()); ++it;
+    dataLog("[Callee]                   | %10p | %p \n", it, (*it).function()); ++it;
+    dataLog("-----------------------------------------------------------------------------\n");
 
     int registerCount = 0;
 
@@ -637,30 +637,30 @@ void Interpreter::dumpRegisters(CallFrame* callFrame)
         do {
             v = (*it).jsValue();
 #if USE(JSVALUE32_64)
-            printf("[r%2d]                      | %10p | %-16s 0x%llx \n", registerCount, it, v.description(), JSValue::encode(v));
+            dataLog("[r%2d]                      | %10p | %-16s 0x%llx \n", registerCount, it, v.description(), JSValue::encode(v));
 #else
-            printf("[r%2d]                      | %10p | %-16s %p \n", registerCount, it, v.description(), JSValue::encode(v));
+            dataLog("[r%2d]                      | %10p | %-16s %p \n", registerCount, it, v.description(), JSValue::encode(v));
 #endif
             ++it;
             ++registerCount;
         } while (it != end);
     }
-    printf("-----------------------------------------------------------------------------\n");
+    dataLog("-----------------------------------------------------------------------------\n");
 
     end = it + codeBlock->m_numCalleeRegisters - codeBlock->m_numVars;
     if (it != end) {
         do {
             v = (*it).jsValue();
 #if USE(JSVALUE32_64)
-            printf("[r%2d]                      | %10p | %-16s 0x%llx \n", registerCount, it, v.description(), JSValue::encode(v));
+            dataLog("[r%2d]                      | %10p | %-16s 0x%llx \n", registerCount, it, v.description(), JSValue::encode(v));
 #else
-            printf("[r%2d]                      | %10p | %-16s %p \n", registerCount, it, v.description(), JSValue::encode(v));
+            dataLog("[r%2d]                      | %10p | %-16s %p \n", registerCount, it, v.description(), JSValue::encode(v));
 #endif
             ++it;
             ++registerCount;
         } while (it != end);
     }
-    printf("-----------------------------------------------------------------------------\n");
+    dataLog("-----------------------------------------------------------------------------\n");
 }
 
 #endif
@@ -885,6 +885,8 @@ JSValue Interpreter::execute(ProgramExecutable* program, CallFrame* callFrame, S
     Vector<JSONPData> JSONPData;
     bool parseResult;
     const UString programSource = program->source().toString();
+    if (programSource.isNull())
+        return jsUndefined();
     if (programSource.is8Bit()) {
         LiteralParser<LChar> literalParser(callFrame, programSource.characters8(), programSource.length(), JSONP);
         parseResult = literalParser.tryJSONPParse(JSONPData, scopeChain->globalObject->globalObjectMethodTable()->supportsRichSourceInfo(scopeChain->globalObject.get()));
@@ -1324,7 +1326,7 @@ JSValue Interpreter::execute(EvalExecutable* eval, CallFrame* callFrame, JSValue
     JSObject* variableObject;
     for (ScopeChainNode* node = scopeChain; ; node = node->next.get()) {
         ASSERT(node);
-        if (node->object->isVariableObject()) {
+        if (node->object->isVariableObject() && !node->object->isStaticScopeObject()) {
             variableObject = static_cast<JSVariableObject*>(node->object.get());
             break;
         }
@@ -2579,7 +2581,7 @@ JSValue Interpreter::privateExecute(ExecutionFlag flag, RegisterFile* registerFi
         if (propName.getUInt32(i))
             callFrame->uncheckedR(dst) = jsBoolean(baseObj->hasProperty(callFrame, i));
         else {
-            Identifier property(callFrame, propName.toString(callFrame));
+            Identifier property(callFrame, propName.toString(callFrame)->value(callFrame));
             CHECK_FOR_EXCEPTION();
             callFrame->uncheckedR(dst) = jsBoolean(baseObj->hasProperty(callFrame, property));
         }
@@ -3308,13 +3310,12 @@ skip_id_custom_self:
         int direct = vPC[8].u.operand;
 
         JSValue baseValue = callFrame->r(base).jsValue();
-        ASSERT(baseValue.isObject());
-        JSObject* baseObject = asObject(baseValue);
         Identifier& ident = codeBlock->identifier(property);
         PutPropertySlot slot(codeBlock->isStrictMode());
-        if (direct)
-            baseObject->putDirect(*globalData, ident, callFrame->r(value).jsValue(), slot);
-        else
+        if (direct) {
+            ASSERT(baseValue.isObject());
+            asObject(baseValue)->putDirect(*globalData, ident, callFrame->r(value).jsValue(), slot);
+        } else
             baseValue.put(callFrame, ident, callFrame->r(value).jsValue(), slot);
         CHECK_FOR_EXCEPTION();
 
@@ -3428,13 +3429,12 @@ skip_id_custom_self:
         int direct = vPC[8].u.operand;
 
         JSValue baseValue = callFrame->r(base).jsValue();
-        ASSERT(baseValue.isObject());
-        JSObject* baseObject = asObject(baseValue);
         Identifier& ident = codeBlock->identifier(property);
         PutPropertySlot slot(codeBlock->isStrictMode());
-        if (direct)
-            baseObject->putDirect(*globalData, ident, callFrame->r(value).jsValue(), slot);
-        else
+        if (direct) {
+            ASSERT(baseValue.isObject());
+            asObject(baseValue)->putDirect(*globalData, ident, callFrame->r(value).jsValue(), slot);
+        } else
             baseValue.put(callFrame, ident, callFrame->r(value).jsValue(), slot);
         CHECK_FOR_EXCEPTION();
 
@@ -3486,7 +3486,7 @@ skip_id_custom_self:
             NEXT_INSTRUCTION();
         }
         {
-            Identifier propertyName(callFrame, subscript.toString(callFrame));
+            Identifier propertyName(callFrame, subscript.toString(callFrame)->value(callFrame));
             result = baseValue.get(callFrame, propertyName);
         }
         CHECK_FOR_EXCEPTION();
@@ -3561,7 +3561,7 @@ skip_id_custom_self:
             else
                 result = baseValue.get(callFrame, i);
         } else {
-            Identifier property(callFrame, subscript.toString(callFrame));
+            Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
             result = baseValue.get(callFrame, property);
         }
 
@@ -3608,7 +3608,7 @@ skip_id_custom_self:
             } else
                 baseValue.put(callFrame, i, callFrame->r(value).jsValue());
         } else {
-            Identifier property(callFrame, subscript.toString(callFrame));
+            Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
             if (!globalData->exception) { // Don't put to an object if toString threw an exception.
                 PutPropertySlot slot(codeBlock->isStrictMode());
                 baseValue.put(callFrame, property, callFrame->r(value).jsValue(), slot);
@@ -3640,7 +3640,7 @@ skip_id_custom_self:
             result = baseObj->methodTable()->deletePropertyByIndex(baseObj, callFrame, i);
         else {
             CHECK_FOR_EXCEPTION();
-            Identifier property(callFrame, subscript.toString(callFrame));
+            Identifier property(callFrame, subscript.toString(callFrame)->value(callFrame));
             CHECK_FOR_EXCEPTION();
             result = baseObj->methodTable()->deleteProperty(baseObj, callFrame, property);
         }
@@ -4947,7 +4947,7 @@ skip_id_custom_self:
            original constructor, using constant message as the
            message string. The result is thrown.
         */
-        UString message = callFrame->r(vPC[1].u.operand).jsValue().toString(callFrame);
+        UString message = callFrame->r(vPC[1].u.operand).jsValue().toString(callFrame)->value(callFrame);
         exceptionValue = JSValue(createReferenceError(callFrame, message));
         goto vm_throw;
     }
@@ -4961,52 +4961,41 @@ skip_id_custom_self:
         int result = vPC[1].u.operand;
         return callFrame->r(result).jsValue();
     }
-    DEFINE_OPCODE(op_put_getter) {
-        /* put_getter base(r) property(id) function(r)
+    DEFINE_OPCODE(op_put_getter_setter) {
+        /* put_getter_setter base(r) property(id) getter(r) setter(r)
 
-           Sets register function on register base as the getter named
-           by identifier property. Base and function are assumed to be
-           objects as this op should only be used for getters defined
-           in object literal form.
-
-           Unlike many opcodes, this one does not write any output to
-           the register file.
-        */
-        int base = vPC[1].u.operand;
-        int property = vPC[2].u.operand;
-        int function = vPC[3].u.operand;
-
-        ASSERT(callFrame->r(base).jsValue().isObject());
-        JSObject* baseObj = asObject(callFrame->r(base).jsValue());
-        Identifier& ident = codeBlock->identifier(property);
-        ASSERT(callFrame->r(function).jsValue().isObject());
-        baseObj->methodTable()->defineGetter(baseObj, callFrame, ident, asObject(callFrame->r(function).jsValue()), 0);
-
-        vPC += OPCODE_LENGTH(op_put_getter);
-        NEXT_INSTRUCTION();
-    }
-    DEFINE_OPCODE(op_put_setter) {
-        /* put_setter base(r) property(id) function(r)
-
-           Sets register function on register base as the setter named
-           by identifier property. Base and function are assumed to be
-           objects as this op should only be used for setters defined
-           in object literal form.
+           Puts accessor descriptor to register base as the named
+           identifier property. Base and function may be objects
+           or undefined, this op should only be used for accessors
+           defined in object literal form.
 
            Unlike many opcodes, this one does not write any output to
            the register file.
         */
         int base = vPC[1].u.operand;
         int property = vPC[2].u.operand;
-        int function = vPC[3].u.operand;
+        int getterReg = vPC[3].u.operand;
+        int setterReg = vPC[4].u.operand;
 
         ASSERT(callFrame->r(base).jsValue().isObject());
         JSObject* baseObj = asObject(callFrame->r(base).jsValue());
         Identifier& ident = codeBlock->identifier(property);
-        ASSERT(callFrame->r(function).jsValue().isObject());
-        baseObj->methodTable()->defineSetter(baseObj, callFrame, ident, asObject(callFrame->r(function).jsValue()), 0);
 
-        vPC += OPCODE_LENGTH(op_put_setter);
+        GetterSetter* accessor = GetterSetter::create(callFrame);
+
+        JSValue getter = callFrame->r(getterReg).jsValue();
+        JSValue setter = callFrame->r(setterReg).jsValue();
+        ASSERT(getter.isObject() || getter.isUndefined());
+        ASSERT(setter.isObject() || setter.isUndefined());
+        ASSERT(getter.isObject() || setter.isObject());
+
+        if (!getter.isUndefined())
+            accessor->setGetter(callFrame->globalData(), asObject(getter));
+        if (!setter.isUndefined())
+            accessor->setSetter(callFrame->globalData(), asObject(setter));
+        baseObj->putDirectAccessor(callFrame->globalData(), ident, accessor, Accessor);
+
+        vPC += OPCODE_LENGTH(op_put_getter_setter);
         NEXT_INSTRUCTION();
     }
     DEFINE_OPCODE(op_method_check) {
@@ -5110,9 +5099,9 @@ skip_id_custom_self:
 #endif // ENABLE(INTERPRETER)
 }
 
-JSValue Interpreter::retrieveArguments(CallFrame* callFrame, JSFunction* function) const
+JSValue Interpreter::retrieveArgumentsFromVMCode(CallFrame* callFrame, JSFunction* function) const
 {
-    CallFrame* functionCallFrame = findFunctionCallFrame(callFrame, function);
+    CallFrame* functionCallFrame = findFunctionCallFrameFromVMCode(callFrame, function);
     if (!functionCallFrame)
         return jsNull();
 
@@ -5134,15 +5123,16 @@ JSValue Interpreter::retrieveArguments(CallFrame* callFrame, JSFunction* functio
     return JSValue(arguments);
 }
 
-JSValue Interpreter::retrieveCaller(CallFrame* callFrame, JSFunction* function) const
+JSValue Interpreter::retrieveCallerFromVMCode(CallFrame* callFrame, JSFunction* function) const
 {
-    CallFrame* functionCallFrame = findFunctionCallFrame(callFrame, function);
+    CallFrame* functionCallFrame = findFunctionCallFrameFromVMCode(callFrame, function);
     if (!functionCallFrame)
         return jsNull();
-
-    CallFrame* callerFrame = functionCallFrame->callerFrame();
-    if (callerFrame->hasHostCallFrameFlag())
+    
+    if (functionCallFrame->callerFrame()->hasHostCallFrameFlag())
         return jsNull();
+
+    CallFrame* callerFrame = functionCallFrame->trueCallerFrame();
 
     JSValue caller = callerFrame->callee();
     if (!caller)
@@ -5181,9 +5171,9 @@ void Interpreter::retrieveLastCaller(CallFrame* callFrame, int& lineNumber, intp
     function = callerFrame->callee();
 }
 
-CallFrame* Interpreter::findFunctionCallFrame(CallFrame* callFrame, JSFunction* function)
+CallFrame* Interpreter::findFunctionCallFrameFromVMCode(CallFrame* callFrame, JSFunction* function)
 {
-    for (CallFrame* candidate = callFrame; candidate; candidate = candidate->trueCallerFrame()) {
+    for (CallFrame* candidate = callFrame->trueCallFrameFromVMCode(); candidate; candidate = candidate->trueCallerFrame()) {
         if (candidate->callee() == function)
             return candidate;
     }

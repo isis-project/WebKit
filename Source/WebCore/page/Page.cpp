@@ -29,8 +29,6 @@
 #include "ContextMenuClient.h"
 #include "ContextMenuController.h"
 #include "DOMWindow.h"
-#include "DeviceMotionController.h"
-#include "DeviceOrientationController.h"
 #include "DocumentMarkerController.h"
 #include "DragController.h"
 #include "EditorClient.h"
@@ -59,6 +57,7 @@
 #include "PluginData.h"
 #include "PluginView.h"
 #include "PluginViewBase.h"
+#include "PointerLockController.h"
 #include "ProgressTracker.h"
 #include "RenderTheme.h"
 #include "RenderView.h"
@@ -139,12 +138,11 @@ Page::Page(PageClients& pageClients)
 #if ENABLE(CLIENT_BASED_GEOLOCATION)
     , m_geolocationController(GeolocationController::create(this, pageClients.geolocationClient))
 #endif
-#if ENABLE(DEVICE_ORIENTATION)
-    , m_deviceMotionController(RuntimeEnabledFeatures::deviceMotionEnabled() ? DeviceMotionController::create(pageClients.deviceMotionClient) : nullptr)
-    , m_deviceOrientationController(RuntimeEnabledFeatures::deviceOrientationEnabled() ? DeviceOrientationController::create(this, pageClients.deviceOrientationClient) : nullptr)
-#endif
 #if ENABLE(NOTIFICATIONS)
     , m_notificationController(NotificationController::create(this, pageClients.notificationClient))
+#endif
+#if ENABLE(POINTER_LOCK)
+    , m_pointerLockController(PointerLockController::create(this))
 #endif
 #if ENABLE(INPUT_SPEECH)
     , m_speechInputClient(pageClients.speechInputClient)
@@ -182,6 +180,7 @@ Page::Page(PageClients& pageClients)
     , m_visibilityState(PageVisibilityStateVisible)
 #endif
     , m_displayID(0)
+    , m_isCountingRelevantRepaintedObjects(false)
 {
     if (!allPages) {
         allPages = new HashSet<Page*>;
@@ -206,12 +205,6 @@ Page::~Page()
     for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext())
         frame->pageDestroyed();
 
-    if (m_scrollableAreaSet) {
-        ScrollableAreaSet::const_iterator end = m_scrollableAreaSet->end(); 
-        for (ScrollableAreaSet::const_iterator it = m_scrollableAreaSet->begin(); it != end; ++it)
-            (*it)->disconnectFromPage();
-    }
-
     m_editorClient->pageDestroyed();
 
 #if ENABLE(INSPECTOR)
@@ -233,6 +226,12 @@ Page::~Page()
 #ifndef NDEBUG
     pageCounter.decrement();
 #endif
+
+}
+
+ViewportArguments Page::viewportArguments() const
+{
+    return mainFrame() && mainFrame()->document() ? mainFrame()->document()->viewportArguments() : ViewportArguments();
 }
 
 #if ENABLE(THREADED_SCROLLING)
@@ -423,15 +422,6 @@ void Page::setNeedsRecalcStyleInAllFrames()
 {
     for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext())
         frame->document()->styleSelectorChanged(DeferRecalcStyle);
-}
-
-void Page::updateViewportArguments()
-{
-    if (!mainFrame() || !mainFrame()->document())
-        return;
-
-    m_viewportArguments = mainFrame()->document()->viewportArguments();
-    chrome()->dispatchViewportPropertiesDidChange(m_viewportArguments);
 }
 
 void Page::refreshPlugins(bool reload)
@@ -1025,27 +1015,6 @@ void Page::privateBrowsingStateChanged()
         pluginViewBases[i]->privateBrowsingStateChanged(privateBrowsingEnabled);
 }
 
-void Page::addScrollableArea(ScrollableArea* scrollableArea)
-{
-    if (!m_scrollableAreaSet)
-        m_scrollableAreaSet = adoptPtr(new ScrollableAreaSet);
-    m_scrollableAreaSet->add(scrollableArea);
-}
-
-void Page::removeScrollableArea(ScrollableArea* scrollableArea)
-{
-    if (!m_scrollableAreaSet)
-        return;
-    m_scrollableAreaSet->remove(scrollableArea);
-}
-
-bool Page::containsScrollableArea(ScrollableArea* scrollableArea) const
-{
-    if (!m_scrollableAreaSet)
-        return false;
-    return m_scrollableAreaSet->contains(scrollableArea);
-}
-
 #if !ASSERT_DISABLED
 void Page::checkFrameCountConsistency() const
 {
@@ -1076,6 +1045,57 @@ PageVisibilityState Page::visibilityState() const
 }
 #endif
 
+static uint64_t gPaintedObjectCounterThreshold = 0;
+
+void Page::setRelevantRepaintedObjectsCounterThreshold(uint64_t threshold)
+{
+    gPaintedObjectCounterThreshold = threshold;
+}
+
+void Page::startCountingRelevantRepaintedObjects()
+{
+    m_isCountingRelevantRepaintedObjects = true;
+
+    // Clear the HashSet in case we didn't hit the threshold last time.
+    m_relevantPaintedRenderObjects.clear();
+}
+
+void Page::addRelevantRepaintedObject(RenderObject* object, const IntRect& objectPaintRect)
+{
+    if (!m_isCountingRelevantRepaintedObjects)
+        return;
+
+    // We don't need to do anything if there is no counter threshold.
+    if (!gPaintedObjectCounterThreshold)
+        return;
+
+    // The objects are only relevant if they are being painted within the viewRect().
+    if (RenderView* view = object->view()) {
+        if (!objectPaintRect.intersects(pixelSnappedIntRect(view->viewRect())))
+            return;
+    }
+
+    m_relevantPaintedRenderObjects.add(object);
+
+    if (m_relevantPaintedRenderObjects.size() == static_cast<int>(gPaintedObjectCounterThreshold)) {
+        m_isCountingRelevantRepaintedObjects = false;
+        m_relevantPaintedRenderObjects.clear();
+        if (Frame* frame = mainFrame())
+            frame->loader()->didNewFirstVisuallyNonEmptyLayout();
+    }
+}
+
+void Page::provideSupplement(const AtomicString& name, PassOwnPtr<PageSupplement> supplement)
+{
+    ASSERT(!m_suppliments.get(name.impl()));
+    m_suppliments.set(name.impl(), supplement);
+}
+
+PageSupplement* Page::requireSupplement(const AtomicString& name)
+{
+    return m_suppliments.get(name.impl());
+}
+
 Page::PageClients::PageClients()
     : chromeClient(0)
     , contextMenuClient(0)
@@ -1083,8 +1103,6 @@ Page::PageClients::PageClients()
     , dragClient(0)
     , inspectorClient(0)
     , geolocationClient(0)
-    , deviceMotionClient(0)
-    , deviceOrientationClient(0)
     , speechInputClient(0)
     , notificationClient(0)
     , userMediaClient(0)

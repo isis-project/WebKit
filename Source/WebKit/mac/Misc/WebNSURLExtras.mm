@@ -434,6 +434,11 @@ static NSString *mapHostNames(NSString *string, BOOL encode)
         baseURL = [baseURL _webkit_URLByRemovingResourceSpecifier];
         
         const UInt8 *bytes = static_cast<const UInt8*>([data bytes]);
+
+        // CFURLCreateAbsoluteURLWithBytes would complain to console if we passed a path to it.
+        if (bytes[0] == '/' && !baseURL)
+            return nil;
+
         // NOTE: We use UTF-8 here since this encoding is used when computing strings when returning URL components
         // (e.g calls to NSURL -path). However, this function is not tolerant of illegal UTF-8 sequences, which
         // could either be a malformed string or bytes in a different encoding, like shift-jis, so we fall back
@@ -876,6 +881,14 @@ static CFStringRef createStringWithEscapedUnsafeCharacters(CFStringRef string)
 - (NSString *)_webkit_suggestedFilenameWithMIMEType:(NSString *)MIMEType
 {
     return suggestedFilenameWithMIMEType(self, MIMEType);
+}
+
+- (NSURL *)_webkit_URLFromURLOrPath
+{
+    if ([self scheme])
+        return self;
+
+    return [NSURL fileURLWithPath:[self absoluteString]];
 }
 
 @end

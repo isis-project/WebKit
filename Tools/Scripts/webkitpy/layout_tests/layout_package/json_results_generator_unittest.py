@@ -26,9 +26,8 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-"""Unit tests for json_results_generator.py."""
-
 import unittest
+import json
 import optparse
 import random
 
@@ -37,7 +36,7 @@ from webkitpy.layout_tests.layout_package import json_results_generator
 from webkitpy.layout_tests.models import test_expectations
 from webkitpy.layout_tests.port import test
 from webkitpy.thirdparty.mock import Mock
-from webkitpy.thirdparty import simplejson
+
 
 class JSONGeneratorTest(unittest.TestCase):
     def setUp(self):
@@ -229,8 +228,7 @@ class JSONGeneratorTest(unittest.TestCase):
           }
         }
 
-        self.assertEqual(simplejson.dumps(trie), simplejson.dumps(expected_trie))
-
+        self.assertEqual(json.dumps(trie), json.dumps(expected_trie))
 
 
 if __name__ == '__main__':

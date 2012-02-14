@@ -80,6 +80,7 @@ typedef pair<InstrumentingAgents*, int> InspectorInstrumentationCookie;
 class InspectorInstrumentation {
 public:
     static void didClearWindowObjectInWorld(Frame*, DOMWrapperWorld*);
+    static bool isDebuggerPaused(Frame*);
 
     static void willInsertDOMNode(Document*, Node*, Node* parent);
     static void didInsertDOMNode(Document*, Node*);
@@ -107,6 +108,8 @@ public:
     static void didChangeXHRReadyState(const InspectorInstrumentationCookie&);
     static InspectorInstrumentationCookie willDispatchEvent(Document*, const Event& event, DOMWindow* window, Node* node, const Vector<EventContext>& ancestors);
     static void didDispatchEvent(const InspectorInstrumentationCookie&);
+    static InspectorInstrumentationCookie willHandleEvent(ScriptExecutionContext*, Event*);
+    static void didHandleEvent(const InspectorInstrumentationCookie&);
     static InspectorInstrumentationCookie willDispatchEventOnWindow(Frame*, const Event& event, DOMWindow* window);
     static void didDispatchEventOnWindow(const InspectorInstrumentationCookie&);
     static InspectorInstrumentationCookie willEvaluateScript(Frame*, const String& url, int lineNumber);
@@ -128,6 +131,8 @@ public:
     static void didProcessRule(const InspectorInstrumentationCookie&);
 
     static void applyUserAgentOverride(Frame*, String*);
+    static void applyScreenWidthOverride(Frame*, long*);
+    static void applyScreenHeightOverride(Frame*, long*);
     static void willSendRequest(Frame*, unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse& redirectResponse);
     static void continueAfterPingLoader(Frame*, unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse&);
     static void markResourceAsCached(Page*, unsigned long identifier);
@@ -224,6 +229,7 @@ public:
 private:
 #if ENABLE(INSPECTOR)
     static void didClearWindowObjectInWorldImpl(InstrumentingAgents*, Frame*, DOMWrapperWorld*);
+    static bool isDebuggerPausedImpl(InstrumentingAgents*);
 
     static void willInsertDOMNodeImpl(InstrumentingAgents*, Node*, Node* parent);
     static void didInsertDOMNodeImpl(InstrumentingAgents*, Node*);
@@ -251,6 +257,8 @@ private:
     static InspectorInstrumentationCookie willChangeXHRReadyStateImpl(InstrumentingAgents*, XMLHttpRequest*);
     static void didChangeXHRReadyStateImpl(const InspectorInstrumentationCookie&);
     static InspectorInstrumentationCookie willDispatchEventImpl(InstrumentingAgents*, const Event&, DOMWindow*, Node*, const Vector<EventContext>& ancestors);
+    static InspectorInstrumentationCookie willHandleEventImpl(InstrumentingAgents*, Event*);
+    static void didHandleEventImpl(const InspectorInstrumentationCookie&);
     static void didDispatchEventImpl(const InspectorInstrumentationCookie&);
     static InspectorInstrumentationCookie willDispatchEventOnWindowImpl(InstrumentingAgents*, const Event&, DOMWindow*);
     static void didDispatchEventOnWindowImpl(const InspectorInstrumentationCookie&);
@@ -273,6 +281,8 @@ private:
     static void didProcessRuleImpl(const InspectorInstrumentationCookie&);
 
     static void applyUserAgentOverrideImpl(InstrumentingAgents*, String*);
+    static void applyScreenWidthOverrideImpl(InstrumentingAgents*, long*);
+    static void applyScreenHeightOverrideImpl(InstrumentingAgents*, long*);
     static void willSendRequestImpl(InstrumentingAgents*, unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse& redirectResponse);
     static void continueAfterPingLoaderImpl(InstrumentingAgents*, unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse&);
     static void markResourceAsCachedImpl(InstrumentingAgents*, unsigned long identifier);
@@ -359,7 +369,7 @@ private:
 #endif
 
     static bool collectingHTMLParseErrors(InstrumentingAgents*);
-    static void pauseOnNativeEventIfNeeded(InstrumentingAgents*, const String& categoryType, const String& eventName, bool synchronous);
+    static void pauseOnNativeEventIfNeeded(InstrumentingAgents*, bool isDOMEvent, const String& eventName, bool synchronous);
     static void cancelPauseOnNativeEvent(InstrumentingAgents*);
     static InspectorTimelineAgent* retrieveTimelineAgent(const InspectorInstrumentationCookie&);
 
@@ -373,6 +383,16 @@ inline void InspectorInstrumentation::didClearWindowObjectInWorld(Frame* frame, 
     if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
         didClearWindowObjectInWorldImpl(instrumentingAgents, frame, world);
 #endif
+}
+
+inline bool InspectorInstrumentation::isDebuggerPaused(Frame* frame)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(false);
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
+        return isDebuggerPausedImpl(instrumentingAgents);
+#endif
+    return false;
 }
 
 inline void InspectorInstrumentation::willInsertDOMNode(Document* document, Node* node, Node* parent)
@@ -588,6 +608,25 @@ inline void InspectorInstrumentation::didDispatchEvent(const InspectorInstrument
 #endif
 }
 
+inline InspectorInstrumentationCookie InspectorInstrumentation::willHandleEvent(ScriptExecutionContext* context, Event* event)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(InspectorInstrumentationCookie());
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForContext(context))
+        return willHandleEventImpl(instrumentingAgents, event);
+#endif
+    return InspectorInstrumentationCookie();
+}
+
+inline void InspectorInstrumentation::didHandleEvent(const InspectorInstrumentationCookie& cookie)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(void());
+    if (cookie.first)
+        didHandleEventImpl(cookie);
+#endif
+}
+
 inline InspectorInstrumentationCookie InspectorInstrumentation::willDispatchEventOnWindow(Frame* frame, const Event& event, DOMWindow* window)
 {
 #if ENABLE(INSPECTOR)
@@ -776,6 +815,24 @@ inline void InspectorInstrumentation::applyUserAgentOverride(Frame* frame, Strin
     FAST_RETURN_IF_NO_FRONTENDS(void());
     if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
         applyUserAgentOverrideImpl(instrumentingAgents, userAgent);
+#endif
+}
+
+inline void InspectorInstrumentation::applyScreenWidthOverride(Frame* frame, long* width)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(void());
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
+        applyScreenWidthOverrideImpl(instrumentingAgents, width);
+#endif
+}
+
+inline void InspectorInstrumentation::applyScreenHeightOverride(Frame* frame, long* height)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(void());
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
+        applyScreenHeightOverrideImpl(instrumentingAgents, height);
 #endif
 }
 

@@ -275,7 +275,7 @@
     color: rgb(85, 85, 85);
     float: right;
     margin-left: 5px;
-    max-width: 65%;
+    max-width: 100%;
     text-overflow: ellipsis;
     overflow: hidden;
     white-space: nowrap;
@@ -299,6 +299,7 @@
     margin: 0;
     padding: 2px 4px 0 8px;
     list-style: none;
+    clear: both;
 }
 
 .styles-section.no-affect .properties li {
@@ -478,9 +479,22 @@
     width: 8px;
     height: 8px;
     opacity: 0.75;
-    content: url(Images/treeRightTriangleBlack.png);
+    content: url(Images/treeRightTriangleBlack.png) !important;
 }
 
 .event-bars .event-bar.expanded .header::before {
-    content: url(Images/treeDownTriangleBlack.png);
+    content: url(Images/treeDownTriangleBlack.png) !important;
+}
+
+.image-preview-container {
+    background: transparent;
+    text-align: center;
+    padding-left: 11px;
+}
+
+.image-preview-container img {
+    margin: 2px auto;
+    background-image: url(Images/checker.png);
+    -webkit-user-select: text;
+    -webkit-user-drag: auto;
 }

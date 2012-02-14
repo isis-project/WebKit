@@ -22,7 +22,7 @@
 #include "config.h"
 #include "CSSFontFaceRule.h"
 
-#include "CSSMutableStyleDeclaration.h"
+#include "StylePropertySet.h"
 
 namespace WebCore {
 
@@ -41,7 +41,7 @@ String CSSFontFaceRule::cssText() const
 {
     String result("@font-face");
     result += " { ";
-    result += m_style->cssText();
+    result += m_style->asText();
     result += "}";
     return result;
 }

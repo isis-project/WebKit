@@ -3,7 +3,6 @@ Tests that resources panel shows form data parameters.
   
 
 {
-    pageref : "http://localhost:8000/inspector/resources/post-target.cgi?queryParam1=queryValue1&queryParam2=#fragmentParam1=fragmentValue1&fragmentParam2="
     startedDateTime : <plausible>
     time : <number>
     request : {
@@ -49,8 +48,8 @@ Tests that resources panel shows form data parameters.
         ]
         content : {
             size : 14
-            compression : <number>
             mimeType : "application/xml"
+            compression : <number>
         }
         redirectURL : ""
         headersSize : <number>

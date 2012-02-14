@@ -130,12 +130,12 @@ bool SVGUseElement::isSupportedAttribute(const QualifiedName& attrName)
     return supportedAttributes.contains<QualifiedName, SVGAttributeHashTranslator>(attrName);
 }
 
-void SVGUseElement::parseMappedAttribute(Attribute* attr)
+void SVGUseElement::parseAttribute(Attribute* attr)
 {
     SVGParsingError parseError = NoError;
 
     if (!isSupportedAttribute(attr->name()))
-        SVGStyledTransformableElement::parseMappedAttribute(attr);
+        SVGStyledTransformableElement::parseAttribute(attr);
     else if (attr->name() == SVGNames::xAttr)
         setXBaseValue(SVGLength::construct(LengthModeWidth, attr->value(), parseError));
     else if (attr->name() == SVGNames::yAttr)
@@ -144,10 +144,10 @@ void SVGUseElement::parseMappedAttribute(Attribute* attr)
         setWidthBaseValue(SVGLength::construct(LengthModeWidth, attr->value(), parseError, ForbidNegativeLengths));
     else if (attr->name() == SVGNames::heightAttr)
         setHeightBaseValue(SVGLength::construct(LengthModeHeight, attr->value(), parseError, ForbidNegativeLengths));
-    else if (SVGTests::parseMappedAttribute(attr)
-             || SVGLangSpace::parseMappedAttribute(attr)
-             || SVGExternalResourcesRequired::parseMappedAttribute(attr)
-             || SVGURIReference::parseMappedAttribute(attr)) {
+    else if (SVGTests::parseAttribute(attr)
+             || SVGLangSpace::parseAttribute(attr)
+             || SVGExternalResourcesRequired::parseAttribute(attr)
+             || SVGURIReference::parseAttribute(attr)) {
     } else
         ASSERT_NOT_REACHED();
 
@@ -198,18 +198,10 @@ void SVGUseElement::svgAttributeChanged(const QualifiedName& attrName)
         return;
 
     if (SVGURIReference::isKnownAttribute(attrName)) {
-        if (hasPendingResources()) {
-            OwnPtr<SVGDocumentExtensions::SVGPendingElements> clients(document()->accessSVGExtensions()->removePendingResource(m_resourceId));
-            ASSERT(!clients->isEmpty());
-
-            const SVGDocumentExtensions::SVGPendingElements::const_iterator end = clients->end();
-            for (SVGDocumentExtensions::SVGPendingElements::const_iterator it = clients->begin(); it != end; ++it) {
-                ASSERT((*it)->hasPendingResources());
-                (*it)->clearHasPendingResourcesIfPossible();
-            }
-
+        SVGDocumentExtensions* extensions = document()->accessSVGExtensions();
+        if (hasPendingResources() && extensions->isElementPendingResource(this, m_resourceId)) {
+            extensions->removePendingResourceForElement(m_resourceId, this);
             m_resourceId = String();
-            clearHasPendingResourcesIfPossible();
         }
 
         m_targetElementInstance = 0;
@@ -366,17 +358,12 @@ void SVGUseElement::didRecalcStyle(StyleChange change)
     if (!shadowRoot)
         return;
     
-    bool needsStyleUpdate = !m_needsShadowTreeRecreation;
     if (m_needsShadowTreeRecreation) {
         shadowRoot->markShadowTreeForRecreation();
         m_needsShadowTreeRecreation = false;
     }
 
     shadowRoot->updateFromElement();
-
-    if (!needsStyleUpdate)
-        return;
-
     shadowRoot->updateStyle(change);
 }
 
@@ -460,18 +447,17 @@ void SVGUseElement::buildPendingResource()
     String id;
     Element* targetElement = SVGURIReference::targetElementFromIRIString(href(), document(), &id);
     ASSERT(!m_targetElementInstance);
+    SVGDocumentExtensions* extensions = document()->accessSVGExtensions();
 
     if (!targetElement) {
-        if (hasPendingResources() || id.isEmpty())
+        if ((hasPendingResources() && extensions->isElementPendingResource(this, id)) || id.isEmpty())
             return;
 
         m_resourceId = id;
-        ASSERT(!hasPendingResources());
-        document()->accessSVGExtensions()->addPendingResource(id, this);
+        extensions->addPendingResource(id, this);
         ASSERT(hasPendingResources());
         return;
     }
-
 
     if (hasPendingResources()) {
         ASSERT(!m_targetElementInstance);

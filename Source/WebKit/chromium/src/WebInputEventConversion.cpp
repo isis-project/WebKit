@@ -149,6 +149,17 @@ PlatformGestureEventBuilder::PlatformGestureEventBuilder(Widget* widget, const W
     case WebInputEvent::GestureTap:
         m_type = PlatformEvent::GestureTap;
         break;
+    case WebInputEvent::GestureTapDown:
+        m_type = PlatformEvent::GestureTapDown;
+        break;
+    case WebInputEvent::GestureDoubleTap:
+        m_type = PlatformEvent::GestureDoubleTap;
+        break;
+    case WebInputEvent::GesturePinchBegin:
+    case WebInputEvent::GesturePinchEnd:
+    case WebInputEvent::GesturePinchUpdate:
+        // FIXME: Once PlatformGestureEvent is updated to support pinch, this should set m_type to appropriate PlatformEvent type.
+        ASSERT_NOT_REACHED();
     default:
         ASSERT_NOT_REACHED();
     }
@@ -378,6 +389,10 @@ WebMouseEventBuilder::WebMouseEventBuilder(const Widget* widget, const MouseEven
     windowY = p.y();
     x = event.absoluteLocation().x() - widget->location().x();
     y = event.absoluteLocation().y() - widget->location().y();
+#if ENABLE(POINTER_LOCK)
+    movementX = event.webkitMovementX();
+    movementY = event.webkitMovementY();
+#endif
     clickCount = event.detail();
 }
 

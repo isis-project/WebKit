@@ -255,6 +255,7 @@ z-index
 #if defined(ENABLE_CSS_FILTERS) && ENABLE_CSS_FILTERS
 -webkit-filter
 #endif
+-webkit-flex-align
 -webkit-flex-direction
 -webkit-flex-flow
 -webkit-flex-item-align
@@ -273,7 +274,7 @@ z-index
 -webkit-line-break
 -webkit-line-clamp
 -webkit-line-grid
--webkit-line-grid-snap
+-webkit-line-snap
 -webkit-logical-width
 -webkit-logical-height
 -webkit-margin-after-collapse
@@ -374,4 +375,7 @@ z-index
 #if defined(ENABLE_CSS_GRID_LAYOUT) && ENABLE_CSS_GRID_LAYOUT
 -webkit-grid-columns
 -webkit-grid-rows
+#endif
+#if defined(ENABLE_DASHBOARD_SUPPORT) && ENABLE_DASHBOARD_SUPPORT
+-webkit-dashboard-region
 #endif

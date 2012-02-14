@@ -28,14 +28,6 @@
 
 namespace WebCore {
 
-/*
- * WARNING:
- * --------
- *
- * The order of the values in the enums have to agree with the order specified
- * in CSSValueKeywords.in, otherwise some optimizations in the parser will fail,
- * and produce invalid results.
- */
 static const size_t PrintColorAdjustBits = 1;
 enum PrintColorAdjust {
     PrintColorAdjustEconomy,
@@ -93,7 +85,7 @@ enum ColumnSpan { ColumnSpanOne = 0, ColumnSpanAll};
 enum EBorderCollapse { BSEPARATE = 0, BCOLLAPSE = 1 };
 
 // These have been defined in the order of their precedence for border-collapsing. Do
-// not change this order!
+// not change this order! This order also must match the order in CSSValueKeywords.in.
 enum EBorderStyle { BNONE, BHIDDEN, INSET, GROOVE, OUTSET, RIDGE, DOTTED, DASHED, SOLID, DOUBLE };
 
 enum EBorderPrecedence { BOFF, BTABLE, BCOLGROUP, BCOL, BROWGROUP, BROW, BCELL };
@@ -176,7 +168,7 @@ enum EBoxDirection { BNORMAL, BREVERSE };
 
 // CSS3 Flexbox Properties
 
-enum EFlexPack { PackStart, PackEnd, PackCenter, PackJustify };
+enum EFlexPack { PackStart, PackEnd, PackCenter, PackJustify, PackDistribute };
 enum EFlexAlign { AlignAuto, AlignStart, AlignEnd, AlignCenter, AlignStretch, AlignBaseline };
 enum EFlexDirection { FlowRow, FlowRowReverse, FlowColumn, FlowColumnReverse };
 enum EFlexWrap { FlexNoWrap, FlexWrap, FlexWrapReverse };
@@ -229,7 +221,7 @@ enum EResize {
     RESIZE_NONE, RESIZE_BOTH, RESIZE_HORIZONTAL, RESIZE_VERTICAL
 };
 
-// The order of this enum must match the order of the list style types in CSSValueKeywords.in. 
+// The order of this enum must match the order of the list style types in CSSValueKeywords.in.
 enum EListStyleType {
     Disc,
     Circle,
@@ -335,6 +327,7 @@ enum EWhiteSpace {
     NORMAL, PRE, PRE_WRAP, PRE_LINE, NOWRAP, KHTML_NOWRAP
 };
 
+// The order of this enum must match the order of the text align values in CSSValueKeywords.in.
 enum ETextAlign {
     TAAUTO, LEFT, RIGHT, CENTER, JUSTIFY, WEBKIT_LEFT, WEBKIT_RIGHT, WEBKIT_CENTER, TASTART, TAEND,
 };
@@ -408,6 +401,7 @@ enum ECursor {
     CURSOR_NONE
 };
 
+// The order of this enum must match the order of the display values in CSSValueKeywords.in.
 enum EDisplay {
     INLINE, BLOCK, LIST_ITEM, RUN_IN, COMPACT, INLINE_BLOCK,
     TABLE, INLINE_TABLE, TABLE_ROW_GROUP,
@@ -460,7 +454,7 @@ enum RegionOverflow { AutoRegionOverflow, BreakRegionOverflow };
 
 enum ColumnAxis { HorizontalColumnAxis, VerticalColumnAxis, AutoColumnAxis };
 
-enum LineGridSnap { LineGridSnapNone, LineGridSnapBaseline, LineGridSnapBounds };
+enum LineSnap { LineSnapNone, LineSnapBaseline, LineSnapContain };
 
 enum WrapFlow { WrapFlowAuto, WrapFlowBoth, WrapFlowLeft, WrapFlowRight, WrapFlowMaximum, WrapFlowClear };
 

@@ -131,22 +131,24 @@ void ProgramExecutable::destroy(JSCell* cell)
 
 const ClassInfo FunctionExecutable::s_info = { "FunctionExecutable", &ScriptExecutable::s_info, 0, 0, CREATE_METHOD_TABLE(FunctionExecutable) };
 
-FunctionExecutable::FunctionExecutable(JSGlobalData& globalData, const Identifier& name, const SourceCode& source, bool forceUsesArguments, FunctionParameters* parameters, bool inStrictContext)
+FunctionExecutable::FunctionExecutable(JSGlobalData& globalData, const Identifier& name, const Identifier& inferredName, const SourceCode& source, bool forceUsesArguments, FunctionParameters* parameters, bool inStrictContext)
     : ScriptExecutable(globalData.functionExecutableStructure.get(), globalData, source, inStrictContext)
     , m_numCapturedVariables(0)
     , m_forceUsesArguments(forceUsesArguments)
     , m_parameters(parameters)
     , m_name(name)
+    , m_inferredName(inferredName.isNull() ? globalData.propertyNames->emptyIdentifier : inferredName)
     , m_symbolTable(0)
 {
 }
 
-FunctionExecutable::FunctionExecutable(ExecState* exec, const Identifier& name, const SourceCode& source, bool forceUsesArguments, FunctionParameters* parameters, bool inStrictContext)
+FunctionExecutable::FunctionExecutable(ExecState* exec, const Identifier& name, const Identifier& inferredName, const SourceCode& source, bool forceUsesArguments, FunctionParameters* parameters, bool inStrictContext)
     : ScriptExecutable(exec->globalData().functionExecutableStructure.get(), exec, source, inStrictContext)
     , m_numCapturedVariables(0)
     , m_forceUsesArguments(forceUsesArguments)
     , m_parameters(parameters)
     , m_name(name)
+    , m_inferredName(inferredName.isNull() ? exec->globalData().propertyNames->emptyIdentifier : inferredName)
     , m_symbolTable(0)
 {
 }
@@ -210,7 +212,7 @@ JSObject* EvalExecutable::compileInternal(ExecState* exec, ScopeChainNode* scope
     }
 
 #if ENABLE(JIT)
-    if (!jitCompileIfAppropriate(exec, m_evalCodeBlock, m_jitCodeForCall, jitType))
+    if (!jitCompileIfAppropriate(*globalData, m_evalCodeBlock, m_jitCodeForCall, jitType))
         return 0;
 #endif
 
@@ -336,7 +338,7 @@ JSObject* ProgramExecutable::compileInternal(ExecState* exec, ScopeChainNode* sc
     }
 
 #if ENABLE(JIT)
-    if (!jitCompileIfAppropriate(exec, m_programCodeBlock, m_jitCodeForCall, jitType))
+    if (!jitCompileIfAppropriate(*globalData, m_programCodeBlock, m_jitCodeForCall, jitType))
         return 0;
 #endif
 
@@ -504,7 +506,7 @@ JSObject* FunctionExecutable::compileForCallInternal(ExecState* exec, ScopeChain
     m_symbolTable = m_codeBlockForCall->sharedSymbolTable();
 
 #if ENABLE(JIT)
-    if (!jitCompileFunctionIfAppropriate(exec, m_codeBlockForCall, m_jitCodeForCall, m_jitCodeForCallWithArityCheck, m_symbolTable, jitType))
+    if (!jitCompileFunctionIfAppropriate(exec->globalData(), m_codeBlockForCall, m_jitCodeForCall, m_jitCodeForCallWithArityCheck, m_symbolTable, jitType))
         return 0;
 #endif
 
@@ -546,7 +548,7 @@ JSObject* FunctionExecutable::compileForConstructInternal(ExecState* exec, Scope
     m_symbolTable = m_codeBlockForConstruct->sharedSymbolTable();
 
 #if ENABLE(JIT)
-    if (!jitCompileFunctionIfAppropriate(exec, m_codeBlockForConstruct, m_jitCodeForConstruct, m_jitCodeForConstructWithArityCheck, m_symbolTable, jitType))
+    if (!jitCompileFunctionIfAppropriate(exec->globalData(), m_codeBlockForConstruct, m_jitCodeForConstruct, m_jitCodeForConstructWithArityCheck, m_symbolTable, jitType))
         return 0;
 #endif
 
@@ -660,7 +662,7 @@ FunctionExecutable* FunctionExecutable::fromGlobalCode(const Identifier& functio
     FunctionBodyNode* body = static_cast<FuncExprNode*>(funcExpr)->body();
     ASSERT(body);
 
-    return FunctionExecutable::create(exec->globalData(), functionName, body->source(), body->usesArguments(), body->parameters(), body->isStrictMode(), body->lineNo(), body->lastLine());
+    return FunctionExecutable::create(exec->globalData(), functionName, functionName, body->source(), body->usesArguments(), body->parameters(), body->isStrictMode(), body->lineNo(), body->lastLine());
 }
 
 UString FunctionExecutable::paramString() const

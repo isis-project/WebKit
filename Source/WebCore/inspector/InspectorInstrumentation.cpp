@@ -71,9 +71,6 @@
 
 namespace WebCore {
 
-static const char* const listenerEventCategoryType = "listener";
-static const char* const instrumentationEventCategoryType = "instrumentation";
-
 static const char* const setTimerEventName = "setTimer";
 static const char* const clearTimerEventName = "clearTimer";
 static const char* const timerFiredEventName = "timerFired";
@@ -110,6 +107,15 @@ void InspectorInstrumentation::didClearWindowObjectInWorldImpl(InstrumentingAgen
             debuggerAgent->didClearMainFrameWindowObject();
     }
 #endif
+}
+
+bool InspectorInstrumentation::isDebuggerPausedImpl(InstrumentingAgents* instrumentingAgents)
+{
+#if ENABLE(JAVASCRIPT_DEBUGGER)
+    if (InspectorDebuggerAgent* debuggerAgent = instrumentingAgents->inspectorDebuggerAgent())
+        return debuggerAgent->isPaused();
+#endif
+    return false;
 }
 
 void InspectorInstrumentation::willInsertDOMNodeImpl(InstrumentingAgents* instrumentingAgents, Node* node, Node* parent)
@@ -232,24 +238,18 @@ void InspectorInstrumentation::didScheduleResourceRequestImpl(InstrumentingAgent
 
 void InspectorInstrumentation::didInstallTimerImpl(InstrumentingAgents* instrumentingAgents, int timerId, int timeout, bool singleShot)
 {
-    pauseOnNativeEventIfNeeded(instrumentingAgents, instrumentationEventCategoryType, setTimerEventName, true);
+    pauseOnNativeEventIfNeeded(instrumentingAgents, false, setTimerEventName, true);
     if (InspectorTimelineAgent* timelineAgent = instrumentingAgents->inspectorTimelineAgent())
         timelineAgent->didInstallTimer(timerId, timeout, singleShot);
 }
 
 void InspectorInstrumentation::didRemoveTimerImpl(InstrumentingAgents* instrumentingAgents, int timerId)
 {
-    pauseOnNativeEventIfNeeded(instrumentingAgents, instrumentationEventCategoryType, clearTimerEventName, true);
+    pauseOnNativeEventIfNeeded(instrumentingAgents, false, clearTimerEventName, true);
     if (InspectorTimelineAgent* timelineAgent = instrumentingAgents->inspectorTimelineAgent())
         timelineAgent->didRemoveTimer(timerId);
 }
 
-#if USE(JSC) // It is disabled for JSC see WK-BUG 40119
-InspectorInstrumentationCookie InspectorInstrumentation::willCallFunctionImpl(InstrumentingAgents*, const String&, int)
-{
-    return InspectorInstrumentationCookie();
-}
-#else
 InspectorInstrumentationCookie InspectorInstrumentation::willCallFunctionImpl(InstrumentingAgents* instrumentingAgents, const String& scriptName, int scriptLine)
 {
     int timelineAgentId = 0;
@@ -259,7 +259,6 @@ InspectorInstrumentationCookie InspectorInstrumentation::willCallFunctionImpl(In
     }
     return InspectorInstrumentationCookie(instrumentingAgents, timelineAgentId);
 }
-#endif
 
 void InspectorInstrumentation::didCallFunctionImpl(const InspectorInstrumentationCookie& cookie)
 {
@@ -286,8 +285,6 @@ void InspectorInstrumentation::didChangeXHRReadyStateImpl(const InspectorInstrum
 
 InspectorInstrumentationCookie InspectorInstrumentation::willDispatchEventImpl(InstrumentingAgents* instrumentingAgents, const Event& event, DOMWindow* window, Node* node, const Vector<EventContext>& ancestors)
 {
-    pauseOnNativeEventIfNeeded(instrumentingAgents, listenerEventCategoryType, event.type(), false);
-
     int timelineAgentId = 0;
     InspectorTimelineAgent* timelineAgent = instrumentingAgents->inspectorTimelineAgent();
     if (timelineAgent && eventHasListeners(event.type(), window, node, ancestors)) {
@@ -297,18 +294,25 @@ InspectorInstrumentationCookie InspectorInstrumentation::willDispatchEventImpl(I
     return InspectorInstrumentationCookie(instrumentingAgents, timelineAgentId);
 }
 
-void InspectorInstrumentation::didDispatchEventImpl(const InspectorInstrumentationCookie& cookie)
+InspectorInstrumentationCookie InspectorInstrumentation::willHandleEventImpl(InstrumentingAgents* instrumentingAgents, Event* event)
+{
+    pauseOnNativeEventIfNeeded(instrumentingAgents, true, event->type(), false);
+    return InspectorInstrumentationCookie(instrumentingAgents, 0);
+}
+
+void InspectorInstrumentation::didHandleEventImpl(const InspectorInstrumentationCookie& cookie)
 {
     cancelPauseOnNativeEvent(cookie.first);
+}
 
+void InspectorInstrumentation::didDispatchEventImpl(const InspectorInstrumentationCookie& cookie)
+{
     if (InspectorTimelineAgent* timelineAgent = retrieveTimelineAgent(cookie))
         timelineAgent->didDispatchEvent();
 }
 
 InspectorInstrumentationCookie InspectorInstrumentation::willDispatchEventOnWindowImpl(InstrumentingAgents* instrumentingAgents, const Event& event, DOMWindow* window)
 {
-    pauseOnNativeEventIfNeeded(instrumentingAgents, listenerEventCategoryType, event.type(), false);
-
     int timelineAgentId = 0;
     InspectorTimelineAgent* timelineAgent = instrumentingAgents->inspectorTimelineAgent();
     if (timelineAgent && window->hasEventListeners(event.type())) {
@@ -320,8 +324,6 @@ InspectorInstrumentationCookie InspectorInstrumentation::willDispatchEventOnWind
 
 void InspectorInstrumentation::didDispatchEventOnWindowImpl(const InspectorInstrumentationCookie& cookie)
 {
-    cancelPauseOnNativeEvent(cookie.first);
-
     if (InspectorTimelineAgent* timelineAgent = retrieveTimelineAgent(cookie))
         timelineAgent->didDispatchEvent();
 }
@@ -344,7 +346,7 @@ void InspectorInstrumentation::didEvaluateScriptImpl(const InspectorInstrumentat
 
 InspectorInstrumentationCookie InspectorInstrumentation::willFireTimerImpl(InstrumentingAgents* instrumentingAgents, int timerId)
 {
-    pauseOnNativeEventIfNeeded(instrumentingAgents, instrumentationEventCategoryType, timerFiredEventName, false);
+    pauseOnNativeEventIfNeeded(instrumentingAgents, false, timerFiredEventName, false);
 
     int timelineAgentId = 0;
     if (InspectorTimelineAgent* timelineAgent = instrumentingAgents->inspectorTimelineAgent()) {
@@ -483,6 +485,18 @@ void InspectorInstrumentation::applyUserAgentOverrideImpl(InstrumentingAgents* i
 {
     if (InspectorResourceAgent* resourceAgent = instrumentingAgents->inspectorResourceAgent())
         resourceAgent->applyUserAgentOverride(userAgent);
+}
+
+void InspectorInstrumentation::applyScreenWidthOverrideImpl(InstrumentingAgents* instrumentingAgents, long* width)
+{
+    if (InspectorPageAgent* pageAgent = instrumentingAgents->inspectorPageAgent())
+        pageAgent->applyScreenWidthOverride(width);
+}
+
+void InspectorInstrumentation::applyScreenHeightOverrideImpl(InstrumentingAgents* instrumentingAgents, long* height)
+{
+    if (InspectorPageAgent* pageAgent = instrumentingAgents->inspectorPageAgent())
+        pageAgent->applyScreenHeightOverride(height);
 }
 
 void InspectorInstrumentation::willSendRequestImpl(InstrumentingAgents* instrumentingAgents, unsigned long identifier, DocumentLoader* loader, ResourceRequest& request, const ResourceResponse& redirectResponse)
@@ -953,11 +967,11 @@ bool InspectorInstrumentation::hasFrontendForScriptContext(ScriptExecutionContex
     return page && page->inspectorController()->hasFrontend();
 }
 
-void InspectorInstrumentation::pauseOnNativeEventIfNeeded(InstrumentingAgents* instrumentingAgents, const String& categoryType, const String& eventName, bool synchronous)
+void InspectorInstrumentation::pauseOnNativeEventIfNeeded(InstrumentingAgents* instrumentingAgents, bool isDOMEvent, const String& eventName, bool synchronous)
 {
 #if ENABLE(JAVASCRIPT_DEBUGGER)
     if (InspectorDOMDebuggerAgent* domDebuggerAgent = instrumentingAgents->inspectorDOMDebuggerAgent())
-        domDebuggerAgent->pauseOnNativeEventIfNeeded(categoryType, eventName, synchronous);
+        domDebuggerAgent->pauseOnNativeEventIfNeeded(isDOMEvent, eventName, synchronous);
 #endif
 }
 

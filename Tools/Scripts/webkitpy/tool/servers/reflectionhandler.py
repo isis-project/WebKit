@@ -26,22 +26,14 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import with_statement
-
-try:
-    import json
-except ImportError:
-    # python 2.5 compatibility
-    import webkitpy.thirdparty.simplejson as json
-
 import BaseHTTPServer
 
 import cgi
 import codecs
 import datetime
 import fnmatch
+import json
 import mimetypes
-import os
 import os.path
 import shutil
 import threading
@@ -49,6 +41,7 @@ import time
 import urlparse
 import wsgiref.handlers
 import BaseHTTPServer
+
 
 class ReflectionHandler(BaseHTTPServer.BaseHTTPRequestHandler):
     # Subclasses should override.

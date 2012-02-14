@@ -1,9 +1,8 @@
 <!DOCTYPE html>
 <body>
-<pre id="log"></pre>
-<script src="resources/runner.js"></script>
+<script src="../resources/runner.js"></script>
 <script>
-var spec = loadFile("resources/html5.html");
+var spec = PerfTestRunner.loadFile("resources/html5.html");
 
 var chunks = [];
 // The smaller the chunks the more style resolves we do.
@@ -18,7 +17,7 @@ for (var chunkIndex = 0; chunkIndex < chunkCount; chunkIndex++) {
     chunks.push(chunk);
 }
 
-log("Testing " + spec.length + " byte document in " + chunkCount + " " + chunkSize + " byte chunks.");
+PerfTestRunner.logInfo("Testing " + spec.length + " byte document in " + chunkCount + " " + chunkSize + " byte chunks.");
 
 function loadChunkedSpecIntoIframe(iframe) {
     // Note: We've inlined the stylesheets in html5.html.  Before we did that, it seemed to be
@@ -45,12 +44,12 @@ function loadChunkedSpecIntoIframe(iframe) {
 // Running from the onload callback just makes the UI nicer as it shows the logs before starting the test.
 window.onload = function() {
     // Depending on the chosen chunk size, iterations can take over 60s to run on a fast machine, so we only run 2.
-    start(2, function() {
+    PerfTestRunner.run(function() {
         var iframe = document.createElement("iframe");
         document.body.appendChild(iframe);
         loadChunkedSpecIntoIframe(iframe);
         document.body.removeChild(iframe);
-    }, 1); // We only loop once for each run, again because this test is so slow.
+    }, 1, 2); // We only loop once for each run, again because this test is so slow.
 }
 
 </script>

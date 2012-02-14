@@ -40,11 +40,6 @@
 #include <workers/WorkerThread.h>
 #include <wtf/text/AtomicString.h>
 
-#if ENABLE(SVG)
-#include <SVGDocumentExtensions.h>
-#include <SVGSMILElement.h>
-#endif
-
 unsigned DumpRenderTreeSupportEfl::activeAnimationsCount(const Evas_Object* ewkFrame)
 {
     WebCore::Frame* frame = EWKPrivate::coreFrame(ewkFrame);
@@ -172,30 +167,6 @@ bool DumpRenderTreeSupportEfl::pauseAnimation(Evas_Object* ewkFrame, const char*
         return false;
 
     return frame->animation()->pauseAnimationAtTime(element->renderer(), name, time);
-}
-
-bool DumpRenderTreeSupportEfl::pauseSVGAnimation(Evas_Object* ewkFrame, const char* animationId, const char* elementId, double time)
-{
-#if ENABLE(SVG)
-    WebCore::Frame* frame = EWKPrivate::coreFrame(ewkFrame);
-
-    if (!frame)
-        return false;
-
-    WebCore::Document* document = frame->document();
-
-    if (!document || !document->svgExtensions())
-        return false;
-
-    WebCore::Element* element = document->getElementById(animationId);
-
-    if (!element || !WebCore::SVGSMILElement::isSMILElement(element))
-        return false;
-
-    return document->accessSVGExtensions()->sampleAnimationAtTime(elementId, static_cast<WebCore::SVGSMILElement*>(element), time);
-#else
-    return false;
-#endif
 }
 
 bool DumpRenderTreeSupportEfl::pauseTransition(Evas_Object* ewkFrame, const char* name, const char* elementId, double time)
@@ -384,4 +355,21 @@ bool DumpRenderTreeSupportEfl::isTargetItem(const Ewk_History_Item* ewkHistoryIt
 void DumpRenderTreeSupportEfl::setMockScrollbarsEnabled(bool enable)
 {
     WebCore::Settings::setMockScrollbarsEnabled(enable);
+}
+
+void DumpRenderTreeSupportEfl::dumpConfigurationForViewport(Evas_Object* ewkView, int deviceDPI, const WebCore::IntSize& deviceSize, const WebCore::IntSize& availableSize)
+{
+    WebCore::Page* page = EWKPrivate::corePage(ewkView);
+
+    if (!page)
+        return;
+    WebCore::ViewportArguments arguments = page->mainFrame()->document()->viewportArguments();
+    WebCore::ViewportAttributes attributes = computeViewportAttributes(arguments,
+            /* default layout width for non-mobile pages */ 980,
+            deviceSize.width(), deviceSize.height(),
+            deviceDPI,
+            availableSize);
+    restrictMinimumScaleFactorToViewportSize(attributes, availableSize);
+    restrictScaleFactorToInitialScaleIfNotUserScalable(attributes);
+    fprintf(stdout, "viewport size %dx%d scale %f with limits [%f, %f] and userScalable %f\n", attributes.layoutSize.width(), attributes.layoutSize.height(), attributes.initialScale, attributes.minimumScale, attributes.maximumScale, attributes.userScalable);
 }

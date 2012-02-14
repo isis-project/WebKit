@@ -31,20 +31,25 @@ public:
     WebViewTest();
     virtual ~WebViewTest();
 
-    void loadURI(const char* uri);
-    void loadHtml(const char* html, const char* baseURI);
-    void loadPlainText(const char* plainText);
-    void loadRequest(WebKitURIRequest*);
+    virtual void loadURI(const char* uri);
+    virtual void loadHtml(const char* html, const char* baseURI);
+    virtual void loadPlainText(const char* plainText);
+    virtual void loadRequest(WebKitURIRequest*);
     void replaceContent(const char* html, const char* contentURI, const char* baseURI);
     void goBack();
     void goForward();
     void goToBackForwardListItem(WebKitBackForwardListItem*);
 
     void wait(double seconds);
+    void waitUntilLoadFinished();
+    void showInWindowAndWaitUntilMapped();
+
+    void mouseMoveTo(int x, int y, unsigned int mouseModifiers = 0);
 
     WebKitWebView* m_webView;
     GMainLoop* m_mainLoop;
     CString m_activeURI;
+    GtkWidget* m_parentWindow;
 };
 
 #endif // WebViewTest_h

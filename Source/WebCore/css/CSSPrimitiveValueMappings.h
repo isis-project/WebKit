@@ -36,6 +36,7 @@
 #include "FontDescription.h"
 #include "FontSmoothingMode.h"
 #include "GraphicsTypes.h"
+#include "Length.h"
 #include "Path.h"
 #include "RenderStyleConstants.h"
 #include "SVGRenderStyleDefs.h"
@@ -283,6 +284,9 @@ template<> inline CSSPrimitiveValue::CSSPrimitiveValue(CompositeOperator e)
             break;
         case CompositePlusLighter:
             m_value.ident = CSSValuePlusLighter;
+            break;
+        case CompositeDifference:
+            ASSERT_NOT_REACHED();
             break;
     }
 }
@@ -1217,6 +1221,9 @@ template<> inline CSSPrimitiveValue::CSSPrimitiveValue(EFlexPack e)
     case PackJustify:
         m_value.ident = CSSValueJustify;
         break;
+    case PackDistribute:
+        m_value.ident = CSSValueDistribute;
+        break;
     }
 }
 
@@ -1231,6 +1238,8 @@ template<> inline CSSPrimitiveValue::operator EFlexPack() const
         return PackCenter;
     case CSSValueJustify:
         return PackJustify;
+    case CSSValueDistribute:
+        return PackDistribute;
     default:
         ASSERT_NOT_REACHED();
         return PackStart;
@@ -1387,7 +1396,15 @@ template<> inline CSSPrimitiveValue::CSSPrimitiveValue(EListStylePosition e)
 
 template<> inline CSSPrimitiveValue::operator EListStylePosition() const
 {
-    return (EListStylePosition)(m_value.ident - CSSValueOutside);
+    switch (m_value.ident) {
+    case CSSValueOutside:
+        return OUTSIDE;
+    case CSSValueInside:
+        return INSIDE;
+    default:
+        ASSERT_NOT_REACHED();
+        return OUTSIDE;
+    }
 }
 
 template<> inline CSSPrimitiveValue::CSSPrimitiveValue(EListStyleType e)
@@ -2276,7 +2293,17 @@ template<> inline CSSPrimitiveValue::CSSPrimitiveValue(EUserModify e)
 
 template<> inline CSSPrimitiveValue::operator EUserModify() const
 {
-    return static_cast<EUserModify>(m_value.ident - CSSValueReadOnly);
+    switch (m_value.ident) {
+    case CSSValueReadOnly:
+        return READ_ONLY;
+    case CSSValueReadWrite:
+        return READ_WRITE;
+    case CSSValueReadWritePlaintextOnly:
+        return READ_WRITE_PLAINTEXT_ONLY;
+    default:
+        ASSERT_NOT_REACHED();
+        return READ_ONLY;
+    }
 }
 
 template<> inline CSSPrimitiveValue::CSSPrimitiveValue(EUserSelect e)
@@ -3131,35 +3158,35 @@ template<> inline CSSPrimitiveValue::operator Hyphens() const
     }
 }
 
-template<> inline CSSPrimitiveValue::CSSPrimitiveValue(LineGridSnap gridSnap)
+template<> inline CSSPrimitiveValue::CSSPrimitiveValue(LineSnap gridSnap)
     : CSSValue(PrimitiveClass)
 {
     m_primitiveUnitType = CSS_IDENT;
     switch (gridSnap) {
-    case LineGridSnapNone:
+    case LineSnapNone:
         m_value.ident = CSSValueNone;
         break;
-    case LineGridSnapBaseline:
+    case LineSnapBaseline:
         m_value.ident = CSSValueBaseline;
         break;
-    case LineGridSnapBounds:
-        m_value.ident = CSSValueBounds;
+    case LineSnapContain:
+        m_value.ident = CSSValueContain;
         break;
     }
 }
 
-template<> inline CSSPrimitiveValue::operator LineGridSnap() const
+template<> inline CSSPrimitiveValue::operator LineSnap() const
 {
     switch (m_value.ident) {
     case CSSValueNone:
-        return LineGridSnapNone;
+        return LineSnapNone;
     case CSSValueBaseline:
-        return LineGridSnapBaseline;
-    case CSSValueBounds:
-        return LineGridSnapBounds;
+        return LineSnapBaseline;
+    case CSSValueContain:
+        return LineSnapContain;
     default:
         ASSERT_NOT_REACHED();
-        return LineGridSnapNone;
+        return LineSnapNone;
     }
 }
 
@@ -3671,6 +3698,21 @@ template<> inline CSSPrimitiveValue::operator WrapThrough() const
         ASSERT_NOT_REACHED();
         return WrapThroughWrap;
     }
+}
+
+enum LengthConversion { UnsupportedConversion = 0, FixedConversion = 1, AutoConversion = 2, PercentConversion = 4, FractionConversion = 8};
+template<int supported> Length CSSPrimitiveValue::convertToLength(RenderStyle* style, RenderStyle* rootStyle, double multiplier, bool computingFontSize)
+{
+    if ((supported & FixedConversion) && isLength())
+        return computeLength<Length>(style, rootStyle, multiplier, computingFontSize);
+    if ((supported & PercentConversion) && isPercentage())
+        return Length(getDoubleValue(), Percent);
+    if ((supported & FractionConversion) && isNumber())
+        return Length(getDoubleValue() * 100.0, Percent);
+    if ((supported & AutoConversion) && getIdent() == CSSValueAuto)
+        return Length(Auto);
+    ASSERT_NOT_REACHED();
+    return Length(Undefined);
 }
 
 #if ENABLE(SVG)

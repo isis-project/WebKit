@@ -32,10 +32,6 @@
 #include "cc/CCRenderPass.h"
 #include <wtf/RefPtr.h>
 
-#if USE(SKIA)
-class GrContext;
-#endif
-
 namespace WebCore {
 
 class CCCompletionEvent;
@@ -61,8 +57,7 @@ public:
     static PassOwnPtr<CCLayerTreeHostImpl> create(const CCSettings&, CCLayerTreeHostImplClient*);
     virtual ~CCLayerTreeHostImpl();
 
-    // CCInputHandlerTarget implementation
-    virtual double currentTimeMs() const;
+    // CCInputHandlerClient implementation
     virtual void setNeedsRedraw();
     virtual CCInputHandlerClient::ScrollStatus scrollBegin(const IntPoint&);
     virtual void scrollBy(const IntSize&);
@@ -71,6 +66,7 @@ public:
     virtual void pinchGestureBegin();
     virtual void pinchGestureUpdate(float, const IntPoint&);
     virtual void pinchGestureEnd();
+    virtual void startPageScaleAnimation(const IntSize& targetPosition, bool anchorPoint, float pageScale, double startTimeMs, double durationMs);
 
     // Virtual for testing
     virtual void beginCommit();
@@ -113,11 +109,15 @@ public:
     void setPageScaleFactorAndLimits(float pageScale, float minPageScale, float maxPageScale);
     float pageScale() const { return m_pageScale; }
 
-    void startPageScaleAnimation(const IntSize& targetPosition, bool anchorPoint, float pageScale, double durationMs);
-
     const CCSettings& settings() const { return m_settings; }
 
     PassOwnPtr<CCScrollAndScaleSet> processScrollDeltas();
+
+    // Where possible, redraws are scissored to a damage region calculated from changes to
+    // layer properties. This function overrides the damage region for the next draw cycle.
+    void setFullRootLayerDamage();
+
+    void startPageScaleAnimation(const IntSize& tragetPosition, bool useAnchor, float scale, double durationSec);
 
 protected:
     CCLayerTreeHostImpl(const CCSettings&, CCLayerTreeHostImplClient*);
@@ -135,6 +135,7 @@ private:
     void trackDamageForAllSurfaces(CCLayerImpl* rootDrawLayer, const CCLayerList& renderSurfaceLayerList);
     void calculateRenderPasses(CCRenderPassList&);
     void optimizeRenderPasses(CCRenderPassList&);
+    IntSize contentSize() const;
 
     OwnPtr<LayerRendererChromium> m_layerRenderer;
     RefPtr<CCLayerImpl> m_rootLayerImpl;

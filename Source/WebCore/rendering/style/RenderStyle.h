@@ -538,23 +538,26 @@ public:
 
     const NinePieceImage& borderImage() const { return surround->border.image(); }
     StyleImage* borderImageSource() const { return surround->border.image().image(); }
- 
+    LengthBox borderImageSlices() const { return surround->border.image().imageSlices(); }
+    LengthBox borderImageWidth() const { return surround->border.image().borderSlices(); }
+    LengthBox borderImageOutset() const { return surround->border.image().outset(); }
+
     LengthSize borderTopLeftRadius() const { return surround->border.topLeft(); }
     LengthSize borderTopRightRadius() const { return surround->border.topRight(); }
     LengthSize borderBottomLeftRadius() const { return surround->border.bottomLeft(); }
     LengthSize borderBottomRightRadius() const { return surround->border.bottomRight(); }
     bool hasBorderRadius() const { return surround->border.hasBorderRadius(); }
 
-    unsigned short borderLeftWidth() const { return surround->border.borderLeftWidth(); }
+    unsigned borderLeftWidth() const { return surround->border.borderLeftWidth(); }
     EBorderStyle borderLeftStyle() const { return surround->border.left().style(); }
     bool borderLeftIsTransparent() const { return surround->border.left().isTransparent(); }
-    unsigned short borderRightWidth() const { return surround->border.borderRightWidth(); }
+    unsigned borderRightWidth() const { return surround->border.borderRightWidth(); }
     EBorderStyle borderRightStyle() const { return surround->border.right().style(); }
     bool borderRightIsTransparent() const { return surround->border.right().isTransparent(); }
-    unsigned short borderTopWidth() const { return surround->border.borderTopWidth(); }
+    unsigned borderTopWidth() const { return surround->border.borderTopWidth(); }
     EBorderStyle borderTopStyle() const { return surround->border.top().style(); }
     bool borderTopIsTransparent() const { return surround->border.top().isTransparent(); }
-    unsigned short borderBottomWidth() const { return surround->border.borderBottomWidth(); }
+    unsigned borderBottomWidth() const { return surround->border.borderBottomWidth(); }
     EBorderStyle borderBottomStyle() const { return surround->border.bottom().style(); }
     bool borderBottomIsTransparent() const { return surround->border.bottom().isTransparent(); }
     
@@ -615,7 +618,7 @@ public:
     Length lineHeight() const { return inherited->line_height; }
     int computedLineHeight() const
     {
-        Length lh = lineHeight();
+        const Length& lh = inherited->line_height;
 
         // Negative value means the line height is not set.  Use the font's built-in spacing.
         if (lh.isNegative())
@@ -801,9 +804,11 @@ public:
     float flexboxHeightNegativeFlex() const { return rareNonInheritedData->m_flexibleBox->m_heightNegativeFlex; }
     int flexOrder() const { return rareNonInheritedData->m_flexibleBox->m_flexOrder; }
     EFlexPack flexPack() const { return static_cast<EFlexPack>(rareNonInheritedData->m_flexibleBox->m_flexPack); }
+    EFlexAlign flexAlign() const { return static_cast<EFlexAlign>(rareNonInheritedData->m_flexibleBox->m_flexAlign); }
     EFlexAlign flexItemAlign() const { return static_cast<EFlexAlign>(rareNonInheritedData->m_flexibleBox->m_flexItemAlign); }
     EFlexDirection flexDirection() const { return static_cast<EFlexDirection>(rareNonInheritedData->m_flexibleBox->m_flexDirection); }
     bool isColumnFlexDirection() const { return flexDirection() == FlowColumn || flexDirection() == FlowColumnReverse; }
+    bool isReverseFlexDirection() const { return flexDirection() == FlowRowReverse || flexDirection() == FlowColumnReverse; }
     EFlexWrap flexWrap() const { return static_cast<EFlexWrap>(rareNonInheritedData->m_flexibleBox->m_flexWrap); }
 
 #if ENABLE(CSS_GRID_LAYOUT)
@@ -898,7 +903,7 @@ public:
     RegionOverflow regionOverflow() const { return static_cast<RegionOverflow>(rareNonInheritedData->m_regionOverflow); }
 
     const AtomicString& lineGrid() const { return rareInheritedData->m_lineGrid; }
-    LineGridSnap lineGridSnap() const { return static_cast<LineGridSnap>(rareInheritedData->m_lineGridSnap); }
+    LineSnap lineSnap() const { return static_cast<LineSnap>(rareInheritedData->m_lineSnap); }
 
     WrapFlow wrapFlow() const { return static_cast<WrapFlow>(rareNonInheritedData->m_wrapFlow); }
     WrapThrough wrapThrough() const { return static_cast<WrapThrough>(rareNonInheritedData->m_wrapThrough); }
@@ -1018,6 +1023,9 @@ public:
     
     void setBorderImage(const NinePieceImage& b) { SET_VAR(surround, border.m_image, b) }
     void setBorderImageSource(PassRefPtr<StyleImage> v) { surround.access()->border.m_image.setImage(v); }
+    void setBorderImageSlices(LengthBox slices) { surround.access()->border.m_image.setImageSlices(slices); }
+    void setBorderImageWidth(LengthBox slices) { surround.access()->border.m_image.setBorderSlices(slices); }
+    void setBorderImageOutset(LengthBox outset) { surround.access()->border.m_image.setOutset(outset); }
 
     void setBorderTopLeftRadius(LengthSize s) { SET_VAR(surround, border.m_topLeft, s) }
     void setBorderTopRightRadius(LengthSize s) { SET_VAR(surround, border.m_topRight, s) }
@@ -1042,16 +1050,16 @@ public:
     RoundedRect getRoundedInnerBorderFor(const LayoutRect& borderRect,
         LayoutUnit topWidth, LayoutUnit bottomWidth, LayoutUnit leftWidth, LayoutUnit rightWidth, bool includeLogicalLeftEdge, bool includeLogicalRightEdge) const;
 
-    void setBorderLeftWidth(unsigned short v) { SET_VAR(surround, border.m_left.m_width, v) }
+    void setBorderLeftWidth(unsigned v) { SET_VAR(surround, border.m_left.m_width, v) }
     void setBorderLeftStyle(EBorderStyle v) { SET_VAR(surround, border.m_left.m_style, v) }
     void setBorderLeftColor(const Color& v) { SET_VAR(surround, border.m_left.m_color, v) }
-    void setBorderRightWidth(unsigned short v) { SET_VAR(surround, border.m_right.m_width, v) }
+    void setBorderRightWidth(unsigned v) { SET_VAR(surround, border.m_right.m_width, v) }
     void setBorderRightStyle(EBorderStyle v) { SET_VAR(surround, border.m_right.m_style, v) }
     void setBorderRightColor(const Color& v) { SET_VAR(surround, border.m_right.m_color, v) }
-    void setBorderTopWidth(unsigned short v) { SET_VAR(surround, border.m_top.m_width, v) }
+    void setBorderTopWidth(unsigned v) { SET_VAR(surround, border.m_top.m_width, v) }
     void setBorderTopStyle(EBorderStyle v) { SET_VAR(surround, border.m_top.m_style, v) }
     void setBorderTopColor(const Color& v) { SET_VAR(surround, border.m_top.m_color, v) }
-    void setBorderBottomWidth(unsigned short v) { SET_VAR(surround, border.m_bottom.m_width, v) }
+    void setBorderBottomWidth(unsigned v) { SET_VAR(surround, border.m_bottom.m_width, v) }
     void setBorderBottomStyle(EBorderStyle v) { SET_VAR(surround, border.m_bottom.m_style, v) }
     void setBorderBottomColor(const Color& v) { SET_VAR(surround, border.m_bottom.m_color, v) }
 
@@ -1221,6 +1229,7 @@ public:
     void setFlexboxHeightNegativeFlex(float f) { SET_VAR(rareNonInheritedData.access()->m_flexibleBox, m_heightNegativeFlex, f); }
     void setFlexOrder(int o) { SET_VAR(rareNonInheritedData.access()->m_flexibleBox, m_flexOrder, o); }
     void setFlexPack(EFlexPack p) { SET_VAR(rareNonInheritedData.access()->m_flexibleBox, m_flexPack, p); }
+    void setFlexAlign(EFlexAlign a) { SET_VAR(rareNonInheritedData.access()->m_flexibleBox, m_flexAlign, a); }
     void setFlexItemAlign(EFlexAlign a) { SET_VAR(rareNonInheritedData.access()->m_flexibleBox, m_flexItemAlign, a); }
     void setFlexDirection(EFlexDirection direction) { SET_VAR(rareNonInheritedData.access()->m_flexibleBox, m_flexDirection, direction); }
     void setFlexWrap(EFlexWrap w) { SET_VAR(rareNonInheritedData.access()->m_flexibleBox, m_flexWrap, w); }
@@ -1293,7 +1302,7 @@ public:
     // End CSS3 Setters
 
     void setLineGrid(const AtomicString& lineGrid) { SET_VAR(rareInheritedData, m_lineGrid, lineGrid); }
-    void setLineGridSnap(LineGridSnap lineGridSnap) { SET_VAR(rareInheritedData, m_lineGridSnap, lineGridSnap); }
+    void setLineSnap(LineSnap lineSnap) { SET_VAR(rareInheritedData, m_lineSnap, lineSnap); }
 
     void setFlowThread(const AtomicString& flowThread) { SET_VAR(rareNonInheritedData, m_flowThread, flowThread); }
     void setRegionThread(const AtomicString& regionThread) { SET_VAR(rareNonInheritedData, m_regionThread, regionThread); }
@@ -1511,7 +1520,9 @@ public:
     static ECursor initialCursor() { return CURSOR_AUTO; }
     static Color initialColor() { return Color::black; }
     static StyleImage* initialListStyleImage() { return 0; }
-    static unsigned short initialBorderWidth() { return 3; }
+    static unsigned initialBorderWidth() { return 3; }
+    static unsigned short initialColumnRuleWidth() { return 3; }
+    static unsigned short initialOutlineWidth() { return 3; }
     static int initialLetterWordSpacing() { return 0; }
     static Length initialSize() { return Length(); }
     static Length initialMinSize() { return Length(0, Fixed); }
@@ -1545,8 +1556,8 @@ public:
     static float initialFlexboxHeightNegativeFlex() { return 0; }
     static int initialFlexOrder() { return 0; }
     static EFlexPack initialFlexPack() { return PackStart; }
-    // FIXME: When we add in flex-align, default flex-item-align to AlignAuto.
-    static EFlexAlign initialFlexItemAlign() { return AlignStretch; }
+    static EFlexAlign initialFlexAlign() { return AlignStretch; }
+    static EFlexAlign initialFlexItemAlign() { return AlignAuto; }
     static EFlexDirection initialFlexDirection() { return FlowRow; }
     static EFlexWrap initialFlexWrap() { return FlexNoWrap; }
     static int initialMarqueeLoopCount() { return -1; }
@@ -1620,7 +1631,7 @@ public:
 #endif
 
     static const AtomicString& initialLineGrid() { return nullAtom; }
-    static LineGridSnap initialLineGridSnap() { return LineGridSnapNone; }
+    static LineSnap initialLineSnap() { return LineSnapNone; }
 
     static const AtomicString& initialFlowThread() { return nullAtom; }
     static const AtomicString& initialRegionThread() { return nullAtom; }

@@ -44,28 +44,26 @@ PassRefPtr<HTMLParagraphElement> HTMLParagraphElement::create(const QualifiedNam
     return adoptRef(new HTMLParagraphElement(tagName, document));
 }
 
-bool HTMLParagraphElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
+bool HTMLParagraphElement::isPresentationAttribute(Attribute* attr) const
 {
-    if (attrName == alignAttr) {
-        result = eBlock; // We can share with DIV here.
-        return false;
-    }
-    return HTMLElement::mapToEntry(attrName, result);
+    if (attr->name() == alignAttr)
+        return true;
+    return HTMLElement::isPresentationAttribute(attr);
 }
 
-void HTMLParagraphElement::parseMappedAttribute(Attribute* attr)
+void HTMLParagraphElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == alignAttr) {
         if (equalIgnoringCase(attr->value(), "middle") || equalIgnoringCase(attr->value(), "center"))
-            addCSSProperty(attr, CSSPropertyTextAlign, CSSValueWebkitCenter);
+            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitCenter);
         else if (equalIgnoringCase(attr->value(), "left"))
-            addCSSProperty(attr, CSSPropertyTextAlign, CSSValueWebkitLeft);
+            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitLeft);
         else if (equalIgnoringCase(attr->value(), "right"))
-            addCSSProperty(attr, CSSPropertyTextAlign, CSSValueWebkitRight);
+            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitRight);
         else
-            addCSSProperty(attr, CSSPropertyTextAlign, attr->value());
+            style->setProperty(CSSPropertyTextAlign, attr->value());
     } else
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::collectStyleForAttribute(attr, style);
 }
 
 }

@@ -42,7 +42,6 @@
 #include <qgraphicsview.h>
 #include <qscrollbar.h>
 #include <qstyleoption.h>
-#include <qinputcontext.h>
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qsharedpointer.h>
 #include <QtCore/qtimer.h>

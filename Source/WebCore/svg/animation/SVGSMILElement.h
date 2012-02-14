@@ -44,8 +44,8 @@ public:
 
     static bool isSMILElement(Node*);
 
-    virtual void parseMappedAttribute(Attribute*);
-    virtual void attributeChanged(Attribute*, bool preserveDecls);
+    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual void attributeChanged(Attribute*) OVERRIDE;
     virtual void insertedIntoDocument();
     virtual void removedFromDocument();
     
@@ -109,15 +109,15 @@ public:
     virtual void applyResultsToTarget() = 0;
 
 protected:
-    void addBeginTime(SMILTime eventTime, SMILTime endTime);
-    void addEndTime(SMILTime eventTime, SMILTime endTime);
+    void addBeginTime(SMILTime eventTime, SMILTime endTime, SMILTimeWithOrigin::Origin = SMILTimeWithOrigin::ParserOrigin);
+    void addEndTime(SMILTime eventTime, SMILTime endTime, SMILTimeWithOrigin::Origin = SMILTimeWithOrigin::ParserOrigin);
 
     void setInactive() { m_activeState = Inactive; }
 
 private:
     virtual void startedActiveInterval() = 0;
     virtual void updateAnimation(float percent, unsigned repeat, SVGSMILElement* resultElement) = 0;
-    virtual void endedActiveInterval() = 0;
+    void endedActiveInterval();
 
     enum BeginOrEnd {
         Begin,
@@ -199,8 +199,8 @@ private:
     TimeDependentSet m_timeDependents;
 
     // Instance time lists
-    Vector<SMILTime> m_beginTimes;
-    Vector<SMILTime> m_endTimes;
+    Vector<SMILTimeWithOrigin> m_beginTimes;
+    Vector<SMILTimeWithOrigin> m_endTimes;
 
     // This is the upcoming or current interval
     SMILTime m_intervalBegin;

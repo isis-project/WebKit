@@ -172,6 +172,15 @@ void FrameLoaderClientEfl::dispatchWillSendRequest(DocumentLoader* loader, unsig
 
     ewk_frame_request_will_send(m_frame, &request);
 
+    // We want to distinguish between a request for a document to be loaded into
+    // the main frame, a sub-frame, or the sub-objects in that document (via Chromium).
+    if (loader) {
+        const FrameLoader* frameLoader = loader->frameLoader();
+        const bool isMainFrameRequest = (loader == frameLoader->provisionalDocumentLoader() && frameLoader->isLoadingMainFrame());
+        if (isMainFrameRequest)
+            evas_object_smart_callback_call(m_view, "resource,request,willsend", &request);
+    }
+
     if (request.url != orig.url) {
         coreRequest.setURL(KURL(KURL(), request.url));
 
@@ -232,13 +241,9 @@ void FrameLoaderClientEfl::frameLoaderDestroyed()
 
 void FrameLoaderClientEfl::dispatchDidReceiveResponse(DocumentLoader* loader, unsigned long, const ResourceResponse& response)
 {
-#if USE(SOUP)
     // Update our knowledge of request soup flags - some are only set
     // after the request is done.
     loader->request().setSoupMessageFlags(response.soupMessageFlags());
-#else
-    UNUSED_PARAM(loader);
-#endif
 
     m_response = response;
 }

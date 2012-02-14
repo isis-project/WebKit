@@ -609,6 +609,7 @@ static void resetDefaultsToConsistentValues()
     [preferences setDefaultFontSize:16];
     [preferences setDefaultFixedFontSize:13];
     [preferences setMinimumFontSize:0];
+    [preferences setDefaultTextEncodingName:@"ISO-8859-1"];
     [preferences setJavaEnabled:NO];
     [preferences setJavaScriptEnabled:YES];
     [preferences setEditableLinkBehavior:WebKitEditableLinkOnlyLiveWithShiftKey];
@@ -649,7 +650,7 @@ static void resetDefaultsToConsistentValues()
     [preferences setWebGLEnabled:NO];
     [preferences setUsePreHTML5ParserQuirks:NO];
     [preferences setAsynchronousSpellCheckingEnabled:NO];
-    [preferences setHixie76WebSocketProtocolEnabled:YES];
+    [preferences setHixie76WebSocketProtocolEnabled:NO];
     [preferences setMockScrollbarsEnabled:YES];
 
 #if ENABLE(WEB_AUDIO)
@@ -1145,10 +1146,8 @@ void dump()
             WebArchive *webArchive = [[mainFrame dataSource] webArchive];
             resultString = HardAutorelease(createXMLStringFromWebArchiveData((CFDataRef)[webArchive data]));
             resultMimeType = @"application/x-webarchive";
-        } else {
-            sizeWebViewForCurrentTest();
+        } else
             resultString = [mainFrame renderTreeAsExternalRepresentationForPrinting:gLayoutTestController->isPrinting()];
-        }
 
         if (resultString && !resultData)
             resultData = [resultString dataUsingEncoding:NSUTF8StringEncoding];
@@ -1283,7 +1282,7 @@ static void runTest(const string& testPathOrURL)
     }
 
     NSURL *url;
-    if ([pathOrURLString hasPrefix:@"http://"] || [pathOrURLString hasPrefix:@"https://"])
+    if ([pathOrURLString hasPrefix:@"http://"] || [pathOrURLString hasPrefix:@"https://"] || [pathOrURLString hasPrefix:@"file://"])
         url = [NSURL URLWithString:pathOrURLString];
     else
         url = [NSURL fileURLWithPath:pathOrURLString];
@@ -1302,6 +1301,7 @@ static void runTest(const string& testPathOrURL)
     releaseAndZero(&draggingInfo);
     done = NO;
 
+    sizeWebViewForCurrentTest();
     gLayoutTestController->setIconDatabaseEnabled(false);
 
     if (disallowedURLs)

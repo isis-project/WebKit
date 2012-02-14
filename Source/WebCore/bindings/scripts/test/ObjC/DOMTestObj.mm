@@ -50,7 +50,6 @@
 #import "DOMcInternal.h"
 #import "DOMdInternal.h"
 #import "DOMeInternal.h"
-#import "DOMlogInternal.h"
 #import "Document.h"
 #import "EventListener.h"
 #import "ExceptionHandlers.h"
@@ -76,7 +75,6 @@
 #import "c.h"
 #import "d.h"
 #import "e.h"
-#import "log.h"
 #import <wtf/GetPtr.h>
 
 #define IMPL reinterpret_cast<WebCore::TestObj*>(_internal)
@@ -290,18 +288,6 @@
     IMPL->setAttribute(WebCore::HTMLNames::reflectedurlattrAttr, newReflectedURLAttr);
 }
 
-- (NSString *)reflectedNonEmptyURLAttr
-{
-    WebCore::JSMainThreadNullState state;
-    return IMPL->getNonEmptyURLAttribute(WebCore::HTMLNames::reflectednonemptyurlattrAttr);
-}
-
-- (void)setReflectedNonEmptyURLAttr:(NSString *)newReflectedNonEmptyURLAttr
-{
-    WebCore::JSMainThreadNullState state;
-    IMPL->setAttribute(WebCore::HTMLNames::reflectednonemptyurlattrAttr, newReflectedNonEmptyURLAttr);
-}
-
 - (NSString *)reflectedStringAttr
 {
     WebCore::JSMainThreadNullState state;
@@ -348,18 +334,6 @@
 {
     WebCore::JSMainThreadNullState state;
     IMPL->setAttribute(WebCore::HTMLNames::customContentURLAttrAttr, newReflectedCustomURLAttr);
-}
-
-- (NSString *)reflectedCustomNonEmptyURLAttr
-{
-    WebCore::JSMainThreadNullState state;
-    return IMPL->getNonEmptyURLAttribute(WebCore::HTMLNames::customContentNonEmptyURLAttrAttr);
-}
-
-- (void)setReflectedCustomNonEmptyURLAttr:(NSString *)newReflectedCustomNonEmptyURLAttr
-{
-    WebCore::JSMainThreadNullState state;
-    IMPL->setAttribute(WebCore::HTMLNames::customContentNonEmptyURLAttrAttr, newReflectedCustomNonEmptyURLAttr);
 }
 
 - (int)attrWithGetterException
@@ -434,6 +408,131 @@
 {
     WebCore::JSMainThreadNullState state;
     IMPL->setCustomAttr(newCustomAttr);
+}
+
+- (int)withScriptStateAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    return IMPL->withScriptStateAttribute();
+}
+
+- (void)setWithScriptStateAttribute:(int)newWithScriptStateAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->setWithScriptStateAttribute(newWithScriptStateAttribute);
+}
+
+- (DOMTestObj *)withScriptExecutionContextAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    return kit(WTF::getPtr(IMPL->withScriptExecutionContextAttribute()));
+}
+
+- (void)setWithScriptExecutionContextAttribute:(DOMTestObj *)newWithScriptExecutionContextAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    ASSERT(newWithScriptExecutionContextAttribute);
+
+    IMPL->setWithScriptExecutionContextAttribute(core(newWithScriptExecutionContextAttribute));
+}
+
+- (DOMTestObj *)withScriptStateAttributeRaises
+{
+    WebCore::JSMainThreadNullState state;
+    WebCore::ExceptionCode ec = 0;
+    DOMTestObj *result = kit(WTF::getPtr(IMPL->withScriptStateAttributeRaises(ec)));
+    WebCore::raiseOnDOMError(ec);
+    return result;
+}
+
+- (void)setWithScriptStateAttributeRaises:(DOMTestObj *)newWithScriptStateAttributeRaises
+{
+    WebCore::JSMainThreadNullState state;
+    ASSERT(newWithScriptStateAttributeRaises);
+
+    WebCore::ExceptionCode ec = 0;
+    IMPL->setWithScriptStateAttributeRaises(core(newWithScriptStateAttributeRaises), ec);
+    WebCore::raiseOnDOMError(ec);
+}
+
+- (DOMTestObj *)withScriptExecutionContextAttributeRaises
+{
+    WebCore::JSMainThreadNullState state;
+    WebCore::ExceptionCode ec = 0;
+    DOMTestObj *result = kit(WTF::getPtr(IMPL->withScriptExecutionContextAttributeRaises(ec)));
+    WebCore::raiseOnDOMError(ec);
+    return result;
+}
+
+- (void)setWithScriptExecutionContextAttributeRaises:(DOMTestObj *)newWithScriptExecutionContextAttributeRaises
+{
+    WebCore::JSMainThreadNullState state;
+    ASSERT(newWithScriptExecutionContextAttributeRaises);
+
+    WebCore::ExceptionCode ec = 0;
+    IMPL->setWithScriptExecutionContextAttributeRaises(core(newWithScriptExecutionContextAttributeRaises), ec);
+    WebCore::raiseOnDOMError(ec);
+}
+
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    return kit(WTF::getPtr(IMPL->withScriptExecutionContextAndScriptStateAttribute()));
+}
+
+- (void)setWithScriptExecutionContextAndScriptStateAttribute:(DOMTestObj *)newWithScriptExecutionContextAndScriptStateAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    ASSERT(newWithScriptExecutionContextAndScriptStateAttribute);
+
+    IMPL->setWithScriptExecutionContextAndScriptStateAttribute(core(newWithScriptExecutionContextAndScriptStateAttribute));
+}
+
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateAttributeRaises
+{
+    WebCore::JSMainThreadNullState state;
+    WebCore::ExceptionCode ec = 0;
+    DOMTestObj *result = kit(WTF::getPtr(IMPL->withScriptExecutionContextAndScriptStateAttributeRaises(ec)));
+    WebCore::raiseOnDOMError(ec);
+    return result;
+}
+
+- (void)setWithScriptExecutionContextAndScriptStateAttributeRaises:(DOMTestObj *)newWithScriptExecutionContextAndScriptStateAttributeRaises
+{
+    WebCore::JSMainThreadNullState state;
+    ASSERT(newWithScriptExecutionContextAndScriptStateAttributeRaises);
+
+    WebCore::ExceptionCode ec = 0;
+    IMPL->setWithScriptExecutionContextAndScriptStateAttributeRaises(core(newWithScriptExecutionContextAndScriptStateAttributeRaises), ec);
+    WebCore::raiseOnDOMError(ec);
+}
+
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateWithSpacesAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    return kit(WTF::getPtr(IMPL->withScriptExecutionContextAndScriptStateWithSpacesAttribute()));
+}
+
+- (void)setWithScriptExecutionContextAndScriptStateWithSpacesAttribute:(DOMTestObj *)newWithScriptExecutionContextAndScriptStateWithSpacesAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    ASSERT(newWithScriptExecutionContextAndScriptStateWithSpacesAttribute);
+
+    IMPL->setWithScriptExecutionContextAndScriptStateWithSpacesAttribute(core(newWithScriptExecutionContextAndScriptStateWithSpacesAttribute));
+}
+
+- (DOMTestObj *)withScriptArgumentsAndCallStackAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    return kit(WTF::getPtr(IMPL->withScriptArgumentsAndCallStackAttribute()));
+}
+
+- (void)setWithScriptArgumentsAndCallStackAttribute:(DOMTestObj *)newWithScriptArgumentsAndCallStackAttribute
+{
+    WebCore::JSMainThreadNullState state;
+    ASSERT(newWithScriptArgumentsAndCallStackAttribute);
+
+    IMPL->setWithScriptArgumentsAndCallStackAttribute(core(newWithScriptArgumentsAndCallStackAttribute));
 }
 
 - (NSString *)scriptStringAttr
@@ -685,14 +784,6 @@
     IMPL->customMethodWithArgs(intArg, strArg, core(objArg));
 }
 
-- (void)customArgsAndException:(DOMlog *)intArg
-{
-    WebCore::JSMainThreadNullState state;
-    WebCore::ExceptionCode ec = 0;
-    IMPL->customArgsAndException(core(intArg), ec);
-    WebCore::raiseOnDOMError(ec);
-}
-
 - (void)addEventListener:(NSString *)type listener:(id <DOMEventListener>)listener useCapture:(BOOL)useCapture
 {
     WebCore::JSMainThreadNullState state;
@@ -742,6 +833,33 @@
     IMPL->withScriptExecutionContext();
 }
 
+- (void)withScriptExecutionContextAndScriptState
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->withScriptExecutionContextAndScriptState();
+}
+
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateObjException
+{
+    WebCore::JSMainThreadNullState state;
+    WebCore::ExceptionCode ec = 0;
+    DOMTestObj *result = kit(WTF::getPtr(IMPL->withScriptExecutionContextAndScriptStateObjException(ec)));
+    WebCore::raiseOnDOMError(ec);
+    return result;
+}
+
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateWithSpaces
+{
+    WebCore::JSMainThreadNullState state;
+    return kit(WTF::getPtr(IMPL->withScriptExecutionContextAndScriptStateWithSpaces()));
+}
+
+- (void)withScriptArgumentsAndCallStack
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->withScriptArgumentsAndCallStack();
+}
+
 - (void)methodWithOptionalArg:(int)opt
 {
     WebCore::JSMainThreadNullState state;
@@ -758,6 +876,24 @@
 {
     WebCore::JSMainThreadNullState state;
     IMPL->methodWithNonOptionalArgAndTwoOptionalArgs(nonOpt, opt1, opt2);
+}
+
+- (void)methodWithOptionalString:(NSString *)str
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->methodWithOptionalString(str);
+}
+
+- (void)methodWithOptionalStringIsUndefined:(NSString *)str
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->methodWithOptionalStringIsUndefined(str);
+}
+
+- (void)methodWithOptionalStringIsNullString:(NSString *)str
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->methodWithOptionalStringIsNullString(str);
 }
 
 

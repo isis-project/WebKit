@@ -26,13 +26,15 @@
 #ifndef LayoutState_h
 #define LayoutState_h
 
+#include "ColumnInfo.h"
 #include "LayoutTypes.h"
+#include <wtf/HashMap.h>
 #include <wtf/Noncopyable.h>
 
 namespace WebCore {
 
-class ColumnInfo;
 class RenderArena;
+class RenderBlock;
 class RenderBox;
 class RenderObject;
 class RenderFlowThread;
@@ -46,6 +48,7 @@ public:
         , m_pageLogicalHeight(0)
         , m_pageLogicalHeightChanged(false)
         , m_columnInfo(0)
+        , m_lineGrid(0)
         , m_next(0)
 #ifndef NDEBUG
         , m_renderer(0)
@@ -66,7 +69,7 @@ public:
     void operator delete(void*, size_t);
 
     void clearPaginationInformation();
-    bool isPaginatingColumns() const { return m_columnInfo; }
+    bool isPaginatingColumns() const { return m_columnInfo && m_columnInfo->paginationUnit() == ColumnInfo::Column; }
     bool isPaginated() const { return m_isPaginated; }
     
     // The page logical offset is the object's offset from the top of the page in the page progression
@@ -75,12 +78,25 @@ public:
 
     void addForcedColumnBreak(LayoutUnit childLogicalOffset);
     
-    bool pageLogicalHeight() const { return m_pageLogicalHeight; }
+    LayoutUnit pageLogicalHeight() const { return m_pageLogicalHeight; }
     bool pageLogicalHeightChanged() const { return m_pageLogicalHeightChanged; }
+
+    RenderBlock* lineGrid() const { return m_lineGrid; }
+    LayoutSize lineGridOffset() const { return m_lineGridOffset; }
+    LayoutSize lineGridPaginationOrigin() const { return m_lineGridPaginationOrigin; }
+
+    LayoutSize layoutOffset() const { return m_layoutOffset; }
+
+    bool needsBlockDirectionLocationSetBeforeLayout() const { return m_lineGrid || (m_isPaginated && m_pageLogicalHeight); }
 
 private:
     // The normal operator new is disallowed.
     void* operator new(size_t) throw();
+
+    void propagateLineGridInfo(RenderBox*);
+    void establishLineGrid(RenderBlock*);
+
+    void computeLineGridPaginationOrigin(RenderBox*);
 
 public:
     bool m_clipped;
@@ -104,6 +120,11 @@ public:
     LayoutSize m_pageOffset;
     // If the enclosing pagination model is a column model, then this will store column information for easy retrieval/manipulation.
     ColumnInfo* m_columnInfo;
+
+    // The current line grid that we're snapping to and the offset of the start of the grid.
+    RenderBlock* m_lineGrid;
+    LayoutSize m_lineGridOffset;
+    LayoutSize m_lineGridPaginationOrigin;
 
     LayoutState* m_next;
 #ifndef NDEBUG

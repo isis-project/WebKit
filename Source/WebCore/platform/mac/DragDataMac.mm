@@ -31,6 +31,9 @@
 #import "DocumentFragment.h"
 #import "DOMDocumentFragment.h"
 #import "DOMDocumentFragmentInternal.h"
+#import "Editor.h"
+#import "EditorClient.h"
+#import "Frame.h"
 #import "MIMETypeRegistry.h"
 #import "Pasteboard.h"
 #import "Range.h"
@@ -63,7 +66,7 @@ bool DragData::canSmartReplace() const
 {
     //Need to call this so that the various Pasteboard type strings are intialised
     Pasteboard::generalPasteboard();
-    return [[m_pasteboard.get() types] containsObject:WebSmartPastePboardType];
+    return [[m_pasteboard.get() types] containsObject:String(WebSmartPastePboardType)];
 }
 
 bool DragData::containsColor() const
@@ -105,7 +108,7 @@ bool DragData::containsPlainText() const
 
 String DragData::asPlainText(Frame *frame) const
 {
-    Pasteboard pasteboard(m_pasteboard.get());
+    Pasteboard pasteboard([m_pasteboard.get() name]);
     return pasteboard.plainText(frame);
 }
 
@@ -126,7 +129,7 @@ static NSArray *insertablePasteboardTypes()
 {
     static NSArray *types = nil;
     if (!types) {
-        types = [[NSArray alloc] initWithObjects:WebArchivePboardType, NSHTMLPboardType, NSFilenamesPboardType, NSTIFFPboardType, NSPDFPboardType,
+        types = [[NSArray alloc] initWithObjects:String(WebArchivePboardType), NSHTMLPboardType, NSFilenamesPboardType, NSTIFFPboardType, NSPDFPboardType,
 #ifdef BUILDING_ON_LEOPARD
                  NSPICTPboardType,
 #endif
@@ -147,23 +150,55 @@ bool DragData::containsURL(Frame* frame, FilenameConversionPolicy filenamePolicy
 {
     return !asURL(frame, filenamePolicy).isEmpty();
 }
-    
+
 String DragData::asURL(Frame* frame, FilenameConversionPolicy filenamePolicy, String* title) const
 {
     // FIXME: Use filenamePolicy.
     (void)filenamePolicy;
 
     if (title) {
-        if (NSString *URLTitleString = [m_pasteboard.get() stringForType:WebURLNamePboardType])
+        if (NSString *URLTitleString = [m_pasteboard.get() stringForType:String(WebURLNamePboardType)])
             *title = URLTitleString;
     }
-    Pasteboard pasteboard(m_pasteboard.get());
-    return pasteboard.asURL(frame);
+    
+    NSArray *types = [m_pasteboard.get() types];
+    
+    // FIXME: using the editorClient to call into WebKit, for now, since 
+    // calling webkit_canonicalize from WebCore involves migrating a sizable amount of 
+    // helper code that should either be done in a separate patch or figured out in another way.
+    
+    if ([types containsObject:NSURLPboardType]) {
+        NSURL *URLFromPasteboard = [NSURL URLFromPasteboard:m_pasteboard.get()];
+        NSString *scheme = [URLFromPasteboard scheme];
+        if ([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"]) {
+            return [frame->editor()->client()->canonicalizeURL(URLFromPasteboard) absoluteString];
+        }
+    }
+    
+    if ([types containsObject:NSStringPboardType]) {
+        NSString *URLString = [m_pasteboard.get() stringForType:NSStringPboardType];
+        NSURL *URL = frame->editor()->client()->canonicalizeURLString(URLString);
+        if (URL)
+            return [URL absoluteString];
+    }
+    
+    if ([types containsObject:NSFilenamesPboardType]) {
+        NSArray *files = [m_pasteboard.get() propertyListForType:NSFilenamesPboardType];
+        if ([files count] == 1) {
+            NSString *file = [files objectAtIndex:0];
+            BOOL isDirectory;
+            if ([[NSFileManager defaultManager] fileExistsAtPath:file isDirectory:&isDirectory] && isDirectory)
+                return String();
+            return [frame->editor()->client()->canonicalizeURL([NSURL fileURLWithPath:file]) absoluteString];
+        }
+    }
+    
+    return String();        
 }
 
 PassRefPtr<DocumentFragment> DragData::asFragment(Frame* frame, PassRefPtr<Range> range, bool allowPlainText, bool& chosePlainText) const
 {
-    Pasteboard pasteboard(m_pasteboard.get());
+    Pasteboard pasteboard([m_pasteboard.get() name]);
     
     return pasteboard.documentFragment(frame, range, allowPlainText, chosePlainText);
 }
