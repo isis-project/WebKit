@@ -32,22 +32,23 @@ module window {
 #if defined(V8_BINDING) && V8_BINDING
         CheckDomainSecurity,
 #endif
-        DelegatingGetOwnPropertySlot,
-        DelegatingPutFunction,
-        GenerateIsReachable=ImplFrame,
+        JSCustomGetOwnPropertySlotAndDescriptor,
+        CustomNamedSetter,
+        JSGenerateIsReachable=ImplFrame,
         CustomDeleteProperty,
-        CustomGetPropertyNames,
-        CustomDefineGetter,
-        DelegatingPrototypePutFunction,
-        CustomPrototypeDefineGetter,
-        OmitConstructor
+        CustomEnumerateProperty,
+        JSCustomDefineOwnProperty,
+        JSCustomNamedGetterOnPrototype,
+        JSCustomDefineOwnPropertyOnPrototype,
+        OmitConstructor,
+        V8CustomToJSObject
     ] Location {
 #if !defined(LANGUAGE_CPP) || !LANGUAGE_CPP
-                 attribute [DoNotCheckDomainSecurityOnSet, CustomSetter, V8DisallowShadowing] DOMString href;
+                 attribute [DoNotCheckDomainSecurityOnSetter, CustomSetter, V8Unforgeable] DOMString href;
 #endif
 
-        [Custom, V8OnInstance] void assign(in [Optional=CallWithDefaultValue] DOMString url);
-        [Custom, V8OnInstance] void replace(in [Optional=CallWithDefaultValue] DOMString url);
+        [Custom, V8OnInstance] void assign(in [Optional=DefaultIsUndefined] DOMString url);
+        [Custom, V8OnInstance] void replace(in [Optional=DefaultIsUndefined] DOMString url);
         [Custom, V8OnInstance] void reload();
 
         // URI decomposition attributes
@@ -64,10 +65,10 @@ module window {
 #endif
 
 #if defined(LANGUAGE_JAVASCRIPT) && LANGUAGE_JAVASCRIPT
-        [DontEnum, Custom, V8OnInstance, V8ReadOnly, ImplementationFunction=toStringFunction] DOMString toString();
+        [NotEnumerable, Custom, V8OnInstance, V8ReadOnly, ImplementedAs=toStringFunction] DOMString toString();
 #endif
 #if defined(V8_BINDING) && V8_BINDING
-        [DontEnum, Custom, V8OnInstance, V8ReadOnly] DOMObject valueOf();
+        [NotEnumerable, Custom, V8OnInstance, V8ReadOnly] DOMObject valueOf();
 #endif
     };
 

@@ -26,13 +26,14 @@
 #include "config.h"
 #include "JSCSSStyleDeclarationCustom.h"
 
-#include "CSSMutableStyleDeclaration.h"
+#include "CSSParser.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyNames.h"
 #include "CSSValue.h"
 #include "JSCSSValue.h"
 #include "JSNode.h"
 #include "PlatformString.h"
+#include "StylePropertySet.h"
 #include <runtime/StringPrototype.h>
 #include <wtf/ASCIICType.h>
 #include <wtf/text/AtomicString.h>
@@ -56,31 +57,102 @@ void JSCSSStyleDeclaration::visitChildren(JSCell* cell, SlotVisitor& visitor)
     visitor.addOpaqueRoot(root(thisObject->impl()));
 }
 
-// Check for a CSS prefix.
-// Passed prefix is all lowercase.
-// First character of the prefix within the property name may be upper or lowercase.
-// Other characters in the prefix within the property name must be lowercase.
-// The prefix within the property name must be followed by a capital letter.
-static bool hasCSSPropertyNamePrefix(const Identifier& propertyName, const char* prefix)
+enum PropertyNamePrefix
 {
+    PropertyNamePrefixNone,
+    PropertyNamePrefixCSS,
+    PropertyNamePrefixPixel,
+    PropertyNamePrefixPos,
+    PropertyNamePrefixApple,
+    PropertyNamePrefixEpub,
+    PropertyNamePrefixKHTML,
+    PropertyNamePrefixWebKit
+};
+
+template<size_t prefixCStringLength>
+static inline bool matchesCSSPropertyNamePrefix(const StringImpl& propertyName, const char (&prefix)[prefixCStringLength])
+{
+    size_t prefixLength = prefixCStringLength - 1;
+
+    ASSERT(toASCIILower(propertyName[0]) == prefix[0]);
+    const size_t offset = 1;
+
 #ifndef NDEBUG
-    ASSERT(*prefix);
-    for (const char* p = prefix; *p; ++p)
-        ASSERT(isASCIILower(*p));
+    for (size_t i = 0; i < prefixLength; ++i)
+        ASSERT(isASCIILower(prefix[i]));
+    ASSERT(!prefix[prefixLength]);
     ASSERT(propertyName.length());
 #endif
 
-    if (toASCIILower(propertyName.characters()[0]) != prefix[0])
+    // The prefix within the property name must be followed by a capital letter.
+    // Other characters in the prefix within the property name must be lowercase.
+    if (propertyName.length() < (prefixLength + 1))
         return false;
 
-    unsigned length = propertyName.length();
-    for (unsigned i = 1; i < length; ++i) {
-        if (!prefix[i])
-            return isASCIIUpper(propertyName.characters()[i]);
-        if (propertyName.characters()[i] != prefix[i])
+    for (size_t i = offset; i < prefixLength; ++i) {
+        if (propertyName[i] != prefix[i])
             return false;
     }
+
+    if (!isASCIIUpper(propertyName[prefixLength]))
+        return false;
+    return true;
+}
+
+static PropertyNamePrefix getCSSPropertyNamePrefix(const StringImpl& propertyName)
+{
+    ASSERT(propertyName.length());
+
+    // First character of the prefix within the property name may be upper or lowercase.
+    UChar firstChar = toASCIILower(propertyName[0]);
+    switch (firstChar) {
+    case 'a':
+        if (matchesCSSPropertyNamePrefix(propertyName, "apple"))
+            return PropertyNamePrefixApple;
+        break;
+    case 'c':
+        if (matchesCSSPropertyNamePrefix(propertyName, "css"))
+            return PropertyNamePrefixCSS;
+        break;
+    case 'k':
+        if (matchesCSSPropertyNamePrefix(propertyName, "khtml"))
+            return PropertyNamePrefixKHTML;
+        break;
+    case 'e':
+        if (matchesCSSPropertyNamePrefix(propertyName, "epub"))
+            return PropertyNamePrefixEpub;
+        break;
+    case 'p':
+        if (matchesCSSPropertyNamePrefix(propertyName, "pos"))
+            return PropertyNamePrefixPos;
+        if (matchesCSSPropertyNamePrefix(propertyName, "pixel"))
+            return PropertyNamePrefixPixel;
+        break;
+    case 'w':
+        if (matchesCSSPropertyNamePrefix(propertyName, "webkit"))
+            return PropertyNamePrefixWebKit;
+        break;
+    default:
+        break;
+    }
+    return PropertyNamePrefixNone;
+}
+
+template<typename CharacterType>
+static inline bool containsASCIIUpperChar(const CharacterType* string, size_t length)
+{
+    for (unsigned i = 0; i < length; ++i) {
+        if (isASCIIUpper(string[i]))
+            return true;
+    }
     return false;
+}
+
+static inline bool containsASCIIUpperChar(const StringImpl& string)
+{
+    if (string.is8Bit())
+        return containsASCIIUpperChar(string.characters8(), string.length());
+    return containsASCIIUpperChar(string.characters16(), string.length());
 }
 
 static String cssPropertyName(const Identifier& propertyName, bool* hadPixelOrPosPrefix = 0)
@@ -92,35 +164,45 @@ static String cssPropertyName(const Identifier& propertyName, bool* hadPixelOrPo
     if (!length)
         return String();
 
+    StringImpl* propertyNameString = propertyName.impl();
+    // If there is no uppercase character in the propertyName, there can
+    // be no prefix, nor extension and we can return the same string.
+    if (!containsASCIIUpperChar(*propertyNameString))
+        return String(propertyNameString);
+
     StringBuilder builder;
     builder.reserveCapacity(length);
 
     unsigned i = 0;
-
-    if (hasCSSPropertyNamePrefix(propertyName, "css"))
+    switch (getCSSPropertyNamePrefix(*propertyNameString)) {
+    case PropertyNamePrefixNone:
+        if (isASCIIUpper((*propertyNameString)[0]))
+            return String();
+        break;
+    case PropertyNamePrefixCSS:
         i += 3;
-    else if (hasCSSPropertyNamePrefix(propertyName, "pixel")) {
+        break;
+    case PropertyNamePrefixPixel:
         i += 5;
         if (hadPixelOrPosPrefix)
             *hadPixelOrPosPrefix = true;
-    } else if (hasCSSPropertyNamePrefix(propertyName, "pos")) {
+        break;
+    case PropertyNamePrefixPos:
         i += 3;
         if (hadPixelOrPosPrefix)
             *hadPixelOrPosPrefix = true;
-    } else if (hasCSSPropertyNamePrefix(propertyName, "webkit")
-            || hasCSSPropertyNamePrefix(propertyName, "khtml")
-            || hasCSSPropertyNamePrefix(propertyName, "apple")
-            || hasCSSPropertyNamePrefix(propertyName, "epub"))
+        break;
+    case PropertyNamePrefixApple:
+    case PropertyNamePrefixEpub:
+    case PropertyNamePrefixKHTML:
+    case PropertyNamePrefixWebKit:
         builder.append('-');
-    else {
-        if (isASCIIUpper(propertyName.characters()[0]))
-            return String();
     }
 
-    builder.append(toASCIILower(propertyName.characters()[i++]));
+    builder.append(toASCIILower((*propertyNameString)[i++]));
 
     for (; i < length; ++i) {
-        UChar c = propertyName.characters()[i];
+        UChar c = (*propertyNameString)[i];
         if (!isASCIIUpper(c))
             builder.append(c);
         else
@@ -132,9 +214,7 @@ static String cssPropertyName(const Identifier& propertyName, bool* hadPixelOrPo
 
 static bool isCSSPropertyName(const Identifier& propertyIdentifier)
 {
-    // FIXME: This mallocs a string for the property name and then throws it
-    // away.  This shows up on peacekeeper's domDynamicCreationCreateElement.
-    return CSSStyleDeclaration::isPropertyName(cssPropertyName(propertyIdentifier));
+    return cssPropertyID(cssPropertyName(propertyIdentifier));
 }
 
 bool JSCSSStyleDeclaration::canGetItemsForName(ExecState*, CSSStyleDeclaration*, const Identifier& propertyName)
@@ -170,7 +250,7 @@ bool JSCSSStyleDeclaration::putDelegate(ExecState* exec, const Identifier& prope
 {
     bool pixelOrPos;
     String prop = cssPropertyName(propertyName, &pixelOrPos);
-    if (!CSSStyleDeclaration::isPropertyName(prop))
+    if (!cssPropertyID(prop))
         return false;
 
     String propValue = valueToStringWithNullCheck(exec, value);
@@ -184,7 +264,7 @@ bool JSCSSStyleDeclaration::putDelegate(ExecState* exec, const Identifier& prope
 
 JSValue JSCSSStyleDeclaration::getPropertyCSSValue(ExecState* exec)
 {
-    const String& propertyName(ustringToString(exec->argument(0).toString(exec)));
+    const String& propertyName(ustringToString(exec->argument(0).toString(exec)->value(exec)));
     if (exec->hadException())
         return jsUndefined();
 

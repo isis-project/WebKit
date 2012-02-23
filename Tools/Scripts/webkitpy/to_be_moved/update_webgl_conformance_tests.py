@@ -23,8 +23,6 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-from __future__ import with_statement
-
 import glob
 import logging
 import optparse
@@ -32,6 +30,8 @@ import os
 import re
 import sys
 from webkitpy.common.checkout import scm
+from webkitpy.common.system.filesystem import FileSystem
+from webkitpy.common.system.executive import Executive
 
 
 _log = logging.getLogger(__name__)
@@ -94,7 +94,8 @@ def update_directory(in_dir, out_dir):
 
 
 def default_out_dir():
-    current_scm = scm.detect_scm_system(os.path.dirname(sys.argv[0]))
+    detector = scm.SCMDetector(FileSystem(), Executive())
+    current_scm = detector.detect_scm_system(os.path.dirname(sys.argv[0]))
     if not current_scm:
         return os.getcwd()
     root_dir = current_scm.checkout_root

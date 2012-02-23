@@ -41,6 +41,8 @@
 LayoutTestController::LayoutTestController(WebCore::DumpRenderTree* drt)
     : QObject()
     , m_drt(drt)
+    , m_shouldTimeout(true)
+    , m_timeout(30000)
 {
     reset();
     DumpRenderTreeSupportQt::dumpNotification(true);
@@ -146,7 +148,11 @@ void LayoutTestController::waitUntilDone()
 {
     //qDebug() << ">>>>waitForDone";
     m_waitForDone = true;
-    m_timeoutTimer.start(30000, this);
+
+    if (!m_shouldTimeout)
+        return;
+
+    m_timeoutTimer.start(m_timeout, this);
 }
 
 QString LayoutTestController::counterValueForElementById(const QString& id)
@@ -178,7 +184,7 @@ void LayoutTestController::notifyDone()
 {
     qDebug() << ">>>>notifyDone";
 
-    if (!m_timeoutTimer.isActive())
+    if (m_shouldTimeout && !m_timeoutTimer.isActive())
         return;
 
     m_timeoutTimer.stop();
@@ -556,15 +562,6 @@ bool LayoutTestController::pauseTransitionAtTimeOnElementWithId(const QString& p
     return DumpRenderTreeSupportQt::pauseTransitionOfProperty(frame, propertyName, time, elementId);
 }
 
-bool LayoutTestController::sampleSVGAnimationForElementAtTime(const QString& animationId,
-                                                              double time,
-                                                              const QString& elementId)
-{
-    QWebFrame* frame = m_drt->webPage()->mainFrame();
-    Q_ASSERT(frame);
-    return DumpRenderTreeSupportQt::pauseSVGAnimation(frame, animationId, time, elementId);
-}
-
 unsigned LayoutTestController::numberOfActiveAnimations() const
 {
     QWebFrame* frame = m_drt->webPage()->mainFrame();
@@ -894,6 +891,12 @@ void LayoutTestController::setMockGeolocationPosition(double latitude, double lo
 }
 
 void LayoutTestController::addMockSpeechInputResult(const QString& result, double confidence, const QString& language)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
+void LayoutTestController::setMockSpeechInputDumpRect(bool flag)
 {
     // FIXME: Implement for speech input layout tests.
     // See https://bugs.webkit.org/show_bug.cgi?id=39485.

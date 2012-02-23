@@ -43,7 +43,6 @@
 @class DOMc;
 @class DOMd;
 @class DOMe;
-@class DOMlog;
 @class NSString;
 @protocol DOMEventListener;
 
@@ -97,8 +96,6 @@ enum {
 - (void)setReflectedBooleanAttr:(BOOL)newReflectedBooleanAttr;
 - (NSString *)reflectedURLAttr;
 - (void)setReflectedURLAttr:(NSString *)newReflectedURLAttr;
-- (NSString *)reflectedNonEmptyURLAttr;
-- (void)setReflectedNonEmptyURLAttr:(NSString *)newReflectedNonEmptyURLAttr;
 - (NSString *)reflectedStringAttr;
 - (void)setReflectedStringAttr:(NSString *)newReflectedStringAttr;
 - (int)reflectedCustomIntegralAttr;
@@ -107,8 +104,6 @@ enum {
 - (void)setReflectedCustomBooleanAttr:(BOOL)newReflectedCustomBooleanAttr;
 - (NSString *)reflectedCustomURLAttr;
 - (void)setReflectedCustomURLAttr:(NSString *)newReflectedCustomURLAttr;
-- (NSString *)reflectedCustomNonEmptyURLAttr;
-- (void)setReflectedCustomNonEmptyURLAttr:(NSString *)newReflectedCustomNonEmptyURLAttr;
 - (int)attrWithGetterException;
 - (void)setAttrWithGetterException:(int)newAttrWithGetterException;
 - (int)attrWithSetterException;
@@ -119,6 +114,22 @@ enum {
 - (void)setStringAttrWithSetterException:(NSString *)newStringAttrWithSetterException;
 - (int)customAttr;
 - (void)setCustomAttr:(int)newCustomAttr;
+- (int)withScriptStateAttribute;
+- (void)setWithScriptStateAttribute:(int)newWithScriptStateAttribute;
+- (DOMTestObj *)withScriptExecutionContextAttribute;
+- (void)setWithScriptExecutionContextAttribute:(DOMTestObj *)newWithScriptExecutionContextAttribute;
+- (DOMTestObj *)withScriptStateAttributeRaises;
+- (void)setWithScriptStateAttributeRaises:(DOMTestObj *)newWithScriptStateAttributeRaises;
+- (DOMTestObj *)withScriptExecutionContextAttributeRaises;
+- (void)setWithScriptExecutionContextAttributeRaises:(DOMTestObj *)newWithScriptExecutionContextAttributeRaises;
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateAttribute;
+- (void)setWithScriptExecutionContextAndScriptStateAttribute:(DOMTestObj *)newWithScriptExecutionContextAndScriptStateAttribute;
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateAttributeRaises;
+- (void)setWithScriptExecutionContextAndScriptStateAttributeRaises:(DOMTestObj *)newWithScriptExecutionContextAndScriptStateAttributeRaises;
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateWithSpacesAttribute;
+- (void)setWithScriptExecutionContextAndScriptStateWithSpacesAttribute:(DOMTestObj *)newWithScriptExecutionContextAndScriptStateWithSpacesAttribute;
+- (DOMTestObj *)withScriptArgumentsAndCallStackAttribute;
+- (void)setWithScriptArgumentsAndCallStackAttribute:(DOMTestObj *)newWithScriptArgumentsAndCallStackAttribute;
 - (NSString *)scriptStringAttr;
 #if ENABLE(Condition1)
 - (int)conditionalAttr1;
@@ -168,7 +179,6 @@ enum {
 - (void)methodWithException;
 - (void)customMethod;
 - (void)customMethodWithArgs:(int)intArg strArg:(NSString *)strArg objArg:(DOMTestObj *)objArg;
-- (void)customArgsAndException:(DOMlog *)intArg;
 - (void)addEventListener:(NSString *)type listener:(id <DOMEventListener>)listener useCapture:(BOOL)useCapture;
 - (void)removeEventListener:(NSString *)type listener:(id <DOMEventListener>)listener useCapture:(BOOL)useCapture;
 - (void)withScriptStateVoid;
@@ -176,9 +186,16 @@ enum {
 - (void)withScriptStateVoidException;
 - (DOMTestObj *)withScriptStateObjException;
 - (void)withScriptExecutionContext;
+- (void)withScriptExecutionContextAndScriptState;
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateObjException;
+- (DOMTestObj *)withScriptExecutionContextAndScriptStateWithSpaces;
+- (void)withScriptArgumentsAndCallStack;
 - (void)methodWithOptionalArg:(int)opt;
 - (void)methodWithNonOptionalArgAndOptionalArg:(int)nonOpt opt:(int)opt;
 - (void)methodWithNonOptionalArgAndTwoOptionalArgs:(int)nonOpt opt1:(int)opt1 opt2:(int)opt2;
+- (void)methodWithOptionalString:(NSString *)str;
+- (void)methodWithOptionalStringIsUndefined:(NSString *)str;
+- (void)methodWithOptionalStringIsNullString:(NSString *)str;
 - (NSString *)conditionalMethod1;
 - (void)conditionalMethod2;
 - (void)conditionalMethod3;

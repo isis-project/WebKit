@@ -45,10 +45,10 @@ class WinPort(ApplePort):
     # and the order of fallback between them.  Matches ORWT.
     VERSION_FALLBACK_ORDER = ["win-xp", "win-vista", "win-7sp0", "win"]
 
-    def compare_text(self, expected_text, actual_text):
+    def do_text_results_differ(self, expected_text, actual_text):
         # Sanity was restored in WK2, so we don't need this hack there.
         if self.get_option('webkit_test_runner'):
-            return ApplePort.compare_text(self, expected_text, actual_text)
+            return ApplePort.do_text_results_differ(self, expected_text, actual_text)
 
         # This is a hack (which dates back to ORWT).
         # Windows does not have an EDITING DELEGATE, so we strip any EDITING DELEGATE
@@ -60,12 +60,8 @@ class WinPort(ApplePort):
         return expected_text != actual_text
 
     def baseline_search_path(self):
-        try:
-            fallback_index = self.VERSION_FALLBACK_ORDER.index(self._port_name_with_version())
-            fallback_names = list(self.VERSION_FALLBACK_ORDER[fallback_index:])
-        except ValueError:
-            # Unknown versions just fall back to the base port results.
-            fallback_names = [self.port_name]
+        fallback_index = self.VERSION_FALLBACK_ORDER.index(self._port_name_with_version())
+        fallback_names = list(self.VERSION_FALLBACK_ORDER[fallback_index:])
         # FIXME: The AppleWin port falls back to AppleMac for some results.  Eventually we'll have a shared 'apple' port.
         if self.get_option('webkit_test_runner'):
             fallback_names.insert(0, 'win-wk2')

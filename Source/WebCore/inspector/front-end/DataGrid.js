@@ -162,6 +162,11 @@ WebInspector.DataGrid = function(columns, editCallback, deleteCallback)
     this._columnWidthsInitialized = false;
 }
 
+WebInspector.DataGrid.Events = {
+    SelectedNode: "SelectedNode",
+    DeselectedNode: "DeselectedNode"
+}
+
 /**
  * @param {Array.<string>} columnNames
  * @param {Array.<string>} values
@@ -706,6 +711,8 @@ WebInspector.DataGrid.prototype = {
 
         if (this.expanded)
             child._attach();
+        if (!this.revealed)
+            child.revealed = false;
     },
 
     removeChild: function(child)
@@ -1464,8 +1471,10 @@ WebInspector.DataGridNode.prototype = {
         if (this._element)
             this._element.addStyleClass("selected");
 
-        if (!supressSelectedEvent)
+        if (!supressSelectedEvent) {
             this.dispatchEventToListeners("selected");
+            this.dataGrid.dispatchEventToListeners(WebInspector.DataGrid.Events.SelectedNode);
+        }
     },
 
     revealAndSelect: function()
@@ -1488,8 +1497,10 @@ WebInspector.DataGridNode.prototype = {
         if (this._element)
             this._element.removeStyleClass("selected");
 
-        if (!supressDeselectedEvent)
+        if (!supressDeselectedEvent) {
             this.dispatchEventToListeners("deselected");
+            this.dataGrid.dispatchEventToListeners(WebInspector.DataGrid.Events.DeselectedNode);
+        }
     },
 
     traverseNextNode: function(skipHidden, stayWithin, dontPopulate, info)

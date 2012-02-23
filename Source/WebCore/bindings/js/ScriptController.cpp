@@ -64,7 +64,6 @@ void ScriptController::initializeThreading()
 ScriptController::ScriptController(Frame* frame)
     : m_frame(frame)
     , m_sourceURL(0)
-    , m_inExecuteScript(false)
     , m_paused(false)
 #if ENABLE(NETSCAPE_PLUGIN_API)
     , m_windowScriptNPObject(0)
@@ -248,7 +247,7 @@ bool ScriptController::canAccessFromCurrentOrigin(Frame *frame)
 {
     ExecState* exec = JSMainThreadExecState::currentState();
     if (exec)
-        return allowAccessToFrame(exec, frame);
+        return shouldAllowAccessToFrame(exec, frame);
     // If the current state is 0 we're in a call path where the DOM security 
     // check doesn't apply (eg. parser).
     return true;
@@ -438,17 +437,7 @@ ScriptValue ScriptController::executeScriptInWorld(DOMWrapperWorld* world, const
     if (!canExecuteScripts(AboutToExecuteScript) || isPaused())
         return ScriptValue();
 
-    bool wasInExecuteScript = m_inExecuteScript;
-    m_inExecuteScript = true;
-
-    ScriptValue result = evaluateInWorld(sourceCode, world);
-
-    if (!wasInExecuteScript) {
-        m_inExecuteScript = false;
-        Document::updateStyleForAllDocuments();
-    }
-
-    return result;
+    return evaluateInWorld(sourceCode, world);
 }
 
 } // namespace WebCore

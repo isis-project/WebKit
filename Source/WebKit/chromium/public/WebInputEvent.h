@@ -107,6 +107,11 @@ public:
         GestureFlingStart,
         GestureFlingCancel,
         GestureTap,
+        GestureTapDown,
+        GestureDoubleTap,
+        GesturePinchBegin,
+        GesturePinchEnd,
+        GesturePinchUpdate,
 
         // WebTouchEvent
         TouchStart,
@@ -304,11 +309,12 @@ class WebMouseWheelEvent : public WebMouseEvent {
 public:
     enum Phase {
         PhaseNone        = 0,
-        PhaseBegan       = 1 << 1,
-        PhaseStationary  = 1 << 2,
-        PhaseChanged     = 1 << 3,
-        PhaseEnded       = 1 << 4,
-        PhaseCancelled   = 1 << 5,
+        PhaseBegan       = 1 << 0,
+        PhaseStationary  = 1 << 1,
+        PhaseChanged     = 1 << 2,
+        PhaseEnded       = 1 << 3,
+        PhaseCancelled   = 1 << 4,
+        PhaseMayBegin    = 1 << 5,
     };
 
     float deltaX;
@@ -348,6 +354,8 @@ public:
     int y;
     int globalX;
     int globalY;
+
+    // NOTE: |deltaX| and |deltaY| represents the amount to scroll for Scroll gesture events. For Pinch gesture events, |deltaX| represents the scaling/magnification factor.
     float deltaX;
     float deltaY;
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -106,9 +106,11 @@ struct WebPreferences {
     bool compositeToTexture;
     bool forceCompositingMode;
     bool accelerated2dCanvasEnabled;
+    bool deferred2dCanvasEnabled;
     bool acceleratedPaintingEnabled;
     bool hixie76WebSocketProtocolEnabled;
     bool perTilePaintingEnabled;
+    bool mockScrollbarsEnabled;
 
     WebPreferences() { reset(); }
     void reset();

@@ -19,15 +19,15 @@
 
 #include "config.h"
 
-#include "LoadTrackingTest.h"
 #include "WebKitTestServer.h"
+#include "WebViewTest.h"
 #include <gtk/gtk.h>
 #include <libsoup/soup.h>
 #include <string.h>
 #include <webkit2/webkit2.h>
 
 // Back forward list limit is 100 by default.
-static const size_t kBackForwardListLimit = 100;
+static const int kBackForwardListLimit = 100;
 
 static WebKitTestServer* kServer;
 
@@ -46,7 +46,7 @@ static void serverCallback(SoupServer* server, SoupMessage* msg, const char* pat
     soup_message_body_complete(msg->response_body);
 }
 
-class BackForwardListTest: public LoadTrackingTest {
+class BackForwardListTest: public WebViewTest {
 public:
     MAKE_GLIB_TEST_FIXTURE(BackForwardListTest);
 
@@ -130,7 +130,7 @@ public:
     void waitUntilLoadFinished()
     {
         m_hasChanged = false;
-        LoadTrackingTest::waitUntilLoadFinished();
+        WebViewTest::waitUntilLoadFinished();
         g_assert(m_hasChanged);
     }
 
@@ -240,7 +240,7 @@ static void testBackForwardListNavigation(BackForwardListTest* test, gconstpoint
 
 static void testBackForwardListLimitAndCache(BackForwardListTest* test, gconstpointer)
 {
-    for (size_t i = 0; i < kBackForwardListLimit; i++) {
+    for (int i = 0; i < kBackForwardListLimit; i++) {
         GOwnPtr<char> path(g_strdup_printf("/Page%d", i));
         test->m_changedFlags = BackForwardListTest::CurrentItem | BackForwardListTest::AddedItem;
         test->loadURI(kServer->getURIForPath(path.get()).data());

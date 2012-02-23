@@ -20,7 +20,7 @@
 module window {
 
     interface [
-        GenerateIsReachable=ImplFrame,
+        JSGenerateIsReachable=ImplFrame,
         OmitConstructor
     ] Navigator {
         readonly attribute DOMString appCodeName;
@@ -41,24 +41,17 @@ module window {
         readonly attribute boolean onLine;
 
 #if defined(ENABLE_GEOLOCATION) && ENABLE_GEOLOCATION
-        readonly attribute [EnabledAtRuntime] Geolocation geolocation;
+        readonly attribute [V8EnabledAtRuntime] Geolocation geolocation;
 #endif
 
 #if defined(ENABLE_POINTER_LOCK) && ENABLE_POINTER_LOCK
-        readonly attribute [EnabledAtRuntime] PointerLock webkitPointer;
+        readonly attribute [V8EnabledAtRuntime] PointerLock webkitPointer;
 #endif
 
         void getStorageUpdates(); // FIXME: Remove this method or rename to yieldForStorageUpdates.
 
 #if defined(ENABLE_REGISTER_PROTOCOL_HANDLER) && ENABLE_REGISTER_PROTOCOL_HANDLER
         void registerProtocolHandler(in DOMString scheme, in DOMString url, in DOMString title)
-            raises(DomException);
-#endif
-
-#if defined(ENABLE_MEDIA_STREAM) && ENABLE_MEDIA_STREAM
-        [Custom, EnabledAtRuntime] void webkitGetUserMedia(in DOMString options,
-                                                           in [Callback=FunctionOnly] NavigatorUserMediaSuccessCallback successCallback,
-                                                           in [Callback=FunctionOnly, Optional] NavigatorUserMediaErrorCallback errorCallback)
             raises(DOMException);
 #endif
     };

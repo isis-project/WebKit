@@ -273,7 +273,7 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
             context->setStrokeStyle(SolidStroke);
             context->setStrokeColor(Color::lightGray, style()->colorSpace());
             context->setFillColor(Color::transparent, style()->colorSpace());
-            context->drawRect(LayoutRect(paintOffset.x() + leftBorder + leftPad, paintOffset.y() + topBorder + topPad, cWidth, cHeight));
+            context->drawRect(pixelSnappedIntRect(LayoutRect(paintOffset.x() + leftBorder + leftPad, paintOffset.y() + topBorder + topPad, cWidth, cHeight)));
 
             bool errorPictureDrawn = false;
             LayoutSize imageOffset;
@@ -299,7 +299,7 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
                 if (centerY < 0)
                     centerY = 0;
                 imageOffset = LayoutSize(leftBorder + leftPad + centerX + 1, topBorder + topPad + centerY + 1);
-                context->drawImage(image.get(), style()->colorSpace(), IntRect(paintOffset + imageOffset, imageSize));
+                context->drawImage(image.get(), style()->colorSpace(), IntRect(roundedIntPoint(paintOffset + imageOffset), imageSize));
                 errorPictureDrawn = true;
             }
 
@@ -327,6 +327,11 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
         RefPtr<Image> img = m_imageResource->image(cWidth, cHeight);
         if (!img || img->isNull())
             return;
+
+    if (Frame* frame = this->frame()) {
+        if (Page* page = frame->page())
+            page->addRelevantRepaintedObject(this, paintInfo.rect);
+    }
 
 #if PLATFORM(MAC)
         if (style()->highlight() != nullAtom && !paintInfo.context->paintingDisabled())
@@ -492,12 +497,8 @@ LayoutUnit RenderImage::computeReplacedLogicalWidth(bool includeMaxWidth) const
         return width;
     }
 
-    RenderBox* contentRenderer = embeddedContentBox();
-    bool hasRelativeWidth = contentRenderer ? contentRenderer->style()->width().isPercent() : m_imageResource->imageHasRelativeWidth();
-    bool hasRelativeHeight = contentRenderer ? contentRenderer->style()->height().isPercent() : m_imageResource->imageHasRelativeHeight();
-
     IntSize containerSize;
-    if (hasRelativeWidth || hasRelativeHeight) {
+    if (m_imageResource->imageHasRelativeWidth() || m_imageResource->imageHasRelativeHeight()) {
         // Propagate the containing block size to the image resource, otherwhise we can't compute our own intrinsic size, if it's relative.
         RenderObject* containingBlock = isPositioned() ? container() : this->containingBlock();
         if (containingBlock->isBox()) {
@@ -523,14 +524,16 @@ LayoutUnit RenderImage::computeReplacedLogicalWidth(bool includeMaxWidth) const
     return RenderReplaced::computeReplacedLogicalWidth(includeMaxWidth);
 }
 
-void RenderImage::computeIntrinsicRatioInformation(FloatSize& intrinsicRatio, bool& isPercentageIntrinsicSize) const
+void RenderImage::computeIntrinsicRatioInformation(FloatSize& intrinsicSize, double& intrinsicRatio, bool& isPercentageIntrinsicSize) const
 {
     // Assure this method is never used for SVGImages.
     ASSERT(!embeddedContentBox());
     isPercentageIntrinsicSize = false;
     CachedImage* cachedImage = m_imageResource ? m_imageResource->cachedImage() : 0;
-    if (cachedImage && cachedImage->image())
-        intrinsicRatio = cachedImage->image()->size();
+    if (!cachedImage || !cachedImage->image())
+        return;
+    intrinsicSize = cachedImage->image()->size();
+    intrinsicRatio = intrinsicSize.width() / static_cast<double>(intrinsicSize.height());
 }
 
 bool RenderImage::needsPreferredWidthsRecalculation() const

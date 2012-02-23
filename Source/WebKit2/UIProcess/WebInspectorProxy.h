@@ -34,6 +34,7 @@
 #include <wtf/Forward.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefPtr.h>
+#include <wtf/text/WTFString.h>
 
 #if PLATFORM(MAC)
 #include <wtf/RetainPtr.h>
@@ -49,6 +50,7 @@ OBJC_CLASS WKWebInspectorWKView;
 
 namespace WebKit {
 
+class WebFrameProxy;
 class WebPageGroup;
 class WebPageProxy;
 struct WebPageCreationParameters;
@@ -82,12 +84,15 @@ public:
     void close();
     
 #if PLATFORM(MAC)
+    void createInspectorWindow();
+    void updateInspectorWindowTitle() const;
     void inspectedViewFrameDidChange();
 #elif PLATFORM(GTK)
     void windowDestroyed();
 #endif
 
     void showConsole();
+    void showMainResourceForFrame(WebFrameProxy*);
 
     bool isAttached() const { return m_isAttached; }
     void attach();
@@ -161,6 +166,8 @@ private:
 
     static const unsigned initialWindowWidth = 750;
     static const unsigned initialWindowHeight = 650;
+
+    // Keep this in sync with the value in InspectorFrontendClientLocal.
     static const unsigned minimumAttachedHeight = 250;
 
     WebPageProxy* m_page;
@@ -175,6 +182,7 @@ private:
     RetainPtr<WKWebInspectorWKView> m_inspectorView;
     RetainPtr<NSWindow> m_inspectorWindow;
     RetainPtr<WKWebInspectorProxyObjCAdapter> m_inspectorProxyObjCAdapter;
+    String m_urlString;
 #elif PLATFORM(WIN)
     HWND m_inspectorWindow;
     RefPtr<WebView> m_inspectorView;

@@ -123,18 +123,6 @@ static bool parseFontSize(const String& input, int& size)
     return true;
 }
 
-bool HTMLFontElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
-{
-    if (attrName == sizeAttr ||
-        attrName == colorAttr ||
-        attrName == faceAttr) {
-        result = eUniversal;
-        return false;
-    }
-    
-    return HTMLElement::mapToEntry(attrName, result);
-}
-
 bool HTMLFontElement::cssValueFromFontSizeNumber(const String& s, int& size)
 {
     int num = 0;
@@ -170,18 +158,25 @@ bool HTMLFontElement::cssValueFromFontSizeNumber(const String& s, int& size)
     return true;
 }
 
-void HTMLFontElement::parseMappedAttribute(Attribute* attr)
+bool HTMLFontElement::isPresentationAttribute(Attribute* attr) const
+{
+    if (attr->name() == sizeAttr || attr->name() == colorAttr || attr->name() == faceAttr)
+        return true;
+    return HTMLElement::isPresentationAttribute(attr);
+}
+
+void HTMLFontElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == sizeAttr) {
         int size = 0;
         if (cssValueFromFontSizeNumber(attr->value(), size))
-            addCSSProperty(attr, CSSPropertyFontSize, size);
-    } else if (attr->name() == colorAttr) {
-        addCSSColor(attr, CSSPropertyColor, attr->value());
-    } else if (attr->name() == faceAttr) {
-        addCSSProperty(attr, CSSPropertyFontFamily, attr->value());
-    } else
-        HTMLElement::parseMappedAttribute(attr);
+            style->setProperty(CSSPropertyFontSize, size);
+    } else if (attr->name() == colorAttr)
+        addHTMLColorToStyle(style, CSSPropertyColor, attr->value());
+    else if (attr->name() == faceAttr)
+        style->setProperty(CSSPropertyFontFamily, attr->value());
+    else
+        HTMLElement::collectStyleForAttribute(attr, style);
 }
 
 }

@@ -1,3 +1,542 @@
+2012-02-14  Alexey Proskuryakov  <ap@apple.com>
+
+        [Mac][Win][WK2] Switch to RFC 6455 protocol for WebSockets
+        https://bugs.webkit.org/show_bug.cgi?id=78541
+        <rdar://problem/10036695>
+
+        Reviewed by Kent Tamura.
+
+        * WebView/WebPreferences.mm: (+[WebPreferences initialize]): Changed default value of the
+        preference.
+
+2012-02-11  Nikolas Zimmermann  <nzimmermann@rim.com>
+
+        Convert svg/animations to use SMIL methods for driving the timeline
+        https://bugs.webkit.org/show_bug.cgi?id=78422
+
+        Reviewed by Dirk Schulze.
+
+        Remove SVG animation sampling functionality provided for DRT, which no longer uses it.
+        Instead we switched the svg/animations tests to use SVGSVGElement.setCurrentTime.
+
+        * WebKit.order:
+        * WebView/WebFrame.mm:
+        * WebView/WebFramePrivate.h:
+
+2012-02-13  Enrica Casucci  <enrica@apple.com>
+
+         Refactor Mac platform implementation of the Pasteboard class to use Platform Strategies.
+         https://bugs.webkit.org/show_bug.cgi?id=78282
+ 
+         This patch removes any accesss to the NSPasteboard object from the Pasteboard class which
+         now makes use of a new pasteboardStrategy object that is implemented both in WebKit and
+         WebKit2. The actual access to NSPasteboard is now performed inside the PlatformPasteboard
+         class. Currently both WebKit and WebKit2 use the same implementation of the PasteboardStrategy
+         interface but this one more step in the direction of removing access to NSPasteboard from
+         the WebProcess.
+         As part of the refactoring the I've reduced to a minimum the use of OBJ-C classes.
+         
+         Reviewed by Anders Carlsson.
+ 
+         * WebCoreSupport/WebPlatformStrategies.h: Added PasteboardStrategy.
+         * WebCoreSupport/WebPlatformStrategies.mm: Added implementation of PasteboardStrategy interface.
+         (WebPlatformStrategies::createPasteboardStrategy):
+         (WebPlatformStrategies::getTypes):
+         (WebPlatformStrategies::bufferForType):
+         (WebPlatformStrategies::getPathnamesForType):
+         (WebPlatformStrategies::stringForType):
+         (WebPlatformStrategies::copy):
+         (WebPlatformStrategies::setTypes):
+         (WebPlatformStrategies::setBufferForType):
+         (WebPlatformStrategies::setPathnamesForType):
+         (WebPlatformStrategies::setStringForType):
+
+2012-02-12  Hajime Morrita  <morrita@chromium.org>
+
+        Page should have less intrusive way to associate API implementation objects.
+        https://bugs.webkit.org/show_bug.cgi?id=78085
+
+        Reviewed by Adam Barth.
+
+        * WebView/WebView.mm:
+        (-[WebView _commonInitializationWithFrameName:groupName:]):
+
+2012-02-11  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r107435.
+        http://trac.webkit.org/changeset/107435
+        https://bugs.webkit.org/show_bug.cgi?id=78410
+
+        It broke the Qt build (Requested by Ossy on #webkit).
+
+        * WebCoreSupport/WebPlatformStrategies.h:
+        (WebPlatformStrategies):
+        * WebCoreSupport/WebPlatformStrategies.mm:
+        (WebPlatformStrategies::addVisitedLink):
+
+2012-02-10  Adam Klein  <adamk@chromium.org>
+
+        Enable MUTATION_OBSERVERS by default on all platforms
+        https://bugs.webkit.org/show_bug.cgi?id=78196
+
+        Reviewed by Ojan Vafai.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-02-10  Enrica Casucci  <enrica@apple.com>
+
+        Refactor Mac platform implementation of the Pasteboard class to use Platform Strategies.
+        https://bugs.webkit.org/show_bug.cgi?id=78282
+
+        This patch removes any accesss to the NSPasteboard object from the Pasteboard class which
+        now makes use of a new pasteboardStrategy object that is implemented both in WebKit and
+        WebKit2. The actual access to NSPasteboard is now performed inside the PlatformPasteboard
+        class. Currently both WebKit and WebKit2 use the same implementation of the PasteboardStrategy
+        interface but this one more step in the direction of removing access to NSPasteboard from
+        the WebProcess.
+        As part of the refactoring the I've reduced to a minimum the use of OBJ-C classes.
+        
+        Reviewed by Anders Carlsson.
+
+        * WebCoreSupport/WebPlatformStrategies.h: Added PasteboardStrategy.
+        * WebCoreSupport/WebPlatformStrategies.mm: Added implementation of PasteboardStrategy interface.
+        (WebPlatformStrategies::createPasteboardStrategy):
+        (WebPlatformStrategies::getTypes):
+        (WebPlatformStrategies::bufferForType):
+        (WebPlatformStrategies::getPathnamesForType):
+        (WebPlatformStrategies::stringForType):
+        (WebPlatformStrategies::copy):
+        (WebPlatformStrategies::setTypes):
+        (WebPlatformStrategies::setBufferForType):
+        (WebPlatformStrategies::setPathnamesForType):
+        (WebPlatformStrategies::setStringForType):
+
+2012-02-10  Benjamin Poulain  <bpoulain@apple.com>
+
+        [Mac] DYLIB_INSTALL_NAME_BASE should not be prefixed by the SDKROOT
+        https://bugs.webkit.org/show_bug.cgi?id=78320
+
+        Reviewed by Joseph Pecoraro.
+
+        <rdar://problem/10839750>
+
+        * Configurations/WebKit.xcconfig:
+
+2012-02-09  Alexey Proskuryakov  <ap@apple.com>
+
+        REGRESSION (r104885): Articles not displayed in Vienna RSS reader
+        https://bugs.webkit.org/show_bug.cgi?id=78280
+        <rdar://problem/10762545>
+
+        Reviewed by Oliver Hunt.
+
+        * Misc/WebNSURLExtras.h:
+        * Misc/WebNSURLExtras.mm: (-[NSURL _webkit_URLFromURLOrPath]):
+        Added a method to create a URL from a path, similarly to what KURL used to do.
+
+        * WebView/WebFrame.mm: (-[WebFrame loadData:MIMEType:textEncodingName:baseURL:]):
+        Use it in an API where a known regression occurred.
+
+2012-02-07  Antti Koivisto  <antti@apple.com>
+
+        REGRESSION (r106681): Null check missing in [WebFrame(WebInternal) _typingStyle]
+        https://bugs.webkit.org/show_bug.cgi?id=78080
+
+        Reviewed by Reviewed by Andreas Kling, Darin Adler and Dan Bernstein.
+
+        * WebView/WebFrame.mm:
+        (-[WebFrame _typingStyle]):
+
+2012-02-07  Tony Chang  <tony@chromium.org>
+
+        merge DashboardSupportCSSPropertyNames.in into CSSPropertyNames.in
+        https://bugs.webkit.org/show_bug.cgi?id=78036
+
+        Reviewed by Darin Adler.
+
+        * Configurations/FeatureDefines.xcconfig: Add ENABLE_DASHBOARD_SUPPORT to FEATURE_DEFINES.
+
+2012-02-06  Anders Carlsson  <andersca@apple.com>
+
+        Overlay scrollbars flash when window is simply activated
+        https://bugs.webkit.org/show_bug.cgi?id=77911
+        <rdar://problem/10211995>
+
+        Reviewed by Kenneth Russell.
+
+        * WebView/WebView.mm:
+        (-[WebView _windowWillOrderOnScreen:]):
+        (-[WebView _windowWillOrderOffScreen:]):
+        Call FocusController::setContainingWindowIsVisible.
+
+
+2012-02-06  Matthew Delaney  <mdelaney@apple.com>
+
+        toDataURL() uses stale data after putImageData()
+        https://bugs.webkit.org/show_bug.cgi?id=65767
+
+        Reviewed by Chris Marrin.
+
+        * WebCoreSupport/WebSystemInterface.mm: 
+
+2012-02-03  Antti Koivisto  <antti@apple.com>
+
+        Rename CSSMutableStyleDeclaration.h/.cpp to StylePropertySet.h/.cpp 
+        https://bugs.webkit.org/show_bug.cgi?id=77779
+
+        Reviewed by Darin Adler.
+
+        * WebView/WebHTMLView.mm:
+
+2012-02-03  Antti Koivisto  <antti@apple.com>
+
+        https://bugs.webkit.org/show_bug.cgi?id=77740
+        Split CSSMutableStyleDeclaration into separate internal and CSSOM types 
+
+        Reviewed by Andreas Kling and Darin Adler.
+
+        * WebView/WebFrame.mm:
+        (-[WebFrame _typingStyle]):
+
+2012-02-03  Beth Dakin  <bdakin@apple.com>
+
+        https://bugs.webkit.org/show_bug.cgi?id=77691
+        Fix PlatformScreen layering violation and PlatformScreenMac's incorrect use 
+        of device scale
+
+        Reviewed by Andy Estes.
+
+        toUserSpace() and toDeviceSpace() don't need to take device scale. Also 
+        restore a comment that I needlessly removed.
+        * WebCoreSupport/WebChromeClient.mm:
+        (WebChromeClient::setWindowRect):
+        (WebChromeClient::windowRect):
+
+2012-02-01  Dan Bernstein  <mitz@apple.com>
+
+        WebKit/mac part of <rdar://problem/10442663> Paginated display does not respect page-break-{before,after}
+        https://bugs.webkit.org/show_bug.cgi?id=77505
+
+        Reviewed by Darin Adler.
+
+        * WebView/WebView.mm:
+        (-[WebView _setPaginationBehavesLikeColumns:]): Added this setter.
+        (-[WebView _paginationBehavesLikeColumns]): Added this getter.
+        * WebView/WebViewPrivate.h:
+
+2012-01-25  Eric Seidel  <eric@webkit.org>
+
+        HTMLIsIndexElement should not expose HTMLInputElement properties
+        https://bugs.webkit.org/show_bug.cgi?id=76095
+
+        Reviewed by Adam Barth.
+
+        * MigrateHeaders.make:
+
+2012-01-31  Pablo Flouret  <pablof@motorola.com>
+
+        Fix compilation errors on build-webkit --debug --no-workers on mac.
+        https://bugs.webkit.org/show_bug.cgi?id=75869
+
+        Reviewed by Adam Barth.
+
+        * Workers/WebWorkersPrivate.mm:
+        (+[WebWorkersPrivate workerThreadCount]):
+
+2012-01-30  Beth Dakin  <bdakin@apple.com>
+
+        https://bugs.webkit.org/show_bug.cgi?id=77263
+        PlatformScreenMac should not rely on NSWindow for important bits of data
+
+        Reviewed by Geoff Garen.
+
+        toUserSpace() and toDeviceSpace() now take a parameter for the 
+        deviceScaleFactor.
+        * WebCoreSupport/WebChromeClient.mm:
+        (windowScaleFactor):
+        (WebChromeClient::setWindowRect):
+        (WebChromeClient::windowRect):
+
+2012-01-25  Mark Rowe  <mrowe@apple.com>
+
+        Build in to an alternate location when USE_STAGING_INSTALL_PATH is set.
+
+        <rdar://problem/10609417> Adopt USE_STAGING_INSTALL_PATH
+
+        Reviewed by David Kilzer.
+
+        * Configurations/WebKit.xcconfig: Define NORMAL_WEBKIT_FRAMEWORKS_DIR, which contains
+        the path where WebKit is normally installed. Update WEBKIT_FRAMEWORKS_DIR to point to
+        the staged frameworks directory when USE_STAGING_INSTALL_PATH is set. Define
+        NORMAL_PRODUCTION_FRAMEWORKS_DIR, which contains the path where our public frameworks
+        are normally installed. Update PRODUCTION_FRAMEWORKS_DIR to point to the staged frameworks
+        directory when USE_STAGING_INSTALL_PATH is set. Always set the framework's install name
+        based on the normal framework location. This prevents an incorrect install name from being
+        used when installing in to the staged frameworks directory. Look for our other frameworks
+        in the staged frameworks directory when USE_STAGING_INSTALL_PATH is set. Update
+        WEBCORE_PRIVATE_HEADERS_DIR to find WebCore at the top level of the staged frameworks
+        directory when USE_STAGING_INSTALL_PATH is set, rather than finding it embedded inside of
+        WebKit.framework.
+
+2012-01-25  Eric Seidel  <eric@webkit.org>
+
+        HTMLIsIndexElement should not expose HTMLInputElement properties
+        https://bugs.webkit.org/show_bug.cgi?id=76095
+
+        Reviewed by Adam Barth.
+
+        * MigrateHeaders.make:
+
+2012-01-25  Hajime Morita  <morrita@google.com>
+
+        ENABLE_SHADOW_DOM should be available via build-webkit --shadow-dom
+        https://bugs.webkit.org/show_bug.cgi?id=76863
+
+        Reviewed by Dimitri Glazkov.
+
+        Added a feature flag.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-01-25  Enrica Casucci  <enrica@apple.com>
+
+        WebView should implement typingAttributes methods to work correctly with the Inspector bar in Mail.
+        https://bugs.webkit.org/show_bug.cgi?id=76951
+        <rdar://problem/9325158>
+
+        Reviewed by Alexey Proskuryakov.
+
+        * WebView/WebHTMLView.mm: Removed typingAttributes implementation.
+        * WebView/WebView.mm:
+        (-[WebView typingAttributes]): Added.
+
+2012-01-24  Enrica Casucci  <enrica@apple.com>
+
+        WebHTMLView should implement typingAttributes methods to work correctly with the Inspector bar in Mail.
+        https://bugs.webkit.org/show_bug.cgi?id=76951
+        <rdar://problem/9325158>
+
+        The Inspector bar calls the typingAttributes methods on the clients that support it
+        to retrieve the set of attributes representing the style at the selection and uses
+        this information to update the state of the B, I and U buttons.
+        If this method is not supported, it defaults to the attributes of the previous
+        character position, reporting an incorrect state.
+        This occurs only when we have a caret selection.
+        
+        Reviewed by Alexey Proskuryakov.
+
+        * WebView/WebHTMLView.mm:
+        (-[WebHTMLView _styleForAttributeChange:]): Removed dead code.
+        (-[WebHTMLView _updateFontPanel]): Removed comment that doesn't apply anymore.
+        (-[WebHTMLView typingAttributes]): Added.
+
+2012-01-24  Benjamin Poulain  <bpoulain@apple.com>
+
+        pageCacheSupportsPlugins should default to true on WebKit1
+        https://bugs.webkit.org/show_bug.cgi?id=76891
+
+        Reviewed by Joseph Pecoraro.
+
+        The default was left out of r102619 by accident.
+
+        * WebView/WebPreferences.mm:
+        (+[WebPreferences initialize]):
+
+2012-01-23  Geoffrey Garen  <ggaren@apple.com>
+
+        JSValue::toString() should return a JSString* instead of a UString
+        https://bugs.webkit.org/show_bug.cgi?id=76861
+
+        Reviewed by Gavin Barraclough.
+
+        Mechanical changes to call value() after calling toString(), to
+        convert from "JS string" (JSString*) to "C++ string" (UString), since
+        toString() no longer returns a "C++ string".
+
+        * Plugins/Hosted/NetscapePluginInstanceProxy.mm:
+        (WebKit::NetscapePluginInstanceProxy::addValueToArray):
+        * WebView/WebFrame.mm:
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:forceUserGesture:]):
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:withGlobalObject:inScriptWorld:]):
+
+2012-01-20  Sam Weinig  <sam@webkit.org>
+
+        Make WebCore RunLoop work for WebKit1
+        https://bugs.webkit.org/show_bug.cgi?id=76739
+
+        Reviewed by Anders Carlsson.
+
+        * Carbon/CarbonWindowAdapter.mm:
+        (+[CarbonWindowAdapter initialize]):
+        * History/WebBackForwardList.mm:
+        (+[WebBackForwardList initialize]):
+        * History/WebHistoryItem.mm:
+        (+[WebHistoryItem initialize]):
+        * Misc/WebElementDictionary.mm:
+        (+[WebElementDictionary initialize]):
+        * Misc/WebIconDatabase.mm:
+        (+[WebIconDatabase initialize]):
+        * Plugins/Hosted/WebHostedNetscapePluginView.mm:
+        (+[WebHostedNetscapePluginView initialize]):
+        * Plugins/WebBaseNetscapePluginView.mm:
+        * Plugins/WebBasePluginPackage.mm:
+        * Plugins/WebNetscapePluginView.mm:
+        (+[WebNetscapePluginView initialize]):
+        * WebCoreSupport/WebEditorClient.mm:
+        (+[WebUndoStep initialize]):
+        * WebCoreSupport/WebFrameLoaderClient.mm:
+        * WebView/WebArchive.mm:
+        (+[WebArchivePrivate initialize]):
+        * WebView/WebDataSource.mm:
+        (+[WebDataSourcePrivate initialize]):
+        * WebView/WebHTMLView.mm:
+        (+[WebHTMLViewPrivate initialize]):
+        (+[WebHTMLView initialize]):
+        * WebView/WebResource.mm:
+        (+[WebResourcePrivate initialize]):
+        * WebView/WebTextIterator.mm:
+        (+[WebTextIteratorPrivate initialize]):
+        * WebView/WebView.mm:
+        (+[WebView initialize]):
+        * WebView/WebViewData.mm:
+        (+[WebViewPrivate initialize]):
+        Initialized the main run loop in addition to other initialization.
+
+2012-01-20  Simon Fraser  <simon.fraser@apple.com>
+
+        https://bugs.webkit.org/show_bug.cgi?id=76444
+        
+        #if ENABLE(CSS_SHADERS) cannot appear in framework headers.
+        This breaks builds.
+
+        * WebView/WebPreferences.mm:
+        * WebView/WebPreferencesPrivate.h:
+
+2012-01-20  Alexandru Chiculita  <achicu@adobe.com>
+
+        CSS Shaders: Add a Settings flag to enable/disable CSS Shaders at runtime
+        https://bugs.webkit.org/show_bug.cgi?id=76444
+
+        Added private WebPreference property called "WebKitCSSCustomFilterEnabled".
+        
+        Reviewed by Nikolas Zimmermann.
+
+        * WebView/WebPreferenceKeysPrivate.h:
+        * WebView/WebPreferences.mm:
+        (+[WebPreferences initialize]):
+        (-[WebPreferences cssCustomFilterEnabled]):
+        (-[WebPreferences setCSSCustomFilterEnabled:]):
+        * WebView/WebPreferencesPrivate.h:
+        * WebView/WebView.mm:
+        (-[WebView _preferencesChanged:]):
+
+2012-01-17  Enrica Casucci  <enrica@apple.com>
+
+        Missing NSForegroundColorAttributeName should be treated as black instead of transparent.
+        https://bugs.webkit.org/show_bug.cgi?id=76490
+        <rdar://problem/9460733>
+        
+        Starting with Lion, there is no more NSForegroundColor attribute in the dictionary
+        if the color matches the default (solid black).
+        The fix consists in treating the lack of color as solid black instead of transparent as
+        we did before.
+
+        Added a TestWebKitAPI test.
+        
+        Reviewed by Darin Adler and Dan Bernstein.
+
+        * WebView/WebHTMLView.mm:
+        (-[WebHTMLView _styleForAttributeChange:]):
+
+2012-01-17  Matthew Delaney  <mdelaney@apple.com>
+
+        On post-Lion releases, preserve the Lion behavior where WebKit explicitly calls -setGeometryFlipped on the hosting layer for applications that were linked on Lion or earlier.
+        <rdar://problem/10692025>
+
+        Reviewed by Simon Fraser.
+
+        * WebCoreSupport/WebSystemInterface.mm: Init newly added function.
+        * WebView/WebHTMLView.mm: Added case for post-Lion builds that calls -setGeometryFlipped if the app is linked on or before Lion.
+
+2012-01-17  Enrica Casucci  <enrica@apple.com>
+
+        REGRESSION (r101413): Correction panel overlaps misspelled text.
+        https://bugs.webkit.org/show_bug.cgi?id=74589
+        <rdar://problem/10585115>
+
+        When converting the rectangle from the root view, we need
+        to take into account the height of the rectangle.
+        
+        Reviewed by Anders Carlsson.
+
+        * WebView/WebView.mm:
+        (-[WebView _convertRectFromRootView:]):
+
+2012-01-16  Simon Fraser  <simon.fraser@apple.com>
+
+        <rdar://problem/10703228> ASSERTION FAILED: Uncaught exception - Cannot lock focus on image <NSImage 0x1206572a0 Size={0, 0} Reps=( )>, because it is size zero loading techcrunch.com
+
+        Reviewed by Anders Carlsson.
+        
+        Avoid trying to create image snapshots for zero-sized plugins, because
+        it causes -[NSView lockFocus] to throw an exception.
+
+        * Plugins/WebBaseNetscapePluginView.mm:
+        (-[WebBaseNetscapePluginView cacheSnapshot]):
+
+2012-01-16  Alexey Proskuryakov  <ap@apple.com>
+
+        A follow-up fix for:
+        A warning is logged to console when typing a bare "/" in Safari address bar
+        https://bugs.webkit.org/show_bug.cgi?id=76236
+
+        <rdar://problem/10702986>        
+
+        Reviewed by John Sullivan.
+
+        * Misc/WebNSURLExtras.mm: (+[NSURL _web_URLWithData:relativeToURL:]): It's OK to have a
+        path when there is a base URL.
+
+2012-01-16  Jon Lee  <jonlee@apple.com>
+
+        Build fix for r105086.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-01-12  Alexey Proskuryakov  <ap@apple.com>
+
+        A warning is logged to console when typing a bare "/" in Safari address bar
+        https://bugs.webkit.org/show_bug.cgi?id=76236
+
+        Reviewed by John Sullivan.
+
+        * Misc/WebNSURLExtras.mm: (+[NSURL _web_URLWithData:relativeToURL:]): Bail out early for paths.
+
+2012-01-16  Pablo Flouret  <pablof@motorola.com>
+
+        Fix compilation errors on build-webkit --debug --no-svg --no-svg-fonts --no-svg-dom-objc-bindings on mac.
+        https://bugs.webkit.org/show_bug.cgi?id=75865
+
+        Reviewed by Hajime Morita.
+
+        * WebView/WebFrame.mm:
+        (-[WebFrame _pauseSVGAnimation:onSMILNode:atTime:]):
+
+2012-01-15  Pablo Flouret  <pablof@motorola.com>
+
+        Fix compilation errors on build-webkit --debug --no-video on mac.
+        https://bugs.webkit.org/show_bug.cgi?id=75867
+
+        Reviewed by Philippe Normand.
+
+        - WebChromeClient::fullScreenRendererChanged() declaration wrongly guarded
+          by VIDEO feature instead of FULLSCREEN_API.
+        - _isAnyMoviePlaying implementation depends on VIDEO.
+
+        * WebCoreSupport/WebChromeClient.h:
+        * WebView/WebFullScreenController.mm:
+        (-[WebFullScreenController _isAnyMoviePlaying]):
+
 2012-01-11  Beth Dakin  <bdakin@apple.com>
 
         https://bugs.webkit.org/show_bug.cgi?id=75904

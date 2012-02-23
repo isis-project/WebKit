@@ -119,7 +119,7 @@ void HTMLLinkElement::setDisabledState(bool disabled)
     }
 }
 
-void HTMLLinkElement::parseMappedAttribute(Attribute* attr)
+void HTMLLinkElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == relAttr) {
         m_relAttribute = LinkRelAttribute(attr->value());
@@ -150,7 +150,7 @@ void HTMLLinkElement::parseMappedAttribute(Attribute* attr)
     else {
         if (attr->name() == titleAttr && m_sheet)
             m_sheet->setTitle(attr->value());
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::parseAttribute(attr);
     }
 }
 
@@ -454,9 +454,9 @@ String HTMLLinkElement::itemValueText() const
     return getURLAttribute(hrefAttr);
 }
 
-void HTMLLinkElement::setItemValueText(const String& value, ExceptionCode& ec)
+void HTMLLinkElement::setItemValueText(const String& value, ExceptionCode&)
 {
-    setAttribute(hrefAttr, value, ec);
+    setAttribute(hrefAttr, value);
 }
 #endif
 

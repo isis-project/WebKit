@@ -32,6 +32,7 @@
 #ifndef InputType_h
 #define InputType_h
 
+#include "HTMLTextFormControlElement.h"
 #include <wtf/Forward.h>
 #include <wtf/FastAllocBase.h>
 #include <wtf/Noncopyable.h>
@@ -126,7 +127,7 @@ public:
     virtual double valueAsDate() const;
     virtual void setValueAsDate(double, ExceptionCode&) const;
     virtual double valueAsNumber() const;
-    virtual void setValueAsNumber(double, bool sendChangeEvent, ExceptionCode&) const;
+    virtual void setValueAsNumber(double, TextFieldEventBehavior, ExceptionCode&) const;
 
     // Validation functions
 
@@ -183,6 +184,7 @@ public:
     virtual PassRefPtr<HTMLFormElement> formForSubmission() const;
     virtual bool isKeyboardFocusable() const;
     virtual bool shouldUseInputMethod() const;
+    virtual void handleFocusEvent();
     virtual void handleBlurEvent();
     virtual void accessKeyAction(bool sendMouseEvents);
     virtual bool canBeSuccessfulSubmitButton();
@@ -224,7 +226,7 @@ public:
     virtual bool shouldSendChangeEventAfterCheckedChanged();
     virtual bool canSetValue(const String&);
     virtual bool storesValueSeparateFromAttribute();
-    virtual void setValue(const String&, bool valueChanged, bool sendChangeEvent);
+    virtual void setValue(const String&, bool valueChanged, TextFieldEventBehavior);
     virtual void dispatchChangeEventInResponseToSetValue();
     virtual bool shouldResetOnDocumentActivation();
     virtual bool shouldRespectListAttribute();
@@ -262,6 +264,8 @@ public:
     // string. This should not be called for types without valueAsNumber.
     virtual String serialize(double) const;
 
+    virtual bool supportsIndeterminateAppearance() const;
+
 protected:
     InputType(HTMLInputElement* element) : m_element(element) { }
     HTMLInputElement* element() const { return m_element; }
@@ -289,7 +293,6 @@ const AtomicString& email();
 const AtomicString& file();
 const AtomicString& hidden();
 const AtomicString& image();
-const AtomicString& isindex();
 const AtomicString& month();
 const AtomicString& number();
 const AtomicString& password();

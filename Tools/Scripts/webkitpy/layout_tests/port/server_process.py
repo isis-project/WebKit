@@ -260,6 +260,10 @@ class ServerProcess:
 
             self._wait_for_data_and_update_buffers(deadline)
 
+    def start(self):
+        if not self._proc:
+            self._start()
+
     def stop(self):
         if not self._proc:
             return
@@ -282,7 +286,7 @@ class ServerProcess:
             KILL_TIMEOUT = 3.0
             timeout = time.time() + KILL_TIMEOUT
             while self._proc.poll() is None and time.time() < timeout:
-                time.sleep(0.1)
+                time.sleep(0.01)
             if self._proc.poll() is None:
                 _log.warning('stopping %s timed out, killing it' % self._name)
                 self._executive.kill_process(self._proc.pid)

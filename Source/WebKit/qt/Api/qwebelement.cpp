@@ -22,7 +22,6 @@
 
 #include "qwebelement_p.h"
 #include "CSSComputedStyleDeclaration.h"
-#include "CSSMutableStyleDeclaration.h"
 #include "CSSParser.h"
 #include "CSSRule.h"
 #include "CSSRuleList.h"
@@ -33,6 +32,7 @@
 #include "FrameView.h"
 #include "GraphicsContext.h"
 #include "HTMLElement.h"
+#include "StylePropertySet.h"
 #if USE(JSC)
 #include "Completion.h"
 #include "JSGlobalObject.h"
@@ -503,12 +503,11 @@ QStringList QWebElement::attributeNames(const QString& namespaceUri) const
         return QStringList();
 
     QStringList attributeNameList;
-    const NamedNodeMap* const attrs = m_element->attributes(/* read only = */ true);
-    if (attrs) {
+    if (m_element->hasAttributes()) {
         const String namespaceUriString(namespaceUri); // convert QString -> String once
-        const unsigned attrsCount = attrs->length();
+        const unsigned attrsCount = m_element->attributeCount();
         for (unsigned i = 0; i < attrsCount; ++i) {
-            const Attribute* const attribute = attrs->attributeItem(i);
+            const Attribute* const attribute = m_element->attributeItem(i);
             if (namespaceUriString == attribute->namespaceURI())
                 attributeNameList.append(attribute->localName());
         }
@@ -844,13 +843,13 @@ QString QWebElement::styleProperty(const QString &name, StyleResolveStrategy str
     if (!propID)
         return QString();
 
-    CSSStyleDeclaration* style = static_cast<StyledElement*>(m_element)->style();
+    StylePropertySet* style = static_cast<StyledElement*>(m_element)->ensureInlineStyleDecl();
 
     if (strategy == InlineStyle)
         return style->getPropertyValue(propID);
 
     if (strategy == CascadedStyle) {
-        if (style->getPropertyPriority(propID))
+        if (style->propertyIsImportant(propID))
             return style->getPropertyValue(propID);
 
         // We are going to resolve the style property by walking through the
@@ -866,11 +865,11 @@ QString QWebElement::styleProperty(const QString &name, StyleResolveStrategy str
             for (int i = rules->length(); i > 0; --i) {
                 CSSStyleRule* rule = static_cast<CSSStyleRule*>(rules->item(i - 1));
 
-                if (rule->style()->getPropertyPriority(propID))
-                    return rule->style()->getPropertyValue(propID);
+                if (rule->declaration()->propertyIsImportant(propID))
+                    return rule->declaration()->getPropertyValue(propID);
 
                 if (style->getPropertyValue(propID).isEmpty())
-                    style = rule->style();
+                    style = rule->declaration();
             }
         }
 
@@ -883,7 +882,7 @@ QString QWebElement::styleProperty(const QString &name, StyleResolveStrategy str
 
         int propID = cssPropertyID(name);
 
-        RefPtr<CSSComputedStyleDeclaration> style = computedStyle(m_element, true);
+        RefPtr<CSSComputedStyleDeclaration> style = CSSComputedStyleDeclaration::create(m_element, true);
         if (!propID || !style)
             return QString();
 
@@ -909,12 +908,11 @@ void QWebElement::setStyleProperty(const QString &name, const QString &value)
         return;
 
     int propID = cssPropertyID(name);
-    CSSStyleDeclaration* style = static_cast<StyledElement*>(m_element)->style();
+    StylePropertySet* style = static_cast<StyledElement*>(m_element)->ensureInlineStyleDecl();
     if (!propID || !style)
         return;
 
-    ExceptionCode exception = 0;
-    style->setProperty(name, value,emptyString(), exception);
+    style->setProperty(propID, value);
 }
 
 /*!

@@ -141,7 +141,7 @@ InjectedScript.prototype = {
 
     _parseObjectId: function(objectId)
     {
-        return InjectedScriptHost.evaluate("(" + objectId + ")");
+        return eval("(" + objectId + ")");
     },
 
     releaseObjectGroup: function(objectGroupName)
@@ -156,7 +156,7 @@ InjectedScript.prototype = {
 
     dispatch: function(methodName, args)
     {
-        var argsArray = InjectedScriptHost.evaluate("(" + args + ")");
+        var argsArray = eval("(" + args + ")");
         var result = this[methodName].apply(this, argsArray);
         if (typeof result === "undefined") {
             inspectedWindow.console.error("Web Inspector error: InjectedScript.%s returns undefined", methodName);
@@ -184,23 +184,28 @@ InjectedScript.prototype = {
 
         for (var i = 0; i < descriptors.length; ++i) {
             var descriptor = descriptors[i];
-            if (descriptor.get)
+            if ("get" in descriptor)
                 descriptor.get = this._wrapObject(descriptor.get, objectGroupName);
-            if (descriptor.set)
+            if ("set" in descriptor)
                 descriptor.set = this._wrapObject(descriptor.set, objectGroupName);
             if ("value" in descriptor)
                 descriptor.value = this._wrapObject(descriptor.value, objectGroupName);
+            if (!("configurable" in descriptor))
+                descriptor.configurable = false;
+            if (!("enumerable" in descriptor))
+                descriptor.enumerable = false;
+            
         }
         return descriptors;
     },
 
-    getFunctionLocation: function(functionId)
+    getFunctionDetails: function(functionId)
     {
         var parsedFunctionId = this._parseObjectId(functionId);
         var func = this._objectForId(parsedFunctionId);
         if (typeof func !== "function")
             return "Cannot resolve function by id.";
-        return InjectedScriptHost.functionLocation(func);
+        return InjectedScriptHost.functionDetails(func);
     },
 
     releaseObject: function(objectId)
@@ -259,7 +264,7 @@ InjectedScript.prototype = {
 
     evaluate: function(expression, objectGroup, injectCommandLineAPI, returnByValue)
     {
-        return this._evaluateAndWrap(InjectedScriptHost.evaluate, InjectedScriptHost, expression, objectGroup, false, injectCommandLineAPI, returnByValue);
+        return this._evaluateAndWrap(inspectedWindow.eval, inspectedWindow, expression, objectGroup, false, injectCommandLineAPI, returnByValue);
     },
 
     callFunctionOn: function(objectId, expression, args, returnByValue)
@@ -271,7 +276,7 @@ InjectedScript.prototype = {
 
         if (args) {
             var resolvedArgs = [];
-            args = InjectedScriptHost.evaluate(args);
+            args = eval(args);
             for (var i = 0; i < args.length; ++i) {
                 var objectId = args[i].objectId;
                 if (objectId) {
@@ -293,7 +298,7 @@ InjectedScript.prototype = {
 
         try {
             var objectGroup = this._idToObjectGroupName[parsedObjectId.id];
-            var func = InjectedScriptHost.evaluate("(" + expression + ")");
+            var func = eval("(" + expression + ")");
             if (typeof func !== "function")
                 return "Given expression does not evaluate to a function";
 
@@ -366,7 +371,7 @@ InjectedScript.prototype = {
 
     _callFrameForId: function(topCallFrame, callFrameId)
     {
-        var parsedCallFrameId = InjectedScriptHost.evaluate("(" + callFrameId + ")");
+        var parsedCallFrameId = eval("(" + callFrameId + ")");
         var ordinal = parsedCallFrameId.ordinal;
         var callFrame = topCallFrame;
         while (--ordinal >= 0 && callFrame)
@@ -688,7 +693,7 @@ CommandLineAPIImpl.prototype = {
     _normalizeEventTypes: function(types)
     {
         if (typeof types === "undefined")
-            types = [ "mouse", "key", "control", "load", "unload", "abort", "error", "select", "change", "submit", "reset", "focus", "blur", "resize", "scroll", "search", "devicemotion", "deviceorientation" ];
+            types = [ "mouse", "key", "touch", "control", "load", "unload", "abort", "error", "select", "change", "submit", "reset", "focus", "blur", "resize", "scroll", "search", "devicemotion", "deviceorientation" ];
         else if (typeof types === "string")
             types = [ types ];
 
@@ -698,6 +703,8 @@ CommandLineAPIImpl.prototype = {
                 result.splice(0, 0, "mousedown", "mouseup", "click", "dblclick", "mousemove", "mouseover", "mouseout", "mousewheel");
             else if (types[i] === "key")
                 result.splice(0, 0, "keydown", "keyup", "keypress", "textInput");
+            else if (types[i] === "touch")
+                result.splice(0, 0, "touchstart", "touchmove", "touchend", "touchcancel");
             else if (types[i] === "control")
                 result.splice(0, 0, "resize", "scroll", "zoom", "focus", "blur", "select", "change", "submit", "reset");
             else

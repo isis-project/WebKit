@@ -26,9 +26,12 @@
 #include "config.h"
 #include "WebNotificationProvider.h"
 
+#include "ImmutableDictionary.h"
+#include "MutableArray.h"
 #include "WKAPICast.h"
 #include "WebNotification.h"
 #include "WebNotificationManagerProxy.h"
+#include "WebNumber.h"
 #include "WebSecurityOrigin.h"
 
 namespace WebKit {
@@ -57,12 +60,18 @@ void WebNotificationProvider::didDestroyNotification(WebNotification* notificati
     m_client.didDestroyNotification(toAPI(notification), m_client.clientInfo);
 }
 
-int WebNotificationProvider::policyForNotificationPermissionAtOrigin(WebSecurityOrigin* origin)
+void WebNotificationProvider::clearNotifications(const Vector<uint64_t>& notificationIDs)
 {
-    if (!m_client.policyForNotificationPermissionAtOrigin)
-        return INT_MIN;
-    
-    return m_client.policyForNotificationPermissionAtOrigin(toAPI(origin), m_client.clientInfo);
+    if (!m_client.clearNotifications)
+        return;
+
+    RefPtr<MutableArray> arrayIDs = MutableArray::create();
+    size_t count = notificationIDs.size();
+    arrayIDs->reserveCapacity(count);
+    for (size_t i = 0; i < count; ++i)
+        arrayIDs->append(WebUInt64::create(notificationIDs[i]).leakRef());
+
+    m_client.clearNotifications(toAPI(arrayIDs.get()), m_client.clientInfo);
 }
 
 void WebNotificationProvider::addNotificationManager(WebNotificationManagerProxy* manager)
@@ -79,6 +88,14 @@ void WebNotificationProvider::removeNotificationManager(WebNotificationManagerPr
         return;
     
     m_client.removeNotificationManager(toAPI(manager), m_client.clientInfo);
+}
+
+PassRefPtr<ImmutableDictionary> WebNotificationProvider::notificationPermissions()
+{
+    if (!m_client.notificationPermissions)
+        return ImmutableDictionary::create();
+
+    return adoptRef(toImpl(m_client.notificationPermissions(m_client.clientInfo)));
 }
 
 } // namespace WebKit

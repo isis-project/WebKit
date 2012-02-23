@@ -43,7 +43,6 @@
 #include "HTMLInputElement.h"
 #include "HiddenInputType.h"
 #include "ImageInputType.h"
-#include "IsIndexInputType.h"
 #include "KeyboardEvent.h"
 #include "LocalizedStrings.h"
 #include "MonthInputType.h"
@@ -57,6 +56,7 @@
 #include "ResetInputType.h"
 #include "SearchInputType.h"
 #include "ShadowRoot.h"
+#include "ShadowRootList.h"
 #include "SubmitInputType.h"
 #include "TelephoneInputType.h"
 #include "TextInputType.h"
@@ -96,7 +96,6 @@ static PassOwnPtr<InputTypeFactoryMap> createInputTypeFactoryMap()
     map->add(InputTypeNames::file(), FileInputType::create);
     map->add(InputTypeNames::hidden(), HiddenInputType::create);
     map->add(InputTypeNames::image(), ImageInputType::create);
-    map->add(InputTypeNames::isindex(), IsIndexInputType::create);
 #if ENABLE(INPUT_TYPE_MONTH)
     map->add(InputTypeNames::month(), MonthInputType::create);
 #endif
@@ -194,7 +193,7 @@ double InputType::valueAsNumber() const
     return numeric_limits<double>::quiet_NaN();
 }
 
-void InputType::setValueAsNumber(double, bool, ExceptionCode& ec) const
+void InputType::setValueAsNumber(double, TextFieldEventBehavior, ExceptionCode& ec) const
 {
     ec = INVALID_STATE_ERR;
 }
@@ -380,7 +379,11 @@ void InputType::createShadowSubtree()
 
 void InputType::destroyShadowSubtree()
 {
-    element()->removeShadowRoot();
+    if (!element()->hasShadowRoot())
+        return;
+
+    if (ShadowRoot* root = element()->shadowRootList()->oldestShadowRoot())
+        root->removeAllChildren();
 }
 
 double InputType::parseToDouble(const String&, double defaultValue) const
@@ -434,6 +437,10 @@ bool InputType::isKeyboardFocusable() const
 bool InputType::shouldUseInputMethod() const
 {
     return false;
+}
+
+void InputType::handleFocusEvent()
+{
 }
 
 void InputType::handleBlurEvent()
@@ -533,9 +540,9 @@ bool InputType::storesValueSeparateFromAttribute()
     return true;
 }
 
-void InputType::setValue(const String& sanitizedValue, bool, bool sendChangeEvent)
+void InputType::setValue(const String& sanitizedValue, bool, TextFieldEventBehavior eventBehavior)
 {
-    element()->setValueInternal(sanitizedValue, sendChangeEvent);
+    element()->setValueInternal(sanitizedValue, eventBehavior);
     element()->setNeedsStyleRecalc();
 }
 
@@ -727,6 +734,11 @@ String InputType::defaultToolTip() const
     return String();
 }
 
+bool InputType::supportsIndeterminateAppearance() const
+{
+    return false;
+}
+
 namespace InputTypeNames {
 
 // The type names must be lowercased because they will be the return values of
@@ -791,12 +803,6 @@ const AtomicString& hidden()
 const AtomicString& image()
 {
     DEFINE_STATIC_LOCAL(AtomicString, name, ("image"));
-    return name;
-}
-
-const AtomicString& isindex()
-{
-    DEFINE_STATIC_LOCAL(AtomicString, name, ("khtml_isindex"));
     return name;
 }
 

@@ -1,3 +1,108 @@
+2012-02-11  Filip Pizlo  <fpizlo@apple.com>
+
+        It should be possible to send all JSC debug logging to a file
+        https://bugs.webkit.org/show_bug.cgi?id=78418
+
+        Reviewed by Sam Weinig.
+        
+        Introduced wtf/DataLog, which defines WTF::dataFile, WTF::dataLog,
+        and WTF::dataLogV. Changed all debugging- and profiling-related printfs
+        to use WTF::dataLog() or one of its friends. By default, debug logging
+        goes to stderr, unless you change the setting in wtf/DataLog.cpp.
+
+        * WTF.pro:
+
+2012-02-03  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Fix build when cross-compiling
+        https://bugs.webkit.org/show_bug.cgi?id=77634
+
+        Reviewed by Tor Arne Vestbø.
+
+        * WTF.pri: Don't use icu-config for determining the library search
+        path and libraries needed for ICU. Either we use icu-config for includes
+        _and_ libraries or we don't. Right now we assume that icu is a system library
+        and expect the headers in the default include search pathes (/usr/include for example).
+        However we use icu-config to figure out where the libraries are, which breaks when
+        cross-compiling, because icu-config isn't cross-compile friendly (I wish icu was using
+        pkg-config). I think for the time being we should require ICU as a _system_ library,
+        which implies the header and library availability in default search paths. This also
+        makes the build succeed when cross-compiling with --sysroot.
+
+2012-01-27  Zeno Albisser  <zeno@webkit.org>
+
+        [Qt][Mac] Build fails after adding ICU support (r105997).
+        https://bugs.webkit.org/show_bug.cgi?id=77118
+
+        Link to libicucore if platform Mac.
+
+        Reviewed by Tor Arne Vestbø.
+
+        * WTF.pri:
+
+2012-01-26  Jesus Sanchez-Palencia  <jesus.palencia@openbossa.org>
+
+        [Qt] Use ICU if available
+        https://bugs.webkit.org/show_bug.cgi?id=76821
+
+        Reviewed by Simon Hausmann.
+
+        Adding libicu dependencies for a Qt5 based build.
+
+        * WTF.pri:
+
+2012-01-26  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [Qt][Win] One more speculative buildfix after r105970.
+
+        * WTF.pri:
+
+2012-01-26  Nikolas Zimmermann  <nzimmermann@rim.com>
+
+        Not reviewed. Try to fix Qt/Win build by building OwnPtrWin.cpp into the WTF library.
+
+        * WTF.pro:
+
+2012-01-19  Joi Sigurdsson  <joi@chromium.org>
+
+        Enable use of precompiled headers in Chromium port on Windows.
+
+        Bug 76381 - Use precompiled headers in Chromium port on Windows
+        https://bugs.webkit.org/show_bug.cgi?id=76381
+
+        Reviewed by Tony Chang.
+
+        * WTF.gyp/WTF.gyp: Include WinPrecompile.gypi.
+
+2012-01-18  Roland Takacs  <takacs.roland@stud.u-szeged.hu>
+
+        Cross-platform processor core counter
+        https://bugs.webkit.org/show_bug.cgi?id=76530
+
+        Reviewed by Zoltan Herczeg.
+
+        Two files have been added to the project, namely NumberOfCores.h/cpp,
+        that include a CPU core number determining function.
+
+        * WTF.pro:
+
+2012-01-17  Caio Marcelo de Oliveira Filho  <caio.oliveira@openbossa.org>
+
+        Uint8ClampedArray support
+        https://bugs.webkit.org/show_bug.cgi?id=74455
+
+        Reviewed by Filip Pizlo.
+
+        * WTF.pro:
+
+2012-01-13  Alexis Menard  <alexis.menard@openbossa.org>
+
+        Unreviewed build fix for Qt SnowLeopard build bot.
+
+        This is a workaround for the moment.
+
+        * wtf/Platform.h:
+
 2012-01-12  Simon Hausmann  <simon.hausmann@nokia.com>
 
         Make the new WTF module build on Qt

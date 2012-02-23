@@ -49,15 +49,19 @@ private:
     SVGFEImageElement(const QualifiedName&, Document*);
 
     bool isSupportedAttribute(const QualifiedName&);
-    virtual void parseMappedAttribute(Attribute*);
+    virtual void parseAttribute(Attribute*) OVERRIDE;
     virtual void svgAttributeChanged(const QualifiedName&);
     virtual void notifyFinished(CachedResource*);
 
     virtual void addSubresourceAttributeURLs(ListHashSet<KURL>&) const;
     virtual PassRefPtr<FilterEffect> build(SVGFilterBuilder*, Filter*);
 
-    void invalidateImageResource();
+    void clearResourceReferences();
     void requestImageResource();
+
+    virtual void buildPendingResource();
+    virtual void insertedIntoDocument();
+    virtual void removedFromDocument();
 
     BEGIN_DECLARE_ANIMATED_PROPERTIES(SVGFEImageElement)
         DECLARE_ANIMATED_PRESERVEASPECTRATIO(PreserveAspectRatio, preserveAspectRatio)
@@ -66,7 +70,6 @@ private:
     END_DECLARE_ANIMATED_PROPERTIES
 
     CachedResourceHandle<CachedImage> m_cachedImage;
-    OwnPtr<ImageBuffer> m_targetImage;
 };
 
 } // namespace WebCore

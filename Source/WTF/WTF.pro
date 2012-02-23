@@ -34,6 +34,7 @@ HEADERS += \
     DateMath.h \
     DecimalNumber.h \
     Decoder.h \
+    DataLog.h \ 
     Deque.h \
     DisallowCType.h \
     dtoa.h \
@@ -82,6 +83,7 @@ HEADERS += \
     NonCopyingSort.h \
     NotFound.h \
     NullPtr.h \
+    NumberOfCores.h \
     OSAllocator.h \
     OSRandomSource.h \
     OwnArrayPtr.h \
@@ -143,6 +145,7 @@ HEADERS += \
     Uint16Array.h \
     Uint32Array.h \
     Uint8Array.h \
+    Uint8ClampedArray.h \
     unicode/CharacterNames.h \
     unicode/Collator.h \
     unicode/icu/UnicodeIcu.h \
@@ -169,6 +172,7 @@ SOURCES += \
     CryptographicallyRandomNumber.cpp \
     CurrentTime.cpp \
     DateMath.cpp \
+    DataLog.cpp \
     DecimalNumber.cpp \
     dtoa.cpp \
     dtoa/bignum-dtoa.cc \
@@ -187,6 +191,7 @@ SOURCES += \
     MainThread.cpp \
     MetaAllocator.cpp \
     NullPtr.cpp \
+    NumberOfCores.cpp \
     OSRandomSource.cpp \
     qt/MainThreadQt.cpp \
     qt/StringQt.cpp \
@@ -217,6 +222,7 @@ unix: SOURCES += \
     ThreadingPthreads.cpp
 
 win*|wince*: SOURCES += \
+    win/OwnPtrWin.cpp \
     OSAllocatorWin.cpp \
     ThreadSpecificWin.cpp \
     ThreadingWin.cpp

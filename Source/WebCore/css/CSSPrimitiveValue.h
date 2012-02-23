@@ -30,6 +30,7 @@
 
 namespace WebCore {
 
+class CSSCalcValue;
 class Counter;
 class DashboardRegion;
 class Pair;
@@ -102,7 +103,11 @@ public:
         CSS_SHAPE = 110,
 
         // Used by border images.
-        CSS_QUAD = 111
+        CSS_QUAD = 111,
+
+        CSS_CALC = 112,
+        CSS_CALC_PERCENTAGE_WITH_NUMBER = 113,
+        CSS_CALC_PERCENTAGE_WITH_LENGTH = 114
     };
 
     // This enum follows the CSSParser::Units enum augmented with UNIT_FREQUENCY for frequencies.
@@ -116,12 +121,38 @@ public:
         UOther
     };
 
-    static bool isUnitTypeLength(int type) { return (type > CSSPrimitiveValue::CSS_PERCENTAGE && type < CSSPrimitiveValue::CSS_DEG) ||
-                                                    type == CSSPrimitiveValue::CSS_REMS; }
-
-    bool isLength() const { return isUnitTypeLength(m_primitiveUnitType); }
-    bool isPercentage() const { return m_primitiveUnitType == CSSPrimitiveValue::CSS_PERCENTAGE; }
-    bool isNumber() const { return m_primitiveUnitType == CSSPrimitiveValue::CSS_NUMBER; }
+    bool isAngle() const
+    {
+        return m_primitiveUnitType == CSS_DEG
+               || m_primitiveUnitType == CSS_RAD
+               || m_primitiveUnitType == CSS_GRAD
+               || m_primitiveUnitType == CSS_TURN;
+    }
+    bool isAttr() const { return m_primitiveUnitType == CSS_ATTR; }
+    bool isCounter() const { return m_primitiveUnitType == CSS_COUNTER; }
+    bool isFontIndependentLength() const { return m_primitiveUnitType >= CSS_PX && m_primitiveUnitType <= CSS_PC; }
+    bool isFontRelativeLength() const
+    {
+        return m_primitiveUnitType == CSS_EMS || m_primitiveUnitType == CSS_EXS || m_primitiveUnitType == CSS_REMS;
+    }
+    bool isIdent() const { return m_primitiveUnitType == CSS_IDENT; }
+    bool isLength() const
+    {
+        unsigned short type = primitiveType();
+        return (type >= CSS_EMS && type <= CSS_PC) || type == CSS_REMS;
+    }
+    bool isNumber() const { return primitiveType() == CSS_NUMBER; }
+    bool isPercentage() const { return primitiveType() == CSS_PERCENTAGE; }
+    bool isPx() const { return primitiveType() == CSS_PX; }
+    bool isRect() const { return m_primitiveUnitType == CSS_RECT; }
+    bool isRGBColor() const { return m_primitiveUnitType == CSS_RGBCOLOR; }
+    bool isShape() const { return m_primitiveUnitType == CSS_SHAPE; }
+    bool isString() const { return m_primitiveUnitType == CSS_STRING; }
+    bool isTime() const { return m_primitiveUnitType == CSS_S || m_primitiveUnitType == CSS_MS; }
+    bool isURI() const { return m_primitiveUnitType == CSS_URI; }
+    bool isCalculated() const { return m_primitiveUnitType == CSS_CALC; }
+    bool isCalculatedPercentageWithNumber() const { return primitiveType() == CSS_CALC_PERCENTAGE_WITH_NUMBER; }
+    bool isCalculatedPercentageWithLength() const { return primitiveType() == CSS_CALC_PERCENTAGE_WITH_LENGTH; }
 
     static PassRefPtr<CSSPrimitiveValue> createIdentifier(int identifier) { return adoptRef(new CSSPrimitiveValue(identifier)); }
     static PassRefPtr<CSSPrimitiveValue> createColor(unsigned rgbValue) { return adoptRef(new CSSPrimitiveValue(rgbValue)); }
@@ -148,7 +179,24 @@ public:
 
     void cleanup();
 
-    unsigned short primitiveType() const { return m_primitiveUnitType; }
+    unsigned short primitiveType() const;
+
+    double computeDegrees();
+
+    enum TimeUnit { Seconds, Milliseconds };
+    template <typename T, TimeUnit timeUnit> T computeTime()
+    {
+        if (timeUnit == Seconds && m_primitiveUnitType == CSS_S)
+            return getValue<T>();
+        if (timeUnit == Seconds && m_primitiveUnitType == CSS_MS)
+            return getValue<T>() / 1000;
+        if (timeUnit == Milliseconds && m_primitiveUnitType == CSS_MS)
+            return getValue<T>();
+        if (timeUnit == Milliseconds && m_primitiveUnitType == CSS_S)
+            return getValue<T>() * 1000;
+        ASSERT_NOT_REACHED();
+        return 0;
+    }
 
     /*
      * computes a length in pixels out of the given CSSValue. Need the RenderStyle to get
@@ -160,14 +208,17 @@ public:
      * this is screen/printer dependent, so we probably need a config option for this,
      * and some tool to calibrate.
      */
-    template<typename T> T computeLength(RenderStyle* currStyle, RenderStyle* rootStyle, double multiplier = 1.0, bool computingFontSize = false);
+    template<typename T> T computeLength(RenderStyle* currStyle, RenderStyle* rootStyle, float multiplier = 1.0f, bool computingFontSize = false);
+
+    // Converts to a Length, mapping various unit types appropriately.
+    template<int> Length convertToLength(RenderStyle* currStyle, RenderStyle* rootStyle, double multiplier = 1.0, bool computingFontSize = false);
 
     // use with care!!!
     void setPrimitiveType(unsigned short type) { m_primitiveUnitType = type; }
 
     double getDoubleValue(unsigned short unitType, ExceptionCode&) const;
     double getDoubleValue(unsigned short unitType) const;
-    double getDoubleValue() const { return m_value.num; }
+    double getDoubleValue() const;
 
     void setFloatValue(unsigned short unitType, double floatValue, ExceptionCode&);
     float getFloatValue(unsigned short unitType, ExceptionCode& ec) const { return getValue<float>(unitType, ec); }
@@ -180,7 +231,7 @@ public:
 
     template<typename T> inline T getValue(unsigned short unitType, ExceptionCode& ec) const { return clampTo<T>(getDoubleValue(unitType, ec)); }
     template<typename T> inline T getValue(unsigned short unitType) const { return clampTo<T>(getDoubleValue(unitType)); }
-    template<typename T> inline T getValue() const { return clampTo<T>(m_value.num); }
+    template<typename T> inline T getValue() const { return clampTo<T>(getDoubleValue()); }
 
     void setStringValue(unsigned short stringType, const String& stringValue, ExceptionCode&);
     String getStringValue(ExceptionCode&) const;
@@ -204,6 +255,8 @@ public:
     DashboardRegion* getDashboardRegionValue() const { return m_primitiveUnitType != CSS_DASHBOARD_REGION ? 0 : m_value.region; }
 
     CSSWrapShape* getShapeValue() const { return m_primitiveUnitType != CSS_SHAPE ? 0 : m_value.shape; }
+    
+    CSSCalcValue* cssCalcValue() const { return m_primitiveUnitType != CSS_CALC ? 0 : m_value.calc; }
 
     int getIdent() const { return m_primitiveUnitType == CSS_IDENT ? m_value.ident : 0; }
 
@@ -257,10 +310,10 @@ private:
     void init(PassRefPtr<Quad>);
     void init(PassRefPtr<DashboardRegion>); // FIXME: Dashboard region should not be a primitive value.
     void init(PassRefPtr<CSSWrapShape>);
-
+    void init(PassRefPtr<CSSCalcValue>);
     bool getDoubleValueInternal(UnitTypes targetUnitType, double* result) const;
 
-    double computeLengthDouble(RenderStyle* currentStyle, RenderStyle* rootStyle, double multiplier, bool computingFontSize);
+    double computeLengthDouble(RenderStyle* currentStyle, RenderStyle* rootStyle, float multiplier, bool computingFontSize);
 
     union {
         int ident;
@@ -273,6 +326,7 @@ private:
         Pair* pair;
         DashboardRegion* region;
         CSSWrapShape* shape;
+        CSSCalcValue* calc;
     } m_value;
 };
 

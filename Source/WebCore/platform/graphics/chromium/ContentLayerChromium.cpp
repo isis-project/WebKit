@@ -48,7 +48,7 @@ namespace WebCore {
 class ContentLayerPainter : public LayerPainterChromium {
     WTF_MAKE_NONCOPYABLE(ContentLayerPainter);
 public:
-    static PassOwnPtr<ContentLayerPainter> create(CCLayerDelegate* delegate)
+    static PassOwnPtr<ContentLayerPainter> create(ContentLayerDelegate* delegate)
     {
         return adoptPtr(new ContentLayerPainter(delegate));
     }
@@ -65,21 +65,22 @@ public:
         PlatformSupport::histogramCustomCounts("Renderer4.AccelContentPaintMegapixPerSecond", pixelsPerSec / 1000000, 10, 210, 30);
     }
 private:
-    explicit ContentLayerPainter(CCLayerDelegate* delegate)
+    explicit ContentLayerPainter(ContentLayerDelegate* delegate)
         : m_delegate(delegate)
     {
     }
 
-    CCLayerDelegate* m_delegate;
+    ContentLayerDelegate* m_delegate;
 };
 
-PassRefPtr<ContentLayerChromium> ContentLayerChromium::create(CCLayerDelegate* delegate)
+PassRefPtr<ContentLayerChromium> ContentLayerChromium::create(ContentLayerDelegate* delegate)
 {
     return adoptRef(new ContentLayerChromium(delegate));
 }
 
-ContentLayerChromium::ContentLayerChromium(CCLayerDelegate* delegate)
-    : TiledLayerChromium(delegate)
+ContentLayerChromium::ContentLayerChromium(ContentLayerDelegate* delegate)
+    : TiledLayerChromium()
+    , m_delegate(delegate)
 {
 }
 
@@ -87,9 +88,15 @@ ContentLayerChromium::~ContentLayerChromium()
 {
 }
 
-void ContentLayerChromium::paintContentsIfDirty()
+bool ContentLayerChromium::drawsContent() const
+{
+    return TiledLayerChromium::drawsContent() && m_delegate;
+}
+
+void ContentLayerChromium::paintContentsIfDirty(const Region& /* occludedScreenSpace */)
 {
     updateTileSizeAndTilingOption();
+    createTextureUpdaterIfNeeded();
 
     IntRect layerRect;
 
@@ -116,22 +123,23 @@ void ContentLayerChromium::idlePaintContentsIfDirty()
         setNeedsCommit();
 }
 
-void ContentLayerChromium::createTextureUpdater(const CCLayerTreeHost* host)
+void ContentLayerChromium::createTextureUpdaterIfNeeded()
 {
+    if (m_textureUpdater)
+        return;
 #if USE(SKIA)
-    if (host->settings().acceleratePainting) {
+    if (layerTreeHost()->settings().acceleratePainting)
         m_textureUpdater = FrameBufferSkPictureCanvasLayerTextureUpdater::create(ContentLayerPainter::create(m_delegate));
-        return;
-    }
-
-    if (host->settings().perTilePainting) {
-        m_textureUpdater = BitmapSkPictureCanvasLayerTextureUpdater::create(ContentLayerPainter::create(m_delegate), host->layerRendererCapabilities().usingMapSub);
-        return;
-    }
+    else if (layerTreeHost()->settings().perTilePainting)
+        m_textureUpdater = BitmapSkPictureCanvasLayerTextureUpdater::create(ContentLayerPainter::create(m_delegate), layerTreeHost()->layerRendererCapabilities().usingMapSub);
+    else
 #endif // USE(SKIA)
-
-    m_textureUpdater = BitmapCanvasLayerTextureUpdater::create(ContentLayerPainter::create(m_delegate), host->layerRendererCapabilities().usingMapSub);
+        m_textureUpdater = BitmapCanvasLayerTextureUpdater::create(ContentLayerPainter::create(m_delegate), layerTreeHost()->layerRendererCapabilities().usingMapSub);
     m_textureUpdater->setOpaque(opaque());
+
+    GC3Denum textureFormat = layerTreeHost()->layerRendererCapabilities().bestTextureFormat;
+    setTextureFormat(textureFormat);
+    setSampledTexelFormat(textureUpdater()->sampledTexelFormat(textureFormat));
 }
 
 void ContentLayerChromium::setOpaque(bool opaque)

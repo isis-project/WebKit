@@ -219,7 +219,11 @@ void ScrollView::setClipsRepaints(bool clipsRepaints)
 
 void ScrollView::setDelegatesScrolling(bool delegatesScrolling)
 {
+    if (m_delegatesScrolling == delegatesScrolling)
+        return;
+
     m_delegatesScrolling = delegatesScrolling;
+    delegatesScrollingDidChange();
 }
 
 #if !PLATFORM(GTK)
@@ -496,7 +500,7 @@ void ScrollView::updateScrollbars(const IntSize& desiredOffset)
 
         if (hasHorizontalScrollbar != newHasHorizontalScrollbar && (hasHorizontalScrollbar || !avoidScrollbarCreation())) {
             if (scrollOrigin().y() && !newHasHorizontalScrollbar)
-                setScrollOriginY(scrollOrigin().y() - m_horizontalScrollbar->height());
+                ScrollableArea::setScrollOrigin(IntPoint(scrollOrigin().x(), scrollOrigin().y() - m_horizontalScrollbar->height()));
             if (m_horizontalScrollbar)
                 m_horizontalScrollbar->invalidate();
             setHasHorizontalScrollbar(newHasHorizontalScrollbar);
@@ -505,7 +509,7 @@ void ScrollView::updateScrollbars(const IntSize& desiredOffset)
 
         if (hasVerticalScrollbar != newHasVerticalScrollbar && (hasVerticalScrollbar || !avoidScrollbarCreation())) {
             if (scrollOrigin().x() && !newHasVerticalScrollbar)
-                setScrollOriginX(scrollOrigin().x() - m_verticalScrollbar->width());
+                ScrollableArea::setScrollOrigin(IntPoint(scrollOrigin().x() - m_verticalScrollbar->width(), scrollOrigin().y()));
             if (m_verticalScrollbar)
                 m_verticalScrollbar->invalidate();
             setHasVerticalScrollbar(newHasVerticalScrollbar);
@@ -828,9 +832,9 @@ Scrollbar* ScrollView::scrollbarAtPoint(const IntPoint& windowPoint)
         return 0;
 
     IntPoint viewPoint = convertFromContainingWindow(windowPoint);
-    if (m_horizontalScrollbar && m_horizontalScrollbar->frameRect().contains(viewPoint))
+    if (m_horizontalScrollbar && m_horizontalScrollbar->shouldParticipateInHitTesting() && m_horizontalScrollbar->frameRect().contains(viewPoint))
         return m_horizontalScrollbar.get();
-    if (m_verticalScrollbar && m_verticalScrollbar->frameRect().contains(viewPoint))
+    if (m_verticalScrollbar && m_verticalScrollbar->shouldParticipateInHitTesting() && m_verticalScrollbar->frameRect().contains(viewPoint))
         return m_verticalScrollbar.get();
     return 0;
 }
@@ -991,6 +995,7 @@ void ScrollView::scrollbarStyleChanged(int, bool forceUpdate)
 
     contentsResized();
     updateScrollbars(scrollOffset());
+    positionScrollbarLayers();
 }
 
 void ScrollView::updateScrollCorner()

@@ -77,7 +77,22 @@ RenderWidget* HTMLObjectElement::renderWidgetForJSBindings()
     return renderPart(); // This will return 0 if the renderer is not a RenderPart.
 }
 
-void HTMLObjectElement::parseMappedAttribute(Attribute* attr)
+bool HTMLObjectElement::isPresentationAttribute(Attribute* attr) const
+{
+    if (attr->name() == borderAttr)
+        return true;
+    return HTMLPlugInImageElement::isPresentationAttribute(attr);
+}
+
+void HTMLObjectElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
+{
+    if (attr->name() == borderAttr)
+        applyBorderAttributeToStyle(attr, style);
+    else
+        HTMLPlugInImageElement::collectStyleForAttribute(attr, style);
+}
+
+void HTMLObjectElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == formAttr)
         formAttributeChanged();
@@ -108,10 +123,8 @@ void HTMLObjectElement::parseMappedAttribute(Attribute* attr)
         setAttributeEventListener(eventNames().loadEvent, createAttributeEventListener(this, attr));
     else if (attr->name() == onbeforeloadAttr)
         setAttributeEventListener(eventNames().beforeloadEvent, createAttributeEventListener(this, attr));
-    else if (attr->name() == borderAttr)
-        applyBorderAttribute(attr);
     else
-        HTMLPlugInImageElement::parseMappedAttribute(attr);
+        HTMLPlugInImageElement::parseAttribute(attr);
 }
 
 static void mapDataParamToSrc(Vector<String>* paramNames, Vector<String>* paramValues)
@@ -177,10 +190,9 @@ void HTMLObjectElement::parametersForPlugin(Vector<String>& paramNames, Vector<S
     }
     
     // Turn the attributes of the <object> element into arrays, but don't override <param> values.
-    NamedNodeMap* attributes = this->attributes(true);
-    if (attributes) {
-        for (unsigned i = 0; i < attributes->length(); ++i) {
-            Attribute* it = attributes->attributeItem(i);
+    if (hasAttributes()) {
+        for (unsigned i = 0; i < attributeCount(); ++i) {
+            Attribute* it = attributeItem(i);
             const AtomicString& name = it->name().localName();
             if (!uniqueParamNames.contains(name.impl())) {
                 paramNames.append(name.string());
@@ -208,7 +220,7 @@ bool HTMLObjectElement::hasFallbackContent() const
     for (Node* child = firstChild(); child; child = child->nextSibling()) {
         // Ignore whitespace-only text, and <param> tags, any other content is fallback content.
         if (child->isTextNode()) {
-            if (!static_cast<Text*>(child)->containsOnlyWhitespace())
+            if (!toText(child)->containsOnlyWhitespace())
                 return true;
         } else if (!child->hasTagName(paramTag))
             return true;
@@ -286,25 +298,22 @@ void HTMLObjectElement::updateWidget(PluginCreationOption pluginCreationOption)
     bool fallbackContent = hasFallbackContent();
     renderEmbeddedObject()->setHasFallbackContent(fallbackContent);
 
-    if (pluginCreationOption == CreateOnlyNonNetscapePlugins && wouldLoadAsNetscapePlugin(url, serviceType))
+    // FIXME: It's sadness that we have this special case here.
+    //        See http://trac.webkit.org/changeset/25128 and
+    //        plugins/netscape-plugin-setwindow-size.html
+    if (pluginCreationOption == CreateOnlyNonNetscapePlugins && wouldLoadAsNetscapePlugin(url, serviceType)) {
+        // Ensure updateWidget() is called again during layout to create the Netscape plug-in.
+        setNeedsWidgetUpdate(true);
+        return;
+    }
+
+    RefPtr<HTMLObjectElement> protect(this); // beforeload and plugin loading can make arbitrary DOM mutations.
+    bool beforeLoadAllowedLoad = guardedDispatchBeforeLoadEvent(url);
+    if (!renderer()) // Do not load the plugin if beforeload removed this element or its renderer.
         return;
 
-    ASSERT(!m_inBeforeLoadEventHandler);
-    m_inBeforeLoadEventHandler = true;
-    bool beforeLoadAllowedLoad = dispatchBeforeLoadEvent(url);
-    m_inBeforeLoadEventHandler = false;
-
-    // beforeload events can modify the DOM, potentially causing
-    // RenderWidget::destroy() to be called.  Ensure we haven't been
-    // destroyed before continuing.
-    // FIXME: Should this render fallback content?
-    if (!renderer())
-        return;
-
-    RefPtr<HTMLObjectElement> protect(this); // Loading the plugin might remove us from the document.
     SubframeLoader* loader = document()->frame()->loader()->subframeLoader();
-    bool success = beforeLoadAllowedLoad && hasValidClassId() && loader->requestObject(this, url, getAttribute(nameAttr), serviceType, paramNames, paramValues);
-
+    bool success = beforeLoadAllowedLoad && hasValidClassId() && loader->requestObject(this, url, getNameAttribute(), serviceType, paramNames, paramValues);
     if (!success && fallbackContent)
         renderFallbackContent();
 }
@@ -418,7 +427,7 @@ void HTMLObjectElement::updateDocNamedItem()
             if (isRecognizedTagName(element->tagQName()) && !element->hasTagName(paramTag))
                 isNamedItem = false;
         } else if (child->isTextNode()) {
-            if (!static_cast<Text*>(child)->containsOnlyWhitespace())
+            if (!toText(child)->containsOnlyWhitespace())
                 isNamedItem = false;
         } else
             isNamedItem = false;
@@ -427,10 +436,10 @@ void HTMLObjectElement::updateDocNamedItem()
     if (isNamedItem != wasNamedItem && document()->isHTMLDocument()) {
         HTMLDocument* document = static_cast<HTMLDocument*>(this->document());
         if (isNamedItem) {
-            document->addNamedItem(fastGetAttribute(nameAttr));
+            document->addNamedItem(getNameAttribute());
             document->addExtraNamedItem(getIdAttribute());
         } else {
-            document->removeNamedItem(fastGetAttribute(nameAttr));
+            document->removeNamedItem(getNameAttribute());
             document->removeExtraNamedItem(getIdAttribute());
         }
     }
@@ -444,7 +453,7 @@ bool HTMLObjectElement::containsJavaApplet() const
         
     for (Element* child = firstElementChild(); child; child = child->nextElementSibling()) {
         if (child->hasTagName(paramTag)
-                && equalIgnoringCase(child->getAttribute(nameAttr), "type")
+                && equalIgnoringCase(child->getNameAttribute(), "type")
                 && MIMETypeRegistry::isJavaAppletMIMEType(child->getAttribute(valueAttr).string()))
             return true;
         if (child->hasTagName(objectTag)
@@ -505,7 +514,7 @@ bool HTMLObjectElement::appendFormData(FormDataList& encoding, bool)
 
 const AtomicString& HTMLObjectElement::formControlName() const
 {
-    const AtomicString& name = fastGetAttribute(nameAttr);
+    const AtomicString& name = getNameAttribute();
     return name.isNull() ? emptyAtom : name;
 }
 
@@ -520,9 +529,9 @@ String HTMLObjectElement::itemValueText() const
     return getURLAttribute(dataAttr);
 }
 
-void HTMLObjectElement::setItemValueText(const String& value, ExceptionCode& ec)
+void HTMLObjectElement::setItemValueText(const String& value, ExceptionCode&)
 {
-    setAttribute(dataAttr, value, ec);
+    setAttribute(dataAttr, value);
 }
 #endif
 

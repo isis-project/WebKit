@@ -82,17 +82,13 @@ GraphicsLayerChromium::GraphicsLayerChromium(GraphicsLayerClient* client)
 GraphicsLayerChromium::~GraphicsLayerChromium()
 {
     if (m_layer) {
-        m_layer->setDelegate(0);
+        m_layer->clearDelegate();
         m_layer->clearRenderSurface();
     }
-    if (m_contentsLayer) {
-        m_contentsLayer->setDelegate(0);
+    if (m_contentsLayer)
         m_contentsLayer->clearRenderSurface();
-    }
-    if (m_transformLayer) {
-        m_transformLayer->setDelegate(0);
+    if (m_transformLayer)
         m_transformLayer->clearRenderSurface();
-    }
 }
 
 void GraphicsLayerChromium::setName(const String& inName)
@@ -179,10 +175,16 @@ void GraphicsLayerChromium::setAnchorPoint(const FloatPoint3D& point)
 
 void GraphicsLayerChromium::setSize(const FloatSize& size)
 {
-    if (size == m_size)
+    // We are receiving negative sizes here that cause assertions to fail in the compositor. Clamp them to 0 to
+    // avoid those assertions.
+    FloatSize clampedSize = size;
+    if (clampedSize.isEmpty())
+        clampedSize = FloatSize();
+
+    if (clampedSize == m_size)
         return;
 
-    GraphicsLayer::setSize(size);
+    GraphicsLayer::setSize(clampedSize);
     updateLayerSize();
 }
 
@@ -258,6 +260,12 @@ void GraphicsLayerChromium::setContentsOpaque(bool opaque)
     m_layer->setOpaque(m_contentsOpaque);
 }
 
+bool GraphicsLayerChromium::setFilters(const FilterOperations& filters)
+{
+    m_layer->setFilters(filters);
+    return GraphicsLayer::setFilters(filters);
+}
+
 void GraphicsLayerChromium::setMaskLayer(GraphicsLayer* maskLayer)
 {
     if (maskLayer == m_maskLayer)
@@ -327,7 +335,7 @@ void GraphicsLayerChromium::setContentsToImage(Image* image)
     bool childrenChanged = false;
     if (image) {
         if (!m_contentsLayer.get() || m_contentsLayerPurpose != ContentsLayerForImage) {
-            RefPtr<ImageLayerChromium> imageLayer = ImageLayerChromium::create(this);
+            RefPtr<ImageLayerChromium> imageLayer = ImageLayerChromium::create();
             setupContentsLayer(imageLayer.get());
             m_contentsLayerPurpose = ContentsLayerForImage;
             childrenChanged = true;
@@ -353,7 +361,6 @@ void GraphicsLayerChromium::setContentsToCanvas(PlatformLayer* platformLayer)
 {
     bool childrenChanged = false;
     if (platformLayer) {
-        platformLayer->setDelegate(this);
         if (m_contentsLayer.get() != platformLayer) {
             setupContentsLayer(platformLayer);
             m_contentsLayerPurpose = ContentsLayerForCanvas;
@@ -383,7 +390,6 @@ void GraphicsLayerChromium::setContentsToMedia(PlatformLayer* layer)
             m_contentsLayerPurpose = ContentsLayerForVideo;
             childrenChanged = true;
         }
-        layer->setDelegate(this);
         layer->setNeedsDisplay();
         updateContentsRect();
     } else {
@@ -528,7 +534,7 @@ void GraphicsLayerChromium::updateLayerPreserves3D()
 {
     if (m_preserves3D && !m_transformLayer) {
         // Create the transform layer.
-        m_transformLayer = LayerChromium::create(this);
+        m_transformLayer = LayerChromium::create();
         m_transformLayer->setPreserves3D(true);
 
         // Copy the position from this layer.

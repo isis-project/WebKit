@@ -206,6 +206,13 @@ _PATH_RULES_SPECIFIER = [
      ["-readability/naming",
       "-readability/parameter_name",
       "-whitespace/declaration"]),
+    ([# These files define GObjects, which implies some definitions of
+      # variables and functions containing underscores.
+      "Source/WebCore/platform/graphics/gstreamer/VideoSinkGStreamer1.cpp",
+      "Source/WebCore/platform/graphics/gstreamer/VideoSinkGStreamer.cpp",
+      "Source/WebCore/platform/graphics/gstreamer/WebKitWebSourceGStreamer.cpp",
+      "Source/WebCore/platform/audio/gstreamer/WebKitWebAudioSourceGStreamer.cpp"],
+     ["-readability/naming"]),
 
     # For third-party Python code, keep only the following checks--
     #
@@ -225,6 +232,15 @@ _PATH_RULES_SPECIFIER = [
       "-whitespace",
       "-build/header_guard",
       "-build/include_order"]),
+
+    ([# There is no way to avoid the symbols __jit_debug_register_code
+      # and __jit_debug_descriptor when integrating with gdb.
+      "Source/JavaScriptCore/jit/GDBInterface.cpp"],
+     ["-readability/naming"]),
+
+    ([# On some systems the trailing CR is causing parser failure.
+      "Source/JavaScriptCore/parser/Keywords.table"],
+     ["+whitespace/carriage_return"]),
 ]
 
 
@@ -259,6 +275,7 @@ _TEXT_FILE_EXTENSIONS = [
     'pro',
     'rb',
     'sh',
+    'table',
     'txt',
     'wm',
     'xhtml',

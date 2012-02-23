@@ -234,7 +234,7 @@ Element.prototype.isInsertionCaretInside = function()
     if (!selection.rangeCount || !selection.isCollapsed)
         return false;
     var selectionRange = selection.getRangeAt(0);
-    return selectionRange.startContainer === this || selectionRange.startContainer.isDescendant(this);
+    return selectionRange.startContainer.isSelfOrDescendant(this);
 }
 
 /**
@@ -256,14 +256,7 @@ DocumentFragment.prototype.createChild = Element.prototype.createChild;
  */
 Element.prototype.totalOffsetLeft = function()
 {
-    var total = 0;
-    for (var element = this; element; element = element.offsetParent) {
-        total += element.offsetLeft 
-        if (this !== element)
-            total += element.clientLeft - element.scrollLeft;
-    }
-        
-    return total;
+    return this.totalOffset().left;
 }
 
 /**
@@ -271,14 +264,36 @@ Element.prototype.totalOffsetLeft = function()
  */
 Element.prototype.totalOffsetTop = function()
 {
-    var total = 0;
+    return this.totalOffset().top;
+
+}
+
+Element.prototype.totalOffset = function()
+{
+    var totalLeft = 0;
+    var totalTop = 0;
+
     for (var element = this; element; element = element.offsetParent) {
-        total += element.offsetTop 
-        if (this !== element)
-            total += element.clientTop - element.scrollTop;
+        totalLeft += element.offsetLeft;
+        totalTop += element.offsetTop;
+        if (this !== element) {
+            totalLeft += element.clientLeft - element.scrollLeft;
+            totalTop += element.clientTop - element.scrollTop;
+        }
     }
-        
-    return total;
+
+    return { left: totalLeft, top: totalTop };
+}
+
+Element.prototype.scrollOffset = function()
+{
+    var curLeft = 0;
+    var curTop = 0;
+    for (var element = this; element; element = element.scrollParent) {
+        curLeft += element.scrollLeft;
+        curTop += element.scrollTop;
+    }
+    return { left: curLeft, top: curTop };
 }
 
 /**
@@ -550,6 +565,16 @@ Node.prototype.isAncestor = function(node)
 Node.prototype.isDescendant = function(descendant)
 {
     return !!descendant && descendant.isAncestor(this);
+}
+
+Node.prototype.isSelfOrAncestor = function(node)
+{
+    return !!node && (node === this || this.isAncestor(node));
+}
+
+Node.prototype.isSelfOrDescendant = function(node)
+{
+    return !!node && (node === this || this.isDescendant(node));
 }
 
 Node.prototype.traverseNextNode = function(stayWithin)
@@ -891,6 +916,11 @@ function isEnterKey(event) {
     return event.keyCode !== 229 && event.keyIdentifier === "Enter";
 }
 
+function stopPropagation(e)
+{
+    e.stopPropagation();
+}
+
 /**
  * @param {Element} element
  * @param {number} offset
@@ -1192,4 +1222,9 @@ Map.prototype = {
     {
         return this._map[key.__identifier];
     },
+    
+    clear: function()
+    {
+        this._map = {};
+    }
 }

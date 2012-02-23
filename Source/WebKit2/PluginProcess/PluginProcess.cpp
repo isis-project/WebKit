@@ -36,6 +36,11 @@
 #include "PluginProcessCreationParameters.h"
 #include "WebProcessConnection.h"
 #include <WebCore/NotImplemented.h>
+#include <WebCore/RunLoop.h>
+
+#if PLATFORM(MAC)
+#include <crt_externs.h>
+#endif
 
 #if USE(UNIX_DOMAIN_SOCKETS)
 #include <errno.h>
@@ -54,6 +59,8 @@
 #endif
 #endif // SOCK_SEQPACKET
 #endif // USE(UNIX_DOMAIN_SOCKETS)
+
+using namespace WebCore;
 
 namespace WebKit {
 
@@ -112,7 +119,7 @@ NetscapePluginModule* PluginProcess::netscapePluginModule()
 #if PLATFORM(MAC)
         if (m_pluginModule) {
             if (m_pluginModule->pluginQuirks().contains(PluginQuirks::PrognameShouldBeWebKitPluginHost))
-                setprogname("WebKitPluginHost");
+                *const_cast<const char**>(_NSGetProgname()) = "WebKitPluginHost";
         }
 #endif
     }

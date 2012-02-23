@@ -99,7 +99,7 @@ bool HTMLFormControlElement::formNoValidate() const
     return fastHasAttribute(formnovalidateAttr);
 }
 
-void HTMLFormControlElement::parseMappedAttribute(Attribute* attr)
+void HTMLFormControlElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == formAttr)
         formAttributeChanged();
@@ -122,13 +122,19 @@ void HTMLFormControlElement::parseMappedAttribute(Attribute* attr)
     } else if (attr->name() == requiredAttr) {
         bool oldRequired = m_required;
         m_required = !attr->isNull();
-        if (oldRequired != m_required) {
-            setNeedsValidityCheck();
-            setNeedsStyleRecalc(); // Updates for :required :optional classes.
-        }
+        if (oldRequired != m_required)
+            requiredAttributeChanged();
     } else
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::parseAttribute(attr);
     setNeedsWillValidateCheck();
+}
+
+void HTMLFormControlElement::requiredAttributeChanged()
+{
+    setNeedsValidityCheck();
+    // Style recalculation is needed because style selectors may include
+    // :required and :optional pseudo-classes.
+    setNeedsStyleRecalc();
 }
 
 static bool shouldAutofocus(HTMLFormControlElement* element)
@@ -221,7 +227,7 @@ void HTMLFormControlElement::removedFromDocument()
 
 const AtomicString& HTMLFormControlElement::formControlName() const
 {
-    const AtomicString& name = fastGetAttribute(nameAttr);
+    const AtomicString& name = getNameAttribute();
     return name.isNull() ? emptyAtom : name;
 }
 

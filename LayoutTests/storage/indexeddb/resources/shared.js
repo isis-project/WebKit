@@ -1,3 +1,5 @@
+var jsTestIsAsync = true;
+
 function done()
 {
     isSuccessfullyParsed();
@@ -45,6 +47,21 @@ function evalAndExpectException(cmd, expected)
         code = e.code;
         testPassed("Exception was thrown.");
         shouldBe("code", expected);
+    }
+}
+
+function evalAndExpectExceptionClass(cmd, expected)
+{
+    debug("Expecting " + expected + " exception from " + cmd);
+    try {
+        eval(cmd);
+        testFailed("No exception thrown!" );
+    } catch (e) {
+		testPassed("Exception was thrown.");
+		if (eval("e instanceof " + expected))
+			testPassed(cmd + " threw " + e);
+		else
+			testFailed("Expected " + expected + " but saw " + e);
     }
 }
 

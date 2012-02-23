@@ -48,6 +48,7 @@
 #include "PlatformMouseEvent.h"
 #include "PopupMenuClient.h"
 #include "ProgressTracker.h"
+#include "RefPtrCairo.h"
 #include "RenderTheme.h"
 #include "Settings.h"
 #include "c_instance.h"
@@ -67,20 +68,20 @@
 #include "DeviceOrientationClientEfl.h"
 #endif
 
-#define ZOOM_MIN (0.05)
-#define ZOOM_MAX (4.0)
+static const float zoomMinimum = 0.05;
+static const float zoomMaximum = 4.0;
 
-#define DEVICE_PIXEL_RATIO (1.0)
+static const float devicePixelRatio = 1.0;
 
-static const char EWK_VIEW_TYPE_STR[] = "EWK_View";
+static const char ewkViewTypeString[] = "EWK_View";
 
-static const size_t EWK_VIEW_REPAINTS_SIZE_INITIAL = 32;
-static const size_t EWK_VIEW_REPAINTS_SIZE_STEP = 8;
-static const size_t EWK_VIEW_REPAINTS_SIZE_MAX_FREE = 64;
+static const size_t ewkViewRepaintsSizeInitial = 32;
+static const size_t ewkViewRepaintsSizeStep = 8;
+static const size_t ewkViewRepaintsSizeMaximumFree = 64;
 
-static const size_t EWK_VIEW_SCROLLS_SIZE_INITIAL = 8;
-static const size_t EWK_VIEW_SCROLLS_SIZE_STEP = 2;
-static const size_t EWK_VIEW_SCROLLS_SIZE_MAX_FREE = 32;
+static const size_t ewkViewScrollsSizeInitial = 8;
+static const size_t ewkViewScrollsSizeStep = 2;
+static const size_t ewkViewScrollsSizeMaximumFree = 32;
 
 static const Evas_Smart_Cb_Description _ewk_view_callback_names[] = {
     { "download,request", "p" },
@@ -215,59 +216,53 @@ struct _Ewk_View_Private_Data {
 #ifndef EWK_TYPE_CHECK
 #define EWK_VIEW_TYPE_CHECK(ewkView, ...) do { } while (0)
 #else
-#define EWK_VIEW_TYPE_CHECK(ewkView, ...)                                     \
-    do {                                                                \
-        const char* _tmp_otype = evas_object_type_get(ewkView);               \
-        const Evas_Smart* _tmp_s = evas_object_smart_smart_get(ewkView);      \
-        if (EINA_UNLIKELY(!_tmp_s)) {                                   \
-            EINA_LOG_CRIT                                               \
-                ("%p (%s) is not a smart object!", ewkView,                   \
-                _tmp_otype ? _tmp_otype : "(null)");                   \
-            return __VA_ARGS__;                                         \
-        }                                                               \
+#define EWK_VIEW_TYPE_CHECK(ewkView, ...) \
+    do { \
+        const char* _tmp_otype = evas_object_type_get(ewkView); \
+        const Evas_Smart* _tmp_s = evas_object_smart_smart_get(ewkView); \
+        if (EINA_UNLIKELY(!_tmp_s)) { \
+            EINA_LOG_CRIT \
+                ("%p (%s) is not a smart object!", ewkView, \
+                _tmp_otype ? _tmp_otype : "(null)"); \
+            return __VA_ARGS__; \
+        } \
         const Evas_Smart_Class* _tmp_sc = evas_smart_class_get(_tmp_s); \
-        if (EINA_UNLIKELY(!_tmp_sc)) {                                  \
-            EINA_LOG_CRIT                                               \
-                ("%p (%s) is not a smart object!", ewkView,                   \
-                _tmp_otype ? _tmp_otype : "(null)");                   \
-            return __VA_ARGS__;                                         \
-        }                                                               \
-        if (EINA_UNLIKELY(_tmp_sc->data != EWK_VIEW_TYPE_STR)) {        \
-            EINA_LOG_CRIT                                               \
-                ("%p (%s) is not of an ewk_view (need %p, got %p)!",    \
-                ewkView, _tmp_otype ? _tmp_otype : "(null)",                 \
-                EWK_VIEW_TYPE_STR, _tmp_sc->data);                     \
-            return __VA_ARGS__;                                         \
-        }                                                               \
+        if (EINA_UNLIKELY(!_tmp_sc)) { \
+            EINA_LOG_CRIT \
+                ("%p (%s) is not a smart object!", ewkView, \
+                _tmp_otype ? _tmp_otype : "(null)"); \
+            return __VA_ARGS__; \
+        } \
+        if (EINA_UNLIKELY(_tmp_sc->data != ewkViewTypeString)) { \
+            EINA_LOG_CRIT \
+                ("%p (%s) is not of an ewk_view (need %p, got %p)!", \
+                ewkView, _tmp_otype ? _tmp_otype : "(null)", \
+                ewkViewTypeString, _tmp_sc->data); \
+            return __VA_ARGS__; \
+        } \
     } while (0)
 #endif
 
-#define EWK_VIEW_SD_GET(ewkView, ptr)                                 \
-    Ewk_View_Smart_Data* ptr = static_cast<Ewk_View_Smart_Data*>(evas_object_smart_data_get(ewkView))
+#define EWK_VIEW_SD_GET(ewkView, pointer) \
+    Ewk_View_Smart_Data* pointer = static_cast<Ewk_View_Smart_Data*>(evas_object_smart_data_get(ewkView))
 
-#define EWK_VIEW_SD_GET_OR_RETURN(ewkView, ptr, ...)          \
-    EWK_VIEW_TYPE_CHECK(ewkView, __VA_ARGS__);                \
-    EWK_VIEW_SD_GET(ewkView, ptr);                            \
-    if (!ptr) {                                         \
-        CRITICAL("no smart data for object %p (%s)",    \
-                 ewkView, evas_object_type_get(ewkView));           \
-        return __VA_ARGS__;                             \
+#define EWK_VIEW_SD_GET_OR_RETURN(ewkView, pointer, ...) \
+    EWK_VIEW_TYPE_CHECK(ewkView, __VA_ARGS__); \
+    EWK_VIEW_SD_GET(ewkView, pointer); \
+    if (!pointer) { \
+        CRITICAL("no smart data for object %p (%s)", \
+                 ewkView, evas_object_type_get(ewkView)); \
+        return __VA_ARGS__; \
     }
 
-#define EWK_VIEW_PRIV_GET(smartData, ptr)              \
-    Ewk_View_Private_Data *ptr = smartData->_priv
+#define EWK_VIEW_PRIV_GET(smartData, pointer) \
+    Ewk_View_Private_Data* pointer = smartData->_priv
 
-#define EWK_VIEW_PRIV_GET_OR_RETURN(smartData, ptr, ...)               \
-    EWK_VIEW_PRIV_GET(smartData, ptr);                                 \
-    if (!ptr) {                                                 \
-        CRITICAL("no private data for object %p (%s)",          \
-                 smartData->self, evas_object_type_get(smartData->self));     \
-        return __VA_ARGS__;                                     \
-    }
-
-#define EWK_VIEW_TILED_TYPE_CHECK_OR_RETURN(ewkView, ...) \
-    if (!evas_object_smart_type_check(ewkView, "Ewk_View_Tiled")) { \
-        INF("object is not a instance of Ewk_View_Tiled"); \
+#define EWK_VIEW_PRIV_GET_OR_RETURN(smartData, pointer, ...) \
+    EWK_VIEW_PRIV_GET(smartData, pointer); \
+    if (!pointer) { \
+        CRITICAL("no private data for object %p (%s)", \
+                 smartData->self, evas_object_type_get(smartData->self)); \
         return __VA_ARGS__; \
     }
 
@@ -296,9 +291,9 @@ static void _ewk_view_repaint_add(Ewk_View_Private_Data* priv, Evas_Coord x, Eva
     size_t newSize = 0;
 
     if (priv->repaints.allocated == priv->repaints.count)
-        newSize = priv->repaints.allocated + EWK_VIEW_REPAINTS_SIZE_STEP;
-    else if (!priv->repaints.count && priv->repaints.allocated > EWK_VIEW_REPAINTS_SIZE_INITIAL)
-        newSize = EWK_VIEW_REPAINTS_SIZE_INITIAL;
+        newSize = priv->repaints.allocated + ewkViewRepaintsSizeStep;
+    else if (!priv->repaints.count && priv->repaints.allocated > ewkViewRepaintsSizeInitial)
+        newSize = ewkViewRepaintsSizeInitial;
 
     if (newSize) {
         if (!_ewk_view_repaints_resize(priv, newSize))
@@ -319,9 +314,9 @@ static void _ewk_view_repaint_add(Ewk_View_Private_Data* priv, Evas_Coord x, Eva
 static void _ewk_view_repaints_flush(Ewk_View_Private_Data* priv)
 {
     priv->repaints.count = 0;
-    if (priv->repaints.allocated <= EWK_VIEW_REPAINTS_SIZE_MAX_FREE)
+    if (priv->repaints.allocated <= ewkViewRepaintsSizeMaximumFree)
         return;
-    _ewk_view_repaints_resize(priv, EWK_VIEW_REPAINTS_SIZE_MAX_FREE);
+    _ewk_view_repaints_resize(priv, ewkViewRepaintsSizeMaximumFree);
 }
 
 static Eina_Bool _ewk_view_scrolls_resize(Ewk_View_Private_Data* priv, size_t size)
@@ -365,9 +360,9 @@ static void _ewk_view_scroll_add(Ewk_View_Private_Data* priv, Evas_Coord deltaX,
     if (priv->scrolls.allocated == priv->scrolls.count) {
         size_t size;
         if (!priv->scrolls.allocated)
-            size = EWK_VIEW_SCROLLS_SIZE_INITIAL;
+            size = ewkViewScrollsSizeInitial;
         else
-            size = priv->scrolls.allocated + EWK_VIEW_SCROLLS_SIZE_STEP;
+            size = priv->scrolls.allocated + ewkViewScrollsSizeStep;
         if (!_ewk_view_scrolls_resize(priv, size))
             return;
     }
@@ -400,21 +395,21 @@ static void _ewk_view_scroll_add(Ewk_View_Private_Data* priv, Evas_Coord deltaX,
 static void _ewk_view_scrolls_flush(Ewk_View_Private_Data* priv)
 {
     priv->scrolls.count = 0;
-    if (priv->scrolls.allocated <= EWK_VIEW_SCROLLS_SIZE_MAX_FREE)
+    if (priv->scrolls.allocated <= ewkViewScrollsSizeMaximumFree)
         return;
-    _ewk_view_scrolls_resize(priv, EWK_VIEW_SCROLLS_SIZE_MAX_FREE);
+    _ewk_view_scrolls_resize(priv, ewkViewScrollsSizeMaximumFree);
 }
 
 // Default Event Handling //////////////////////////////////////////////
 static Eina_Bool _ewk_view_smart_focus_in(Ewk_View_Smart_Data* smartData)
 {
     EWK_VIEW_PRIV_GET(smartData, priv);
-    WebCore::FocusController* fc = priv->page->focusController();
-    DBG("ewkView=%p, fc=%p", smartData->self, fc);
-    EINA_SAFETY_ON_NULL_RETURN_VAL(fc, false);
+    WebCore::FocusController* focusController = priv->page->focusController();
+    DBG("ewkView=%p, focusController=%p", smartData->self, focusController);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(focusController, false);
 
-    fc->setActive(true);
-    fc->setFocused(true);
+    focusController->setActive(true);
+    focusController->setFocused(true);
     return true;
 }
 
@@ -647,6 +642,7 @@ static Ewk_View_Private_Data* _ewk_view_priv_new(Ewk_View_Smart_Data* smartData)
     priv->pageSettings->setOfflineWebApplicationCacheEnabled(true);
     priv->pageSettings->setUsesPageCache(true);
     priv->pageSettings->setUsesEncodingDetector(false);
+    priv->pageSettings->setWebGLEnabled(true);
 
     url = priv->pageSettings->userStyleSheetLocation();
     priv->settings.userStylesheet = eina_stringshare_add(url.string().utf8().data());
@@ -699,10 +695,10 @@ static Ewk_View_Private_Data* _ewk_view_priv_new(Ewk_View_Smart_Data* smartData)
     // Since there's no scale separated from zooming in webkit-efl, this functionality of
     // viewport meta tag is implemented using zoom. When scale zoom is supported by webkit-efl,
     // this functionality will be modified by the scale zoom patch.
-    priv->settings.zoomRange.minScale = ZOOM_MIN;
-    priv->settings.zoomRange.maxScale = ZOOM_MAX;
+    priv->settings.zoomRange.minScale = zoomMinimum;
+    priv->settings.zoomRange.maxScale = zoomMaximum;
     priv->settings.zoomRange.userScalable = true;
-    priv->settings.devicePixelRatio = DEVICE_PIXEL_RATIO;
+    priv->settings.devicePixelRatio = devicePixelRatio;
 
     priv->settings.domTimerInterval = priv->pageSettings->defaultMinDOMTimerInterval();
 
@@ -993,7 +989,7 @@ static void _ewk_view_smart_flush(Ewk_View_Smart_Data* smartData)
 
 static Eina_Bool _ewk_view_smart_pre_render_region(Ewk_View_Smart_Data* smartData, Evas_Coord x, Evas_Coord y, Evas_Coord width, Evas_Coord height, float zoom)
 {
-    WRN("not supported by engine. smartDAta=%p area=%d,%d+%dx%d, zoom=%f",
+    WRN("not supported by engine. smartData=%p area=%d,%d+%dx%d, zoom=%f",
         smartData, x, y, width, height, zoom);
     return false;
 }
@@ -1135,7 +1131,7 @@ Eina_Bool ewk_view_base_smart_set(Ewk_View_Smart_Class* api)
     api->sc.calculate = _ewk_view_smart_calculate;
     api->sc.show = _ewk_view_smart_show;
     api->sc.hide = _ewk_view_smart_hide;
-    api->sc.data = EWK_VIEW_TYPE_STR; /* used by type checking */
+    api->sc.data = ewkViewTypeString; /* used by type checking */
     api->sc.callbacks = _ewk_view_callback_names;
 
     api->contents_resize = _ewk_view_smart_contents_resize;
@@ -1789,7 +1785,7 @@ Eina_Bool ewk_view_pre_render_region(Evas_Object* ewkView, Evas_Coord x, Evas_Co
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
     EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
     EINA_SAFETY_ON_NULL_RETURN_VAL(smartData->api->pre_render_region, false);
-    float cur_zoom;
+    float currentZoom;
     Evas_Coord contentsWidth, contentsHeight;
 
     /* When doing animated zoom it's not possible to call pre-render since it
@@ -1798,15 +1794,15 @@ Eina_Bool ewk_view_pre_render_region(Evas_Object* ewkView, Evas_Coord x, Evas_Co
     if (priv->animatedZoom.animator)
         return false;
 
-    cur_zoom = ewk_frame_page_zoom_get(smartData->main_frame);
+    currentZoom = ewk_frame_page_zoom_get(smartData->main_frame);
 
-    if (cur_zoom < 0.00001)
+    if (currentZoom < 0.00001)
         return false;
     if (!ewk_frame_contents_size_get(smartData->main_frame, &contentsWidth, &contentsHeight))
         return false;
 
-    contentsWidth *= zoom / cur_zoom;
-    contentsHeight *= zoom / cur_zoom;
+    contentsWidth *= zoom / currentZoom;
+    contentsHeight *= zoom / currentZoom;
     DBG("region %d,%d+%dx%d @ %f contents=%dx%d", x, y, width, height, zoom, contentsWidth, contentsHeight);
 
     if (x + width > contentsWidth)
@@ -2956,8 +2952,8 @@ void ewk_view_restore_state(Evas_Object* ewkView, Evas_Object* frame)
  * @param ewkView Current view.
  * @param javascript @c true if the new window is originated from javascript,
  * @c false otherwise
- * @param widthindow_features Features of the new window being created. If it's @c
- * NULL, it will be created a window with default features.
+ * @param window_features Features of the new window being created. If it's @c
+ * 0, it will be created a window with default features.
  *
  * @return New view, in case smart class implements the creation of new windows;
  * else, current view @param ewkView or @c 0 on failure.
@@ -3049,7 +3045,7 @@ void ewk_view_toolbars_visible_set(Evas_Object* ewkView, bool visible)
  */
 void ewk_view_toolbars_visible_get(Evas_Object* ewkView, bool* visible)
 {
-    DBG("%s, o=%p", __func__, ewkView);
+    DBG("%s, ewkView=%p", __func__, ewkView);
     *visible = false;
     evas_object_smart_callback_call(ewkView, "toolbars,visible,get", visible);
 }
@@ -3082,7 +3078,7 @@ void ewk_view_statusbar_visible_set(Evas_Object* ewkView, bool  visible)
  */
 void ewk_view_statusbar_visible_get(Evas_Object* ewkView, bool* visible)
 {
-    DBG("%s, o=%p", __func__, ewkView);
+    DBG("%s, ewkView=%p", __func__, ewkView);
     *visible = false;
     evas_object_smart_callback_call(ewkView, "statusbar,visible,get", visible);
 }
@@ -3131,7 +3127,7 @@ void ewk_view_scrollbars_visible_set(Evas_Object* ewkView, bool visible)
  */
 void ewk_view_scrollbars_visible_get(Evas_Object* ewkView, bool* visible)
 {
-    DBG("%s, o=%p", __func__, ewkView);
+    DBG("%s, ewkView=%p", __func__, ewkView);
     *visible = false;
     evas_object_smart_callback_call(ewkView, "scrollbars,visible,get", visible);
 }
@@ -3164,7 +3160,7 @@ void ewk_view_menubar_visible_set(Evas_Object* ewkView, bool visible)
  */
 void ewk_view_menubar_visible_get(Evas_Object* ewkView, bool* visible)
 {
-    DBG("%s, o=%p", __func__, ewkView);
+    DBG("%s, ewkView=%p", __func__, ewkView);
     *visible = false;
     evas_object_smart_callback_call(ewkView, "menubar,visible,get", visible);
 }
@@ -3214,7 +3210,7 @@ void ewk_view_add_console_message(Evas_Object* ewkView, const char* message, uns
  */
 void ewk_view_frame_view_creation_notify(Evas_Object* ewkView)
 {
-    EWK_VIEW_TILED_TYPE_CHECK_OR_RETURN(ewkView);
+    EWK_VIEW_TYPE_CHECK_OR_RETURN(ewkView, ewkViewTiledName);
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData);
     ewk_frame_paint_full_set(smartData->main_frame, true);
 }
@@ -3533,6 +3529,7 @@ void ewk_view_download_request(Evas_Object* ewkView, Ewk_Download* download)
     evas_object_smart_callback_call(ewkView, "download,request", download);
 }
 
+#if ENABLE(NETSCAPE_PLUGIN_API)
 /**
  * @internal
  * Reports the JS window object was cleared.
@@ -3544,6 +3541,7 @@ void ewk_view_js_window_object_clear(Evas_Object* ewkView, Evas_Object* frame)
 {
     evas_object_smart_callback_call(ewkView, "js,windowobject,clear", frame);
 }
+#endif
 
 /**
  * @internal
@@ -3590,7 +3588,7 @@ Eina_Bool ewk_view_zoom_range_set(Evas_Object* ewkView, float minScale, float ma
     EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
 
     if (maxScale < minScale) {
-        WRN("min_scale is larger than max_scale");
+        WRN("minScale is larger than maxScale");
         return false;
     }
 

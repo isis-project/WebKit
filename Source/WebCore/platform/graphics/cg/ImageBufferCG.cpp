@@ -38,7 +38,6 @@
 #include <math.h>
 #include <wtf/Assertions.h>
 #include <wtf/CheckedArithmetic.h>
-#include <wtf/CurrentTime.h>
 #include <wtf/MainThread.h>
 #include <wtf/OwnArrayPtr.h>
 #include <wtf/RetainPtr.h>
@@ -51,6 +50,10 @@
 
 #if USE(IOSURFACE_CANVAS_BACKING_STORE)
 #include <IOSurface/IOSurface.h>
+#endif
+
+#if defined(BUILDING_ON_LION)
+#include <wtf/CurrentTime.h>
 #endif
 
 using namespace std;
@@ -104,7 +107,7 @@ static void releaseImageData(void*, const void* data, size_t)
     fastFree(const_cast<void*>(data));
 }
 
-ImageBuffer::ImageBuffer(const IntSize& size, ColorSpace imageColorSpace, RenderingMode renderingMode, bool& success)
+ImageBuffer::ImageBuffer(const IntSize& size, ColorSpace imageColorSpace, RenderingMode renderingMode, DeferralMode, bool& success)
     : m_data(size)
     , m_size(size)
 {
@@ -169,7 +172,9 @@ ImageBuffer::ImageBuffer(const IntSize& size, ColorSpace imageColorSpace, Render
     m_context->scale(FloatSize(1, -1));
     m_context->translate(0, -height.unsafeGet());
     m_context->setIsAcceleratedContext(accelerateRendering);
+#if defined(BUILDING_ON_LION)
     m_data.m_lastFlushTime = currentTimeMS();
+#endif
     success = true;
 }
 
@@ -184,6 +189,7 @@ size_t ImageBuffer::dataSize() const
 
 GraphicsContext* ImageBuffer::context() const
 {
+#if defined(BUILDING_ON_LION)
     // Force a flush if last flush was more than 20ms ago
     if (m_context->isAcceleratedContext()) {
         double elapsedTime = currentTimeMS() - m_data.m_lastFlushTime;
@@ -195,6 +201,7 @@ GraphicsContext* ImageBuffer::context() const
             m_data.m_lastFlushTime = currentTimeMS();
         }
     }
+#endif
 
     return m_context.get();
 }
@@ -228,7 +235,9 @@ NativeImagePtr ImageBuffer::copyNativeImage(BackingStoreCopy copyBehavior) const
 #if USE(IOSURFACE_CANVAS_BACKING_STORE)
     else {
         image = wkIOSurfaceContextCreateImage(context()->platformContext());
+#if defined(BUILDING_ON_LION)
         m_data.m_lastFlushTime = currentTimeMS();
+#endif
     }
 #endif
 
@@ -241,7 +250,7 @@ void ImageBuffer::draw(GraphicsContext* destContext, ColorSpace styleColorSpace,
     ColorSpace colorSpace = (destContext == m_context) ? ColorSpaceDeviceRGB : styleColorSpace;
 
     RetainPtr<CGImageRef> image;
-    if (destContext == m_context)
+    if (destContext == m_context || destContext->isAcceleratedContext())
         image.adoptCF(copyNativeImage(CopyBackingStore)); // Drawing into our own buffer, need to deep copy.
     else
         image.adoptCF(copyNativeImage(DontCopyBackingStore));
@@ -249,19 +258,19 @@ void ImageBuffer::draw(GraphicsContext* destContext, ColorSpace styleColorSpace,
     destContext->drawNativeImage(image.get(), m_size, colorSpace, destRect, srcRect, op);
 }
 
-void ImageBuffer::drawPattern(GraphicsContext* context, const FloatRect& srcRect, const AffineTransform& patternTransform, const FloatPoint& phase, ColorSpace styleColorSpace, CompositeOperator op, const FloatRect& destRect)
+void ImageBuffer::drawPattern(GraphicsContext* destContext, const FloatRect& srcRect, const AffineTransform& patternTransform, const FloatPoint& phase, ColorSpace styleColorSpace, CompositeOperator op, const FloatRect& destRect)
 {
     if (!m_context->isAcceleratedContext()) {
-        if (context == m_context) {
+        if (destContext == m_context || destContext->isAcceleratedContext()) {
             RefPtr<Image> copy = copyImage(CopyBackingStore); // Drawing into our own buffer, need to deep copy.
-            copy->drawPattern(context, srcRect, patternTransform, phase, styleColorSpace, op, destRect);
+            copy->drawPattern(destContext, srcRect, patternTransform, phase, styleColorSpace, op, destRect);
         } else {
             RefPtr<Image> imageForRendering = copyImage(DontCopyBackingStore);
-            imageForRendering->drawPattern(context, srcRect, patternTransform, phase, styleColorSpace, op, destRect);
+            imageForRendering->drawPattern(destContext, srcRect, patternTransform, phase, styleColorSpace, op, destRect);
         }
     } else {
         RefPtr<Image> copy = copyImage(CopyBackingStore);
-        copy->drawPattern(context, srcRect, patternTransform, phase, styleColorSpace, op, destRect);
+        copy->drawPattern(destContext, srcRect, patternTransform, phase, styleColorSpace, op, destRect);
     }
 }
 
@@ -280,7 +289,9 @@ PassRefPtr<ByteArray> ImageBuffer::getUnmultipliedImageData(const IntRect& rect)
 {
     if (m_context->isAcceleratedContext()) {
         CGContextFlush(context()->platformContext());
+#if defined(BUILDING_ON_LION)
         m_data.m_lastFlushTime = currentTimeMS();
+#endif
     }
     return m_data.getData(rect, m_size, m_context->isAcceleratedContext(), true);
 }
@@ -289,27 +300,45 @@ PassRefPtr<ByteArray> ImageBuffer::getPremultipliedImageData(const IntRect& rect
 {
     if (m_context->isAcceleratedContext()) {
         CGContextFlush(context()->platformContext());
+#if defined(BUILDING_ON_LION)
         m_data.m_lastFlushTime = currentTimeMS();
+#endif
     }
     return m_data.getData(rect, m_size, m_context->isAcceleratedContext(), false);
 }
 
-void ImageBuffer::putUnmultipliedImageData(ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
+void ImageBuffer::putByteArray(Multiply multiplied, ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
 {
-    if (m_context->isAcceleratedContext()) {
-        CGContextFlush(context()->platformContext());
-        m_data.m_lastFlushTime = currentTimeMS();
+    if (!m_context->isAcceleratedContext()) {
+        m_data.putData(source, sourceSize, sourceRect, destPoint, m_size, m_context->isAcceleratedContext(), multiplied == Unmultiplied);
+        return;
     }
-    m_data.putData(source, sourceSize, sourceRect, destPoint, m_size, m_context->isAcceleratedContext(), true);
-}
 
-void ImageBuffer::putPremultipliedImageData(ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
-{
-    if (m_context->isAcceleratedContext()) {
-        CGContextFlush(context()->platformContext());
-        m_data.m_lastFlushTime = currentTimeMS();
-    }
-    m_data.putData(source, sourceSize, sourceRect, destPoint, m_size, m_context->isAcceleratedContext(), false);
+#if USE(IOSURFACE_CANVAS_BACKING_STORE)
+    // Make a copy of the source to ensure the bits don't change before being drawn
+    IntSize sourceCopySize(sourceRect.width(), sourceRect.height());
+    OwnPtr<ImageBuffer> sourceCopy = ImageBuffer::create(sourceCopySize, ColorSpaceDeviceRGB, Unaccelerated);
+    if (!sourceCopy)
+        return;
+    sourceCopy->m_data.putData(source, sourceSize, sourceRect, IntPoint(-sourceRect.x(), -sourceRect.y()), sourceCopy->size(), sourceCopy->context()->isAcceleratedContext(), multiplied == Unmultiplied);
+
+    // Set up context for using drawImage as a direct bit copy
+    CGContextRef destContext = context()->platformContext();
+    CGContextSaveGState(destContext);
+    CGContextConcatCTM(destContext, AffineTransform(CGContextGetCTM(destContext)).inverse());
+    wkCGContextResetClip(destContext);
+    CGContextSetInterpolationQuality(destContext, kCGInterpolationNone);
+    CGContextSetAlpha(destContext, 1.0);
+    CGContextSetBlendMode(destContext, kCGBlendModeCopy);
+    CGContextSetShadowWithColor(destContext, CGSizeZero, 0, 0);
+
+    // Draw the image in CG coordinate space
+    IntPoint destPointInCGCoords(destPoint.x() + sourceRect.x(), m_size.height() - (destPoint.y()+sourceRect.y()) - sourceRect.height());
+    IntRect destRectInCGCoords(destPointInCGCoords, sourceCopySize);
+    RetainPtr<CGImageRef> sourceCopyImage(AdoptCF, sourceCopy->copyNativeImage());
+    CGContextDrawImage(destContext, destRectInCGCoords, sourceCopyImage.get());
+    CGContextRestoreGState(destContext);
+#endif
 }
 
 static inline CFStringRef jpegUTI()

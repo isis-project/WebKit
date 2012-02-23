@@ -38,7 +38,7 @@ static inline SVGDocumentExtensions* svgExtensionsFromNode(Node* node)
 
 RenderSVGResourceContainer::RenderSVGResourceContainer(SVGStyledElement* node)
     : RenderSVGHiddenContainer(node)
-    , m_id(node->hasID() ? node->getIdAttribute() : nullAtom)
+    , m_id(node->getIdAttribute())
     , m_registered(false)
     , m_isInvalidating(false)
 {
@@ -147,7 +147,7 @@ void RenderSVGResourceContainer::removeClient(RenderObject* client)
 void RenderSVGResourceContainer::registerResource()
 {
     SVGDocumentExtensions* extensions = svgExtensionsFromNode(node());
-    if (!extensions->hasPendingResources(m_id)) {
+    if (!extensions->hasPendingResource(m_id)) {
         extensions->addResource(m_id, this);
         return;
     }

@@ -257,7 +257,7 @@ public:
 
     bool isTransparent() const;
     RenderLayer* transparentPaintingAncestor();
-    void beginTransparencyLayers(GraphicsContext*, const RenderLayer* rootLayer, PaintBehavior);
+    void beginTransparencyLayers(GraphicsContext*, const RenderLayer* rootLayer, const LayoutRect& paintDirtyRect, PaintBehavior);
 
     bool hasReflection() const { return renderer()->hasReflection(); }
     bool isReflection() const { return renderer()->isReplica(); }
@@ -282,6 +282,8 @@ public:
 
     LayoutUnit scrollWidth();
     LayoutUnit scrollHeight();
+    int pixelSnappedScrollWidth();
+    int pixelSnappedScrollHeight();
 
     void panScrollFromPoint(const LayoutPoint&);
 
@@ -310,8 +312,6 @@ public:
     bool scrollsOverflow() const;
     bool allowsScrolling() const; // Returns true if at least one scrollbar is visible and enabled.
     bool hasScrollbars() const { return m_hBar || m_vBar; }
-    virtual void didAddHorizontalScrollbar(Scrollbar*);
-    virtual void willRemoveHorizontalScrollbar(Scrollbar*);
     void setHasHorizontalScrollbar(bool);
     void setHasVerticalScrollbar(bool);
 
@@ -524,6 +524,9 @@ public:
 
 #if ENABLE(CSS_FILTERS)
     virtual void filterNeedsRepaint();
+    bool hasFilter() const { return renderer()->hasFilter(); }
+#else
+    bool hasFilter() const { return false; }
 #endif
 
     // Overloaded new operator. Derived classes must override operator new
@@ -664,11 +667,10 @@ private:
     virtual IntPoint currentMousePosition() const;
     virtual bool shouldSuspendScrollAnimations() const;
     virtual bool isOnActivePage() const;
+    virtual IntRect scrollableAreaBoundingBox() const OVERRIDE;
 
     // Rectangle encompassing the scroll corner and resizer rect.
     IntRect scrollCornerAndResizerRect() const;
-
-    virtual void disconnectFromPage() { m_scrollableAreaPage = 0; }
 
     // NOTE: This should only be called by the overriden setScrollOffset from ScrollableArea.
     void scrollTo(int, int);
@@ -704,6 +706,7 @@ private:
 
     void parentClipRects(const RenderLayer* rootLayer, RenderRegion*, ClipRects&, bool temporaryClipRects = false, OverlayScrollbarSizeRelevancy = IgnoreOverlayScrollbarSize) const;
     ClipRect backgroundClipRect(const RenderLayer* rootLayer, RenderRegion*, bool temporaryClipRects, OverlayScrollbarSizeRelevancy = IgnoreOverlayScrollbarSize) const;
+    LayoutRect paintingExtent(const RenderLayer* rootLayer, const LayoutRect& paintDirtyRect, PaintBehavior);
 
     RenderLayer* enclosingTransformedAncestor() const;
 
@@ -867,8 +870,6 @@ private:
 #if USE(ACCELERATED_COMPOSITING)
     OwnPtr<RenderLayerBacking> m_backing;
 #endif
-
-    Page* m_scrollableAreaPage; // Page on which this is registered as a scrollable area.
 };
 
 inline void RenderLayer::updateZOrderLists()

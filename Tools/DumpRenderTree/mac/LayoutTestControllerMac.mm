@@ -545,6 +545,12 @@ void LayoutTestController::addMockSpeechInputResult(JSStringRef result, double c
     // See https://bugs.webkit.org/show_bug.cgi?id=39485.
 }
 
+void LayoutTestController::setMockSpeechInputDumpRect(bool flag)
+{
+    // FIXME: Implement for speech input layout tests.
+    // See https://bugs.webkit.org/show_bug.cgi?id=39485.
+}
+
 void LayoutTestController::startSpeechInput(JSContextRef inputElement)
 {
     // FIXME: Implement for speech input layout tests.
@@ -841,16 +847,6 @@ bool LayoutTestController::pauseTransitionAtTimeOnElementWithId(JSStringRef prop
     NSString *nameNS = (NSString *)nameCF.get();
     
     return [mainFrame _pauseTransitionOfProperty:nameNS onNode:[[mainFrame DOMDocument] getElementById:idNS] atTime:time];
-}
-
-bool LayoutTestController::sampleSVGAnimationForElementAtTime(JSStringRef animationId, double time, JSStringRef elementId)
-{
-    RetainPtr<CFStringRef> animationIDCF(AdoptCF, JSStringCopyCFString(kCFAllocatorDefault, animationId));
-    NSString *animationIDNS = (NSString *)animationIDCF.get();
-    RetainPtr<CFStringRef> elementIDCF(AdoptCF, JSStringCopyCFString(kCFAllocatorDefault, elementId));
-    NSString *elementIDNS = (NSString *)elementIDCF.get();
-
-    return [mainFrame _pauseSVGAnimation:elementIDNS onSMILNode:[[mainFrame DOMDocument] getElementById:animationIDNS] atTime:time];
 }
 
 unsigned LayoutTestController::numberOfActiveAnimations() const

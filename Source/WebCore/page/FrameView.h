@@ -86,8 +86,6 @@ public:
     virtual PassRefPtr<Scrollbar> createScrollbar(ScrollbarOrientation);
 
     virtual bool avoidScrollbarCreation() const;
-    virtual void didAddHorizontalScrollbar(Scrollbar*);
-    virtual void willRemoveHorizontalScrollbar(Scrollbar*);
 
     virtual void setContentsSize(const IntSize&);
 
@@ -171,8 +169,7 @@ public:
     void scrollPositionChangedViaPlatformWidget();
     virtual void repaintFixedElementsAfterScrolling();
     virtual bool shouldRubberBandInDirection(ScrollDirection) const;
-
-    virtual void zoomAnimatorTransformChanged(float, float, float, ZoomAnimationState);
+    virtual bool requestScrollPositionUpdate(const IntPoint&) OVERRIDE;
 
     String mediaType() const;
     void setMediaType(const String&);
@@ -186,9 +183,11 @@ public:
 
     void addSlowRepaintObject();
     void removeSlowRepaintObject();
+    bool hasSlowRepaintObjects() const { return m_slowRepaintObjectCount; }
 
     void addFixedObject();
     void removeFixedObject();
+    bool hasFixedObjects() const { return m_fixedObjectCount > 0; }
 
     // Functions for querying the current scrolled position, negating the effects of overhang
     // and adjusting for page scale.
@@ -196,8 +195,7 @@ public:
     int scrollYForFixedPosition() const;
     IntSize scrollOffsetForFixedPosition() const;
 
-    bool shouldLayoutFixedElementsRelativeToFrame() const { return m_shouldLayoutFixedElementsRelativeToFrame; }
-    void setShouldLayoutFixedElementsRelativeToFrame(bool);
+    bool fixedElementsLayoutRelativeToFrame() const;
 
     void beginDeferredRepaints();
     void endDeferredRepaints();
@@ -309,6 +307,15 @@ public:
     void resetTrackedRepaints() { m_trackedRepaintRects.clear(); }
     const Vector<IntRect>& trackedRepaintRects() const { return m_trackedRepaintRects; }
 
+    typedef HashSet<ScrollableArea*> ScrollableAreaSet;
+    void addScrollableArea(ScrollableArea*);
+    void removeScrollableArea(ScrollableArea*);
+    bool containsScrollableArea(ScrollableArea*) const;
+    const ScrollableAreaSet* scrollableAreas() const { return m_scrollableAreas.get(); }
+
+    virtual void addChild(PassRefPtr<Widget>) OVERRIDE;
+    virtual void removeChild(Widget*) OVERRIDE;
+
 protected:
     virtual bool scrollContentsFastPath(const IntSize& scrollDelta, const IntRect& rectToScroll, const IntRect& clipRect);
     virtual void scrollContentsSlowPath(const IntRect& updateRect);
@@ -330,8 +337,6 @@ private:
     void updateCanBlitOnScrollRecursively();
     bool contentsInCompositedLayer() const;
 
-    bool hasFixedObjects() const { return m_fixedObjectCount > 0; }
-
     void applyOverflowToViewport(RenderObject*, ScrollbarMode& hMode, ScrollbarMode& vMode);
 
     void updateOverflowStatus(bool horizontalOverflow, bool verticalOverflow);
@@ -345,6 +350,8 @@ private:
     virtual void repaintContentRectangle(const IntRect&, bool immediate);
     virtual void contentsResized() OVERRIDE;
     virtual void visibleContentsResized();
+
+    virtual void delegatesScrollingDidChange();
 
     // Override ScrollView methods to do point conversion via renderers, in order to
     // take transforms into account.
@@ -361,6 +368,7 @@ private:
     virtual void setVisibleScrollerThumbRect(const IntRect&);
     virtual bool isOnActivePage() const;
     virtual ScrollableArea* enclosingScrollableArea() const;
+    virtual IntRect scrollableAreaBoundingBox() const OVERRIDE;
 
 #if USE(ACCELERATED_COMPOSITING)
     virtual GraphicsLayer* layerForHorizontalScrollbar() const OVERRIDE;
@@ -372,7 +380,6 @@ private:
 #endif
 
     virtual void notifyPageThatContentAreaWillPaint() const;
-    virtual void disconnectFromPage() { m_page = 0; }
 
     virtual bool scrollAnimatorEnabled() const;
 
@@ -410,7 +417,6 @@ private:
     bool m_cannotBlitToWindow;
     bool m_isOverlapped;
     bool m_contentIsOpaque;
-    bool m_shouldLayoutFixedElementsRelativeToFrame;
     unsigned m_slowRepaintObjectCount;
     unsigned m_fixedObjectCount;
     int m_borderX;
@@ -422,9 +428,6 @@ private:
     
     bool m_layoutSchedulingEnabled;
     bool m_inLayout;
-#if ENABLE(SVG)
-    bool m_inLayoutParentView;
-#endif
     bool m_inSynchronousPostLayout;
     int m_layoutCount;
     unsigned m_nestedLayoutCount;
@@ -479,8 +482,6 @@ private:
     // Renderer to hold our custom scroll corner.
     RenderScrollbarPart* m_scrollCorner;
 
-    Page* m_page;
-
     // If true, automatically resize the frame view around its content.
     bool m_shouldAutoSize;
     bool m_inAutoSize;
@@ -488,6 +489,8 @@ private:
     IntSize m_minAutoSize;
     // The upper bound on the size when autosizing.
     IntSize m_maxAutoSize;
+
+    OwnPtr<ScrollableAreaSet> m_scrollableAreas;
 
     static double s_deferredRepaintDelay;
     static double s_initialDeferredRepaintDelayDuringLoading;

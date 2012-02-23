@@ -88,9 +88,9 @@ void InjectedScript::evaluateOnCallFrame(ErrorString* errorString, const ScriptV
     makeEvalCall(errorString, function, result, wasThrown);
 }
 
-void InjectedScript::getFunctionLocation(ErrorString* errorString, const String& functionId, RefPtr<InspectorObject>* result)
+void InjectedScript::getFunctionDetails(ErrorString* errorString, const String& functionId, RefPtr<InspectorObject>* result)
 {
-    ScriptFunctionCall function(m_injectedScriptObject, "getFunctionLocation");
+    ScriptFunctionCall function(m_injectedScriptObject, "getFunctionDetails");
     function.appendArgument(functionId);
     RefPtr<InspectorValue> resultValue;
     makeCall(function, &resultValue);
@@ -208,7 +208,21 @@ void InjectedScript::makeCall(ScriptFunctionCall& function, RefPtr<InspectorValu
     DOMWindow* domWindow = domWindowFromScriptState(m_injectedScriptObject.scriptState());
     InspectorInstrumentationCookie cookie = domWindow && domWindow->frame() ? InspectorInstrumentation::willCallFunction(domWindow->frame()->page(), "InjectedScript", 1) : InspectorInstrumentationCookie();
     bool hadException = false;
+
+    ScriptState* scriptState = m_injectedScriptObject.scriptState();
+    bool evalIsDisabled = false;
+    if (scriptState) {
+        evalIsDisabled = !evalEnabled(scriptState);
+        // Temporarily enable allow evals for inspector.
+        if (evalIsDisabled)
+            setEvalEnabled(scriptState, true);
+    }
+
     ScriptValue resultValue = function.call(hadException);
+
+    if (evalIsDisabled)
+        setEvalEnabled(scriptState, false);
+
     InspectorInstrumentation::didCallFunction(cookie);
 
     ASSERT(!hadException);

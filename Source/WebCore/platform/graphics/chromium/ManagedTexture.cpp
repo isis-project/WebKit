@@ -39,21 +39,51 @@ ManagedTexture::ManagedTexture(TextureManager* manager)
     , m_format(0)
     , m_textureId(0)
 {
+    m_textureManager->registerTexture(this);
+}
+
+ManagedTexture::ManagedTexture(TextureManager* manager, TextureToken token, IntSize size, unsigned format, unsigned textureId)
+    : m_textureManager(manager)
+    , m_token(token)
+    , m_size(size)
+    , m_format(format)
+    , m_textureId(textureId)
+{
+    m_textureManager->registerTexture(this);
 }
 
 ManagedTexture::~ManagedTexture()
 {
+    if (!m_textureManager)
+        return;
+    m_textureManager->unregisterTexture(this);
     if (m_token)
         m_textureManager->releaseToken(m_token);
 }
 
+void ManagedTexture::setTextureManager(TextureManager* manager)
+{
+    if (manager == m_textureManager)
+        return;
+
+    if (m_textureManager)
+        m_textureManager->unregisterTexture(this);
+    m_textureManager = manager;
+    clear();
+    if (m_textureManager)
+        m_textureManager->registerTexture(this);
+}
+
 bool ManagedTexture::isValid(const IntSize& size, unsigned format)
 {
-    return m_token && size == m_size && format == m_format && m_textureManager->hasTexture(m_token);
+    return m_token && size == m_size && format == m_format && m_textureManager && m_textureManager->hasTexture(m_token);
 }
 
 bool ManagedTexture::reserve(const IntSize& size, unsigned format)
 {
+    if (!m_textureManager)
+        return false;
+
     if (!m_token)
         m_token = m_textureManager->getToken();
 
@@ -62,7 +92,7 @@ bool ManagedTexture::reserve(const IntSize& size, unsigned format)
         m_textureManager->protectTexture(m_token);
     else {
         m_textureId = 0;
-        reserved = m_textureManager->requestTexture(m_token, size, format, m_textureId);
+        reserved = m_textureManager->requestTexture(m_token, size, format);
         if (reserved) {
             m_size = size;
             m_format = format;
@@ -74,7 +104,7 @@ bool ManagedTexture::reserve(const IntSize& size, unsigned format)
 
 void ManagedTexture::unreserve()
 {
-    if (!m_token)
+    if (!m_token || !m_textureManager)
         return;
 
     m_textureManager->unprotectTexture(m_token);
@@ -97,6 +127,21 @@ void ManagedTexture::framebufferTexture2D(GraphicsContext3D* context, TextureAll
 {
     allocate(allocator);
     context->framebufferTexture2D(GraphicsContext3D::FRAMEBUFFER, GraphicsContext3D::COLOR_ATTACHMENT0, GraphicsContext3D::TEXTURE_2D, m_textureId, 0);
+}
+
+PassOwnPtr<ManagedTexture> ManagedTexture::steal()
+{
+    OwnPtr<ManagedTexture> texture = adoptPtr(new ManagedTexture(m_textureManager, m_token, m_size, m_format, m_textureId));
+    clear();
+    return texture.release();
+}
+
+void ManagedTexture::clear()
+{
+    m_token = 0;
+    m_size = IntSize();
+    m_format = 0;
+    m_textureId = 0;
 }
 
 }

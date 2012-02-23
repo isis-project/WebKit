@@ -30,6 +30,8 @@
 
 namespace WebCore {
 
+class CSSStyleDeclaration;
+
 // Attr can have Text and EntityReference children
 // therefore it has to be a fullblown Node. The plan
 // is to dynamically allocate a textchild and store the
@@ -37,6 +39,7 @@ namespace WebCore {
 // destruction. however, this is not yet implemented.
 
 class Attr : public ContainerNode {
+    friend class ElementAttributeData;
     friend class NamedNodeMap;
 public:
     static PassRefPtr<Attr> create(Element*, Document*, PassRefPtr<Attribute>);
@@ -55,8 +58,9 @@ public:
 
     bool isId() const;
 
-    // An extension to get presentational information for attributes.
-    CSSStyleDeclaration* style() { return m_attribute->style(); }
+    // A deprecated extension to get presentational information for attributes.
+    // We have to keep it around because it's exposed in the Obj-C DOM API.
+    CSSStyleDeclaration* style() { return 0; }
 
     void setSpecified(bool specified) { m_specified = specified; }
 

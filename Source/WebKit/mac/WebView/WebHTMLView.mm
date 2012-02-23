@@ -73,7 +73,6 @@
 #import "WebViewInternal.h"
 #import <AppKit/NSAccessibility.h>
 #import <ApplicationServices/ApplicationServices.h>
-#import <WebCore/CSSMutableStyleDeclaration.h>
 #import <WebCore/CachedImage.h>
 #import <WebCore/CachedResourceClient.h>
 #import <WebCore/CachedResourceLoader.h>
@@ -108,9 +107,11 @@
 #import <WebCore/Range.h>
 #import <WebCore/RenderWidget.h>
 #import <WebCore/RenderView.h>
+#import <WebCore/RunLoop.h>
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/SharedBuffer.h>
 #import <WebCore/SimpleFontData.h>
+#import <WebCore/StylePropertySet.h>
 #import <WebCore/Text.h>
 #import <WebCore/WebCoreObjCExtras.h>
 #import <WebCore/WebFontCache.h>
@@ -550,6 +551,7 @@ static NSCellStateValue kit(TriState state)
 {
     JSC::initializeThreading();
     WTF::initializeMainThreadToProcessMainThread();
+    WebCore::RunLoop::initializeMainRunLoop();
     WebCoreObjCFinalizeOnMainThread(self);
     
     if (!oldSetCursorForMouseLocationIMP) {
@@ -2275,6 +2277,7 @@ static bool matchesExtensionOrEquivalent(NSString *filename, NSString *extension
                              returnTypes:[[self class] _insertablePasteboardTypes]];
     JSC::initializeThreading();
     WTF::initializeMainThreadToProcessMainThread();
+    WebCore::RunLoop::initializeMainRunLoop();
     WebCoreObjCFinalizeOnMainThread(self);
 }
 
@@ -4565,29 +4568,6 @@ static PassRefPtr<KeyboardEvent> currentKeyboardEvent(Frame* coreFrame)
 
     [shadow release];
 
-#if 0
-
-NSObliquenessAttributeName        /* float; skew to be applied to glyphs, default 0: no skew */
-    // font-style, but that is just an on-off switch
-
-NSExpansionAttributeName          /* float; log of expansion factor to be applied to glyphs, default 0: no expansion */
-    // font-stretch?
-
-NSKernAttributeName               /* float, amount to modify default kerning, if 0, kerning off */
-    // letter-spacing? probably not good enough
-
-NSUnderlineColorAttributeName     /* NSColor, default nil: same as foreground color */
-NSStrikethroughColorAttributeName /* NSColor, default nil: same as foreground color */
-    // text-decoration-color?
-
-NSLigatureAttributeName           /* int, default 1: default ligatures, 0: no ligatures, 2: all ligatures */
-NSBaselineOffsetAttributeName     /* float, in points; offset from baseline, default 0 */
-NSStrokeWidthAttributeName        /* float, in percent of font point size, default 0: no stroke; positive for stroke alone, negative for stroke and fill (a typical value for outlined text would be 3.0) */
-NSStrokeColorAttributeName        /* NSColor, default nil: same as foreground color */
-    // need extensions?
-
-#endif
-    
     NSDictionary *a = [sender convertAttributes:oa];
     NSDictionary *b = [sender convertAttributes:ob];
 
@@ -4602,6 +4582,8 @@ NSStrokeColorAttributeName        /* NSColor, default nil: same as foreground co
     ca = [a objectForKey:NSForegroundColorAttributeName];
     cb = [b objectForKey:NSForegroundColorAttributeName];
     if (ca == cb) {
+        if (!ca)
+            ca = [NSColor blackColor];
         [style setColor:[self _colorAsString:ca]];
     }
 
@@ -5064,10 +5046,6 @@ static BOOL writingDirectionKeyBindingsEnabled()
     ASSERT(font != nil);
 
     [[NSFontManager sharedFontManager] setSelectedFont:font isMultiple:multipleFonts];
-
-    // FIXME: we don't keep track of selected attributes, or set them on the font panel. This
-    // appears to have no effect on the UI. E.g., underlined text in Mail or TextEdit is
-    // not reflected in the font panel. Maybe someday this will change.
 }
 
 - (BOOL)_canSmartCopyOrDelete
@@ -5519,6 +5497,9 @@ static CGPoint coreGraphicsScreenPointForAppKitScreenPoint(NSPoint point)
 #elif (defined(BUILDING_ON_SNOW_LEOPARD) || defined(BUILDING_ON_LION))
     // Do geometry flipping here, which flips all the compositing layers so they are top-down.
     [viewLayer setGeometryFlipped:YES];
+#else
+    if (WKExecutableWasLinkedOnOrBeforeLion())
+        [viewLayer setGeometryFlipped:YES];
 #endif
 }
 

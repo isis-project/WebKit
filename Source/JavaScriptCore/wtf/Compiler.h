@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -48,6 +48,9 @@
 #define WTF_COMPILER_SUPPORTS_CXX_DELETED_FUNCTIONS __has_feature(cxx_deleted_functions)
 #define WTF_COMPILER_SUPPORTS_CXX_NULLPTR __has_feature(cxx_nullptr)
 #define WTF_COMPILER_SUPPORTS_BLOCKS __has_feature(blocks)
+#define WTF_COMPILER_SUPPORTS_C_STATIC_ASSERT __has_extension(c_static_assert)
+
+#define WTF_COMPILER_SUPPORTS_HAS_TRIVIAL_DESTRUCTOR __has_extension(has_trivial_destructor)
 
 #endif
 
@@ -237,6 +240,16 @@
 
 #ifndef FINAL
 #define FINAL
+#endif
+
+/* OBJC_CLASS */
+
+#ifndef OBJC_CLASS
+#ifdef __OBJC__
+#define OBJC_CLASS @class
+#else
+#define OBJC_CLASS class
+#endif
 #endif
 
 #endif /* WTF_Compiler_h */

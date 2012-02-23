@@ -45,6 +45,7 @@
 #include "GraphicsContext3D.h"
 #include "GraphicsLayer.h"
 #include "InspectorClientImpl.h"
+#include "IntPoint.h"
 #include "IntRect.h"
 #include "NotificationPresenterImpl.h"
 #include "PageOverlayList.h"
@@ -68,9 +69,6 @@ class PopupMenuClient;
 class Range;
 class RenderTheme;
 class Widget;
-#if ENABLE(GESTURE_RECOGNIZER)
-class PlatformGestureRecognizer;
-#endif
 }
 
 namespace WebKit {
@@ -113,6 +111,7 @@ public:
     virtual void paint(WebCanvas*, const WebRect&);
     virtual void themeChanged();
     virtual void composite(bool finish);
+    virtual void setNeedsRedraw();
     virtual bool handleInputEvent(const WebInputEvent&);
     virtual void mouseCaptureLost();
     virtual void setFocus(bool enable);
@@ -129,6 +128,10 @@ public:
     virtual bool caretOrSelectionRange(size_t* location, size_t* length);
     virtual void setTextDirection(WebTextDirection direction);
     virtual bool isAcceleratedCompositingActive() const;
+    virtual void didAcquirePointerLock();
+    virtual void didNotAcquirePointerLock();
+    virtual void didLosePointerLock();
+    virtual void didChangeWindowResizerRect();
 
     // WebView methods:
     virtual void initializeMainFrame(WebFrameClient*);
@@ -173,8 +176,6 @@ public:
 
     virtual float deviceScaleFactor() const;
     virtual void setDeviceScaleFactor(float);
-    virtual bool shouldLayoutFixedElementsRelativeToFrame() const;
-    virtual void setShouldLayoutFixedElementsRelativeToFrame(bool);
     virtual bool isFixedLayoutModeEnabled() const;
     virtual void enableFixedLayoutMode(bool enable);
     virtual WebSize fixedLayoutSize() const;
@@ -315,6 +316,7 @@ public:
     void mouseDoubleClick(const WebMouseEvent&);
     bool mouseWheel(const WebMouseWheelEvent&);
     bool gestureEvent(const WebGestureEvent&);
+    void startPageScaleAnimation(const WebCore::IntPoint& targetPosition, bool useAnchor, float newScale, double durationSec);
     bool keyEvent(const WebKeyboardEvent&);
     bool charEvent(const WebKeyboardEvent&);
     bool touchEvent(const WebTouchEvent&);
@@ -331,8 +333,9 @@ public:
 
     // Notifies the WebView that a load has been committed. isNewNavigation
     // will be true if a new session history item should be created for that
-    // load.
-    void didCommitLoad(bool* isNewNavigation);
+    // load. isNavigationWithinPage will be true if the navigation does
+    // not take the user away from the current page.
+    void didCommitLoad(bool* isNewNavigation, bool isNavigationWithinPage);
 
     // Indicates two things:
     //   1) This view may have a new layout now.
@@ -455,10 +458,6 @@ public:
     // a plugin can update its own zoom, say because of its own UI.
     void fullFramePluginZoomLevelChanged(double zoomLevel);
 
-#if ENABLE(GESTURE_RECOGNIZER)
-    void resetGestureRecognizer();
-#endif
-
     void loseCompositorContext(int numTimes);
 
     void enterFullScreenForElement(WebCore::Element*);
@@ -467,6 +466,14 @@ public:
     // Exposed for testing purposes.
     bool hasHorizontalScrollbar();
     bool hasVerticalScrollbar();
+
+    // Pointer Lock calls allow a page to capture all mouse events and
+    // disable the system cursor.
+#if ENABLE(POINTER_LOCK)
+    virtual bool requestPointerLock();
+    virtual void requestPointerUnlock();
+    virtual bool isPointerLocked();
+#endif
 
 private:
     bool computePageScaleFactorLimits();
@@ -519,6 +526,10 @@ private:
     void doPixelReadbackToCanvas(WebCanvas*, const WebCore::IntRect&);
     void reallocateRenderer();
     void updateLayerTreeViewport();
+#endif
+
+#if ENABLE(POINTER_LOCK)
+    void pointerLockMouseEvent(const WebInputEvent&);
 #endif
 
     WebViewClient* m_client;
@@ -674,10 +685,6 @@ private:
     RefPtr<WebCore::GraphicsContext3D> m_temporaryOnscreenGraphicsContext3D;
     OwnPtr<DeviceOrientationClientProxy> m_deviceOrientationClientProxy;
     OwnPtr<GeolocationClientProxy> m_geolocationClientProxy;
-
-#if ENABLE(GESTURE_RECOGNIZER)
-    OwnPtr<WebCore::PlatformGestureRecognizer> m_gestureRecognizer;
-#endif
 
 #if ENABLE(MEDIA_STREAM)
     UserMediaClientImpl m_userMediaClientImpl;

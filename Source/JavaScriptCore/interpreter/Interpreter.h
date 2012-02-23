@@ -79,11 +79,21 @@ namespace JSC {
         JSGlobalData& globalData;
         CallFrame* oldCallFrame;
     };
+    
+    class NativeCallFrameTracer {
+    public:
+        ALWAYS_INLINE NativeCallFrameTracer(JSGlobalData* global, CallFrame* callFrame)
+        {
+            ASSERT(global);
+            ASSERT(callFrame);
+            global->topCallFrame = callFrame;
+        }
+    };
 
-#if PLATFORM(IOS)
     // We use a smaller reentrancy limit on iPhone because of the high amount of
     // stack space required on the web thread.
-    enum { MaxLargeThreadReentryDepth = 93, MaxSmallThreadReentryDepth = 16 };
+#if PLATFORM(IOS)
+    enum { MaxLargeThreadReentryDepth = 64, MaxSmallThreadReentryDepth = 16 };
 #else
     enum { MaxLargeThreadReentryDepth = 256, MaxSmallThreadReentryDepth = 16 };
 #endif // PLATFORM(IOS)
@@ -131,8 +141,8 @@ namespace JSC {
         JSValue execute(EvalExecutable*, CallFrame*, JSValue thisValue, ScopeChainNode*);
         JSValue execute(EvalExecutable*, CallFrame*, JSValue thisValue, ScopeChainNode*, int globalRegisterOffset);
 
-        JSValue retrieveArguments(CallFrame*, JSFunction*) const;
-        JS_EXPORT_PRIVATE JSValue retrieveCaller(CallFrame*, JSFunction*) const;
+        JSValue retrieveArgumentsFromVMCode(CallFrame*, JSFunction*) const;
+        JSValue retrieveCallerFromVMCode(CallFrame*, JSFunction*) const;
         JS_EXPORT_PRIVATE void retrieveLastCaller(CallFrame*, int& lineNumber, intptr_t& sourceID, UString& sourceURL, JSValue& function) const;
         
         void getArgumentsData(CallFrame*, JSFunction*&, ptrdiff_t& firstParameterIndex, Register*& argv, int& argc);
@@ -172,7 +182,7 @@ namespace JSC {
 
         static ALWAYS_INLINE CallFrame* slideRegisterWindowForCall(CodeBlock*, RegisterFile*, CallFrame*, size_t registerOffset, int argc);
 
-        static CallFrame* findFunctionCallFrame(CallFrame*, JSFunction*);
+        static CallFrame* findFunctionCallFrameFromVMCode(CallFrame*, JSFunction*);
 
         JSValue privateExecute(ExecutionFlag, RegisterFile*, CallFrame*);
 

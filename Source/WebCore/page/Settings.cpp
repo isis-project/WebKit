@@ -177,6 +177,7 @@ Settings::Settings(Page* page)
     , m_canvasUsesAcceleratedDrawing(false)
     , m_acceleratedDrawingEnabled(false)
     , m_acceleratedFiltersEnabled(false)
+    , m_isCSSCustomFilterEnabled(false)
     // FIXME: This should really be disabled by default as it makes platforms that don't support the feature download files
     // they can't use by. Leaving enabled for now to not change existing behavior.
     , m_downloadableBinaryFontsEnabled(true)
@@ -193,10 +194,12 @@ Settings::Settings(Page* page)
     , m_showRepaintCounter(false)
     , m_experimentalNotificationsEnabled(false)
     , m_webGLEnabled(false)
+    , m_webGLErrorsToConsoleEnabled(false)
     , m_openGLMultisamplingEnabled(true)
     , m_privilegedWebGLExtensionsEnabled(false)
     , m_webAudioEnabled(false)
     , m_acceleratedCanvas2dEnabled(false)
+    , m_deferredCanvas2dEnabled(false)
     , m_loadDeferringEnabled(true)
     , m_tiledBackingStoreEnabled(false)
     , m_paginateDuringLayoutEnabled(false)
@@ -217,6 +220,7 @@ Settings::Settings(Page* page)
     , m_crossOriginCheckInGetMatchedCSSRulesDisabled(false)
     , m_forceCompositingMode(false)
     , m_shouldInjectUserScriptsInInitialEmptyDocument(false)
+    , m_fixedElementsLayoutRelativeToFrame(false)
     , m_allowDisplayOfInsecureContent(true)
     , m_allowRunningOfInsecureContent(true)
 #if ENABLE(SMOOTH_SCROLLING)
@@ -240,6 +244,10 @@ Settings::Settings(Page* page)
     , m_partialSwapEnabled(false)
 #if ENABLE(THREADED_SCROLLING)
     , m_scrollingCoordinatorEnabled(false)
+#endif
+    , m_notificationsEnabled(true)
+#if ENABLE(TOUCH_EVENTS)
+    , m_touchEventEmulationEnabled(false)
 #endif
     , m_loadsImagesAutomaticallyTimer(this, &Settings::loadsImagesAutomaticallyTimerFired)
 {
@@ -487,6 +495,11 @@ void Settings::setUserStyleSheetLocation(const KURL& userStyleSheetLocation)
     m_userStyleSheetLocation = userStyleSheetLocation;
 
     m_page->userStyleSheetLocationChanged();
+}
+
+void Settings::setFixedElementsLayoutRelativeToFrame(bool fixedElementsLayoutRelativeToFrame)
+{
+    m_fixedElementsLayoutRelativeToFrame = fixedElementsLayoutRelativeToFrame;
 }
 
 void Settings::setShouldPrintBackgrounds(bool shouldPrintBackgrounds)
@@ -804,6 +817,11 @@ void Settings::setWebGLEnabled(bool enabled)
     m_webGLEnabled = enabled;
 }
 
+void Settings::setWebGLErrorsToConsoleEnabled(bool enabled)
+{
+    m_webGLErrorsToConsoleEnabled = enabled;
+}
+
 void Settings::setOpenGLMultisamplingEnabled(bool enabled)
 {
     m_openGLMultisamplingEnabled = enabled;
@@ -817,6 +835,11 @@ void Settings::setPrivilegedWebGLExtensionsEnabled(bool enabled)
 void Settings::setAccelerated2dCanvasEnabled(bool enabled)
 {
     m_acceleratedCanvas2dEnabled = enabled;
+}
+
+void Settings::setDeferred2dCanvasEnabled(bool enabled)
+{
+    m_deferredCanvas2dEnabled = enabled;
 }
 
 void Settings::setMinimumAccelerated2dCanvasSize(int numPixels)

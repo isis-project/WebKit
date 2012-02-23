@@ -421,7 +421,7 @@ void HTMLTextFormControlElement::selectionChanged(bool userTriggered)
     }
 }
 
-void HTMLTextFormControlElement::parseMappedAttribute(Attribute* attr)
+void HTMLTextFormControlElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == placeholderAttr)
         updatePlaceholderVisibility(true);
@@ -430,7 +430,7 @@ void HTMLTextFormControlElement::parseMappedAttribute(Attribute* attr)
     else if (attr->name() == onchangeAttr)
         setAttributeEventListener(eventNames().changeEvent, createAttributeEventListener(this, attr));
     else
-        HTMLFormControlElementWithState::parseMappedAttribute(attr);
+        HTMLFormControlElementWithState::parseAttribute(attr);
 }
 
 void HTMLTextFormControlElement::notifyFormStateChanged()
@@ -493,7 +493,7 @@ String HTMLTextFormControlElement::innerTextValue() const
         if (node->hasTagName(brTag))
             result.append(newlineCharacter);
         else if (node->isTextNode())
-            result.append(static_cast<Text*>(node)->data());
+            result.append(toText(node)->data());
     }
     return finishText(result);
 }
@@ -540,7 +540,7 @@ String HTMLTextFormControlElement::valueWithHardLineBreaks() const
         if (node->hasTagName(brTag))
             result.append(newlineCharacter);
         else if (node->isTextNode()) {
-            String data = static_cast<Text*>(node)->data();
+            String data = toText(node)->data();
             unsigned length = data.length();
             unsigned position = 0;
             while (breakNode == node && breakOffset <= length) {

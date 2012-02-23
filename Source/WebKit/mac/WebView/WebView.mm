@@ -151,6 +151,7 @@
 #import <WebCore/ResourceHandle.h>
 #import <WebCore/ResourceLoadScheduler.h>
 #import <WebCore/ResourceRequest.h>
+#import <WebCore/RunLoop.h>
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/SchemeRegistry.h>
 #import <WebCore/ScriptController.h>
@@ -744,10 +745,10 @@ static NSString *leakOutlookQuirksUserScriptContents()
 #if ENABLE(NOTIFICATIONS)
     pageClients.notificationClient = new WebNotificationClient(self);
 #endif
-#if ENABLE(DEVICE_ORIENTATION)
-    pageClients.deviceOrientationClient = new WebDeviceOrientationClient(self);
-#endif
     _private->page = new Page(pageClients);
+#if ENABLE(DEVICE_ORIENTATION)
+    WebCore::provideDeviceOrientationTo(_private->page, new WebDeviceOrientationClient(self));
+#endif
 
     _private->page->setCanStartMedia([self window]);
     _private->page->settings()->setLocalStorageDatabasePath([[self preferences] _localStorageDatabasePath]);
@@ -1470,6 +1471,9 @@ static bool needsSelfRetainWhileLoadingQuirk()
     settings->setFrameFlatteningEnabled([preferences isFrameFlatteningEnabled]);
     settings->setSpatialNavigationEnabled([preferences isSpatialNavigationEnabled]);
     settings->setPaginateDuringLayoutEnabled([preferences paginateDuringLayoutEnabled]);
+#if ENABLE(CSS_SHADERS)
+    settings->setCSSCustomFilterEnabled([preferences cssCustomFilterEnabled]);
+#endif
 #if ENABLE(FULLSCREEN_API)
     settings->setFullScreenEnabled([preferences fullScreenEnabled]);
 #endif
@@ -2787,6 +2791,25 @@ static PassOwnPtr<Vector<String> > toStringVector(NSArray* patterns)
     return WebPaginationModeUnpaginated;
 }
 
+- (void)_setPaginationBehavesLikeColumns:(BOOL)behavesLikeColumns
+{
+    Page* page = core(self);
+    if (!page)
+        return;
+
+    Page::Pagination pagination = page->pagination();
+    pagination.behavesLikeColumns = behavesLikeColumns;
+}
+
+- (BOOL)_paginationBehavesLikeColumns
+{
+    Page* page = core(self);
+    if (!page)
+        return NO;
+
+    return page->pagination().behavesLikeColumns;
+}
+
 - (void)_setPageLength:(CGFloat)pageLength
 {
     Page* page = core(self);
@@ -2949,6 +2972,7 @@ static PassOwnPtr<Vector<String> > toStringVector(NSArray* patterns)
     InitWebCoreSystemInterface();
     JSC::initializeThreading();
     WTF::initializeMainThreadToProcessMainThread();
+    WebCore::RunLoop::initializeMainRunLoop();
 
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_applicationWillTerminate) name:NSApplicationWillTerminateNotification object:NSApp];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(_preferencesChangedNotification:) name:WebPreferencesChangedInternalNotification object:nil];
@@ -3445,8 +3469,10 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
     // Send a change screen to make sure the initial displayID is set
     [self doWindowDidChangeScreen];
 
-    if (_private && _private->page)
-        _private->page->resumeScriptedAnimations();    
+    if (_private && _private->page) {
+        _private->page->resumeScriptedAnimations();
+        _private->page->focusController()->setContainingWindowIsVisible(true);
+    }
 }
 
 - (void)_windowDidChangeScreen:(NSNotification *)notification
@@ -3456,8 +3482,10 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
 
 - (void)_windowWillOrderOffScreen:(NSNotification *)notification
 {
-    if (_private && _private->page)
-        _private->page->suspendScriptedAnimations();    
+    if (_private && _private->page) {
+        _private->page->suspendScriptedAnimations();
+        _private->page->focusController()->setContainingWindowIsVisible(false);
+    }
 }
 
 - (void)_windowWillClose:(NSNotification *)notification
@@ -5532,6 +5560,16 @@ FOR_EACH_RESPONDER_SELECTOR(FORWARD)
     [self _performResponderOperation:_cmd with:text];
 }
 
+- (NSDictionary *)typingAttributes
+{
+    Frame* coreFrame = core([self _selectedOrMainFrame]);
+    if (coreFrame)
+        return coreFrame->editor()->fontAttributesForSelectionStart();
+    
+    return nil;
+}
+
+
 @end
 
 @implementation WebView (WebViewEditingInMail)
@@ -6306,7 +6344,7 @@ static void glibContextIterationCallback(CFRunLoopObserverRef, CFRunLoopActivity
 
 - (NSRect)_convertRectFromRootView:(NSRect)rect
 {
-    return NSMakeRect(rect.origin.x, [self bounds].size.height - rect.origin.y, rect.size.width, rect.size.height);
+    return NSMakeRect(rect.origin.x, [self bounds].size.height - rect.origin.y - rect.size.height, rect.size.width, rect.size.height);
 }
 
 @end
@@ -6376,7 +6414,7 @@ static void glibContextIterationCallback(CFRunLoopObserverRef, CFRunLoopActivity
         return JSValueMakeUndefined(context);
     JSElement* jsElement = static_cast<JSElement*>(asObject(jsValue));
     Element* element = jsElement->impl();
-    RefPtr<CSSComputedStyleDeclaration> style = computedStyle(element, true);
+    RefPtr<CSSComputedStyleDeclaration> style = CSSComputedStyleDeclaration::create(element, true);
     return toRef(exec, toJS(exec, jsElement->globalObject(), style.get()));
 }
 

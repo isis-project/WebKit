@@ -34,7 +34,6 @@ import re
 from webkitpy.common.memoized import memoized
 from webkitpy.common.system.deprecated_logging import log
 from webkitpy.common.system.executive import Executive, ScriptError
-from webkitpy.common.system import ospath
 
 from .commitmessage import CommitMessage
 from .scm import AuthenticationError, SCM, commit_error_handler
@@ -229,9 +228,9 @@ class Git(SCM, SVNRepository):
     def display_name(self):
         return "git"
 
-    def head_svn_revision(self):
+    def svn_revision(self, path):
         _log.debug('Running git.head_svn_revision... (Temporary logging message)')
-        git_log = self.run(['git', 'log', '-25'])
+        git_log = self.run(['git', 'log', '-25', path])
         match = re.search("^\s*git-svn-id:.*@(?P<svn_revision>\d+)\ ", git_log, re.MULTILINE)
         if not match:
             return ""
@@ -434,16 +433,11 @@ class Git(SCM, SVNRepository):
 
     def push_local_commits_to_server(self, username=None, password=None):
         dcommit_command = ['git', 'svn', 'dcommit']
-        if self.dryrun:
-            dcommit_command.append('--dry-run')
         if (not username or not password) and not self.has_authorization_for_realm(SVN.svn_server_realm):
             raise AuthenticationError(SVN.svn_server_host, prompt_for_password=True)
         if username:
             dcommit_command.extend(["--username", username])
         output = self.run(dcommit_command, error_handler=commit_error_handler, input=password, cwd=self.checkout_root)
-        # Return a string which looks like a commit so that things which parse this output will succeed.
-        if self.dryrun:
-            output += "\nCommitted r0"
         return output
 
     # This function supports the following argument formats:

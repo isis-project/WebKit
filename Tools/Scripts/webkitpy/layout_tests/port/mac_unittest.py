@@ -98,25 +98,23 @@ java/
         self.assertTrue(port.version())
 
     def test_versions(self):
-        self.assert_name(None, 'leopard', 'mac-leopard')
         self.assert_name('mac', 'leopard', 'mac-leopard')
         self.assert_name('mac-leopard', 'tiger', 'mac-leopard')
         self.assert_name('mac-leopard', 'leopard', 'mac-leopard')
         self.assert_name('mac-leopard', 'snowleopard', 'mac-leopard')
 
-        self.assert_name(None, 'snowleopard', 'mac-snowleopard')
         self.assert_name('mac', 'snowleopard', 'mac-snowleopard')
         self.assert_name('mac-snowleopard', 'tiger', 'mac-snowleopard')
         self.assert_name('mac-snowleopard', 'leopard', 'mac-snowleopard')
         self.assert_name('mac-snowleopard', 'snowleopard', 'mac-snowleopard')
 
-        self.assert_name(None, 'lion', 'mac-lion')
         self.assert_name('mac', 'lion', 'mac-lion')
         self.assert_name('mac-lion', 'lion', 'mac-lion')
 
-        self.assert_name(None, 'future', 'mac-future')
         self.assert_name('mac', 'future', 'mac-future')
         self.assert_name('mac-future', 'future', 'mac-future')
+
+        self.assertRaises(AssertionError, self.assert_name, 'mac-tiger', 'leopard', 'mac-leopard')
 
 
     def test_is_version_methods(self):
@@ -168,3 +166,14 @@ java/
 
     def test_operating_system(self):
         self.assertEqual('mac', self.make_port().operating_system())
+
+    def test_default_child_processes(self):
+        port = self.make_port(port_name='mac-lion')
+        # MockPlatformInfo only has 2 mock cores.  The important part is that 2 > 1.
+        self.assertEqual(port.default_child_processes(), 2)
+
+        # SnowLeopard has a CFNetwork bug which causes crashes if we execute more than one copy of DRT at once.
+        port = self.make_port(port_name='mac-snowleopard')
+        expected_logs = "Cannot run tests in parallel on Snow Leopard due to rdar://problem/10621525.\n"
+        child_processes = OutputCapture().assert_outputs(self, port.default_child_processes, (), expected_logs=expected_logs)
+        self.assertEqual(child_processes, 1)

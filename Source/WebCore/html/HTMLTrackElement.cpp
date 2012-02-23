@@ -72,23 +72,23 @@ PassRefPtr<HTMLTrackElement> HTMLTrackElement::create(const QualifiedName& tagNa
     return adoptRef(new HTMLTrackElement(tagName, document));
 }
 
-void HTMLTrackElement::insertedIntoTree(bool deep)
+void HTMLTrackElement::insertedIntoDocument()
 {
-    HTMLElement::insertedIntoTree(deep);
+    HTMLElement::insertedIntoDocument();
 
     if (HTMLMediaElement* parent = mediaElement())
         parent->trackWasAdded(this);
 }
 
-void HTMLTrackElement::willRemove()
+void HTMLTrackElement::removedFromDocument()
 {
     if (HTMLMediaElement* parent = mediaElement())
-        parent->trackWillBeRemoved(this);
+        parent->trackWasRemoved(this);
 
-    HTMLElement::willRemove();
+    HTMLElement::removedFromDocument();
 }
 
-void HTMLTrackElement::parseMappedAttribute(Attribute* attribute)
+void HTMLTrackElement::parseAttribute(Attribute* attribute)
 {
     const QualifiedName& attrName = attribute->name();
 
@@ -97,12 +97,12 @@ void HTMLTrackElement::parseMappedAttribute(Attribute* attribute)
     else if (attrName == onerrorAttr)
         setAttributeEventListener(eventNames().errorEvent, createAttributeEventListener(this, attribute));
     else
-        HTMLElement::parseMappedAttribute(attribute);
+        HTMLElement::parseAttribute(attribute);
 }
 
-void HTMLTrackElement::attributeChanged(Attribute* attr, bool preserveDecls)
+void HTMLTrackElement::attributeChanged(Attribute* attr)
 {
-    HTMLElement::attributeChanged(attr, preserveDecls);
+    HTMLElement::attributeChanged(attr);
 
     if (!RuntimeEnabledFeatures::webkitVideoTrackEnabled())
         return;
@@ -353,9 +353,9 @@ String HTMLTrackElement::itemValueText() const
     return getURLAttribute(srcAttr);
 }
 
-void HTMLTrackElement::setItemValueText(const String& value, ExceptionCode& ec)
+void HTMLTrackElement::setItemValueText(const String& value, ExceptionCode&)
 {
-    setAttribute(srcAttr, value, ec);
+    setAttribute(srcAttr, value);
 }
 #endif
 

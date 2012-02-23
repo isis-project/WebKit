@@ -32,30 +32,27 @@
 #include "WebPopupMenuImpl.h"
 
 #include "Cursor.h"
-#include "FramelessScrollView.h"
 #include "FrameView.h"
+#include "FramelessScrollView.h"
 #include "IntRect.h"
 #include "NotImplemented.h"
-#include "painting/GraphicsContextBuilder.h"
 #include "PlatformKeyboardEvent.h"
 #include "PlatformMouseEvent.h"
 #include "PlatformWheelEvent.h"
 #include "PopupContainer.h"
 #include "PopupMenuChromium.h"
 #include "SkiaUtils.h"
-
 #include "WebInputEvent.h"
 #include "WebInputEventConversion.h"
 #include "WebRange.h"
-#include "platform/WebRect.h"
 #include "WebViewClient.h"
 #include "WebWidgetClient.h"
-
+#include "painting/GraphicsContextBuilder.h"
+#include "platform/WebRect.h"
 #include <skia/ext/platform_canvas.h>
 
-#if ENABLE(GESTURE_RECOGNIZER)
+#if ENABLE(GESTURE_EVENTS)
 #include "PlatformGestureEvent.h"
-#include "PlatformGestureRecognizer.h"
 #endif
 
 using namespace WebCore;
@@ -75,11 +72,8 @@ WebPopupMenu* WebPopupMenu::create(WebWidgetClient* client)
 WebPopupMenuImpl::WebPopupMenuImpl(WebWidgetClient* client)
     : m_client(client)
     , m_widget(0)
-#if ENABLE(GESTURE_RECOGNIZER)
-    , m_gestureRecognizer(WebCore::PlatformGestureRecognizer::create())
-#endif
 {
-    // set to impossible point so we always get the first mouse pos
+    // Set to impossible point so we always get the first mouse position.
     m_lastMousePosition = WebPoint(-1, -1);
 }
 
@@ -89,20 +83,20 @@ WebPopupMenuImpl::~WebPopupMenuImpl()
         m_widget->setClient(0);
 }
 
-void WebPopupMenuImpl::Init(FramelessScrollView* widget, const WebRect& bounds)
+void WebPopupMenuImpl::init(FramelessScrollView* widget, const WebRect& bounds)
 {
     m_widget = widget;
     m_widget->setClient(this);
 
     if (m_client) {
         m_client->setWindowRect(bounds);
-        m_client->show(WebNavigationPolicy());  // Policy is ignored
+        m_client->show(WebNavigationPolicy()); // Policy is ignored.
     }
 }
 
-void WebPopupMenuImpl::MouseMove(const WebMouseEvent& event)
+void WebPopupMenuImpl::handleMouseMove(const WebMouseEvent& event)
 {
-    // don't send mouse move messages if the mouse hasn't moved.
+    // Don't send mouse move messages if the mouse hasn't moved.
     if (event.x != m_lastMousePosition.x || event.y != m_lastMousePosition.y) {
         m_lastMousePosition = WebPoint(event.x, event.y);
         m_widget->handleMouseMoveEvent(PlatformMouseEventBuilder(m_widget, event));
@@ -113,48 +107,43 @@ void WebPopupMenuImpl::MouseMove(const WebMouseEvent& event)
     }
 }
 
-void WebPopupMenuImpl::MouseLeave(const WebMouseEvent& event)
+void WebPopupMenuImpl::handleMouseLeave(const WebMouseEvent& event)
 {
     m_widget->handleMouseMoveEvent(PlatformMouseEventBuilder(m_widget, event));
 }
 
-void WebPopupMenuImpl::MouseDown(const WebMouseEvent& event)
+void WebPopupMenuImpl::handleMouseDown(const WebMouseEvent& event)
 {
     m_widget->handleMouseDownEvent(PlatformMouseEventBuilder(m_widget, event));
 }
 
-void WebPopupMenuImpl::MouseUp(const WebMouseEvent& event)
+void WebPopupMenuImpl::handleMouseUp(const WebMouseEvent& event)
 {
     mouseCaptureLost();
     m_widget->handleMouseReleaseEvent(PlatformMouseEventBuilder(m_widget, event));
 }
 
-void WebPopupMenuImpl::MouseWheel(const WebMouseWheelEvent& event)
+void WebPopupMenuImpl::handleMouseWheel(const WebMouseWheelEvent& event)
 {
     m_widget->handleWheelEvent(PlatformWheelEventBuilder(m_widget, event));
 }
 
-bool WebPopupMenuImpl::GestureEvent(const WebGestureEvent& event)
+bool WebPopupMenuImpl::handleGestureEvent(const WebGestureEvent& event)
 {
     return m_widget->handleGestureEvent(PlatformGestureEventBuilder(m_widget, event));
 }
 
 #if ENABLE(TOUCH_EVENTS)
-bool WebPopupMenuImpl::TouchEvent(const WebTouchEvent& event)
+bool WebPopupMenuImpl::handleTouchEvent(const WebTouchEvent& event)
 {
 
     PlatformTouchEventBuilder touchEventBuilder(m_widget, event);
     bool defaultPrevented(m_widget->handleTouchEvent(touchEventBuilder));
-#if ENABLE(GESTURE_RECOGNIZER)
-    OwnPtr<Vector<WebCore::PlatformGestureEvent> > gestureEvents(m_gestureRecognizer->processTouchEventForGestures(touchEventBuilder, defaultPrevented));
-    for (unsigned int  i = 0; i < gestureEvents->size(); i++)
-        m_widget->handleGestureEvent((*gestureEvents)[i]);
-#endif
     return defaultPrevented;
 }
 #endif
 
-bool WebPopupMenuImpl::KeyEvent(const WebKeyboardEvent& event)
+bool WebPopupMenuImpl::handleKeyEvent(const WebKeyboardEvent& event)
 {
     return m_widget->handleKeyEvent(PlatformKeyboardEventBuilder(event));
 }
@@ -168,7 +157,7 @@ void WebPopupMenuImpl::close()
 
     m_client = 0;
 
-    deref();  // Balances ref() from WebWidget::Create
+    deref(); // Balances ref() from WebPopupMenu::create.
 }
 
 void WebPopupMenuImpl::willStartLiveResize()
@@ -218,7 +207,7 @@ void WebPopupMenuImpl::themeChanged()
     notImplemented();
 }
 
-void WebPopupMenuImpl::composite(bool finish)
+void WebPopupMenuImpl::composite(bool)
 {
     notImplemented();
 }
@@ -228,28 +217,28 @@ bool WebPopupMenuImpl::handleInputEvent(const WebInputEvent& inputEvent)
     if (!m_widget)
         return false;
 
-    // TODO (jcampan): WebKit seems to always return false on mouse events
-    // methods. For now we'll assume it has processed them (as we are only
-    // interested in whether keyboard events are processed).
+    // FIXME: WebKit seems to always return false on mouse events methods. For
+    // now we'll assume it has processed them (as we are only interested in
+    // whether keyboard events are processed).
     switch (inputEvent.type) {
     case WebInputEvent::MouseMove:
-        MouseMove(*static_cast<const WebMouseEvent*>(&inputEvent));
+        handleMouseMove(*static_cast<const WebMouseEvent*>(&inputEvent));
         return true;
 
     case WebInputEvent::MouseLeave:
-        MouseLeave(*static_cast<const WebMouseEvent*>(&inputEvent));
+        handleMouseLeave(*static_cast<const WebMouseEvent*>(&inputEvent));
         return true;
 
     case WebInputEvent::MouseWheel:
-        MouseWheel(*static_cast<const WebMouseWheelEvent*>(&inputEvent));
+        handleMouseWheel(*static_cast<const WebMouseWheelEvent*>(&inputEvent));
         return true;
 
     case WebInputEvent::MouseDown:
-        MouseDown(*static_cast<const WebMouseEvent*>(&inputEvent));
+        handleMouseDown(*static_cast<const WebMouseEvent*>(&inputEvent));
         return true;
 
     case WebInputEvent::MouseUp:
-        MouseUp(*static_cast<const WebMouseEvent*>(&inputEvent));
+        handleMouseUp(*static_cast<const WebMouseEvent*>(&inputEvent));
         return true;
 
     // In Windows, RawKeyDown only has information about the physical key, but
@@ -264,13 +253,13 @@ bool WebPopupMenuImpl::handleInputEvent(const WebInputEvent& inputEvent)
     case WebInputEvent::KeyDown:
     case WebInputEvent::KeyUp:
     case WebInputEvent::Char:
-        return KeyEvent(*static_cast<const WebKeyboardEvent*>(&inputEvent));
+        return handleKeyEvent(*static_cast<const WebKeyboardEvent*>(&inputEvent));
 
     case WebInputEvent::TouchStart:
     case WebInputEvent::TouchMove:
     case WebInputEvent::TouchEnd:
     case WebInputEvent::TouchCancel:
-        return TouchEvent(*static_cast<const WebTouchEvent*>(&inputEvent));
+        return handleTouchEvent(*static_cast<const WebTouchEvent*>(&inputEvent));
 
     case WebInputEvent::GestureScrollBegin:
     case WebInputEvent::GestureScrollEnd:
@@ -278,11 +267,19 @@ bool WebPopupMenuImpl::handleInputEvent(const WebInputEvent& inputEvent)
     case WebInputEvent::GestureFlingStart:
     case WebInputEvent::GestureFlingCancel:
     case WebInputEvent::GestureTap:
-        return GestureEvent(*static_cast<const WebGestureEvent*>(&inputEvent));
+    case WebInputEvent::GestureTapDown:
+    case WebInputEvent::GestureDoubleTap:
+        return handleGestureEvent(*static_cast<const WebGestureEvent*>(&inputEvent));
 
     case WebInputEvent::Undefined:
     case WebInputEvent::MouseEnter:
     case WebInputEvent::ContextMenu:
+        return false;
+
+    case WebInputEvent::GesturePinchBegin:
+    case WebInputEvent::GesturePinchEnd:
+    case WebInputEvent::GesturePinchUpdate:
+        // FIXME: Once PlatformGestureEvent is updated to support pinch, this should call handleGestureEvent, just like it currently does for gesture scroll.
         return false;
     }
     return false;
@@ -292,7 +289,7 @@ void WebPopupMenuImpl::mouseCaptureLost()
 {
 }
 
-void WebPopupMenuImpl::setFocus(bool enable)
+void WebPopupMenuImpl::setFocus(bool)
 {
 }
 
@@ -301,9 +298,7 @@ void WebPopupMenu::setMinimumRowHeight(int minimumRowHeight)
     PopupMenuChromium::setMinimumRowHeight(minimumRowHeight);
 }
 
-bool WebPopupMenuImpl::setComposition(
-    const WebString& text, const WebVector<WebCompositionUnderline>& underlines,
-    int selectionStart, int selectionEnd)
+bool WebPopupMenuImpl::setComposition(const WebString&, const WebVector<WebCompositionUnderline>&, int, int)
 {
     return false;
 }
@@ -313,7 +308,7 @@ bool WebPopupMenuImpl::confirmComposition()
     return false;
 }
 
-bool WebPopupMenuImpl::confirmComposition(const WebString& text)
+bool WebPopupMenuImpl::confirmComposition(const WebString&)
 {
     return false;
 }
@@ -337,18 +332,13 @@ bool WebPopupMenuImpl::caretOrSelectionRange(size_t* location, size_t* length)
     return false;
 }
 
-void WebPopupMenuImpl::setTextDirection(WebTextDirection direction)
+void WebPopupMenuImpl::setTextDirection(WebTextDirection)
 {
 }
 
 
 //-----------------------------------------------------------------------------
 // WebCore::HostWindow
-
-void WebPopupMenuImpl::invalidateContents(const IntRect&, bool)
-{
-    notImplemented();
-}
 
 void WebPopupMenuImpl::invalidateRootView(const IntRect&, bool)
 {
@@ -372,9 +362,7 @@ void WebPopupMenuImpl::scheduleAnimation()
 {
 }
 
-void WebPopupMenuImpl::scroll(const IntSize& scrollDelta,
-                              const IntRect& scrollRect,
-                              const IntRect& clipRect)
+void WebPopupMenuImpl::scroll(const IntSize& scrollDelta, const IntRect& scrollRect, const IntRect& clipRect)
 {
     if (m_client) {
         int dx = scrollDelta.width();
@@ -393,12 +381,6 @@ IntRect WebPopupMenuImpl::rootViewToScreen(const IntRect& rect) const
 {
     notImplemented();
     return IntRect();
-}
-
-void WebPopupMenuImpl::scrollRectIntoView(const IntRect&) const
-{
-    // Nothing to be done here since we do not have the concept of a container
-    // that implements its own scrolling.
 }
 
 void WebPopupMenuImpl::scrollbarsModeDidChange() const

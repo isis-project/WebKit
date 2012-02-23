@@ -24,26 +24,27 @@
 #if ENABLE(DETAILS)
 
 #include "DetailsMarkerControl.h"
+#include "HTMLContentElement.h"
 #include "HTMLDetailsElement.h"
+#include "KeyboardEvent.h"
 #include "HTMLNames.h"
 #include "MouseEvent.h"
 #include "PlatformMouseEvent.h"
 #include "RenderSummary.h"
-#include "ShadowContentElement.h"
-
 #include "ShadowRoot.h"
+#include "ShadowRootList.h"
 
 namespace WebCore {
 
 using namespace HTMLNames;
 
-class SummaryContentElement : public ShadowContentElement {
+class SummaryContentElement : public HTMLContentElement {
 public:
     static PassRefPtr<SummaryContentElement> create(Document*);
 
 private:
     SummaryContentElement(Document* document)
-        : ShadowContentElement(HTMLNames::divTag, document)
+        : HTMLContentElement(HTMLNames::divTag, document)
     {
     }
 };
@@ -73,9 +74,10 @@ RenderObject* HTMLSummaryElement::createRenderer(RenderArena* arena, RenderStyle
 
 void HTMLSummaryElement::createShadowSubtree()
 {
-    ExceptionCode ec = 0;
-    ensureShadowRoot()->appendChild(DetailsMarkerControl::create(document()), ec, true);
-    ensureShadowRoot()->appendChild(SummaryContentElement::create(document()), ec, true);
+    ASSERT(!hasShadowRoot());
+    RefPtr<ShadowRoot> root = ShadowRoot::create(this, ShadowRoot::CreatingUserAgentShadowRoot);
+    root->appendChild(DetailsMarkerControl::create(document()), ASSERT_NO_EXCEPTION, true);
+    root->appendChild(SummaryContentElement::create(document()), ASSERT_NO_EXCEPTION, true);
 }
 
 HTMLDetailsElement* HTMLSummaryElement::detailsElement() const
@@ -89,8 +91,9 @@ HTMLDetailsElement* HTMLSummaryElement::detailsElement() const
 bool HTMLSummaryElement::isMainSummary() const
 {
     if (HTMLDetailsElement* details = detailsElement())
-        return details->mainSummary() == this;
-    return 0;
+        return details->findMainSummary() == this;
+
+    return false;
 }
 
 static bool isClickableControl(Node* node)
@@ -104,20 +107,49 @@ static bool isClickableControl(Node* node)
     return host && host->isFormControlElement();
 }
 
+bool HTMLSummaryElement::supportsFocus() const
+{
+    return isMainSummary();
+}
+
 void HTMLSummaryElement::defaultEventHandler(Event* event)
 {
-    HTMLElement::defaultEventHandler(event);
-    if (!isMainSummary() || !renderer() || !renderer()->isSummary() || !event->isMouseEvent() || event->type() != eventNames().clickEvent || event->defaultHandled())
-        return;
-    MouseEvent* mouseEvent = static_cast<MouseEvent*>(event);
-    if (mouseEvent->button() != LeftButton)
-        return;
-    if (isClickableControl(event->target()->toNode()))
-        return;
+    if (isMainSummary() && renderer() && renderer()->isSummary()) {
+        if (event->type() == eventNames().DOMActivateEvent && !isClickableControl(event->target()->toNode())) {
+            if (HTMLDetailsElement* details = detailsElement())
+                details->toggleOpen();
+            event->setDefaultHandled();
+            return;
+        }
 
-    if (HTMLDetailsElement* details = detailsElement())
-        details->toggleOpen();
-    event->setDefaultHandled();
+        if (event->isKeyboardEvent()) {
+            if (event->type() == eventNames().keydownEvent && static_cast<KeyboardEvent*>(event)->keyIdentifier() == "U+0020") {
+                setActive(true, true);
+                // No setDefaultHandled() - IE dispatches a keypress in this case.
+                return;
+            }
+            if (event->type() == eventNames().keypressEvent) {
+                switch (static_cast<KeyboardEvent*>(event)->charCode()) {
+                case '\r':
+                    dispatchSimulatedClick(event);
+                    event->setDefaultHandled();
+                    return;
+                case ' ':
+                    // Prevent scrolling down the page.
+                    event->setDefaultHandled();
+                    return;
+                }
+            }
+            if (event->type() == eventNames().keyupEvent && static_cast<KeyboardEvent*>(event)->keyIdentifier() == "U+0020") {
+                if (active())
+                    dispatchSimulatedClick(event);
+                event->setDefaultHandled();
+                return;
+            }
+        }
+    }
+
+    HTMLElement::defaultEventHandler(event);
 }
 
 }

@@ -72,8 +72,8 @@ public:
 
     // Functions for child manipulation and inspection.
     const HashSet<RefPtr<Widget> >* children() const { return &m_children; }
-    void addChild(PassRefPtr<Widget>);
-    void removeChild(Widget*);
+    virtual void addChild(PassRefPtr<Widget>);
+    virtual void removeChild(Widget*);
     
     // If the scroll view does not use a native widget, then it will have cross-platform Scrollbars. These functions
     // can be used to obtain those scrollbars.
@@ -301,6 +301,7 @@ protected:
     virtual void paintOverhangAreas(GraphicsContext*, const IntRect& horizontalOverhangArea, const IntRect& verticalOverhangArea, const IntRect& dirtyRect);
 
     virtual void visibleContentsResized() = 0;
+    virtual void delegatesScrollingDidChange() { }
 
     IntRect fixedVisibleContentRect() const { return m_fixedVisibleContentRect; }
 

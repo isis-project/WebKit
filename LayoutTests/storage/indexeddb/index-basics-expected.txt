@@ -12,8 +12,16 @@ PASS trans !== null is true
 Deleted all object stores.
 db.createObjectStore('storeName', null)
 store.createIndex('indexName', 'x')
-store.createIndex('indexName2', 'y', false)
-store.createIndex('zIndex', 'z', true)
+store.createIndex('indexName2', 'y', {unique: false})
+store.createIndex('zIndex', 'z', {unique: true})
+PASS indexObject2.unique is false
+PASS indexObject3.unique is true
+Expecting TypeError exception from store.createIndex('failureIndex', 'zzz', true)
+PASS Exception was thrown.
+PASS store.createIndex('failureIndex', 'zzz', true) threw TypeError: Not an object.
+Expecting TypeError exception from store.createIndex('failureIndex', 'zzz', 'string')
+PASS Exception was thrown.
+PASS store.createIndex('failureIndex', 'zzz', 'string') threw TypeError: Not an object.
 PASS 'name' in indexObject is true
 PASS indexObject.name is "indexName"
 PASS 'objectStore' in indexObject is true
@@ -49,11 +57,9 @@ indexObject.get('value')
 PASS event.target.result.x is "value"
 PASS event.target.result.y is "zzz"
 indexObject.getKey('does not exist')
-PASS event.target.errorCode is webkitIDBDatabaseException.NOT_FOUND_ERR
-event.preventDefault()
+PASS event.target.result is undefined
 indexObject.get('does not exist')
-PASS event.target.errorCode is webkitIDBDatabaseException.NOT_FOUND_ERR
-event.preventDefault()
+PASS event.target.result is undefined
 indexObject4.getKey('value2')
 PASS event.target.result is "key2"
 indexObject.openKeyCursor()

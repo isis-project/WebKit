@@ -37,7 +37,7 @@ ImageBufferData::ImageBufferData(const IntSize&)
 {
 }
 
-ImageBuffer::ImageBuffer(const IntSize&, ColorSpace imageColorSpace, RenderingMode, bool& success) : 
+ImageBuffer::ImageBuffer(const IntSize&, ColorSpace imageColorSpace, RenderingMode, DeferralMode, bool& success) : 
     m_data(IntSize())
 {
     notImplemented();
@@ -72,12 +72,7 @@ PassRefPtr<ByteArray> ImageBuffer::getPremultipliedImageData(const IntRect& rect
     return 0;
 }
 
-void ImageBuffer::putUnmultipliedImageData(ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
-{
-    notImplemented();
-}
-
-void ImageBuffer::putPremultipliedImageData(ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
+void ImageBuffer::putByteArray(Multiply multiplied, ByteArray* source, const IntSize& sourceSize, const IntRect& sourceRect, const IntPoint& destPoint)
 {
     notImplemented();
 }

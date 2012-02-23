@@ -162,8 +162,6 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
 #endif
 {
     interpreter = new Interpreter;
-    if (globalDataType == Default)
-        m_stack = wtfThreadData().stack();
 
     // Need to be careful to keep everything consistent here
     IdentifierTable* existingEntryIdentifierTable = wtfThreadData().setCurrentIdentifierTable(identifierTable);
@@ -504,17 +502,17 @@ void JSGlobalData::dumpRegExpTrace()
     RTTraceList::iterator iter = ++m_rtTraceList->begin();
     
     if (iter != m_rtTraceList->end()) {
-        printf("\nRegExp Tracing\n");
-        printf("                                                            match()    matches\n");
-        printf("Regular Expression                          JIT Address      calls      found\n");
-        printf("----------------------------------------+----------------+----------+----------\n");
+        dataLog("\nRegExp Tracing\n");
+        dataLog("                                                            match()    matches\n");
+        dataLog("Regular Expression                          JIT Address      calls      found\n");
+        dataLog("----------------------------------------+----------------+----------+----------\n");
     
         unsigned reCount = 0;
     
         for (; iter != m_rtTraceList->end(); ++iter, ++reCount)
             (*iter)->printTraceData();
 
-        printf("%d Regular Expressions\n", reCount);
+        dataLog("%d Regular Expressions\n", reCount);
     }
     
     m_rtTraceList->clear();

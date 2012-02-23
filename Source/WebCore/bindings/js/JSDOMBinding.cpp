@@ -120,14 +120,14 @@ String valueToStringWithNullCheck(ExecState* exec, JSValue value)
 {
     if (value.isNull())
         return String();
-    return ustringToString(value.toString(exec));
+    return ustringToString(value.toString(exec)->value(exec));
 }
 
 String valueToStringWithUndefinedOrNullCheck(ExecState* exec, JSValue value)
 {
     if (value.isUndefinedOrNull())
         return String();
-    return ustringToString(value.toString(exec));
+    return ustringToString(value.toString(exec)->value(exec));
 }
 
 JSValue jsDateOrNull(ExecState* exec, double value)
@@ -151,10 +151,10 @@ void reportException(ExecState* exec, JSValue exception)
     if (isTerminatedExecutionException(exception))
         return;
 
-    UString errorMessage = exception.toString(exec);
+    UString errorMessage = exception.toString(exec)->value(exec);
     JSObject* exceptionObject = exception.toObject(exec);
     int lineNumber = exceptionObject->get(exec, Identifier(exec, "line")).toInt32(exec);
-    UString exceptionSourceURL = exceptionObject->get(exec, Identifier(exec, "sourceURL")).toString(exec);
+    UString exceptionSourceURL = exceptionObject->get(exec, Identifier(exec, "sourceURL")).toString(exec)->value(exec);
     exec->clearException();
 
     if (ExceptionBase* exceptionBase = toExceptionBase(exception))
@@ -216,12 +216,12 @@ DOMWindow* firstDOMWindow(ExecState* exec)
     return asJSDOMWindow(exec->dynamicGlobalObject())->impl();
 }
 
-bool allowAccessToNode(ExecState* exec, Node* node)
+bool shouldAllowAccessToNode(ExecState* exec, Node* node)
 {
-    return node && allowAccessToFrame(exec, node->document()->frame());
+    return node && shouldAllowAccessToFrame(exec, node->document()->frame());
 }
 
-bool allowAccessToFrame(ExecState* exec, Frame* frame)
+bool shouldAllowAccessToFrame(ExecState* exec, Frame* frame)
 {
     if (!frame)
         return false;
@@ -229,7 +229,7 @@ bool allowAccessToFrame(ExecState* exec, Frame* frame)
     return window && window->allowsAccessFrom(exec);
 }
 
-bool allowAccessToFrame(ExecState* exec, Frame* frame, String& message)
+bool shouldAllowAccessToFrame(ExecState* exec, Frame* frame, String& message)
 {
     if (!frame)
         return false;

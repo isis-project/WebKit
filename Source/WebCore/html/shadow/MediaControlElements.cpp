@@ -175,7 +175,7 @@ void MediaControlPanelElement::endDrag()
 
 void MediaControlPanelElement::setPosition(const LayoutPoint& position)
 {
-    CSSInlineStyleDeclaration* style = ensureInlineStyleDecl();
+    StylePropertySet* style = ensureInlineStyleDecl();
 
     double left = position.x();
     double top = position.y();
@@ -193,7 +193,7 @@ void MediaControlPanelElement::setPosition(const LayoutPoint& position)
 
 void MediaControlPanelElement::resetPosition()
 {
-    CSSInlineStyleDeclaration* style = ensureInlineStyleDecl();
+    StylePropertySet* style = ensureInlineStyleDecl();
 
     style->removeProperty(CSSPropertyLeft);
     style->removeProperty(CSSPropertyTop);
@@ -208,10 +208,12 @@ void MediaControlPanelElement::makeOpaque()
 {
     if (m_opaque)
         return;
-    
-    CSSInlineStyleDeclaration* style = ensureInlineStyleDecl();
+
+    double duration = document()->page() ? document()->page()->theme()->mediaControlsFadeInDuration() : 0;
+
+    StylePropertySet* style = ensureInlineStyleDecl();
     style->setProperty(CSSPropertyWebkitTransitionProperty, CSSPropertyOpacity);
-    style->setProperty(CSSPropertyWebkitTransitionDuration, document()->page()->theme()->mediaControlsFadeInDuration(), CSSPrimitiveValue::CSS_S);
+    style->setProperty(CSSPropertyWebkitTransitionDuration, duration, CSSPrimitiveValue::CSS_S);
     style->setProperty(CSSPropertyOpacity, 1.0, CSSPrimitiveValue::CSS_NUMBER);
 
     m_opaque = true;
@@ -222,7 +224,7 @@ void MediaControlPanelElement::makeTransparent()
     if (!m_opaque)
         return;
 
-    CSSInlineStyleDeclaration* style = ensureInlineStyleDecl();
+    StylePropertySet* style = ensureInlineStyleDecl();
     style->setProperty(CSSPropertyWebkitTransitionProperty, CSSPropertyOpacity);
     style->setProperty(CSSPropertyWebkitTransitionDuration, document()->page()->theme()->mediaControlsFadeOutDuration(), CSSPrimitiveValue::CSS_S);
     style->setProperty(CSSPropertyOpacity, 0.0, CSSPrimitiveValue::CSS_NUMBER);
@@ -491,6 +493,7 @@ PassRefPtr<MediaControlPanelMuteButtonElement> MediaControlPanelMuteButtonElemen
     ASSERT(controls);
 
     RefPtr<MediaControlPanelMuteButtonElement> button = adoptRef(new MediaControlPanelMuteButtonElement(document, controls));
+    button->createShadowSubtree();
     button->setType("button");
     return button.release();
 }
@@ -519,6 +522,7 @@ inline MediaControlVolumeSliderMuteButtonElement::MediaControlVolumeSliderMuteBu
 PassRefPtr<MediaControlVolumeSliderMuteButtonElement> MediaControlVolumeSliderMuteButtonElement::create(Document* document)
 {
     RefPtr<MediaControlVolumeSliderMuteButtonElement> button = adoptRef(new MediaControlVolumeSliderMuteButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     return button.release();
 }
@@ -539,6 +543,7 @@ inline MediaControlPlayButtonElement::MediaControlPlayButtonElement(Document* do
 PassRefPtr<MediaControlPlayButtonElement> MediaControlPlayButtonElement::create(Document* document)
 {
     RefPtr<MediaControlPlayButtonElement> button = adoptRef(new MediaControlPlayButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     return button.release();
 }
@@ -658,6 +663,7 @@ inline MediaControlSeekForwardButtonElement::MediaControlSeekForwardButtonElemen
 PassRefPtr<MediaControlSeekForwardButtonElement> MediaControlSeekForwardButtonElement::create(Document* document)
 {
     RefPtr<MediaControlSeekForwardButtonElement> button = adoptRef(new MediaControlSeekForwardButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     return button.release();
 }
@@ -678,6 +684,7 @@ inline MediaControlSeekBackButtonElement::MediaControlSeekBackButtonElement(Docu
 PassRefPtr<MediaControlSeekBackButtonElement> MediaControlSeekBackButtonElement::create(Document* document)
 {
     RefPtr<MediaControlSeekBackButtonElement> button = adoptRef(new MediaControlSeekBackButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     return button.release();
 }
@@ -698,6 +705,7 @@ inline MediaControlRewindButtonElement::MediaControlRewindButtonElement(Document
 PassRefPtr<MediaControlRewindButtonElement> MediaControlRewindButtonElement::create(Document* document)
 {
     RefPtr<MediaControlRewindButtonElement> button = adoptRef(new MediaControlRewindButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     return button.release();
 }
@@ -728,6 +736,7 @@ inline MediaControlReturnToRealtimeButtonElement::MediaControlReturnToRealtimeBu
 PassRefPtr<MediaControlReturnToRealtimeButtonElement> MediaControlReturnToRealtimeButtonElement::create(Document* document)
 {
     RefPtr<MediaControlReturnToRealtimeButtonElement> button = adoptRef(new MediaControlReturnToRealtimeButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     button->hide();
     return button.release();
@@ -758,6 +767,7 @@ inline MediaControlToggleClosedCaptionsButtonElement::MediaControlToggleClosedCa
 PassRefPtr<MediaControlToggleClosedCaptionsButtonElement> MediaControlToggleClosedCaptionsButtonElement::create(Document* document)
 {
     RefPtr<MediaControlToggleClosedCaptionsButtonElement> button = adoptRef(new MediaControlToggleClosedCaptionsButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     button->hide();
     return button.release();
@@ -799,6 +809,7 @@ PassRefPtr<MediaControlTimelineElement> MediaControlTimelineElement::create(Docu
     ASSERT(controls);
 
     RefPtr<MediaControlTimelineElement> timeline = adoptRef(new MediaControlTimelineElement(document, controls));
+    timeline->createShadowSubtree();
     timeline->setType("range");
     timeline->setAttribute(precisionAttr, "float");
     return timeline.release();
@@ -863,6 +874,7 @@ inline MediaControlVolumeSliderElement::MediaControlVolumeSliderElement(Document
 PassRefPtr<MediaControlVolumeSliderElement> MediaControlVolumeSliderElement::create(Document* document)
 {
     RefPtr<MediaControlVolumeSliderElement> slider = adoptRef(new MediaControlVolumeSliderElement(document));
+    slider->createShadowSubtree();
     slider->setType("range");
     slider->setAttribute(precisionAttr, "float");
     slider->setAttribute(maxAttr, "1");
@@ -913,6 +925,7 @@ inline MediaControlFullscreenVolumeSliderElement::MediaControlFullscreenVolumeSl
 PassRefPtr<MediaControlFullscreenVolumeSliderElement> MediaControlFullscreenVolumeSliderElement::create(Document* document)
 {
     RefPtr<MediaControlFullscreenVolumeSliderElement> slider = adoptRef(new MediaControlFullscreenVolumeSliderElement(document));
+    slider->createShadowSubtree();
     slider->setType("range");
     slider->setAttribute(precisionAttr, "float");
     slider->setAttribute(maxAttr, "1");
@@ -938,6 +951,7 @@ PassRefPtr<MediaControlFullscreenButtonElement> MediaControlFullscreenButtonElem
     ASSERT(controls);
 
     RefPtr<MediaControlFullscreenButtonElement> button = adoptRef(new MediaControlFullscreenButtonElement(document, controls));
+    button->createShadowSubtree();
     button->setType("button");
     button->hide();
     return button.release();
@@ -981,6 +995,7 @@ inline MediaControlFullscreenVolumeMinButtonElement::MediaControlFullscreenVolum
 PassRefPtr<MediaControlFullscreenVolumeMinButtonElement> MediaControlFullscreenVolumeMinButtonElement::create(Document* document)
 {
     RefPtr<MediaControlFullscreenVolumeMinButtonElement> button = adoptRef(new MediaControlFullscreenVolumeMinButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     return button.release();
 }
@@ -1011,6 +1026,7 @@ inline MediaControlFullscreenVolumeMaxButtonElement::MediaControlFullscreenVolum
 PassRefPtr<MediaControlFullscreenVolumeMaxButtonElement> MediaControlFullscreenVolumeMaxButtonElement::create(Document* document)
 {
     RefPtr<MediaControlFullscreenVolumeMaxButtonElement> button = adoptRef(new MediaControlFullscreenVolumeMaxButtonElement(document));
+    button->createShadowSubtree();
     button->setType("button");
     return button.release();
 }

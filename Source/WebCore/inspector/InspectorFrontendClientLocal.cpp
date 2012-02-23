@@ -36,16 +36,21 @@
 #include "Chrome.h"
 #include "FloatRect.h"
 #include "Frame.h"
+#include "FrameLoadRequest.h"
+#include "FrameLoader.h"
 #include "FrameView.h"
 #include "InspectorBackendDispatcher.h"
 #include "InspectorController.h"
 #include "InspectorFrontendHost.h"
+#include "InspectorPageAgent.h"
 #include "Page.h"
 #include "PlatformString.h"
 #include "ScriptFunctionCall.h"
 #include "ScriptObject.h"
 #include "Settings.h"
 #include "Timer.h"
+#include "UserGestureIndicator.h"
+#include "WindowFeatures.h"
 #include <wtf/Deque.h>
 
 namespace WebCore {
@@ -155,10 +160,12 @@ void InspectorFrontendClientLocal::requestDetachWindow()
 
 bool InspectorFrontendClientLocal::canAttachWindow()
 {
-    unsigned inspectedPageHeight = m_inspectorController->inspectedPage()->mainFrame()->view()->visibleHeight();
-
     // Don't allow the attach if the window would be too small to accommodate the minimum inspector height.
-    return minimumAttachedHeight <= inspectedPageHeight * maximumAttachedHeightRatio;
+    // Also don't allow attaching to another inspector -- two inspectors in one window is too much!
+    bool isInspectorPage = m_inspectorController->inspectedPage()->inspectorController()->hasInspectorFrontendClient();
+    unsigned inspectedPageHeight = m_inspectorController->inspectedPage()->mainFrame()->view()->visibleHeight();
+    unsigned maximumAttachedHeight = inspectedPageHeight * maximumAttachedHeightRatio;
+    return minimumAttachedHeight <= maximumAttachedHeight && !isInspectorPage;
 }
 
 void InspectorFrontendClientLocal::changeAttachedWindowHeight(unsigned height)
@@ -167,6 +174,26 @@ void InspectorFrontendClientLocal::changeAttachedWindowHeight(unsigned height)
     unsigned attachedHeight = constrainedAttachedWindowHeight(height, totalHeight);
     m_settings->setProperty(inspectorAttachedHeightSetting, String::number(attachedHeight));
     setAttachedWindowHeight(attachedHeight);
+}
+
+void InspectorFrontendClientLocal::openInNewTab(const String& url)
+{
+    UserGestureIndicator indicator(DefinitelyProcessingUserGesture);
+    Page* page = m_inspectorController->inspectedPage();
+    Frame* mainFrame = page->mainFrame();
+    FrameLoadRequest request(mainFrame->document()->securityOrigin(), ResourceRequest(), "_blank");
+
+    bool created;
+    WindowFeatures windowFeatures;
+    Frame* frame = WebCore::createWindow(mainFrame, mainFrame, request, windowFeatures, created);
+    if (!frame)
+        return;
+
+    frame->loader()->setOpener(mainFrame);
+    frame->page()->setOpenedByDOM();
+
+    // FIXME: Why does one use mainFrame and the other frame?
+    frame->loader()->changeLocation(mainFrame->document()->securityOrigin(), frame->document()->completeURL(url), "", false, false);
 }
 
 void InspectorFrontendClientLocal::moveWindowBy(float x, float y)
@@ -237,6 +264,12 @@ void InspectorFrontendClientLocal::stopProfilingJavaScript()
 void InspectorFrontendClientLocal::showConsole()
 {
     evaluateOnLoad("[\"showConsole\"]");
+}
+
+void InspectorFrontendClientLocal::showMainResourceForFrame(Frame* frame)
+{
+    String frameId = m_inspectorController->pageAgent()->frameId(frame);
+    evaluateOnLoad(String::format("[\"showMainResourceForFrame\", \"%s\"]", frameId.ascii().data()));
 }
 
 unsigned InspectorFrontendClientLocal::constrainedAttachedWindowHeight(unsigned preferredHeight, unsigned totalWindowHeight)

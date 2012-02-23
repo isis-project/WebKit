@@ -29,7 +29,7 @@
 import unittest
 
 from webkitpy.common.system.outputcapture import OutputCapture
-from webkitpy.common.config.ports import WebKitPort
+from webkitpy.common.config.ports import DeprecatedPort
 from webkitpy.tool.mocktool import MockOptions, MockTool
 
 from webkitpy.tool import steps
@@ -97,10 +97,10 @@ class StepsTest(unittest.TestCase):
 
     def test_runtests_args(self):
         mock_options = self._step_options()
+        mock_options.non_interactive = False
         step = steps.RunTests(MockTool(log_executive=True), mock_options)
         # FIXME: We shouldn't use a real port-object here, but there is too much to mock at the moment.
-        mock_port = WebKitPort()
-        mock_port.name = lambda: "Mac"
+        mock_port = DeprecatedPort()
         tool = MockTool(log_executive=True)
         tool.port = lambda: mock_port
         step = steps.RunTests(tool, mock_options)
@@ -111,6 +111,6 @@ MOCK run_and_throw_if_fail: ['Tools/Scripts/test-webkitperl'], cwd=/mock-checkou
 Running JavaScriptCore tests
 MOCK run_and_throw_if_fail: ['Tools/Scripts/run-javascriptcore-tests'], cwd=/mock-checkout
 Running run-webkit-tests
-MOCK run_and_throw_if_fail: ['Tools/Scripts/run-webkit-tests', '--no-new-test-results', '--no-launch-safari', '--exit-after-n-failures=20', '--quiet'], cwd=/mock-checkout
+MOCK run_and_throw_if_fail: ['Tools/Scripts/run-webkit-tests', '--quiet'], cwd=/mock-checkout
 """
         OutputCapture().assert_outputs(self, step.run, [{}], expected_stderr=expected_stderr)

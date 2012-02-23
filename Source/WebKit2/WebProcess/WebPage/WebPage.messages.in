@@ -40,6 +40,9 @@ messages -> WebPage {
 #if ENABLE(TOUCH_EVENTS)
     TouchEvent(WebKit::WebTouchEvent event)
     TouchEventSyncForTesting(WebKit::WebTouchEvent event) -> (bool handled)
+#if PLATFORM(QT)
+    HighlightPotentialActivation(WebCore::IntPoint point)
+#endif
 #endif
 
     ContextMenuHidden()
@@ -47,9 +50,9 @@ messages -> WebPage {
     ScrollBy(uint32_t scrollDirection, uint32_t scrollGranularity)
     CenterSelectionInVisibleArea()
 
-    GoBack(uint64_t backForwardItemID, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
-    GoForward(uint64_t backForwardItemID, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
-    GoToBackForwardItem(uint64_t backForwardItemID, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
+    GoBack(uint64_t backForwardItemID)
+    GoForward(uint64_t backForwardItemID)
+    GoToBackForwardItem(uint64_t backForwardItemID)
     TryRestoreScrollPosition()
     LoadHTMLString(WTF::String htmlString, WTF::String baseURL)
     LoadAlternateHTMLString(WTF::String htmlString, WTF::String baseURL, WTF::String unreachableURL); 
@@ -57,7 +60,7 @@ messages -> WebPage {
     LoadURL(WTF::String url, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
     LoadURLRequest(WebCore::ResourceRequest request, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
     LinkClicked(WTF::String url, WebKit::WebMouseEvent event)
-    Reload(bool reloadFromOrigin)
+    Reload(bool reloadFromOrigin, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
     StopLoading()
 
 #if PLATFORM(QT)
@@ -68,7 +71,7 @@ messages -> WebPage {
     StopLoadingFrame(uint64_t frameID)
     
     RestoreSession(WebKit::SessionState state)
-    RestoreSessionAndNavigateToCurrentItem(WebKit::SessionState state, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
+    RestoreSessionAndNavigateToCurrentItem(WebKit::SessionState state)
 
     DidRemoveBackForwardItem(uint64_t backForwardItemID)
 
@@ -123,6 +126,7 @@ messages -> WebPage {
     SetFixedLayoutSize(WebCore::IntSize size)
 
     SetPaginationMode(uint32_t mode);
+    SetPaginationBehavesLikeColumns(bool behavesLikeColumns);
     SetPageLength(double pageLength);
     SetGapBetweenPages(double gap);
 
@@ -187,6 +191,12 @@ messages -> WebPage {
     DrawRectToPDF(uint64_t frameID, WebKit::PrintInfo printInfo, WebCore::IntRect rect, uint64_t callbackID)
     DrawPagesToPDF(uint64_t frameID, WebKit::PrintInfo printInfo, uint32_t first, uint32_t count, uint64_t callbackID)
 #endif
+#if PLATFORM(GTK)
+    DrawPagesForPrinting(uint64_t frameID, WebKit::PrintInfo printInfo, uint64_t callbackID)
+#endif
+
+    # Media
+    SetMediaVolume(float volume)
 
     SetMemoryCacheMessagesEnabled(bool memoryCacheMessagesEnabled)
 

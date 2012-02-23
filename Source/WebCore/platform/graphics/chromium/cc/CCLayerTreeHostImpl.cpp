@@ -114,7 +114,7 @@ void CCLayerTreeHostImpl::animate(double frameBeginTimeMs)
     }
 }
 
-void CCLayerTreeHostImpl::startPageScaleAnimation(const IntSize& targetPosition, bool anchorPoint, float pageScale, double durationMs)
+void CCLayerTreeHostImpl::startPageScaleAnimation(const IntSize& targetPosition, bool anchorPoint, float pageScale, double startTimeMs, double durationMs)
 {
     if (!m_scrollLayerImpl)
         return;
@@ -122,10 +122,10 @@ void CCLayerTreeHostImpl::startPageScaleAnimation(const IntSize& targetPosition,
     IntSize scrollTotal = toSize(m_scrollLayerImpl->scrollPosition() + m_scrollLayerImpl->scrollDelta());
     scrollTotal.scale(m_pageScaleDelta);
     float scaleTotal = m_pageScale * m_pageScaleDelta;
-    IntSize scaledContentSize = m_scrollLayerImpl->children()[0]->contentBounds();
+    IntSize scaledContentSize = contentSize();
     scaledContentSize.scale(m_pageScaleDelta);
 
-    m_pageScaleAnimation = CCPageScaleAnimation::create(scrollTotal, scaleTotal, m_viewportSize, scaledContentSize, currentTimeMs());
+    m_pageScaleAnimation = CCPageScaleAnimation::create(scrollTotal, scaleTotal, m_viewportSize, scaledContentSize, startTimeMs);
 
     if (anchorPoint) {
         IntSize windowAnchor(targetPosition);
@@ -148,7 +148,7 @@ void CCLayerTreeHostImpl::trackDamageForAllSurfaces(CCLayerImpl* rootDrawLayer, 
         CCLayerImpl* renderSurfaceLayer = renderSurfaceLayerList[surfaceIndex].get();
         CCRenderSurface* renderSurface = renderSurfaceLayer->renderSurface();
         ASSERT(renderSurface);
-        renderSurface->damageTracker()->updateDamageRectForNextFrame(renderSurface->layerList(), renderSurfaceLayer->id(), renderSurfaceLayer->maskLayer());
+        renderSurface->damageTracker()->updateDamageTrackingState(renderSurface->layerList(), renderSurfaceLayer->id(), renderSurfaceLayer->maskLayer());
     }
 }
 
@@ -231,6 +231,7 @@ void CCLayerTreeHostImpl::calculateRenderPasses(CCRenderPassList& passes)
                 continue;
             }
 
+            layer->willDraw(m_layerRenderer.get());
             pass->appendQuadsForLayer(layer);
         }
 
@@ -242,6 +243,15 @@ void CCLayerTreeHostImpl::optimizeRenderPasses(CCRenderPassList& passes)
 {
     for (unsigned i = 0; i < passes.size(); ++i)
         passes[i]->optimizeQuads();
+}
+
+IntSize CCLayerTreeHostImpl::contentSize() const
+{
+    // TODO(aelias): Hardcoding the first child here is weird. Think of
+    // a cleaner way to get the contentBounds on the Impl side.
+    if (!m_scrollLayerImpl || m_scrollLayerImpl->children().isEmpty())
+        return IntSize();
+    return m_scrollLayerImpl->children()[0]->contentBounds();
 }
 
 void CCLayerTreeHostImpl::drawLayers()
@@ -275,8 +285,7 @@ void CCLayerTreeHostImpl::finishAllRendering()
 
 bool CCLayerTreeHostImpl::isContextLost()
 {
-    ASSERT(m_layerRenderer);
-    return m_layerRenderer->isContextLost();
+    return m_layerRenderer && m_layerRenderer->isContextLost();
 }
 
 const LayerRendererCapabilities& CCLayerTreeHostImpl::layerRendererCapabilities() const
@@ -346,14 +355,6 @@ bool CCLayerTreeHostImpl::initializeLayerRenderer(PassRefPtr<GraphicsContext3D> 
     OwnPtr<LayerRendererChromium> layerRenderer;
     layerRenderer = LayerRendererChromium::create(this, context);
 
-    // If creation failed, and we had asked for accelerated painting, disable accelerated painting
-    // and try creating the renderer again.
-    if (!layerRenderer && m_settings.acceleratePainting) {
-        m_settings.acceleratePainting = false;
-
-        layerRenderer = LayerRendererChromium::create(this, context);
-    }
-
     if (m_layerRenderer)
         m_layerRenderer->close();
 
@@ -368,7 +369,9 @@ void CCLayerTreeHostImpl::setViewportSize(const IntSize& viewportSize)
 
     m_viewportSize = viewportSize;
     updateMaxScrollPosition();
-    m_layerRenderer->viewportChanged();
+
+    if (m_layerRenderer)
+        m_layerRenderer->viewportChanged();
 }
 
 void CCLayerTreeHostImpl::setPageScaleFactorAndLimits(float pageScale, float minPageScale, float maxPageScale)
@@ -438,9 +441,7 @@ void CCLayerTreeHostImpl::updateMaxScrollPosition()
     FloatSize viewBounds = m_viewportSize;
     viewBounds.scale(1 / m_pageScaleDelta);
 
-    // TODO(aelias): Hardcoding the first child here is weird. Think of
-    // a cleaner way to get the contentBounds on the Impl side.
-    IntSize maxScroll = m_scrollLayerImpl->children()[0]->contentBounds() - expandedIntSize(viewBounds);
+    IntSize maxScroll = contentSize() - expandedIntSize(viewBounds);
     // The viewport may be larger than the contents in some cases, such as
     // having a vertical scrollbar but no horizontal overflow.
     maxScroll.clampNegativeToZero();
@@ -448,11 +449,6 @@ void CCLayerTreeHostImpl::updateMaxScrollPosition()
     m_scrollLayerImpl->setMaxScrollPosition(maxScroll);
 
     // TODO(aelias): Also update sublayers.
-}
-
-double CCLayerTreeHostImpl::currentTimeMs() const
-{
-    return monotonicallyIncreasingTime() * 1000.0;
 }
 
 void CCLayerTreeHostImpl::setNeedsRedraw()
@@ -544,6 +540,15 @@ PassOwnPtr<CCScrollAndScaleSet> CCLayerTreeHostImpl::processScrollDeltas()
     m_scrollLayerImpl->setSentScrollDelta(scroll.scrollDelta);
 
     return scrollInfo.release();
+}
+
+void CCLayerTreeHostImpl::setFullRootLayerDamage()
+{
+    if (rootLayer()) {
+        CCRenderSurface* renderSurface = rootLayer()->renderSurface();
+        if (renderSurface)
+            renderSurface->damageTracker()->forceFullDamageNextUpdate();
+    }
 }
 
 }

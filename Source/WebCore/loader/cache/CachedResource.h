@@ -110,7 +110,7 @@ public:
     void setLoadPriority(ResourceLoadPriority);
 
     void addClient(CachedResourceClient*);
-    void removeClient(CachedResourceClient*);
+    virtual void removeClient(CachedResourceClient*);
     bool hasClients() const { return !m_clients.isEmpty(); }
     void deleteIfPossible();
 
@@ -292,6 +292,8 @@ private:
 
     bool m_inCache : 1;
     bool m_loading : 1;
+
+    bool m_switchingClientsToRevalidatedResource : 1;
 
     unsigned m_type : 4; // Type
     unsigned m_status : 3; // Status

@@ -219,7 +219,7 @@ void JIT::privateCompileMainPass()
         m_labels[m_bytecodeOffset] = label();
 
 #if ENABLE(JIT_VERBOSE)
-        printf("Old JIT emitting code for bc#%u at offset 0x%lx.\n", m_bytecodeOffset, (long)debugOffset());
+        dataLog("Old JIT emitting code for bc#%u at offset 0x%lx.\n", m_bytecodeOffset, (long)debugOffset());
 #endif
 
         switch (m_interpreter->getOpcodeID(currentInstruction->u.opcode)) {
@@ -328,10 +328,9 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_put_by_id)
         DEFINE_OP(op_put_by_index)
         DEFINE_OP(op_put_by_val)
-        DEFINE_OP(op_put_getter)
+        DEFINE_OP(op_put_getter_setter)
         DEFINE_OP(op_put_global_var)
         DEFINE_OP(op_put_scoped_var)
-        DEFINE_OP(op_put_setter)
         DEFINE_OP(op_resolve)
         DEFINE_OP(op_resolve_base)
         DEFINE_OP(op_ensure_property_exists)
@@ -430,7 +429,7 @@ void JIT::privateCompileSlowCases()
 #endif
 
 #if ENABLE(JIT_VERBOSE)
-        printf("Old JIT emitting slow code for bc#%u at offset 0x%lx.\n", m_bytecodeOffset, (long)debugOffset());
+        dataLog("Old JIT emitting slow code for bc#%u at offset 0x%lx.\n", m_bytecodeOffset, (long)debugOffset());
 #endif
 
         switch (m_interpreter->getOpcodeID(currentInstruction->u.opcode)) {
@@ -607,14 +606,18 @@ JITCode JIT::privateCompile(CodePtr* functionEntryArityCheck)
         load32(payloadFor(RegisterFile::ArgumentCount), regT1);
         branch32(AboveOrEqual, regT1, TrustedImm32(m_codeBlock->m_numParameters)).linkTo(beginLabel, this);
 
+        m_bytecodeOffset = 0;
         JITStubCall(this, m_codeBlock->m_isConstructor ? cti_op_construct_arityCheck : cti_op_call_arityCheck).call(callFrameRegister);
+#if !ASSERT_DISABLED
+        m_bytecodeOffset = (unsigned)-1; // Reset this, in order to guard its use with ASSERTs.
+#endif
 
         jump(beginLabel);
     }
 
     ASSERT(m_jmpTable.isEmpty());
 
-    LinkBuffer patchBuffer(*m_globalData, this);
+    LinkBuffer patchBuffer(*m_globalData, this, m_codeBlock);
 
     // Translate vPC offsets into addresses in JIT generated code, for switch tables.
     for (unsigned i = 0; i < m_switches.size(); ++i) {
@@ -707,7 +710,7 @@ JITCode JIT::privateCompile(CodePtr* functionEntryArityCheck)
     CodeRef result = patchBuffer.finalizeCode();
     
 #if ENABLE(JIT_VERBOSE)
-    printf("JIT generated code for %p at [%p, %p).\n", m_codeBlock, result.executableMemory()->start(), result.executableMemory()->end());
+    dataLog("JIT generated code for %p at [%p, %p).\n", m_codeBlock, result.executableMemory()->start(), result.executableMemory()->end());
 #endif
     
     return JITCode(result, JITCode::BaselineJIT);

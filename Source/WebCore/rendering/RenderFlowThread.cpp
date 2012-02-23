@@ -137,6 +137,15 @@ void RenderFlowThread::removeFlowChild(RenderObject* child)
     m_flowThreadChildList.remove(child);
 }
 
+void RenderFlowThread::removeFlowChildInfo(RenderObject* child)
+{
+    if (child->isBox()) {
+        removeRenderBoxRegionInfo(toRenderBox(child));
+        if (child->canHaveRegionStyle())
+            clearRenderBoxCustomStyle(toRenderBox(child));
+    }
+}
+
 // Compare two regions to determine in which one the content should flow first.
 // The function returns true if the first passed region is "less" than the second passed region.
 // If the first region appears before second region in DOM,
@@ -204,6 +213,7 @@ void RenderFlowThread::addRegionToThread(RenderRegion* renderRegion)
 void RenderFlowThread::removeRegionFromThread(RenderRegion* renderRegion)
 {
     ASSERT(renderRegion);
+
     m_regionRangeMap.clear();
     m_regionList.remove(renderRegion);
 
@@ -296,6 +306,27 @@ public:
         view->setCurrentRenderFlowThread(0);
     }
 private:
+    RenderFlowThread* m_renderFlowThread;
+};
+
+class CurrentRenderFlowThreadDisabler {
+    WTF_MAKE_NONCOPYABLE(CurrentRenderFlowThreadDisabler);
+public:
+    CurrentRenderFlowThreadDisabler(RenderView* view)
+        : m_view(view)
+        , m_renderFlowThread(0)
+    {
+        m_renderFlowThread = m_view->currentRenderFlowThread();
+        if (m_renderFlowThread)
+            view->setCurrentRenderFlowThread(0);
+    }
+    ~CurrentRenderFlowThreadDisabler()
+    {
+        if (m_renderFlowThread)
+            m_view->setCurrentRenderFlowThread(m_renderFlowThread);
+    }
+private:
+    RenderView* m_view;
     RenderFlowThread* m_renderFlowThread;
 };
 
@@ -423,7 +454,7 @@ void RenderFlowThread::paintIntoRegion(PaintInfo& paintInfo, RenderRegion* regio
     LayoutRect regionClippingRect(paintOffset + (regionOverflowRect.location() - regionRect.location()), regionOverflowRect.size());
 
     PaintInfo info(paintInfo);
-    info.rect.intersect(regionClippingRect);
+    info.rect.intersect(pixelSnappedIntRect(regionClippingRect));
 
     if (!info.rect.isEmpty()) {
         context->save();
@@ -442,7 +473,7 @@ void RenderFlowThread::paintIntoRegion(PaintInfo& paintInfo, RenderRegion* regio
             renderFlowThreadOffset = LayoutPoint(paintOffset - regionRect.location());
 
         context->translate(renderFlowThreadOffset.x(), renderFlowThreadOffset.y());
-        info.rect.moveBy(-renderFlowThreadOffset);
+        info.rect.moveBy(-roundedIntPoint(renderFlowThreadOffset));
         
         layer()->paint(context, info.rect, 0, 0, region, RenderLayer::PaintLayerTemporaryClipRects);
 
@@ -469,7 +500,7 @@ bool RenderFlowThread::hitTestRegion(RenderRegion* region, const HitTestRequest&
     LayoutPoint transformedPoint(pointInContainer.x() - renderFlowThreadOffset.x(), pointInContainer.y() - renderFlowThreadOffset.y());
     
     // Always ignore clipping, since the RenderFlowThread has nothing to do with the bounds of the FrameView.
-    HitTestRequest newRequest(request.type() & HitTestRequest::IgnoreClipping);
+    HitTestRequest newRequest(request.type() | HitTestRequest::IgnoreClipping);
 
     RenderRegion* oldRegion = result.region();
     result.setRegion(region);
@@ -520,6 +551,10 @@ void RenderFlowThread::repaintRectangleInRegions(const LayoutRect& repaintRect, 
         // Now switch to the region's writing mode coordinate space and let it repaint itself.
         region->flipForWritingMode(clippedRect);
         LayoutStateDisabler layoutStateDisabler(view()); // We can't use layout state to repaint, since the region is somewhere else.
+
+        // Can't use currentFlowThread as it possible to have imbricated flow threads and the wrong one could be used,
+        // so, we let each region figure out the proper enclosing flow thread
+        CurrentRenderFlowThreadDisabler disabler(view());
         region->repaintRectangle(clippedRect, immediate);
     }
 }
@@ -552,6 +587,14 @@ RenderRegion* RenderFlowThread::renderRegionForLine(LayoutUnit position, bool ex
     }
 
     return lastValidRegion;
+}
+
+LayoutUnit RenderFlowThread::regionLogicalTopForLine(LayoutUnit position) const
+{
+    RenderRegion* region = renderRegionForLine(position);
+    if (!region)
+        return 0;
+    return isHorizontalWritingMode() ? region->regionRect().y() : region->regionRect().x();
 }
 
 LayoutUnit RenderFlowThread::regionLogicalWidthForLine(LayoutUnit position) const
@@ -620,7 +663,7 @@ void RenderFlowThread::removeRenderBoxRegionInfo(RenderBox* box)
     RenderRegion* startRegion;
     RenderRegion* endRegion;
     getRegionRangeForBox(box, startRegion, endRegion);
-    
+
     for (RenderRegionList::iterator iter = m_regionList.find(startRegion); iter != m_regionList.end(); ++iter) {
         RenderRegion* region = *iter;
         if (!region->isValid())
@@ -629,7 +672,17 @@ void RenderFlowThread::removeRenderBoxRegionInfo(RenderBox* box)
         if (region == endRegion)
             break;
     }
-    
+
+#ifndef NDEBUG
+    // We have to make sure we did not left any boxes with region info attached in regions.
+    for (RenderRegionList::iterator iter = m_regionList.begin(); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+        if (!region->isValid())
+            continue;
+        ASSERT(!region->renderBoxRegionInfo(box));
+    }
+#endif
+
     m_regionRangeMap.remove(box);
 }
 
@@ -734,8 +787,37 @@ RenderRegion* RenderFlowThread::lastRegion() const
     return 0;
 }
 
+void RenderFlowThread::clearRenderBoxCustomStyle(const RenderBox* box,
+    const RenderRegion* oldStartRegion, const RenderRegion* oldEndRegion,
+    const RenderRegion* newStartRegion, const RenderRegion* newEndRegion)
+{
+    // Clear the styles for the object in the regions.
+    // The styles are not cleared for the regions that are contained in both ranges.
+    bool insideOldRegionRange = false;
+    bool insideNewRegionRange = false;
+    for (RenderRegionList::iterator iter = m_regionList.begin(); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+
+        if (oldStartRegion == region)
+            insideOldRegionRange = true;
+        if (newStartRegion == region)
+            insideNewRegionRange = true;
+
+        if (!(insideOldRegionRange && insideNewRegionRange))
+            region->clearBoxStyleInRegion(box);
+
+        if (oldEndRegion == region)
+            insideOldRegionRange = false;
+        if (newEndRegion == region)
+            insideNewRegionRange = false;
+    }
+}
+
 void RenderFlowThread::setRegionRangeForBox(const RenderBox* box, LayoutUnit offsetFromLogicalTopOfFirstPage)
 {
+    if (!hasRegions())
+        return;
+
     // FIXME: Not right for differing writing-modes.
     RenderRegion* startRegion = renderRegionForLine(offsetFromLogicalTopOfFirstPage, true);
     RenderRegion* endRegion = renderRegionForLine(offsetFromLogicalTopOfFirstPage + box->logicalHeight(), true);
@@ -764,6 +846,7 @@ void RenderFlowThread::setRegionRangeForBox(const RenderBox* box, LayoutUnit off
             break;
     }
 
+    clearRenderBoxCustomStyle(box, range.startRegion(), range.endRegion(), startRegion, endRegion);
     range.setRange(startRegion, endRegion);
 }
 
@@ -787,6 +870,33 @@ WebKitNamedFlow* RenderFlowThread::ensureNamedFlow()
         m_namedFlow = WebKitNamedFlow::create();
 
     return m_namedFlow.get();
+}
+
+void RenderFlowThread::computeOverflowStateForRegions(LayoutUnit oldClientAfterEdge)
+{
+    LayoutUnit height = oldClientAfterEdge;
+    // FIXME: the visual overflow of middle region (if it is the last one to contain any content in a render flow thread)
+    // might not be taken into account because the render flow thread height is greater that that regions height + its visual overflow
+    // because of how computeLogicalHeight is implemented for RenderFlowThread (as a sum of all regions height).
+    // This means that the middle region will be marked as fit (even if it has visual overflow flowing into the next region)
+    if (hasRenderOverflow())
+        height = isHorizontalWritingMode() ? visualOverflowRect().maxY() : visualOverflowRect().maxX();
+
+    for (RenderRegionList::iterator iter = m_regionList.begin(); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+        if (!region->isValid()) {
+            region->setRegionState(RenderRegion::RegionUndefined);
+            continue;
+        }
+        LayoutUnit flowMin = height - (isHorizontalWritingMode() ? region->regionRect().y() : region->regionRect().x());
+        LayoutUnit flowMax = height - (isHorizontalWritingMode() ? region->regionRect().maxY() : region->regionRect().maxX());
+        RenderRegion::RegionState state = RenderRegion::RegionFit;
+        if (flowMin <= 0)
+            state = RenderRegion::RegionEmpty;
+        if (flowMax > 0)
+            state = RenderRegion::RegionOverflow;
+        region->setRegionState(state);
+    }
 }
 
 } // namespace WebCore

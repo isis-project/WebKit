@@ -14,6 +14,7 @@ SET(JavaScriptCore_INCLUDE_DIRECTORIES
     "${JAVASCRIPTCORE_DIR}/parser"
     "${JAVASCRIPTCORE_DIR}/profiler"
     "${JAVASCRIPTCORE_DIR}/runtime"
+    "${JAVASCRIPTCORE_DIR}/tools"
     "${JAVASCRIPTCORE_DIR}/yarr"
     "${JAVASCRIPTCORE_DIR}/wtf"
     "${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}"
@@ -35,12 +36,17 @@ SET(JavaScriptCore_SOURCES
     API/OpaqueJSString.cpp
 
     bytecode/CallLinkInfo.cpp
+    bytecode/CallLinkStatus.cpp
     bytecode/CodeBlock.cpp
     bytecode/DFGExitProfile.cpp
+    bytecode/GetByIdStatus.cpp
     bytecode/JumpTable.cpp
     bytecode/MethodCallLinkInfo.cpp
+    bytecode/MethodCallLinkStatus.cpp
     bytecode/Opcode.cpp
+    bytecode/PolymorphicPutByIdList.cpp
     bytecode/PredictedType.cpp
+    bytecode/PutByIdStatus.cpp
     bytecode/SamplingTool.cpp
     bytecode/StructureStubInfo.cpp
     bytecode/ValueProfile.cpp
@@ -69,12 +75,13 @@ SET(JavaScriptCore_SOURCES
     dfg/DFGSpeculativeJIT64.cpp
     dfg/DFGThunks.cpp
 
-    heap/AllocationSpace.cpp
+    heap/BumpSpace.cpp
     heap/DFGCodeBlocks.cpp
     heap/Heap.cpp
     heap/HandleHeap.cpp
     heap/HandleStack.cpp
     heap/MachineStackMarker.cpp
+    heap/MarkedAllocator.cpp
     heap/MarkedBlock.cpp
     heap/MarkedSpace.cpp
     heap/ConservativeRoots.cpp
@@ -84,6 +91,7 @@ SET(JavaScriptCore_SOURCES
     debugger/DebuggerActivation.cpp
     debugger/DebuggerCallFrame.cpp
     
+    interpreter/AbstractPC.cpp
     interpreter/CallFrame.cpp
     interpreter/Interpreter.cpp
     interpreter/RegisterFile.cpp
@@ -195,12 +203,14 @@ SET(JavaScriptCore_SOURCES
     runtime/TimeoutChecker.cpp
     runtime/UString.cpp
 
+    tools/CodeProfile.cpp
+    tools/CodeProfiling.cpp
+
     yarr/YarrPattern.cpp
     yarr/YarrInterpreter.cpp
     yarr/YarrJIT.cpp
     yarr/YarrSyntaxChecker.cpp
 )
-SET(JavaScriptCore_HEADERS )
 
 SET(JavaScriptCore_LUT_FILES
     runtime/ArrayConstructor.cpp

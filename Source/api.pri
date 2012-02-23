@@ -31,7 +31,7 @@ WEBKIT += webcore
 }
 
 QT += network
-haveQt(5): QT += widgets printsupport
+haveQt(5): QT += widgets printsupport quick
 
 win32*:!win32-msvc* {
     # Make sure OpenGL libs are after the webcore lib so MinGW can resolve symbols
@@ -221,12 +221,3 @@ mac {
 
 plugin_backend_xlib: PKGCONFIG += x11
 
-linux-g++*: {
-    PRE_TARGETDEPS += $$PWD/qtwebkit-export.map
-    QMAKE_LFLAGS += -Wl,--version-script=$$PWD/qtwebkit-export.map
-
-    !no_webkit2: {
-        # -lrt is required for shm_open and shm_unlink.
-        LIBS += -lrt
-    }
-}

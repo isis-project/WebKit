@@ -76,28 +76,6 @@ ScriptValue InjectedScriptHost::nodeAsScriptValue(ScriptState* state, Node* node
     return ScriptValue(state->globalData(), toJS(state, deprecatedGlobalObjectForPrototype(state), node));
 }
 
-JSValue JSInjectedScriptHost::evaluate(ExecState* exec)
-{
-    JSValue expression = exec->argument(0);
-    if (!expression.isString())
-        return throwError(exec, createError(exec, "String argument expected."));
-    JSGlobalObject* globalObject = exec->lexicalGlobalObject();
-    JSFunction* evalFunction = globalObject->evalFunction();
-    CallData callData;
-    CallType callType = evalFunction->methodTable()->getCallData(evalFunction, callData);
-    if (callType == CallTypeNone)
-        return jsUndefined();
-    MarkedArgumentBuffer args;
-    args.append(expression);
-
-    bool wasEvalEnabled = globalObject->evalEnabled();
-    globalObject->setEvalEnabled(true);
-    JSValue result = JSC::call(exec, evalFunction, callType, callData, exec->globalThisValue(), args);
-    globalObject->setEvalEnabled(wasEvalEnabled);
-
-    return result;
-}
-
 JSValue JSInjectedScriptHost::inspectedNode(ExecState* exec)
 {
     if (exec->argumentCount() < 1)
@@ -157,7 +135,7 @@ JSValue JSInjectedScriptHost::type(ExecState* exec)
     return jsUndefined();
 }
 
-JSValue JSInjectedScriptHost::functionLocation(ExecState* exec)
+JSValue JSInjectedScriptHost::functionDetails(ExecState* exec)
 {
     if (exec->argumentCount() < 1)
         return jsUndefined();
@@ -174,9 +152,18 @@ JSValue JSInjectedScriptHost::functionLocation(ExecState* exec)
         lineNumber -= 1; // In the inspector protocol all positions are 0-based while in SourceCode they are 1-based
     UString scriptId = UString::number(sourceCode->provider()->asID());
 
+    JSObject* location = constructEmptyObject(exec);
+    location->putDirect(exec->globalData(), Identifier(exec, "lineNumber"), jsNumber(lineNumber));
+    location->putDirect(exec->globalData(), Identifier(exec, "scriptId"), jsString(exec, scriptId));
+
     JSObject* result = constructEmptyObject(exec);
-    result->putDirect(exec->globalData(), Identifier(exec, "lineNumber"), jsNumber(lineNumber));
-    result->putDirect(exec->globalData(), Identifier(exec, "scriptId"), jsString(exec, scriptId));
+    result->putDirect(exec->globalData(), Identifier(exec, "location"), location);
+    UString name = function->name(exec);
+    if (!name.isEmpty())
+        result->putDirect(exec->globalData(), Identifier(exec, "name"), jsString(exec, name));
+    UString displayName = function->displayName(exec);
+    if (!displayName.isEmpty())
+        result->putDirect(exec->globalData(), Identifier(exec, "displayName"), jsString(exec, displayName));
     return result;
 }
 

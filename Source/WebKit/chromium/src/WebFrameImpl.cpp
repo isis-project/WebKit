@@ -106,6 +106,7 @@
 #include "IconURL.h"
 #include "InspectorController.h"
 #include "KURL.h"
+#include "Node.h"
 #include "Page.h"
 #include "PageOverlay.h"
 #include "painting/GraphicsContextBuilder.h"
@@ -122,8 +123,6 @@
 #include "ReplaceSelectionCommand.h"
 #include "ResourceHandle.h"
 #include "ResourceRequest.h"
-#include "SVGDocumentExtensions.h"
-#include "SVGSMILElement.h"
 #include "SchemeRegistry.h"
 #include "ScriptController.h"
 #include "ScriptSourceCode.h"
@@ -133,6 +132,7 @@
 #include "SecurityPolicy.h"
 #include "Settings.h"
 #include "SkiaUtils.h"
+#include "SpellChecker.h"
 #include "SubstituteData.h"
 #include "TextAffinity.h"
 #include "TextIterator.h"
@@ -1294,6 +1294,16 @@ bool WebFrameImpl::isContinuousSpellCheckingEnabled() const
     return frame()->editor()->isContinuousSpellCheckingEnabled();
 }
 
+void WebFrameImpl::requestTextChecking(const WebElement& webElem)
+{
+    if (webElem.isNull())
+        return;
+
+    RefPtr<Range> rangeToCheck = rangeOfContents(const_cast<Element*>(webElem.constUnwrap<Element>()));
+
+    frame()->editor()->spellChecker()->requestCheckingFor(SpellCheckRequest::create(TextCheckingTypeSpelling | TextCheckingTypeGrammar, rangeToCheck, rangeToCheck));
+}
+
 bool WebFrameImpl::hasSelection() const
 {
     WebPluginContainerImpl* pluginContainer = pluginContainerFromFrame(frame());
@@ -1372,7 +1382,7 @@ void WebFrameImpl::selectRange(const WebPoint& start, const WebPoint& end)
 
 VisiblePosition WebFrameImpl::visiblePositionForWindowPoint(const WebPoint& point)
 {
-    HitTestRequest::HitTestRequestType hitType = HitTestRequest::MouseMove;
+    HitTestRequest::HitTestRequestType hitType = HitTestRequest::Move;
     hitType |= HitTestRequest::ReadOnly;
     hitType |= HitTestRequest::Active;
     HitTestRequest request(hitType);
@@ -1934,26 +1944,6 @@ bool WebFrameImpl::selectionStartHasSpellingMarkerFor(int from, int length) cons
     return m_frame->editor()->selectionStartHasMarkerFor(DocumentMarker::Spelling, from, length);
 }
 
-bool WebFrameImpl::pauseSVGAnimation(const WebString& animationId, double time, const WebString& elementId)
-{
-#if !ENABLE(SVG)
-    return false;
-#else
-    if (!m_frame)
-        return false;
-
-    Document* document = m_frame->document();
-    if (!document || !document->svgExtensions())
-        return false;
-
-    Node* coreNode = document->getElementById(animationId);
-    if (!coreNode || !SVGSMILElement::isSMILElement(coreNode))
-        return false;
-
-    return document->accessSVGExtensions()->sampleAnimationAtTime(elementId, static_cast<SVGSMILElement*>(coreNode), time);
-#endif
-}
-
 WebString WebFrameImpl::layerTreeAsText(bool showDebugInfo) const
 {
     if (!m_frame)
@@ -2093,10 +2083,6 @@ void WebFrameImpl::createFrameView()
     m_frame->createView(webView->size(), Color::white, webView->isTransparent(),  webView->fixedLayoutSize(), isMainFrame ? webView->isFixedLayoutModeEnabled() : 0);
     if (webView->shouldAutoResize() && isMainFrame)
         m_frame->view()->enableAutoSizeMode(true, webView->minAutoSize(), webView->maxAutoSize());
-
-#if ENABLE(GESTURE_RECOGNIZER)
-    webView->resetGestureRecognizer();
-#endif
 }
 
 WebFrameImpl* WebFrameImpl::fromFrame(Frame* frame)
@@ -2152,11 +2138,18 @@ void WebFrameImpl::setFindEndstateFocusAndSelection()
         // Try to find the first focusable node up the chain, which will, for
         // example, focus links if we have found text within the link.
         Node* node = m_activeMatch->firstNode();
+        if (node && node->isInShadowTree()) {
+            Node* host = node->shadowAncestorNode();
+            if (host->hasTagName(HTMLNames::inputTag) || host->hasTagName(HTMLNames::textareaTag))
+                node = host;
+        }
         while (node && !node->isFocusable() && node != frame()->document())
             node = node->parentNode();
 
         if (node && node != frame()->document()) {
-            // Found a focusable parent node. Set focus to it.
+            // Found a focusable parent node. Set the active match as the
+            // selection and focus to the focusable node.
+            frame()->selection()->setSelection(m_activeMatch.get());
             frame()->document()->setFocusedNode(node);
             return;
         }

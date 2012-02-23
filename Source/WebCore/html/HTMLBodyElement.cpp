@@ -25,6 +25,7 @@
 #include "HTMLBodyElement.h"
 
 #include "Attribute.h"
+#include "CSSImageValue.h"
 #include "CSSParser.h"
 #include "CSSValueKeywords.h"
 #include "EventNames.h"
@@ -60,49 +61,39 @@ HTMLBodyElement::~HTMLBodyElement()
 {
 }
 
-bool HTMLBodyElement::mapToEntry(const QualifiedName& attrName, MappedAttributeEntry& result) const
+bool HTMLBodyElement::isPresentationAttribute(Attribute* attr) const
 {
-    if (attrName == backgroundAttr) {
-        result = (MappedAttributeEntry)(eLastEntry + document()->docID());
-        return false;
-    } 
-    
-    if (attrName == bgcolorAttr ||
-        attrName == textAttr ||
-        attrName == marginwidthAttr ||
-        attrName == leftmarginAttr ||
-        attrName == marginheightAttr ||
-        attrName == topmarginAttr ||
-        attrName == bgpropertiesAttr) {
-        result = eUniversal;
-        return false;
-    }
-
-    return HTMLElement::mapToEntry(attrName, result);
+    if (attr->name() == backgroundAttr || attr->name() == marginwidthAttr || attr->name() == leftmarginAttr || attr->name() == marginheightAttr || attr->name() == topmarginAttr || attr->name() == bgcolorAttr || attr->name() == textAttr || attr->name() == bgpropertiesAttr)
+        return true;
+    return HTMLElement::isPresentationAttribute(attr);
 }
 
-void HTMLBodyElement::parseMappedAttribute(Attribute* attr)
+void HTMLBodyElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == backgroundAttr) {
         String url = stripLeadingAndTrailingHTMLSpaces(attr->value());
         if (!url.isEmpty())
-            addCSSImageProperty(attr, CSSPropertyBackgroundImage, document()->completeURL(url).string());
+            style->setProperty(CSSProperty(CSSPropertyBackgroundImage, CSSImageValue::create(document()->completeURL(url).string())));
     } else if (attr->name() == marginwidthAttr || attr->name() == leftmarginAttr) {
-        addCSSLength(attr, CSSPropertyMarginRight, attr->value());
-        addCSSLength(attr, CSSPropertyMarginLeft, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyMarginRight, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyMarginLeft, attr->value());
     } else if (attr->name() == marginheightAttr || attr->name() == topmarginAttr) {
-        addCSSLength(attr, CSSPropertyMarginBottom, attr->value());
-        addCSSLength(attr, CSSPropertyMarginTop, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyMarginBottom, attr->value());
+        addHTMLLengthToStyle(style, CSSPropertyMarginTop, attr->value());
     } else if (attr->name() == bgcolorAttr) {
-        addCSSColor(attr, CSSPropertyBackgroundColor, attr->value());
+        addHTMLColorToStyle(style, CSSPropertyBackgroundColor, attr->value());
     } else if (attr->name() == textAttr) {
-        addCSSColor(attr, CSSPropertyColor, attr->value());
+        addHTMLColorToStyle(style, CSSPropertyColor, attr->value());
     } else if (attr->name() == bgpropertiesAttr) {
         if (equalIgnoringCase(attr->value(), "fixed"))
-            addCSSProperty(attr, CSSPropertyBackgroundAttachment, CSSValueFixed);
-    } else if (attr->name() == vlinkAttr ||
-               attr->name() == alinkAttr ||
-               attr->name() == linkAttr) {
+           style->setProperty(CSSPropertyBackgroundAttachment, CSSValueFixed);
+    } else
+        HTMLElement::collectStyleForAttribute(attr, style);
+}
+
+void HTMLBodyElement::parseAttribute(Attribute* attr)
+{
+    if (attr->name() == vlinkAttr || attr->name() == alinkAttr || attr->name() == linkAttr) {
         if (attr->isNull()) {
             if (attr->name() == linkAttr)
                 document()->resetLinkColor();
@@ -159,12 +150,14 @@ void HTMLBodyElement::parseMappedAttribute(Attribute* attr)
     else if (attr->name() == onofflineAttr)
         document()->setWindowAttributeEventListener(eventNames().offlineEvent, createAttributeEventListener(document()->frame(), attr));
     else
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::parseAttribute(attr);
 }
 
 void HTMLBodyElement::insertedIntoDocument()
 {
     HTMLElement::insertedIntoDocument();
+
+    ASSERT(document());
 
     // FIXME: Perhaps this code should be in attach() instead of here.
     Element* ownerElement = document()->ownerElement();
@@ -183,8 +176,7 @@ void HTMLBodyElement::insertedIntoDocument()
     if (FrameView* view = document()->view())
         view->scheduleRelayout();
 
-    if (document() && document()->page())
-        document()->page()->updateViewportArguments();
+    document()->updateViewportArguments();
 }
 
 bool HTMLBodyElement::isURLAttribute(Attribute *attr) const

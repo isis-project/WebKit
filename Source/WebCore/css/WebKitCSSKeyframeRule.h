@@ -27,12 +27,11 @@
 #define WebKitCSSKeyframeRule_h
 
 #include "CSSRule.h"
+#include "StylePropertySet.h"
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefPtr.h>
 
 namespace WebCore {
-
-class CSSMutableStyleDeclaration;
 
 typedef int ExceptionCode;
 
@@ -54,21 +53,19 @@ public:
 
     void getKeys(Vector<float>& keys) const   { parseKeyString(m_key, keys); }
 
-    CSSMutableStyleDeclaration* style() const { return m_style.get(); }
+    CSSStyleDeclaration* style() const { return m_style ? m_style->ensureCSSStyleDeclaration() : 0; }
 
     String cssText() const;
 
-    void setDeclaration(PassRefPtr<CSSMutableStyleDeclaration>);
-
-    CSSMutableStyleDeclaration*         declaration()       { return m_style.get(); }
-    const CSSMutableStyleDeclaration*   declaration() const { return m_style.get(); }
+    StylePropertySet* declaration() const { return m_style.get(); }
+    void setDeclaration(PassRefPtr<StylePropertySet>);
 
 private:
     static void parseKeyString(const String& s, Vector<float>& keys);
 
     WebKitCSSKeyframeRule(CSSStyleSheet* parent);
 
-    RefPtr<CSSMutableStyleDeclaration> m_style;
+    RefPtr<StylePropertySet> m_style;
     String m_key;        // comma separated list of keys
 };
 

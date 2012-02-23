@@ -39,6 +39,7 @@
 #include "NativeImageSkia.h"
 #include "PlatformContextSkia.h"
 #endif
+#include "Region.h"
 #include "RenderLayerBacking.h"
 #include "TextStream.h"
 #include "skia/ext/platform_canvas.h"
@@ -49,19 +50,19 @@ using namespace std;
 
 static int s_nextLayerId = 1;
 
-PassRefPtr<LayerChromium> LayerChromium::create(CCLayerDelegate* delegate)
+PassRefPtr<LayerChromium> LayerChromium::create()
 {
-    return adoptRef(new LayerChromium(delegate));
+    return adoptRef(new LayerChromium());
 }
 
-LayerChromium::LayerChromium(CCLayerDelegate* delegate)
-    : m_delegate(delegate)
-    , m_needsDisplay(false)
+LayerChromium::LayerChromium()
+    : m_needsDisplay(false)
     , m_layerId(s_nextLayerId++)
     , m_parent(0)
     , m_scrollable(false)
     , m_anchorPoint(0.5, 0.5)
     , m_backgroundColor(0, 0, 0, 0)
+    , m_backgroundCoversViewport(false)
     , m_debugBorderWidth(0)
     , m_opacity(1.0)
     , m_anchorPointZ(0)
@@ -72,6 +73,7 @@ LayerChromium::LayerChromium(CCLayerDelegate* delegate)
     , m_usesLayerClipping(false)
     , m_isNonCompositedContent(false)
     , m_preserves3D(false)
+    , m_alwaysReserveTextures(false)
     , m_replicaLayer(0)
     , m_drawOpacity(0)
     , m_targetRenderSurface(0)
@@ -90,23 +92,6 @@ LayerChromium::~LayerChromium()
     removeAllChildren();
 }
 
-void LayerChromium::cleanupResources()
-{
-}
-
-void LayerChromium::cleanupResourcesRecursive()
-{
-    for (size_t i = 0; i < children().size(); ++i)
-        children()[i]->cleanupResourcesRecursive();
-
-    if (maskLayer())
-        maskLayer()->cleanupResourcesRecursive();
-    if (replicaLayer())
-        replicaLayer()->cleanupResourcesRecursive();
-
-    cleanupResources();
-}
-
 void LayerChromium::setIsNonCompositedContent(bool isNonCompositedContent)
 {
     m_isNonCompositedContent = isNonCompositedContent;
@@ -116,11 +101,6 @@ void LayerChromium::setLayerTreeHost(CCLayerTreeHost* host)
 {
     if (m_layerTreeHost == host)
         return;
-
-    // If we're changing hosts then we need to free up any resources
-    // allocated by the old host.
-    if (m_layerTreeHost)
-        cleanupResources();
 
     m_layerTreeHost = host;
 
@@ -285,6 +265,14 @@ void LayerChromium::setBackgroundColor(const Color& backgroundColor)
     setNeedsCommit();
 }
 
+void LayerChromium::setBackgroundCoversViewport(bool backgroundCoversViewport)
+{
+    if (m_backgroundCoversViewport == backgroundCoversViewport)
+        return;
+    m_backgroundCoversViewport = backgroundCoversViewport;
+    setNeedsCommit();
+}
+
 void LayerChromium::setMasksToBounds(bool masksToBounds)
 {
     if (m_masksToBounds == masksToBounds)
@@ -317,6 +305,14 @@ void LayerChromium::setReplicaLayer(LayerChromium* layer)
     setNeedsCommit();
 }
 
+void LayerChromium::setFilters(const FilterOperations& filters)
+{
+    if (m_filters == filters)
+        return;
+    m_filters = filters;
+    setNeedsCommit();
+}
+
 void LayerChromium::setOpacity(float opacity)
 {
     if (m_opacity == opacity)
@@ -330,7 +326,7 @@ void LayerChromium::setOpaque(bool opaque)
     if (m_opaque == opaque)
         return;
     m_opaque = opaque;
-    setNeedsCommit();
+    setNeedsDisplay();
 }
 
 void LayerChromium::setPosition(const FloatPoint& position)
@@ -416,12 +412,14 @@ void LayerChromium::pushPropertiesTo(CCLayerImpl* layer)
     layer->setAnchorPoint(m_anchorPoint);
     layer->setAnchorPointZ(m_anchorPointZ);
     layer->setBackgroundColor(m_backgroundColor);
+    layer->setBackgroundCoversViewport(m_backgroundCoversViewport);
     layer->setBounds(m_bounds);
     layer->setContentBounds(contentBounds());
     layer->setDebugBorderColor(m_debugBorderColor);
     layer->setDebugBorderWidth(m_debugBorderWidth);
     layer->setDoubleSided(m_doubleSided);
     layer->setDrawsContent(drawsContent());
+    layer->setFilters(filters());
     layer->setIsNonCompositedContent(m_isNonCompositedContent);
     layer->setMasksToBounds(m_masksToBounds);
     layer->setScrollable(m_scrollable);
@@ -470,6 +468,35 @@ void LayerChromium::setContentsScale(float contentsScale)
         return;
     m_contentsScale = contentsScale;
     setNeedsDisplay();
+}
+
+TransformationMatrix LayerChromium::contentToScreenSpaceTransform() const
+{
+    IntSize boundsInLayerSpace = bounds();
+    IntSize boundsInContentSpace = contentBounds();
+
+    TransformationMatrix transform = screenSpaceTransform();
+
+    // Scale from content space to layer space
+    transform.scaleNonUniform(boundsInLayerSpace.width() / static_cast<double>(boundsInContentSpace.width()),
+                              boundsInLayerSpace.height() / static_cast<double>(boundsInContentSpace.height()));
+
+    return transform;
+}
+
+void LayerChromium::addSelfToOccludedScreenSpace(Region& occludedScreenSpace)
+{
+    if (!opaque() || drawOpacity() != 1 || !isPaintedAxisAlignedInScreen())
+        return;
+
+    FloatRect targetRect = contentToScreenSpaceTransform().mapRect(FloatRect(visibleLayerRect()));
+    occludedScreenSpace.unite(enclosedIntRect(targetRect));
+}
+
+bool LayerChromium::isPaintedAxisAlignedInScreen() const
+{
+    FloatQuad quad = contentToScreenSpaceTransform().mapQuad(FloatQuad(visibleLayerRect()));
+    return quad.isRectilinear();
 }
 
 void LayerChromium::createRenderSurface()

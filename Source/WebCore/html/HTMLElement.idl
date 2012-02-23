@@ -21,8 +21,9 @@
 module html {
 
     interface [
-        GenerateNativeConverter,
-        CustomPushEventHandlerScope
+        JSGenerateToNativeObject,
+        JSCustomPushEventHandlerScope,
+        V8CustomToJSObject
     ] HTMLElement : Element {
                  // iht.com relies on id returning the empty string when no id is present. 
                  // Other browsers do this as well. So we don't convert null to JS null.
@@ -40,28 +41,28 @@ module html {
                  attribute [Reflect] DOMString accessKey;
 
         // Extensions
-                 attribute [ConvertNullToNullString] DOMString innerHTML
+                 attribute [TreatNullAs=NullString] DOMString innerHTML
                      setter raises(DOMException);
-                 attribute [ConvertNullToNullString] DOMString innerText
+                 attribute [TreatNullAs=NullString] DOMString innerText
                      setter raises(DOMException);
-                 attribute [ConvertNullToNullString] DOMString outerHTML
+                 attribute [TreatNullAs=NullString] DOMString outerHTML
                      setter raises(DOMException);
-                 attribute [ConvertNullToNullString] DOMString outerText
+                 attribute [TreatNullAs=NullString] DOMString outerText
                      setter raises(DOMException);
 
-        Element insertAdjacentElement(in [Optional=CallWithDefaultValue] DOMString where,
-                                      in [Optional=CallWithDefaultValue] Element element)
+        Element insertAdjacentElement(in [Optional=DefaultIsUndefined] DOMString where,
+                                      in [Optional=DefaultIsUndefined] Element element)
             raises(DOMException);
-        void insertAdjacentHTML(in [Optional=CallWithDefaultValue] DOMString where,
-                                in [Optional=CallWithDefaultValue] DOMString html)
+        void insertAdjacentHTML(in [Optional=DefaultIsUndefined] DOMString where,
+                                in [Optional=DefaultIsUndefined] DOMString html)
             raises(DOMException);
-        void insertAdjacentText(in [Optional=CallWithDefaultValue] DOMString where,
-                                in [Optional=CallWithDefaultValue] DOMString text)
+        void insertAdjacentText(in [Optional=DefaultIsUndefined] DOMString where,
+                                in [Optional=DefaultIsUndefined] DOMString text)
             raises(DOMException);
 
         readonly attribute HTMLCollection children;
 
-                 attribute [ConvertNullToNullString] DOMString contentEditable
+                 attribute [TreatNullAs=NullString] DOMString contentEditable
                      setter raises(DOMException);
         readonly attribute boolean isContentEditable;
 
@@ -88,6 +89,8 @@ module html {
 #if defined(LANGUAGE_OBJECTIVE_C) && LANGUAGE_OBJECTIVE_C
         readonly attribute DOMString titleDisplayString;
 #endif
+
+        void click();
     };
 
 }

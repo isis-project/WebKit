@@ -58,7 +58,8 @@ namespace WebCore {
 
         static JSDOMWindowShell* create(PassRefPtr<DOMWindow> window, JSC::Structure* structure, DOMWrapperWorld* world) 
         {
-            JSDOMWindowShell* shell = new JSDOMWindowShell(structure, world);
+            JSC::Heap& heap = JSDOMWindow::commonJSGlobalData()->heap;
+            JSDOMWindowShell* shell = new (NotNull, JSC::allocateCell<JSDOMWindowShell>(heap)) JSDOMWindowShell(structure, world);
             shell->finishCreation(*world->globalData(), window);
             return shell; 
         }
@@ -75,7 +76,6 @@ namespace WebCore {
         void finishCreation(JSC::JSGlobalData&, PassRefPtr<DOMWindow>);
 
     private:
-        void* operator new(size_t);
         static const unsigned StructureFlags = JSC::OverridesGetOwnPropertySlot | JSC::OverridesGetPropertyNames | Base::StructureFlags;
 
         static JSC::UString className(const JSC::JSObject*);
@@ -86,8 +86,6 @@ namespace WebCore {
         static bool deleteProperty(JSC::JSCell*, JSC::ExecState*, const JSC::Identifier& propertyName);
         static void getOwnPropertyNames(JSC::JSObject*, JSC::ExecState*, JSC::PropertyNameArray&, JSC::EnumerationMode);
         static void getPropertyNames(JSC::JSObject*, JSC::ExecState*, JSC::PropertyNameArray&, JSC::EnumerationMode);
-        static void defineGetter(JSC::JSObject*, JSC::ExecState*, const JSC::Identifier& propertyName, JSC::JSObject* getterFunction, unsigned attributes);
-        static void defineSetter(JSC::JSObject*, JSC::ExecState*, const JSC::Identifier& propertyName, JSC::JSObject* setterFunction, unsigned attributes);
         static bool defineOwnProperty(JSC::JSObject*, JSC::ExecState*, const JSC::Identifier& propertyName, JSC::PropertyDescriptor&, bool shouldThrow);
 
         RefPtr<DOMWrapperWorld> m_world;

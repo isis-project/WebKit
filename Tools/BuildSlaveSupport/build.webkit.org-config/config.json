@@ -21,6 +21,7 @@
                     { "name": "apple-xserve-2", "platform": "mac-lion" },
                     { "name": "apple-xserve-3", "platform": "mac-lion" },
                     { "name": "apple-xserve-10", "platform": "mac-lion" },
+                    { "name": "apple-xserve-11", "platform": "mac-lion" },
                     
                     { "name": "apple-windows-1", "platform": "win"},
                     { "name": "apple-windows-2", "platform": "win"},
@@ -110,7 +111,7 @@
                     },
                     { "name": "Lion Intel Release (Build)", "type": "Build", "builddir": "lion-intel-release",
                       "platform": "mac-lion", "configuration": "release", "architectures": ["x86_64"],
-                      "triggers": ["lion-intel-release-tests", "lion-intel-release-tests-wk2"],
+                      "triggers": ["lion-intel-release-tests", "lion-intel-release-tests-wk2", "lion-intel-release-perf"],
                       "slavenames": ["apple-xserve-3"]
                     },
                     { "name": "Lion Intel Debug (Tests)", "type": "Test", "builddir": "lion-intel-debug-tests",
@@ -128,6 +129,11 @@
                     { "name": "Lion Intel Release (WebKit2 Tests)", "type": "TestWebKit2", "builddir": "lion-intel-release-tests-wk2",
                       "platform": "mac-lion", "configuration": "release", "architectures": ["x86_64"],
                       "slavenames": ["apple-macpro-6"]
+                    },
+                    {
+                      "name": "Lion Intel Release (Perf)", "type": "DownloadAndPerfTest", "builddir": "lion-release-perf-tests",
+                      "platform": "mac-lion", "configuration": "release", "architectures": ["x86_64"],
+                      "slavenames": ["apple-xserve-11"]
                     },
                     {
                       "name": "Windows Release (Build)", "type": "Build", "builddir": "win-release",
@@ -228,7 +234,7 @@
                     {
                       "name": "Chromium Mac Release (Tests)", "type": "NewBuildAndTest", "builddir": "chromium-mac-release-tests",
                       "platform": "chromium-mac", "configuration": "release", "architectures": ["i386"],
-                      "slavenames": ["google-mac-2", "google-mac-4"]
+                      "slavenames": ["google-mac-2"]
                     },
                     {
                       "name": "Chromium Linux Release", "type": "Build", "builddir": "chromium-linux-release",
@@ -249,6 +255,11 @@
                       "name": "Chromium Android Release", "type": "Build", "builddir": "chromium-linux-android",
                       "platform": "chromium-android", "configuration": "release", "architectures": ["i386"],
                       "slavenames": ["google-linux-android"]
+                    },
+                    {
+                      "name": "Chromium Mac Release (Perf)", "type": "BuildAndPerfTest", "builddir": "chromium-mac-perf-tests",
+                      "platform": "chromium-mac", "configuration": "release", "architectures": ["i386"],
+                      "slavenames": ["google-mac-4"]
                     },
                     {
                       "name": "WinCairo Release", "type": "BuildAndTest", "builddir": "win-cairo-release",
@@ -274,7 +285,8 @@
                                        "Qt Linux MIPS Release", "Qt Linux SH4 Release",
                                        "Chromium Win Release", "Chromium Win Release (Tests)", "Chromium Mac Release", "Chromium Mac Release (Tests)",
                                        "Chromium Linux Release", "Chromium Linux Release (Tests)", "Chromium Linux Release (Grid Layout)",
-                                       "Chromium Android Release", "WinCairo Release", "WinCE Release (Build)", "EFL Linux Release (Build)"]
+                                       "Chromium Android Release", "Chromium Mac Release (Perf)", "WinCairo Release", "WinCE Release (Build)",
+                                       "EFL Linux Release (Build)"]
                     },
                     { "type": "PlatformSpecificScheduler", "platform": "mac-snowleopard", "branch": "trunk", "treeStableTimer": 45.0, 
                       "builderNames": ["SnowLeopard Intel Release (Build)", "SnowLeopard Intel Debug (Build)"] 
@@ -290,6 +302,9 @@
                     },
                     { "type": "Triggerable", "name": "lion-intel-release-tests-wk2",
                       "builderNames": ["Lion Intel Release (WebKit2 Tests)"]
+                    },
+                    { "type": "Triggerable", "name": "lion-intel-release-perf",
+                      "builderNames": ["Lion Intel Release (Perf)"]
                     },
                     { "type": "Triggerable", "name": "lion-intel-debug-tests",
                       "builderNames": ["Lion Intel Debug (Tests)"]

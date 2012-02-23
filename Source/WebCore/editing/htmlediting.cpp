@@ -1033,7 +1033,7 @@ bool lineBreakExistsAtPosition(const Position& position)
     if (!position.anchorNode()->isTextNode() || !position.anchorNode()->renderer()->style()->preserveNewline())
         return false;
     
-    Text* textNode = static_cast<Text*>(position.anchorNode());
+    Text* textNode = toText(position.anchorNode());
     unsigned offset = position.offsetInContainerNode();
     return offset < textNode->length() && textNode->data()[offset] == '\n';
 }
@@ -1157,20 +1157,13 @@ bool areIdenticalElements(const Node* first, const Node* second)
     if (!toElement(first)->tagQName().matches(toElement(second)->tagQName()))
         return false;
 
-    NamedNodeMap* firstMap = toElement(first)->attributes();
-    NamedNodeMap* secondMap = toElement(second)->attributes();
-    unsigned firstLength = firstMap->length();
+    NamedNodeMap* firstMap = toElement(first)->updatedAttributes();
+    NamedNodeMap* secondMap = toElement(second)->updatedAttributes();
 
-    if (firstLength != secondMap->length())
-        return false;
-
-    for (unsigned i = 0; i < firstLength; i++) {
-        Attribute* attribute = firstMap->attributeItem(i);
-        Attribute* secondAttribute = secondMap->getAttributeItem(attribute->name());
-        if (!secondAttribute || attribute->value() != secondAttribute->value())
-            return false;
-    }
-
+    if (firstMap)
+        return firstMap->mapsEquivalent(secondMap);
+    if (secondMap)
+        return secondMap->mapsEquivalent(firstMap);
     return true;
 }
 

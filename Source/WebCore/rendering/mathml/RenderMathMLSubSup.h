@@ -23,25 +23,23 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-
 #ifndef RenderMathMLSubSup_h
 #define RenderMathMLSubSup_h
 
 #if ENABLE(MATHML)
 
 #include "RenderMathMLBlock.h"
-#include "RenderTable.h"
 
 namespace WebCore {
     
 class RenderMathMLSubSup : public RenderMathMLBlock {
 public:
-    RenderMathMLSubSup(Element* fraction);
+    RenderMathMLSubSup(Element*);
     virtual void addChild(RenderObject* child, RenderObject* beforeChild = 0);
     virtual bool hasBase() const { return true; }
     virtual int nonOperatorHeight() const;
     virtual void stretchToHeight(int pixelHeight);
-    virtual int baselinePosition(FontBaseline, bool firstLine, LineDirectionMode, LinePositionMode = PositionOnContainingLine) const;
+    virtual LayoutUnit baselinePosition(FontBaseline, bool firstLine, LineDirectionMode, LinePositionMode = PositionOnContainingLine) const;
 
 protected:
     virtual void layout();
@@ -59,4 +57,3 @@ private:
 #endif // ENABLE(MATHML)
 
 #endif // RenderMathMLSubSup_h
-

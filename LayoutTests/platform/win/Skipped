@@ -37,6 +37,15 @@ css3/filters/effect-opacity-hw.html
 css3/filters/effect-saturate-hw.html
 css3/filters/effect-sepia-hw.html
 
+# Custom filters not yet supported on Windows
+css3/filters/custom-filter-property-computed-style.html
+css3/filters/custom-filter-property-parsing.html
+css3/filters/custom-filter-property-parsing-invalid.html
+css3/filters/custom-filter-shader-cache.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=77645
+css3/filters/filtered-compositing-descendant.html
+
 # Should be moved to platform/mac <rdar://5621425>
 http/tests/misc/willCacheResponse-delegate-callback.html
 
@@ -501,6 +510,7 @@ editing/execCommand/enabling-and-selection-2.html
 
 # Needs custom policy delegate enhancement in DRT
 http/tests/navigation/post-goback-repost-policy.html
+http/tests/download
 
 # Needs scheduleAsynchronousClick method for EventSender
 fast/events/popup-blocking-click-in-iframe.html
@@ -969,6 +979,7 @@ fast/events/continuous-platform-wheelevent-in-scrolling-div.html
 fast/events/wheelevent-in-horizontal-scrollbar-in-rtl.html
 fast/events/wheelevent-in-vertical-scrollbar-in-rtl.html
 scrollbars/scrollevent-iframe-no-scrolling-wheel.html
+scrollbars/scroll-rtl-or-bt-layer.html
 
 # Windows port doesn't yet support rendering of non-BMP characters even though there's a font available.
 fast/text/international/plane2.html 
@@ -1046,9 +1057,13 @@ editing/spelling/markers.html
 
 # EditorClient::requestCheckingOfString() is not implemented
 editing/spelling/spellcheck-paste.html
+# Replacement text for misspelling is not given.
+# https://bugs.webkit.org/show_bug.cgi?id=77934
+editing/spelling/spelling-marker-description.html
 
 # IndexedDB is not yet enabled.
 storage/indexeddb
+http/tests/inspector/indexeddb
 
 # StorageTracker is not enabled.
 storage/domstorage/localstorage/storagetracker
@@ -1214,6 +1229,7 @@ http/tests/appcache/origin-quota-continued-download-multiple-manifests.html
 # https://bugs.webkit.org/show_bug.cgi?id=43332
 inspector/debugger/dom-breakpoints.html
 inspector/debugger/event-listener-breakpoints.html
+inspector/debugger/step-through-event-listeners.html
 inspector/debugger/xhr-breakpoints.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=40300
@@ -1246,6 +1262,7 @@ http/tests/filesystem
 http/tests/security/filesystem-iframe-from-remote.html
 http/tests/websocket/tests/hybi/send-file-blob.html
 http/tests/websocket/tests/hybi/send-file-blob-fail.html
+fast/mutation/filesystem-callback-delivery.html
 
 # LayoutTestController::nodesFromRect is not supported.
 fast/dom/nodesFromRect-basic.html
@@ -1299,6 +1316,8 @@ editing/pasteboard/onpaste-text-html-types.html
 # DataTransferItems is not yet implemented.
 editing/pasteboard/data-transfer-items.html
 editing/pasteboard/data-transfer-items-image-png.html
+editing/pasteboard/data-transfer-items-drag-drop-file.html
+editing/pasteboard/data-transfer-items-drag-drop-string.html
 
 # Custom MIME type support in DataTransfer not yet implemented.
 editing/pasteboard/clipboard-customData.html
@@ -1422,6 +1441,10 @@ fast/css-grid-layout
 # <style scoped> is not yet enabled. http://webkit.org/b/49142
 fast/css/style-scoped
 
+# ENABLE(SHADOW_DOM) is disabled.
+fast/dom/shadow/shadow-root-js-api.html
+fast/dom/shadow/shadow-disable.html
+
 # CSS Regions support not yet enabled. http://webkit.org/b/57312
 fast/regions
 
@@ -1439,9 +1462,6 @@ css3/selectors3
 
 # For now, Web Audio API is disabled
 webaudio/
-
-# MutationObservers are net yet enabled. http://webkit.org/b/68729
-fast/mutation
 
 # The win port has no support for <track>
 # https://bugs.webkit.org/show_bug.cgi?id=43668
@@ -1484,6 +1504,8 @@ fast/events/platform-wheelevent-paging-y-in-scrolling-div.html
 fast/events/platform-wheelevent-paging-y-in-scrolling-page.html
 
 # DRT doesn't support overridePreference("WebKit*FontMap"...)
+fast/text/international/content-language-font-selection.html
+fast/text/international/content-language-with-subtags.html
 fast/text/international/locale-sensitive-fonts.html
 
 # Web Intents is not yet enabled.
@@ -1492,11 +1514,19 @@ webintents/
 # Pointer Lock is not implemented.
 pointer-lock/
 
+# Needs ENABLE_SHADOW_DOM
+fast/dom/shadow/content-element-api.html
+fast/dom/shadow/content-element-outside-shadow.html
+
 # https://bugs.webkit.org/show_bug.cgi?id=72435
 fast/dom/Window/window-postmessage-arrays.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=73493
 fast/canvas/webgl/arraybuffer-transfer-of-control.html
+
+# Fails because MutationObservers are not notified at end-of-task
+# https://bugs.webkit.org/show_bug.cgi?id=78290
+fast/mutation/end-of-task-delivery.html
 
 # Rebaseline after bug 71705. All differences are due to the fact that table captions now
 # expand to the full width of the table.

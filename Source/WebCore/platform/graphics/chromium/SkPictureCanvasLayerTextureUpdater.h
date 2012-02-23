@@ -48,14 +48,21 @@ class SkPictureCanvasLayerTextureUpdater : public CanvasLayerTextureUpdater {
 public:
     virtual ~SkPictureCanvasLayerTextureUpdater();
 
+    virtual void setOpaque(bool);
+
 protected:
     explicit SkPictureCanvasLayerTextureUpdater(PassOwnPtr<LayerPainterChromium>);
 
-    virtual void prepareToUpdate(const IntRect& contentRect, const IntSize& tileSize, int borderTexels, float contentsScale);
+    virtual void prepareToUpdate(const IntRect& contentRect, const IntSize& tileSize, int borderTexels, float contentsScale, IntRect* resultingOpaqueRect);
     void drawPicture(SkCanvas*);
 
+    bool layerIsOpaque() const { return m_layerIsOpaque; }
+
 private:
-    SkPicture m_picture; // Recording canvas.
+    // Recording canvas.
+    SkPicture m_picture;
+    // True when it is known that all output pixels will be opaque.
+    bool m_layerIsOpaque;
 };
 
 } // namespace WebCore

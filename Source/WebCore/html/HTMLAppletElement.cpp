@@ -47,7 +47,7 @@ PassRefPtr<HTMLAppletElement> HTMLAppletElement::create(const QualifiedName& tag
     return adoptRef(new HTMLAppletElement(tagName, document));
 }
 
-void HTMLAppletElement::parseMappedAttribute(Attribute* attr)
+void HTMLAppletElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == altAttr ||
         attr->name() == archiveAttr ||
@@ -57,7 +57,7 @@ void HTMLAppletElement::parseMappedAttribute(Attribute* attr)
         attr->name() == objectAttr) {
         // Do nothing.
     } else
-        HTMLPlugInElement::parseMappedAttribute(attr);
+        HTMLPlugInElement::parseAttribute(attr);
 }
 
 bool HTMLAppletElement::rendererIsNeeded(const NodeRenderingContext& context)
@@ -78,7 +78,7 @@ RenderObject* HTMLAppletElement::createRenderer(RenderArena*, RenderStyle* style
         if (!codeBase.isNull())
             args.set("codeBase", codeBase);
 
-        const AtomicString& name = document()->isHTMLDocument() ? getAttribute(nameAttr) : getIdAttribute();
+        const AtomicString& name = document()->isHTMLDocument() ? getNameAttribute() : getIdAttribute();
         if (!name.isNull())
             args.set("name", name);
         const AtomicString& archive = getAttribute(archiveAttr);

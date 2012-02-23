@@ -308,6 +308,42 @@ webkit_dom_test_obj_with_script_execution_context(WebKitDOMTestObj* self)
 }
 
 void
+webkit_dom_test_obj_with_script_execution_context_and_script_state(WebKitDOMTestObj* self)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    item->withScriptExecutionContextAndScriptState();
+}
+
+WebKitDOMTestObj*
+webkit_dom_test_obj_with_script_execution_context_and_script_state_obj_exception(WebKitDOMTestObj* self, GError **error)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    WebCore::ExceptionCode ec = 0;
+    PassRefPtr<WebCore::TestObj> g_res = WTF::getPtr(item->withScriptExecutionContextAndScriptStateObjException(ec));
+    if (ec) {
+        WebCore::ExceptionCodeDescription ecdesc(ec);
+        g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
+    }
+    WebKitDOMTestObj* res = WebKit::kit(g_res.get());
+    return res;
+}
+
+WebKitDOMTestObj*
+webkit_dom_test_obj_with_script_execution_context_and_script_state_with_spaces(WebKitDOMTestObj* self)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    PassRefPtr<WebCore::TestObj> g_res = WTF::getPtr(item->withScriptExecutionContextAndScriptStateWithSpaces());
+    WebKitDOMTestObj* res = WebKit::kit(g_res.get());
+    return res;
+}
+
+void
 webkit_dom_test_obj_method_with_optional_arg(WebKitDOMTestObj* self, glong opt)
 {
     g_return_if_fail(self);
@@ -332,6 +368,39 @@ webkit_dom_test_obj_method_with_non_optional_arg_and_two_optional_args(WebKitDOM
     WebCore::JSMainThreadNullState state;
     WebCore::TestObj * item = WebKit::core(self);
     item->methodWithNonOptionalArgAndTwoOptionalArgs(non_opt, opt1, opt2);
+}
+
+void
+webkit_dom_test_obj_method_with_optional_string(WebKitDOMTestObj* self, const gchar* str)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(str);
+    WTF::String converted_str = WTF::String::fromUTF8(str);
+    item->methodWithOptionalString(converted_str);
+}
+
+void
+webkit_dom_test_obj_method_with_optional_string_is_undefined(WebKitDOMTestObj* self, const gchar* str)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(str);
+    WTF::String converted_str = WTF::String::fromUTF8(str);
+    item->methodWithOptionalStringIsUndefined(converted_str);
+}
+
+void
+webkit_dom_test_obj_method_with_optional_string_is_null_string(WebKitDOMTestObj* self, const gchar* str)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(str);
+    WTF::String converted_str = WTF::String::fromUTF8(str);
+    item->methodWithOptionalStringIsNullString(converted_str);
 }
 
 gchar*
@@ -855,27 +924,6 @@ webkit_dom_test_obj_set_reflected_url_attr(WebKitDOMTestObj* self, const gchar* 
 }
 
 gchar*
-webkit_dom_test_obj_get_reflected_non_empty_url_attr(WebKitDOMTestObj* self)
-{
-    g_return_val_if_fail(self, 0);
-    WebCore::JSMainThreadNullState state;
-    WebCore::TestObj * item = WebKit::core(self);
-    gchar* res = convertToUTF8String(item->getNonEmptyURLAttribute(WebCore::HTMLNames::reflectednonemptyurlattrAttr));
-    return res;
-}
-
-void
-webkit_dom_test_obj_set_reflected_non_empty_url_attr(WebKitDOMTestObj* self, const gchar* value)
-{
-    g_return_if_fail(self);
-    WebCore::JSMainThreadNullState state;
-    WebCore::TestObj * item = WebKit::core(self);
-    g_return_if_fail(value);
-    WTF::String converted_value = WTF::String::fromUTF8(value);
-    item->setAttribute(WebCore::HTMLNames::reflectednonemptyurlattrAttr, converted_value);
-}
-
-gchar*
 webkit_dom_test_obj_get_reflected_string_attr(WebKitDOMTestObj* self)
 {
     g_return_val_if_fail(self, 0);
@@ -953,27 +1001,6 @@ webkit_dom_test_obj_set_reflected_custom_url_attr(WebKitDOMTestObj* self, const 
     g_return_if_fail(value);
     WTF::String converted_value = WTF::String::fromUTF8(value);
     item->setAttribute(WebCore::HTMLNames::customContentURLAttrAttr, converted_value);
-}
-
-gchar*
-webkit_dom_test_obj_get_reflected_custom_non_empty_url_attr(WebKitDOMTestObj* self)
-{
-    g_return_val_if_fail(self, 0);
-    WebCore::JSMainThreadNullState state;
-    WebCore::TestObj * item = WebKit::core(self);
-    gchar* res = convertToUTF8String(item->getNonEmptyURLAttribute(WebCore::HTMLNames::customContentNonEmptyURLAttrAttr));
-    return res;
-}
-
-void
-webkit_dom_test_obj_set_reflected_custom_non_empty_url_attr(WebKitDOMTestObj* self, const gchar* value)
-{
-    g_return_if_fail(self);
-    WebCore::JSMainThreadNullState state;
-    WebCore::TestObj * item = WebKit::core(self);
-    g_return_if_fail(value);
-    WTF::String converted_value = WTF::String::fromUTF8(value);
-    item->setAttribute(WebCore::HTMLNames::customContentNonEmptyURLAttrAttr, converted_value);
 }
 
 glong
@@ -1080,6 +1107,211 @@ webkit_dom_test_obj_set_string_attr_with_setter_exception(WebKitDOMTestObj* self
         WebCore::ExceptionCodeDescription ecdesc(ec);
         g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
     }
+}
+
+glong
+webkit_dom_test_obj_get_with_script_state_attribute(WebKitDOMTestObj* self)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    glong res = item->withScriptStateAttribute();
+    return res;
+}
+
+void
+webkit_dom_test_obj_set_with_script_state_attribute(WebKitDOMTestObj* self, glong value)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    item->setWithScriptStateAttribute(value);
+}
+
+WebKitDOMTestObj*
+webkit_dom_test_obj_get_with_script_execution_context_attribute(WebKitDOMTestObj* self)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    PassRefPtr<WebCore::TestObj> g_res = WTF::getPtr(item->withScriptExecutionContextAttribute());
+    WebKitDOMTestObj* res = WebKit::kit(g_res.get());
+    return res;
+}
+
+void
+webkit_dom_test_obj_set_with_script_execution_context_attribute(WebKitDOMTestObj* self, WebKitDOMTestObj* value)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(value);
+    WebCore::TestObj * converted_value = NULL;
+    if (value != NULL) {
+        converted_value = WebKit::core(value);
+        g_return_if_fail(converted_value);
+    }
+    item->setWithScriptExecutionContextAttribute(converted_value);
+}
+
+WebKitDOMTestObj*
+webkit_dom_test_obj_get_with_script_state_attribute_raises(WebKitDOMTestObj* self, GError **error)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    WebCore::ExceptionCode ec = 0;
+    PassRefPtr<WebCore::TestObj> g_res = WTF::getPtr(item->withScriptStateAttributeRaises(ec));
+    if (ec) {
+        WebCore::ExceptionCodeDescription ecdesc(ec);
+        g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
+    }
+    WebKitDOMTestObj* res = WebKit::kit(g_res.get());
+    return res;
+}
+
+void
+webkit_dom_test_obj_set_with_script_state_attribute_raises(WebKitDOMTestObj* self, WebKitDOMTestObj* value, GError **error)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(value);
+    WebCore::TestObj * converted_value = NULL;
+    if (value != NULL) {
+        converted_value = WebKit::core(value);
+        g_return_if_fail(converted_value);
+    }
+    WebCore::ExceptionCode ec = 0;
+    item->setWithScriptStateAttributeRaises(converted_value, ec);
+    if (ec) {
+        WebCore::ExceptionCodeDescription ecdesc(ec);
+        g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
+    }
+}
+
+WebKitDOMTestObj*
+webkit_dom_test_obj_get_with_script_execution_context_attribute_raises(WebKitDOMTestObj* self, GError **error)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    WebCore::ExceptionCode ec = 0;
+    PassRefPtr<WebCore::TestObj> g_res = WTF::getPtr(item->withScriptExecutionContextAttributeRaises(ec));
+    if (ec) {
+        WebCore::ExceptionCodeDescription ecdesc(ec);
+        g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
+    }
+    WebKitDOMTestObj* res = WebKit::kit(g_res.get());
+    return res;
+}
+
+void
+webkit_dom_test_obj_set_with_script_execution_context_attribute_raises(WebKitDOMTestObj* self, WebKitDOMTestObj* value, GError **error)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(value);
+    WebCore::TestObj * converted_value = NULL;
+    if (value != NULL) {
+        converted_value = WebKit::core(value);
+        g_return_if_fail(converted_value);
+    }
+    WebCore::ExceptionCode ec = 0;
+    item->setWithScriptExecutionContextAttributeRaises(converted_value, ec);
+    if (ec) {
+        WebCore::ExceptionCodeDescription ecdesc(ec);
+        g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
+    }
+}
+
+WebKitDOMTestObj*
+webkit_dom_test_obj_get_with_script_execution_context_and_script_state_attribute(WebKitDOMTestObj* self)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    PassRefPtr<WebCore::TestObj> g_res = WTF::getPtr(item->withScriptExecutionContextAndScriptStateAttribute());
+    WebKitDOMTestObj* res = WebKit::kit(g_res.get());
+    return res;
+}
+
+void
+webkit_dom_test_obj_set_with_script_execution_context_and_script_state_attribute(WebKitDOMTestObj* self, WebKitDOMTestObj* value)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(value);
+    WebCore::TestObj * converted_value = NULL;
+    if (value != NULL) {
+        converted_value = WebKit::core(value);
+        g_return_if_fail(converted_value);
+    }
+    item->setWithScriptExecutionContextAndScriptStateAttribute(converted_value);
+}
+
+WebKitDOMTestObj*
+webkit_dom_test_obj_get_with_script_execution_context_and_script_state_attribute_raises(WebKitDOMTestObj* self, GError **error)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    WebCore::ExceptionCode ec = 0;
+    PassRefPtr<WebCore::TestObj> g_res = WTF::getPtr(item->withScriptExecutionContextAndScriptStateAttributeRaises(ec));
+    if (ec) {
+        WebCore::ExceptionCodeDescription ecdesc(ec);
+        g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
+    }
+    WebKitDOMTestObj* res = WebKit::kit(g_res.get());
+    return res;
+}
+
+void
+webkit_dom_test_obj_set_with_script_execution_context_and_script_state_attribute_raises(WebKitDOMTestObj* self, WebKitDOMTestObj* value, GError **error)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(value);
+    WebCore::TestObj * converted_value = NULL;
+    if (value != NULL) {
+        converted_value = WebKit::core(value);
+        g_return_if_fail(converted_value);
+    }
+    WebCore::ExceptionCode ec = 0;
+    item->setWithScriptExecutionContextAndScriptStateAttributeRaises(converted_value, ec);
+    if (ec) {
+        WebCore::ExceptionCodeDescription ecdesc(ec);
+        g_set_error_literal(error, g_quark_from_string("WEBKIT_DOM"), ecdesc.code, ecdesc.name);
+    }
+}
+
+WebKitDOMTestObj*
+webkit_dom_test_obj_get_with_script_execution_context_and_script_state_with_spaces_attribute(WebKitDOMTestObj* self)
+{
+    g_return_val_if_fail(self, 0);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    PassRefPtr<WebCore::TestObj> g_res = WTF::getPtr(item->withScriptExecutionContextAndScriptStateWithSpacesAttribute());
+    WebKitDOMTestObj* res = WebKit::kit(g_res.get());
+    return res;
+}
+
+void
+webkit_dom_test_obj_set_with_script_execution_context_and_script_state_with_spaces_attribute(WebKitDOMTestObj* self, WebKitDOMTestObj* value)
+{
+    g_return_if_fail(self);
+    WebCore::JSMainThreadNullState state;
+    WebCore::TestObj * item = WebKit::core(self);
+    g_return_if_fail(value);
+    WebCore::TestObj * converted_value = NULL;
+    if (value != NULL) {
+        converted_value = WebKit::core(value);
+        g_return_if_fail(converted_value);
+    }
+    item->setWithScriptExecutionContextAndScriptStateWithSpacesAttribute(converted_value);
 }
 
 gchar*
@@ -1323,17 +1555,22 @@ enum {
     PROP_REFLECTED_UNSIGNED_INTEGRAL_ATTR,
     PROP_REFLECTED_BOOLEAN_ATTR,
     PROP_REFLECTED_URL_ATTR,
-    PROP_REFLECTED_NON_EMPTY_URL_ATTR,
     PROP_REFLECTED_STRING_ATTR,
     PROP_REFLECTED_CUSTOM_INTEGRAL_ATTR,
     PROP_REFLECTED_CUSTOM_BOOLEAN_ATTR,
     PROP_REFLECTED_CUSTOM_URL_ATTR,
-    PROP_REFLECTED_CUSTOM_NON_EMPTY_URL_ATTR,
     PROP_ATTR_WITH_GETTER_EXCEPTION,
     PROP_ATTR_WITH_SETTER_EXCEPTION,
     PROP_STRING_ATTR_WITH_GETTER_EXCEPTION,
     PROP_STRING_ATTR_WITH_SETTER_EXCEPTION,
-    PROP_CUSTOM_ATTR,
+    PROP_WITH_SCRIPT_STATE_ATTRIBUTE,
+    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_ATTRIBUTE,
+    PROP_WITH_SCRIPT_STATE_ATTRIBUTE_RAISES,
+    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_ATTRIBUTE_RAISES,
+    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_ATTRIBUTE,
+    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_ATTRIBUTE_RAISES,
+    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_WITH_SPACES_ATTRIBUTE,
+    PROP_WITH_SCRIPT_ARGUMENTS_AND_CALL_STACK_ATTRIBUTE,
     PROP_SCRIPT_STRING_ATTR,
 #if ENABLE(Condition1)
     PROP_CONDITIONAL_ATTR1,
@@ -1426,11 +1663,6 @@ static void webkit_dom_test_obj_set_property(GObject* object, guint prop_id, con
         coreSelf->setAttribute(WebCore::HTMLNames::reflectedurlattrAttr, WTF::String::fromUTF8(g_value_get_string(value)));
         break;
     }
-    case PROP_REFLECTED_NON_EMPTY_URL_ATTR:
-    {
-        coreSelf->setAttribute(WebCore::HTMLNames::reflectednonemptyurlattrAttr, WTF::String::fromUTF8(g_value_get_string(value)));
-        break;
-    }
     case PROP_REFLECTED_STRING_ATTR:
     {
         coreSelf->setAttribute(WebCore::HTMLNames::customContentStringAttrAttr, WTF::String::fromUTF8(g_value_get_string(value)));
@@ -1449,11 +1681,6 @@ static void webkit_dom_test_obj_set_property(GObject* object, guint prop_id, con
     case PROP_REFLECTED_CUSTOM_URL_ATTR:
     {
         coreSelf->setAttribute(WebCore::HTMLNames::customContentURLAttrAttr, WTF::String::fromUTF8(g_value_get_string(value)));
-        break;
-    }
-    case PROP_REFLECTED_CUSTOM_NON_EMPTY_URL_ATTR:
-    {
-        coreSelf->setAttribute(WebCore::HTMLNames::customContentNonEmptyURLAttrAttr, WTF::String::fromUTF8(g_value_get_string(value)));
         break;
     }
     case PROP_ATTR_WITH_GETTER_EXCEPTION:
@@ -1478,6 +1705,11 @@ static void webkit_dom_test_obj_set_property(GObject* object, guint prop_id, con
     {
         WebCore::ExceptionCode ec = 0;
         coreSelf->setStringAttrWithSetterException(WTF::String::fromUTF8(g_value_get_string(value)), ec);
+        break;
+    }
+    case PROP_WITH_SCRIPT_STATE_ATTRIBUTE:
+    {
+        coreSelf->setWithScriptStateAttribute((g_value_get_long(value)));
         break;
     }
 #if ENABLE(Condition1)
@@ -1612,11 +1844,6 @@ static void webkit_dom_test_obj_get_property(GObject* object, guint prop_id, GVa
         g_value_take_string(value, convertToUTF8String(coreSelf->getURLAttribute(WebCore::HTMLNames::reflectedurlattrAttr)));
         break;
     }
-    case PROP_REFLECTED_NON_EMPTY_URL_ATTR:
-    {
-        g_value_take_string(value, convertToUTF8String(coreSelf->getNonEmptyURLAttribute(WebCore::HTMLNames::reflectednonemptyurlattrAttr)));
-        break;
-    }
     case PROP_REFLECTED_STRING_ATTR:
     {
         g_value_take_string(value, convertToUTF8String(coreSelf->getAttribute(WebCore::HTMLNames::customContentStringAttrAttr)));
@@ -1635,11 +1862,6 @@ static void webkit_dom_test_obj_get_property(GObject* object, guint prop_id, GVa
     case PROP_REFLECTED_CUSTOM_URL_ATTR:
     {
         g_value_take_string(value, convertToUTF8String(coreSelf->getURLAttribute(WebCore::HTMLNames::customContentURLAttrAttr)));
-        break;
-    }
-    case PROP_REFLECTED_CUSTOM_NON_EMPTY_URL_ATTR:
-    {
-        g_value_take_string(value, convertToUTF8String(coreSelf->getNonEmptyURLAttribute(WebCore::HTMLNames::customContentNonEmptyURLAttrAttr)));
         break;
     }
     case PROP_ATTR_WITH_GETTER_EXCEPTION:
@@ -1662,6 +1884,56 @@ static void webkit_dom_test_obj_get_property(GObject* object, guint prop_id, GVa
     case PROP_STRING_ATTR_WITH_SETTER_EXCEPTION:
     {
         g_value_take_string(value, convertToUTF8String(coreSelf->stringAttrWithSetterException()));
+        break;
+    }
+    case PROP_WITH_SCRIPT_STATE_ATTRIBUTE:
+    {
+        g_value_set_long(value, coreSelf->withScriptStateAttribute());
+        break;
+    }
+    case PROP_WITH_SCRIPT_EXECUTION_CONTEXT_ATTRIBUTE:
+    {
+        RefPtr<WebCore::TestObj> ptr = coreSelf->withScriptExecutionContextAttribute();
+        g_value_set_object(value, WebKit::kit(ptr.get()));
+        break;
+    }
+    case PROP_WITH_SCRIPT_STATE_ATTRIBUTE_RAISES:
+    {
+        WebCore::ExceptionCode ec = 0;
+        RefPtr<WebCore::TestObj> ptr = coreSelf->withScriptStateAttributeRaises(ec);
+        g_value_set_object(value, WebKit::kit(ptr.get()));
+        break;
+    }
+    case PROP_WITH_SCRIPT_EXECUTION_CONTEXT_ATTRIBUTE_RAISES:
+    {
+        WebCore::ExceptionCode ec = 0;
+        RefPtr<WebCore::TestObj> ptr = coreSelf->withScriptExecutionContextAttributeRaises(ec);
+        g_value_set_object(value, WebKit::kit(ptr.get()));
+        break;
+    }
+    case PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_ATTRIBUTE:
+    {
+        RefPtr<WebCore::TestObj> ptr = coreSelf->withScriptExecutionContextAndScriptStateAttribute();
+        g_value_set_object(value, WebKit::kit(ptr.get()));
+        break;
+    }
+    case PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_ATTRIBUTE_RAISES:
+    {
+        WebCore::ExceptionCode ec = 0;
+        RefPtr<WebCore::TestObj> ptr = coreSelf->withScriptExecutionContextAndScriptStateAttributeRaises(ec);
+        g_value_set_object(value, WebKit::kit(ptr.get()));
+        break;
+    }
+    case PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_WITH_SPACES_ATTRIBUTE:
+    {
+        RefPtr<WebCore::TestObj> ptr = coreSelf->withScriptExecutionContextAndScriptStateWithSpacesAttribute();
+        g_value_set_object(value, WebKit::kit(ptr.get()));
+        break;
+    }
+    case PROP_WITH_SCRIPT_ARGUMENTS_AND_CALL_STACK_ATTRIBUTE:
+    {
+        RefPtr<WebCore::TestObj> ptr = coreSelf->withScriptArgumentsAndCallStackAttribute();
+        g_value_set_object(value, WebKit::kit(ptr.get()));
         break;
     }
     case PROP_SCRIPT_STRING_ATTR:
@@ -1886,13 +2158,6 @@ G_MAXULONG, /* max */
                                                            "", /* default */
                                                            WEBKIT_PARAM_READWRITE));
     g_object_class_install_property(gobjectClass,
-                                    PROP_REFLECTED_NON_EMPTY_URL_ATTR,
-                                    g_param_spec_string("reflected-non-empty-url-attr", /* name */
-                                                           "test_obj_reflected-non-empty-url-attr", /* short description */
-                                                           "read-write  gchar* TestObj.reflected-non-empty-url-attr", /* longer - could do with some extra doc stuff here */
-                                                           "", /* default */
-                                                           WEBKIT_PARAM_READWRITE));
-    g_object_class_install_property(gobjectClass,
                                     PROP_REFLECTED_STRING_ATTR,
                                     g_param_spec_string("reflected-string-attr", /* name */
                                                            "test_obj_reflected-string-attr", /* short description */
@@ -1920,13 +2185,6 @@ G_MAXLONG, /* max */
                                     g_param_spec_string("reflected-custom-url-attr", /* name */
                                                            "test_obj_reflected-custom-url-attr", /* short description */
                                                            "read-write  gchar* TestObj.reflected-custom-url-attr", /* longer - could do with some extra doc stuff here */
-                                                           "", /* default */
-                                                           WEBKIT_PARAM_READWRITE));
-    g_object_class_install_property(gobjectClass,
-                                    PROP_REFLECTED_CUSTOM_NON_EMPTY_URL_ATTR,
-                                    g_param_spec_string("reflected-custom-non-empty-url-attr", /* name */
-                                                           "test_obj_reflected-custom-non-empty-url-attr", /* short description */
-                                                           "read-write  gchar* TestObj.reflected-custom-non-empty-url-attr", /* longer - could do with some extra doc stuff here */
                                                            "", /* default */
                                                            WEBKIT_PARAM_READWRITE));
     g_object_class_install_property(gobjectClass,
@@ -1960,6 +2218,64 @@ G_MAXLONG, /* max */
                                                            "test_obj_string-attr-with-setter-exception", /* short description */
                                                            "read-write  gchar* TestObj.string-attr-with-setter-exception", /* longer - could do with some extra doc stuff here */
                                                            "", /* default */
+                                                           WEBKIT_PARAM_READWRITE));
+    g_object_class_install_property(gobjectClass,
+                                    PROP_WITH_SCRIPT_STATE_ATTRIBUTE,
+                                    g_param_spec_long("with-script-state-attribute", /* name */
+                                                           "test_obj_with-script-state-attribute", /* short description */
+                                                           "read-write  glong TestObj.with-script-state-attribute", /* longer - could do with some extra doc stuff here */
+                                                           G_MINLONG, /* min */
+G_MAXLONG, /* max */
+0, /* default */
+                                                           WEBKIT_PARAM_READWRITE));
+    g_object_class_install_property(gobjectClass,
+                                    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_ATTRIBUTE,
+                                    g_param_spec_object("with-script-execution-context-attribute", /* name */
+                                                           "test_obj_with-script-execution-context-attribute", /* short description */
+                                                           "read-write  WebKitDOMTestObj* TestObj.with-script-execution-context-attribute", /* longer - could do with some extra doc stuff here */
+                                                           WEBKIT_TYPE_DOM_TEST_OBJ, /* gobject type */
+                                                           WEBKIT_PARAM_READWRITE));
+    g_object_class_install_property(gobjectClass,
+                                    PROP_WITH_SCRIPT_STATE_ATTRIBUTE_RAISES,
+                                    g_param_spec_object("with-script-state-attribute-raises", /* name */
+                                                           "test_obj_with-script-state-attribute-raises", /* short description */
+                                                           "read-write  WebKitDOMTestObj* TestObj.with-script-state-attribute-raises", /* longer - could do with some extra doc stuff here */
+                                                           WEBKIT_TYPE_DOM_TEST_OBJ, /* gobject type */
+                                                           WEBKIT_PARAM_READWRITE));
+    g_object_class_install_property(gobjectClass,
+                                    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_ATTRIBUTE_RAISES,
+                                    g_param_spec_object("with-script-execution-context-attribute-raises", /* name */
+                                                           "test_obj_with-script-execution-context-attribute-raises", /* short description */
+                                                           "read-write  WebKitDOMTestObj* TestObj.with-script-execution-context-attribute-raises", /* longer - could do with some extra doc stuff here */
+                                                           WEBKIT_TYPE_DOM_TEST_OBJ, /* gobject type */
+                                                           WEBKIT_PARAM_READWRITE));
+    g_object_class_install_property(gobjectClass,
+                                    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_ATTRIBUTE,
+                                    g_param_spec_object("with-script-execution-context-and-script-state-attribute", /* name */
+                                                           "test_obj_with-script-execution-context-and-script-state-attribute", /* short description */
+                                                           "read-write  WebKitDOMTestObj* TestObj.with-script-execution-context-and-script-state-attribute", /* longer - could do with some extra doc stuff here */
+                                                           WEBKIT_TYPE_DOM_TEST_OBJ, /* gobject type */
+                                                           WEBKIT_PARAM_READWRITE));
+    g_object_class_install_property(gobjectClass,
+                                    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_ATTRIBUTE_RAISES,
+                                    g_param_spec_object("with-script-execution-context-and-script-state-attribute-raises", /* name */
+                                                           "test_obj_with-script-execution-context-and-script-state-attribute-raises", /* short description */
+                                                           "read-write  WebKitDOMTestObj* TestObj.with-script-execution-context-and-script-state-attribute-raises", /* longer - could do with some extra doc stuff here */
+                                                           WEBKIT_TYPE_DOM_TEST_OBJ, /* gobject type */
+                                                           WEBKIT_PARAM_READWRITE));
+    g_object_class_install_property(gobjectClass,
+                                    PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_WITH_SPACES_ATTRIBUTE,
+                                    g_param_spec_object("with-script-execution-context-and-script-state-with-spaces-attribute", /* name */
+                                                           "test_obj_with-script-execution-context-and-script-state-with-spaces-attribute", /* short description */
+                                                           "read-write  WebKitDOMTestObj* TestObj.with-script-execution-context-and-script-state-with-spaces-attribute", /* longer - could do with some extra doc stuff here */
+                                                           WEBKIT_TYPE_DOM_TEST_OBJ, /* gobject type */
+                                                           WEBKIT_PARAM_READWRITE));
+    g_object_class_install_property(gobjectClass,
+                                    PROP_WITH_SCRIPT_ARGUMENTS_AND_CALL_STACK_ATTRIBUTE,
+                                    g_param_spec_object("with-script-arguments-and-call-stack-attribute", /* name */
+                                                           "test_obj_with-script-arguments-and-call-stack-attribute", /* short description */
+                                                           "read-write  WebKitDOMTestObj* TestObj.with-script-arguments-and-call-stack-attribute", /* longer - could do with some extra doc stuff here */
+                                                           WEBKIT_TYPE_DOM_TEST_OBJ, /* gobject type */
                                                            WEBKIT_PARAM_READWRITE));
     g_object_class_install_property(gobjectClass,
                                     PROP_SCRIPT_STRING_ATTR,

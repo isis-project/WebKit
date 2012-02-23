@@ -40,10 +40,10 @@
     border-radius: 0px;
 }
 
-#summary {
-    min-height: 360px;
+#unexpected {
+    min-height: 550px;
 }
 
-#onebar.partytime #summary {
-    background: url(../images/partytime.gif) top center no-repeat;
+#onebar.partytime #unexpected {
+    background: url(../images/partytime.gif) center center no-repeat;
 }

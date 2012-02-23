@@ -25,11 +25,11 @@
 #include "GraphicsLayer.h"
 #include "Image.h"
 #include "IntPointHash.h"
+#include "LayerTransform.h"
 #include "TextureMapper.h"
+#include "TextureMapperAnimation.h"
 #include "Timer.h"
 #include "TransformOperations.h"
-#include "TranslateTransformOperation.h"
-#include "UnitBezier.h"
 #include <wtf/CurrentTime.h>
 #include <wtf/HashMap.h>
 #include <wtf/RefCounted.h>
@@ -43,34 +43,20 @@ class GraphicsLayerTextureMapper;
 class TextureMapperPaintOptions {
 public:
     BitmapTexture* surface;
-    TextureMapper* textureMapper;
-
+    BitmapTexture* mask;
     float opacity;
-    bool isSurface;
+    TransformationMatrix transform;
+    IntSize offset;
+    TextureMapper* textureMapper;
     TextureMapperPaintOptions()
         : surface(0)
-        , textureMapper(0)
+        , mask(0)
         , opacity(1)
-        , isSurface(false)
+        , textureMapper(0)
     { }
 };
 
-class TextureMapperAnimation : public RefCounted<TextureMapperAnimation> {
-public:
-    String name;
-    KeyframeValueList keyframes;
-    IntSize boxSize;
-    RefPtr<Animation> animation;
-    bool paused;
-    Vector<TransformOperation::OperationType> functionList;
-    bool listsMatch;
-    bool hasBigRotation;
-    double startTime;
-    TextureMapperAnimation(const KeyframeValueList&);
-    static PassRefPtr<TextureMapperAnimation> create(const KeyframeValueList& values) { return adoptRef(new TextureMapperAnimation(values)); }
-};
-
-class TextureMapperNode {
+class TextureMapperNode : public TextureMapperAnimationClient {
 
 public:
     // This set of flags help us defer which properties of the layer have been
@@ -141,6 +127,7 @@ public:
         : m_parent(0)
         , m_effectTarget(0)
         , m_opacity(1)
+        , m_centerZ(0)
         , m_textureMapper(0)
     { }
 
@@ -161,10 +148,9 @@ public:
     void setTileOwnership(TileOwnership ownership) { m_state.tileOwnership = ownership; }
     int createContentsTile(float scale);
     void removeContentsTile(int id);
-    void setContentsTileBackBuffer(int id, const IntRect& sourceRect, const IntRect& targetRect, void* bits, BitmapTexture::PixelFormat);
+    void setContentsTileBackBuffer(int id, const IntRect& sourceRect, const IntRect& targetRect, const void*);
     void setTileBackBufferTextureForDirectlyCompositedImage(int id, const IntRect& sourceRect, const FloatRect& targetRect, BitmapTexture*);
     void clearAllDirectlyCompositedImageTiles();
-    bool collectVisibleContentsRects(NodeRectMap&, const FloatRect&);
     void purgeNodeTexturesRecursive();
 #endif
     void setID(int id) { m_id = id; }
@@ -175,12 +161,11 @@ public:
 private:
     TextureMapperNode* rootLayer();
     void computeTransformsRecursive();
-    void computeTransformsSelf();
-    void computeVisibleRect(const FloatRect& rootVisibleRect);
     void computeOverlapsIfNeeded();
     void computeTiles();
+    IntRect intermediateSurfaceRect(const TransformationMatrix&);
+    IntRect intermediateSurfaceRect();
     void swapContentsBuffers();
-    int countDescendantsWithContent() const;
     FloatRect targetRectForTileRect(const FloatRect& totalTargetRect, const FloatRect& tileRect) const;
     void invalidateViewport(const FloatRect&);
     void notifyChange(ChangeMask);
@@ -191,29 +176,17 @@ private:
 
     BitmapTexture* texture() { return m_ownedTiles.isEmpty() ? 0 : m_ownedTiles[0].texture.get(); }
 
-    void paintRecursive(TextureMapperPaintOptions);
-    bool paintReflection(const TextureMapperPaintOptions&, BitmapTexture* surface);
+    void paintRecursive(const TextureMapperPaintOptions&);
     void paintSelf(const TextureMapperPaintOptions&);
-    void paintSelfAndChildren(const TextureMapperPaintOptions&, TextureMapperPaintOptions& optionsForDescendants);
+    void paintSelfAndChildren(const TextureMapperPaintOptions&);
+    void paintSelfAndChildrenWithReplica(const TextureMapperPaintOptions&);
     void renderContent(TextureMapper*, GraphicsLayer*);
 
-    void syncAnimations(GraphicsLayerTextureMapper*);
-    void applyAnimation(const TextureMapperAnimation&, double runningTime);
-    void applyAnimationFrame(const TextureMapperAnimation&, const AnimationValue* from, const AnimationValue* to, float progress);
-    void applyOpacityAnimation(float fromOpacity, float toOpacity, double);
-    void applyTransformAnimation(const TextureMapperAnimation&, const TransformOperations* start, const TransformOperations* end, double);
-    bool hasOpacityAnimation() const;
-    bool hasTransformAnimation() const;
-    bool hasMoreThanOneTile() const;
-    struct TransformData {
-        TransformationMatrix target;
-        TransformationMatrix forDescendants;
-        TransformationMatrix base;
-        float centerZ;
-        TransformData() { }
-    };
+    void syncAnimations();
+    bool isVisible() const;
+    bool shouldPaintToIntermediateSurface() const;
 
-    TransformData m_transforms;
+    LayerTransform m_transform;
 
     inline FloatRect targetRect() const
     {
@@ -269,6 +242,7 @@ private:
     TextureMapperNode* m_effectTarget;
     FloatSize m_size;
     float m_opacity;
+    float m_centerZ;
     String m_name;
     int m_id;
 
@@ -292,7 +266,6 @@ private:
         bool needsReset: 1;
         bool mightHaveOverlaps : 1;
         bool needsRepaint;
-        IntRect visibleRect;
         float contentScale;
 #if USE(TILED_BACKING_STORE)
         TileOwnership tileOwnership;
@@ -320,8 +293,7 @@ private:
 
     State m_state;
     TextureMapper* m_textureMapper;
-
-    Vector<RefPtr<TextureMapperAnimation> > m_animations;
+    TextureMapperAnimations m_animations;
 };
 
 

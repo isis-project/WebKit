@@ -377,15 +377,6 @@ EventTargetData* WorkerContext::ensureEventTargetData()
     return &m_eventTargetData;
 }
 
-#if ENABLE(BLOB)
-DOMURL* WorkerContext::webkitURL() const
-{
-    if (!m_domURL)
-        m_domURL = DOMURL::create(this->scriptExecutionContext());
-    return m_domURL.get();
-}
-#endif
-
 #if ENABLE(FILE_SYSTEM)
 void WorkerContext::webkitRequestFileSystem(int type, long long size, PassRefPtr<FileSystemCallback> successCallback, PassRefPtr<ErrorCallback> errorCallback)
 {
@@ -395,7 +386,7 @@ void WorkerContext::webkitRequestFileSystem(int type, long long size, PassRefPtr
     }
 
     AsyncFileSystem::Type fileSystemType = static_cast<AsyncFileSystem::Type>(type);
-    if (fileSystemType != AsyncFileSystem::Temporary && fileSystemType != AsyncFileSystem::Persistent && fileSystemType != AsyncFileSystem::External) {
+    if (!AsyncFileSystem::isValidType(fileSystemType)) {
         DOMFileSystem::scheduleCallback(this, errorCallback, FileError::create(FileError::INVALID_MODIFICATION_ERR));
         return;
     }
@@ -412,7 +403,7 @@ PassRefPtr<DOMFileSystemSync> WorkerContext::webkitRequestFileSystemSync(int typ
     }
 
     AsyncFileSystem::Type fileSystemType = static_cast<AsyncFileSystem::Type>(type);
-    if (fileSystemType != AsyncFileSystem::Temporary && fileSystemType != AsyncFileSystem::Persistent && fileSystemType != AsyncFileSystem::External) {
+    if (!AsyncFileSystem::isValidType(fileSystemType)) {
         ec = FileException::INVALID_MODIFICATION_ERR;
         return 0;
     }
@@ -432,7 +423,7 @@ void WorkerContext::webkitResolveLocalFileSystemURL(const String& url, PassRefPt
 
     AsyncFileSystem::Type type;
     String filePath;
-    if (!completedURL.isValid() || !DOMFileSystemBase::crackFileSystemURL(completedURL, type, filePath)) {
+    if (!completedURL.isValid() || !AsyncFileSystem::crackFileSystemURL(completedURL, type, filePath)) {
         DOMFileSystem::scheduleCallback(this, errorCallback, FileError::create(FileError::ENCODING_ERR));
         return;
     }
@@ -451,7 +442,7 @@ PassRefPtr<EntrySync> WorkerContext::webkitResolveLocalFileSystemSyncURL(const S
 
     AsyncFileSystem::Type type;
     String filePath;
-    if (!completedURL.isValid() || !DOMFileSystemBase::crackFileSystemURL(completedURL, type, filePath)) {
+    if (!completedURL.isValid() || !AsyncFileSystem::crackFileSystemURL(completedURL, type, filePath)) {
         ec = FileException::ENCODING_ERR;
         return 0;
     }
@@ -471,7 +462,6 @@ PassRefPtr<EntrySync> WorkerContext::webkitResolveLocalFileSystemSyncURL(const S
 
 COMPILE_ASSERT(static_cast<int>(WorkerContext::TEMPORARY) == static_cast<int>(AsyncFileSystem::Temporary), enum_mismatch);
 COMPILE_ASSERT(static_cast<int>(WorkerContext::PERSISTENT) == static_cast<int>(AsyncFileSystem::Persistent), enum_mismatch);
-COMPILE_ASSERT(static_cast<int>(WorkerContext::EXTERNAL) == static_cast<int>(AsyncFileSystem::External), enum_mismatch);
 #endif
 
 WorkerContext::Observer::Observer(WorkerContext* context)

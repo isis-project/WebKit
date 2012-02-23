@@ -76,13 +76,14 @@ java -jar ~/closure/compiler.jar --summary_detail_level 3 --compilation_level SI
         --js Source/WebCore/inspector/front-end/ResourceUtils.js \
         --js Source/WebCore/inspector/front-end/NetworkManager.js \
         --js Source/WebCore/inspector/front-end/UISourceCode.js \
-    --module jsmodule_ui:33:jsmodule_common \
+    --module jsmodule_ui:35:jsmodule_common \
         --js Source/WebCore/inspector/front-end/AdvancedSearchController.js \
         --js Source/WebCore/inspector/front-end/Checkbox.js \
         --js Source/WebCore/inspector/front-end/ContextMenu.js \
         --js Source/WebCore/inspector/front-end/CookiesTable.js \
         --js Source/WebCore/inspector/front-end/DOMSyntaxHighlighter.js \
         --js Source/WebCore/inspector/front-end/DataGrid.js \
+        --js Source/WebCore/inspector/front-end/Dialog.js \
         --js Source/WebCore/inspector/front-end/Drawer.js \
         --js Source/WebCore/inspector/front-end/EmptyView.js \
         --js Source/WebCore/inspector/front-end/HelpScreen.js \
@@ -98,6 +99,7 @@ java -jar ~/closure/compiler.jar --summary_detail_level 3 --compilation_level SI
         --js Source/WebCore/inspector/front-end/SidebarTreeElement.js \
         --js Source/WebCore/inspector/front-end/ShortcutsScreen.js \
         --js Source/WebCore/inspector/front-end/ShowMoreDataGridNode.js \
+        --js Source/WebCore/inspector/front-end/SidebarOverlay.js \
         --js Source/WebCore/inspector/front-end/SoftContextMenu.js \
         --js Source/WebCore/inspector/front-end/SourceTokenizer.js \
         --js Source/WebCore/inspector/front-end/SplitView.js \
@@ -117,9 +119,9 @@ java -jar ~/closure/compiler.jar --summary_detail_level 3 --compilation_level SI
         --js Source/WebCore/inspector/front-end/DOMPresentationUtils.js \
         --js Source/WebCore/inspector/front-end/ElementsTreeOutline.js \
         --js Source/WebCore/inspector/front-end/EventListenersSidebarPane.js \
+        --js Source/WebCore/inspector/front-end/FilteredItemSelectionDialog.js \
         --js Source/WebCore/inspector/front-end/GoToLineDialog.js \
         --js Source/WebCore/inspector/front-end/JavaScriptContextManager.js \
-        --js Source/WebCore/inspector/front-end/JavaScriptOutlineDialog.js \
         --js Source/WebCore/inspector/front-end/ObjectPopoverHelper.js \
         --js Source/WebCore/inspector/front-end/ObjectPropertiesSection.js \
         --js Source/WebCore/inspector/front-end/PropertiesSidebarPane.js \
@@ -165,7 +167,8 @@ java -jar ~/closure/compiler.jar --summary_detail_level 3 --compilation_level SI
     --module jsmodule_console:2:jsmodule_components \
         --js Source/WebCore/inspector/front-end/ConsoleView.js \
         --js Source/WebCore/inspector/front-end/ConsolePanel.js \
-    --module jsmodule_timeline:2:jsmodule_components \
+    --module jsmodule_timeline:3:jsmodule_components \
+        --js Source/WebCore/inspector/front-end/MemoryStatistics.js \
         --js Source/WebCore/inspector/front-end/TimelineOverviewPane.js \
         --js Source/WebCore/inspector/front-end/TimelinePanel.js \
     --module jsmodule_audits:6:jsmodule_components \

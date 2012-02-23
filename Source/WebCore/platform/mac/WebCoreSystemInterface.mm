@@ -29,6 +29,7 @@
 
 void (*wkAdvanceDefaultButtonPulseAnimation)(NSButtonCell *);
 BOOL (*wkCGContextGetShouldSmoothFonts)(CGContextRef);
+void (*wkCGContextResetClip)(CGContextRef);
 CGPatternRef (*wkCGPatternCreateWithImageAndTransform)(CGImageRef, CGAffineTransform, int);
 CFStringRef (*wkCopyCFLocalizationPreferredName)(CFStringRef);
 NSString* (*wkCopyNSURLResponseStatusLine)(NSURLResponse*);
@@ -179,4 +180,5 @@ dispatch_source_t (*wkCreateVMPressureDispatchOnMainQueue)(void);
 
 #if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
 NSString *(*wkGetMacOSXVersionString)(void);
+bool (*wkExecutableWasLinkedOnOrBeforeLion)(void);
 #endif

@@ -61,19 +61,6 @@ using namespace HTMLNames;
 // Upper limit agreed upon with representatives of Opera and Mozilla.
 static const unsigned maxSelectItems = 10000;
 
-// Configure platform-specific behavior when focused pop-up receives arrow/space/return keystroke.
-// (PLATFORM(MAC) and PLATFORM(GTK) are always false in Chromium, hence the extra tests.)
-#if PLATFORM(MAC) || (PLATFORM(CHROMIUM) && OS(DARWIN))
-#define ARROW_KEYS_POP_MENU 1
-#define SPACE_OR_RETURN_POP_MENU 0
-#elif PLATFORM(GTK) || (PLATFORM(CHROMIUM) && OS(UNIX))
-#define ARROW_KEYS_POP_MENU 0
-#define SPACE_OR_RETURN_POP_MENU 1
-#else
-#define ARROW_KEYS_POP_MENU 0
-#define SPACE_OR_RETURN_POP_MENU 0
-#endif
-
 static const DOMTimeStamp typeAheadTimeout = 1000;
 
 HTMLSelectElement::HTMLSelectElement(const QualifiedName& tagName, Document* document, HTMLFormElement* form)
@@ -269,7 +256,18 @@ void HTMLSelectElement::setValue(const String &value)
     setSelectedIndex(-1);
 }
 
-void HTMLSelectElement::parseMappedAttribute(Attribute* attr)
+bool HTMLSelectElement::isPresentationAttribute(Attribute* attr) const
+{
+    if (attr->name() == alignAttr) {
+        // Don't map 'align' attribute. This matches what Firefox, Opera and IE do.
+        // See http://bugs.webkit.org/show_bug.cgi?id=12072
+        return false;
+    }
+
+    return HTMLFormControlElementWithState::isPresentationAttribute(attr);
+}
+
+void HTMLSelectElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == sizeAttr) {
         int oldSize = m_size;
@@ -295,13 +293,10 @@ void HTMLSelectElement::parseMappedAttribute(Attribute* attr)
         parseMultipleAttribute(attr);
     else if (attr->name() == accesskeyAttr) {
         // FIXME: ignore for the moment.
-    } else if (attr->name() == alignAttr) {
-        // Don't map 'align' attribute. This matches what Firefox, Opera and IE do.
-        // See http://bugs.webkit.org/show_bug.cgi?id=12072
     } else if (attr->name() == onchangeAttr)
         setAttributeEventListener(eventNames().changeEvent, createAttributeEventListener(this, attr));
     else
-        HTMLFormControlElementWithState::parseMappedAttribute(attr);
+        HTMLFormControlElementWithState::parseAttribute(attr);
 }
 
 bool HTMLSelectElement::isKeyboardFocusable(KeyboardEvent* event) const
@@ -780,8 +775,10 @@ void HTMLSelectElement::optionSelectionStateChanged(HTMLOptionElement* option, b
     ASSERT(option->ownerSelectElement() == this);
     if (optionIsSelected)
         selectOption(option->index());
+    else if (!usesMenuList())
+        selectOption(-1);
     else
-        selectOption(m_multiple ? -1 : nextSelectableListIndex(-1));
+        selectOption(nextSelectableListIndex(-1));
 }
 
 void HTMLSelectElement::selectOption(int optionIndex, SelectOptionFlags flags)
@@ -991,7 +988,12 @@ void HTMLSelectElement::reset()
 #if !PLATFORM(WIN) || OS(WINCE)
 bool HTMLSelectElement::platformHandleKeydownEvent(KeyboardEvent* event)
 {
-#if ARROW_KEYS_POP_MENU
+    const Page* page = document()->page();
+    RefPtr<RenderTheme> renderTheme = page ? page->theme() : RenderTheme::defaultTheme();
+
+    if (!renderTheme->popsMenuByArrowKeys())
+        return false;
+
     if (!isSpatialNavigationEnabled(document()->frame())) {
         if (event->keyIdentifier() == "Down" || event->keyIdentifier() == "Up") {
             focus();
@@ -1012,15 +1014,16 @@ bool HTMLSelectElement::platformHandleKeydownEvent(KeyboardEvent* event)
         }
         return true;
     }
-#else
-    UNUSED_PARAM(event);
-#endif
+
     return false;
 }
 #endif
 
 void HTMLSelectElement::menuListDefaultEventHandler(Event* event)
 {
+    const Page* page = document()->page();
+    RefPtr<RenderTheme> renderTheme = page ? page->theme() : RenderTheme::defaultTheme();
+
     if (event->type() == eventNames().keydownEvent) {
         if (!renderer() || !event->isKeyboardEvent())
             return;
@@ -1079,48 +1082,49 @@ void HTMLSelectElement::menuListDefaultEventHandler(Event* event)
             return;
         }
 
-#if SPACE_OR_RETURN_POP_MENU
-        if (keyCode == ' ' || keyCode == '\r') {
-            focus();
+        if (renderTheme->popsMenuBySpaceOrReturn()) {
+            if (keyCode == ' ' || keyCode == '\r') {
+                focus();
 
-            // Calling focus() may cause us to lose our renderer, in which case
-            // do not want to handle the event.
-            if (!renderer())
-                return;
+                // Calling focus() may cause us to lose our renderer, in which case
+                // do not want to handle the event.
+                if (!renderer())
+                    return;
 
-            // Save the selection so it can be compared to the new selection
-            // when dispatching change events during selectOption, which
-            // gets called from RenderMenuList::valueChanged, which gets called
-            // after the user makes a selection from the menu.
-            saveLastSelection();
-            if (RenderMenuList* menuList = toRenderMenuList(renderer()))
-                menuList->showPopup();
-            handled = true;
+                // Save the selection so it can be compared to the new selection
+                // when dispatching change events during selectOption, which
+                // gets called from RenderMenuList::valueChanged, which gets called
+                // after the user makes a selection from the menu.
+                saveLastSelection();
+                if (RenderMenuList* menuList = toRenderMenuList(renderer()))
+                    menuList->showPopup();
+                handled = true;
+            }
+        } else if (renderTheme->popsMenuByArrowKeys()) {
+            if (keyCode == ' ') {
+                focus();
+
+                // Calling focus() may cause us to lose our renderer, in which case
+                // do not want to handle the event.
+                if (!renderer())
+                    return;
+
+                // Save the selection so it can be compared to the new selection
+                // when dispatching change events during selectOption, which
+                // gets called from RenderMenuList::valueChanged, which gets called
+                // after the user makes a selection from the menu.
+                saveLastSelection();
+                if (RenderMenuList* menuList = toRenderMenuList(renderer()))
+                    menuList->showPopup();
+                handled = true;
+            } else if (keyCode == '\r') {
+                if (form())
+                    form()->submitImplicitly(event, false);
+                dispatchChangeEventForMenuList();
+                handled = true;
+            }
         }
-#elif ARROW_KEYS_POP_MENU
-        if (keyCode == ' ') {
-            focus();
 
-            // Calling focus() may cause us to lose our renderer, in which case
-            // do not want to handle the event.
-            if (!renderer())
-                return;
-
-            // Save the selection so it can be compared to the new selection
-            // when dispatching change events during selectOption, which
-            // gets called from RenderMenuList::valueChanged, which gets called
-            // after the user makes a selection from the menu.
-            saveLastSelection();
-            if (RenderMenuList* menuList = toRenderMenuList(renderer()))
-                menuList->showPopup();
-            handled = true;
-        } else if (keyCode == '\r') {
-            if (form())
-                form()->submitImplicitly(event, false);
-            dispatchChangeEventForMenuList();
-            handled = true;
-        }
-#endif
         if (handled)
             event->setDefaultHandled();
     }
@@ -1163,7 +1167,7 @@ void HTMLSelectElement::updateSelectedState(int listIndex, bool multi, bool shif
     if (clickedElement->hasTagName(optionTag)) {
         // Keep track of whether an active selection (like during drag
         // selection), should select or deselect.
-        if (toHTMLOptionElement(clickedElement)->selected() && multi)
+        if (toHTMLOptionElement(clickedElement)->selected() && multiSelect)
             m_activeSelectionState = false;
         if (!m_activeSelectionState)
             toHTMLOptionElement(clickedElement)->setSelectedState(false);
@@ -1231,8 +1235,11 @@ void HTMLSelectElement::listBoxDefaultEventHandler(Event* event)
             if (m_multiple) {
                 setActiveSelectionEndIndex(listIndex);
                 updateListBoxSelection(false);
-            } else
-                updateSelectedState(listIndex, false, false);
+            } else {
+                setActiveSelectionAnchorIndex(listIndex);
+                setActiveSelectionEndIndex(listIndex);
+                updateListBoxSelection(true);
+            }
             event->setDefaultHandled();
         }
     } else if (event->type() == eventNames().mouseupEvent && event->isMouseEvent() && static_cast<MouseEvent*>(event)->button() == LeftButton && document()->frame()->eventHandler()->autoscrollRenderer() != renderer()) {

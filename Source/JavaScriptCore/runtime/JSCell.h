@@ -51,6 +51,7 @@ namespace JSC {
         TypedArrayInt16,
         TypedArrayInt32,
         TypedArrayUint8,
+        TypedArrayUint8Clamped,
         TypedArrayUint16,
         TypedArrayUint32,
         TypedArrayFloat32,
@@ -60,6 +61,7 @@ namespace JSC {
     class JSCell {
         friend class JSValue;
         friend class MarkedBlock;
+        template<typename T> friend void* allocateCell(Heap&);
 
     public:
         enum CreatingEarlyCellTag { CreatingEarlyCell };
@@ -95,7 +97,6 @@ namespace JSC {
         bool getPrimitiveNumber(ExecState*, double& number, JSValue&) const;
         bool toBoolean(ExecState*) const;
         JS_EXPORT_PRIVATE double toNumber(ExecState*) const;
-        JS_EXPORT_PRIVATE UString toString(ExecState*) const;
         JS_EXPORT_PRIVATE JSObject* toObject(ExecState*, JSGlobalObject*) const;
 
         static void visitChildren(JSCell*, SlotVisitor&);
@@ -152,8 +153,6 @@ namespace JSC {
         static bool getOwnPropertySlotByIndex(JSCell*, ExecState*, unsigned propertyName, PropertySlot&);
 
         // Dummy implementations of override-able static functions for classes to put in their MethodTable
-        static NO_RETURN_DUE_TO_ASSERT void defineGetter(JSObject*, ExecState*, const Identifier&, JSObject*, unsigned);
-        static NO_RETURN_DUE_TO_ASSERT void defineSetter(JSObject*, ExecState*, const Identifier& propertyName, JSObject* setterFunction, unsigned attributes = 0);
         static JSValue defaultValue(const JSObject*, ExecState*, PreferredPrimitiveType);
         static NO_RETURN_DUE_TO_ASSERT void getOwnPropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode);
         static NO_RETURN_DUE_TO_ASSERT void getPropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode);
@@ -309,14 +308,34 @@ namespace JSC {
         return isCell() ? asCell()->toObject(exec, globalObject) : toObjectSlowCase(exec, globalObject);
     }
 
-    template <typename T> void* allocateCell(Heap& heap)
+#if COMPILER(CLANG)
+    template<class T>
+    struct NeedsDestructor {
+        static const bool value = !__has_trivial_destructor(T);
+    };
+#else
+    // Write manual specializations for this struct template if you care about non-clang compilers.
+    template<class T>
+    struct NeedsDestructor {
+        static const bool value = true;
+    };
+#endif
+
+    template<typename T>
+    void* allocateCell(Heap& heap)
     {
 #if ENABLE(GC_VALIDATION)
         ASSERT(sizeof(T) == T::s_info.cellSize);
         ASSERT(!heap.globalData()->isInitializingObject());
         heap.globalData()->setInitializingObject(true);
 #endif
-        JSCell* result = static_cast<JSCell*>(heap.allocate(sizeof(T)));
+        JSCell* result = 0;
+        if (NeedsDestructor<T>::value)
+            result = static_cast<JSCell*>(heap.allocateWithDestructor(sizeof(T)));
+        else {
+            ASSERT(T::s_info.methodTable.destroy == JSCell::destroy);
+            result = static_cast<JSCell*>(heap.allocateWithoutDestructor(sizeof(T)));
+        }
         result->clearStructure();
         return result;
     }

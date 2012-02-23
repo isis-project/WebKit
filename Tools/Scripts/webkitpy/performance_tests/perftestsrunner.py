@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (C) 2011 Google Inc. All rights reserved.
+# Copyright (C) 2012 Google Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -29,13 +29,16 @@
 
 """Run Inspector's perf tests in perf mode."""
 
+import json
 import logging
 import optparse
 import re
 import sys
+import time
 
 from webkitpy.common import find_files
 from webkitpy.common.host import Host
+from webkitpy.common.net.file_uploader import FileUploader
 from webkitpy.layout_tests.port.driver import DriverInput
 from webkitpy.layout_tests.views import printing
 
@@ -43,33 +46,59 @@ _log = logging.getLogger(__name__)
 
 
 class PerfTestsRunner(object):
-    _perf_tests_base_dir = 'PerformanceTests'
     _test_directories_for_chromium_style_tests = ['inspector']
+    _default_branch = 'webkit-trunk'
+    _EXIT_CODE_BAD_BUILD = -1
+    _EXIT_CODE_BAD_JSON = -2
+    _EXIT_CODE_FAILED_UPLOADING = -3
 
-    def __init__(self, regular_output=sys.stderr, buildbot_output=sys.stdout, args=None):
+    def __init__(self, regular_output=sys.stderr, buildbot_output=sys.stdout, args=None, port=None):
         self._buildbot_output = buildbot_output
-        self._options, self._args = self._parse_args(args)
-        self._host = Host()
+        self._options, self._args = PerfTestsRunner._parse_args(args)
+        if port:
+            self._port = port
+            self._host = self._port.host
+        else:
+            self._host = Host()
+            self._port = self._host.port_factory.get(self._options.platform, self._options)
         self._host._initialize_scm()
-        self._port = self._host.port_factory.get(self._options.platform, self._options)
         self._printer = printing.Printer(self._port, self._options, regular_output, buildbot_output, configure_logging=False)
         self._webkit_base_dir_len = len(self._port.webkit_base())
-        self._base_path = self._host.filesystem.join(self._port.webkit_base(), self._perf_tests_base_dir)
+        self._base_path = self._port.perf_tests_dir()
+        self._results = {}
+        self._timestamp = time.time()
 
-    def _parse_args(self, args=None):
+    @staticmethod
+    def _parse_args(args=None):
         print_options = printing.print_options()
 
         perf_option_list = [
             optparse.make_option('--debug', action='store_const', const='Debug', dest="configuration",
-                                 help='Set the configuration to Debug'),
+                help='Set the configuration to Debug'),
             optparse.make_option('--release', action='store_const', const='Release', dest="configuration",
-                                 help='Set the configuration to Release'),
+                help='Set the configuration to Release'),
             optparse.make_option("--platform",
-                                 help="Specify port/platform being tested (i.e. chromium-mac)"),
+                help="Specify port/platform being tested (i.e. chromium-mac)"),
+            optparse.make_option("--chromium",
+                action="store_const", const='chromium', dest='platform', help='Alias for --platform=chromium'),
+            optparse.make_option("--builder-name",
+                help=("The name of the builder shown on the waterfall running this script e.g. google-mac-2.")),
+            optparse.make_option("--build-number",
+                help=("The build number of the builder running this script.")),
+            optparse.make_option("--build", dest="build", action="store_true", default=True,
+                help="Check to ensure the DumpRenderTree build is up-to-date (default)."),
             optparse.make_option("--build-directory",
-                                 help="Path to the directory under which build files are kept (should not include configuration)"),
-            optparse.make_option("--time-out-ms", default=30000,
-                                 help="Set the timeout for each test"),
+                help="Path to the directory under which build files are kept (should not include configuration)"),
+            optparse.make_option("--time-out-ms", default=600 * 1000,
+                help="Set the timeout for each test"),
+            optparse.make_option("--pause-before-testing", dest="pause_before_testing", action="store_true", default=False,
+                help="Pause before running the tests to let user attach a performance monitor."),
+            optparse.make_option("--output-json-path",
+                help="Filename of the JSON file that summaries the results"),
+            optparse.make_option("--source-json-path",
+                help="Path to a JSON file to be merged into the JSON file when --output-json-path is present"),
+            optparse.make_option("--test-results-server",
+                help="Upload the generated JSON file to the specified server when --output-json-path is present"),
             ]
 
         option_list = (perf_option_list + print_options)
@@ -81,7 +110,16 @@ class PerfTestsRunner(object):
         def _is_test_file(filesystem, dirname, filename):
             return filename.endswith('.html')
 
-        return find_files.find(self._host.filesystem, self._base_path, paths=self._args, file_filter=_is_test_file)
+        paths = []
+        for arg in self._args:
+            paths.append(arg)
+            relpath = self._host.filesystem.relpath(arg, self._base_path)
+            if relpath:
+                paths.append(relpath)
+
+        skipped_directories = set(['.svn', 'resources'])
+        tests = find_files.find(self._host.filesystem, self._base_path, paths, skipped_directories, _is_test_file)
+        return [test for test in tests if not self._port.skips_perf_test(self._port.relative_perf_test_filename(test))]
 
     def run(self):
         if self._options.help_printing:
@@ -91,18 +129,77 @@ class PerfTestsRunner(object):
 
         if not self._port.check_build(needs_http=False):
             _log.error("Build not up to date for %s" % self._port._path_to_driver())
-            return -1
+            return self._EXIT_CODE_BAD_BUILD
 
         # We wrap any parts of the run that are slow or likely to raise exceptions
         # in a try/finally to ensure that we clean up the logging configuration.
         unexpected = -1
         try:
             tests = self._collect_tests()
-            unexpected = self._run_tests_set(tests, self._port)
+            unexpected = self._run_tests_set(sorted(list(tests)), self._port)
         finally:
             self._printer.cleanup()
 
+        options = self._options
+        if self._options.output_json_path:
+            # FIXME: Add --branch or auto-detect the branch we're in
+            test_results_server = options.test_results_server
+            branch = self._default_branch if test_results_server else None
+            build_number = int(options.build_number) if options.build_number else None
+            if not self._generate_json(self._timestamp, options.output_json_path, options.source_json_path,
+                branch, options.platform, options.builder_name, build_number) and not unexpected:
+                return self._EXIT_CODE_BAD_JSON
+            if test_results_server and not self._upload_json(test_results_server, options.output_json_path):
+                return self._EXIT_CODE_FAILED_UPLOADING
+
         return unexpected
+
+    def _generate_json(self, timestamp, output_json_path, source_json_path, branch, platform, builder_name, build_number):
+        contents = {'timestamp': int(timestamp), 'results': self._results}
+        for (name, path) in self._port.repository_paths():
+            contents[name + '-revision'] = self._host.scm().svn_revision(path)
+
+        for key, value in {'branch': branch, 'platform': platform, 'builder-name': builder_name, 'build-number': build_number}.items():
+            if value:
+                contents[key] = value
+
+        filesystem = self._host.filesystem
+        succeeded = False
+        if source_json_path:
+            try:
+                source_json_file = filesystem.open_text_file_for_reading(source_json_path)
+                source_json = json.load(source_json_file)
+                contents = dict(source_json.items() + contents.items())
+                succeeded = True
+            except IOError, error:
+                _log.error("Failed to read %s: %s" % (source_json_path, error))
+            except ValueError, error:
+                _log.error("Failed to parse %s: %s" % (source_json_path, error))
+            except TypeError, error:
+                _log.error("Failed to merge JSON files: %s" % error)
+            if not succeeded:
+                return False
+
+        filesystem.write_text_file(output_json_path, json.dumps(contents))
+        return True
+
+    def _upload_json(self, test_results_server, json_path, file_uploader=FileUploader):
+        uploader = file_uploader("https://%s/api/test/report" % test_results_server, 120)
+        try:
+            response = uploader.upload_single_text_file(self._host.filesystem, 'application/json', json_path)
+        except Exception, error:
+            _log.error("Failed to upload JSON file in 120s: %s" % error)
+            return False
+
+        response_body = [line.strip('\n') for line in response]
+        if response_body != ['OK']:
+            _log.error("Uploaded JSON but got a bad response:")
+            for line in response_body:
+                _log.error(line)
+            return False
+
+        self._printer.write("JSON file uploaded.")
+        return True
 
     def _print_status(self, tests, expected, unexpected):
         if len(tests) == expected + unexpected:
@@ -117,41 +214,41 @@ class PerfTestsRunner(object):
         result_count = len(tests)
         expected = 0
         unexpected = 0
-        driver_need_restart = False
         driver = None
 
         for test in tests:
-            if driver_need_restart:
-                _log.debug("%s killing driver" % test)
-                driver.stop()
-                driver = None
-            if not driver:
-                driver = port.create_driver(worker_number=1)
+            driver = port.create_driver(worker_number=1, no_timeout=True)
+
+            if self._options.pause_before_testing:
+                driver.start()
+                if not self._host.user.confirm("Ready to run test?"):
+                    driver.stop()
+                    return unexpected
 
             relative_test_path = self._host.filesystem.relpath(test, self._base_path)
             self._printer.write('Running %s (%d of %d)' % (relative_test_path, expected + unexpected + 1, len(tests)))
 
             is_chromium_style = self._host.filesystem.split(relative_test_path)[0] in self._test_directories_for_chromium_style_tests
-            test_failed, driver_need_restart = self._run_single_test(test, driver, is_chromium_style)
-            if test_failed:
-                unexpected = unexpected + 1
-            else:
+            if self._run_single_test(test, driver, is_chromium_style):
                 expected = expected + 1
+            else:
+                unexpected = unexpected + 1
 
             self._printer.write('')
 
-        if driver:
             driver.stop()
 
         return unexpected
 
-    _inspector_result_regex = re.compile('^RESULT .*$')
+    _inspector_result_regex = re.compile(r'^RESULT\s+(?P<name>[^=]+)\s*=\s+(?P<value>\d+(\.\d+)?)\s*(?P<unit>\w+)$')
 
     def _process_chromium_style_test_result(self, test, output):
         test_failed = False
         got_a_result = False
         for line in re.split('\n', output.text):
-            if self._inspector_result_regex.match(line):
+            resultLine = self._inspector_result_regex.match(line)
+            if resultLine:
+                self._results[resultLine.group('name').replace(' ', '')] = float(resultLine.group('value'))
                 self._buildbot_output.write("%s\n" % line)
                 got_a_result = True
             elif not len(line) == 0:
@@ -162,14 +259,17 @@ class PerfTestsRunner(object):
     _lines_to_ignore_in_parser_result = [
         re.compile(r'^Running \d+ times$'),
         re.compile(r'^Ignoring warm-up '),
-        re.compile(r'^\d+$'),
-    ]
+        re.compile(r'^\d+(.\d+)?$'),
+        # Following are for handle existing test like Dromaeo
+        re.compile(re.escape("""main frame - has 1 onunload handler(s)""")),
+        re.compile(re.escape("""frame "<!--framePath //<!--frame0-->-->" - has 1 onunload handler(s)""")),
+        re.compile(re.escape("""frame "<!--framePath //<!--frame0-->/<!--frame0-->-->" - has 1 onunload handler(s)"""))]
 
     def _should_ignore_line_in_parser_test_result(self, line):
         if not line:
             return True
         for regex in self._lines_to_ignore_in_parser_result:
-            if regex.match(line):
+            if regex.search(line):
                 return True
         return False
 
@@ -185,7 +285,7 @@ class PerfTestsRunner(object):
         for line in re.split('\n', output.text):
             score = score_regex.match(line)
             if score:
-                results[score.group(1)] = score.group(2)
+                results[score.group(1)] = float(score.group(2))
                 continue
 
             if not self._should_ignore_line_in_parser_test_result(line):
@@ -194,13 +294,13 @@ class PerfTestsRunner(object):
 
         if test_failed or set(keys) != set(results.keys()):
             return True
+        self._results[filesystem.join(category, test_name).replace('\\', '/')] = results
         self._buildbot_output.write('RESULT %s: %s= %s ms\n' % (category, test_name, results['avg']))
         self._buildbot_output.write(', '.join(['%s= %s ms' % (key, results[key]) for key in keys[1:]]) + '\n')
         return False
 
     def _run_single_test(self, test, driver, is_chromium_style):
         test_failed = False
-        driver_need_restart = False
         output = driver.run_test(DriverInput(test, self._options.time_out_ms, None, False))
 
         if output.text == None:
@@ -208,10 +308,8 @@ class PerfTestsRunner(object):
         elif output.timeout:
             self._printer.write('timeout: %s' % test[self._webkit_base_dir_len + 1:])
             test_failed = True
-            driver_need_restart = True
         elif output.crash:
             self._printer.write('crash: %s' % test[self._webkit_base_dir_len + 1:])
-            driver_need_restart = True
             test_failed = True
         else:
             if is_chromium_style:
@@ -226,4 +324,4 @@ class PerfTestsRunner(object):
         if test_failed:
             self._printer.write('FAILED')
 
-        return test_failed, driver_need_restart
+        return not test_failed

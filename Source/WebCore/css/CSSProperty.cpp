@@ -331,7 +331,7 @@ bool CSSProperty::isInheritedProperty(unsigned propertyID)
     case CSSPropertyWebkitLineBoxContain:
     case CSSPropertyWebkitLineBreak:
     case CSSPropertyWebkitLineGrid:
-    case CSSPropertyWebkitLineGridSnap:
+    case CSSPropertyWebkitLineSnap:
     case CSSPropertyWebkitNbspMode:
     case CSSPropertyWebkitPrintColorAdjust:
     case CSSPropertyWebkitRtlOrdering:
@@ -560,6 +560,7 @@ bool CSSProperty::isInheritedProperty(unsigned propertyID)
 #endif
     case CSSPropertyWebkitFlexOrder:
     case CSSPropertyWebkitFlexPack:
+    case CSSPropertyWebkitFlexAlign:
     case CSSPropertyWebkitFlexItemAlign:
     case CSSPropertyWebkitFlexDirection:
     case CSSPropertyWebkitFlexFlow:

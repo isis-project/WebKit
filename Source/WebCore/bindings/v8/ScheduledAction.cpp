@@ -96,8 +96,10 @@ void ScheduledAction::execute(ScriptExecutionContext* context)
 {
     if (context->isDocument()) {
         Frame* frame = static_cast<Document*>(context)->frame();
+        if (!frame)
+            return;
         ScriptController* scriptController = frame->script();
-        if (!scriptController->canExecuteScripts(NotAboutToExecuteScript))
+        if (!scriptController->canExecuteScripts(AboutToExecuteScript))
             return;
         V8Proxy* proxy = V8Proxy::retrieve(frame);
         execute(proxy);
@@ -126,10 +128,9 @@ void ScheduledAction::execute(V8Proxy* proxy)
     v8::Context::Scope scope(v8Context);
 
     // FIXME: Need to implement timeouts for preempting a long-running script.
-    if (!m_function.IsEmpty() && m_function->IsFunction()) {
+    if (!m_function.IsEmpty() && m_function->IsFunction())
         proxy->callFunction(v8::Persistent<v8::Function>::Cast(m_function), v8Context->Global(), m_argc, m_argv);
-        Document::updateStyleForAllDocuments();
-    } else
+    else
         proxy->evaluate(m_code, 0);
 
     // The 'proxy' may be invalid at this point since JS could have released the owning Frame.

@@ -24,11 +24,13 @@
 #include "FrameLoaderTypes.h"
 #include "FindOptions.h"
 #include "LayoutTypes.h"
+#include "PageSupplement.h"
 #include "PageVisibilityState.h"
 #include "PlatformScreen.h"
 #include "PlatformString.h"
 #include "ViewportArguments.h"
 #include <wtf/Forward.h>
+#include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 #include <wtf/Noncopyable.h>
 
@@ -52,10 +54,6 @@ namespace WebCore {
     class ChromeClient;
     class ContextMenuClient;
     class ContextMenuController;
-    class DeviceMotionClient;
-    class DeviceMotionController;
-    class DeviceOrientationClient;
-    class DeviceOrientationController;
     class Document;
     class DragCaretController;
     class DragClient;
@@ -76,8 +74,10 @@ namespace WebCore {
     class NotificationPresenter;
     class PageGroup;
     class PluginData;
+    class PointerLockController;
     class ProgressTracker;
     class Range;
+    class RenderObject;
     class RenderTheme;
     class VisibleSelection;
     class ScrollableArea;
@@ -116,8 +116,6 @@ namespace WebCore {
             DragClient* dragClient;
             InspectorClient* inspectorClient;
             GeolocationClient* geolocationClient;
-            DeviceMotionClient* deviceMotionClient;
-            DeviceOrientationClient* deviceOrientationClient;
             RefPtr<BackForwardList> backForwardClient;
             SpeechInputClient* speechInputClient;
             NotificationPresenter* notificationClient;
@@ -131,8 +129,7 @@ namespace WebCore {
 
         RenderTheme* theme() const { return m_theme.get(); };
 
-        ViewportArguments viewportArguments() const { return m_viewportArguments; }
-        void updateViewportArguments();
+        ViewportArguments viewportArguments() const;
 
         static void refreshPlugins(bool reload);
         PluginData* pluginData() const;
@@ -183,12 +180,11 @@ namespace WebCore {
 #if ENABLE(CLIENT_BASED_GEOLOCATION)
         GeolocationController* geolocationController() const { return m_geolocationController.get(); }
 #endif
-#if ENABLE(DEVICE_ORIENTATION)
-        DeviceMotionController* deviceMotionController() const { return m_deviceMotionController.get(); }
-        DeviceOrientationController* deviceOrientationController() const { return m_deviceOrientationController.get(); }
-#endif
 #if ENABLE(NOTIFICATIONS)
         NotificationController* notificationController() const { return m_notificationController.get(); }
+#endif
+#if ENABLE(POINTER_LOCK)
+        PointerLockController* pointerLockController() const { return m_pointerLockController.get(); }
 #endif
 #if ENABLE(INPUT_SPEECH)
         SpeechInput* speechInput();
@@ -266,6 +262,7 @@ namespace WebCore {
 
             Pagination()
                 : mode(Unpaginated)
+                , behavesLikeColumns(false)
                 , pageLength(0)
                 , gap(0)
             {
@@ -273,10 +270,11 @@ namespace WebCore {
 
             bool operator==(const Pagination& other) const
             {
-                return mode == other.mode && pageLength == other.pageLength && gap == other.gap;
+                return mode == other.mode && behavesLikeColumns == other.behavesLikeColumns && pageLength == other.pageLength && gap == other.gap;
             }
 
             Mode mode;
+            bool behavesLikeColumns;
             unsigned pageLength;
             unsigned gap;
         };
@@ -327,12 +325,6 @@ namespace WebCore {
         void setJavaScriptURLsAreAllowed(bool);
         bool javaScriptURLsAreAllowed() const;
 
-        typedef HashSet<ScrollableArea*> ScrollableAreaSet;
-        void addScrollableArea(ScrollableArea*);
-        void removeScrollableArea(ScrollableArea*);
-        bool containsScrollableArea(ScrollableArea*) const;
-        const ScrollableAreaSet* scrollableAreaSet() const { return m_scrollableAreaSet.get(); }
-
         // Don't allow more than a certain number of frames in a page.
         // This seems like a reasonable upper bound, and otherwise mutually
         // recursive frameset pages can quickly bring the program to its knees
@@ -348,9 +340,19 @@ namespace WebCore {
 #endif
 
         PlatformDisplayID displayID() const { return m_displayID; }
-        
+
+        void setRelevantRepaintedObjectsCounterThreshold(uint64_t);
+        void startCountingRelevantRepaintedObjects();
+        void addRelevantRepaintedObject(RenderObject*, const IntRect& objectPaintRect);
+
+        void provideSupplement(const AtomicString&, PassOwnPtr<PageSupplement>);
+        PageSupplement* requireSupplement(const AtomicString&);
+
     private:
         void initGroup();
+
+        typedef HashMap<AtomicStringImpl*, OwnPtr<PageSupplement> > PageSupplementMap;
+        PageSupplementMap m_suppliments;
 
 #if ASSERT_DISABLED
         void checkFrameCountConsistency() const { }
@@ -379,12 +381,11 @@ namespace WebCore {
 #if ENABLE(CLIENT_BASED_GEOLOCATION)
         OwnPtr<GeolocationController> m_geolocationController;
 #endif
-#if ENABLE(DEVICE_ORIENTATION)
-        OwnPtr<DeviceMotionController> m_deviceMotionController;
-        OwnPtr<DeviceOrientationController> m_deviceOrientationController;
-#endif
 #if ENABLE(NOTIFICATIONS)
         OwnPtr<NotificationController> m_notificationController;
+#endif
+#if ENABLE(POINTER_LOCK)
+        OwnPtr<PointerLockController> m_pointerLockController;
 #endif
 #if ENABLE(INPUT_SPEECH)
         SpeechInputClient* m_speechInputClient;
@@ -450,11 +451,7 @@ namespace WebCore {
 
         ViewMode m_viewMode;
 
-        ViewportArguments m_viewportArguments;
-
         double m_minimumTimerInterval;
-
-        OwnPtr<ScrollableAreaSet> m_scrollableAreaSet;
 
         bool m_isEditable;
 
@@ -462,6 +459,9 @@ namespace WebCore {
         PageVisibilityState m_visibilityState;
 #endif
         PlatformDisplayID m_displayID;
+
+        HashSet<RenderObject*> m_relevantPaintedRenderObjects;
+        bool m_isCountingRelevantRepaintedObjects;
     };
 
 } // namespace WebCore

@@ -19,21 +19,47 @@ fast/events/wheelevent-direction-inverted-from-device.html
 fast/events/wheelevent-in-horizontal-scrollbar-in-rtl.html
 fast/events/wheelevent-in-vertical-scrollbar-in-rtl.html
 
-# EFL's EventSender does not implement zoomPage{In,Out} and textZoom{In,Out} yet
-fast/css/ignore-text-zoom.html
-fast/css/preserve-user-specified-zoom-level-on-reload.html
-fast/css/zoom-body-scroll.html
-fast/css/zoom-change-triggering-layout.html
-fast/dom/Document/CaretRangeFromPoint/hittest-relative-to-viewport.html
-fast/dom/elementFromPoint-relative-to-viewport.html
-fast/dom/horizontal-scrollbar-in-rtl.html
-fast/dom/vertical-scrollbar-in-rtl.html
-fast/events/clientXY-in-zoom-and-scroll.html
-fast/events/touch/touch-coords-in-zoom-and-scroll.html
-fast/events/zoom-dblclick.html
-fast/images/imagemap-focus-ring-zoom.html
-fast/loader/policy-delegate-action-hit-test-zoomed.html
-svg
+# EFL has not fully implemented about some SVG attributes
+svg/animations/svgboolean-animation-1.html
+svg/animations/svginteger-animation-1.html
+svg/animations/svgnumberoptionalnumber-animation-1.html
+svg/animations/svgnumberoptionalnumber-animation-2.html
+svg/animations/svgnumberoptionalnumber-animation-3.html
+svg/animations/svgnumberoptionalnumber-animation-4.html
+svg/as-object
+svg/css/rect-gradient-stroke-shadow.svg
+svg/custom
+svg/dom/altGlyph-dom.xhtml
+svg/dom/baseVal-animVal-crash.html
+svg/dom/css-transforms.xhtml
+svg/dom/font-face-elements.html
+svg/dom/operatorAttribute.html
+svg/dom/SVGAnimatedEnumeration-SVGComponentTransferFunctionElement.html
+svg/dom/SVGAnimatedEnumeration-SVGFEBlendElement.html
+svg/dom/SVGAnimatedEnumeration-SVGFEColorMatrixElement.html
+svg/dom/SVGAnimatedEnumeration-SVGFECompositeElement.html
+svg/dom/SVGAnimatedEnumeration-SVGFEConvolveMatrixElement.html
+svg/dom/SVGAnimatedEnumeration-SVGFEDisplacementMapElement.html
+svg/dom/SVGAnimatedEnumeration-SVGFEMorphologyElement.html
+svg/dom/SVGAnimatedEnumeration-SVGFETurbulenceElement.html
+svg/dom/SVGAnimatedEnumeration-SVGFilterElement.html
+svg/dom/SVGAnimatedInteger.html
+svg/dom/SVGAnimatedNumber.html
+svg/dom/SVGLength-px-with-context.html
+svg/dom/SVGPathSegList-cloning.html
+svg/dynamic-updates
+svg/filters
+svg/foreignObject/filter.html
+svg/foreignObject/text-tref-02-b.svg
+svg/overflow/overflow-on-outermost-svg-element-defaults.svg
+svg/overflow/overflow-on-outermost-svg-element-ignore-attribute-1.svg
+svg/overflow/overflow-on-outermost-svg-element-ignore-attribute-2.svg
+svg/overflow/overflow-on-outermost-svg-element-ignore-attribute-3.svg
+svg/text
+svg/W3C-SVG-1.1
+svg/W3C-SVG-1.1-SE
+svg/zoom/page/relative-sized-document-scrollbars.svg
+svg/zoom/page/zoom-zoom-coords.xhtml
 
 # EFL's EventSender needs to emit double clicks
 fast/events/dblclick-addEventListener.html
@@ -140,6 +166,7 @@ fast/events/drag-selects-image.html
 fast/events/dropzone-001.html
 fast/events/dropzone-002.html
 fast/events/dropzone-003.html
+fast/events/dropzone-005.html
 fast/events/fire-mousedown-while-pressing-mouse-button.html
 fast/events/frame-click-focus.html
 fast/events/ondragenter.html
@@ -442,6 +469,7 @@ fast/loader/javascript-url-hierarchical-execution.html
 fast/loader/onload-policy-ignore-for-frame.html
 fast/loader/policy-delegate-action-hit-test-zoomed.html
 fast/loader/reload-policy-delegate.html
+http/tests/download
 
 # EFL's LayoutTestController does not implement setScrollbarPolicy
 fast/overflow/scrollbar-restored-and-then-locked.html
@@ -716,6 +744,8 @@ fast/parser/noscript-with-javascript-enabled.html
 fast/parser/pre-html5-parser-quirks.html
 fast/repaint/no-caret-repaint-in-non-content-editable-element.html
 fast/spatial-navigation
+fast/text/international/content-language-font-selection.html
+fast/text/international/content-language-with-subtags.html
 fast/text/international/locale-sensitive-fonts.html
 fast/text/zero-font-size.html
 fast/viewport/viewport-128.html
@@ -823,8 +853,41 @@ editing/spelling/spelling-linebreak.html
 # EFL's LayoutTestController does not implement hasGrammarMarker
 editing/spelling/grammar.html
 
-# EFL's LayoutTestController does not implement dumpConfigurationForViewport
-fast/viewport
+# viewport meta tag tests that differ from the Opera results
+fast/viewport/viewport-65.html
+fast/viewport/viewport-82.html
+fast/viewport/viewport-84.html
+fast/viewport/viewport-87.html
+fast/viewport/viewport-126.html
+fast/viewport/viewport-127.html
+
+# viewport meta tag tests that fail on the bot for yet unknown reasons
+fast/viewport/viewport-6.html
+fast/viewport/viewport-58.html
+
+# REGRESSION(r99195)
+# https://bugs.webkit.org/show_bug.cgi?id=70609
+fast/viewport/viewport-18.html
+fast/viewport/viewport-36.html
+fast/viewport/viewport-37.html
+fast/viewport/viewport-43.html
+fast/viewport/viewport-46.html
+fast/viewport/viewport-52.html
+fast/viewport/viewport-53.html
+fast/viewport/viewport-54.html
+fast/viewport/viewport-55.html
+fast/viewport/viewport-60.html
+fast/viewport/viewport-75.html
+fast/viewport/viewport-76.html
+fast/viewport/viewport-83.html
+fast/viewport/viewport-86.html
+fast/viewport/viewport-121.html
+fast/viewport/viewport-122.html
+fast/viewport/viewport-125.html
+fast/viewport/viewport-129.html
+fast/viewport/viewport-warnings-3.html
+fast/viewport/viewport-warnings-4.html
+fast/viewport/viewport-warnings-6.html
 
 # EFL's LayoutTestController does not implement setSerializeHTTPLoads
 fast/loader/file-protocol-fragment.html
@@ -1008,6 +1071,7 @@ fast/animation
 fast/filesystem
 http/tests/filesystem
 http/tests/security/filesystem-iframe-from-remote.html
+fast/mutation/end-of-task-delivery.html
 
 # The EFL port has no support for Geolocation
 fast/dom/Geolocation
@@ -1183,6 +1247,10 @@ fast/dom/Window/slow-unload-handler-only-frame-is-stopped.html
 
 # The EFL port has no global history delegate
 http/tests/globalhistory
+
+# Fails because MutationObservers are not notified at end-of-task
+# https://bugs.webkit.org/show_bug.cgi?id=78290
+fast/mutation/end-of-task-delivery.html
 
 # --------------------------------
 # Tests which are expected to fail
@@ -1899,6 +1967,10 @@ fast/css-grid-layout
 # <style scoped> is not yet enabled. http://webkit.org/b/49142
 fast/css/style-scoped
 
+# ENABLE(SHADOW_DOM) is disabled.
+fast/dom/shadow/shadow-root-js-api.html
+fast/dom/shadow/shadow-disable.html
+
 # CSS Filters support not yet enabled (needs ENABLE_CSS_FILTERS).
 # https://bugs.webkit.org/show_bug.cgi?id=68469
 css3/filters
@@ -1918,9 +1990,6 @@ fast/forms/week
 
 # ENABLE_GAMEPAD not enabled.
 gamepad/
-
-# MutationObservers are net yet enabled. http://webkit.org/b/68729
-fast/mutation
 
 # HiDPI tests require test infrastructure enhancements
 fast/hidpi

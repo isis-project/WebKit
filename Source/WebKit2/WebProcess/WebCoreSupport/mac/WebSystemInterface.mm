@@ -40,6 +40,7 @@ void InitWebCoreSystemInterface(void)
         INIT(CopyCFLocalizationPreferredName);
         INIT(CGContextGetShouldSmoothFonts);
         INIT(CGPatternCreateWithImageAndTransform);
+        INIT(CGContextResetClip);
         INIT(CopyCONNECTProxyResponse);
         INIT(CopyNSURLResponseStatusLine);
         INIT(CreateCTLineWithUniCharProvider);
@@ -156,6 +157,7 @@ void InitWebCoreSystemInterface(void)
 
 #if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
         INIT(GetMacOSXVersionString);
+        INIT(ExecutableWasLinkedOnOrBeforeLion);
 #endif
 
     });

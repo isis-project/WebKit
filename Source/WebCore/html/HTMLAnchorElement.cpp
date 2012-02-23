@@ -48,6 +48,7 @@ using namespace HTMLNames;
 
 HTMLAnchorElement::HTMLAnchorElement(const QualifiedName& tagName, Document* document)
     : HTMLElement(tagName, document)
+    , m_hasRootEditableElementForSelectionOnMouseDown(false)
     , m_wasShiftKeyDownOnMouseDown(false)
     , m_linkRelations(0)
     , m_cachedVisitedLinkHash(0)
@@ -62,6 +63,11 @@ PassRefPtr<HTMLAnchorElement> HTMLAnchorElement::create(Document* document)
 PassRefPtr<HTMLAnchorElement> HTMLAnchorElement::create(const QualifiedName& tagName, Document* document)
 {
     return adoptRef(new HTMLAnchorElement(tagName, document));
+}
+
+HTMLAnchorElement::~HTMLAnchorElement()
+{
+    clearRootEditableElementForSelectionOnMouseDown();
 }
 
 // This function does not allow leading spaces before the port number.
@@ -158,12 +164,12 @@ void HTMLAnchorElement::defaultEventHandler(Event* event)
             // This keeps track of the editable block that the selection was in (if it was in one) just before the link was clicked
             // for the LiveWhenNotFocused editable link behavior
             if (event->type() == eventNames().mousedownEvent && event->isMouseEvent() && static_cast<MouseEvent*>(event)->button() != RightButton && document()->frame() && document()->frame()->selection()) {
-                m_rootEditableElementForSelectionOnMouseDown = document()->frame()->selection()->rootEditableElement();
+                setRootEditableElementForSelectionOnMouseDown(document()->frame()->selection()->rootEditableElement());
                 m_wasShiftKeyDownOnMouseDown = static_cast<MouseEvent*>(event)->shiftKey();
             } else if (event->type() == eventNames().mouseoverEvent) {
                 // These are cleared on mouseover and not mouseout because their values are needed for drag events,
                 // but drag events happen after mouse out events.
-                m_rootEditableElementForSelectionOnMouseDown = 0;
+                clearRootEditableElementForSelectionOnMouseDown();
                 m_wasShiftKeyDownOnMouseDown = false;
             }
         }
@@ -204,7 +210,7 @@ void HTMLAnchorElement::setActive(bool down, bool pause)
     ContainerNode::setActive(down, pause);
 }
 
-void HTMLAnchorElement::parseMappedAttribute(Attribute* attr)
+void HTMLAnchorElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == hrefAttr) {
         bool wasLink = isLink();
@@ -228,7 +234,7 @@ void HTMLAnchorElement::parseMappedAttribute(Attribute* attr)
     } else if (attr->name() == relAttr)
         setRel(attr->value());
     else
-        HTMLElement::parseMappedAttribute(attr);
+        HTMLElement::parseAttribute(attr);
 }
 
 void HTMLAnchorElement::accessKeyAction(bool sendMouseEvents)
@@ -287,7 +293,7 @@ void HTMLAnchorElement::setRel(const String& value)
 
 const AtomicString& HTMLAnchorElement::name() const
 {
-    return getAttribute(nameAttr);
+    return getNameAttribute();
 }
 
 short HTMLAnchorElement::tabIndex() const
@@ -483,7 +489,7 @@ void HTMLAnchorElement::sendPings(const KURL& destinationURL)
     if (!hasAttribute(pingAttr) || !document()->settings()->hyperlinkAuditingEnabled())
         return;
 
-    SpaceSplitString pingURLs(getAttribute(pingAttr), true);
+    SpaceSplitString pingURLs(getAttribute(pingAttr), false);
     for (unsigned i = 0; i < pingURLs.size(); i++)
         PingLoader::sendPing(document()->frame(), document()->completeURL(pingURLs[i]), destinationURL);
 }
@@ -546,7 +552,7 @@ bool HTMLAnchorElement::treatLinkAsLiveForEventType(EventType eventType) const
     // If the selection prior to clicking on this link resided in the same editable block as this link,
     // and the shift key isn't pressed, we don't want to follow the link.
     case EditableLinkLiveWhenNotFocused:
-        return eventType == MouseEventWithShiftKey || (eventType == MouseEventWithoutShiftKey && m_rootEditableElementForSelectionOnMouseDown != rootEditableElement());
+        return eventType == MouseEventWithShiftKey || (eventType == MouseEventWithoutShiftKey && rootEditableElementForSelectionOnMouseDown() != rootEditableElement());
 
     case EditableLinkOnlyLiveWithShiftKey:
         return eventType == MouseEventWithShiftKey;
@@ -587,10 +593,44 @@ String HTMLAnchorElement::itemValueText() const
     return getURLAttribute(hrefAttr);
 }
 
-void HTMLAnchorElement::setItemValueText(const String& value, ExceptionCode& ec)
+void HTMLAnchorElement::setItemValueText(const String& value, ExceptionCode&)
 {
-    setAttribute(hrefAttr, value, ec);
+    setAttribute(hrefAttr, value);
 }
 #endif
+
+typedef HashMap<const HTMLAnchorElement*, RefPtr<Element> > RootEditableElementMap;
+
+static RootEditableElementMap& rootEditableElementMap()
+{
+    DEFINE_STATIC_LOCAL(RootEditableElementMap, map, ());
+    return map;
+}
+
+Element* HTMLAnchorElement::rootEditableElementForSelectionOnMouseDown() const
+{
+    if (!m_hasRootEditableElementForSelectionOnMouseDown)
+        return 0;
+    return rootEditableElementMap().get(this).get();
+}
+
+void HTMLAnchorElement::clearRootEditableElementForSelectionOnMouseDown()
+{
+    if (!m_hasRootEditableElementForSelectionOnMouseDown)
+        return;
+    rootEditableElementMap().remove(this);
+    m_hasRootEditableElementForSelectionOnMouseDown = false;
+}
+
+void HTMLAnchorElement::setRootEditableElementForSelectionOnMouseDown(Element* element)
+{
+    if (!element) {
+        clearRootEditableElementForSelectionOnMouseDown();
+        return;
+    }
+
+    rootEditableElementMap().set(this, element);
+    m_hasRootEditableElementForSelectionOnMouseDown = true;
+}
 
 }

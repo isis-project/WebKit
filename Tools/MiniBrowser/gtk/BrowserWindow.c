@@ -162,9 +162,6 @@ static GtkWidget *browserWindowCreateBackForwardMenu(BrowserWindow *window, GLis
         gtk_widget_show(menuItem);
     }
 
-    /* FIXME: This shoulnd't be necessary when didMouseMoveOverElement
-     * is implemented in WebKit2 GTK+ API.
-     */
     g_signal_connect(menu, "hide", G_CALLBACK(resetStatusText), window);
 
     return menu;
@@ -233,6 +230,35 @@ static gboolean webViewLoadFailed(WebKitWebView *webView, WebKitLoadEvent loadEv
 {
     gtk_entry_set_progress_fraction(GTK_ENTRY(window->uriEntry), 0.);
     return FALSE;
+}
+
+static gboolean webViewDecidePolicy(WebKitWebView *webView, WebKitPolicyDecision *decision, WebKitPolicyDecisionType decisionType, BrowserWindow *window)
+{
+    if (decisionType != WEBKIT_POLICY_DECISION_TYPE_NAVIGATION_ACTION)
+        return FALSE;
+
+    WebKitNavigationPolicyDecision *navigationDecision = WEBKIT_NAVIGATION_POLICY_DECISION(decision);
+    if (webkit_navigation_policy_decision_get_navigation_type(navigationDecision) != WEBKIT_NAVIGATION_TYPE_LINK_CLICKED
+        || webkit_navigation_policy_decision_get_mouse_button(navigationDecision) != 2)
+        return FALSE;
+
+    WebKitWebView *newWebView = WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(webkit_web_view_get_context(webView)));
+    webkit_web_view_set_settings(newWebView, webkit_web_view_get_settings(webView));
+    GtkWidget *newWindow = browser_window_new(newWebView);
+    webkit_web_view_load_request(newWebView, webkit_navigation_policy_decision_get_request(navigationDecision));
+    gtk_widget_show(newWindow);
+
+    webkit_policy_decision_ignore(decision);
+    return TRUE;
+}
+
+static void webViewMouseTargetChanged(WebKitWebView *webView, WebKitHitTestResult *hitTestResult, guint mouseModifiers, BrowserWindow *window)
+{
+    if (!webkit_hit_test_result_context_is_link(hitTestResult)) {
+        browserWindowSetStatusText(window, NULL);
+        return;
+    }
+    browserWindowSetStatusText(window, webkit_hit_test_result_get_link_uri(hitTestResult));
 }
 
 static void browserWindowFinalize(GObject *gObject)
@@ -333,6 +359,8 @@ static void browserWindowConstructed(GObject *gObject)
     g_signal_connect(window->webView, "notify::title", G_CALLBACK(webViewTitleChanged), window);
     g_signal_connect(window->webView, "create", G_CALLBACK(webViewCreate), window);
     g_signal_connect(window->webView, "load-failed", G_CALLBACK(webViewLoadFailed), window);
+    g_signal_connect(window->webView, "decide-policy", G_CALLBACK(webViewDecidePolicy), window);
+    g_signal_connect(window->webView, "mouse-target-changed", G_CALLBACK(webViewMouseTargetChanged), window);
 
     WebKitBackForwardList *backForwadlist = webkit_web_view_get_back_forward_list(window->webView);
     g_signal_connect(backForwadlist, "changed", G_CALLBACK(backForwadlistChanged), window);

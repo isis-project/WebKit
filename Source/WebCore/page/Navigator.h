@@ -22,7 +22,9 @@
 
 #include "DOMWindowProperty.h"
 #include "NavigatorBase.h"
+#include "NavigatorSupplement.h"
 #include <wtf/Forward.h>
+#include <wtf/HashMap.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
@@ -32,11 +34,8 @@ namespace WebCore {
 class DOMMimeTypeArray;
 class DOMPluginArray;
 class Frame;
-class GamepadList;
 class Geolocation;
 class PointerLock;
-class NavigatorUserMediaErrorCallback;
-class NavigatorUserMediaSuccessCallback;
 class PluginData;
 
 typedef int ExceptionCode;
@@ -70,25 +69,18 @@ public:
     void registerProtocolHandler(const String& scheme, const String& url, const String& title, ExceptionCode&);
 #endif
 
-#if ENABLE(MEDIA_STREAM)
-    virtual void webkitGetUserMedia(const String& options, PassRefPtr<NavigatorUserMediaSuccessCallback>, PassRefPtr<NavigatorUserMediaErrorCallback>, ExceptionCode&);
-#endif
-
-#if ENABLE(GAMEPAD)
-    // FIXME: This method should be in WebCore/Modules/gamepad.
-    GamepadList* gamepads();
-#endif
+    void provideSupplement(const AtomicString&, PassOwnPtr<NavigatorSupplement>);
+    NavigatorSupplement* requireSupplement(const AtomicString&);
 
 private:
     explicit Navigator(Frame*);
 
+    typedef HashMap<AtomicStringImpl*, OwnPtr<NavigatorSupplement> > NavigatorSupplementMap;
+    NavigatorSupplementMap m_suppliments;
+
     mutable RefPtr<DOMPluginArray> m_plugins;
     mutable RefPtr<DOMMimeTypeArray> m_mimeTypes;
     mutable RefPtr<Geolocation> m_geolocation;
-#if ENABLE(GAMEPAD)
-    // FIXME: This state should be in WebCore/Modules/gamepad.
-    mutable RefPtr<GamepadList> m_gamepads;
-#endif
 #if ENABLE(POINTER_LOCK)
     mutable RefPtr<PointerLock> m_pointer;
 #endif

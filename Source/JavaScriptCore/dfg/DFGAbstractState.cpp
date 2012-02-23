@@ -121,6 +121,8 @@ void AbstractState::initialize(Graph& graph)
             root->valuesAtHead.argument(i).set(PredictInt32Array);
         else if (isUint8ArrayPrediction(prediction))
             root->valuesAtHead.argument(i).set(PredictUint8Array);
+        else if (isUint8ClampedArrayPrediction(prediction))
+            root->valuesAtHead.argument(i).set(PredictUint8ClampedArray);
         else if (isUint16ArrayPrediction(prediction))
             root->valuesAtHead.argument(i).set(PredictUint16Array);
         else if (isUint32ArrayPrediction(prediction))
@@ -151,14 +153,14 @@ bool AbstractState::endBasicBlock(MergeMode mergeMode)
     if (mergeMode != DontMerge || !ASSERT_DISABLED) {
         for (size_t argument = 0; argument < block->variablesAtTail.numberOfArguments(); ++argument) {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-            printf("        Merging state for argument %lu.\n", argument);
+            dataLog("        Merging state for argument %zu.\n", argument);
 #endif
             changed |= mergeStateAtTail(block->valuesAtTail.argument(argument), m_variables.argument(argument), block->variablesAtTail.argument(argument));
         }
         
         for (size_t local = 0; local < block->variablesAtTail.numberOfLocals(); ++local) {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-            printf("        Merging state for local %lu.\n", local);
+            dataLog("        Merging state for local %zu.\n", local);
 #endif
             changed |= mergeStateAtTail(block->valuesAtTail.local(local), m_variables.local(local), block->variablesAtTail.local(local));
         }
@@ -195,9 +197,12 @@ bool AbstractState::execute(NodeIndex nodeIndex)
     case JSConstant:
     case WeakJSConstant: {
         JSValue value = m_graph.valueOfJSConstant(m_codeBlock, nodeIndex);
-        if (value.isCell())
-            m_haveStructures = true;
-        forNode(nodeIndex).set(value);
+        // Have to be careful here! It's tempting to call set(value), but
+        // that would be wrong, since that would constitute a proof that this
+        // value will always have the same structure. The whole point of a value
+        // having a structure is that it may change in the future - for example
+        // between when we compile the code and when we run it.
+        forNode(nodeIndex).set(predictionFromValue(value));
         break;
     }
             
@@ -260,25 +265,9 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         forNode(nodeIndex).set(PredictInt32);
         break;
             
-    case ValueToNumber:
-        if (m_graph[node.child1()].shouldNotSpeculateInteger()) {
-            forNode(node.child1()).filter(PredictNumber);
-            forNode(nodeIndex).set(PredictDouble);
-            break;
-        }
-            
-        forNode(node.child1()).filter(PredictInt32);
-        forNode(nodeIndex).set(PredictInt32);
-        break;
-            
-    case ValueToDouble:
-        forNode(node.child1()).filter(PredictNumber);
-        forNode(nodeIndex).set(PredictDouble);
-        break;
-            
     case ValueAdd:
     case ArithAdd: {
-        if (Node::shouldSpeculateInteger(m_graph[node.child1()], m_graph[node.child2()]) && node.canSpeculateInteger()) {
+        if (m_graph.addShouldSpeculateInteger(node, m_codeBlock)) {
             forNode(node.child1()).filter(PredictInt32);
             forNode(node.child2()).filter(PredictInt32);
             forNode(nodeIndex).set(PredictInt32);
@@ -296,7 +285,19 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         break;
     }
             
-    case ArithSub:
+    case ArithSub: {
+        if (m_graph.addShouldSpeculateInteger(node, m_codeBlock)) {
+            forNode(node.child1()).filter(PredictInt32);
+            forNode(node.child2()).filter(PredictInt32);
+            forNode(nodeIndex).set(PredictInt32);
+            break;
+        }
+        forNode(node.child1()).filter(PredictNumber);
+        forNode(node.child2()).filter(PredictNumber);
+        forNode(nodeIndex).set(PredictDouble);
+        break;
+    }
+        
     case ArithMul:
     case ArithDiv:
     case ArithMin:
@@ -448,6 +449,12 @@ bool AbstractState::execute(NodeIndex nodeIndex)
             forNode(nodeIndex).set(PredictInt32);
             break;
         }
+        if (m_graph[node.child1()].shouldSpeculateUint8ClampedArray()) {
+            forNode(node.child1()).filter(PredictUint8ClampedArray);
+            forNode(node.child2()).filter(PredictInt32);
+            forNode(nodeIndex).set(PredictInt32);
+            break;
+        }
         if (m_graph[node.child1()].shouldSpeculateUint16Array()) {
             forNode(node.child1()).filter(PredictUint16Array);
             forNode(node.child2()).filter(PredictInt32);
@@ -518,6 +525,12 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         }
         if (m_graph[node.child1()].shouldSpeculateUint8Array()) {
             forNode(node.child1()).filter(PredictUint8Array);
+            forNode(node.child2()).filter(PredictInt32);
+            forNode(node.child3()).filter(PredictNumber);
+            break;
+        }
+        if (m_graph[node.child1()].shouldSpeculateUint8ClampedArray()) {
+            forNode(node.child1()).filter(PredictUint8ClampedArray);
             forNode(node.child2()).filter(PredictInt32);
             forNode(node.child3()).filter(PredictNumber);
             break;
@@ -688,6 +701,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         break;
             
     case GetById:
+    case GetByIdFlush:
         if (!node.prediction()) {
             m_isValid = false;
             break;
@@ -726,6 +740,10 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         break;
     case GetUint8ArrayLength:
         forNode(node.child1()).filter(PredictUint8Array);
+        forNode(nodeIndex).set(PredictInt32);
+        break;
+    case GetUint8ClampedArrayLength:
+        forNode(node.child1()).filter(PredictUint8ClampedArray);
         forNode(nodeIndex).set(PredictInt32);
         break;
     case GetUint16ArrayLength:
@@ -794,6 +812,11 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         }
         if (m_graph[node.child1()].shouldSpeculateUint8Array()) {
             forNode(node.child1()).filter(PredictUint8Array);
+            forNode(nodeIndex).clear();
+            break;
+        }
+        if (m_graph[node.child1()].shouldSpeculateUint8ClampedArray()) {
+            forNode(node.child1()).filter(PredictUint8ClampedArray);
             forNode(nodeIndex).clear();
             break;
         }
@@ -917,7 +940,7 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
         return false;
     
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-            printf("          It's live, node @%u.\n", nodeIndex);
+            dataLog("          It's live, node @%u.\n", nodeIndex);
 #endif
 
     switch (node.op) {
@@ -927,7 +950,7 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
         // The block transfers the value from head to tail.
         source = &inVariable;
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("          Transfering from head to tail.\n");
+        dataLog("          Transfering from head to tail.\n");
 #endif
         break;
             
@@ -935,7 +958,7 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
         // The block refines the value with additional speculations.
         source = &forNode(nodeIndex);
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("          Refining.\n");
+        dataLog("          Refining.\n");
 #endif
         break;
             
@@ -944,7 +967,7 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
         // before and after setting it.
         source = &forNode(node.child1());
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("          Setting.\n");
+        dataLog("          Setting.\n");
 #endif
         break;
         
@@ -958,7 +981,7 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
         // Abstract execution did not change the output value of the variable, for this
         // basic block, on this iteration.
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-        printf("          Not changed!\n");
+        dataLog("          Not changed!\n");
 #endif
         return false;
     }
@@ -968,7 +991,7 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
     // true to indicate that the fixpoint must go on!
     destination = *source;
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-    printf("          Changed!\n");
+    dataLog("          Changed!\n");
 #endif
     return true;
 }

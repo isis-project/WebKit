@@ -345,22 +345,6 @@ void WebDOMTestObj::setReflectedURLAttr(const WebDOMString& newReflectedURLAttr)
     impl()->setAttribute(WebCore::HTMLNames::reflectedurlattrAttr, newReflectedURLAttr);
 }
 
-WebDOMString WebDOMTestObj::reflectedNonEmptyURLAttr() const
-{
-    if (!impl())
-        return WebDOMString();
-
-    return static_cast<const WTF::String&>(impl()->getNonEmptyURLAttribute(WebCore::HTMLNames::reflectednonemptyurlattrAttr));
-}
-
-void WebDOMTestObj::setReflectedNonEmptyURLAttr(const WebDOMString& newReflectedNonEmptyURLAttr)
-{
-    if (!impl())
-        return;
-
-    impl()->setAttribute(WebCore::HTMLNames::reflectednonemptyurlattrAttr, newReflectedNonEmptyURLAttr);
-}
-
 WebDOMString WebDOMTestObj::reflectedStringAttr() const
 {
     if (!impl())
@@ -423,22 +407,6 @@ void WebDOMTestObj::setReflectedCustomURLAttr(const WebDOMString& newReflectedCu
         return;
 
     impl()->setAttribute(WebCore::HTMLNames::customContentURLAttrAttr, newReflectedCustomURLAttr);
-}
-
-WebDOMString WebDOMTestObj::reflectedCustomNonEmptyURLAttr() const
-{
-    if (!impl())
-        return WebDOMString();
-
-    return static_cast<const WTF::String&>(impl()->getNonEmptyURLAttribute(WebCore::HTMLNames::customContentNonEmptyURLAttrAttr));
-}
-
-void WebDOMTestObj::setReflectedCustomNonEmptyURLAttr(const WebDOMString& newReflectedCustomNonEmptyURLAttr)
-{
-    if (!impl())
-        return;
-
-    impl()->setAttribute(WebCore::HTMLNames::customContentNonEmptyURLAttrAttr, newReflectedCustomNonEmptyURLAttr);
 }
 
 int WebDOMTestObj::attrWithGetterException() const
@@ -517,6 +485,149 @@ void WebDOMTestObj::setStringAttrWithSetterException(const WebDOMString& newStri
     WebCore::ExceptionCode ec = 0;
     impl()->setStringAttrWithSetterException(newStringAttrWithSetterException, ec);
     webDOMRaiseError(static_cast<WebDOMExceptionCode>(ec));
+}
+
+int WebDOMTestObj::withScriptStateAttribute() const
+{
+    if (!impl())
+        return 0;
+
+    return impl()->withScriptStateAttribute();
+}
+
+void WebDOMTestObj::setWithScriptStateAttribute(int newWithScriptStateAttribute)
+{
+    if (!impl())
+        return;
+
+    impl()->setWithScriptStateAttribute(newWithScriptStateAttribute);
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptExecutionContextAttribute() const
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    return toWebKit(WTF::getPtr(impl()->withScriptExecutionContextAttribute()));
+}
+
+void WebDOMTestObj::setWithScriptExecutionContextAttribute(const WebDOMTestObj& newWithScriptExecutionContextAttribute)
+{
+    if (!impl())
+        return;
+
+    impl()->setWithScriptExecutionContextAttribute(toWebCore(newWithScriptExecutionContextAttribute));
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptStateAttributeRaises() const
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    WebCore::ExceptionCode ec = 0;
+    WebDOMTestObj result = toWebKit(WTF::getPtr(impl()->withScriptStateAttributeRaises(ec)));
+    webDOMRaiseError(static_cast<WebDOMExceptionCode>(ec));
+    return result;
+}
+
+void WebDOMTestObj::setWithScriptStateAttributeRaises(const WebDOMTestObj& newWithScriptStateAttributeRaises)
+{
+    if (!impl())
+        return;
+
+    WebCore::ExceptionCode ec = 0;
+    impl()->setWithScriptStateAttributeRaises(toWebCore(newWithScriptStateAttributeRaises), ec);
+    webDOMRaiseError(static_cast<WebDOMExceptionCode>(ec));
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptExecutionContextAttributeRaises() const
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    WebCore::ExceptionCode ec = 0;
+    WebDOMTestObj result = toWebKit(WTF::getPtr(impl()->withScriptExecutionContextAttributeRaises(ec)));
+    webDOMRaiseError(static_cast<WebDOMExceptionCode>(ec));
+    return result;
+}
+
+void WebDOMTestObj::setWithScriptExecutionContextAttributeRaises(const WebDOMTestObj& newWithScriptExecutionContextAttributeRaises)
+{
+    if (!impl())
+        return;
+
+    WebCore::ExceptionCode ec = 0;
+    impl()->setWithScriptExecutionContextAttributeRaises(toWebCore(newWithScriptExecutionContextAttributeRaises), ec);
+    webDOMRaiseError(static_cast<WebDOMExceptionCode>(ec));
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptExecutionContextAndScriptStateAttribute() const
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    return toWebKit(WTF::getPtr(impl()->withScriptExecutionContextAndScriptStateAttribute()));
+}
+
+void WebDOMTestObj::setWithScriptExecutionContextAndScriptStateAttribute(const WebDOMTestObj& newWithScriptExecutionContextAndScriptStateAttribute)
+{
+    if (!impl())
+        return;
+
+    impl()->setWithScriptExecutionContextAndScriptStateAttribute(toWebCore(newWithScriptExecutionContextAndScriptStateAttribute));
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptExecutionContextAndScriptStateAttributeRaises() const
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    WebCore::ExceptionCode ec = 0;
+    WebDOMTestObj result = toWebKit(WTF::getPtr(impl()->withScriptExecutionContextAndScriptStateAttributeRaises(ec)));
+    webDOMRaiseError(static_cast<WebDOMExceptionCode>(ec));
+    return result;
+}
+
+void WebDOMTestObj::setWithScriptExecutionContextAndScriptStateAttributeRaises(const WebDOMTestObj& newWithScriptExecutionContextAndScriptStateAttributeRaises)
+{
+    if (!impl())
+        return;
+
+    WebCore::ExceptionCode ec = 0;
+    impl()->setWithScriptExecutionContextAndScriptStateAttributeRaises(toWebCore(newWithScriptExecutionContextAndScriptStateAttributeRaises), ec);
+    webDOMRaiseError(static_cast<WebDOMExceptionCode>(ec));
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptExecutionContextAndScriptStateWithSpacesAttribute() const
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    return toWebKit(WTF::getPtr(impl()->withScriptExecutionContextAndScriptStateWithSpacesAttribute()));
+}
+
+void WebDOMTestObj::setWithScriptExecutionContextAndScriptStateWithSpacesAttribute(const WebDOMTestObj& newWithScriptExecutionContextAndScriptStateWithSpacesAttribute)
+{
+    if (!impl())
+        return;
+
+    impl()->setWithScriptExecutionContextAndScriptStateWithSpacesAttribute(toWebCore(newWithScriptExecutionContextAndScriptStateWithSpacesAttribute));
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptArgumentsAndCallStackAttribute() const
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    return toWebKit(WTF::getPtr(impl()->withScriptArgumentsAndCallStackAttribute()));
+}
+
+void WebDOMTestObj::setWithScriptArgumentsAndCallStackAttribute(const WebDOMTestObj& newWithScriptArgumentsAndCallStackAttribute)
+{
+    if (!impl())
+        return;
+
+    impl()->setWithScriptArgumentsAndCallStackAttribute(toWebCore(newWithScriptArgumentsAndCallStackAttribute));
 }
 
 WebDOMString WebDOMTestObj::scriptStringAttr() const
@@ -877,6 +988,41 @@ void WebDOMTestObj::withScriptExecutionContext()
     impl()->withScriptExecutionContext();
 }
 
+void WebDOMTestObj::withScriptExecutionContextAndScriptState()
+{
+    if (!impl())
+        return;
+
+    impl()->withScriptExecutionContextAndScriptState();
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptExecutionContextAndScriptStateObjException()
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    WebCore::ExceptionCode ec = 0;
+    WebDOMTestObj result = toWebKit(WTF::getPtr(impl()->withScriptExecutionContextAndScriptStateObjException(ec)));
+    webDOMRaiseError(static_cast<WebDOMExceptionCode>(ec));
+    return result;
+}
+
+WebDOMTestObj WebDOMTestObj::withScriptExecutionContextAndScriptStateWithSpaces()
+{
+    if (!impl())
+        return WebDOMTestObj();
+
+    return toWebKit(WTF::getPtr(impl()->withScriptExecutionContextAndScriptStateWithSpaces()));
+}
+
+void WebDOMTestObj::withScriptArgumentsAndCallStack()
+{
+    if (!impl())
+        return;
+
+    impl()->withScriptArgumentsAndCallStack();
+}
+
 void WebDOMTestObj::methodWithOptionalArg(int opt)
 {
     if (!impl())
@@ -899,6 +1045,30 @@ void WebDOMTestObj::methodWithNonOptionalArgAndTwoOptionalArgs(int nonOpt, int o
         return;
 
     impl()->methodWithNonOptionalArgAndTwoOptionalArgs(nonOpt, opt1, opt2);
+}
+
+void WebDOMTestObj::methodWithOptionalString(const WebDOMString& str)
+{
+    if (!impl())
+        return;
+
+    impl()->methodWithOptionalString(str);
+}
+
+void WebDOMTestObj::methodWithOptionalStringIsUndefined(const WebDOMString& str)
+{
+    if (!impl())
+        return;
+
+    impl()->methodWithOptionalStringIsUndefined(str);
+}
+
+void WebDOMTestObj::methodWithOptionalStringIsNullString(const WebDOMString& str)
+{
+    if (!impl())
+        return;
+
+    impl()->methodWithOptionalStringIsNullString(str);
 }
 
 

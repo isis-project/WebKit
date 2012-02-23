@@ -35,6 +35,7 @@
 namespace WebCore {
 
 class LayerTextureUpdater;
+class Region;
 class UpdatableTile;
 
 class TiledLayerChromium : public LayerChromium {
@@ -57,14 +58,19 @@ public:
 
     virtual void setIsNonCompositedContent(bool);
 
+    virtual void setLayerTreeHost(CCLayerTreeHost*);
+
     // Reserves all existing and valid tile textures to protect them from being
     // recycled by the texture manager.
     void protectTileTextures(const IntRect& layerRect);
 
-protected:
-    explicit TiledLayerChromium(CCLayerDelegate*);
+    virtual void reserveTextures();
 
-    virtual void cleanupResources();
+    virtual void addSelfToOccludedScreenSpace(Region& occludedScreenSpace);
+
+protected:
+    TiledLayerChromium();
+
     void updateTileSizeAndTilingOption();
     void updateBounds();
 
@@ -72,9 +78,10 @@ protected:
     void setTileSize(const IntSize&);
     void setTextureFormat(GC3Denum textureFormat) { m_textureFormat = textureFormat; }
     void setBorderTexelOption(CCLayerTilingData::BorderTexelOption);
+    void setSampledTexelFormat(LayerTextureUpdater::SampledTexelFormat sampledTexelFormat) { m_sampledTexelFormat = sampledTexelFormat; }
 
-    virtual void createTextureUpdater(const CCLayerTreeHost*) = 0;
     virtual LayerTextureUpdater* textureUpdater() const = 0;
+    virtual void createTextureUpdaterIfNeeded() = 0;
 
     // Set invalidations to be potentially repainted during update().
     void invalidateRect(const IntRect& layerRect);
@@ -88,6 +95,8 @@ protected:
     // After preparing an update, returns true if more pre-painting is needed.
     bool needsIdlePaint(const IntRect& layerRect);
 
+    bool skipsDraw() const { return m_skipsDraw; }
+
     virtual void protectVisibleTileTextures();
 
     virtual TextureManager* textureManager() const;
@@ -95,10 +104,11 @@ protected:
 private:
     virtual PassRefPtr<CCLayerImpl> createCCLayerImpl();
 
-    virtual void setLayerTreeHost(CCLayerTreeHost*);
-
     void createTilerIfNeeded();
     void setTilingOption(TilingOption);
+
+    bool tileOnlyNeedsPartialUpdate(UpdatableTile*);
+    bool tileNeedsBufferedUpdate(UpdatableTile*);
 
     void prepareToUpdateTiles(bool idle, int left, int top, int right, int bottom);
     IntRect idlePaintRect(const IntRect& visibleLayerRect);

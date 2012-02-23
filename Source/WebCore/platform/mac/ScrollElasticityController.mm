@@ -115,30 +115,35 @@ ScrollElasticityController::ScrollElasticityController(ScrollElasticityControlle
 {
 }
 
-void ScrollElasticityController::beginScrollGesture()
-{
-    m_inScrollGesture = true;
-    m_momentumScrollInProgress = false;
-    m_ignoreMomentumScrolls = false;
-    m_lastMomentumScrollTimestamp = 0;
-    m_momentumVelocity = FloatSize();
-    
-    IntSize stretchAmount = m_client->stretchAmount();
-    m_stretchScrollForce.setWidth(reboundDeltaForElasticDelta(stretchAmount.width()));
-    m_stretchScrollForce.setHeight(reboundDeltaForElasticDelta(stretchAmount.height()));
-    
-    m_overflowScrollDelta = FloatSize();
-
-    stopSnapRubberbandTimer();
-}
-
-void ScrollElasticityController::endScrollGesture()
-{
-    snapRubberBand();
-}
-
 bool ScrollElasticityController::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
+    if (wheelEvent.phase() == PlatformWheelEventPhaseBegan) {
+        // First, check if we should rubber-band at all.
+        if (m_client->pinnedInDirection(FloatSize(-wheelEvent.deltaX(), 0)) &&
+            !shouldRubberBandInHorizontalDirection(wheelEvent))
+            return false;
+
+        m_inScrollGesture = true;
+        m_momentumScrollInProgress = false;
+        m_ignoreMomentumScrolls = false;
+        m_lastMomentumScrollTimestamp = 0;
+        m_momentumVelocity = FloatSize();
+
+        IntSize stretchAmount = m_client->stretchAmount();
+        m_stretchScrollForce.setWidth(reboundDeltaForElasticDelta(stretchAmount.width()));
+        m_stretchScrollForce.setHeight(reboundDeltaForElasticDelta(stretchAmount.height()));
+        m_overflowScrollDelta = FloatSize();
+
+        stopSnapRubberbandTimer();
+
+        return true;
+    }
+
+    if (wheelEvent.phase() == PlatformWheelEventPhaseEnded) {
+        snapRubberBand();
+        return true;
+    }
+
     bool isMomentumScrollEvent = (wheelEvent.momentumPhase() != PlatformWheelEventPhaseNone);
     if (m_ignoreMomentumScrolls && (isMomentumScrollEvent || m_snapRubberbandTimerIsActive)) {
         if (wheelEvent.momentumPhase() == PlatformWheelEventPhaseEnded) {
@@ -175,10 +180,10 @@ bool ScrollElasticityController::handleWheelEvent(const PlatformWheelEvent& whee
     isHorizontallyStretched = stretchAmount.width();
     isVerticallyStretched = stretchAmount.height();
 
-    PlatformWheelEventPhase phase = wheelEvent.momentumPhase();
+    PlatformWheelEventPhase momentumPhase = wheelEvent.momentumPhase();
 
     // If we are starting momentum scrolling then do some setup.
-    if (!m_momentumScrollInProgress && (phase == PlatformWheelEventPhaseBegan || phase == PlatformWheelEventPhaseChanged))
+    if (!m_momentumScrollInProgress && (momentumPhase == PlatformWheelEventPhaseBegan || momentumPhase == PlatformWheelEventPhaseChanged))
         m_momentumScrollInProgress = true;
 
     CFTimeInterval timeDelta = wheelEvent.timestamp() - m_lastMomentumScrollTimestamp;
@@ -279,7 +284,7 @@ bool ScrollElasticityController::handleWheelEvent(const PlatformWheelEvent& whee
         }
     }
 
-    if (m_momentumScrollInProgress && phase == PlatformWheelEventPhaseEnded) {
+    if (m_momentumScrollInProgress && momentumPhase == PlatformWheelEventPhaseEnded) {
         m_momentumScrollInProgress = false;
         m_ignoreMomentumScrolls = false;
         m_lastMomentumScrollTimestamp = 0;
@@ -340,8 +345,6 @@ void ScrollElasticityController::snapRubberBandTimerFired()
                          roundToDevicePixelTowardZero(elasticDeltaForTimeDelta(m_startStretch.height(), -m_origVelocity.height(), (float)timeDelta)));
 
         if (fabs(delta.x()) >= 1 || fabs(delta.y()) >= 1) {
-            FloatPoint newOrigin = m_origOrigin + delta;
-
             m_client->immediateScrollByWithoutContentEdgeConstraints(FloatSize(delta.x(), delta.y()) - m_client->stretchAmount());
 
             FloatSize newStretch = m_client->stretchAmount();
@@ -388,6 +391,16 @@ void ScrollElasticityController::snapRubberBand()
 
     m_client->startSnapRubberbandTimer();
     m_snapRubberbandTimerIsActive = true;
+}
+
+bool ScrollElasticityController::shouldRubberBandInHorizontalDirection(const PlatformWheelEvent& wheelEvent)
+{
+    if (wheelEvent.deltaX() > 0)
+        return m_client->shouldRubberBandInDirection(ScrollLeft);
+    if (wheelEvent.deltaX() < 0)
+        return m_client->shouldRubberBandInDirection(ScrollRight);
+
+    return true;
 }
 
 } // namespace WebCore

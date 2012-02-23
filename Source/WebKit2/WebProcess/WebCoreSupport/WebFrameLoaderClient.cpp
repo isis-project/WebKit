@@ -175,7 +175,11 @@ void WebFrameLoaderClient::dispatchWillSendRequest(DocumentLoader*, unsigned lon
 
 bool WebFrameLoaderClient::shouldUseCredentialStorage(DocumentLoader*, unsigned long identifier)
 {
-    return true;
+    WebPage* webPage = m_frame->page();
+    if (!webPage)
+        return true;
+
+    return webPage->injectedBundleResourceLoadClient().shouldUseCredentialStorage(webPage, m_frame, identifier);
 }
 
 void WebFrameLoaderClient::dispatchDidReceiveAuthenticationChallenge(DocumentLoader*, unsigned long, const AuthenticationChallenge& challenge)
@@ -552,6 +556,18 @@ void WebFrameLoaderClient::dispatchDidFirstVisuallyNonEmptyLayout()
     webPage->send(Messages::WebPageProxy::DidFirstVisuallyNonEmptyLayoutForFrame(m_frame->frameID(), InjectedBundleUserMessageEncoder(userData.get())));
 }
 
+void WebFrameLoaderClient::dispatchDidNewFirstVisuallyNonEmptyLayout()
+{
+    WebPage* webPage = m_frame->page();
+    if (!webPage)
+        return;
+
+    RefPtr<APIObject> userData;
+
+    // Notify the UIProcess.
+    webPage->send(Messages::WebPageProxy::DidNewFirstVisuallyNonEmptyLayout(InjectedBundleUserMessageEncoder(userData.get())));
+}
+
 void WebFrameLoaderClient::dispatchDidLayout()
 {
     WebPage* webPage = m_frame->page();
@@ -560,6 +576,8 @@ void WebFrameLoaderClient::dispatchDidLayout()
 
     // Notify the bundle client.
     webPage->injectedBundleLoaderClient().didLayoutForFrame(webPage, m_frame);
+
+    webPage->recomputeShortCircuitHorizontalWheelEventsState();
 
     // NOTE: Unlike the other layout notifications, this does not notify the
     // the UIProcess for every call.
@@ -1372,6 +1390,11 @@ void WebFrameLoaderClient::dispatchDidClearWindowObjectInWorld(DOMWrapperWorld* 
         return;
 
     webPage->injectedBundleLoaderClient().didClearWindowObjectForFrame(webPage, m_frame, world);
+
+#if PLATFORM(GTK)
+    // Ensure the accessibility hierarchy is updated.
+    webPage->updateAccessibilityTree();
+#endif
 }
 
 void WebFrameLoaderClient::documentElementAvailable()
@@ -1399,19 +1422,28 @@ RemoteAXObjectRef WebFrameLoaderClient::accessibilityRemoteObject()
 #if ENABLE(MAC_JAVA_BRIDGE)
 jobject WebFrameLoaderClient::javaApplet(NSView*) { return 0; }
 #endif
+
 NSCachedURLResponse* WebFrameLoaderClient::willCacheResponse(DocumentLoader*, unsigned long identifier, NSCachedURLResponse* response) const
 {
-    return response;
+    WebPage* webPage = m_frame->page();
+    if (!webPage)
+        return response;
+
+    return webPage->injectedBundleResourceLoadClient().shouldCacheResponse(webPage, m_frame, identifier) ? response : nil;
 }
 
-#endif
+#endif // PLATFORM(MAC)
+
 #if PLATFORM(WIN) && USE(CFNETWORK)
 bool WebFrameLoaderClient::shouldCacheResponse(DocumentLoader*, unsigned long identifier, const ResourceResponse&, const unsigned char* data, unsigned long long length)
 {
-    return true;
-}
+    WebPage* webPage = m_frame->page();
+    if (!webPage)
+        return true;
 
-#endif
+    return webPage->injectedBundleResourceLoadClient().shouldCacheResponse(webPage, m_frame, identifier);
+}
+#endif // PLATFORM(WIN) && USE(CFNETWORK)
 
 bool WebFrameLoaderClient::shouldUsePluginDocument(const String& /*mimeType*/) const
 {
@@ -1439,12 +1471,6 @@ void WebFrameLoaderClient::didChangeScrollOffset()
 PassRefPtr<FrameNetworkingContext> WebFrameLoaderClient::createNetworkingContext()
 {
     RefPtr<WebFrameNetworkingContext> context = WebFrameNetworkingContext::create(m_frame);
-#if PLATFORM(QT)
-    // We encapsulate the WebPage pointer as a property of the originating QObject.
-    QObject* originatingObject = context->originatingObject();
-    ASSERT(originatingObject);
-    originatingObject->setProperty("PagePointer", QVariant::fromValue(static_cast<void*>(m_frame->page())));
-#endif
     return context.release();
 }
 

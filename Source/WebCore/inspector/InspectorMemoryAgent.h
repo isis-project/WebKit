@@ -47,7 +47,7 @@ class Page;
 
 typedef String ErrorString;
 
-class InspectorMemoryAgent : public InspectorBaseAgent<InspectorMemoryAgent> {
+class InspectorMemoryAgent : public InspectorBaseAgent<InspectorMemoryAgent>, public InspectorBackendDispatcher::MemoryCommandHandler {
     WTF_MAKE_NONCOPYABLE(InspectorMemoryAgent);
 public:
     typedef Vector<OwnPtr<InspectorBaseAgentInterface> > InspectorAgents;
@@ -57,7 +57,7 @@ public:
         return adoptPtr(new InspectorMemoryAgent(instrumentingAgents, state, page, domAgent));
     }
 
-    void getDOMNodeCount(ErrorString*, RefPtr<InspectorArray>& result);
+    void getDOMNodeCount(ErrorString*, RefPtr<InspectorArray>& domGroups, RefPtr<InspectorObject>& strings);
 
     ~InspectorMemoryAgent();
 

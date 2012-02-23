@@ -22,12 +22,12 @@
 #include "config.h"
 #include "CSSStyleRule.h"
 
-#include "CSSMutableStyleDeclaration.h"
 #include "CSSPageRule.h"
 #include "CSSParser.h"
 #include "CSSSelector.h"
 #include "CSSStyleSheet.h"
 #include "Document.h"
+#include "StylePropertySet.h"
 #include "StyledElement.h"
 #include "StyleSheet.h"
 
@@ -35,8 +35,8 @@
 
 namespace WebCore {
 
-CSSStyleRule::CSSStyleRule(CSSStyleSheet* parent, int line, CSSRule::Type type)
-    : CSSRule(parent, type)
+CSSStyleRule::CSSStyleRule(CSSStyleSheet* parent, int line)
+    : CSSRule(parent, CSSRule::STYLE_RULE)
 {
     setSourceLine(line);
 
@@ -68,17 +68,13 @@ inline void CSSStyleRule::cleanup()
 
 String CSSStyleRule::generateSelectorText() const
 {
-    if (isPageRule())
-        return static_cast<const CSSPageRule*>(this)->pageSelectorText();
-    else {
-        StringBuilder builder;
-        for (CSSSelector* s = selectorList().first(); s; s = CSSSelectorList::next(s)) {
-            if (s != selectorList().first())
-                builder.append(", ");
-            builder.append(s->selectorText());
-        }
-        return builder.toString();
+    StringBuilder builder;
+    for (CSSSelector* s = selectorList().first(); s; s = CSSSelectorList::next(s)) {
+        if (s != selectorList().first())
+            builder.append(", ");
+        builder.append(s->selectorText());
     }
+    return builder.toString();
 }
 
 String CSSStyleRule::selectorText() const
@@ -98,15 +94,8 @@ String CSSStyleRule::selectorText() const
 void CSSStyleRule::setSelectorText(const String& selectorText)
 {
     Document* doc = 0;
-
-    if (CSSStyleSheet* styleSheet = m_style->parentStyleSheet())
+    if (CSSStyleSheet* styleSheet = parentStyleSheet())
         doc = styleSheet->findDocument();
-
-    if (!doc && m_style->isElementStyleDeclaration()) {
-        if (StyledElement* element = static_cast<CSSElementStyleDeclaration*>(m_style.get())->element())
-            doc = element->document();
-    }
-
     if (!doc)
         return;
 
@@ -135,7 +124,7 @@ String CSSStyleRule::cssText() const
     String result = selectorText();
 
     result += " { ";
-    result += m_style->cssText();
+    result += m_style->asText();
     result += "}";
 
     return result;

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -52,7 +52,6 @@
 #include "WebScriptController.h"
 #include "WebSettings.h"
 #include "platform/WebSize.h"
-#include "WebSpeechInputControllerMock.h"
 #include "platform/WebString.h"
 #include "platform/WebURLRequest.h"
 #include "platform/WebURLResponse.h"
@@ -111,11 +110,13 @@ TestShell::TestShell(bool testShellMode)
     , m_compositeToTexture(false)
     , m_forceCompositingMode(false)
     , m_accelerated2dCanvasEnabled(false)
+    , m_deferred2dCanvasEnabled(false)
     , m_acceleratedPaintingEnabled(false)
     , m_perTilePaintingEnabled(false)
     , m_stressOpt(false)
     , m_stressDeopt(false)
     , m_dumpWhenFinished(true)
+    , m_isDisplayingModalDialog(false)
 {
     WebRuntimeFeatures::enableDataTransferItems(true);
     WebRuntimeFeatures::enableGeolocation(true);
@@ -127,6 +128,7 @@ TestShell::TestShell(bool testShellMode)
     WebRuntimeFeatures::enableWebAudio(true); 
     WebRuntimeFeatures::enableVideoTrack(true);
     WebRuntimeFeatures::enableGamepad(true);
+    WebRuntimeFeatures::enableShadowDOM(true);
 
     m_webPermissions = adoptPtr(new WebPermissions(this));
     m_accessibilityController = adoptPtr(new AccessibilityController(this));
@@ -218,6 +220,7 @@ void TestShell::resetWebSettings(WebView& webView)
     m_prefs.compositeToTexture = m_compositeToTexture;
     m_prefs.forceCompositingMode = m_forceCompositingMode;
     m_prefs.accelerated2dCanvasEnabled = m_accelerated2dCanvasEnabled;
+    m_prefs.deferred2dCanvasEnabled = m_deferred2dCanvasEnabled;
     m_prefs.acceleratedPaintingEnabled = m_acceleratedPaintingEnabled;
     m_prefs.perTilePaintingEnabled = m_perTilePaintingEnabled;
     m_prefs.applyTo(&webView);
@@ -237,6 +240,8 @@ void TestShell::runFileTest(const TestParams& params)
     if (testUrl.find("compositing/") != string::npos || testUrl.find("compositing\\") != string::npos) {
         m_prefs.acceleratedCompositingForVideoEnabled = true;
         m_prefs.accelerated2dCanvasEnabled = true;
+        m_prefs.deferred2dCanvasEnabled = true;
+        m_prefs.mockScrollbarsEnabled = true;
         m_prefs.applyTo(m_webView);
     }
 

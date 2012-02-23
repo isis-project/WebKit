@@ -30,6 +30,7 @@
 
 {
   'includes': [
+    '../../WebKit/chromium/WinPrecompile.gypi',
     # FIXME: Sense whether upstream or downstream build, and
     # include the right features.gypi
     '../../WebKit/chromium/features.gypi',
@@ -52,6 +53,7 @@
       '../..',
       '../Modules/gamepad',
       '../Modules/intents',
+      '../Modules/indexeddb',
       '../accessibility',
       '../accessibility/chromium',
       '../bindings',
@@ -308,18 +310,11 @@
           # static library and rebuilds it with these global symbols
           # transformed to private_extern.
           'target_name': 'webkit_system_interface',
-          'type': 'static_library',
+          'type': 'none',
           'variables': {
             'adjusted_library_path':
                 '<(PRODUCT_DIR)/libWebKitSystemInterfaceLeopardPrivateExtern.a',
           },
-          'sources': [
-            # An empty source file is needed to convince Xcode to produce
-            # output for this target.  The resulting library won't actually
-            # contain anything.  The library at adjusted_library_path will,
-            # and that library is pushed to dependents of this target below.
-            'mac/Empty.cpp',
-          ],
           'actions': [
             {
               'action_name': 'Adjust Visibility',
@@ -376,6 +371,8 @@
             '<(SHARED_INTERMEDIATE_DIR)/webkit/InspectorBackendDispatcher.h',
             '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorFrontend.cpp',
             '<(SHARED_INTERMEDIATE_DIR)/webkit/InspectorFrontend.h',
+            '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorTypeBuilder.cpp',
+            '<(SHARED_INTERMEDIATE_DIR)/webkit/InspectorTypeBuilder.h',
             '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorBackendStub.js',
           ],
           'variables': {
@@ -387,7 +384,6 @@
             '<@(_inputs)',
             '--output_h_dir', '<(SHARED_INTERMEDIATE_DIR)/webkit',
             '--output_cpp_dir', '<(SHARED_INTERMEDIATE_DIR)/webcore',
-            '--defines', '<(feature_defines) LANGUAGE_JAVASCRIPT',
           ],
           'message': 'Generating Inspector protocol sources from Inspector.json',
         },
@@ -909,23 +905,6 @@
           ],
         },
         {
-          'action_name': 'tokenizer',
-          'inputs': [
-            '../css/maketokenizer',
-            '../css/tokenizer.flex',
-          ],
-          'outputs': [
-            '<(SHARED_INTERMEDIATE_DIR)/webkit/tokenizer.cpp',
-          ],
-          'action': [
-            'python',
-            'scripts/action_maketokenizer.py',
-            '<@(_outputs)',
-            '--',
-            '<@(_inputs)'
-          ],
-        },
-        {
           'action_name': 'derived_sources_all_in_one',
           'inputs': [
             'scripts/action_derivedsourcesallinone.py',
@@ -1127,6 +1106,7 @@
         # Additional .cpp files from the webcore_inspector_sources list.
         '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorFrontend.cpp',
         '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorBackendDispatcher.cpp',
+        '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorTypeBuilder.cpp',
       ],
       'conditions': [
         ['inside_chromium_build==1 and OS=="win" and component=="shared_library"', {
@@ -1147,9 +1127,6 @@
           ],
         }],
         ['OS=="win"', {
-          'dependencies': [
-            '<(chromium_src_dir)/build/win/system.gyp:cygwin'
-          ],
           'defines': [
             'WEBCORE_NAVIGATOR_PLATFORM="Win32"',
             '__PRETTY_FUNCTION__=__FUNCTION__',
@@ -1160,6 +1137,11 @@
           'direct_dependent_settings': {
             'include_dirs+++': ['../dom'],
           },
+        }],
+        ['OS=="linux" and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
+          'cflags': [
+            '<!@(pkg-config --cflags-only-I ipp)',
+          ],
         }],
       ],
     },
@@ -1352,12 +1334,6 @@
           },
         }],
         ['OS=="win"', {
-          'dependencies': [
-            '<(chromium_src_dir)/build/win/system.gyp:cygwin'
-          ],
-          'export_dependent_settings': [
-            '<(chromium_src_dir)/build/win/system.gyp:cygwin'
-          ],
           'direct_dependent_settings': {
             'defines': [
               # Match Safari and Mozilla on Windows.
@@ -1369,11 +1345,19 @@
             'include_dirs++': ['../dom'],
           },
         }],
+        ['OS=="linux" and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
+          'direct_dependent_settings': {
+            'cflags': [
+              '<!@(pkg-config --cflags-only-I ipp)',
+            ],
+          },
+        }],
         ['OS != "android" and "WTF_USE_WEBAUDIO_FFMPEG=1" in feature_defines', {
           # This directory needs to be on the include path for multiple sub-targets of webcore.
           'direct_dependent_settings': {
             'include_dirs': [
               '<(chromium_src_dir)/third_party/ffmpeg/patched-ffmpeg',
+              '<(chromium_src_dir)/third_party/ffmpeg',
             ],
           },
           'dependencies': [
@@ -2006,6 +1990,16 @@
             'include_dirs+++': ['../dom'],
           },
         }],
+        ['OS=="linux" and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
+          'link_settings': {
+            'ldflags': [
+              '<!@(pkg-config --libs-only-L ipp)',
+            ],
+            'libraries': [
+              '-lipps -lippcore',
+            ],
+          },
+        }],
         ['enable_svg!=0', {
           'dependencies': [
             'webcore_svg',
@@ -2032,6 +2026,8 @@
         '<@(webcore_test_support_files)',
         '<(SHARED_INTERMEDIATE_DIR)/webcore/bindings/V8Internals.cpp',
         '<(SHARED_INTERMEDIATE_DIR)/webkit/bindings/V8Internals.h',
+        '<(SHARED_INTERMEDIATE_DIR)/webcore/bindings/V8InternalSettings.cpp',
+        '<(SHARED_INTERMEDIATE_DIR)/webkit/bindings/V8InternalSettings.h',
       ],
       'sources/': [
         ['exclude', 'testing/js'],
