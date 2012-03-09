@@ -23,7 +23,7 @@
 #include <sqlite3.h>
 #include <QTimer>
 #include <QString>
-#include <QNetworkCookieJar>
+#include <QtNetwork/QNetworkCookieJar>
 
 #include "qwebkitglobal.h"
 
