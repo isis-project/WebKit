@@ -613,7 +613,7 @@ static int16_t handleEventCocoa(NPP instance, PluginObject* obj, NPCocoaEvent* e
 
 #endif // XP_MACOSX
 
-#ifdef XP_UNIX
+#if defined(XP_UNIX) && !defined(XP_WEBOS)
 
 static char keyEventToChar(XKeyEvent* event)
 {
@@ -743,7 +743,7 @@ int16_t NPP_HandleEvent(NPP instance, void *event)
 
     assert(obj->eventModel == NPEventModelCocoa);
     return handleEventCocoa(instance, obj, static_cast<NPCocoaEvent*>(event));
-#elif defined(XP_UNIX)
+#elif defined(XP_UNIX) && !defined(XP_WEBOS)
     return handleEventX11(instance, obj, static_cast<XEvent*>(event));
 #elif defined(XP_WIN)
     return handleEventWin(instance, obj, static_cast<NPEvent*>(event));
