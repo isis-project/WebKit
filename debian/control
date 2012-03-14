@@ -1,0 +1,25 @@
+Source: webkit
+Section: webOS
+Priority: extra
+Maintainer: Anupam <anupam.kaul@palm.com>
+Build-Depends: debhelper (>= 8.0.0), cmake
+Standards-Version: 3.9.2
+Homepage: https://github.com/isis-project/WebKit
+#Vcs-Git: git://git.debian.org/collab-maint/webkit.git
+#Vcs-Browser: http://git.debian.org/?p=collab-maint/webkit.git;a=summary
+
+Package: webkit
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: webkit for webOS
+ WebKit is an open source web browser engine. QtWebKit is the Qt Port of WebKit. This code is based on the source found in  
+ webkit.org but it contains modifications introduced by the isis-project.
+
+ For more information see:
+
+ http://www.webkit.org 
+ http://developer.qt.nokia.com/wiki/QtWebKit 
+ http://en.wikipedia.org/wiki/Webkit 
+ http://isis-project.org/
+
+
