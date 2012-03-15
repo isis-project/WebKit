@@ -73,7 +73,7 @@ contains(DEFINES, ENABLE_SVG=1) {
 }
 
 contains(DEFINES, ENABLE_PALM_SERVICE_BRIDGE=1) {
-  IDL_BINDINGS += platform/webos/PalmServiceBridge.idl
+  IDL_BINDINGS += $$PWD/platform/webos/PalmServiceBridge.idl
 }
 
 STYLESHEETS_EMBED = \
