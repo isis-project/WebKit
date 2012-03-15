@@ -801,28 +801,17 @@ void QWebPagePrivate::handleSoftwareInputPanel(Qt::MouseButton button, const QPo
         return;
 
     if (client && client->inputMethodEnabled()
-            && frame->document()->focusedNode()) {
-        if(button == Qt::LeftButton && qApp->autoSipEnabled()) {
-            QStyle::RequestSoftwareInputPanel behavior = QStyle::RequestSoftwareInputPanel(
-                    client->ownerWidget()->style()->styleHint(QStyle::SH_RequestSoftwareInputPanel));
-            if (!clickCausedFocus || behavior == QStyle::RSIP_OnMouseClick) {
-                HitTestResult result = frame->eventHandler()->hitTestResultAtPoint(frame->view()->windowToContents(pos), false);
-                if (result.isContentEditable()) {
-                    QEvent event(QEvent::RequestSoftwareInputPanel);
-                    QApplication::sendEvent(client->ownerWidget(), &event);
-                }
-                else
-                {
-                    QEvent event(QEvent::CloseSoftwareInputPanel);
-                    QApplication::sendEvent(client->ownerWidget(), &event);
-                }
+        && frame->document()->focusedNode()
+        && button == Qt::LeftButton && qApp->autoSipEnabled()) {
+        QStyle::RequestSoftwareInputPanel behavior = QStyle::RequestSoftwareInputPanel(
+            client->ownerWidget()->style()->styleHint(QStyle::SH_RequestSoftwareInputPanel));
+        if (!clickCausedFocus || behavior == QStyle::RSIP_OnMouseClick) {
+            HitTestResult result = frame->eventHandler()->hitTestResultAtPoint(frame->view()->windowToContents(pos), false);
+            if (result.isContentEditable()) {
+                QEvent event(QEvent::RequestSoftwareInputPanel);
+                QApplication::sendEvent(client->ownerWidget(), &event);
             }
         }
-    }
-    else
-    {
-        QEvent event(QEvent::CloseSoftwareInputPanel);
-        QApplication::sendEvent(client->ownerWidget(), &event);
     }
 
     clickCausedFocus = false;
