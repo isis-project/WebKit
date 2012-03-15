@@ -72,6 +72,10 @@ contains(DEFINES, ENABLE_SVG=1) {
     EXTRACSSVALUES += $$PWD/css/SVGCSSValueKeywords.in
 }
 
+contains(DEFINES, ENABLE_PALM_SERVICE_BRIDGE=1) {
+  IDL_BINDINGS += platform/webos/PalmServiceBridge.idl
+}
+
 STYLESHEETS_EMBED = \
     $$PWD/css/html.css \
     $$PWD/css/quirks.css \

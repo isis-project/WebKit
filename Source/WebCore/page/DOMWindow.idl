@@ -797,6 +797,8 @@ module window {
         // window.toString() requires special handling in V8
         [V8DoNotCheckSignature, DoNotCheckDomainSecurity, Custom, NotEnumerable] DOMString toString();
 #endif // defined(V8_BINDING)
+
+      attribute [Conditional=PALM_SERVICE_BRIDGE] PalmServiceBridgeConstructor PalmServiceBridge;
     };
 
 }
