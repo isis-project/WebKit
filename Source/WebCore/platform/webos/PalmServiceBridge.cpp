@@ -265,7 +265,7 @@ int PalmServiceBridge::call(const String& uri, const String& payload, ExceptionC
      */
 
 
-    LunaServiceManager::instance()->call(uri.utf8().data(), payload.utf8().data(), this, identifier.toString(exec).utf8().data(), usePrivateBus);
+    LunaServiceManager::instance()->call(uri.utf8().data(), payload.utf8().data(), this, identifier.toString(exec)->value(exec).utf8().data(), usePrivateBus);
     if (LSMESSAGE_TOKEN_INVALID == listenerToken) {
         ExceptionCode ec;
         cancel(ec);
