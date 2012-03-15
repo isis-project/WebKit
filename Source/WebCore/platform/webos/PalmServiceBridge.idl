@@ -1,0 +1,24 @@
+
+module webos {
+
+    interface [
+        ActiveDOMObject,
+        Constructor,
+        Conditional=PALM_SERVICE_BRIDGE,
+        CallWith=ScriptExecutionContext,
+        NoStaticTables
+            ] PalmServiceBridge {
+
+        // event handler attributes
+        attribute EventListener onservicecallback;
+        readonly attribute unsigned long token;
+
+        // request
+        unsigned long call(in DOMString method, in DOMString url)
+            raises(DOMException);
+
+        void cancel()
+            raises(DOMException);
+    };
+
+}

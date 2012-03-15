@@ -3252,6 +3252,16 @@ contains(DEFINES, ENABLE_VIDEO=1) {
     }
 }
 
+contains(DEFINES, ENABLE_PALM_SERVICE_BRIDGE=1) {
+    INCLUDEPATH += $$PWD/platform/webos
+    SOURCES += \
+        platform/webos/PalmServiceBridge.cpp \
+        platform/webos/LunaServiceMgr.cpp 
+    HEADERS += \
+        platform/webos/PalmServiceBridge.h \
+        platform/webos/LunaServiceMgr.h 
+}
+
 contains(DEFINES, ENABLE_FULLSCREEN_API=1) {
     SOURCES += \
         rendering/RenderFullScreen.cpp
