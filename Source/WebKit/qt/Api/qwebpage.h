@@ -100,6 +100,7 @@ class QWEBKIT_EXPORT QWebPage : public QObject {
     Q_ENUMS(LinkDelegationPolicy NavigationType WebAction)
 #ifdef QT_WEBOS
     Q_PROPERTY(QString appIdentifier READ appIdentifier WRITE setAppIdentifier)
+    Q_PROPERTY(QString attributes READ attributes)
 #endif
 public:
     enum NavigationType {
@@ -298,6 +299,8 @@ public:
 #ifdef QT_WEBOS
     const QString& appIdentifier() const;
     void setAppIdentifier(const QString&);
+
+    const QString& attributes() const;
 #endif
 
 #ifndef QT_NO_ACTION

@@ -118,6 +118,70 @@ WindowFeatures::WindowFeatures(const String& features)
         String valueString(buffer.substring(valueBegin, valueEnd - valueBegin));
         setWindowFeature(keyString, valueString);
     }
+
+#if PLATFORM(WEBOS)
+    i = 0;
+    length = features.length();
+    buffer = features.lower();
+    while (i < length) {
+        // skip to first non-separator, but don't skip past the end of the string
+        while (isWindowFeaturesSeparator(buffer[i])) {
+            if (i >= length)
+                break;
+            i++;
+        }
+        keyBegin = i;
+
+        // skip to first separator
+        while (!isWindowFeaturesSeparator(buffer[i]))
+            i++;
+        keyEnd = i;
+
+        String keyString(buffer.substring(keyBegin, keyEnd - keyBegin));
+        if (keyString != "attributes") {
+            // skip to next ','
+            while (buffer[i] != ',') {
+                if (i >= length)
+                    break;
+                i++;
+            }
+            continue;
+        }
+
+        // skip to first '{'
+        while (buffer[i] != '{') {
+            i++;
+            if (i >= length)
+                break;
+        }
+
+        if (i >= length)
+            break;
+
+        valueBegin = i;
+
+        // skip to last '}'
+        int unmatchedBraceCount = 0;
+        while (i < length) {
+            if (buffer[i] == '{')
+                unmatchedBraceCount++;
+            else if (buffer[i] == '}')
+                unmatchedBraceCount--;
+
+            if (unmatchedBraceCount <= 0)
+                break;
+            i++;
+        }
+
+        if (i >= length)
+            break;
+
+        valueEnd = i;
+        attributes = String(buffer.substring(valueBegin, valueEnd - valueBegin + 1));
+
+        break;
+    }
+#endif
 }
 
 void WindowFeatures::setWindowFeature(const String& keyString, const String& valueString)

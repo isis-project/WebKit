@@ -84,6 +84,10 @@ namespace WebCore {
         static bool boolFeature(const DialogFeaturesMap&, const char* key, bool defaultValue = false);
         static float floatFeature(const DialogFeaturesMap&, const char* key, float min, float max, float defaultValue);
 
+#if PLATFORM(WEBOS)
+        String attributes;
+#endif
+
     private:
         void setWindowFeature(const String& keyString, const String& valueString);
     };

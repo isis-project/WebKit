@@ -197,6 +197,7 @@ public:
     QSize fixedLayoutSize;
 #ifdef QT_WEBOS
     QString appIdentifier;
+    QString attributes;
 #endif
 
     QWebHistory history;

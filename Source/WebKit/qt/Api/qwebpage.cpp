@@ -2518,6 +2518,12 @@ void QWebPage::setAppIdentifier(const QString& id)
 {
     d->appIdentifier = id;
 }
+
+const QString& QWebPage::attributes() const
+{
+    return d->attributes;
+}
+
 #endif
 
 static int getintenv(const char* variable)
