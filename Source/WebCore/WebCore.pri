@@ -186,6 +186,10 @@ contains(DEFINES, ENABLE_VIDEO=1) {
     }    
 }
 
+contains(DEFINES, ENABLE_PALM_SERVICE_BRIDGE=1) {
+    LIBS += -llunaservice
+}
+
 contains(DEFINES, ENABLE_WEBGL=1) {
     !contains(QT_CONFIG, opengl) {
         error( "This configuration needs an OpenGL enabled Qt. Your Qt is missing OpenGL.")
