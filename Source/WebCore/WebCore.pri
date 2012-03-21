@@ -179,11 +179,7 @@ contains(DEFINES, ENABLE_VIDEO=1) {
     } else:contains(DEFINES, WTF_USE_QT_MULTIMEDIA=1) {
         CONFIG   *= mobility
         MOBILITY *= multimedia
-    } else:contains(DEFINES, WTF_USE_WEBOS_MULTIMEDIA=1) {
-	    INCLUDEPATH += $$SOURCE_DIR/platform/graphics/webos
-
-        LIBS += -lmedia-api -lremoteplugin -llunaservice -lrt
-    }    
+    }
 }
 
 contains(DEFINES, ENABLE_PALM_SERVICE_BRIDGE=1) {

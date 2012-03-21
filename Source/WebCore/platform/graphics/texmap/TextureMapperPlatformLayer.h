@@ -22,9 +22,6 @@
 #define TextureMapperPlatformLayer_h
 
 #include "FloatRect.h"
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-#include "GraphicsLayer.h"
-#endif
 #include "TransformationMatrix.h"
 
 namespace WebCore {
@@ -35,14 +32,6 @@ class BitmapTexture;
 class TextureMapperPlatformLayer {
 public:
     virtual void paintToTextureMapper(TextureMapper*, const FloatRect&, const TransformationMatrix& modelViewMatrix = TransformationMatrix(), float opacity = 1.0, BitmapTexture* mask = 0) const = 0;
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-    // for accessing GraphicsLayer::setNeedsDisplay from platform layer
-    TextureMapperPlatformLayer():m_layer(0) { }
-    void setGraphicsLayer(GraphicsLayer* layer) { m_layer = layer; }
-    GraphicsLayer* graphicsLayer() { return m_layer; }
-protected:
-    GraphicsLayer* m_layer;
-#endif
 };
 
 };
