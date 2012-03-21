@@ -86,10 +86,6 @@ bool Settings::gMockScrollbarsEnabled = false;
 bool Settings::gShouldUseHighResolutionTimers = true;
 #endif
 
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-String Settings::s_MediaPipelineOptions;
-#endif
-
 // NOTEs
 //  1) EditingMacBehavior comprises Tiger, Leopard, SnowLeopard and iOS builds, as well QtWebKit and Chromium when built on Mac;
 //  2) EditingWindowsBehavior comprises Win32 and WinCE builds, as well as QtWebKit and Chromium when built on Windows;
@@ -870,14 +866,5 @@ bool Settings::mockScrollbarsEnabled()
 {
     return gMockScrollbarsEnabled;
 }
-
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-
-void Settings::setMediaPipelineOptions(const String& options)
-{
-    s_MediaPipelineOptions = options;
-}
-
-#endif
 
 } // namespace WebCore

@@ -535,11 +535,6 @@ namespace WebCore {
         bool isTouchEventEmulationEnabled() const { return m_touchEventEmulationEnabled; }
 #endif
 
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-        static void setMediaPipelineOptions(const String& options);
-        static const String& mediaPipelineOptions() { return s_MediaPipelineOptions; }
-#endif
-
     private:
         Settings(Page*);
 
@@ -699,10 +694,6 @@ namespace WebCore {
         static bool gAVFoundationEnabled;
 #endif
         static bool gMockScrollbarsEnabled;
-
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-        static String s_MediaPipelineOptions;
-#endif
 
 #if USE(SAFARI_THEME)
         static bool gShouldPaintNativeControls;
