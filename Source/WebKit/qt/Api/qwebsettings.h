@@ -158,10 +158,6 @@ public:
     void setLocalStoragePath(const QString& path);
     QString localStoragePath() const; 
 
-#if defined(ENABLE_VIDEO) && ENABLE_VIDEO && defined(WTF_USE_WEBOS_MULTIMEDIA) && WTF_USE_WEBOS_MULTIMEDIA
-    static void setMediaPipelineOptions(const QString& options);
-    static const QString& mediaPipelineOptions();
-#endif
     static void clearMemoryCaches();
 
     static void enablePersistentStorage(const QString& path = QString());

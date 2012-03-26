@@ -336,10 +336,6 @@ void GraphicsLayerTextureMapper::setContentsToMedia(TextureMapperPlatformLayer* 
     notifyChange(TextureMapperNode::ContentChange);
     m_pendingContent.contentType = media ? TextureMapperNode::MediaContentType : TextureMapperNode::HTMLContentType;
     m_pendingContent.media = media;
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-    // for accessing GraphicsLayer::setNeedsDisplay from platform layer
-    m_pendingContent.media->setGraphicsLayer(this);
-#endif
 }
 
 /* \reimp (GraphicsLayer.h)

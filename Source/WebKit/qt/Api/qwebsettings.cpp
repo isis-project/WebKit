@@ -82,9 +82,6 @@ public:
     QString defaultTextEncoding;
     QString localStoragePath;
     QString pluginSupplementalPath;
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-    QString mediaPipelineOptions;
-#endif
     QString offlineWebApplicationCachePath;
     qint64 offlineStorageDefaultQuota;
 #if QT_VERSION >= QT_VERSION_CHECK(4, 8, 0)
@@ -271,11 +268,6 @@ void QWebSettingsPrivate::apply()
         settings->setNeedsSiteSpecificQuirks(value);
 
         settings->setUsesPageCache(WebCore::pageCache()->capacity());
-
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-        QString moptions = !mediaPipelineOptions.isEmpty() ? mediaPipelineOptions: global->mediaPipelineOptions;
-        settings->setMediaPipelineOptions( moptions );
-#endif
 
     } else {
         QList<QWebSettingsPrivate*> settings = *::allSettings();
@@ -515,10 +507,6 @@ QWebSettings::QWebSettings()
     defaultFont.setStyleHint(QFont::Monospace);
     d->fontFamilies.insert(QWebSettings::FixedFont, defaultFont.defaultFamily());
 
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-    d->mediaPipelineOptions = QLatin1String("--gst-debug=1");
-#endif
-
     d->attributes.insert(QWebSettings::AutoLoadImages, true);
     d->attributes.insert(QWebSettings::DnsPrefetchEnabled, false);
     d->attributes.insert(QWebSettings::JavascriptEnabled, true);
@@ -630,32 +618,6 @@ const QString& QWebSettings::pluginSupplementalPath()
     QWebSettingsPrivate* global = QWebSettings::globalSettings()->d;
     return global->pluginSupplementalPath;
 }
-
-#if ENABLE(VIDEO) && USE(WEBOS_MULTIMEDIA)
-/*!
-    Specifies a Webos media pipeline options
-
-    \note Can be empty.
-
-    \sa mediaPipelineOptions()
-*/
-void QWebSettings::setMediaPipelineOptions(const QString& options)
-{
-    QWebSettingsPrivate* global = QWebSettings::globalSettings()->d;
-    global->mediaPipelineOptions = options;
-}
-
-/*!
-    Returns the Webos Media pipeline options
-
-    \sa setMediaPipelineOptions()
-*/
-const QString& QWebSettings::mediaPipelineOptions()
-{
-    QWebSettingsPrivate* global = QWebSettings::globalSettings()->d;
-    return global->mediaPipelineOptions;
-}
-#endif
 
 /*!
     Specifies the location of a user stylesheet to load with every web page.

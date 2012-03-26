@@ -3243,12 +3243,6 @@ contains(DEFINES, ENABLE_VIDEO=1) {
 
         SOURCES += \
             platform/graphics/qt/MediaPlayerPrivateQt.cpp
-    } else:contains(DEFINES, WTF_USE_WEBOS_MULTIMEDIA=1) {
-        HEADERS += \
-            platform/graphics/webos/MediaPlayerPrivateWebos.h
-
-        SOURCES += \
-            platform/graphics/webos/MediaPlayerPrivateWebos.cpp
     }
 }
 

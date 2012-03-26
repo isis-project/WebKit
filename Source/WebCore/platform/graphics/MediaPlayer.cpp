@@ -68,9 +68,6 @@
 #if USE(QT_MULTIMEDIA) && !USE(GSTREAMER)
 #include "MediaPlayerPrivateQt.h"
 #define PlatformMediaEngineClassName MediaPlayerPrivateQt
-#elif USE(WEBOS_MULTIMEDIA)
-#include "MediaPlayerPrivateWebos.h"
-#define PlatformMediaEngineClassName MediaPlayerPrivate
 #endif
 #elif PLATFORM(CHROMIUM)
 #include "MediaPlayerPrivateChromium.h"
