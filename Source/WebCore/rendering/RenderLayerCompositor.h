@@ -37,11 +37,9 @@ namespace WebCore {
 class GraphicsLayer;
 class RenderEmbeddedObject;
 class RenderPart;
+class ScrollingCoordinator;
 #if ENABLE(VIDEO)
 class RenderVideo;
-#endif
-#if ENABLE(THREADED_SCROLLING)
-class ScrollingCoordinator;
 #endif
 
 enum CompositingUpdateType {
@@ -121,7 +119,7 @@ public:
     bool needsContentsCompositingLayer(const RenderLayer*) const;
     // Return the bounding box required for compositing layer and its childern, relative to ancestorLayer.
     // If layerBoundingBox is not 0, on return it contains the bounding box of this layer only.
-    LayoutRect calculateCompositedBounds(const RenderLayer*, const RenderLayer* ancestorLayer);
+    IntRect calculateCompositedBounds(const RenderLayer*, const RenderLayer* ancestorLayer);
 
     // Repaint the appropriate layers when the given RenderLayer starts or stops being composited.
     void repaintOnCompositingChange(RenderLayer*);
@@ -134,7 +132,7 @@ public:
     RenderLayer* enclosingNonStackingClippingLayer(const RenderLayer* layer) const;
 
     // Repaint parts of all composited layers that intersect the given absolute rectangle.
-    void repaintCompositedLayersAbsoluteRect(const LayoutRect&);
+    void repaintCompositedLayersAbsoluteRect(const IntRect&);
 
     RenderLayer* rootRenderLayer() const;
     GraphicsLayer* rootGraphicsLayer() const;
@@ -183,7 +181,7 @@ public:
     static bool parentFrameContentLayers(RenderPart*);
 
     // Update the geometry of the layers used for clipping and scrolling in frames.
-    void frameViewDidChangeLocation(const LayoutPoint& contentsOffset);
+    void frameViewDidChangeLocation(const IntPoint& contentsOffset);
     void frameViewDidChangeSize();
     void frameViewDidScroll();
 
@@ -199,6 +197,7 @@ public:
     virtual void didCommitChangesForLayer(const GraphicsLayer*) const;
     
     bool keepLayersPixelAligned() const;
+    bool acceleratedDrawingEnabled() const { return m_acceleratedDrawingEnabled; }
 
     void deviceOrPageScaleFactorChanged();
 
@@ -212,10 +211,12 @@ public:
     void documentBackgroundColorDidChange();
 
 private:
+    class OverlapMap;
+
     // GraphicsLayerClient Implementation
     virtual void notifyAnimationStarted(const GraphicsLayer*, double) { }
     virtual void notifySyncRequired(const GraphicsLayer*) { scheduleLayerFlush(); }
-    virtual void paintContents(const GraphicsLayer*, GraphicsContext&, GraphicsLayerPaintingPhase, const LayoutRect&);
+    virtual void paintContents(const GraphicsLayer*, GraphicsContext&, GraphicsLayerPaintingPhase, const IntRect&);
 
     virtual bool showDebugBorders(const GraphicsLayer*) const;
     virtual bool showRepaintCounter(const GraphicsLayer*) const;
@@ -233,12 +234,10 @@ private:
     void clearBackingForLayerIncludingDescendants(RenderLayer*);
 
     // Repaint the given rect (which is layer's coords), and regions of child layers that intersect that rect.
-    void recursiveRepaintLayerRect(RenderLayer*, const LayoutRect&);
+    void recursiveRepaintLayerRect(RenderLayer*, const IntRect&);
 
-    typedef HashMap<RenderLayer*, LayoutRect> OverlapMap;
-    void addToOverlapMap(OverlapMap&, RenderLayer*, LayoutRect& layerBounds, bool& boundsComputed);
+    void addToOverlapMap(OverlapMap&, RenderLayer*, IntRect& layerBounds, bool& boundsComputed);
     void addToOverlapMapRecursive(OverlapMap&, RenderLayer*);
-    static bool overlapsCompositedLayers(OverlapMap&, const LayoutRect& layerBounds);
 
     void updateCompositingLayersTimerFired(Timer<RenderLayerCompositor>*);
 
@@ -274,6 +273,8 @@ private:
 
     bool isFlushingLayers() const { return m_flushingLayers; }
 
+    ScrollingCoordinator* scrollingCoordinator() const;
+
     // Whether a running transition or animation enforces the need for a compositing layer.
     bool requiresCompositingForAnimation(RenderObject*) const;
     bool requiresCompositingForTransform(RenderObject*) const;
@@ -282,7 +283,6 @@ private:
     bool requiresCompositingForPlugin(RenderObject*) const;
     bool requiresCompositingForFrame(RenderObject*) const;
     bool requiresCompositingWhenDescendantsAreCompositing(RenderObject*) const;
-    bool requiresCompositingForFullScreen(RenderObject*) const;
     bool requiresCompositingForFilters(RenderObject*) const;
     bool requiresCompositingForScrollableFrame() const;
     bool requiresCompositingForPosition(RenderObject*, const RenderLayer*) const;
@@ -296,10 +296,6 @@ private:
     bool requiresContentShadowLayer() const;
 #endif
 
-#if ENABLE(THREADED_SCROLLING)
-    ScrollingCoordinator* scrollingCoordinator() const;
-#endif
-
 private:
     RenderView* m_renderView;
     OwnPtr<GraphicsLayer> m_rootContentLayer;
@@ -311,6 +307,7 @@ private:
     int m_compositedLayerCount;
     bool m_showDebugBorders;
     bool m_showRepaintCounter;
+    bool m_acceleratedDrawingEnabled;
     bool m_compositingConsultsOverlap;
 
     // When true, we have to wait until layout has happened before we can decide whether to enter compositing mode,

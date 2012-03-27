@@ -34,6 +34,7 @@
 #include <QtQuick/QQuickView>
 
 class QQuickWebView;
+class QQuickWebViewExperimental;
 
 class BrowserWindow : public QQuickView {
     Q_OBJECT
@@ -45,8 +46,9 @@ public:
     void reload();
     void focusAddressBar();
     QQuickWebView* webView() const;
+    QQuickWebViewExperimental* webViewExperimental() const;
 
-    void updateVisualMockTouchPoints(const QList<QWindowSystemInterface::TouchPoint>& touchPoints);
+    void updateVisualMockTouchPoints(const QList<QTouchEvent::TouchPoint>& touchPoints);
 
 public slots:
     BrowserWindow* newWindow(const QString& url = "about:blank");
@@ -55,9 +57,7 @@ protected slots:
     void screenshot();
 
 private:
-    void updateUserAgentList();
     WindowOptions* m_windowOptions;
-    QStringList m_userAgentList;
 };
 
 #endif

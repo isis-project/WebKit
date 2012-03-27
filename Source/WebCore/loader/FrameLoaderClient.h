@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2006, 2007, 2008, 2009, 2010, 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -95,6 +96,7 @@ namespace WebCore {
     class ResourceResponse;
     class SecurityOrigin;
     class SharedBuffer;
+    class SocketStreamHandle;
     class StringWithDirection;
     class SubstituteData;
     class Widget;
@@ -256,10 +258,7 @@ namespace WebCore {
         virtual bool canCachePage() const = 0;
         virtual void download(ResourceHandle*, const ResourceRequest&, const ResourceResponse&) = 0;
 
-        virtual PassRefPtr<Frame> createFrame(const KURL& url, const String& name, HTMLFrameOwnerElement* ownerElement,
-                                   const String& referrer, bool allowsScrolling, int marginWidth, int marginHeight) = 0;
-        virtual void didTransferChildFrameToNewDocument(Page* oldPage) = 0;
-        virtual void transferLoadingResourceFromPage(ResourceLoader*, const ResourceRequest&, Page* oldPage) = 0;
+        virtual PassRefPtr<Frame> createFrame(const KURL& url, const String& name, HTMLFrameOwnerElement* ownerElement, const String& referrer, bool allowsScrolling, int marginWidth, int marginHeight) = 0;
         virtual PassRefPtr<Widget> createPlugin(const IntSize&, HTMLPlugInElement*, const KURL&, const Vector<String>&, const Vector<String>&, const String&, bool loadManually) = 0;
         virtual void redirectDataToPlugin(Widget* pluginWidget) = 0;
 
@@ -280,7 +279,7 @@ namespace WebCore {
         virtual void didPerformFirstNavigation() const = 0; // "Navigation" here means a transition from one page to another that ends up in the back/forward list.
 
 #if USE(V8)
-        virtual void didCreateScriptContext(v8::Handle<v8::Context>, int worldId) = 0;
+        virtual void didCreateScriptContext(v8::Handle<v8::Context>, int extensionGroup, int worldId) = 0;
         virtual void willReleaseScriptContext(v8::Handle<v8::Context>, int worldId) = 0;
         virtual bool allowScriptExtension(const String& extensionName, int extensionGroup, int worldId) = 0;
 #endif
@@ -331,6 +330,8 @@ namespace WebCore {
 #if ENABLE(WEB_INTENTS)
         virtual void dispatchIntent(PassRefPtr<IntentRequest>) = 0;
 #endif
+
+        virtual void dispatchWillOpenSocketStream(SocketStreamHandle*) { }
     };
 
 } // namespace WebCore

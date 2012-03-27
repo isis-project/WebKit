@@ -26,18 +26,23 @@
 
 #include <AnimationController.h>
 #include <DocumentLoader.h>
+#include <EditorClientEfl.h>
 #include <Eina.h>
 #include <Evas.h>
 #include <FindOptions.h>
 #include <FloatSize.h>
 #include <FrameView.h>
+#include <HTMLInputElement.h>
 #include <IntRect.h>
+#include <JSElement.h>
 #include <PrintContext.h>
 #include <RenderTreeAsText.h>
 #include <Settings.h>
+#include <WebKitMutationObserver.h>
 #include <bindings/js/GCController.h>
 #include <history/HistoryItem.h>
 #include <workers/WorkerThread.h>
+#include <wtf/OwnArrayPtr.h>
 #include <wtf/text/AtomicString.h>
 
 unsigned DumpRenderTreeSupportEfl::activeAnimationsCount(const Evas_Object* ewkFrame)
@@ -279,6 +284,35 @@ void DumpRenderTreeSupportEfl::suspendAnimations(Evas_Object* ewkFrame)
         animationController->suspendAnimations();
 }
 
+void DumpRenderTreeSupportEfl::setValueForUser(JSContextRef context, JSValueRef nodeObject, JSStringRef value)
+{
+    JSC::ExecState* exec = toJS(context);
+    WebCore::Element* element = WebCore::toElement(toJS(exec, nodeObject));
+    if (!element)
+        return;
+    WebCore::HTMLInputElement* inputElement = element->toInputElement();
+    if (!inputElement)
+        return;
+
+    size_t bufferSize = JSStringGetMaximumUTF8CStringSize(value);
+    OwnArrayPtr<char> valueBuffer = adoptArrayPtr(new char[bufferSize]);
+    JSStringGetUTF8CString(value, valueBuffer.get(), bufferSize);
+    inputElement->setValueForUser(String::fromUTF8(valueBuffer.get()));
+}
+
+void DumpRenderTreeSupportEfl::setAutofilled(JSContextRef context, JSValueRef nodeObject, bool autofilled)
+{
+    JSC::ExecState* exec = toJS(context);
+    WebCore::Element* element = WebCore::toElement(toJS(exec, nodeObject));
+    if (!element)
+        return;
+    WebCore::HTMLInputElement* inputElement = element->toInputElement();
+    if (!inputElement)
+        return;
+
+    inputElement->setAutofilled(autofilled);
+}
+
 bool DumpRenderTreeSupportEfl::findString(const Evas_Object* ewkView, const char* text, WebCore::FindOptions options)
 {
     WebCore::Page* page = EWKPrivate::corePage(ewkView);
@@ -287,6 +321,32 @@ bool DumpRenderTreeSupportEfl::findString(const Evas_Object* ewkView, const char
         return false;
 
     return page->findString(String::fromUTF8(text), options);
+}
+
+void DumpRenderTreeSupportEfl::setSmartInsertDeleteEnabled(Evas_Object* ewkView, bool enabled)
+{
+    WebCore::Page* page = EWKPrivate::corePage(ewkView);
+    if (!page)
+        return;
+
+    WebCore::EditorClientEfl* editorClient = static_cast<WebCore::EditorClientEfl*>(page->editorClient());
+    if (!editorClient)
+        return;
+
+    editorClient->setSmartInsertDeleteEnabled(enabled);
+}
+
+void DumpRenderTreeSupportEfl::setSelectTrailingWhitespaceEnabled(Evas_Object* ewkView, bool enabled)
+{
+    WebCore::Page* page = EWKPrivate::corePage(ewkView);
+    if (!page)
+        return;
+
+    WebCore::EditorClientEfl* editorClient = static_cast<WebCore::EditorClientEfl*>(page->editorClient());
+    if (!editorClient)
+        return;
+
+    editorClient->setSelectTrailingWhitespaceEnabled(enabled);
 }
 
 void DumpRenderTreeSupportEfl::garbageCollectorCollect()
@@ -372,4 +432,43 @@ void DumpRenderTreeSupportEfl::dumpConfigurationForViewport(Evas_Object* ewkView
     restrictMinimumScaleFactorToViewportSize(attributes, availableSize);
     restrictScaleFactorToInitialScaleIfNotUserScalable(attributes);
     fprintf(stdout, "viewport size %dx%d scale %f with limits [%f, %f] and userScalable %f\n", attributes.layoutSize.width(), attributes.layoutSize.height(), attributes.initialScale, attributes.minimumScale, attributes.maximumScale, attributes.userScalable);
+}
+
+void DumpRenderTreeSupportEfl::deliverAllMutationsIfNecessary()
+{
+#if ENABLE(MUTATION_OBSERVERS)
+    WebCore::WebKitMutationObserver::deliverAllMutations();
+#endif
+}
+
+void DumpRenderTreeSupportEfl::setEditingBehavior(Evas_Object* ewkView, const char* editingBehavior)
+{
+    WebCore::EditingBehaviorType coreEditingBehavior;
+
+    if (!strcmp(editingBehavior, "win"))
+        coreEditingBehavior = WebCore::EditingWindowsBehavior;
+    else if (!strcmp(editingBehavior, "mac"))
+        coreEditingBehavior = WebCore::EditingMacBehavior;
+    else if (!strcmp(editingBehavior, "unix"))
+        coreEditingBehavior = WebCore::EditingUnixBehavior;
+    else {
+        ASSERT_NOT_REACHED();
+        return;
+    }
+
+    WebCore::Page* corePage = EWKPrivate::corePage(ewkView);
+    if (!corePage)
+        return;
+
+    corePage->settings()->setEditingBehaviorType(coreEditingBehavior);
+}
+
+String DumpRenderTreeSupportEfl::markerTextForListItem(JSContextRef context, JSValueRef nodeObject)
+{
+    JSC::ExecState* exec = toJS(context);
+    WebCore::Element* element = WebCore::toElement(toJS(exec, nodeObject));
+    if (!element)
+        return String();
+
+    return WebCore::markerTextForListItem(element);
 }

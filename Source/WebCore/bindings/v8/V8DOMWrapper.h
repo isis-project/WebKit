@@ -31,6 +31,7 @@
 #ifndef V8DOMWrapper_h
 #define V8DOMWrapper_h
 
+#include "DOMDataStore.h"
 #include "Event.h"
 #include "IsolatedWorld.h"
 #include "Node.h"
@@ -38,6 +39,7 @@
 #include "PlatformString.h"
 #include "V8CustomXPathNSResolver.h"
 #include "V8Event.h"
+#include "V8IsolatedContext.h"
 #include "V8Utilities.h"
 #include "V8XPathNSResolver.h"
 #include "WrapperTypeInfo.h"
@@ -124,7 +126,7 @@ namespace WebCore {
 
         static v8::Local<v8::Object> instantiateV8Object(V8Proxy* proxy, WrapperTypeInfo*, void* impl);
 
-        static v8::Handle<v8::Object> getExistingWrapper(Node* node)
+        static v8::Handle<v8::Object> getCachedWrapper(Node* node)
         {
             ASSERT(isMainThread());
             if (LIKELY(!IsolatedWorld::count())) {
@@ -132,23 +134,18 @@ namespace WebCore {
                 if (LIKELY(!!wrapper))
                     return *wrapper;
             }
-            return getExistingWrapperSlow(node);
-        }
 
-        static v8::Handle<v8::Value> getWrapper(Node* node)
-        {
-            ASSERT(isMainThread());
-            if (LIKELY(!IsolatedWorld::count())) {
+            V8IsolatedContext* context = V8IsolatedContext::getEntered();
+            if (LIKELY(!context)) {
                 v8::Persistent<v8::Object>* wrapper = node->wrapper();
-                if (LIKELY(!!wrapper))
-                    return *wrapper;
+                if (!wrapper)
+                    return v8::Handle<v8::Object>();
+                return *wrapper;
             }
-            return getWrapperSlow(node);
+            DOMDataStore* store = context->world()->domDataStore();
+            DOMNodeMapping& domNodeMap = node->isActiveNode() ? store->activeDomNodeMap() : store->domNodeMap();
+            return domNodeMap.get(node);
         }
-
-    private:
-        static v8::Handle<v8::Object> getExistingWrapperSlow(Node*);
-        static v8::Handle<v8::Value> getWrapperSlow(Node*);
     };
 
 }

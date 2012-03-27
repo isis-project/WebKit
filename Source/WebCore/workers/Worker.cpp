@@ -70,7 +70,7 @@ PassRefPtr<Worker> Worker::create(ScriptExecutionContext* context, const String&
     worker->setPendingActivity(worker.get());
 
     worker->m_scriptLoader = WorkerScriptLoader::create();
-#if PLATFORM(CHROMIUM)
+#if PLATFORM(CHROMIUM) || PLATFORM(BLACKBERRY)
     worker->m_scriptLoader->setTargetType(ResourceRequest::TargetIsWorker);
 #endif
     worker->m_scriptLoader->loadAsynchronously(context, scriptURL, DenyCrossOriginRequests, worker.get());
@@ -150,7 +150,6 @@ void Worker::notifyFinished()
         if (InspectorInstrumentation::shouldPauseDedicatedWorkerOnStart(scriptExecutionContext()))
             startMode = PauseWorkerContextOnStart;
         m_contextProxy->startWorkerContext(m_scriptLoader->url(), scriptExecutionContext()->userAgent(m_scriptLoader->url()), m_scriptLoader->script(), startMode);
-        InspectorInstrumentation::didStartWorkerContext(scriptExecutionContext(), m_contextProxy, m_scriptLoader->url());
         InspectorInstrumentation::scriptImported(scriptExecutionContext(), m_scriptLoader->identifier(), m_scriptLoader->script());
     }
     m_scriptLoader = nullptr;

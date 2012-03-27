@@ -5,21 +5,13 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB opening database connections during transactions");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
-    evalAndLog("IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction;");
-    shouldBeFalse("IDBTransaction == null");
-    debug("");
+    removeVendorPrefixes();
     prepareDatabase();
 }
 
@@ -54,7 +46,7 @@ function startTransaction()
     trans.oncomplete = function (e) {
         debug("transaction complete");
         shouldBeEqualToString("state", "open3complete");
-        done();
+        finishJSTest();
     };
 
     debug("");
@@ -90,5 +82,6 @@ function tryOpens()
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

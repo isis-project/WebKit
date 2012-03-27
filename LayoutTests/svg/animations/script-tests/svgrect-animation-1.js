@@ -24,39 +24,39 @@ rootSVGElement.appendChild(animate);
 // Setup animation test
 function sample1() {
     // Check initial/end conditions
-    shouldBe("rootSVGElement.viewBox.animVal.x", "0");
-    shouldBe("rootSVGElement.viewBox.animVal.y", "0");
-    shouldBe("rootSVGElement.viewBox.animVal.width", "100");
-    shouldBe("rootSVGElement.viewBox.animVal.height", "100");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.x", "0");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.y", "0");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.width", "100");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.height", "100");
 
-    shouldBe("rootSVGElement.viewBox.baseVal.x", "0");
-    shouldBe("rootSVGElement.viewBox.baseVal.y", "0");
-    shouldBe("rootSVGElement.viewBox.baseVal.width", "100");
-    shouldBe("rootSVGElement.viewBox.baseVal.height", "100");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.x", "0");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.y", "0");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.width", "100");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.height", "100");
 }
 
 function sample2() {
-    shouldBe("rootSVGElement.viewBox.animVal.x", "25");
-    shouldBe("rootSVGElement.viewBox.animVal.y", "25");
-    shouldBe("rootSVGElement.viewBox.animVal.width", "75");
-    shouldBe("rootSVGElement.viewBox.animVal.height", "75");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.x", "25");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.y", "25");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.width", "75");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.height", "75");
 
-    shouldBe("rootSVGElement.viewBox.baseVal.x", "25");
-    shouldBe("rootSVGElement.viewBox.baseVal.y", "25");
-    shouldBe("rootSVGElement.viewBox.baseVal.width", "75");
-    shouldBe("rootSVGElement.viewBox.baseVal.height", "75");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.x", "25");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.y", "25");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.width", "75");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.height", "75");
 }
 
 function sample3() {
-    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.x", "49.98", 0.01);
-    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.y", "49.98", 0.01);
-    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.width", "50.01", 0.01);
-    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.height", "50.01", 0.01);
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.x", "50");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.y", "50");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.width", "50");
+    shouldBeCloseEnough("rootSVGElement.viewBox.animVal.height", "50");
 
-    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.x", "49.98", 0.01);
-    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.y", "49.98", 0.01);
-    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.width", "50.01", 0.01);
-    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.height", "50.01", 0.01);
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.x", "50");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.y", "50");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.width", "50");
+    shouldBeCloseEnough("rootSVGElement.viewBox.baseVal.height", "50");
 }
 
 function executeTest() {
@@ -65,7 +65,7 @@ function executeTest() {
         ["animation", 0.0,   sample1],
         ["animation", 2.0,   sample2],
         ["animation", 3.999, sample3],
-        ["animation", 4.0,   sample1]
+        ["animation", 4.001, sample1]
     ];
 
     runAnimationTest(expectedValues);

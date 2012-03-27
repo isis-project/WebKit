@@ -32,11 +32,11 @@
 #import "DOMBlobInternal.h"
 #import "DOMCSSRuleInternal.h"
 #import "DOMCSSValueInternal.h"
+#import "DOMDictionaryInternal.h"
 #import "DOMDocumentInternal.h"
 #import "DOMEventInternal.h"
 #import "DOMIDBKeyInternal.h"
 #import "DOMNodeInternal.h"
-#import "DOMOptionsObjectInternal.h"
 #import "DOMSVGDocumentInternal.h"
 #import "DOMSVGPointInternal.h"
 #import "DOMStyleSheetInternal.h"
@@ -50,6 +50,9 @@
 #import "DOMcInternal.h"
 #import "DOMdInternal.h"
 #import "DOMeInternal.h"
+#import "DOMsequence<ScriptProfile>Internal.h"
+#import "DOMsequenceInternal.h"
+#import "Dictionary.h"
 #import "Document.h"
 #import "EventListener.h"
 #import "ExceptionHandlers.h"
@@ -58,7 +61,6 @@
 #import "JSMainThreadExecState.h"
 #import "KURL.h"
 #import "ObjCEventListener.h"
-#import "OptionsObject.h"
 #import "SVGDocument.h"
 #import "SVGStaticPropertyTearOff.h"
 #import "SerializedScriptValue.h"
@@ -75,6 +77,8 @@
 #import "c.h"
 #import "d.h"
 #import "e.h"
+#import "sequence.h"
+#import "sequence<ScriptProfile>.h"
 #import <wtf/GetPtr.h>
 
 #define IMPL reinterpret_cast<WebCore::TestObj*>(_internal)
@@ -200,6 +204,20 @@
     ASSERT(newTestObjAttr);
 
     IMPL->setTestObjAttr(core(newTestObjAttr));
+}
+
+- (DOMsequence<ScriptProfile> *)sequenceAttr
+{
+    WebCore::JSMainThreadNullState state;
+    return kit(WTF::getPtr(IMPL->sequenceAttr()));
+}
+
+- (void)setSequenceAttr:(DOMsequence<ScriptProfile> *)newSequenceAttr
+{
+    WebCore::JSMainThreadNullState state;
+    ASSERT(newSequenceAttr);
+
+    IMPL->setSequenceAttr(core(newSequenceAttr));
 }
 
 - (DOMTestObj *)XMLObjAttr
@@ -535,12 +553,6 @@
     IMPL->setWithScriptArgumentsAndCallStackAttribute(core(newWithScriptArgumentsAndCallStackAttribute));
 }
 
-- (NSString *)scriptStringAttr
-{
-    WebCore::JSMainThreadNullState state;
-    return IMPL->scriptStringAttr();
-}
-
 #if ENABLE(Condition1)
 - (int)conditionalAttr1
 {
@@ -665,6 +677,18 @@
     IMPL->setImmutablePoint(core(newImmutablePoint));
 }
 
+- (int)strawberry
+{
+    WebCore::JSMainThreadNullState state;
+    return IMPL->blueberry();
+}
+
+- (void)setStrawberry:(int)newStrawberry
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->setBlueberry(newStrawberry);
+}
+
 - (float)strictFloat
 {
     WebCore::JSMainThreadNullState state;
@@ -737,6 +761,18 @@
     return kit(WTF::getPtr(IMPL->objMethodWithArgs(intArg, strArg, core(objArg))));
 }
 
+- (void)methodWithSequenceArg:(DOMsequence *)
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->methodWithSequenceArg(core());
+}
+
+- (DOMsequence<ScriptProfile> *)methodReturningSequence:(int)intArg
+{
+    WebCore::JSMainThreadNullState state;
+    return kit(WTF::getPtr(IMPL->methodReturningSequence(intArg)));
+}
+
 - (DOMTestObj *)methodThatRequiresAllArgsAndThrows:(NSString *)strArg objArg:(DOMTestObj *)objArg
 {
     WebCore::JSMainThreadNullState state;
@@ -758,7 +794,7 @@
     IMPL->idbKey(core(key));
 }
 
-- (void)optionsObject:(DOMOptionsObject *)oo ooo:(DOMOptionsObject *)ooo
+- (void)optionsObject:(DOMDictionary *)oo ooo:(DOMDictionary *)ooo
 {
     WebCore::JSMainThreadNullState state;
     IMPL->optionsObject(core(oo), core(ooo));
@@ -936,6 +972,12 @@
 {
     WebCore::JSMainThreadNullState state;
     return IMPL->classMethodWithOptional(arg);
+}
+
+- (void)classMethod2:(int)arg
+{
+    WebCore::JSMainThreadNullState state;
+    IMPL->classMethod2(arg);
 }
 
 

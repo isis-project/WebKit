@@ -20,6 +20,7 @@
 #include "ResourceRequest.h"
 
 #include "BlobRegistryImpl.h"
+#include "CookieManager.h"
 #include <BlackBerryPlatformClient.h>
 #include <network/NetworkRequest.h>
 #include <wtf/text/CString.h>
@@ -78,13 +79,29 @@ static inline NetworkRequest::TargetType platformTargetTypeForRequest(const Reso
         return NetworkRequest::TargetIsWorker;
     case ResourceRequest::TargetIsSharedWorker:
         return NetworkRequest::TargetIsSharedWorker;
+
+        // FIXME: this need to be updated to the right value, but
+        // we need to coordinate with AIR api change.
+    case ResourceRequest::TargetIsFavicon:
+        return NetworkRequest::TargetIsImage;
+    case ResourceRequest::TargetIsPrefetch:
+        return NetworkRequest::TargetIsSubresource;
+    case ResourceRequest::TargetIsPrerender:
+        return NetworkRequest::TargetIsSubresource;
+    case ResourceRequest::TargetIsXHR:
+        return NetworkRequest::TargetIsSubresource;
+    case ResourceRequest::TargetIsTextTrack:
+        return NetworkRequest::TargetIsSubresource;
+    case ResourceRequest::TargetIsUnspecified:
+        return NetworkRequest::TargetIsSubresource;
+
     default:
         ASSERT_NOT_REACHED();
         return NetworkRequest::TargetIsUnknown;
     }
 }
 
-void ResourceRequest::initializePlatformRequest(NetworkRequest& platformRequest, bool isInitial) const
+void ResourceRequest::initializePlatformRequest(NetworkRequest& platformRequest, bool cookiesEnabled, bool isInitial, bool isRedirect) const
 {
     // If this is the initial load, skip the request body and headers.
     if (isInitial)
@@ -135,8 +152,23 @@ void ResourceRequest::initializePlatformRequest(NetworkRequest& platformRequest,
         for (HTTPHeaderMap::const_iterator it = httpHeaderFields().begin(); it != httpHeaderFields().end(); ++it) {
             String key = it->first;
             String value = it->second;
-            if (!key.isEmpty() && !value.isEmpty())
-                platformRequest.addHeader(key.latin1().data(), value.latin1().data());
+            if (!key.isEmpty() && !value.isEmpty()) {
+                // We need to check the encoding and encode the cookie's value using latin1 or utf8 to support unicode characters.
+                // We wo't use the old cookies of resourceRequest for new location because these cookies may be changed by redirection.
+                if (!equalIgnoringCase(key, "Cookie"))
+                    platformRequest.addHeader(key.latin1().data(), value.latin1().data());
+                else if (!isRedirect)
+                    platformRequest.addHeader(key.latin1().data(), value.containsOnlyLatin1() ? value.latin1().data() : value.utf8().data());
+            }
+        }
+       
+        // Redirection's response may add or update cookies, so we get cookies from CookieManager when redirection happens.
+        // If there aren't cookies in the header list, we need trying to add cookies.
+        if (cookiesEnabled && (isRedirect || !httpHeaderFields().contains("Cookie")) && !url().isNull()) {
+            // Prepare a cookie header if there are cookies related to this url.
+            String cookiePairs = cookieManager().getCookie(url(), WithHttpOnlyCookies);
+            if (!cookiePairs.isEmpty())
+                platformRequest.addHeader("Cookie", cookiePairs.containsOnlyLatin1() ? cookiePairs.latin1().data() : cookiePairs.utf8().data());
         }
 
         // Locale has the form "en-US". Construct accept language like "en-US, en;q=0.8".

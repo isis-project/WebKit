@@ -12,7 +12,7 @@
 // Not building PowerPC any more
 ARCHS = i386 x86_64
 
-HEADER_SEARCH_PATHS = $(WEBCORE_PRIVATE_HEADERS_DIR)/ForwardingHeaders ../ ../include/
+HEADER_SEARCH_PATHS = $(BUILT_PRODUCTS_DIR)/usr/local/include $(WEBCORE_PRIVATE_HEADERS_DIR)/ForwardingHeaders ../ ../include/
 
 // Zerolink prevents link warnings so turn it off
 ZERO_LINK = NO
@@ -35,6 +35,14 @@ ALWAYS_SEARCH_USER_PATHS = NO
 
 // Turn on position dependent code for most cases (overridden where appropriate)
 GCC_DYNAMIC_NO_PIC = YES
+
+GCC_PREPROCESSOR_DEFINITIONS = $(GCC_PREPROCESSOR_DEFINITIONS) GTEST_HAS_TR1_TUPLE=0;
+
+CLANG_CXX_LIBRARY = $(CLANG_CXX_LIBRARY_$(TARGET_MAC_OS_X_VERSION_MAJOR));
+CLANG_CXX_LIBRARY_1060 = libstdc++;
+CLANG_CXX_LIBRARY_1070 = libc++;
+CLANG_CXX_LIBRARY_1080 = libc++;
+CLANG_CXX_LIBRARY_1090 = libc++;
 
 REAL_PLATFORM_NAME = $(REAL_PLATFORM_NAME_$(PLATFORM_NAME));
 REAL_PLATFORM_NAME_ = $(REAL_PLATFORM_NAME_macosx);

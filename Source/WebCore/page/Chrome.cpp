@@ -373,7 +373,7 @@ void Chrome::mouseDidMoveOverElement(const HitTestResult& result, unsigned modif
     if (result.innerNode()) {
         Document* document = result.innerNode()->document();
         if (document && document->isDNSPrefetchEnabled())
-            ResourceHandle::prepareForURL(result.absoluteLinkURL());
+            prefetchDNS(result.absoluteLinkURL().host());
     }
     m_client->mouseDidMoveOverElement(result, modifierFlags);
 
@@ -443,16 +443,6 @@ void Chrome::print(Frame* frame)
 {
     // FIXME: This should have PageGroupLoadDeferrer, like runModal() or runJavaScriptAlert(), becasue it's no different from those.
     m_client->print(frame);
-}
-
-void Chrome::requestGeolocationPermissionForFrame(Frame* frame, Geolocation* geolocation)
-{
-    m_client->requestGeolocationPermissionForFrame(frame, geolocation);
-}
-
-void Chrome::cancelGeolocationPermissionRequestForFrame(Frame* frame, Geolocation* geolocation)
-{
-    m_client->cancelGeolocationPermissionRequestForFrame(frame, geolocation);
 }
 
 #if ENABLE(DIRECTORY_UPLOAD)
@@ -564,13 +554,6 @@ PassRefPtr<SearchPopupMenu> Chrome::createSearchPopupMenu(PopupMenuClient* clien
 {
     return m_client->createSearchPopupMenu(client);
 }
-
-#if ENABLE(CONTEXT_MENUS)
-void Chrome::showContextMenu()
-{
-    m_client->showContextMenu();
-}
-#endif
 
 bool Chrome::requiresFullscreenForVideoPlayback()
 {

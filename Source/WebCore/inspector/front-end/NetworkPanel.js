@@ -257,7 +257,7 @@ WebInspector.NetworkLogView.prototype = {
         var header = this._dataGrid.headerTableHeader("timeline");
         header.replaceChild(timelineSorting, header.firstChild);
 
-        timelineSorting.addEventListener("click", function(event) { event.stopPropagation() }, false);
+        timelineSorting.addEventListener("click", function(event) { event.consume() }, false);
         timelineSorting.addEventListener("change", this._sortByTimeline.bind(this), false);
         this._timelineSortSelector = timelineSorting;
     },
@@ -917,6 +917,10 @@ WebInspector.NetworkLogView.prototype = {
         return resource && resource.timing ? anchor : null;
     },
 
+    /**
+     * @param {Element} anchor
+     * @param {WebInspector.Popover} popover
+     */
     _showPopover: function(anchor, popover)
     {
         var resource = anchor.parentElement.resource;
@@ -1451,7 +1455,7 @@ WebInspector.NetworkBaseCalculator.prototype = {
 
     computeBarGraphLabels: function(item)
     {
-        const label = this.formatValue(this._value(item));
+        const label = this.formatTime(this._value(item));
         return {left: label, right: label, tooltip: label};
     },
 
@@ -1483,7 +1487,7 @@ WebInspector.NetworkBaseCalculator.prototype = {
         return 0;
     },
 
-    formatValue: function(value)
+    formatTime: function(value)
     {
         return value.toString();
     }
@@ -1553,11 +1557,11 @@ WebInspector.NetworkTimeCalculator.prototype = {
     {
         var rightLabel = "";
         if (resource.responseReceivedTime !== -1 && resource.endTime !== -1)
-            rightLabel = this.formatValue(resource.endTime - resource.responseReceivedTime);
+            rightLabel = this.formatTime(resource.endTime - resource.responseReceivedTime);
 
         var hasLatency = resource.latency > 0;
         if (hasLatency)
-            var leftLabel = this.formatValue(resource.latency);
+            var leftLabel = this.formatTime(resource.latency);
         else
             var leftLabel = rightLabel;
 
@@ -1565,7 +1569,7 @@ WebInspector.NetworkTimeCalculator.prototype = {
             return {left: leftLabel, right: rightLabel};
 
         if (hasLatency && rightLabel) {
-            var total = this.formatValue(resource.duration);
+            var total = this.formatTime(resource.duration);
             var tooltip = WebInspector.UIString("%s latency, %s download (%s total)", leftLabel, rightLabel, total);
         } else if (hasLatency)
             var tooltip = WebInspector.UIString("%s latency", leftLabel);
@@ -1601,7 +1605,7 @@ WebInspector.NetworkTimeCalculator.prototype = {
         return didChange;
     },
 
-    formatValue: function(value)
+    formatTime: function(value)
     {
         return Number.secondsToString(value);
     },
@@ -1629,7 +1633,7 @@ WebInspector.NetworkTransferTimeCalculator = function()
 }
 
 WebInspector.NetworkTransferTimeCalculator.prototype = {
-    formatValue: function(value)
+    formatTime: function(value)
     {
         return Number.secondsToString(value);
     },
@@ -1657,7 +1661,7 @@ WebInspector.NetworkTransferDurationCalculator = function()
 }
 
 WebInspector.NetworkTransferDurationCalculator.prototype = {
-    formatValue: function(value)
+    formatTime: function(value)
     {
         return Number.secondsToString(value);
     },

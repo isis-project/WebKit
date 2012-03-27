@@ -63,9 +63,13 @@ typedef GtkWidget* PlatformWidget;
 
 #if PLATFORM(QT)
 QT_BEGIN_NAMESPACE
-class QWidget;
+class QObject;
 QT_END_NAMESPACE
-typedef QWidget* PlatformWidget;
+typedef QObject* PlatformWidget;
+#endif
+
+#if PLATFORM(BLACKBERRY)
+typedef void* PlatformWidget;
 #endif
 
 #if PLATFORM(WX)
@@ -83,6 +87,14 @@ typedef Evas_Object* PlatformWidget;
 #if PLATFORM(QT)
 class QWebPageClient;
 typedef QWebPageClient* PlatformPageClient;
+#elif PLATFORM(BLACKBERRY)
+#include "PageClientBlackBerry.h"
+typedef PageClientBlackBerry* PlatformPageClient;
+#elif PLATFORM(EFL)
+namespace WebCore {
+class PageClientEfl;
+typedef PageClientEfl* PlatformPageClient;
+}
 #else
 typedef PlatformWidget PlatformPageClient;
 #endif

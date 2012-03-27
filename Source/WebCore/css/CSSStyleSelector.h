@@ -23,6 +23,7 @@
 #define CSSStyleSelector_h
 
 #include "CSSRule.h"
+#include "CSSValueList.h"
 #include "LinkHash.h"
 #include "MediaQueryExp.h"
 #include "RenderStyle.h"
@@ -41,14 +42,14 @@ class CSSFontSelector;
 class CSSPageRule;
 class CSSPrimitiveValue;
 class CSSProperty;
+class CSSRuleList;
 class CSSFontFace;
 class CSSFontFaceRule;
 class CSSImageGeneratorValue;
+class CSSImageSetValue;
 class CSSImageValue;
-class CSSRuleList;
 class CSSSelector;
 class CSSStyleApplyProperty;
-class CSSStyleRule;
 class CSSStyleSheet;
 class CSSValue;
 class ContainerNode;
@@ -67,9 +68,11 @@ class RenderRegion;
 class RuleData;
 class RuleSet;
 class Settings;
+class StaticCSSRuleList;
 class StyleImage;
 class StylePendingImage;
 class StylePropertySet;
+class StyleRule;
 class StyleShader;
 class StyleSheet;
 class StyleSheetList;
@@ -106,13 +109,11 @@ public:
                      bool strictParsing, bool matchAuthorAndUserStyles);
     ~CSSStyleSelector();
 
-#if ENABLE(STYLE_SCOPED)
-    static Element* determineScopingElement(const CSSStyleSheet*);
-#endif
-
     // Using these during tree walk will allow style selector to optimize child and descendant selector lookups.
-    void pushParent(Element* parent);
-    void popParent(Element* parent);
+    void pushParentElement(Element*);
+    void popParentElement(Element*);
+    void pushParentShadowRoot(const ShadowRoot*);
+    void popParentShadowRoot(const ShadowRoot*);
 
     PassRefPtr<RenderStyle> styleForElement(Element*, RenderStyle* parentStyle = 0, bool allowSharing = true, bool resolveForRootDefault = false, RenderRegion* regionForStyling = 0);
 
@@ -153,6 +154,14 @@ private:
     bool canShareStyleWithElement(StyledElement*) const;
 
     PassRefPtr<RenderStyle> styleForKeyframe(const RenderStyle*, const WebKitCSSKeyframeRule*, KeyframeValue&);
+
+#if ENABLE(STYLE_SCOPED)
+    void pushScope(const ContainerNode* scope, const ContainerNode* scopeParent);
+    void popScope(const ContainerNode* scope);
+#else
+    void pushScope(const ContainerNode*, const ContainerNode*) { }
+    void popScope(const ContainerNode*) { }
+#endif
 
 public:
     // These methods will give back the set of rules that matched for a given element (or a pseudo-element).
@@ -217,7 +226,7 @@ public:
 
     static bool createTransformOperations(CSSValue* inValue, RenderStyle* inStyle, RenderStyle* rootStyle, TransformOperations& outOperations);
     
-    void invalidateMatchedDeclarationCache();
+    void invalidateMatchedPropertiesCache();
 
 #if ENABLE(CSS_FILTERS)
     bool createFilterOperations(CSSValue* inValue, RenderStyle* inStyle, RenderStyle* rootStyle, FilterOperations& outOperations);
@@ -232,8 +241,8 @@ public:
 #endif // ENABLE(CSS_FILTERS)
 
     struct RuleSelectorPair {
-        RuleSelectorPair(CSSStyleRule* rule, CSSSelector* selector) : rule(rule), selector(selector) { }
-        CSSStyleRule* rule;
+        RuleSelectorPair(StyleRule* rule, CSSSelector* selector) : rule(rule), selector(selector) { }
+        StyleRule* rule;
         CSSSelector* selector;
     };
     struct Features {
@@ -259,7 +268,6 @@ private:
     void adjustRenderStyle(RenderStyle* styleToAdjust, RenderStyle* parentStyle, Element*);
 
     void addMatchedRule(const RuleData* rule) { m_matchedRules.append(rule); }
-    void addMatchedDeclaration(StylePropertySet*, unsigned linkMatchType = SelectorChecker::MatchAll);
 
     struct MatchRanges {
         MatchRanges() : firstUARule(-1), lastUARule(-1), firstAuthorRule(-1), lastAuthorRule(-1), firstUserRule(-1), lastUserRule(-1) { }
@@ -271,34 +279,61 @@ private:
         int lastUserRule;
     };
 
+    struct MatchedProperties {
+        MatchedProperties() : possiblyPaddedMember(0) { }
+        
+        RefPtr<StylePropertySet> properties;
+        union {
+            struct {
+                unsigned linkMatchType : 2;
+                unsigned isInRegionRule : 1;
+            };
+            // Used to make sure all memory is zero-initialized since we compute the hash over the bytes of this object.
+            void* possiblyPaddedMember;
+        };
+    };
+
     struct MatchResult {
         MatchResult() : isCacheable(true) { }
+        Vector<MatchedProperties, 64> matchedProperties;
+        Vector<StyleRule*, 64> matchedRules;
         MatchRanges ranges;
         bool isCacheable;
     };
+
+    struct MatchOptions {
+        MatchOptions(bool includeEmptyRules, const ContainerNode* scope = 0) : scope(scope), includeEmptyRules(includeEmptyRules) { }
+        const ContainerNode* scope;
+        bool includeEmptyRules;
+    };
+
+    static void addMatchedProperties(MatchResult&, StylePropertySet* properties, StyleRule* = 0, unsigned linkMatchType = SelectorChecker::MatchAll, bool inRegionRule = false);
+    void addElementStyleProperties(MatchResult&, StylePropertySet*, bool isCacheable = true);
+
     void matchAllRules(MatchResult&);
     void matchUARules(MatchResult&);
-    void matchRules(RuleSet*, int& firstRuleIndex, int& lastRuleIndex, bool includeEmptyRules);
-    void matchAuthorRules(int& firstRuleIndex, int& lastRuleIndex, bool includeEmptyRules);
-    void matchScopedAuthorRules(int& firstRuleIndex, int& lastRuleIndex, bool includeEmptyRules);
-    void collectMatchingRules(RuleSet*, int& firstRuleIndex, int& lastRuleIndex, bool includeEmptyRules);
-    void collectMatchingRulesForRegion(RuleSet*, int& firstRuleIndex, int& lastRuleIndex, bool includeEmptyRules);
-    void collectMatchingRulesForList(const Vector<RuleData>*, int& firstRuleIndex, int& lastRuleIndex, bool includeEmptyRules);
+    void matchUARules(MatchResult&, RuleSet*);
+    void matchAuthorRules(MatchResult&, bool includeEmptyRules);
+    void matchUserRules(MatchResult&, bool includeEmptyRules);
+    void matchScopedAuthorRules(MatchResult&, bool includeEmptyRules);
+    void collectMatchingRules(RuleSet*, int& firstRuleIndex, int& lastRuleIndex, const MatchOptions&);
+    void collectMatchingRulesForRegion(RuleSet*, int& firstRuleIndex, int& lastRuleIndex, const MatchOptions&);
+    void collectMatchingRulesForList(const Vector<RuleData>*, int& firstRuleIndex, int& lastRuleIndex, const MatchOptions&);
     bool fastRejectSelector(const RuleData&) const;
     void sortMatchedRules();
-    void sortAndTransferMatchedRules();
+    void sortAndTransferMatchedRules(MatchResult&);
 
-    bool checkSelector(const RuleData&);
+    bool checkSelector(const RuleData&, const ContainerNode* scope = 0);
     bool checkRegionSelector(CSSSelector* regionSelector, Element* regionElement);
-    void applyMatchedDeclarations(const MatchResult&);
+    void applyMatchedProperties(const MatchResult&);
     template <bool firstPass>
-    void applyDeclarations(bool important, int startIndex, int endIndex, bool inheritedOnly);
+    void applyMatchedProperties(const MatchResult&, bool important, int startIndex, int endIndex, bool inheritedOnly);
     template <bool firstPass>
-    void applyDeclaration(StylePropertySet*, bool isImportant, bool inheritedOnly);
+    void applyProperties(const StylePropertySet* properties, StyleRule*, bool isImportant, bool inheritedOnly, bool filterRegionProperties);
 
     static bool isValidRegionStyleProperty(int id);
 
-    void matchPageRules(RuleSet*, bool isLeftPage, bool isFirstPage, const String& pageName);
+    void matchPageRules(MatchResult&, RuleSet*, bool isLeftPage, bool isFirstPage, const String& pageName);
     void matchPageRulesForList(Vector<CSSPageRule*>& matchedRules, const Vector<CSSPageRule*>&, bool isLeftPage, bool isFirstPage, const String& pageName);
     bool isLeftPage(int pageIndex) const;
     bool isRightPage(int pageIndex) const { return !isLeftPage(pageIndex); }
@@ -326,9 +361,15 @@ public:
     PassRefPtr<StyleImage> styleImage(CSSPropertyID, CSSValue*);
     PassRefPtr<StyleImage> cachedOrPendingFromValue(CSSPropertyID, CSSImageValue*);
     PassRefPtr<StyleImage> generatedOrPendingFromValue(CSSPropertyID, CSSImageGeneratorValue*);
+#if ENABLE(CSS_IMAGE_SET)
+    PassRefPtr<StyleImage> setOrPendingFromValue(CSSPropertyID, CSSImageSetValue*);
+#endif
 
     bool applyPropertyToRegularStyle() const { return m_applyPropertyToRegularStyle; }
     bool applyPropertyToVisitedLinkStyle() const { return m_applyPropertyToVisitedLinkStyle; }
+
+    static Length convertToIntLength(CSSPrimitiveValue*, RenderStyle*, RenderStyle* rootStyle, double multiplier = 1);
+    static Length convertToFloatLength(CSSPrimitiveValue*, RenderStyle*, RenderStyle* rootStyle, double multiplier = 1);
 
 private:
     static RenderStyle* s_styleNotYetAvailable;
@@ -365,6 +406,7 @@ private:
     bool canShareStyleWithControl(StyledElement*) const;
 
     void applyProperty(int id, CSSValue*);
+
 #if ENABLE(SVG)
     void applySVGProperty(int id, CSSValue*);
 #endif
@@ -372,45 +414,30 @@ private:
     PassRefPtr<StyleImage> loadPendingImage(StylePendingImage*);
     void loadPendingImages();
 
-    struct MatchedStyleDeclaration {
-        MatchedStyleDeclaration() : possiblyPaddedMember(0) { }
-
-        RefPtr<StylePropertySet> styleDeclaration;
-        union {
-            unsigned linkMatchType;
-            // Used to make sure all memory is zero-initialized since we compute the hash over the bytes of this object.
-            void* possiblyPaddedMember;
-        };
-    };
-    static unsigned computeDeclarationHash(MatchedStyleDeclaration*, unsigned size);
-    struct MatchedStyleDeclarationCacheItem {
-        Vector<MatchedStyleDeclaration> matchedStyleDeclarations;
+    static unsigned computeMatchedPropertiesHash(const MatchedProperties*, unsigned size);
+    struct MatchedPropertiesCacheItem {
+        Vector<MatchedProperties> matchedProperties;
         MatchRanges ranges;
         RefPtr<RenderStyle> renderStyle;
         RefPtr<RenderStyle> parentRenderStyle;
     };
-    const MatchedStyleDeclarationCacheItem* findFromMatchedDeclarationCache(unsigned hash, const MatchResult&);
-    void addToMatchedDeclarationCache(const RenderStyle*, const RenderStyle* parentStyle, unsigned hash, const MatchResult&);
+    const MatchedPropertiesCacheItem* findFromMatchedPropertiesCache(unsigned hash, const MatchResult&);
+    void addToMatchedPropertiesCache(const RenderStyle*, const RenderStyle* parentStyle, unsigned hash, const MatchResult&);
 
     // Every N additions to the matched declaration cache trigger a sweep where entries holding
     // the last reference to a style declaration are garbage collected.
-    void sweepMatchedDeclarationCache();
+    void sweepMatchedPropertiesCache();
 
-    // We collect the set of decls that match in |m_matchedDecls|. We then walk the
-    // set of matched decls four times, once for those properties that others depend on (like font-size),
-    // and then a second time for all the remaining properties. We then do the same two passes
-    // for any !important rules.
-    Vector<MatchedStyleDeclaration, 64> m_matchedDecls;
-    unsigned m_matchedDeclarationCacheAdditionsSinceLastSweep;
+    unsigned m_matchedPropertiesCacheAdditionsSinceLastSweep;
 
-    typedef HashMap<unsigned, MatchedStyleDeclarationCacheItem> MatchedStyleDeclarationCache;
-    MatchedStyleDeclarationCache m_matchedStyleDeclarationCache;
+    typedef HashMap<unsigned, MatchedPropertiesCacheItem> MatchedPropertiesCache;
+    MatchedPropertiesCache m_matchedPropertiesCache;
 
     // A buffer used to hold the set of matched rules for an element, and a temporary buffer used for
     // merge sorting.
     Vector<const RuleData*, 32> m_matchedRules;
 
-    RefPtr<CSSRuleList> m_ruleList;
+    RefPtr<StaticCSSRuleList> m_ruleList;
 
     HashSet<int> m_pendingImageProperties; // Hash of CSSPropertyIDs
 
@@ -446,32 +473,34 @@ private:
 #endif
 
 #if ENABLE(STYLE_SCOPED)
-    typedef HashMap<const Element*, OwnPtr<RuleSet> > ScopedRuleSetMap;
+    static const ContainerNode* determineScope(const CSSStyleSheet*);
 
-    RuleSet* scopedRuleSetForElement(const Element*) const;
+    typedef HashMap<const ContainerNode*, OwnPtr<RuleSet> > ScopedRuleSetMap;
 
-    void setupScopingElementStack(const Element*);
-    bool scopingElementStackIsConsistent(const Element* parent) const { return parent && parent == m_scopingElementStackParent; }
+    RuleSet* ruleSetForScope(const ContainerNode*) const;
+
+    void setupScopeStack(const ContainerNode*);
+    bool scopeStackIsConsistent(const ContainerNode* parent) const { return parent && parent == m_scopeStackParent; }
 
     ScopedRuleSetMap m_scopedAuthorStyles;
     
     struct ScopeStackFrame {
-        ScopeStackFrame() : m_element(0), m_ruleSet(0) { }
-        ScopeStackFrame(const Element* element, RuleSet* ruleSet) : m_element(element), m_ruleSet(ruleSet) { }
-        const Element* m_element;
+        ScopeStackFrame() : m_scope(0), m_ruleSet(0) { }
+        ScopeStackFrame(const ContainerNode* scope, RuleSet* ruleSet) : m_scope(scope), m_ruleSet(ruleSet) { }
+        const ContainerNode* m_scope;
         RuleSet* m_ruleSet;
     };
     // Vector (used as stack) that keeps track of scoping elements (i.e., elements with a <style scoped> child)
     // encountered during tree iteration for style resolution.
-    Vector<ScopeStackFrame> m_scopingElementStack;
+    Vector<ScopeStackFrame> m_scopeStack;
     // Element last seen as parent element when updating m_scopingElementStack.
     // This is used to decide whether m_scopingElementStack is consistent, separately from SelectorChecker::m_parentStack.
-    const Element* m_scopingElementStackParent;
+    const ContainerNode* m_scopeStackParent;
 #endif
 
     friend class CSSStyleApplyProperty;
-    friend bool operator==(const MatchedStyleDeclaration&, const MatchedStyleDeclaration&);
-    friend bool operator!=(const MatchedStyleDeclaration&, const MatchedStyleDeclaration&);
+    friend bool operator==(const MatchedProperties&, const MatchedProperties&);
+    friend bool operator!=(const MatchedProperties&, const MatchedProperties&);
     friend bool operator==(const MatchRanges&, const MatchRanges&);
     friend bool operator!=(const MatchRanges&, const MatchRanges&);
 };

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Copyright (C) 2010 Google Inc. All rights reserved.
+# Copyright (C) 2010, 2012 Google Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
@@ -29,21 +29,13 @@
 
 """Package that handles non-debug, non-file output for run-webkit-tests."""
 
-import logging
 import optparse
-import time
 
 from webkitpy.common.net import resultsjsonparser
-from webkitpy.layout_tests.views.metered_stream import MeteredStream
 from webkitpy.layout_tests.models.test_expectations import TestExpectations
-
-
-_log = logging.getLogger(__name__)
-
+from webkitpy.layout_tests.views.metered_stream import MeteredStream
 
 NUM_SLOW_TESTS_TO_LOG = 10
-FAST_UPDATES_SECONDS = 0.03
-SLOW_UPDATES_SECONDS = 10.0
 
 PRINT_DEFAULT = "misc,one-line-progress,one-line-summary,unexpected,unexpected-results,updates"
 PRINT_EVERYTHING = "actual,config,expected,misc,one-line-progress,one-line-summary,slowest,timing,unexpected,unexpected-results,updates"
@@ -154,27 +146,6 @@ def parse_print_options(print_options, verbose):
     return switches
 
 
-def _configure_logging(stream, verbose):
-    log_fmt = '%(message)s'
-    log_datefmt = '%y%m%d %H:%M:%S'
-    log_level = logging.INFO
-    if verbose:
-        log_fmt = '%(asctime)s %(process)d %(filename)s:%(lineno)d %(levelname)s %(message)s'
-        log_level = logging.DEBUG
-
-    root = logging.getLogger()
-    handler = logging.StreamHandler(stream)
-    handler.setFormatter(logging.Formatter(log_fmt, None))
-    root.addHandler(handler)
-    root.setLevel(log_level)
-    return handler
-
-
-def _restore_logging(handler_to_remove):
-    root = logging.getLogger()
-    root.handlers.remove(handler_to_remove)
-
-
 class Printer(object):
     """Class handling all non-debug-logging printing done by run-webkit-tests.
 
@@ -187,7 +158,7 @@ class Printer(object):
 
     By default the buildbot-parsed code gets logged to stdout, and regular
     output gets logged to stderr."""
-    def __init__(self, port, options, regular_output, buildbot_output, configure_logging):
+    def __init__(self, port, options, regular_output, buildbot_output, logger=None):
         """
         Args
           port               interface to port-specific routines
@@ -196,37 +167,16 @@ class Printer(object):
                              should be written
           buildbot_output    stream to which output intended to be read by
                              the buildbots (and humans) should be written
-          configure_loggign  Whether a logging handler should be registered
-
+          logger             optional logger to integrate into the stream.
         """
         self._port = port
         self._options = options
-        self._stream = regular_output
         self._buildbot_stream = buildbot_output
-        self._meter = None
-
-        # These are used for --print one-line-progress
-        self._last_remaining = None
-        self._last_update_time = None
-
+        self._meter = MeteredStream(regular_output, options.verbose, logger=logger)
         self.switches = parse_print_options(options.print_options, options.verbose)
 
-        self._logging_handler = None
-        if self._stream.isatty() and not options.verbose:
-            self._update_interval_seconds = FAST_UPDATES_SECONDS
-            self._meter = MeteredStream(self._stream)
-            if configure_logging:
-                self._logging_handler = _configure_logging(self._meter, options.verbose)
-        else:
-            self._update_interval_seconds = SLOW_UPDATES_SECONDS
-            if configure_logging:
-                self._logging_handler = _configure_logging(self._stream, options.verbose)
-
     def cleanup(self):
-        """Restore logging configuration to its initial settings."""
-        if self._logging_handler:
-            _restore_logging(self._logging_handler)
-            self._logging_handler = None
+        self._meter.cleanup()
 
     def __del__(self):
         self.cleanup()
@@ -315,18 +265,25 @@ class Printer(object):
            - actual result
            - timing info
         """
-        filename = self._port.abspath_for_test(result.test_name)
         test_name = result.test_name
         self._write('trace: %s' % test_name)
+
+        base = self._port.lookup_virtual_test_base(test_name)
+        if base:
+            args = ' '.join(self._port.lookup_virtual_test_args(test_name))
+            self._write(' base: %s' % base)
+            self._write(' args: %s' % args)
+
         for extension in ('.txt', '.png', '.wav', '.webarchive'):
-            self._print_baseline(filename, extension)
+            self._print_baseline(test_name, extension)
+
         self._write('  exp: %s' % exp_str)
         self._write('  got: %s' % got_str)
         self._write(' took: %-.3f' % result.test_run_time)
         self._write('')
 
-    def _print_baseline(self, filename, extension):
-        baseline = self._port.expected_filename(filename, extension)
+    def _print_baseline(self, test_name, extension):
+        baseline = self._port.expected_filename(test_name, extension)
         if self._port._filesystem.exists(baseline):
             relpath = self._port.relative_test_filename(baseline)
         else:
@@ -343,27 +300,19 @@ class Printer(object):
         if self.disabled('one-line-progress'):
             return
 
-        now = time.time()
-        if self._last_update_time is None:
-            self._last_update_time = now
-
-        time_since_last_update = now - self._last_update_time
-        if time_since_last_update <= self._update_interval_seconds:
+        if result_summary.remaining == 0:
+            self._meter.write_update('')
             return
-
-        self._last_update_time = now
 
         percent_complete = 100 * (result_summary.expected +
             result_summary.unexpected) / result_summary.total
         action = "Testing"
         if retrying:
             action = "Retrying"
-        self._update("%s (%d%%): %d ran as expected, %d didn't, %d left" %
-                     (action, percent_complete, result_summary.expected,
-                      result_summary.unexpected, result_summary.remaining))
 
-        if result_summary.remaining == 0:
-            self._update('')
+        self._meter.write_throttled_update("%s (%d%%): %d ran as expected, %d didn't, %d left" %
+            (action, percent_complete, result_summary.expected,
+             result_summary.unexpected, result_summary.remaining))
 
     def print_unexpected_results(self, unexpected_results):
         """Prints a list of the unexpected results to the buildbot stream."""
@@ -451,7 +400,7 @@ class Printer(object):
     def print_update(self, msg):
         if self.disabled('updates'):
             return
-        self._update(msg)
+        self._meter.write_update(msg)
 
     def write(self, msg, option="misc"):
         if self.disabled(option):
@@ -459,10 +408,4 @@ class Printer(object):
         self._write(msg)
 
     def _write(self, msg):
-        _log.info(msg)
-
-    def _update(self, msg):
-        if self._meter:
-            self._meter.update(msg)
-        else:
-            self._write(msg)
+        self._meter.writeln(msg)

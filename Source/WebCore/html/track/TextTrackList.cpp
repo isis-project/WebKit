@@ -30,6 +30,7 @@
 #include "TextTrackList.h"
 
 #include "EventNames.h"
+#include "HTMLMediaElement.h"
 #include "LoadableTextTrack.h"
 #include "ScriptExecutionContext.h"
 #include "TextTrack.h"
@@ -55,6 +56,19 @@ unsigned TextTrackList::length() const
     return m_addTrackTracks.size() + m_elementTracks.size();
 }
 
+unsigned TextTrackList::getTrackIndex(TextTrack *textTrack)
+{
+    if (textTrack->trackType() == TextTrack::TrackElement)
+        return static_cast<LoadableTextTrack*>(textTrack)->trackElementIndex();
+
+    if (textTrack->trackType() == TextTrack::AddTrack)
+        return m_elementTracks.size() + m_addTrackTracks.find(textTrack);
+
+    ASSERT_NOT_REACHED();
+
+    return -1;
+}
+
 TextTrack* TextTrackList::item(unsigned index)
 {
     // 4.8.10.12.1 Text track model
@@ -77,18 +91,26 @@ TextTrack* TextTrackList::item(unsigned index)
 void TextTrackList::append(PassRefPtr<TextTrack> prpTrack)
 {
     RefPtr<TextTrack> track = prpTrack;
-    
+
     if (track->trackType() == TextTrack::AddTrack)
         m_addTrackTracks.append(track);
     else if (track->trackType() == TextTrack::TrackElement) {
         // Insert tracks added for <track> element in tree order.
         size_t index = static_cast<LoadableTextTrack*>(track.get())->trackElementIndex();
         m_elementTracks.insert(index, track);
+
+        // Invalidate the cached index for all the following tracks.
+        for (size_t i = index; i < m_elementTracks.size(); ++i)
+            m_elementTracks[i]->invalidateTrackIndex();
+
+        for (size_t i = 0; i < m_addTrackTracks.size(); ++i)
+            m_addTrackTracks[i]->invalidateTrackIndex();
+
     } else
         ASSERT_NOT_REACHED();
 
-    ASSERT(!track->mediaElement() || track->mediaElement() == owner());
-    track->setMediaElement(owner());
+    ASSERT(!track->mediaElement() || track->mediaElement() == m_owner);
+    track->setMediaElement(m_owner);
 
     scheduleAddTrackEvent(track.release());
 }
@@ -108,7 +130,7 @@ void TextTrackList::remove(TextTrack* track)
     if (index == notFound)
         return;
 
-    ASSERT(track->mediaElement() == owner());
+    ASSERT(track->mediaElement() == m_owner);
     track->setMediaElement(0);
 
     tracks->remove(index);
@@ -151,6 +173,11 @@ void TextTrackList::asyncEventTimerFired(Timer<TextTrackList>*)
     for (size_t index = 0; index < count; ++index)
         dispatchEvent(pendingEvents[index].release(), ec);
     --m_dispatchingEvents;
+}
+
+Node* TextTrackList::owner() const
+{
+    return m_owner;
 }
 
 #endif

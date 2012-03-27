@@ -20,6 +20,9 @@
 
 #include "config.h"
 #include "QtDialogRunner.h"
+#include "WKRetainPtr.h"
+#include "WKStringQt.h"
+#include "qwebpermissionrequest_p.h"
 
 #include <QtDeclarative/QDeclarativeComponent>
 #include <QtDeclarative/QDeclarativeContext>
@@ -69,23 +72,20 @@ private:
     QString m_defaultValue;
 };
 
-class AuthenticationDialogContextObject : public QObject {
+class BaseAuthenticationContextObject : public QObject {
     Q_OBJECT
     Q_PROPERTY(QString hostname READ hostname CONSTANT)
-    Q_PROPERTY(QString realm READ realm CONSTANT)
     Q_PROPERTY(QString prefilledUsername READ prefilledUsername CONSTANT)
 
 public:
-    AuthenticationDialogContextObject(const QString& hostname, const QString& realm, const QString& prefilledUsername)
+    BaseAuthenticationContextObject(const QString& hostname, const QString& prefilledUsername)
         : QObject()
         , m_hostname(hostname)
-        , m_realm(realm)
         , m_prefilledUsername(prefilledUsername)
     {
     }
 
     QString hostname() const { return m_hostname; }
-    QString realm() const { return m_realm; }
     QString prefilledUsername() const { return m_prefilledUsername; }
 
 public slots:
@@ -98,8 +98,41 @@ signals:
 
 private:
     QString m_hostname;
-    QString m_realm;
     QString m_prefilledUsername;
+};
+
+class HttpAuthenticationDialogContextObject : public BaseAuthenticationContextObject {
+    Q_OBJECT
+    Q_PROPERTY(QString realm READ realm CONSTANT)
+
+public:
+    HttpAuthenticationDialogContextObject(const QString& hostname, const QString& realm, const QString& prefilledUsername)
+        : BaseAuthenticationContextObject(hostname, prefilledUsername)
+        , m_realm(realm)
+    {
+    }
+
+    QString realm() const { return m_realm; }
+
+private:
+    QString m_realm;
+};
+
+class ProxyAuthenticationDialogContextObject : public BaseAuthenticationContextObject {
+    Q_OBJECT
+    Q_PROPERTY(quint16 port READ port CONSTANT)
+
+public:
+    ProxyAuthenticationDialogContextObject(const QString& hostname, quint16 port, const QString& prefilledUsername)
+        : BaseAuthenticationContextObject(hostname, prefilledUsername)
+        , m_port(port)
+    {
+    }
+
+    quint16 port() const { return m_port; }
+
+private:
+    quint16 m_port;
 };
 
 class CertificateVerificationDialogContextObject : public QObject {
@@ -125,6 +158,85 @@ signals:
 
 private:
     QString m_hostname;
+};
+
+class FilePickerContextObject : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QStringList fileList READ fileList CONSTANT)
+
+public:
+    FilePickerContextObject(const QStringList& selectedFiles)
+        : QObject()
+        , m_fileList(selectedFiles)
+    {
+    }
+
+    QStringList fileList() const { return m_fileList; }
+
+public slots:
+    void reject() { emit rejected();}
+    void accept(const QVariant& path) { emit fileSelected(path.toStringList()); }
+
+signals:
+    void rejected();
+    void fileSelected(const QStringList&);
+
+private:
+    QStringList m_fileList;
+};
+
+class DatabaseQuotaDialogContextObject : public QObject {
+    Q_OBJECT
+    Q_PROPERTY(QString databaseName READ databaseName CONSTANT)
+    Q_PROPERTY(QString displayName READ displayName CONSTANT)
+    Q_PROPERTY(quint64 currentQuota READ currentQuota CONSTANT)
+    Q_PROPERTY(quint64 currentOriginUsage READ currentOriginUsage CONSTANT)
+    Q_PROPERTY(quint64 currentDatabaseUsage READ currentDatabaseUsage CONSTANT)
+    Q_PROPERTY(quint64 expectedUsage READ expectedUsage CONSTANT)
+    Q_PROPERTY(QtWebSecurityOrigin* origin READ securityOrigin CONSTANT)
+
+public:
+    DatabaseQuotaDialogContextObject(const QString& databaseName, const QString& displayName, WKSecurityOriginRef securityOrigin, quint64 currentQuota, quint64 currentOriginUsage, quint64 currentDatabaseUsage, quint64 expectedUsage)
+        : QObject()
+        , m_databaseName(databaseName)
+        , m_displayName(displayName)
+        , m_currentQuota(currentQuota)
+        , m_currentOriginUsage(currentOriginUsage)
+        , m_currentDatabaseUsage(currentDatabaseUsage)
+        , m_expectedUsage(expectedUsage)
+    {
+        WKRetainPtr<WKStringRef> scheme = adoptWK(WKSecurityOriginCopyProtocol(securityOrigin));
+        WKRetainPtr<WKStringRef> host = adoptWK(WKSecurityOriginCopyHost(securityOrigin));
+
+        m_securityOrigin.setScheme(WKStringCopyQString(scheme.get()));
+        m_securityOrigin.setHost(WKStringCopyQString(host.get()));
+        m_securityOrigin.setPort(static_cast<int>(WKSecurityOriginGetPort(securityOrigin)));
+    }
+
+    QString databaseName() const { return m_databaseName; }
+    QString displayName() const { return m_displayName; }
+    quint64 currentQuota() const { return m_currentQuota; }
+    quint64 currentOriginUsage() const { return m_currentOriginUsage; }
+    quint64 currentDatabaseUsage() const { return m_currentDatabaseUsage; }
+    quint64 expectedUsage() const { return m_expectedUsage; }
+    QtWebSecurityOrigin* securityOrigin() { return &m_securityOrigin; }
+
+public slots:
+    void accept(quint64 size) { emit accepted(size); }
+    void reject() { emit rejected(); }
+
+signals:
+    void accepted(quint64 size);
+    void rejected();
+
+private:
+    QString m_databaseName;
+    QString m_displayName;
+    quint64 m_currentQuota;
+    quint64 m_currentOriginUsage;
+    quint64 m_currentDatabaseUsage;
+    quint64 m_expectedUsage;
+    QtWebSecurityOrigin m_securityOrigin;
 };
 
 bool QtDialogRunner::initForAlert(QDeclarativeComponent* component, QQuickItem* dialogParent, const QString& message)
@@ -163,7 +275,20 @@ bool QtDialogRunner::initForPrompt(QDeclarativeComponent* component, QQuickItem*
 
 bool QtDialogRunner::initForAuthentication(QDeclarativeComponent* component, QQuickItem* dialogParent, const QString& hostname, const QString& realm, const QString& prefilledUsername)
 {
-    AuthenticationDialogContextObject* contextObject = new AuthenticationDialogContextObject(hostname, realm, prefilledUsername);
+    HttpAuthenticationDialogContextObject* contextObject = new HttpAuthenticationDialogContextObject(hostname, realm, prefilledUsername);
+    if (!createDialog(component, dialogParent, contextObject))
+        return false;
+
+    connect(contextObject, SIGNAL(accepted(QString, QString)), SLOT(onAuthenticationAccepted(QString, QString)));
+    connect(contextObject, SIGNAL(accepted(QString, QString)), SLOT(quit()));
+    connect(contextObject, SIGNAL(rejected()), SLOT(quit()));
+
+    return true;
+}
+
+bool QtDialogRunner::initForProxyAuthentication(QDeclarativeComponent* component, QQuickItem* dialogParent, const QString& hostname, uint16_t port, const QString& prefilledUsername)
+{
+    ProxyAuthenticationDialogContextObject* contextObject = new ProxyAuthenticationDialogContextObject(hostname, port, prefilledUsername);
     if (!createDialog(component, dialogParent, contextObject))
         return false;
 
@@ -182,6 +307,32 @@ bool QtDialogRunner::initForCertificateVerification(QDeclarativeComponent* compo
 
     connect(contextObject, SIGNAL(accepted()), SLOT(onAccepted()));
     connect(contextObject, SIGNAL(accepted()), SLOT(quit()));
+    connect(contextObject, SIGNAL(rejected()), SLOT(quit()));
+
+    return true;
+}
+
+bool QtDialogRunner::initForFilePicker(QDeclarativeComponent* component, QQuickItem* dialogParent, const QStringList& selectedFiles)
+{
+    FilePickerContextObject* contextObject = new FilePickerContextObject(selectedFiles);
+    if (!createDialog(component, dialogParent, contextObject))
+        return false;
+
+    connect(contextObject, SIGNAL(fileSelected(QStringList)), SLOT(onFileSelected(QStringList)));
+    connect(contextObject, SIGNAL(fileSelected(QStringList)), SLOT(quit()));
+    connect(contextObject, SIGNAL(rejected()), SLOT(quit()));
+
+    return true;
+}
+
+bool QtDialogRunner::initForDatabaseQuotaDialog(QDeclarativeComponent* component, QQuickItem* dialogParent, const QString& databaseName, const QString& displayName, WKSecurityOriginRef securityOrigin, quint64 currentQuota, quint64 currentOriginUsage, quint64 currentDatabaseUsage, quint64 expectedUsage)
+{
+    DatabaseQuotaDialogContextObject* contextObject = new DatabaseQuotaDialogContextObject(databaseName, displayName, securityOrigin, currentQuota, currentOriginUsage, currentDatabaseUsage, expectedUsage);
+    if (!createDialog(component, dialogParent, contextObject))
+        return false;
+
+    connect(contextObject, SIGNAL(accepted(quint64)), SLOT(onDatabaseQuotaAccepted(quint64)));
+    connect(contextObject, SIGNAL(accepted(quint64)), SLOT(quit()));
     connect(contextObject, SIGNAL(rejected()), SLOT(quit()));
 
     return true;

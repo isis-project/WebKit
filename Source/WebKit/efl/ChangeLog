@@ -1,3 +1,531 @@
+2012-03-23  Grzegorz Czajkowski  <g.czajkowski@samsung.com>
+
+        [EFL][DRT] Implement LayoutTestController's methods related with editing.
+        https://bugs.webkit.org/show_bug.cgi?id=80136
+
+        Reviewed by Ryosuke Niwa.
+
+        Implements DumpRenderTreeSupportEfl's and EditorClientEfl's methods related with editing.
+
+        * WebCoreSupport/DumpRenderTreeSupportEfl.cpp:
+        (DumpRenderTreeSupportEfl::setSmartInsertDeleteEnabled): New function.
+        (DumpRenderTreeSupportEfl::setSelectTrailingWhitespaceEnabled): New function.
+        * WebCoreSupport/DumpRenderTreeSupportEfl.h:
+        * WebCoreSupport/EditorClientEfl.cpp:
+        (WebCore::EditorClientEfl::setSmartInsertDeleteEnabled): New function.
+        (WebCore):
+        (WebCore::EditorClientEfl::smartInsertDeleteEnabled): Add implementation.
+        (WebCore::EditorClientEfl::setSelectTrailingWhitespaceEnabled): New function.
+        (WebCore::EditorClientEfl::isSelectTrailingWhitespaceEnabled): Add implementation.
+        (WebCore::EditorClientEfl::EditorClientEfl):
+        * WebCoreSupport/EditorClientEfl.h:
+        (EditorClientEfl):
+
+2012-03-22  Sudarsana Nagineni  <sudarsana.nagineni@linux.intel.com>
+
+        [EFL] [DRT] Implement LayoutTestController::markerTextForListItem()
+        https://bugs.webkit.org/show_bug.cgi?id=81512
+
+        Add missing implementation markerTextForListItem to EFL's 
+        DumpRenderTreeSupport.
+
+        Reviewed by Antonio Gomes.
+
+        * WebCoreSupport/DumpRenderTreeSupportEfl.cpp:
+        (DumpRenderTreeSupportEfl::markerTextForListItem):
+        * WebCoreSupport/DumpRenderTreeSupportEfl.h:
+
+2012-03-22  Sudarsana Nagineni  <sudarsana.nagineni@linux.intel.com>
+
+        [EFL] Implement LayoutTestController::setEditingBehavior
+        https://bugs.webkit.org/show_bug.cgi?id=81124
+
+        Add missing implementation setEditingBehavior to EFL's 
+        DumpRenderTreeSupport. This setting controls various editing
+        behaviors that differ between platforms.
+
+        Reviewed by Martin Robinson.
+
+        * WebCoreSupport/DumpRenderTreeSupportEfl.cpp:
+        (DumpRenderTreeSupportEfl::setEditingBehavior):
+        * WebCoreSupport/DumpRenderTreeSupportEfl.h:
+
+2012-03-22  Krzysztof Czech  <k.czech@samsung.com>
+
+        [EFL] Change returned view mode in case of NULL of ewkView.
+        https://bugs.webkit.org/show_bug.cgi?id=81636
+
+        Reviewed by Eric Seidel.
+
+        Function ewk_view_mode_get returns wrong view mode in case of NULL of ewkView.
+
+        * ewk/ewk_view.cpp:
+        (_Ewk_View_Private_Data):
+        (ewk_view_mode_get):
+
+2012-03-22  Hyowon Kim  <hw1008.kim@samsung.com>
+
+        [EFL] Add PageClientEfl to WebCoreSupport.
+        https://bugs.webkit.org/show_bug.cgi?id=80748
+
+        Reviewed by Noam Rosenthal.
+
+        This patch adds PageClientEfl for implementaion of accelerated compositing.
+
+        * WebCoreSupport/ChromeClientEfl.cpp:
+        (WebCore::ChromeClientEfl::platformPageClient):
+        * WebCoreSupport/PageClientEfl.cpp: Added.
+        (WebCore):
+        (WebCore::PageClientEfl::PageClientEfl):
+        (WebCore::PageClientEfl::~PageClientEfl):
+        (WebCore::PageClientEfl::createEvasObjectForAcceleratedCompositing):
+        Just call ewk_view_accelerated_compositing_object_create().
+        (WebCore::PageClientEfl::acceleratedCompositingContext):
+        Just call ewk_view_accelerated_compositing_context_get().
+        * WebCoreSupport/PageClientEfl.h: Added.
+        (WebCore):
+        (PageClientEfl):
+        (WebCore::PageClientEfl::view): Return ewkView.
+        * ewk/ewk_private.h:
+        (WebCore):
+        (EWKPrivate):
+        * ewk/ewk_view.cpp:
+        (_Ewk_View_Private_Data): Add OwnPtr<PageClientEfl>.
+        (_ewk_view_priv_new): Create a new PageClientEfl.
+        (ewk_view_accelerated_compositing_object_create): Not implemented.
+        (ewk_view_accelerated_compositing_context_get): Not implemented.
+        (EWKPrivate::corePageClient): Return the PageClientEfl pointer.
+        (EWKPrivate):
+
+2012-03-19  Adam Barth  <abarth@webkit.org>
+
+        Remove support for "magic" iframe
+        https://bugs.webkit.org/show_bug.cgi?id=81590
+
+        Reviewed by Eric Seidel.
+
+        Remove FrameLoaderClient methods that no longer exist.
+
+        * WebCoreSupport/FrameLoaderClientEfl.cpp:
+        (WebCore):
+        * WebCoreSupport/FrameLoaderClientEfl.h:
+        (FrameLoaderClientEfl):
+
+2012-03-16  Kihong Kwon  <kihong.kwon@samsung.com>
+
+        Support for Battery Status API
+        https://bugs.webkit.org/show_bug.cgi?id=62698
+
+        Add BatteryClientEfl class implementation for the layout tests now.
+        BatteryClientEfl class is not fully implemented in this patch.
+        (It will be completed by other patch as necessary in the Efl port.)
+        http://www.w3.org/TR/battery-status/
+
+        Reviewed by Adam Barth.
+
+        * WebCoreSupport/BatteryClientEfl.cpp: Added.
+        (WebCore):
+        (WebCore::BatteryClientEfl::BatteryClientEfl):
+        (WebCore::BatteryClientEfl::setController):
+        (WebCore::BatteryClientEfl::startUpdating):
+        (WebCore::BatteryClientEfl::stopUpdating):
+        (WebCore::BatteryClientEfl::batteryControllerDestroyed):
+        (WebCore::BatteryClientEfl::setBatteryStatus):
+        * WebCoreSupport/BatteryClientEfl.h: Added.
+        (WebCore):
+        (BatteryClientEfl):
+        (WebCore::BatteryClientEfl::~BatteryClientEfl):
+        * ewk/ewk_view.cpp:
+        (_Ewk_View_Private_Data):
+        (_ewk_view_priv_new):
+
+2012-03-13  Jon Lee  <jonlee@apple.com>
+
+        Separate NOTIFICATIONS and LEGACY_NOTIFICATIONS
+        https://bugs.webkit.org/show_bug.cgi?id=80922
+        <rdar://problem/11035082>
+
+        Reviewed by Jian Li.
+
+        You can include either NOTIFICATIONS or LEGACY_NOTIFICATIONS and have a complete API.
+        LEGACY_NOTIFICATIONS should cover all of the previous functionality, and NOTIFICATIONS will cover the
+        new API. Therefore, APIs that are common between the two will have:
+        #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+
+        This patch initially sets both to be exactly the same. As other bugs with patches begin to migrate to
+        the new API, the defines will begin to split. This allows ports to decide which set of APIs to include.
+
+        Update everything to be #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+        * WebCoreSupport/ChromeClientEfl.cpp:
+        (WebCore):
+        * WebCoreSupport/ChromeClientEfl.h:
+        (ChromeClientEfl):
+        * WebCoreSupport/NotificationPresenterClientEfl.cpp:
+        * WebCoreSupport/NotificationPresenterClientEfl.h:
+
+2012-03-13  Adam Barth  <abarth@webkit.org> && Benjamin Poulain  <bpoulain@apple.com>
+
+        Always enable ENABLE(CLIENT_BASED_GEOLOCATION)
+        https://bugs.webkit.org/show_bug.cgi?id=78853
+
+        Reviewed by Adam Barth.
+
+        * WebCoreSupport/ChromeClientEfl.cpp:
+        (WebCore):
+        * WebCoreSupport/ChromeClientEfl.h:
+        (ChromeClientEfl):
+
+2012-03-13  ChangSeok Oh  <shivamidow@gmail.com>
+
+        [EFL] [DRT] Implement scheduleAsynchronousKeyDown.
+        https://bugs.webkit.org/show_bug.cgi?id=79601
+
+        Reviewed by Gustavo Noronha Silva.
+
+        Added a new API to deliver all mutations explicitly.
+
+        * WebCoreSupport/DumpRenderTreeSupportEfl.cpp:
+        (DumpRenderTreeSupportEfl::deliverAllMutationsIfNecessary):
+        * WebCoreSupport/DumpRenderTreeSupportEfl.h:
+
+2012-03-13  JungJik Lee  <jungjik.lee@samsung.com>
+
+        [EFL] Remove a duplicate allocation of matrix entry.
+        https://bugs.webkit.org/show_bug.cgi?id=79362
+
+        Reviewed by Zoltan Herczeg.
+
+        A matrix entry is created when calling ewk_matrix_new.
+        Another matrix is created inside ewk_tile_matrix_zoom_level_set.
+        This patch is for getting rid of a duplicated creation of the matrix.
+
+        * ewk/ewk_tiled_backing_store.cpp:
+        (_Ewk_Tiled_Backing_Store_Item):
+        (_ewk_tiled_backing_store_zoom_set_internal):
+        * ewk/ewk_tiled_matrix.cpp:
+        (ewk_tile_matrix_new):
+        (ewk_tile_matrix_zoom_level_set):
+        (ewk_tile_matrix_entry_new):
+        (ewk_tile_matrix_size_get):
+        * ewk/ewk_tiled_matrix.h:
+
+2012-03-09  Jon Lee  <jonlee@apple.com>
+
+        Rename NotificationPresenter to NotificationClient
+        https://bugs.webkit.org/show_bug.cgi?id=80488
+        <rdar://problem/10965558>
+
+        Reviewed by Kentaro Hara.
+
+        Refactor to use renamed WebCore::NotificationClient.
+        * WebCoreSupport/ChromeClientEfl.cpp:
+        (WebCore::ChromeClientEfl::notificationPresenter):
+        * WebCoreSupport/ChromeClientEfl.h:
+        (ChromeClientEfl):
+
+2012-03-08  Hyowon Kim  <hw1008.kim@samsung.com>
+
+        [Texmap][EFL] Implementation of AcceleratedCompositingContext for EFL port
+        https://bugs.webkit.org/show_bug.cgi?id=80266
+
+        Reviewed by Noam Rosenthal.
+
+        This patch adds EFL's implementation of AcceleratedCompositingContext to WebCoreSupport.
+
+        * WebCoreSupport/AcceleratedCompositingContextEfl.cpp: Added.
+        (WebCore):
+        (WebCore::AcceleratedCompositingContext::create):
+        (WebCore::AcceleratedCompositingContext::AcceleratedCompositingContext):
+        (WebCore::AcceleratedCompositingContext::~AcceleratedCompositingContext):
+        (WebCore::AcceleratedCompositingContext::initialize):
+        (WebCore::AcceleratedCompositingContext::syncLayersNow):
+        (WebCore::AcceleratedCompositingContext::renderLayers):
+        (WebCore::AcceleratedCompositingContext::attachRootGraphicsLayer):
+        (WebCore::AcceleratedCompositingContext::context):
+        * WebCoreSupport/AcceleratedCompositingContextEfl.h: Added.
+        (WebCore):
+        (AcceleratedCompositingContext):
+
+2012-03-02  Grzegorz Czajkowski  <g.czajkowski@samsung.com>
+
+        [EFL] Enabling 'Inspect Element' in Ewk_Context_Menu_Action.
+        https://bugs.webkit.org/show_bug.cgi?id=79646
+
+        Reviewed by Andreas Kling.
+
+        INSPECTOR feature is already enabled for WebKit-Efl port (OptionsEfl.cmake).
+        As a result WebCore's ContextMenuAction contains ContextMenuItemTagInspectElement
+        and enums order has been changed. WebKit-Efl has to synchronize ContextMenuAction
+        with Ewk_Context_Menu_Action.
+        To avoid similar case in the feature I added checks between WebCore and
+        WebKit-EFL's enums by using COMPILE_ASSERT_MATCHING_ENUM.
+
+        * WebCoreSupport/AssertMatchingEnums.cpp:
+        * ewk/ewk_contextmenu.h:
+
+2012-02-29  Tomasz Morawski  <t.morawski@samsung.com>
+
+        [EFL] Replace malloc/calloc/free to new/delete.
+        https://bugs.webkit.org/show_bug.cgi?id=75848
+
+        Reviewed by Hajime Morita.
+
+        Replaced almost all malloc/calloc/free to new/delete operator and where it was possible smart pointers were also
+        used. Left few c memory allocation by intention to not mix c and c++ memory managment. Left malloc for Ewk_Tile
+        object due to const fields present in Ewk_tile structure.
+
+        * ewk/ewk_auth_soup.cpp:
+        * ewk/ewk_contextmenu.cpp:
+        (ewk_context_menu_unref):
+        (ewk_context_menu_item_new):
+        (ewk_context_menu_item_free):
+        (ewk_context_menu_new):
+        * ewk/ewk_cookies.cpp:
+        (ewk_cookies_get_all):
+        (ewk_cookies_cookie_free):
+        * ewk/ewk_frame.cpp:
+        (ewk_frame_hit_test_free):
+        (ewk_frame_hit_test_new):
+        * ewk/ewk_history.cpp:
+        (ewk_history_item_new_from_core):
+        (_ewk_history_item_free):
+        (ewk_history_new):
+        (ewk_history_free):
+        * ewk/ewk_tiled_backing_store.cpp:
+        (_Ewk_Tiled_Backing_Store_Item):
+        (_ewk_tiled_backing_store_pre_render_request_add):
+        (_ewk_tiled_backing_store_pre_render_request_del):
+        (_ewk_tiled_backing_store_pre_render_request_flush):
+        (_ewk_tiled_backing_store_pre_render_request_clear):
+        (_ewk_tiled_backing_store_item_add):
+        (_ewk_tiled_backing_store_item_del):
+        * ewk/ewk_tiled_matrix.cpp:
+        (_ewk_tile_matrix_tile_free):
+        (ewk_tile_matrix_new):
+        (ewk_tile_matrix_zoom_level_set):
+        (ewk_tile_matrix_invalidate):
+        (ewk_tile_matrix_free):
+        * ewk/ewk_tiled_model.cpp:
+        (tile_account):
+        (ewk_tile_unused_cache_new):
+        (_ewk_tile_unused_cache_free):
+        (ewk_tile_unused_cache_clear):
+        (ewk_tile_unused_cache_flush):
+        (ewk_tile_unused_cache_tile_get):
+        (ewk_tile_unused_cache_tile_put):
+        * ewk/ewk_tiled_private.h:
+        * ewk/ewk_view.cpp:
+        (_Ewk_View_Private_Data):
+        (_ewk_view_core_frame_new):
+        (_ewk_view_priv_new):
+        (_ewk_view_priv_del):
+        (ewk_view_core_page_get):
+        (ewk_view_popup_new):
+        (ewk_view_popup_destroy):
+        (EWKPrivate::corePage):
+        * ewk/ewk_window_features.cpp:
+        (ewk_window_features_unref):
+        (ewk_window_features_new_from_core):
+
+2012-02-27  JungJik Lee  <jungjik.lee@samsung.com>
+
+        [EFL] Pairing up between evas_object_image_data_get and evas_object_image_data_set.
+        https://bugs.webkit.org/show_bug.cgi?id=79031
+
+        Reviewed by Zoltan Herczeg.
+
+        - Get the pixel data when the cairo surface is created.
+        - evas_object_image_data_get increases the reference count and returns the image buffer pointer.
+        evas_object_image_data_set decreases the reference count and when the ref count become zero,
+        the function releases the cached image inside evas engine.
+        We should make a pair between evas_object_image_data_set/get to return evas resource.
+
+        * ewk/ewk_tiled_backing_store.h:
+        (_Ewk_Tile):
+        * ewk/ewk_tiled_model.cpp:
+        (tile_account):
+        (ewk_tile_new):
+        * ewk/ewk_view_tiled.cpp:
+        (_ewk_view_tiled_render_cb):
+
+2012-02-26  Hajime Morrita  <morrita@chromium.org>
+
+        Move ChromeClient::showContextMenu() to ContextMenuClient
+        https://bugs.webkit.org/show_bug.cgi?id=79427
+
+        Reviewed by Adam Barth.
+
+        * WebCoreSupport/ChromeClientEfl.h:
+        (ChromeClientEfl):
+
+2012-02-24  Grzegorz Czajkowski  <g.czajkowski@samsung.com>
+
+        [EFL][DRT] Implement setValueForUser and setAutofilled.
+        https://bugs.webkit.org/show_bug.cgi?id=79237
+
+        Reviewed by Andreas Kling.
+
+        Adds missing implementation setValueForUser and setAutofilled to EFL's DumpRenderTreeSupport.
+
+        * WebCoreSupport/DumpRenderTreeSupportEfl.cpp:
+        (DumpRenderTreeSupportEfl::setValueForUser):
+        (DumpRenderTreeSupportEfl::setAutofilled):
+        * WebCoreSupport/DumpRenderTreeSupportEfl.h:
+
+2012-02-24  Shinya Kawanaka  <shinyak@chromium.org>
+
+        SpellCheckRequest needs to know the context where the spellcheck happened.
+        https://bugs.webkit.org/show_bug.cgi?id=79320
+
+        Reviewed by Hajime Morita.
+
+        * WebCoreSupport/EditorClientEfl.h:
+        (WebCore::EditorClientEfl::requestCheckingOfString):
+
+2012-02-21  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Remove the remaining uses of CSSStyleDeclaration in Editor
+        https://bugs.webkit.org/show_bug.cgi?id=78939
+
+        Reviewed by Enrica Casucci.
+
+        * WebCoreSupport/EditorClientEfl.cpp:
+        (WebCore::EditorClientEfl::shouldApplyStyle):
+        * WebCoreSupport/EditorClientEfl.h:
+        (EditorClientEfl):
+
+2012-02-22  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Remove the remaining uses of CSSStyleDeclaration in Editor
+        https://bugs.webkit.org/show_bug.cgi?id=78939
+
+        Reviewed by Enrica Casucci.
+
+        * WebCoreSupport/EditorClientEfl.cpp:
+        (WebCore::EditorClientEfl::shouldApplyStyle):
+        * WebCoreSupport/EditorClientEfl.h:
+        (EditorClientEfl):
+
+2012-02-20  Kihong Kwon  <kihong.kwon@samsung.com>
+
+        Add a new API for the Vibration API(W3C).
+        https://bugs.webkit.org/show_bug.cgi?id=72010
+
+        Reviewed by Hajime Morita.
+
+        Implementation for the Vibration API feature to the EFL-port layer.
+        http://dev.w3.org/2009/dap/vibration/
+        There are two methods for vibration API.
+        - vibrate : Vibrate device for receiving as a parameter.
+        - cancelVibrate : Cancel current vibration.
+
+        * CMakeListsEfl.txt:
+        * WebCoreSupport/VibrationClientEfl.cpp: Added.
+        (WebCore):
+        (WebCore::VibrationClientEfl::VibrationClientEfl):
+        (WebCore::VibrationClientEfl::vibrate):
+        (WebCore::VibrationClientEfl::cancelVibration):
+        (WebCore::VibrationClientEfl::vibrationDestroyed):
+        * WebCoreSupport/VibrationClientEfl.h: Added.
+        (WebCore):
+        (VibrationClientEfl):
+        (WebCore::VibrationClientEfl::~VibrationClientEfl):
+        * ewk/ewk_view.cpp:
+        (_Ewk_View_Private_Data):
+        (_ewk_view_priv_new):
+
+2012-02-17  Raphael Kubo da Costa  <kubo@profusion.mobi>
+
+        [EFL] Unreviewed, adapt to the changes introduced in r107973.
+
+        SVN r107973 moved some libsoup feature initialization code to
+        WebCore, but only changed the GTK+ bits in WebKit.
+
+        * ewk/ewk_main.cpp:
+        (_ewk_init_body): Do not initialize the content sniffer and the
+        decoder here, the initialization is now done in WebCore.
+
+2012-02-17  Raphael Kubo da Costa  <kubo@profusion.mobi>
+
+        Unreviewed, fix the build with ENABLE(DEVICE_ORIENTATION) after
+        r107518. The EFL EWS bot doesn't enable that flag, so the breakage
+        was not spotted earlier.
+
+        * ewk/ewk_view.cpp:
+        (_Ewk_View_Private_Data):
+        (_ewk_view_priv_new):
+
+2012-01-31  Raphael Kubo da Costa  <kubo@profusion.mobi>
+
+        [soup] Add support for multiple SoupSessions.
+        https://bugs.webkit.org/show_bug.cgi?id=77341
+
+        Add the necessary infrastructure to support multiple SoupSessions. Each
+        WebView now has a "session" property, which defaults to
+        ResourceHandle::defaultSession() and can be changed to another
+        SoupSession by the user.
+
+        Some API in ewk_network and ewk_view which required SoupSession to be a
+        valid type in the headers has now been moved inside #if USE(SOUP)
+        ifdefs so we can actually the required Soup header and avoid build
+        problems with duplicate typedefs.
+
+        * CMakeListsEfl.txt:
+        * WebCoreSupport/FrameLoaderClientEfl.cpp:
+        (WebCore::FrameLoaderClientEfl::createNetworkingContext):
+        * WebCoreSupport/FrameNetworkingContextEfl.cpp: Copied from Source/WebKit/efl/WebCoreSupport/FrameNetworkingContextEfl.h.
+        (WebCore):
+        (WebCore::FrameNetworkingContextEfl::create):
+        (WebCore::FrameNetworkingContextEfl::FrameNetworkingContextEfl):
+        (WebCore::FrameNetworkingContextEfl::soupSession):
+        * WebCoreSupport/FrameNetworkingContextEfl.h:
+        (FrameNetworkingContextEfl):
+        * ewk/ewk_cookies.h: Mention this API is only valid with the
+        default SoupSession.
+        * ewk/ewk_network.cpp:
+        (ewk_network_default_soup_session_get): Define only if USE(SOUP) is set.
+        * ewk/ewk_network.h: Ditto, and mention this API is only valid with the
+        default SoupSession.
+        * ewk/ewk_view.cpp:
+        (_Ewk_View_Private_Data):
+        (_ewk_view_priv_new):
+        (ewk_view_soup_session_get):
+        (ewk_view_soup_session_set):
+        * ewk/ewk_view.h:
+        ():
+
+2012-02-15  Sadrul Habib Chowdhury  <sadrul@chromium.org>
+
+        Notify ChromeClient when touch-event handlers are installed/removed.
+        https://bugs.webkit.org/show_bug.cgi?id=77440
+
+        Reviewed by Darin Fisher and Ryosuke Niwa.
+
+        * WebCoreSupport/ChromeClientEfl.h:
+        (WebCore::ChromeClientEfl::numTouchEventHandlersChanged):
+
+2012-02-15  Gustavo Lima Chaves  <glima@profusion.mobi>
+
+        [EFL] Add missing libsoup to (pkgconfig) dependency requirements
+        https://bugs.webkit.org/show_bug.cgi?id=78702
+
+        Unreviewed build fix.
+
+        * ewebkit.pc.in: Now that bug 77874 had its patch landed, we
+        always require libsoup as a dependency for the EFL port. The
+        'Require' session of this file has to contemplate that, otherwise
+        code linking with ewebkit will fail to lookup to libsoup's header
+        files.
+
+2012-02-13  Raphael Kubo da Costa  <kubo@profusion.mobi>
+
+        [CMake] Merge WebKitEfl.cmake into FindEFL.cmake.
+        https://bugs.webkit.org/show_bug.cgi?id=78566
+
+        Reviewed by Daniel Bates.
+
+        * CMakeListsEfl.txt: Do not include WebKitEfl.cmake.
+
 2012-02-11  Nikolas Zimmermann  <nzimmermann@rim.com>
 
         Convert svg/animations to use SMIL methods for driving the timeline

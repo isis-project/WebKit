@@ -9,7 +9,6 @@
 module events {
 
     interface [
-        AppleCopyright
         Conditional=IOS_GESTURE_EVENTS
     ] GestureEvent : UIEvent {
         void initGestureEvent(  in DOMString type,

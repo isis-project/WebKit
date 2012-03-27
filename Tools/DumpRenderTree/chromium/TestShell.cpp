@@ -129,15 +129,16 @@ TestShell::TestShell(bool testShellMode)
     WebRuntimeFeatures::enableVideoTrack(true);
     WebRuntimeFeatures::enableGamepad(true);
     WebRuntimeFeatures::enableShadowDOM(true);
+    WebRuntimeFeatures::enableStyleScoped(true);
+    WebRuntimeFeatures::enableScriptedSpeech(true);
 
     m_webPermissions = adoptPtr(new WebPermissions(this));
     m_accessibilityController = adoptPtr(new AccessibilityController(this));
     m_gamepadController = adoptPtr(new GamepadController(this));
     m_layoutTestController = adoptPtr(new LayoutTestController(this));
     m_eventSender = adoptPtr(new EventSender(this));
-    m_plainTextController = adoptPtr(new PlainTextController());
     m_textInputController = adoptPtr(new TextInputController(this));
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     m_notificationPresenter = adoptPtr(new NotificationPresenter(this));
 #endif
     m_printer = m_testShellMode ? TestEventPrinter::createTestShellPrinter() : TestEventPrinter::createDRTPrinter();
@@ -175,8 +176,6 @@ TestShell::~TestShell()
 
     // Destroy the WebView before its WebViewHost.
     m_drtDevToolsAgent->setWebView(0);
-
-    WebCompositor::shutdown();
 }
 
 void TestShell::createDRTDevToolsClient(DRTDevToolsAgent* agent)
@@ -293,7 +292,7 @@ void TestShell::resetTestController()
     m_layoutTestController->reset();
     m_eventSender->reset();
     m_webViewHost->reset();
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     m_notificationPresenter->reset();
 #endif
     m_drtDevToolsAgent->reset();
@@ -696,7 +695,6 @@ void TestShell::bindJSObjectsToWindow(WebFrame* frame)
     m_gamepadController->bindToJavascript(frame, WebString::fromUTF8("gamepadController"));
     m_layoutTestController->bindToJavascript(frame, WebString::fromUTF8("layoutTestController"));
     m_eventSender->bindToJavascript(frame, WebString::fromUTF8("eventSender"));
-    m_plainTextController->bindToJavascript(frame, WebString::fromUTF8("plainText"));
     m_textInputController->bindToJavascript(frame, WebString::fromUTF8("textInputController"));
 }
 

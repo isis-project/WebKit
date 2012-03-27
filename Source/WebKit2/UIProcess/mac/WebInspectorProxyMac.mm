@@ -30,7 +30,7 @@
 
 #import "WKAPICast.h"
 #import "WebContext.h"
-#import "WKInspectorMac.h"
+#import "WKInspectorPrivateMac.h"
 #import "WKViewPrivate.h"
 #import "WebPageGroup.h"
 #import "WebPageProxy.h"
@@ -39,8 +39,10 @@
 #import <WebKitSystemInterface.h>
 #import <WebCore/InspectorFrontendClientLocal.h>
 #import <WebCore/LocalizedStrings.h>
-#import <WebCore/NotImplemented.h>
+#import <WebCore/SoftLinking.h>
 #import <wtf/text/WTFString.h>
+
+SOFT_LINK_PRIVATE_FRAMEWORK_OPTIONAL(WebInspector)
 
 using namespace WebCore;
 using namespace WebKit;
@@ -51,15 +53,18 @@ static const CGFloat windowContentBorderThickness = 55;
 // WKWebInspectorProxyObjCAdapter is a helper ObjC object used as a delegate or notification observer
 // for the sole purpose of getting back into the C++ code from an ObjC caller.
 
-@interface WKWebInspectorProxyObjCAdapter : NSObject <NSWindowDelegate> {
-    WebInspectorProxy* _inspectorProxy; // Not retained to prevent cycles
-}
+@interface WKWebInspectorProxyObjCAdapter ()
 
 - (id)initWithWebInspectorProxy:(WebInspectorProxy*)inspectorProxy;
 
 @end
 
 @implementation WKWebInspectorProxyObjCAdapter
+
+- (WKInspectorRef)inspectorRef
+{
+    return toAPI(static_cast<WebInspectorProxy*>(_inspectorProxy));
+}
 
 - (id)initWithWebInspectorProxy:(WebInspectorProxy*)inspectorProxy
 {
@@ -68,19 +73,19 @@ static const CGFloat windowContentBorderThickness = 55;
     if (!(self = [super init]))
         return nil;
 
-    _inspectorProxy = inspectorProxy; // Not retained to prevent cycles
+    _inspectorProxy = static_cast<void*>(inspectorProxy); // Not retained to prevent cycles
 
     return self;
 }
 
 - (void)windowWillClose:(NSNotification *)notification
 {
-    _inspectorProxy->close();
+    static_cast<WebInspectorProxy*>(_inspectorProxy)->close();
 }
 
 - (void)inspectedViewFrameDidChange:(NSNotification *)notification
 {
-    _inspectorProxy->inspectedViewFrameDidChange();
+    static_cast<WebInspectorProxy*>(_inspectorProxy)->inspectedViewFrameDidChange();
 }
 
 @end
@@ -99,11 +104,24 @@ static const CGFloat windowContentBorderThickness = 55;
 
 namespace WebKit {
 
+static bool inspectorReallyUsesWebKitUserInterface(WebPreferences* preferences)
+{
+    // This matches a similar check in WebInspectorMac.mm. Keep them in sync.
+
+    // Call the soft link framework function to dlopen it, then [NSBundle bundleWithIdentifier:] will work.
+    WebInspectorLibrary();
+
+    if (![[NSBundle bundleWithIdentifier:@"com.apple.WebInspector"] pathForResource:@"Main" ofType:@"html"])
+        return true;
+
+    return preferences->inspectorUsesWebKitUserInterface();
+}
+
 void WebInspectorProxy::createInspectorWindow()
 {
     ASSERT(!m_inspectorWindow);
 
-    bool useTexturedWindow = page()->process()->context()->overrideWebInspectorPagePath().isEmpty();
+    bool useTexturedWindow = inspectorReallyUsesWebKitUserInterface(page()->pageGroup()->preferences());
 
     NSUInteger styleMask = (NSTitledWindowMask | NSClosableWindowMask | NSMiniaturizableWindowMask | NSResizableWindowMask);
     if (useTexturedWindow)
@@ -191,8 +209,14 @@ void WebInspectorProxy::platformDidClose()
 
 void WebInspectorProxy::platformBringToFront()
 {
-    // FIXME: this will not bring a background tab in Safari to the front, only its window.
+    // FIXME <rdar://problem/10937688>: this will not bring a background tab in Safari to the front, only its window.
     [m_inspectorView.get().window makeKeyAndOrderFront:nil];
+}
+
+bool WebInspectorProxy::platformIsFront()
+{
+    // FIXME <rdar://problem/10937688>: this will not return false for a background tab in Safari, only a background window.
+    return m_isVisible && [m_inspectorView.get().window isMainWindow];
 }
 
 void WebInspectorProxy::platformInspectedURLChanged(const String& urlString)
@@ -293,9 +317,11 @@ void WebInspectorProxy::platformSetAttachedWindowHeight(unsigned height)
 
 String WebInspectorProxy::inspectorPageURL() const
 {
-    NSString *path = page()->process()->context()->overrideWebInspectorPagePath();
-    if (![path length])
+    NSString *path;
+    if (inspectorReallyUsesWebKitUserInterface(page()->pageGroup()->preferences()))
         path = [[NSBundle bundleWithIdentifier:@"com.apple.WebCore"] pathForResource:@"inspector" ofType:@"html" inDirectory:@"inspector"];
+    else
+        path = [[NSBundle bundleWithIdentifier:@"com.apple.WebInspector"] pathForResource:@"Main" ofType:@"html"];
 
     ASSERT([path length]);
 
@@ -304,11 +330,11 @@ String WebInspectorProxy::inspectorPageURL() const
 
 String WebInspectorProxy::inspectorBaseURL() const
 {
-    NSString *path = page()->process()->context()->overrideWebInspectorBaseDirectory();
-    if (![path length]) {
-        // WebCore's Web Inspector uses localized strings, which are not contained within inspector directory.
+    NSString *path;
+    if (inspectorReallyUsesWebKitUserInterface(page()->pageGroup()->preferences()))
         path = [[NSBundle bundleWithIdentifier:@"com.apple.WebCore"] resourcePath];
-    }
+    else
+        path = [[NSBundle bundleWithIdentifier:@"com.apple.WebInspector"] resourcePath];
 
     ASSERT([path length]);
 

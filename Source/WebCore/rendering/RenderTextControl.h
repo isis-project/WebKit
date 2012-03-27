@@ -58,7 +58,7 @@ protected:
     static bool hasValidAvgCharWidth(AtomicString family);
     virtual float getAvgCharWidth(AtomicString family);
     virtual LayoutUnit preferredContentWidth(float charWidth) const = 0;
-    virtual void adjustControlHeightBasedOnLineHeight(LayoutUnit lineHeight) = 0;
+    virtual LayoutUnit computeControlHeight(LayoutUnit lineHeight, LayoutUnit nonContentHeight) const = 0;
     virtual RenderStyle* textBaseStyle() const = 0;
 
     virtual void updateFromElement();
@@ -70,10 +70,9 @@ private:
     virtual bool isTextControl() const { return true; }
     virtual void computePreferredLogicalWidths();
     virtual void removeLeftoverAnonymousBlock(RenderBlock*) { }
-    virtual bool canHaveChildren() const { return false; }
     virtual bool avoidsFloats() const { return true; }
     
-    virtual void addFocusRingRects(Vector<LayoutRect>&, const LayoutPoint&);
+    virtual void addFocusRingRects(Vector<IntRect>&, const LayoutPoint&);
 
     virtual bool canBeProgramaticallyScrolled() const { return true; }
 

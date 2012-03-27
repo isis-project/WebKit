@@ -4,8 +4,6 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 var transaction;
@@ -14,14 +12,11 @@ var db;
 var body = document.getElementsByTagName("body")[0];
 
 description("Test that pending transactions are not aborted during recursive JS calls until all JS is finished.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function setup() {
-    shouldBeTrue("'webkitIndexedDB' in window");
-    shouldBeFalse("webkitIndexedDB == null");
+    removeVendorPrefixes();
 
-    request = evalAndLog("webkitIndexedDB.open('transaction-abort-with-js-recursion')");
+    request = evalAndLog("indexedDB.open('transaction-abort-with-js-recursion')");
     request.onsuccess = setVersion;
     request.onerror = unexpectedErrorCallback;
 }
@@ -29,14 +24,20 @@ function setup() {
 function setVersion() {
     db = evalAndLog("db = event.target.result");
     request = evalAndLog("db.setVersion('new version')");
-    request.onsuccess = click;
+    request.onsuccess = setVersionSuccess;
     request.onerror = unexpectedErrorCallback;
 }
 
-function click() {
+function setVersionSuccess()
+{
     store = db.createObjectStore('objectStore', null);
+    event.target.result.oncomplete = click;
+}
+
+function click() 
+{
     body.onclick = test;
-    var pendingTransaction = evalAndLog("pendingTransaction = db.transaction(['objectStore'], webkitIDBTransaction.READ_WRITE)");
+    var pendingTransaction = evalAndLog("pendingTransaction = db.transaction(['objectStore'], IDBTransaction.READ_WRITE)");
     pendingTransaction.onsuccess = unexpectedErrorCallback;
     pendingTransaction.onerror = unexpectedErrorCallback;
     pendingTransaction.onabort = abortCallback;
@@ -51,7 +52,7 @@ function click() {
 function test()
 {
     debug("Start re-entrant JS");
-    transaction = evalAndLog("transaction = db.transaction(['objectStore'], webkitIDBTransaction.READ_WRITE)");
+    transaction = evalAndLog("transaction = db.transaction(['objectStore'], IDBTransaction.READ_WRITE)");
     debug("End re-entrant JS");
 }
 
@@ -59,11 +60,12 @@ function test()
 function abortCallback()
 {
     debug("Pending transaction aborted");
-    done();
+    finishJSTest();
 }
 
 setup();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

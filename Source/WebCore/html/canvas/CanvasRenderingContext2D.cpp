@@ -155,31 +155,12 @@ bool CanvasRenderingContext2D::isAccelerated() const
 #endif
 }
 
-bool CanvasRenderingContext2D::paintsIntoCanvasBuffer() const
-{
-#if ENABLE(ACCELERATED_2D_CANVAS) && USE(ACCELERATED_COMPOSITING)
-    if (!isAccelerated())
-        return true;
-
-    RenderBox* renderBox = canvas()->renderBox();
-    if (renderBox && renderBox->hasLayer() && renderBox->layer()->hasAcceleratedCompositing())
-        return false;
-#endif
-    return true;
-}
-
-
 void CanvasRenderingContext2D::reset()
 {
     unwindStateStack();
     m_stateStack.resize(1);
     m_stateStack.first() = State();
     m_path.clear();
-#if USE(ACCELERATED_COMPOSITING)
-    RenderBox* renderBox = canvas()->renderBox();
-    if (renderBox && renderBox->hasLayer() && renderBox->layer()->hasAcceleratedCompositing())
-        renderBox->layer()->contentChanged(RenderLayer::CanvasChanged);
-#endif
 }
 
 CanvasRenderingContext2D::State::State()
@@ -669,9 +650,8 @@ void CanvasRenderingContext2D::setTransform(float m11, float m12, float m21, flo
     AffineTransform ctm = state().m_transform;
     if (!ctm.isInvertible())
         return;
-    c->concatCTM(c->getCTM().inverse());
-    c->concatCTM(canvas()->baseTransform());
-    state().m_transform = ctm.inverse() * state().m_transform;
+    c->setCTM(canvas()->baseTransform());
+    state().m_transform = AffineTransform();
     m_path.transform(ctm);
 
     state().m_invertibleCTM = true;
@@ -1380,7 +1360,7 @@ void CanvasRenderingContext2D::drawImage(HTMLCanvasElement* sourceCanvas, const 
         c->drawImageBuffer(buffer, ColorSpaceDeviceRGB, dstRect, bufferSrcRect, state().m_globalComposite);
         didDrawEntireCanvas();
     } else if (isFullCanvasCompositeMode(state().m_globalComposite)) {
-        fullCanvasCompositedDrawImage(buffer, ColorSpaceDeviceRGB, bufferSrcRect, srcRect, state().m_globalComposite);
+        fullCanvasCompositedDrawImage(buffer, ColorSpaceDeviceRGB, dstRect, bufferSrcRect, state().m_globalComposite);
         didDrawEntireCanvas();
     } else if (state().m_globalComposite == CompositeCopy) {
         clearCanvas();
@@ -1536,7 +1516,7 @@ template<class T> IntRect CanvasRenderingContext2D::calculateCompositingBufferRe
 PassOwnPtr<ImageBuffer> CanvasRenderingContext2D::createCompositingBuffer(const IntRect& bufferRect)
 {
     RenderingMode renderMode = isAccelerated() ? Accelerated : Unaccelerated;
-    return ImageBuffer::create(bufferRect.size(), ColorSpaceDeviceRGB, renderMode);
+    return ImageBuffer::create(bufferRect.size(), 1, ColorSpaceDeviceRGB, renderMode);
 }
 
 void CanvasRenderingContext2D::compositeBuffer(ImageBuffer* buffer, const IntRect& bufferRect, CompositeOperator op)
@@ -1898,7 +1878,7 @@ void CanvasRenderingContext2D::putImageData(ImageData* data, float dx, float dy,
     IntSize destOffset(static_cast<int>(dx), static_cast<int>(dy));
     IntRect destRect = enclosingIntRect(clipRect);
     destRect.move(destOffset);
-    destRect.intersect(IntRect(IntPoint(), buffer->size()));
+    destRect.intersect(IntRect(IntPoint(), buffer->internalSize()));
     if (destRect.isEmpty())
         return;
     IntRect sourceRect(destRect);
@@ -1920,7 +1900,7 @@ void CanvasRenderingContext2D::setFont(const String& newFont)
 
     String declarationText("font: ");
     declarationText += newFont;
-    parser.parseDeclaration(tempDecl.get(), declarationText);
+    parser.parseDeclaration(tempDecl.get(), declarationText, 0, 0);
     if (tempDecl->isEmpty())
         return;
 
@@ -2043,7 +2023,7 @@ void CanvasRenderingContext2D::drawTextInternal(const String& text, float x, flo
     RenderStyle* computedStyle = canvas()->computedStyle();
     TextDirection direction = computedStyle ? computedStyle->direction() : LTR;
     bool isRTL = direction == RTL;
-    bool override = computedStyle ? computedStyle->unicodeBidi() == Override : false;
+    bool override = computedStyle ? isOverride(computedStyle->unicodeBidi()) : false;
 
     unsigned length = text.length();
     const UChar* string = text.characters();
@@ -2104,9 +2084,9 @@ void CanvasRenderingContext2D::drawTextInternal(const String& text, float x, flo
         IntRect maskRect = enclosingIntRect(textRect);
 
 #if USE(IOSURFACE_CANVAS_BACKING_STORE)
-        OwnPtr<ImageBuffer> maskImage = ImageBuffer::create(maskRect.size(), ColorSpaceDeviceRGB, Accelerated);
+        OwnPtr<ImageBuffer> maskImage = ImageBuffer::create(maskRect.size(), 1, ColorSpaceDeviceRGB, Accelerated);
 #else
-        OwnPtr<ImageBuffer> maskImage = ImageBuffer::create(maskRect.size());
+        OwnPtr<ImageBuffer> maskImage = ImageBuffer::create(maskRect.size(), 1);
 #endif
 
         GraphicsContext* maskImageContext = maskImage->context();

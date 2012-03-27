@@ -113,6 +113,9 @@ public:
     static bool hasPercentHeightDescendant(RenderBox*);
 #endif
 
+    void setHasMarkupTruncation(bool b) { m_hasMarkupTruncation = b; }
+    bool hasMarkupTruncation() const { return m_hasMarkupTruncation; }
+
     RootInlineBox* createAndAppendRootInlineBox();
 
     bool generatesLineBoxesForInlineChild(RenderObject*);
@@ -122,8 +125,8 @@ public:
     void markPositionedObjectsForLayout();
     virtual void markForPaginationRelayoutIfNeeded();
     
-    bool containsFloats() { return m_floatingObjects && !m_floatingObjects->set().isEmpty(); }
-    bool containsFloat(RenderBox*);
+    bool containsFloats() const { return m_floatingObjects && !m_floatingObjects->set().isEmpty(); }
+    bool containsFloat(RenderBox*) const;
 
     // Versions that can compute line offsets with the region and page offset passed in. Used for speed to avoid having to
     // compute the region all over again when you already know it.
@@ -145,6 +148,11 @@ public:
         return style()->isLeftToRightDirection() ? logicalLeftOffsetForLine(position, firstLine, region, offsetFromLogicalTopOfFirstPage)
             : logicalWidth() - logicalRightOffsetForLine(position, firstLine, region, offsetFromLogicalTopOfFirstPage);
     }
+    LayoutUnit endOffsetForLine(LayoutUnit position, bool firstLine, RenderRegion* region, LayoutUnit offsetFromLogicalTopOfFirstPage) const
+    {
+        return !style()->isLeftToRightDirection() ? logicalLeftOffsetForLine(position, firstLine, region, offsetFromLogicalTopOfFirstPage)
+            : logicalWidth() - logicalRightOffsetForLine(position, firstLine, region, offsetFromLogicalTopOfFirstPage);
+    }
 
     LayoutUnit availableLogicalWidthForLine(LayoutUnit position, bool firstLine) const
     {
@@ -158,23 +166,28 @@ public:
     {
         return logicalLeftOffsetForLine(position, logicalLeftOffsetForContent(position), firstLine, 0);
     }
+    LayoutUnit pixelSnappedLogicalLeftOffsetForLine(LayoutUnit position, bool firstLine) const 
+    {
+        return roundToInt(logicalLeftOffsetForLine(position, firstLine));
+    }
+    LayoutUnit pixelSnappedLogicalRightOffsetForLine(LayoutUnit position, bool firstLine) const 
+    {
+        // FIXME: Multicolumn layouts break carrying over subpixel values to the logical right offset because the lines may be shifted
+        // by a subpixel value for all but the first column. This can lead to the actual pixel snapped width of the column being off
+        // by one pixel when rendered versus layed out, which can result in the line being clipped. For now, we have to floor.
+        return floorToInt(logicalRightOffsetForLine(position, firstLine));
+    }
     LayoutUnit startOffsetForLine(LayoutUnit position, bool firstLine) const
     {
         return style()->isLeftToRightDirection() ? logicalLeftOffsetForLine(position, firstLine)
             : logicalWidth() - logicalRightOffsetForLine(position, firstLine);
     }
-
-    // FIXME: The implementation for these functions will change once we move to subpixel layout. See bug 60318.
-    int pixelSnappedLogicalRightOffsetForLine(LayoutUnit position, bool firstLine) const
+    LayoutUnit endOffsetForLine(LayoutUnit position, bool firstLine) const
     {
-        return logicalRightOffsetForLine(position, logicalRightOffsetForContent(position), firstLine, 0);
+        return !style()->isLeftToRightDirection() ? logicalLeftOffsetForLine(position, firstLine)
+            : logicalWidth() - logicalRightOffsetForLine(position, firstLine);
     }
 
-    int pixelSnappedLogicalLeftOffsetForLine(LayoutUnit position, bool firstLine) const
-    {
-        return logicalLeftOffsetForLine(position, logicalLeftOffsetForContent(position), firstLine, 0);
-    }
-    
     LayoutUnit startAlignedOffsetForLine(RenderBox* child, LayoutUnit position, bool firstLine);
     LayoutUnit textIndentOffset() const;
 
@@ -242,13 +255,13 @@ public:
     unsigned columnCount(ColumnInfo*) const;
     LayoutRect columnRectAt(ColumnInfo*, unsigned) const;
 
-    LayoutUnit paginationStrut() const { return m_rareData ? m_rareData->m_paginationStrut : 0; }
+    LayoutUnit paginationStrut() const { return m_rareData ? m_rareData->m_paginationStrut : zeroLayoutUnit; }
     void setPaginationStrut(LayoutUnit);
     
     // The page logical offset is the object's offset from the top of the page in the page progression
     // direction (so an x-offset in vertical text and a y-offset for horizontal text).
-    int pageLogicalOffset() const { return m_rareData ? m_rareData->m_pageLogicalOffset : 0; }
-    void setPageLogicalOffset(int);
+    LayoutUnit pageLogicalOffset() const { return m_rareData ? m_rareData->m_pageLogicalOffset : zeroLayoutUnit; }
+    void setPageLogicalOffset(LayoutUnit);
 
     RootInlineBox* lineGridBox() const { return m_rareData ? m_rareData->m_lineGridBox : 0; }
     void setLineGridBox(RootInlineBox* box)
@@ -326,6 +339,11 @@ public:
         return style()->isLeftToRightDirection() ? logicalLeftOffsetForContent(region, offsetFromLogicalTopOfFirstPage)
             : logicalWidth() - logicalRightOffsetForContent(region, offsetFromLogicalTopOfFirstPage);
     }
+    LayoutUnit endOffsetForContent(RenderRegion* region, LayoutUnit offsetFromLogicalTopOfFirstPage) const
+    {
+        return !style()->isLeftToRightDirection() ? logicalLeftOffsetForContent(region, offsetFromLogicalTopOfFirstPage)
+            : logicalWidth() - logicalRightOffsetForContent(region, offsetFromLogicalTopOfFirstPage);
+    }
     LayoutUnit logicalLeftOffsetForContent(LayoutUnit blockOffset) const
     {
         return logicalLeftOffsetForContent(regionAtBlockOffset(blockOffset), offsetFromLogicalTopOfFirstPage());
@@ -342,9 +360,14 @@ public:
     {
         return startOffsetForContent(regionAtBlockOffset(blockOffset), offsetFromLogicalTopOfFirstPage());
     }
+    LayoutUnit endOffsetForContent(LayoutUnit blockOffset) const
+    {
+        return endOffsetForContent(regionAtBlockOffset(blockOffset), offsetFromLogicalTopOfFirstPage());
+    }
     LayoutUnit logicalLeftOffsetForContent() const { return isHorizontalWritingMode() ? borderLeft() + paddingLeft() : borderTop() + paddingTop(); }
     LayoutUnit logicalRightOffsetForContent() const { return logicalLeftOffsetForContent() + availableLogicalWidth(); }
     LayoutUnit startOffsetForContent() const { return style()->isLeftToRightDirection() ? logicalLeftOffsetForContent() : logicalWidth() - logicalRightOffsetForContent(); }
+    LayoutUnit endOffsetForContent() const { return !style()->isLeftToRightDirection() ? logicalLeftOffsetForContent() : logicalWidth() - logicalRightOffsetForContent(); }
     
     void setStaticInlinePositionForChild(RenderBox*, LayoutUnit blockOffset, LayoutUnit inlinePosition);
 
@@ -357,6 +380,8 @@ public:
 
 protected:
     virtual void willBeDestroyed();
+
+    void updateScrollInfoAfterLayout();
 
     // These functions are only used internally to manipulate the render tree structure via remove/insert/appendChildNode.
     // Since they are typically called only to move objects around within anonymous blocks (which only have layers in
@@ -381,7 +406,7 @@ protected:
         return moveChildrenTo(toBlock, startChild, endChild, 0, fullRemoveInsert);
     }
     void moveChildrenTo(RenderBlock* toBlock, RenderObject* startChild, RenderObject* endChild, RenderObject* beforeChild, bool fullRemoveInsert = false);
-    
+
     LayoutUnit maxPositiveMarginBefore() const { return m_rareData ? m_rareData->m_margins.positiveMarginBefore() : RenderBlockRareData::positiveMarginBeforeDefault(this); }
     LayoutUnit maxNegativeMarginBefore() const { return m_rareData ? m_rareData->m_margins.negativeMarginBefore() : RenderBlockRareData::negativeMarginBeforeDefault(this); }
     LayoutUnit maxPositiveMarginAfter() const { return m_rareData ? m_rareData->m_margins.positiveMarginAfter() : RenderBlockRareData::positiveMarginAfterDefault(this); }
@@ -447,7 +472,7 @@ protected:
     void addOverflowFromInlineChildren();
     void addVisualOverflowFromTheme();
 
-    virtual void addFocusRingRects(Vector<LayoutRect>&, const LayoutPoint&);
+    virtual void addFocusRingRects(Vector<IntRect>&, const LayoutPoint&);
 
 #if ENABLE(SVG)
     // Only used by RenderSVGText, which explicitely overrides RenderBlock::layoutBlock(), do NOT use for anything else.
@@ -504,10 +529,13 @@ private:
     // Called to lay out the legend for a fieldset or the ruby text of a ruby run.
     virtual RenderObject* layoutSpecialExcludedChild(bool /*relayoutChildren*/) { return 0; }
 
+    void createFirstLetterRenderer(RenderObject* firstLetterBlock, RenderObject* currentChild);
+    void updateFirstLetterStyle(RenderObject* firstLetterBlock, RenderObject* firstLetterContainer);
+
     struct FloatWithRect {
         FloatWithRect(RenderBox* f)
             : object(f)
-            , rect(LayoutRect(f->x() - f->marginLeft(), f->y() - f->marginTop(), f->width() + f->marginLeft() + f->marginRight(), f->height() + f->marginTop() + f->marginBottom()))
+            , rect(LayoutRect(f->x() - f->marginLeft(), f->y() - f->marginTop(), f->width() + f->marginWidth(), f->height() + f->marginHeight()))
             , everHadLayout(f->everHadLayout())
         {
         }
@@ -572,13 +600,12 @@ private:
         LayoutUnit width() const { return m_frameRect.width(); }
         LayoutUnit height() const { return m_frameRect.height(); }
 
-        // FIXME: The implementation for these functions will change once we move to subpixel layout. See bug 60318.
-        int pixelSnappedX() const { return x(); }
-        int pixelSnappedMaxX() const { return maxX(); }
-        int pixelSnappedY() const { return y(); }
-        int pixelSnappedMaxY() const { return maxY(); }
-        int pixelSnappedWidth() const { return width(); }
-        int pixelSnappedHeight() const { return height(); }
+        int pixelSnappedX() const { ASSERT(isPlaced()); return m_frameRect.pixelSnappedX(); }
+        int pixelSnappedMaxX() const { ASSERT(isPlaced()); return m_frameRect.pixelSnappedMaxX(); }
+        int pixelSnappedY() const { ASSERT(isPlaced()); return m_frameRect.pixelSnappedY(); }
+        int pixelSnappedMaxY() const { ASSERT(isPlaced()); return m_frameRect.pixelSnappedMaxY(); }
+        int pixelSnappedWidth() const { return m_frameRect.pixelSnappedWidth(); }
+        int pixelSnappedHeight() const { return m_frameRect.pixelSnappedHeight(); }
 
         void setX(LayoutUnit x) { ASSERT(!isInPlacedTree()); m_frameRect.setX(x); }
         void setY(LayoutUnit y) { ASSERT(!isInPlacedTree()); m_frameRect.setY(y); }
@@ -614,11 +641,11 @@ private:
     LayoutUnit logicalRightForFloat(const FloatingObject* child) const { return isHorizontalWritingMode() ? child->maxX() : child->maxY(); }
     LayoutUnit logicalWidthForFloat(const FloatingObject* child) const { return isHorizontalWritingMode() ? child->width() : child->height(); }
 
-    // FIXME: The implementation for these functions will change once we move to subpixel layout. See bug 60318.
-    int pixelSnappedLogicalTopForFloat(const FloatingObject* child) const { return logicalTopForFloat(child); }
-    int pixelSnappedLogicalBottomForFloat(const FloatingObject* child) const { return logicalBottomForFloat(child); }
-    int pixelSnappedLogicalLeftForFloat(const FloatingObject* child) const { return logicalLeftForFloat(child); }
-    int pixelSnappedLogicalRightForFloat(const FloatingObject* child) const { return logicalRightForFloat(child); }
+    int pixelSnappedLogicalTopForFloat(const FloatingObject* child) const { return isHorizontalWritingMode() ? child->pixelSnappedY() : child->pixelSnappedX(); }
+    int pixelSnappedLogicalBottomForFloat(const FloatingObject* child) const { return isHorizontalWritingMode() ? child->pixelSnappedMaxY() : child->pixelSnappedMaxX(); }
+    int pixelSnappedLogicalLeftForFloat(const FloatingObject* child) const { return isHorizontalWritingMode() ? child->pixelSnappedX() : child->pixelSnappedY(); }
+    int pixelSnappedLogicalRightForFloat(const FloatingObject* child) const { return isHorizontalWritingMode() ? child->pixelSnappedMaxX() : child->pixelSnappedMaxY(); }
+    int pixelSnappedLogicalWidthForFloat(const FloatingObject* child) const { return isHorizontalWritingMode() ? child->pixelSnappedWidth() : child->pixelSnappedHeight(); }
 
     void setLogicalTopForFloat(FloatingObject* child, LayoutUnit logicalTop)
     {
@@ -790,7 +817,7 @@ private:
     LayoutUnit logicalLeftSelectionOffset(RenderBlock* rootBlock, LayoutUnit position);
     LayoutUnit logicalRightSelectionOffset(RenderBlock* rootBlock, LayoutUnit position);
     
-    virtual void absoluteRects(Vector<LayoutRect>&, const LayoutPoint& accumulatedOffset) const;
+    virtual void absoluteRects(Vector<IntRect>&, const LayoutPoint& accumulatedOffset) const;
     virtual void absoluteQuads(Vector<FloatQuad>&, bool* wasFixed) const;
 
     LayoutUnit desiredColumnWidth() const;
@@ -819,9 +846,8 @@ private:
 
     bool expandsToEncloseOverhangingFloats() const;
 
-    void updateScrollInfoAfterLayout();
-
     RenderObject* splitAnonymousBlocksAroundChild(RenderObject* beforeChild);
+    RenderObject* splitTablePartsAroundChild(RenderObject* beforeChild);
     void splitBlocks(RenderBlock* fromBlock, RenderBlock* toBlock, RenderBlock* middleBlock,
                      RenderObject* beforeChild, RenderBoxModelObject* oldCont);
     void splitFlow(RenderObject* beforeChild, RenderBlock* newBlockBox,
@@ -958,6 +984,8 @@ protected:
     bool logicalWidthChangedInRegions() const;
 
     virtual bool requiresColumns(int desiredColumnCount) const;
+
+    virtual bool recomputeLogicalWidth();
 
 public:
     LayoutUnit offsetFromLogicalTopOfFirstPage() const;
@@ -1098,9 +1126,10 @@ protected:
     RenderObjectChildList m_children;
     RenderLineBoxList m_lineBoxes;   // All of the root line boxes created for this block flow.  For example, <div>Hello<br>world.</div> will have two total lines for the <div>.
 
-    mutable signed m_lineHeight : 30;
+    mutable signed m_lineHeight : 29;
     bool m_beingDestroyed : 1;
     bool m_hasPositionedFloats : 1;
+    bool m_hasMarkupTruncation : 1;
 
     // RenderRubyBase objects need to be able to split and merge, moving their children around
     // (calling moveChildTo, moveAllChildrenTo, and makeChildrenNonInline).

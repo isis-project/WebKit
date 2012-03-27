@@ -27,26 +27,77 @@ class CSSPropertyLonghand {
 public:
     CSSPropertyLonghand()
         : m_properties(0)
+        , m_longhandsForInitialization(0)
         , m_length(0)
     {
     }
 
-    CSSPropertyLonghand(const int* firstProperty, unsigned numProperties)
-        : m_properties(firstProperty)
+    CSSPropertyLonghand(const int* properties, unsigned numProperties)
+        : m_properties(properties)
+        , m_longhandsForInitialization(0)
+        , m_length(numProperties)
+    {
+    }
+
+    CSSPropertyLonghand(const int* properties, const CSSPropertyLonghand** longhandsForInitialization, unsigned numProperties)
+        : m_properties(properties)
+        , m_longhandsForInitialization(longhandsForInitialization)
         , m_length(numProperties)
     {
     }
 
     const int* properties() const { return m_properties; }
+    const CSSPropertyLonghand** longhandsForInitialization() const { return m_longhandsForInitialization; }
     unsigned length() const { return m_length; }
 
 private:
     const int* m_properties;
+    const CSSPropertyLonghand** m_longhandsForInitialization;
     unsigned m_length;
 };
 
+const CSSPropertyLonghand& backgroundLonghand();
+const CSSPropertyLonghand& backgroundPositionLonghand();
+const CSSPropertyLonghand& backgroundRepeatLonghand();
+const CSSPropertyLonghand& borderLonghand();
+const CSSPropertyLonghand& borderAbridgedLonghand();
+const CSSPropertyLonghand& borderBottomLonghand();
+const CSSPropertyLonghand& borderColorLonghand();
+const CSSPropertyLonghand& borderImageLonghand();
+const CSSPropertyLonghand& borderLeftLonghand();
+const CSSPropertyLonghand& borderRadiusLonghand();
+const CSSPropertyLonghand& borderRightLonghand();
+const CSSPropertyLonghand& borderSpacingLonghand();
+const CSSPropertyLonghand& borderStyleLonghand();
+const CSSPropertyLonghand& borderTopLonghand();
+const CSSPropertyLonghand& borderWidthLonghand();
+const CSSPropertyLonghand& listStyleLonghand();
+const CSSPropertyLonghand& fontLonghand();
+const CSSPropertyLonghand& marginLonghand();
+const CSSPropertyLonghand& outlineLonghand();
+const CSSPropertyLonghand& overflowLonghand();
+const CSSPropertyLonghand& paddingLonghand();
+const CSSPropertyLonghand& webkitAnimationLonghand();
+const CSSPropertyLonghand& webkitBorderAfterLonghand();
+const CSSPropertyLonghand& webkitBorderBeforeLonghand();
+const CSSPropertyLonghand& webkitBorderEndLonghand();
+const CSSPropertyLonghand& webkitBorderStartLonghand();
+const CSSPropertyLonghand& webkitColumnsLonghand();
+const CSSPropertyLonghand& webkitColumnRuleLonghand();
+const CSSPropertyLonghand& webkitFlexFlowLonghand();
+const CSSPropertyLonghand& webkitMarginCollapseLonghand();
+const CSSPropertyLonghand& webkitMarqueeLonghand();
+const CSSPropertyLonghand& webkitMaskLonghand();
+const CSSPropertyLonghand& webkitMaskPositionLonghand();
+const CSSPropertyLonghand& webkitMaskRepeatLonghand();
+const CSSPropertyLonghand& webkitTextEmphasisLonghand();
+const CSSPropertyLonghand& webkitTextStrokeLonghand();
+const CSSPropertyLonghand& webkitTransitionLonghand();
+const CSSPropertyLonghand& webkitTransformOriginLonghand();
+const CSSPropertyLonghand& webkitWrapLonghand();
+
 // Returns an empty list if the property is not a shorthand
-CSSPropertyLonghand longhandForProperty(int);
+const CSSPropertyLonghand& longhandForProperty(int);
 
 } // namespace WebCore
 

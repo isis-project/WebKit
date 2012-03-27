@@ -31,6 +31,14 @@
 #include "IntPoint.h"
 #include <wtf/MathExtras.h>
 
+#if PLATFORM(BLACKBERRY)
+namespace BlackBerry {
+namespace Platform {
+class FloatPoint;
+}
+}
+#endif
+
 #if USE(CG) || USE(SKIA_ON_MAC_CHROMIUM)
 typedef struct CGPoint CGPoint;
 #endif
@@ -60,13 +68,15 @@ class AffineTransform;
 class TransformationMatrix;
 class IntPoint;
 class IntSize;
+class FractionalLayoutPoint;
+class FractionalLayoutSize;
 
 class FloatPoint {
 public:
     FloatPoint() : m_x(0), m_y(0) { }
     FloatPoint(float x, float y) : m_x(x), m_y(y) { }
     FloatPoint(const IntPoint&);
-
+    FloatPoint(const FractionalLayoutPoint&);
 
     static FloatPoint zero() { return FloatPoint(); }
 
@@ -92,6 +102,7 @@ public:
         m_x += a.width();
         m_y += a.height();
     }
+    void move(const FractionalLayoutSize&);
     void move(const FloatSize& a)
     {
         m_x += a.width();
@@ -102,6 +113,7 @@ public:
         m_x += a.x();
         m_y += a.y();
     }
+    void moveBy(const FractionalLayoutPoint&);
     void moveBy(const FloatPoint& a)
     {
         m_x += a.x();
@@ -150,6 +162,11 @@ public:
 #if PLATFORM(QT)
     FloatPoint(const QPointF&);
     operator QPointF() const;
+#endif
+
+#if PLATFORM(BLACKBERRY)
+    FloatPoint(const BlackBerry::Platform::FloatPoint&);
+    operator BlackBerry::Platform::FloatPoint() const;
 #endif
 
 #if USE(SKIA)

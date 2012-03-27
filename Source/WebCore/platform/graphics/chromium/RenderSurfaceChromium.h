@@ -63,6 +63,9 @@ public:
     float drawOpacity() const { return m_drawOpacity; }
     void setDrawOpacity(float drawOpacity) { m_drawOpacity = drawOpacity; }
 
+    bool drawOpacityIsAnimating() const { return m_drawOpacityIsAnimating; }
+    void setDrawOpacityIsAnimating(bool drawOpacityIsAnimating) { m_drawOpacityIsAnimating = drawOpacityIsAnimating; }
+
     // This goes from content space with the origin in the center of the rect being transformed to the target space with the origin in the top left of the
     // rect being transformed. Position the rect so that the origin is in the center of it before applying this transform.
     const TransformationMatrix& drawTransform() const { return m_drawTransform; }
@@ -71,16 +74,28 @@ public:
     const TransformationMatrix& originTransform() const { return m_originTransform; }
     void setOriginTransform(const TransformationMatrix& originTransform) { m_originTransform = originTransform; }
 
+    const TransformationMatrix& screenSpaceTransform() const { return m_screenSpaceTransform; }
+    void setScreenSpaceTransform(const TransformationMatrix& screenSpaceTransform) { m_screenSpaceTransform = screenSpaceTransform; }
+
     const TransformationMatrix& replicaDrawTransform() const { return m_replicaDrawTransform; }
     void setReplicaDrawTransform(const TransformationMatrix& replicaDrawTransform) { m_replicaDrawTransform = replicaDrawTransform; }
+
+    const TransformationMatrix& replicaOriginTransform() const { return m_replicaOriginTransform; }
+    void setReplicaOriginTransform(const TransformationMatrix& replicaOriginTransform) { m_replicaOriginTransform = replicaOriginTransform; }
+
+    const TransformationMatrix& replicaScreenSpaceTransform() const { return m_replicaScreenSpaceTransform; }
+    void setReplicaScreenSpaceTransform(const TransformationMatrix& replicaScreenSpaceTransform) { m_replicaScreenSpaceTransform = replicaScreenSpaceTransform; }
+
+    bool targetSurfaceTransformsAreAnimating() const { return m_targetSurfaceTransformsAreAnimating; }
+    void setTargetSurfaceTransformsAreAnimating(bool animating) { m_targetSurfaceTransformsAreAnimating = animating; }
+    bool screenSpaceTransformsAreAnimating() const { return m_screenSpaceTransformsAreAnimating; }
+    void setScreenSpaceTransformsAreAnimating(bool animating) { m_screenSpaceTransformsAreAnimating = animating; }
 
     const IntRect& clipRect() const { return m_clipRect; }
     void setClipRect(const IntRect& clipRect) { m_clipRect = clipRect; }
 
-    // We don't care about filters here, but we need to satisfy 
-    // calculateDrawTransformsAndVisibilityInternal when templated on this
-    // class.
-    void setFilters(const FilterOperations&) { }
+    void setFilters(const FilterOperations& filters) { m_filters = filters; }
+    const FilterOperations& filters() const { return m_filters; }
 
     bool skipsDraw() const { return m_skipsDraw; }
     void setSkipsDraw(bool skipsDraw) { m_skipsDraw = skipsDraw; }
@@ -90,6 +105,9 @@ public:
 
     void setMaskLayer(LayerChromium* maskLayer) { m_maskLayer = maskLayer; }
 
+    void setNearestAncestorThatMovesPixels(RenderSurfaceChromium* surface) { m_nearestAncestorThatMovesPixels = surface; }
+    const RenderSurfaceChromium* nearestAncestorThatMovesPixels() const { return m_nearestAncestorThatMovesPixels; }
+
 private:
     LayerChromium* m_owningLayer;
     LayerChromium* m_maskLayer;
@@ -98,11 +116,22 @@ private:
     bool m_skipsDraw;
 
     float m_drawOpacity;
+    bool m_drawOpacityIsAnimating;
     TransformationMatrix m_drawTransform;
-    TransformationMatrix m_replicaDrawTransform;
     TransformationMatrix m_originTransform;
+    TransformationMatrix m_screenSpaceTransform;
+    TransformationMatrix m_replicaDrawTransform;
+    TransformationMatrix m_replicaOriginTransform;
+    TransformationMatrix m_replicaScreenSpaceTransform;
+    bool m_targetSurfaceTransformsAreAnimating;
+    bool m_screenSpaceTransformsAreAnimating;
+    FilterOperations m_filters;
     IntRect m_clipRect;
     Vector<RefPtr<LayerChromium> > m_layerList;
+
+    // The nearest ancestor target surface that will contain the contents of this surface, and that is going
+    // to move pixels within the surface (such as with a blur). This can point to itself.
+    RenderSurfaceChromium* m_nearestAncestorThatMovesPixels;
 
     // For CCLayerIteratorActions
     int m_targetRenderSurfaceLayerIndexHistory;

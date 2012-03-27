@@ -30,6 +30,7 @@
 #include "cc/CCRenderSurfaceFilters.h"
 
 #include "GraphicsContext3D.h"
+#include "LengthFunctions.h"
 #include "SkBlurImageFilter.h"
 #include "SkCanvas.h"
 #include "SkColorMatrixFilter.h"
@@ -198,8 +199,8 @@ SkBitmap CCRenderSurfaceFilters::apply(const FilterOperations& filters, unsigned
         const FilterOperation* filterOperation = filters.at(i);
         // Allocate a destination texture.
         GrTextureDesc desc;
-        desc.fFlags = kRenderTarget_GrTextureFlagBit;
-        desc.fAALevel = kNone_GrAALevel;
+        desc.fFlags = kRenderTarget_GrTextureFlagBit | kNoStencil_GrTextureFlagBit;
+        desc.fSampleCnt = 0;
         desc.fWidth = size.width();
         desc.fHeight = size.height();
         desc.fConfig = kRGBA_8888_GrPixelConfig;
@@ -269,15 +270,26 @@ SkBitmap CCRenderSurfaceFilters::apply(const FilterOperations& filters, unsigned
         }
         case FilterOperation::BLUR: {
             const BlurFilterOperation* op = static_cast<const BlurFilterOperation*>(filterOperation);
-            float stdX = op->stdDeviation().calcFloatValue(0);
-            float stdY = op->stdDeviation().calcFloatValue(1);
+            float stdX = floatValueForLength(op->stdDeviation(), 0);
+            float stdY = floatValueForLength(op->stdDeviation(), 1);
             SkAutoTUnref<SkImageFilter> filter(new SkBlurImageFilter(stdX, stdY));
             SkPaint paint;
             paint.setImageFilter(filter.get());
-            paint.setColor(0xFFFFFFFF);
+            canvas.drawSprite(source, 0, 0, &paint);
+            break;
+        }
+        case FilterOperation::DROP_SHADOW: {
+            const DropShadowFilterOperation* op = static_cast<const DropShadowFilterOperation*>(filterOperation);
+            SkAutoTUnref<SkImageFilter> blurFilter(new SkBlurImageFilter(op->stdDeviation(), op->stdDeviation()));
+            SkAutoTUnref<SkColorFilter> colorFilter(SkColorFilter::CreateModeFilter(op->color().rgb(), SkXfermode::kSrcIn_Mode));
+            SkPaint paint;
+            paint.setImageFilter(blurFilter.get());
+            paint.setColorFilter(colorFilter.get());
+            paint.setXfermodeMode(SkXfermode::kSrcOver_Mode);
             canvas.saveLayer(0, &paint);
-            canvas.drawBitmap(source, 0, 0);
+            canvas.drawBitmap(source, op->x(), -op->y());
             canvas.restore();
+            canvas.drawBitmap(source, 0, 0);
             break;
         }
         case FilterOperation::PASSTHROUGH:

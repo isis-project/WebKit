@@ -11,22 +11,15 @@
 <script src="../resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's opening DB more than once");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
-    IDBDatabaseException = evalAndLog("IDBDatabaseException = window.IDBDatabaseException || window.webkitIDBDatabaseException;");
-    shouldBeFalse("IDBDatabaseException == null");
+    removeVendorPrefixes();
 
-    name = window.location.pathname;
+    name = self.location.pathname;
     description = "My Test Database";
     request = evalAndLog("indexedDB.open(name, description)");
     request.onsuccess = openSuccess;
@@ -74,13 +67,14 @@ function open2Success()
     shouldBe("objectStore2.name", "objectStoreName");
     shouldBe("objectStore2.keyPath", "objectStoreOptions.keyPath");
 
-    done();
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>
 

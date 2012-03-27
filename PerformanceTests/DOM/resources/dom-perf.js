@@ -115,25 +115,12 @@ function GetProfiler() {
     return new PseudoProfiler();
 }
 
-// To make the benchmark results predictable, we replace Math.random with a
-// 100% deterministic alternative.
-Math.random = (function() {
-    var seed = 49734321;
-    return function() {
-        // Robert Jenkins' 32 bit integer hash function.
-        seed = ((seed + 0x7ed55d16) + (seed << 12))  & 0xffffffff;
-        seed = ((seed ^ 0xc761c23c) ^ (seed >>> 19)) & 0xffffffff;
-        seed = ((seed + 0x165667b1) + (seed << 5))   & 0xffffffff;
-        seed = ((seed + 0xd3a2646c) ^ (seed << 9))   & 0xffffffff;
-        seed = ((seed + 0xfd7046c5) + (seed << 3))   & 0xffffffff;
-        seed = ((seed ^ 0xb55a4f09) ^ (seed >>> 16)) & 0xffffffff;
-        return (seed & 0xfffffff) / 0x10000000;
-    };
-})();
-
 function Benchmark(name, run, opt_setup, opt_cleanup, opt_shareSetup) {
     this.name = name;
-    this.timeToRun = 500; // ms
+    this.timeToRun = 100; // ms.
+    // Tests like DOM/DOMWalk.html are too fast and need to be ran multiple times.
+    // 100 ms was chosen since it was long enough to make DOMWalk and other fast tests stable
+    // but was short enough not to make other slow tests run multiple times.
     this.run = run;
     this.setup = opt_setup;
     this.cleanup = opt_cleanup;
@@ -237,6 +224,7 @@ BenchmarkSuite.prototype.RunSingle = function(benchmark, times) {
     var nZeros = 0;
     var error = null;
     var profiler = GetProfiler();
+
     for (var n = 0; !error && totalTime < benchmark.timeToRun;  n++) {
         if (this.benchmarkContent)
             this.benchmarkContentHolder.removeChild(this.benchmarkContent);
@@ -267,7 +255,7 @@ BenchmarkSuite.prototype.RunSingle = function(benchmark, times) {
             error = e;
         }
         totalTime = new Date() - start;
-    }
+  }
 
     var result = new BenchmarkResult(benchmark, times, error, null);
     if (this.benchmarkContent) {

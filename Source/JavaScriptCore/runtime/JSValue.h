@@ -55,6 +55,9 @@ namespace JSC {
         class SpeculativeJIT;
     }
 #endif
+    namespace LLInt {
+        class Data;
+    }
 
     struct ClassInfo;
     struct Instruction;
@@ -118,6 +121,7 @@ namespace JSC {
         friend class DFG::OSRExitCompiler;
         friend class DFG::SpeculativeJIT;
 #endif
+        friend class LLInt::Data;
 
     public:
         static EncodedJSValue encode(JSValue);
@@ -169,6 +173,7 @@ namespace JSC {
 
         // Querying the type.
         bool isEmpty() const;
+        bool isFunction() const;
         bool isUndefined() const;
         bool isNull() const;
         bool isUndefinedOrNull() const;
@@ -217,7 +222,8 @@ namespace JSC {
         JSValue get(ExecState*, unsigned propertyName) const;
         JSValue get(ExecState*, unsigned propertyName, PropertySlot&) const;
         void put(ExecState*, const Identifier& propertyName, JSValue, PutPropertySlot&);
-        void put(ExecState*, unsigned propertyName, JSValue);
+        void putToPrimitive(ExecState*, const Identifier& propertyName, JSValue, PutPropertySlot&);
+        void putByIndex(ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
 
         JSObject* toThisObject(ExecState*) const;
 
@@ -234,6 +240,8 @@ namespace JSC {
 
         char* description();
 
+        JS_EXPORT_PRIVATE JSObject* synthesizePrototype(ExecState*) const;
+
     private:
         template <class T> JSValue(WriteBarrierBase<T>);
 
@@ -245,9 +253,6 @@ namespace JSC {
         JS_EXPORT_PRIVATE JSString* toStringSlowCase(ExecState*) const;
         JS_EXPORT_PRIVATE JSObject* toObjectSlowCase(ExecState*, JSGlobalObject*) const;
         JS_EXPORT_PRIVATE JSObject* toThisObjectSlowCase(ExecState*) const;
-
-        JS_EXPORT_PRIVATE JSObject* synthesizePrototype(ExecState*) const;
-        JSObject* synthesizeObject(ExecState*) const;
 
 #if USE(JSVALUE32_64)
         /*

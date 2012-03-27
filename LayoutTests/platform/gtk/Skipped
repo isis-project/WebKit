@@ -64,10 +64,6 @@ fast/text/large-text-composed-char-dos.html
 # https://bugs.webkit.org/show_bug.cgi?id=58972
 media/adopt-node-crash.html
 
-# Timing out in the 64-bit GTK bot after r85586
-# https://bugs.webkit.org/show_bug.cgi?id=60055
-media/video-volume-slider.html
-
 ###############################################################################
 # TESTS CRASHING
 ###############################################################################
@@ -151,6 +147,18 @@ plugins/js-from-destroy.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=72245
 fast/images/size-failure.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=81836
+inspector/timeline/timeline-injected-script-eval.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=81781
+media/W3C/audio/networkState/networkState_during_loadstart.html
+media/audio-delete-while-step-button-clicked.html
+media/audio-mpeg-supported.html
+media/audio-repaint.html
+media/media-blocked-by-willsendrequest.html
+media/media-controls-clone-crash.html
+media/audio-repaint.html
 
 ###############################################################################
 # EXPECTED FAILURES
@@ -258,6 +266,9 @@ gamepad/
 # Speech input is not yet enabled.
 fast/speech
 
+# Speech JavaScript API is not yet enabled.
+fast/events/constructors/speech-recognition-event-constructor.html
+
 # Web Timing is not enabled.
 # https://bugs.webkit.org/show_bug.cgi?id=42432
 fast/dom/Window/window-properties-performance.html
@@ -294,10 +305,16 @@ editing/pasteboard/data-transfer-items.html
 editing/pasteboard/data-transfer-items-image-png.html
 editing/pasteboard/data-transfer-items-drag-drop-file.html
 editing/pasteboard/data-transfer-items-drag-drop-string.html
+fast/events/clipboard-dataTransferItemList.html
+fast/events/drag-dataTransferItemList.html
+fast/events/drag-dataTransferItemList-file-handling.html
 
 # Custom MIME type support in DataTransfer is not yet implemented.
 editing/pasteboard/clipboard-customData.html
 fast/events/drag-customData.html
+
+# PasteBoard::plainText() does not support file names.
+editing/pasteboard/drag-files-to-editable-element.html
 
 # Needs grammar checking.
 editing/spelling/markers.html
@@ -352,8 +369,7 @@ fast/css-grid-layout
 fast/css/style-scoped
 
 # ENABLE(SHADOW_DOM) is disabled.
-fast/dom/shadow/shadow-root-js-api.html
-fast/dom/shadow/shadow-disable.html
+fast/dom/shadow
 
 # CSS Regions support not yet enabled. http://webkit.org/b/57312
 fast/regions
@@ -372,11 +388,9 @@ http/tests/security/text-track-crossorigin.html
 # CSS Filters is disabled
 css3/filters
 
-# layoutTestController.overridePreference("WebKit*FontMap"...) is not
-# supported.
-fast/text/international/content-language-font-selection.html
-fast/text/international/content-language-with-subtags.html
-fast/text/international/locale-sensitive-fonts.html
+# CSS image-set support not yet enabled (needs ENABLE_CSS_IMAGE_SET).
+fast/css/image-set-parsing.html
+fast/css/image-set-parsing-invalid.html
 
 # Needs layoutTestController.enableAutoResizeMode()
 fast/autoresize
@@ -389,12 +403,34 @@ http/tests/security/webgl-remote-read-remote-image-allowed.html
 http/tests/security/webgl-remote-read-remote-image-blocked-no-crossorigin.html
 http/tests/security/webgl-remote-read-remote-image-allowed-with-credentials.html
 
+#Vibration API support not yet. http://webkit.org/b/72010
+fast/dom/navigator-vibration.html
+
+# DumpRenderTree code to enable Java is currently a no-op
+java
+
+# Directory upload is not enabled.
+fast/forms/file/input-file-directory-upload.html
+
+# Microdata DOM API is not yet enabled.
+fast/dom/MicroData
+
+# Web Intents is not yet enabled.
+webintents/
+
+# Pointer Lock is not implemented.
+pointer-lock/
+
+#Battery Status API support not yet. http://webkit.org/b/62698
+batterystatus
+
 ###############################################################################
 # TESTS FAILING
 ###############################################################################
 accessibility/aria-checkbox-sends-notification.html
 accessibility/aria-hidden.html
 accessibility/aria-hidden-with-elements.html
+accessibility/aria-invalid.html
 accessibility/aria-labelledby-on-input.html
 accessibility/aria-labelledby-overrides-label.html
 accessibility/aria-labelledby-stay-within.html
@@ -606,6 +642,7 @@ media/video-size-intrinsic-scale.html
 media/video-seek-past-end-playing.html
 # https://bugs.webkit.org/show_bug.cgi?id=30198
 media/video-source-error.html
+media/sources-fallback-codecs.html
 
 # Tests in plugins/ directory
 #   Tests failing, need to implement NPP_HandleEvent() in TestNetscapePlugin
@@ -726,9 +763,6 @@ fast/forms/restore-selection-after-layout.html
 # See https://bugs.webkit.org/show_bug.cgi?id=35300
 http/tests/loading/307-after-303-after-post.html
 
-# DumpRenderTree code to enable Java is currently a no-op
-java
-
 # https://bugs.webkit.org/show_bug.cgi?id=36003
 # mouseScrollBy() and continuousMouseScrollBy() are not yet implemented in the GTK EventSender API.
 fast/events/remove-child-onscroll.html
@@ -848,6 +882,9 @@ svg/batik/paints/gradientLimit.svg
 svg/custom/circular-marker-reference-2.svg
 svg/custom/non-circular-marker-reference.svg
 
+# Crashes due to debug assert until we fix issues with style elements in SVG
+svg/custom/use-referencing-style-crash.svg
+
 # Canvas tests
 
 # Tests that fail across all platforms.
@@ -923,9 +960,37 @@ canvas/philip/tests/2d.pattern.paint.repeatx.outside.html
 canvas/philip/tests/2d.pattern.paint.repeaty.coord1.html
 canvas/philip/tests/2d.pattern.paint.repeaty.outside.html
 
-# This modal dialog test still fails because the blur event is not dispatched on the opener
-# window when running the modal dialog.
+# Tests that user modal dialogs fail in the DRT for some reason.
+# https://bugs.webkit.org/show_bug.cgi?id=53600
+fast/animation/request-animation-frame-during-modal.html
 fast/events/show-modal-dialog-onblur-onfocus.html
+fast/events/scroll-event-during-modal-dialog.html
+fast/harness/show-modal-dialog.html
+http/tests/security/cross-frame-access-call.html
+http/tests/security/cross-frame-access-get.html
+inspector/console/console-long-eval-crash.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T10.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T11.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T2.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T2.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T4.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T4.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T6.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T6.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T8.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T8.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T10.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T11.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T1.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T1.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T3.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T3.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T5.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T5.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T7.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T7.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.1_T9.html
+sputnik/Conformance/10_Execution_Contexts/10.2_Entering_An_Execution_Context/10.2.2_Eval_Code/S10.2.2_A1.2_T9.html
 
 # pastes a space instead of a tab
 # https://bugs.webkit.org/show_bug.cgi?id=38437
@@ -933,9 +998,6 @@ editing/pasteboard/5761530-1.html
 
 # Missing DRT API.
 http/tests/loading/preload-slow-loading.php
-
-# Directory upload is not enabled.
-fast/forms/file/input-file-directory-upload.html
 
 # Need setPrinting. See https://bugs.webkit.org/show_bug.cgi?id=20011
 printing/setPrinting.html
@@ -976,23 +1038,6 @@ fast/files/workers/worker-apply-blob-url-to-xhr.html
 # [GTK] Dragging images and links results in a DataTransfer object containing a non-empty files array
 # https://bugs.webkit.org/show_bug.cgi?id=52094
 editing/pasteboard/files-during-page-drags.html
-
-# Need to call Settings::setInteractiveFormValidationEnabled(true).
-fast/forms/interactive-validation-prevented.html
-fast/forms/interactive-validation-attach-assertion.html
-fast/forms/interactive-validation-assertion-by-validate-twice.html
-fast/forms/interactive-validation-select-crash.html
-fast/forms/interactive-validation-crash-by-style-override.html
-# Need to call Settings::setValidationMessageTimerMagnification(-1) in DRT.
-fast/forms/validation-message-appearance.html
-fast/forms/validation-message-clone.html
-fast/forms/validation-message-in-relative-body.html
-fast/forms/validation-message-on-checkbox.html
-fast/forms/validation-message-on-listbox.html
-fast/forms/validation-message-on-menulist.html
-fast/forms/validation-message-on-radio.html
-fast/forms/validation-message-on-range.html
-fast/forms/validation-message-on-textarea.html
 
 # Tests that seem to be Mac only, assume that smart drag-and-drop
 # is enabled or assume platform-dependent sizing.
@@ -1117,14 +1162,6 @@ fast/canvas/pointInPath.html
 # https://bugs.webkit.org/show_bug.cgi?id=49179
 animations/stop-animation-on-suspend.html
 
-# computedStyleIncludingVisitedInfo is not implemented
-# https://bugs.webkit.org/show_bug.cgi?id=37336
-fast/history/nested-visited-test.html
-fast/history/self-is-visited.html
-fast/history/sibling-visited-test.html
-fast/history/multiple-classes-visited.html
-fast/loader/stateobjects/state-url-sets-links-visited.html
-
 # Rounding color problems inside pixman
 # https://bugs.webkit.org/show_bug.cgi?id=49964
 fast/canvas/canvas-getImageData.html
@@ -1222,6 +1259,7 @@ fast/canvas/DrawImageSinglePixelStretch.html
 # Expose title direction in WebKit API
 # https://bugs.webkit.org/show_bug.cgi?id=58845
 fast/dom/title-directionality.html
+fast/dom/title-directionality-removeChild.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=58741
 fast/text/zero-width-characters-complex-script.html
@@ -1249,6 +1287,8 @@ plugins/get-url-with-javascript-url.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=61118
 fullscreen/full-screen-keyboard-enabled.html
+fullscreen/full-screen-element-stack.html
+fullscreen/full-screen-restrictions.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=61121
 http/tests/appcache/interrupted-update.html
@@ -1263,17 +1303,24 @@ fast/events/dropzone-005.html
 # https://bugs.webkit.org/show_bug.cgi?id=64085
 http/tests/misc/iframe-reparenting-id-collision.html
 
-# NWRT. Skip inspector/ and http/tests/inspector while we figure out
-# what happens to them in the bots; the debug bots are failing only a
-# few tests, but the release bot is getting timeouts in pretty much
-# all of them.
-http/tests/inspector
-http/tests/inspector-enabled
-inspector/
+# These inspector tests fell out of the radar after the transition to NRWT
+# Some time out and some are flaky or present different baselines.
+inspector/timeline/timeline-paint.html
+inspector/timeline/timeline-animation-frame.html
+inspector/timeline/timeline-receive-response-event.html
+inspector/elements/elements-inspect-iframe-from-different-domain.html
+inspector/extensions/extensions-reload.html
+inspector/debugger/source-frame.html
+inspector/debugger/scripts-panel.html
+http/tests/inspector/console-resource-errors.html
+http/tests/inspector/console-cross-origin-iframe-logging.html
+http/tests/inspector/extensions-network-redirect.html
+http/tests/inspector/inspect-element.html
+http/tests/inspector/resource-har-conversion.html
+http/tests/inspector/resource-har-pages.html
+http/tests/inspector/resource-main-cookies.php
+http/tests/inspector/resource-parameters.html
 
-# Text shadow extents are calculated incorrectly
-# https://bugs.webkit.org/show_bug.cgi?id=65035
-fast/canvas/fillText-shadow.html
 
 # Font feature settings is not implemented.
 css3/font-feature-settings-rendering.html
@@ -1323,9 +1370,6 @@ editing/pasteboard/smart-paste-008.html
 # Fails because it does not throw a couple of expected exceptions
 http/tests/local/fileapi/send-sliced-dragged-file.html
 
-# Microdata DOM API is not yet enabled.
-fast/dom/MicroData
-
 # https://bugs.webkit.org/show_bug.cgi?id=70485
 fast/events/drag-selects-image.html
 
@@ -1362,6 +1406,8 @@ fast/viewport/viewport-warnings-3.html
 fast/viewport/viewport-warnings-4.html
 fast/viewport/viewport-warnings-6.html
 
+# viewport meta tag tests that failed because window.devicePixelRatio is not implemented
+fast/viewport/viewport-133.html
 # [DRT] didDetectXSS is not implemented
 # https://bugs.webkit.org/show_bug.cgi?id=71465
 http/tests/security/xssAuditor/script-tag-with-callbacks.html
@@ -1372,18 +1418,12 @@ http/tests/security/mixedContent/insecure-css-in-iframe.html
 http/tests/security/mixedContent/redirect-https-to-http-script-in-iframe.html
 
 # ASSERT(!needsLayout()) in frame flattening test
-# https://bugs.webkit.org/show_bug.cgi?id=65530
+# https://bugs.webkit.org/show_bug.cgi?id=80155
 fast/frames/flattening/iframe-flattening-nested.html
 fast/frames/flattening/iframe-flattening-fixed-width-and-height-no-scrolling.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=72248
 editing/spelling/spelling-unified-emulation.html
-
-# Web Intents is not yet enabled.
-webintents/
-
-# Pointer Lock is not implemented.
-pointer-lock/
 
 # fast/dom/Window/window-postmessage-arrays.html fails on JSC platforms
 # https://bugs.webkit.org/show_bug.cgi?id=72363
@@ -1446,6 +1486,9 @@ svg/css/composite-shadow-with-opacity.html
 svg/css/stars-with-shadow.html
 svg/carto.net/tabgroup.svg
 
+# https://bugs.webkit.org/show_bug.cgi?id=78673
+svg/animations/animate-text-nested-transforms.html
+
 # https://bugs.webkit.org/show_bug.cgi?id=73409
 fast/forms/placeholder-set-attribute.html
 fast/forms/search-placeholder-value-changed.html
@@ -1459,7 +1502,6 @@ fast/css/zoom-body-scroll.html
 fast/repaint/moving-shadow-on-container.html
 fast/repaint/moving-shadow-on-path.html
 css3/flexbox/line-wrapping.html
-editing/selection/move-by-word-visually-multi-line.html
 fast/block/float/overhanging-tall-block.html
 fast/css/font-face-data-uri.html
 fast/css/font-face-download-error.html
@@ -1468,16 +1510,10 @@ fast/forms/cursor-at-editable-content-boundary.html
 fast/text/glyph-reordering.html
 fast/text/ipa-tone-letters.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=73493
-fast/canvas/webgl/arraybuffer-transfer-of-control.html
-
 # https://bugs.webkit.org/show_bug.cgi?id=73653
 fast/events/offsetX-offsetY.html
 fast/forms/number/spin-in-multi-column.html
 fast/forms/range/slider-in-multi-column.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=73583
-fullscreen/video-controls-override.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=73769
 svg/text/text-style-recalc-crash.html
@@ -1485,84 +1521,11 @@ svg/text/text-style-recalc-crash.html
 # https://bugs.webkit.org/show_bug.cgi?id=73768
 fast/forms/file/file-input-reset.html
 
-# Needs a rebaseline
-fast/table/027.html
-fast/table/027-vertical.html
-tables/mozilla/bugs/bug14929.html
-tables/mozilla/bugs/bug2947.html
-
 # https://bugs.webkit.org/show_bug.cgi?id=74276
 fast/events/dont-loose-last-event.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=74282
 editing/pasteboard/emacs-ctrl-k-with-move.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=74409
-plugins/netscape-plugin-page-cache-works.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=75078
-media/W3C/audio/canPlayType/canPlayType_supported_but_no_codecs_parameter_2.html
-media/W3C/audio/events/event_canplay.html
-media/W3C/audio/events/event_canplay_manual.html
-media/W3C/audio/events/event_canplaythrough.html
-media/W3C/audio/events/event_canplaythrough_manual.html
-media/W3C/audio/events/event_loadeddata.html
-media/W3C/audio/events/event_loadeddata_manual.html
-media/W3C/audio/events/event_loadedmetadata.html
-media/W3C/audio/events/event_loadedmetadata_manual.html
-media/W3C/audio/events/event_order_canplay_canplaythrough.html
-media/W3C/audio/events/event_order_canplay_playing.html
-media/W3C/audio/events/event_order_loadedmetadata_loadeddata.html
-media/W3C/audio/events/event_order_loadstart_progress.html
-media/W3C/audio/events/event_play.html
-media/W3C/audio/events/event_playing.html
-media/W3C/audio/events/event_playing_manual.html
-media/W3C/audio/events/event_progress.html
-media/W3C/audio/events/event_progress_manual.html
-media/W3C/audio/events/event_timeupdate.html
-media/W3C/audio/events/event_timeupdate_manual.html
-media/W3C/audio/networkState/networkState_during_loadstart.html
-media/W3C/audio/paused/paused_false_during_play.html
-media/W3C/audio/readyState/readyState_during_canplay.html
-media/W3C/audio/readyState/readyState_during_canplaythrough.html
-media/W3C/audio/readyState/readyState_during_loadeddata.html
-media/W3C/audio/readyState/readyState_during_loadedmetadata.html
-media/W3C/audio/readyState/readyState_during_playing.html
-media/W3C/video/canPlayType/canPlayType_codecs_order_1.html
-media/W3C/video/canPlayType/canPlayType_codecs_order_3.html
-media/W3C/video/canPlayType/canPlayType_supported_but_no_codecs_parameter_1.html
-media/W3C/video/canPlayType/canPlayType_supported_but_no_codecs_parameter_3.html
-media/W3C/video/canPlayType/canPlayType_two_implies_one_1.html
-media/W3C/video/canPlayType/canPlayType_two_implies_one_2.html
-media/W3C/video/canPlayType/canPlayType_two_implies_one_5.html
-media/W3C/video/canPlayType/canPlayType_two_implies_one_6.html
-media/W3C/video/events/event_canplay.html
-media/W3C/video/events/event_canplay_manual.html
-media/W3C/video/events/event_canplaythrough.html
-media/W3C/video/events/event_canplaythrough_manual.html
-media/W3C/video/events/event_loadeddata.html
-media/W3C/video/events/event_loadeddata_manual.html
-media/W3C/video/events/event_loadedmetadata.html
-media/W3C/video/events/event_loadedmetadata_manual.html
-media/W3C/video/events/event_order_canplay_canplaythrough.html
-media/W3C/video/events/event_order_canplay_playing.html
-media/W3C/video/events/event_order_loadedmetadata_loadeddata.html
-media/W3C/video/events/event_order_loadstart_progress.html
-media/W3C/video/events/event_play.html
-media/W3C/video/events/event_playing.html
-media/W3C/video/events/event_playing_manual.html
-media/W3C/video/events/event_progress.html
-media/W3C/video/events/event_progress_manual.html
-media/W3C/video/events/event_timeupdate.html
-media/W3C/video/events/event_timeupdate_manual.html
-media/W3C/video/networkState/networkState_during_loadstart.html
-media/W3C/video/networkState/networkState_during_progress.html
-media/W3C/video/paused/paused_false_during_play.html
-media/W3C/video/readyState/readyState_during_canplay.html
-media/W3C/video/readyState/readyState_during_canplaythrough.html
-media/W3C/video/readyState/readyState_during_loadeddata.html
-media/W3C/video/readyState/readyState_during_loadedmetadata.html
-media/W3C/video/readyState/readyState_during_playing.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=75785
 accessibility/textbox-role-reports-line-number.html
@@ -1576,20 +1539,12 @@ fast/text/font-kerning.html
 # Needs custom policy delegate enhancement to log downloads
 http/tests/download
 
-# https://bugs.webkit.org/show_bug.cgi?id=76632
-fast/forms/implicit-submission.html
-
 # https://bugs.webkit.org/show_bug.cgi?id=77015
 fast/events/clear-drag-state.html
 fast/events/clear-edit-drag-state.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=77019
 http/tests/media/video-buffering-repaints-controls.html
-
-# ENABLE(SHADOW_DOM) is disabled
-# https://bugs.webkit.org/show_bug.cgi?id=76439
-fast/dom/shadow/content-element-api.html
-fast/dom/shadow/content-element-outside-shadow.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=77413
 fast/parser/nested-fragment-parser-crash.html
@@ -1605,14 +1560,72 @@ fast/forms/listbox-clear-restore.html
 # https://bugs.webkit.org/show_bug.cgi?id=78044
 fast/text/synthetic-bold-transformed.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=78345
-security/block-test.html
-
 # https://bugs.webkit.org/show_bug.cgi?id=78434
 fast/dom/Window/window-custom-prototype.html
 http/tests/security/cross-frame-access-object-getPrototypeOf.html
 
-# GTK port DRT doesn't support some API like scheduleAsynchronousKeyDown.
-# http://webkit.org/b/78481, http://webkit.org/b/78290
-fast/mutation/end-of-task-delivery.html
-fast/mutation/inline-event-listener.html
+# Let MemoryCache reuse cached XHRs (REGRESSION caused by r107672)
+# https://bugs.webkit.org/show_bug.cgi?id=76564
+fast/workers/worker-crash-with-invalid-location.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=78819
+fast/workers/shared-worker-load-error.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=79203
+fast/dom/MediaStream/argument-types.html
+fast/mediastream/peerconnection-Attributes.html
+fast/mediastream/peerconnection-argument-types.html
+
+# REGRESSION, r109105 made it fail
+# https://bugs.webkit.org/show_bug.cgi?id=79555
+fast/events/dispatch-message-string-data.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=80210
+security/block-test.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=80158
+plugins/netscape-plugin-page-cache-works.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=80534
+fast/events/autoscroll-in-textfield.html
+
+# Touch adjustment not enabled
+# https://bugs.webkit.org/show_bug.cgi?id=78801
+touchadjustment
+
+# https://bugs.webkit.org/show_bug.cgi?id=81320
+editing/pasteboard/copy-two-pasteboard-types-both-work.html
+
+# Failing since isWordTextBreak is not implemented. https://bugs.webkit.org/show_bug.cgi?id=81136
+editing/selection/move-by-word-visually-crash-test-1.html
+editing/selection/move-by-word-visually-crash-test-2.html
+editing/selection/move-by-word-visually-crash-test-3.html
+editing/selection/move-by-word-visually-crash-test-4.html
+editing/selection/move-by-word-visually-crash-test-5.html
+editing/selection/move-by-word-visually-crash-test-textarea.html
+editing/selection/move-by-word-visually-crash-test-css-generated-content.html
+editing/selection/move-by-word-visually-empty-div.html
+editing/selection/move-by-word-visually-inline-block-positioned-element.html
+editing/selection/move-by-word-visually-multi-line.html
+editing/selection/move-by-word-visually-multi-space.html
+editing/selection/move-by-word-visually-null-box.html
+editing/selection/move-by-word-visually-single-space-inline-element.html
+editing/selection/move-by-word-visually-single-space-one-element.html
+editing/selection/move-by-word-visually-textarea.html
+editing/selection/move-by-word-visually-wrong-left-right.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=43022
+tables/mozilla_expected_failures/bugs/bug85016.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=81276
+# Allowed to regress to fix a crash. 
+fast/inline/continuation-outlines-with-layers.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=81089
+inspector/debugger/snippets-model.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=82020
+plugins/netscape-dom-access-and-reload.html
+
+# The inner <input> should now grow to take the full cell's height.
+fast/table/colspanMinWidth-vertical.html

@@ -28,9 +28,9 @@
 
 #if WEBKIT_VERSION_MAX_ALLOWED >= WEBKIT_VERSION_LATEST
 
+@class DOMDictionary;
 @class DOMDocument;
 @class DOMIDBKey;
-@class DOMOptionsObject;
 @class DOMSVGDocument;
 @class DOMSVGPoint;
 @class DOMTestObj;
@@ -43,6 +43,8 @@
 @class DOMc;
 @class DOMd;
 @class DOMe;
+@class DOMsequence;
+@class DOMsequence<ScriptProfile>;
 @class NSString;
 @protocol DOMEventListener;
 
@@ -82,6 +84,8 @@ enum {
 - (void)setStringAttr:(NSString *)newStringAttr;
 - (DOMTestObj *)testObjAttr;
 - (void)setTestObjAttr:(DOMTestObj *)newTestObjAttr;
+- (DOMsequence<ScriptProfile> *)sequenceAttr;
+- (void)setSequenceAttr:(DOMsequence<ScriptProfile> *)newSequenceAttr;
 - (DOMTestObj *)XMLObjAttr;
 - (void)setXMLObjAttr:(DOMTestObj *)newXMLObjAttr;
 - (BOOL)create;
@@ -130,7 +134,6 @@ enum {
 - (void)setWithScriptExecutionContextAndScriptStateWithSpacesAttribute:(DOMTestObj *)newWithScriptExecutionContextAndScriptStateWithSpacesAttribute;
 - (DOMTestObj *)withScriptArgumentsAndCallStackAttribute;
 - (void)setWithScriptArgumentsAndCallStackAttribute:(DOMTestObj *)newWithScriptArgumentsAndCallStackAttribute;
-- (NSString *)scriptStringAttr;
 #if ENABLE(Condition1)
 - (int)conditionalAttr1;
 - (void)setConditionalAttr1:(int)newConditionalAttr1;
@@ -160,6 +163,8 @@ enum {
 - (void)setMutablePoint:(DOMSVGPoint *)newMutablePoint;
 - (DOMSVGPoint *)immutablePoint;
 - (void)setImmutablePoint:(DOMSVGPoint *)newImmutablePoint;
+- (int)strawberry;
+- (void)setStrawberry:(int)newStrawberry;
 - (float)strictFloat;
 - (void)setStrictFloat:(float)newStrictFloat;
 - (int)descriptionName;
@@ -172,10 +177,12 @@ enum {
 - (int)intMethodWithArgs:(int)intArg strArg:(NSString *)strArg objArg:(DOMTestObj *)objArg;
 - (DOMTestObj *)objMethod;
 - (DOMTestObj *)objMethodWithArgs:(int)intArg strArg:(NSString *)strArg objArg:(DOMTestObj *)objArg;
+- (void)methodWithSequenceArg:(DOMsequence *);
+- (DOMsequence<ScriptProfile> *)methodReturningSequence:(int)intArg;
 - (DOMTestObj *)methodThatRequiresAllArgsAndThrows:(NSString *)strArg objArg:(DOMTestObj *)objArg;
 - (void)serializedValue:(NSString *)serializedArg;
 - (void)idbKey:(DOMIDBKey *)key;
-- (void)optionsObject:(DOMOptionsObject *)oo ooo:(DOMOptionsObject *)ooo;
+- (void)optionsObject:(DOMDictionary *)oo ooo:(DOMDictionary *)ooo;
 - (void)methodWithException;
 - (void)customMethod;
 - (void)customMethodWithArgs:(int)intArg strArg:(NSString *)strArg objArg:(DOMTestObj *)objArg;
@@ -196,13 +203,24 @@ enum {
 - (void)methodWithOptionalString:(NSString *)str;
 - (void)methodWithOptionalStringIsUndefined:(NSString *)str;
 - (void)methodWithOptionalStringIsNullString:(NSString *)str;
+#if ENABLE(Condition1)
 - (NSString *)conditionalMethod1;
+#endif
+#if ENABLE(Condition1) && ENABLE(Condition2)
 - (void)conditionalMethod2;
+#endif
+#if ENABLE(Condition1) || ENABLE(Condition2)
 - (void)conditionalMethod3;
+#endif
 - (void)classMethod;
 - (int)classMethodWithOptional:(int)arg;
+- (void)classMethod2:(int)arg;
+#if ENABLE(Condition1)
 - (void)overloadedMethod1:(int)arg;
+#endif
+#if ENABLE(Condition1)
 - (void)overloadedMethod1:(NSString *)type;
+#endif
 - (DOMSVGDocument *)getSVGDocument;
 - (void)convert1:(DOMa *);
 - (void)convert2:(DOMb *);

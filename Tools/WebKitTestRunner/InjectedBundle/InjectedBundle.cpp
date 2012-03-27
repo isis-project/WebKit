@@ -36,6 +36,8 @@
 #include <WebKit2/WKRetainPtr.h>
 #include <WebKit2/WebKit2.h>
 #include <wtf/PassOwnPtr.h>
+#include <wtf/text/CString.h>
+#include <wtf/text/StringBuilder.h>
 #include <wtf/Vector.h>
 
 namespace WTR {
@@ -51,6 +53,7 @@ InjectedBundle::InjectedBundle()
     , m_topLoadingFrame(0)
     , m_state(Idle)
     , m_dumpPixels(false)
+    , m_useWaitToDumpWatchdogTimer(true)
 {
 }
 
@@ -77,6 +80,7 @@ void InjectedBundle::didReceiveMessage(WKBundleRef bundle, WKStringRef messageNa
 void InjectedBundle::initialize(WKBundleRef bundle, WKTypeRef initializationUserData)
 {
     m_bundle = bundle;
+    m_stringBuilder = WTF::adoptPtr(new WTF::StringBuilder());
 
     WKBundleClient client = {
         kWKBundleClientCurrentVersion,
@@ -131,8 +135,14 @@ void InjectedBundle::didReceiveMessage(WKStringRef messageName, WKTypeRef messag
 {
     if (WKStringIsEqualToUTF8CString(messageName, "BeginTest")) {
         ASSERT(messageBody);
-        ASSERT(WKGetTypeID(messageBody) == WKBooleanGetTypeID());
-        m_dumpPixels = WKBooleanGetValue(static_cast<WKBooleanRef>(messageBody));
+        ASSERT(WKGetTypeID(messageBody) == WKDictionaryGetTypeID());
+        WKDictionaryRef messageBodyDictionary = static_cast<WKDictionaryRef>(messageBody);
+
+        WKRetainPtr<WKStringRef> dumpPixelsKey(AdoptWK, WKStringCreateWithUTF8CString("DumpPixels"));
+        m_dumpPixels = WKBooleanGetValue(static_cast<WKBooleanRef>(WKDictionaryGetItemForKey(messageBodyDictionary, dumpPixelsKey.get())));
+
+        WKRetainPtr<WKStringRef> useWaitToDumpWatchdogTimerKey(AdoptWK, WKStringCreateWithUTF8CString("UseWaitToDumpWatchdogTimer"));
+        m_useWaitToDumpWatchdogTimer = WKBooleanGetValue(static_cast<WKBooleanRef>(WKDictionaryGetItemForKey(messageBodyDictionary, useWaitToDumpWatchdogTimerKey.get())));
 
         WKRetainPtr<WKStringRef> ackMessageName(AdoptWK, WKStringCreateWithUTF8CString("Ack"));
         WKRetainPtr<WKStringRef> ackMessageBody(AdoptWK, WKStringCreateWithUTF8CString("BeginTest"));
@@ -184,9 +194,9 @@ void InjectedBundle::beginTesting()
 {
     m_state = Testing;
 
-    m_outputStream.str("");
     m_pixelResult.clear();
     m_repaintRects.clear();
+    m_stringBuilder->clear();
 
     m_layoutTestController = LayoutTestController::create();
     m_gcController = GCController::create();
@@ -223,7 +233,7 @@ void InjectedBundle::done()
     WKRetainPtr<WKMutableDictionaryRef> doneMessageBody(AdoptWK, WKMutableDictionaryCreate());
 
     WKRetainPtr<WKStringRef> textOutputKey(AdoptWK, WKStringCreateWithUTF8CString("TextOutput"));
-    WKRetainPtr<WKStringRef> textOutput(AdoptWK, WKStringCreateWithUTF8CString(m_outputStream.str().c_str()));
+    WKRetainPtr<WKStringRef> textOutput(AdoptWK, WKStringCreateWithUTF8CString(m_stringBuilder->toString().utf8().data()));
     WKDictionaryAddItem(doneMessageBody.get(), textOutputKey.get(), textOutput.get());
     
     WKRetainPtr<WKStringRef> pixelResultKey = adoptWK(WKStringCreateWithUTF8CString("PixelResult"));

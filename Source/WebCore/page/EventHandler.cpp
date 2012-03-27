@@ -73,6 +73,7 @@
 #include "Scrollbar.h"
 #include "Settings.h"
 #include "SpatialNavigation.h"
+#include "StaticHashSetNodeList.h"
 #include "StyleCachedImage.h"
 #include "TextEvent.h"
 #include "TextIterator.h"
@@ -83,6 +84,7 @@
 #include <wtf/Assertions.h>
 #include <wtf/CurrentTime.h>
 #include <wtf/StdLibExtras.h>
+#include <wtf/TemporaryChange.h>
 
 #if ENABLE(GESTURE_EVENTS)
 #include "PlatformGestureEvent.h"
@@ -91,6 +93,10 @@
 #if ENABLE(IOS_GESTURE_EVENTS)
 #include "GestureEvent.h"
 #include "PlatformIosGestureEvent.h"
+#endif
+
+#if ENABLE(TOUCH_ADJUSTMENT)
+#include "TouchAdjustment.h"
 #endif
 
 #if ENABLE(SVG)
@@ -131,7 +137,11 @@ using namespace SVGNames;
 // When the autoscroll or the panScroll is triggered when do the scroll every 0.05s to make it smooth
 const double autoscrollInterval = 0.05;
 
-const double fakeMouseMoveInterval = 0.1;
+// The amount of time to wait before sending a fake mouse event, triggered
+// during a scroll. The short interval is used if the content responds to the mouse events quickly enough,
+// otherwise the long interval is used.
+const double fakeMouseMoveShortInterval = 0.1;
+const double fakeMouseMoveLongInterval = 0.250;
 
 enum NoCursorChangeType { NoCursorChange };
 
@@ -146,6 +156,24 @@ public:
 private:
     bool m_isCursorChange;
     Cursor m_cursor;
+};
+
+class MaximumDurationTracker {
+public:
+    explicit MaximumDurationTracker(double *maxDuration)
+        : m_maxDuration(maxDuration)
+        , m_start(monotonicallyIncreasingTime())
+    {
+    }
+
+    ~MaximumDurationTracker()
+    {
+        *m_maxDuration = max(*m_maxDuration, monotonicallyIncreasingTime() - m_start);
+    }
+
+private:
+    double* m_maxDuration;
+    double m_start;
 };
 
 #if ENABLE(TOUCH_EVENTS)
@@ -215,29 +243,28 @@ public:
 };
 #endif
 
-static inline bool scrollNode(float delta, WheelEvent::Granularity granularity, ScrollDirection positiveDirection, ScrollDirection negativeDirection, Node* node, Node** stopNode)
+static inline ScrollGranularity wheelGranularityToScrollGranularity(WheelEvent::Granularity granularity)
+{
+    switch (granularity) {
+    case WheelEvent::Page:
+        return ScrollByPage;
+    case WheelEvent::Line:
+        return ScrollByLine;
+    case WheelEvent::Pixel:
+        return ScrollByPixel;
+    }
+    return ScrollByPixel;
+}
+
+static inline bool scrollNode(float delta, ScrollGranularity granularity, ScrollDirection positiveDirection, ScrollDirection negativeDirection, Node* node, Node** stopNode)
 {
     if (!delta)
         return false;
-    
     if (!node->renderer())
         return false;
-    
-    // Find the nearest enclosing box.
     RenderBox* enclosingBox = node->renderer()->enclosingBox();
-
     float absDelta = delta > 0 ? delta : -delta;
-    
-    if (granularity == WheelEvent::Page)
-        return enclosingBox->scroll(delta < 0 ? negativeDirection : positiveDirection, ScrollByPage, absDelta, stopNode);
-
-    if (granularity == WheelEvent::Line)
-        return enclosingBox->scroll(delta < 0 ? negativeDirection : positiveDirection, ScrollByLine, absDelta, stopNode);
-
-    if (granularity == WheelEvent::Pixel)
-        return enclosingBox->scroll(delta < 0 ? negativeDirection : positiveDirection, ScrollByPixel, absDelta, stopNode);
-        
-    return false;
+    return enclosingBox->scroll(delta < 0 ? negativeDirection : positiveDirection, granularity, absDelta, stopNode);
 }
 
 #if !PLATFORM(MAC)
@@ -294,6 +321,8 @@ EventHandler::EventHandler(Frame* frame)
 #if ENABLE(TOUCH_EVENTS)
     , m_touchPressed(false)
 #endif
+    , m_maxMouseMovedDuration(0)
+    , m_baseEventType(PlatformEvent::NoType)
 {
 }
 
@@ -339,6 +368,10 @@ void EventHandler::clear()
     m_previousWheelScrolledNode = 0;
 #if ENABLE(TOUCH_EVENTS)
     m_originatingTouchPointTargets.clear();
+#endif
+    m_maxMouseMovedDuration = 0;
+#if ENABLE(GESTURE_EVENTS)
+    m_baseEventType = PlatformEvent::NoType;
 #endif
 }
 
@@ -535,6 +568,8 @@ bool EventHandler::handleMousePressEvent(const MouseEventWithHitTestResults& eve
 #endif
 
     cancelFakeMouseMoveEvent();
+
+    m_frame->document()->updateLayoutIgnorePendingStylesheets();
 
     if (ScrollView* scrollView = m_frame->view()) {
         if (scrollView->isPointInScrollbarCorner(event.event().position()))
@@ -1264,8 +1299,12 @@ OptionalCursor EventHandler::selectCursor(const MouseEventWithHitTestResults& ev
     const Cursor& iBeam = horizontalText ? iBeamCursor() : verticalTextCursor();
 
     // During selection, use an I-beam no matter what we're over.
-    // If you're capturing mouse events for a particular node, don't treat this as a selection.
-    if (m_mousePressed && m_mouseDownMayStartSelect && m_frame->selection()->isCaretOrRange() && !m_capturingMouseEventsNode)
+    // If a drag may be starting or we're capturing mouse events for a particular node, don't treat this as a selection.
+    if (m_mousePressed && m_mouseDownMayStartSelect
+#if ENABLE(DRAG_SUPPORT)
+        && !m_mouseDownMayStartDrag
+#endif
+        && m_frame->selection()->isCaretOrRange() && !m_capturingMouseEventsNode)
         return iBeam;
 
     if (renderer) {
@@ -1638,7 +1677,9 @@ static RenderLayer* layerForNode(Node* node)
 
 bool EventHandler::mouseMoved(const PlatformMouseEvent& event)
 {
+    MaximumDurationTracker maxDurationTracker(&m_maxMouseMovedDuration);
     RefPtr<FrameView> protector(m_frame->view());
+
 
 #if ENABLE(TOUCH_EVENTS)
     // FIXME: this should be moved elsewhere to also be able to dispatch touchcancel events.
@@ -2290,7 +2331,7 @@ bool EventHandler::handleWheelEvent(const PlatformWheelEvent& e)
     // Instead, the handlers should know convert vertical scrolls
     // appropriately.
     PlatformWheelEvent event = e;
-    if (shouldTurnVerticalTicksIntoHorizontal(result))
+    if (m_baseEventType == PlatformEvent::NoType && shouldTurnVerticalTicksIntoHorizontal(result))
         event = event.copyTurningVerticalTicksIntoHorizontalTicks();
 
     if (node) {
@@ -2316,20 +2357,21 @@ bool EventHandler::handleWheelEvent(const PlatformWheelEvent& e)
     
     return view->wheelEvent(event);
 }
-    
+
 void EventHandler::defaultWheelEventHandler(Node* startNode, WheelEvent* wheelEvent)
 {
     if (!startNode || !wheelEvent)
         return;
     
     Node* stopNode = m_previousWheelScrolledNode.get();
+    ScrollGranularity granularity = m_baseEventType == PlatformEvent::GestureScrollEnd ? ScrollByPixelVelocity : wheelGranularityToScrollGranularity(wheelEvent->granularity());
     
     // Break up into two scrolls if we need to.  Diagonal movement on 
     // a MacBook pro is an example of a 2-dimensional mouse wheel event (where both deltaX and deltaY can be set).
-    if (scrollNode(wheelEvent->rawDeltaX(), wheelEvent->granularity(), ScrollLeft, ScrollRight, startNode, &stopNode))
+    if (scrollNode(wheelEvent->rawDeltaX(), granularity, ScrollLeft, ScrollRight, startNode, &stopNode))
         wheelEvent->setDefaultHandled();
     
-    if (scrollNode(wheelEvent->rawDeltaY(), wheelEvent->granularity(), ScrollUp, ScrollDown, startNode, &stopNode))
+    if (scrollNode(wheelEvent->rawDeltaY(), granularity, ScrollUp, ScrollDown, startNode, &stopNode))
         wheelEvent->setDefaultHandled();
     
     if (!m_useLatchedWheelEventNode)
@@ -2337,50 +2379,106 @@ void EventHandler::defaultWheelEventHandler(Node* startNode, WheelEvent* wheelEv
 }
 
 #if ENABLE(GESTURE_EVENTS)
+bool EventHandler::handleGestureTapDown()
+{
+    FrameView* view = m_frame->view();
+    if (!view)
+        return false;
+    if (ScrollAnimator* scrollAnimator = view->existingScrollAnimator())
+        scrollAnimator->cancelAnimations();
+    const FrameView::ScrollableAreaSet* areas = view->scrollableAreas();
+    if (!areas)
+        return false;
+    for (FrameView::ScrollableAreaSet::const_iterator it = areas->begin(); it != areas->end(); ++it) {
+        ScrollableArea* sa = *it;
+        ScrollAnimator* animator = sa->scrollAnimator();
+        if (animator)
+            animator->cancelAnimations();
+    }
+    return false;
+}
+
 bool EventHandler::handleGestureEvent(const PlatformGestureEvent& gestureEvent)
 {
-    // FIXME: This should hit test and go to the correct subframe rather than 
-    // always sending gestures to the main frame only. We should also ensure
-    // that if a frame gets a gesture begin gesture, it gets the corresponding
-    // end gesture as well.
+    // FIXME: A more general scroll system (https://bugs.webkit.org/show_bug.cgi?id=80596) will
+    // eliminate the need for this.
+    TemporaryChange<PlatformEvent::Type> baseEventType(m_baseEventType, gestureEvent.type());
 
     switch (gestureEvent.type()) {
     case PlatformEvent::GestureTapDown:
-        break;
-    case PlatformEvent::GestureTap: {
-        // FIXME: Refactor this code to not hit test multiple times once hit testing has been corrected as suggested above.
-        PlatformMouseEvent fakeMouseMove(gestureEvent.position(), gestureEvent.globalPosition(), NoButton, PlatformEvent::MouseMoved, /* clickCount */ 1, gestureEvent.shiftKey(), gestureEvent.ctrlKey(), gestureEvent.altKey(), gestureEvent.metaKey(), gestureEvent.timestamp());
-        PlatformMouseEvent fakeMouseDown(gestureEvent.position(), gestureEvent.globalPosition(), LeftButton, PlatformEvent::MousePressed, /* clickCount */ 1, gestureEvent.shiftKey(), gestureEvent.ctrlKey(), gestureEvent.altKey(), gestureEvent.metaKey(), gestureEvent.timestamp());
-        PlatformMouseEvent fakeMouseUp(gestureEvent.position(), gestureEvent.globalPosition(), LeftButton, PlatformEvent::MouseReleased, /* clickCount */ 1, gestureEvent.shiftKey(), gestureEvent.ctrlKey(), gestureEvent.altKey(), gestureEvent.metaKey(), gestureEvent.timestamp());
-        mouseMoved(fakeMouseMove);
-        handleMousePressEvent(fakeMouseDown);
-        handleMouseReleaseEvent(fakeMouseUp);
-        return true;
-    }
-    case PlatformEvent::GestureScrollUpdate: {
-        const float tickDivisor = (float)WheelEvent::tickMultiplier;
-        // FIXME: Replace this interim implementation once the above fixme has been addressed.
-        IntPoint point(gestureEvent.position().x(), gestureEvent.position().y());
-        IntPoint globalPoint(gestureEvent.globalPosition().x(), gestureEvent.globalPosition().y());
-        PlatformWheelEvent syntheticWheelEvent(point, globalPoint, gestureEvent.deltaX(), gestureEvent.deltaY(), gestureEvent.deltaX() / tickDivisor, gestureEvent.deltaY() / tickDivisor, ScrollByPixelWheelEvent, gestureEvent.shiftKey(), gestureEvent.ctrlKey(), gestureEvent.altKey(), gestureEvent.metaKey());
-        handleWheelEvent(syntheticWheelEvent);
-        return true;
-    }
+        return handleGestureTapDown();
+    case PlatformEvent::GestureTap:
+        return handleGestureTap(gestureEvent);
+    case PlatformEvent::GestureScrollUpdate:
+        return handleGestureScrollUpdate(gestureEvent);
     case PlatformEvent::GestureDoubleTap:
         break;
     case PlatformEvent::GestureScrollBegin:
-    case PlatformEvent::GestureScrollEnd: {
-        FrameView* view = m_frame->view();
-        if (!view)
-            return false;
-
-        view->handleGestureEvent(gestureEvent);
-        return true;
-    }
+        return handleGestureScrollCore(gestureEvent, ScrollByPixelWheelEvent, false);
+    case PlatformEvent::GestureScrollEnd:
+        return handleGestureScrollCore(gestureEvent, ScrollByPixelVelocityWheelEvent, true);
     default:
         ASSERT_NOT_REACHED();
     }
-    return true;
+
+    return false;
+}
+
+bool EventHandler::handleGestureTap(const PlatformGestureEvent& gestureEvent)
+{
+    // FIXME: Refactor this code to not hit test multiple times.
+    IntPoint adjustedPoint = gestureEvent.position();
+#if ENABLE(TOUCH_ADJUSTMENT)
+    if (!gestureEvent.area().isEmpty()) {
+        Node* targetNode = 0;
+        // For now we use the adjusted position to ensure the later redundant hit-tests hits the right node.
+        bestClickableNodeForTouchPoint(gestureEvent.position(), IntSize(gestureEvent.area().width() / 2, gestureEvent.area().height() / 2), adjustedPoint, targetNode);
+        if (!targetNode)
+            return false;
+    }
+#endif
+    bool defaultPrevented = false;
+    PlatformMouseEvent fakeMouseMove(adjustedPoint, gestureEvent.globalPosition(), NoButton, PlatformEvent::MouseMoved, /* clickCount */ 1, gestureEvent.shiftKey(), gestureEvent.ctrlKey(), gestureEvent.altKey(), gestureEvent.metaKey(), gestureEvent.timestamp());
+    PlatformMouseEvent fakeMouseDown(adjustedPoint, gestureEvent.globalPosition(), LeftButton, PlatformEvent::MousePressed, /* clickCount */ 1, gestureEvent.shiftKey(), gestureEvent.ctrlKey(), gestureEvent.altKey(), gestureEvent.metaKey(), gestureEvent.timestamp());
+    PlatformMouseEvent fakeMouseUp(adjustedPoint, gestureEvent.globalPosition(), LeftButton, PlatformEvent::MouseReleased, /* clickCount */ 1, gestureEvent.shiftKey(), gestureEvent.ctrlKey(), gestureEvent.altKey(), gestureEvent.metaKey(), gestureEvent.timestamp());
+    mouseMoved(fakeMouseMove);
+    defaultPrevented |= handleMousePressEvent(fakeMouseDown);
+    defaultPrevented |= handleMouseReleaseEvent(fakeMouseUp);
+    return defaultPrevented;
+}
+
+bool EventHandler::handleGestureScrollUpdate(const PlatformGestureEvent& gestureEvent)
+{
+    return handleGestureScrollCore(gestureEvent, ScrollByPixelWheelEvent, true);
+}
+
+bool EventHandler::handleGestureScrollCore(const PlatformGestureEvent& gestureEvent, PlatformWheelEventGranularity granularity, bool latchedWheel)
+{
+    TemporaryChange<bool> latched(m_useLatchedWheelEventNode, latchedWheel);
+    const float tickDivisor = (float)WheelEvent::tickMultiplier;
+    IntPoint point(gestureEvent.position().x(), gestureEvent.position().y());
+    IntPoint globalPoint(gestureEvent.globalPosition().x(), gestureEvent.globalPosition().y());
+    PlatformWheelEvent syntheticWheelEvent(point, globalPoint,
+        gestureEvent.deltaX(), gestureEvent.deltaY(), gestureEvent.deltaX() / tickDivisor, gestureEvent.deltaY() / tickDivisor,
+        granularity,
+        gestureEvent.shiftKey(), gestureEvent.ctrlKey(), gestureEvent.altKey(), gestureEvent.metaKey());
+    return handleWheelEvent(syntheticWheelEvent);
+}
+#endif
+
+#if ENABLE(TOUCH_ADJUSTMENT)
+void EventHandler::bestClickableNodeForTouchPoint(const IntPoint& touchCenter, const IntSize& touchRadius, IntPoint& targetPoint, Node*& targetNode)
+{
+    HitTestRequest::HitTestRequestType hitType = HitTestRequest::ReadOnly | HitTestRequest::Active;
+    HitTestResult result = hitTestResultAtPoint(touchCenter, /*allowShadowContent*/ false, /*ignoreClipping*/ false, DontHitTestScrollbars, hitType, touchRadius);
+
+    IntRect touchRect = result.rectForPoint(touchCenter);
+    RefPtr<StaticHashSetNodeList> nodeList = StaticHashSetNodeList::adopt(result.rectBasedTestResult());
+    if (!findBestClickableCandidate(targetNode, targetPoint, touchCenter, touchRect, *nodeList.get())) {
+        // Default to just returning innerNonSharedNode.
+        targetPoint = touchCenter;
+        targetNode = result.innerNonSharedNode();
+    }
 }
 #endif
 
@@ -2447,7 +2545,7 @@ bool EventHandler::sendContextMenuEventForKey()
         RenderBoxModelObject* box = focusedNode->renderBoxModelObject();
         if (!box)
             return false;
-        IntRect clippedRect = box->absoluteClippedOverflowRect();
+        IntRect clippedRect = box->pixelSnappedAbsoluteClippedOverflowRect();
         location = IntPoint(clippedRect.x(), clippedRect.maxY() - 1);
     } else {
         location = IntPoint(
@@ -2498,8 +2596,18 @@ void EventHandler::dispatchFakeMouseMoveEventSoon()
     if (m_mousePressed)
         return;
 
-    if (!m_fakeMouseMoveEventTimer.isActive())
-        m_fakeMouseMoveEventTimer.startOneShot(fakeMouseMoveInterval);
+    // If the content has ever taken longer than fakeMouseMoveShortInterval we
+    // reschedule the timer and use a longer time. This will cause the content
+    // to receive these moves only after the user is done scrolling, reducing
+    // pauses during the scroll.
+    if (m_maxMouseMovedDuration > fakeMouseMoveShortInterval) {
+        if (m_fakeMouseMoveEventTimer.isActive())
+            m_fakeMouseMoveEventTimer.stop();
+        m_fakeMouseMoveEventTimer.startOneShot(fakeMouseMoveLongInterval);
+    } else {
+        if (!m_fakeMouseMoveEventTimer.isActive())
+            m_fakeMouseMoveEventTimer.startOneShot(fakeMouseMoveShortInterval);
+    }
 }
 
 void EventHandler::dispatchFakeMouseMoveEventSoonInQuad(const FloatQuad& quad)
@@ -2508,11 +2616,10 @@ void EventHandler::dispatchFakeMouseMoveEventSoonInQuad(const FloatQuad& quad)
     if (!view)
         return;
 
-    if (m_mousePressed || !quad.containsPoint(view->windowToContents(m_currentMousePosition)))
+    if (!quad.containsPoint(view->windowToContents(m_currentMousePosition)))
         return;
 
-    if (!m_fakeMouseMoveEventTimer.isActive())
-        m_fakeMouseMoveEventTimer.startOneShot(fakeMouseMoveInterval);
+    dispatchFakeMouseMoveEventSoon();
 }
 
 void EventHandler::cancelFakeMouseMoveEvent()

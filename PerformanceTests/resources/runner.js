@@ -1,6 +1,27 @@
 
 var PerfTestRunner = {};
 
+// To make the benchmark results predictable, we replace Math.random with a
+// 100% deterministic alternative.
+PerfTestRunner.randomSeed = PerfTestRunner.initialRandomSeed = 49734321;
+
+PerfTestRunner.resetRandomSeed = function() {
+    PerfTestRunner.randomSeed = PerfTestRunner.initialRandomSeed
+}
+
+PerfTestRunner.random = Math.random = function() {
+    // Robert Jenkins' 32 bit integer hash function.
+    var randomSeed = PerfTestRunner.randomSeed;
+    randomSeed = ((randomSeed + 0x7ed55d16) + (randomSeed << 12))  & 0xffffffff;
+    randomSeed = ((randomSeed ^ 0xc761c23c) ^ (randomSeed >>> 19)) & 0xffffffff;
+    randomSeed = ((randomSeed + 0x165667b1) + (randomSeed << 5))   & 0xffffffff;
+    randomSeed = ((randomSeed + 0xd3a2646c) ^ (randomSeed << 9))   & 0xffffffff;
+    randomSeed = ((randomSeed + 0xfd7046c5) + (randomSeed << 3))   & 0xffffffff;
+    randomSeed = ((randomSeed ^ 0xb55a4f09) ^ (randomSeed >>> 16)) & 0xffffffff;
+    PerfTestRunner.randomSeed = randomSeed;
+    return (randomSeed & 0xfffffff) / 0x10000000;
+};
+
 PerfTestRunner.log = function (text) {
     if (!document.getElementById("log")) {
         var pre = document.createElement('pre');
@@ -9,6 +30,10 @@ PerfTestRunner.log = function (text) {
     }
     document.getElementById("log").innerHTML += text + "\n";
     window.scrollTo(0, document.body.height);
+}
+
+PerfTestRunner.info = function (text) {
+    this.log("Info: " + text);
 }
 
 PerfTestRunner.logInfo = function (text) {
@@ -50,6 +75,7 @@ PerfTestRunner.computeStatistics = function (times) {
     }
     result.variance = squareSum / data.length;
     result.stdev = Math.sqrt(result.variance);
+    result.unit = "ms";
 
     return result;
 }
@@ -62,11 +88,11 @@ PerfTestRunner.logStatistics = function (times) {
 
 PerfTestRunner.printStatistics = function (statistics) {
     this.log("");
-    this.log("avg " + statistics.mean);
-    this.log("median " + statistics.median);
-    this.log("stdev " + statistics.stdev);
-    this.log("min " + statistics.min);
-    this.log("max " + statistics.max);
+    this.log("avg " + statistics.mean + " " + statistics.unit);
+    this.log("median " + statistics.median + " " + statistics.unit);
+    this.log("stdev " + statistics.stdev + " " + statistics.unit);
+    this.log("min " + statistics.min + " " + statistics.unit);
+    this.log("max " + statistics.max + " " + statistics.unit);
 }
 
 PerfTestRunner.gc = function () {

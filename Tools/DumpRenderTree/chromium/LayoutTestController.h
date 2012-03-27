@@ -241,6 +241,7 @@ public:
     void pauseTransitionAtTimeOnElementWithId(const CppArgumentList&, CppVariant*);
     void elementDoesAutoCompleteForElementWithId(const CppArgumentList&, CppVariant*);
     void enableAutoResizeMode(const CppArgumentList&, CppVariant*);
+    void disableAutoResizeMode(const CppArgumentList&, CppVariant*);
     void numberOfActiveAnimations(const CppArgumentList&, CppVariant*);
     void suspendAnimations(const CppArgumentList&, CppVariant*);
     void resumeAnimations(const CppArgumentList&, CppVariant*);
@@ -384,7 +385,6 @@ public:
     void loseCompositorContext(const CppArgumentList& args, CppVariant* result);
 
     void markerTextForListItem(const CppArgumentList&, CppVariant*);
-    void hasSpellingMarker(const CppArgumentList&, CppVariant*);
     void findString(const CppArgumentList&, CppVariant*);
 
     void setMinimumTimerInterval(const CppArgumentList&, CppVariant*);
@@ -427,6 +427,8 @@ public:
     void enableFixedLayoutMode(const CppArgumentList&, CppVariant*);
     void setFixedLayoutSize(const CppArgumentList&, CppVariant*);
 
+    void selectionAsMarkup(const CppArgumentList&, CppVariant*);
+
 #if ENABLE(POINTER_LOCK)
     void didLosePointerLock(const CppArgumentList&, CppVariant*);
     void setPointerLockWillFailSynchronously(const CppArgumentList&, CppVariant*);
@@ -434,6 +436,10 @@ public:
 #endif
 
     void workerThreadCount(CppVariant*);
+
+    // Expects one string argument for sending successful result, zero
+    // for sending a failure result.
+    void sendWebIntentResponse(const CppArgumentList&, CppVariant*);
 
 public:
     // The following methods are not exposed to JavaScript.

@@ -42,10 +42,6 @@ namespace JSC {
 
 PassRefPtr<ExecutableMemoryHandle> JIT::privateCompileCTIMachineTrampolines(JSGlobalData* globalData, TrampolineStructure *trampolines)
 {
-#if ENABLE(JIT_USE_SOFT_MODULO)
-    Label softModBegin = align();
-    softModulo();
-#endif
     // (1) This function provides fast property access for string length
     Label stringLengthBegin = align();
 
@@ -79,7 +75,8 @@ PassRefPtr<ExecutableMemoryHandle> JIT::privateCompileCTIMachineTrampolines(JSGl
     // Also initialize ReturnPC for use by lazy linking and exceptions.
     preserveReturnAddressAfterCall(regT3);
     emitPutToCallFrameHeader(regT3, RegisterFile::ReturnPC);
-
+    
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
     restoreArgumentReference();
     Call callLazyLinkCall = call();
     restoreReturnAddressBeforeReturn(regT3);
@@ -98,7 +95,8 @@ PassRefPtr<ExecutableMemoryHandle> JIT::privateCompileCTIMachineTrampolines(JSGl
     // Also initialize ReturnPC for use by lazy linking and exeptions.
     preserveReturnAddressAfterCall(regT3);
     emitPutToCallFrameHeader(regT3, RegisterFile::ReturnPC);
-
+    
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
     restoreArgumentReference();
     Call callLazyLinkConstruct = call();
     restoreReturnAddressBeforeReturn(regT3);
@@ -117,6 +115,8 @@ PassRefPtr<ExecutableMemoryHandle> JIT::privateCompileCTIMachineTrampolines(JSGl
     loadPtr(Address(regT0, OBJECT_OFFSETOF(JSFunction, m_executable)), regT2);
     Jump hasCodeBlock1 = branch32(GreaterThanOrEqual, Address(regT2, OBJECT_OFFSETOF(FunctionExecutable, m_numParametersForCall)), TrustedImm32(0));
     preserveReturnAddressAfterCall(regT3);
+    
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
     restoreArgumentReference();
     Call callCompileCall = call();
     restoreReturnAddressBeforeReturn(regT3);
@@ -139,6 +139,8 @@ PassRefPtr<ExecutableMemoryHandle> JIT::privateCompileCTIMachineTrampolines(JSGl
     loadPtr(Address(regT0, OBJECT_OFFSETOF(JSFunction, m_executable)), regT2);
     Jump hasCodeBlock2 = branch32(GreaterThanOrEqual, Address(regT2, OBJECT_OFFSETOF(FunctionExecutable, m_numParametersForConstruct)), TrustedImm32(0));
     preserveReturnAddressAfterCall(regT3);
+    
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
     restoreArgumentReference();
     Call callCompileConstruct = call();
     restoreReturnAddressBeforeReturn(regT3);
@@ -216,10 +218,6 @@ PassRefPtr<ExecutableMemoryHandle> JIT::privateCompileCTIMachineTrampolines(JSGl
     trampolines->ctiNativeConstruct = patchBuffer.trampolineAt(nativeConstructThunk);
     trampolines->ctiStringLengthTrampoline = patchBuffer.trampolineAt(stringLengthBegin);
 
-#if ENABLE(JIT_USE_SOFT_MODULO)
-    trampolines->ctiSoftModulo = patchBuffer.trampolineAt(softModBegin);
-#endif
-    
     return executableMemory.release();
 }
 
@@ -348,7 +346,8 @@ JIT::Label JIT::privateCompileCTINativeCall(JSGlobalData* globalData, bool isCon
     move(TrustedImmPtr(&globalData->exceptionLocation), regT2);
     storePtr(regT1, regT2);
     poke(callFrameRegister, OBJECT_OFFSETOF(struct JITStackFrame, callFrame) / sizeof(void*));
-
+    
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
     // Set the return address.
     move(TrustedImmPtr(FunctionPtr(ctiVMThrowTrampoline).value()), regT1);
     restoreReturnAddressBeforeReturn(regT1);
@@ -484,7 +483,8 @@ JIT::CodeRef JIT::privateCompileCTINativeCall(JSGlobalData* globalData, NativeFu
     move(TrustedImmPtr(&globalData->exceptionLocation), regT2);
     storePtr(regT1, regT2);
     poke(callFrameRegister, OBJECT_OFFSETOF(struct JITStackFrame, callFrame) / sizeof(void*));
-
+    
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
     // Set the return address.
     move(TrustedImmPtr(FunctionPtr(ctiVMThrowTrampoline).value()), regT1);
     restoreReturnAddressBeforeReturn(regT1);
@@ -528,7 +528,7 @@ void JIT::emit_op_jmp(Instruction* currentInstruction)
 
 void JIT::emit_op_new_object(Instruction* currentInstruction)
 {
-    emitAllocateJSFinalObject(ImmPtr(m_codeBlock->globalObject()->emptyObjectStructure()), regT0, regT1);
+    emitAllocateJSFinalObject(TrustedImmPtr(m_codeBlock->globalObject()->emptyObjectStructure()), regT0, regT1);
     
     emitStoreCell(currentInstruction[1].u.operand, regT0);
 }
@@ -693,8 +693,8 @@ void JIT::emitSlow_op_to_primitive(Instruction* currentInstruction, Vector<SlowC
 void JIT::emit_op_strcat(Instruction* currentInstruction)
 {
     JITStubCall stubCall(this, cti_op_strcat);
-    stubCall.addArgument(Imm32(currentInstruction[2].u.operand));
-    stubCall.addArgument(Imm32(currentInstruction[3].u.operand));
+    stubCall.addArgument(TrustedImm32(currentInstruction[2].u.operand));
+    stubCall.addArgument(TrustedImm32(currentInstruction[3].u.operand));
     stubCall.call(currentInstruction[1].u.operand);
 }
 
@@ -708,7 +708,7 @@ void JIT::emit_op_resolve_base(Instruction* currentInstruction)
 void JIT::emit_op_ensure_property_exists(Instruction* currentInstruction)
 {
     JITStubCall stubCall(this, cti_op_ensure_property_exists);
-    stubCall.addArgument(Imm32(currentInstruction[1].u.operand));
+    stubCall.addArgument(TrustedImm32(currentInstruction[1].u.operand));
     stubCall.addArgument(TrustedImmPtr(&m_codeBlock->identifier(currentInstruction[2].u.operand)));
     stubCall.call(currentInstruction[1].u.operand);
 }
@@ -717,7 +717,7 @@ void JIT::emit_op_resolve_skip(Instruction* currentInstruction)
 {
     JITStubCall stubCall(this, cti_op_resolve_skip);
     stubCall.addArgument(TrustedImmPtr(&m_codeBlock->identifier(currentInstruction[2].u.operand)));
-    stubCall.addArgument(Imm32(currentInstruction[3].u.operand));
+    stubCall.addArgument(TrustedImm32(currentInstruction[3].u.operand));
     stubCall.callWithValueProfiling(currentInstruction[1].u.operand);
 }
 
@@ -758,7 +758,7 @@ void JIT::emitSlow_op_resolve_global(Instruction* currentInstruction, Vector<Slo
     linkSlowCase(iter);
     JITStubCall stubCall(this, cti_op_resolve_global);
     stubCall.addArgument(TrustedImmPtr(ident));
-    stubCall.addArgument(Imm32(currentIndex));
+    stubCall.addArgument(TrustedImm32(currentIndex));
     stubCall.callWithValueProfiling(dst);
 }
 
@@ -809,7 +809,7 @@ void JIT::emitSlow_op_jfalse(Instruction* currentInstruction, Vector<SlowCaseEnt
 
     if (supportsFloatingPoint()) {
         // regT1 contains the tag from the hot path.
-        Jump notNumber = branch32(Above, regT1, Imm32(JSValue::LowestTag));
+        Jump notNumber = branch32(Above, regT1, TrustedImm32(JSValue::LowestTag));
 
         emitLoadDouble(cond, fpRegT0);
         emitJumpSlowToHot(branchDoubleZeroOrNaN(fpRegT0, fpRegT1), target);
@@ -845,7 +845,7 @@ void JIT::emitSlow_op_jtrue(Instruction* currentInstruction, Vector<SlowCaseEntr
 
     if (supportsFloatingPoint()) {
         // regT1 contains the tag from the hot path.
-        Jump notNumber = branch32(Above, regT1, Imm32(JSValue::LowestTag));
+        Jump notNumber = branch32(Above, regT1, TrustedImm32(JSValue::LowestTag));
 
         emitLoadDouble(cond, fpRegT0);
         emitJumpSlowToHot(branchDoubleNonZero(fpRegT0, fpRegT1), target);
@@ -1156,7 +1156,7 @@ void JIT::emit_op_resolve_with_base(Instruction* currentInstruction)
 {
     JITStubCall stubCall(this, cti_op_resolve_with_base);
     stubCall.addArgument(TrustedImmPtr(&m_codeBlock->identifier(currentInstruction[3].u.operand)));
-    stubCall.addArgument(Imm32(currentInstruction[1].u.operand));
+    stubCall.addArgument(TrustedImm32(currentInstruction[1].u.operand));
     stubCall.callWithValueProfiling(currentInstruction[2].u.operand);
 }
 
@@ -1164,7 +1164,7 @@ void JIT::emit_op_resolve_with_this(Instruction* currentInstruction)
 {
     JITStubCall stubCall(this, cti_op_resolve_with_this);
     stubCall.addArgument(TrustedImmPtr(&m_codeBlock->identifier(currentInstruction[3].u.operand)));
-    stubCall.addArgument(Imm32(currentInstruction[1].u.operand));
+    stubCall.addArgument(TrustedImm32(currentInstruction[1].u.operand));
     stubCall.callWithValueProfiling(currentInstruction[2].u.operand);
 }
 
@@ -1356,7 +1356,7 @@ void JIT::emit_op_catch(Instruction* currentInstruction)
 void JIT::emit_op_jmp_scopes(Instruction* currentInstruction)
 {
     JITStubCall stubCall(this, cti_op_jmp_scopes);
-    stubCall.addArgument(Imm32(currentInstruction[1].u.operand));
+    stubCall.addArgument(TrustedImm32(currentInstruction[1].u.operand));
     stubCall.call();
     addJump(jump(), currentInstruction[2].u.operand);
 }
@@ -1374,7 +1374,7 @@ void JIT::emit_op_switch_imm(Instruction* currentInstruction)
 
     JITStubCall stubCall(this, cti_op_switch_imm);
     stubCall.addArgument(scrutinee);
-    stubCall.addArgument(Imm32(tableIndex));
+    stubCall.addArgument(TrustedImm32(tableIndex));
     stubCall.call();
     jump(regT0);
 }
@@ -1392,7 +1392,7 @@ void JIT::emit_op_switch_char(Instruction* currentInstruction)
 
     JITStubCall stubCall(this, cti_op_switch_char);
     stubCall.addArgument(scrutinee);
-    stubCall.addArgument(Imm32(tableIndex));
+    stubCall.addArgument(TrustedImm32(tableIndex));
     stubCall.call();
     jump(regT0);
 }
@@ -1409,7 +1409,7 @@ void JIT::emit_op_switch_string(Instruction* currentInstruction)
 
     JITStubCall stubCall(this, cti_op_switch_string);
     stubCall.addArgument(scrutinee);
-    stubCall.addArgument(Imm32(tableIndex));
+    stubCall.addArgument(TrustedImm32(tableIndex));
     stubCall.call();
     jump(regT0);
 }
@@ -1633,99 +1633,6 @@ void JIT::emitSlow_op_get_argument_by_val(Instruction* currentInstruction, Vecto
     stubCall.addArgument(property);
     stubCall.call(dst);
 }
-
-#if ENABLE(JIT_USE_SOFT_MODULO)
-void JIT::softModulo()
-{
-    move(regT2, regT3);
-    move(regT0, regT2);
-    move(TrustedImm32(0), regT1);
-    JumpList exitBranch;
-
-    // Check for negative result reminder
-    Jump positiveRegT3 = branch32(GreaterThanOrEqual, regT3, TrustedImm32(0));
-    neg32(regT3);
-    xor32(TrustedImm32(1), regT1);
-    positiveRegT3.link(this);
-
-    Jump positiveRegT2 = branch32(GreaterThanOrEqual, regT2, TrustedImm32(0));
-    neg32(regT2);
-    xor32(TrustedImm32(2), regT1);
-    positiveRegT2.link(this);
-
-    // Save the condition for negative reminder
-    push(regT1);
-
-    exitBranch.append(branch32(LessThan, regT2, regT3));
-
-    // Power of two fast case
-    move(regT3, regT0);
-    sub32(TrustedImm32(1), regT0);
-    Jump notPowerOfTwo = branchTest32(NonZero, regT0, regT3);
-    and32(regT0, regT2);
-    exitBranch.append(jump());
-
-    notPowerOfTwo.link(this);
-
-#if CPU(X86) || CPU(X86_64)
-    move(regT2, regT0);
-    m_assembler.cdq();
-    m_assembler.idivl_r(regT3);
-    move(regT1, regT2);
-#elif CPU(MIPS)
-    m_assembler.div(regT2, regT3);
-    m_assembler.mfhi(regT2);
-#else
-    countLeadingZeros32(regT2, regT0);
-    countLeadingZeros32(regT3, regT1);
-    sub32(regT0, regT1);
-
-    Jump useFullTable = branch32(Equal, regT1, TrustedImm32(31));
-
-    neg32(regT1);
-    add32(TrustedImm32(31), regT1);
-
-    int elementSizeByShift = -1;
-#if CPU(ARM)
-    elementSizeByShift = 3;
-#else
-#error "JIT_USE_SOFT_MODULO not yet supported on this platform."
-#endif
-    relativeTableJump(regT1, elementSizeByShift);
-
-    useFullTable.link(this);
-    // Modulo table
-    for (int i = 31; i > 0; --i) {
-#if CPU(ARM_TRADITIONAL)
-        m_assembler.cmp_r(regT2, m_assembler.lsl(regT3, i));
-        m_assembler.sub_r(regT2, regT2, m_assembler.lsl(regT3, i), ARMAssembler::CS);
-#elif CPU(ARM_THUMB2)
-        ShiftTypeAndAmount shift(SRType_LSL, i);
-        m_assembler.sub_S(regT1, regT2, regT3, shift);
-        m_assembler.it(ARMv7Assembler::ConditionCS);
-        m_assembler.mov(regT2, regT1);
-#else
-#error "JIT_USE_SOFT_MODULO not yet supported on this platform."
-#endif
-    }
-
-    Jump lower = branch32(Below, regT2, regT3);
-    sub32(regT3, regT2);
-    lower.link(this);
-#endif
-
-    exitBranch.link(this);
-
-    // Check for negative reminder
-    pop(regT1);
-    Jump positiveResult = branch32(Equal, regT1, TrustedImm32(0));
-    neg32(regT2);
-    positiveResult.link(this);
-
-    move(regT2, regT0);
-    ret();
-}
-#endif // ENABLE(JIT_USE_SOFT_MODULO)
 
 } // namespace JSC
 

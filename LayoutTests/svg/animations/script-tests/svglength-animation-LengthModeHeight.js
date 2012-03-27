@@ -28,18 +28,18 @@ rootSVGElement.appendChild(rect);
 // Setup animation test
 function sample1() {
     // Check initial/end conditions
-    shouldBe("rect.height.animVal.value", "100");
+    shouldBeCloseEnough("rect.height.animVal.value", "100");
     shouldBe("rect.height.baseVal.value", "100");
 }
 
 function sample2() {
-    shouldBeCloseEnough("rect.height.animVal.value", "150", 0.01);
-    shouldBeCloseEnough("rect.height.baseVal.value", "150", 0.01);
+    shouldBeCloseEnough("rect.height.animVal.value", "150");
+    shouldBe("rect.height.baseVal.value", "100");
 }
 
 function sample3() {
-    shouldBeCloseEnough("rect.height.animVal.value", "199.98", 0.01);
-    shouldBeCloseEnough("rect.height.baseVal.value", "199.98", 0.01);
+    shouldBeCloseEnough("rect.height.animVal.value", "200");
+    shouldBe("rect.height.baseVal.value", "100");
 }
 
 function executeTest() {
@@ -48,7 +48,7 @@ function executeTest() {
         ["animation", 0.0,   sample1],
         ["animation", 2.0,   sample2],
         ["animation", 3.999, sample3],
-        ["animation", 4.0,   sample1]
+        ["animation", 4.001, sample1]
     ];
 
     runAnimationTest(expectedValues);

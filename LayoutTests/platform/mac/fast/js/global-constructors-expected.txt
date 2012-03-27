@@ -296,6 +296,7 @@ PASS SVGUseElement.toString() is '[object SVGUseElementConstructor]'
 PASS SVGVKernElement.toString() is '[object SVGVKernElementConstructor]'
 PASS SVGViewElement.toString() is '[object SVGViewElementConstructor]'
 PASS SVGZoomEvent.toString() is '[object SVGZoomEventConstructor]'
+PASS Selection.toString() is '[object SelectionConstructor]'
 PASS SharedWorker.toString() is '[object SharedWorkerConstructor]'
 PASS Storage.toString() is '[object StorageConstructor]'
 PASS StorageEvent.toString() is '[object StorageEventConstructor]'
@@ -319,10 +320,12 @@ PASS WebKitCSSKeyframesRule.toString() is '[object WebKitCSSKeyframesRuleConstru
 PASS WebKitCSSMatrix.toString() is '[object WebKitCSSMatrixConstructor]'
 PASS WebKitCSSRegionRule.toString() is '[object WebKitCSSRegionRuleConstructor]'
 PASS WebKitCSSTransformValue.toString() is '[object WebKitCSSTransformValueConstructor]'
+PASS WebKitMutationObserver.toString() is '[object WebKitMutationObserverConstructor]'
 PASS WebKitPoint.toString() is '[object WebKitPointConstructor]'
 PASS WebKitTransitionEvent.toString() is '[object WebKitTransitionEventConstructor]'
 PASS WebSocket.toString() is '[object WebSocketConstructor]'
 PASS WheelEvent.toString() is '[object WheelEventConstructor]'
+PASS Window.toString() is '[object WindowConstructor]'
 PASS Worker.toString() is '[object WorkerConstructor]'
 PASS XMLDocument.toString() is '[object DocumentConstructor]'
 PASS XMLHttpRequest.toString() is '[object XMLHttpRequestConstructor]'
@@ -336,7 +339,7 @@ PASS XPathResult.toString() is '[object XPathResultConstructor]'
 PASS XSLTProcessor.toString() is '[object XSLTProcessorConstructor]'
 FAIL webkitAudioContext.toString() should be [object webkitAudioContextConstructor]. Was [object AudioContextConstructor].
 FAIL webkitAudioPannerNode.toString() should be [object webkitAudioPannerNodeConstructor]. Was [object AudioPannerNodeConstructor].
-FAIL webkitURL.toString() should be [object webkitURLConstructor]. Was [object DOMURLConstructor].
+FAIL webkitURL.toString() should be [object webkitURLConstructor]. Was [object URLConstructor].
 PASS successfullyParsed is true
 
 TEST COMPLETE

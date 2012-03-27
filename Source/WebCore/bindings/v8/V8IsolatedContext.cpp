@@ -37,9 +37,14 @@
 #include "SecurityOrigin.h"
 #include "V8DOMWindow.h"
 #include "V8HiddenPropertyName.h"
+#include "V8Proxy.h"
 
 namespace WebCore {
 
+V8IsolatedContext* V8IsolatedContext::isolatedContext()
+{
+    return reinterpret_cast<V8IsolatedContext*>(getGlobalObject(v8::Context::GetEntered())->GetPointerFromInternalField(V8DOMWindow::enteredIsolatedWorldIndex));
+}
 
 void V8IsolatedContext::contextWeakReferenceCallback(v8::Persistent<v8::Value> object, void* isolatedContext)
 {
@@ -75,7 +80,7 @@ V8IsolatedContext::V8IsolatedContext(V8Proxy* proxy, int extensionGroup, int wor
     //        changes.
     m_context->get()->UseDefaultSecurityToken();
 
-    m_frame->loader()->client()->didCreateScriptContext(context(), m_world->id());
+    m_frame->loader()->client()->didCreateScriptContext(context(), extensionGroup, m_world->id());
 }
 
 void V8IsolatedContext::destroy()

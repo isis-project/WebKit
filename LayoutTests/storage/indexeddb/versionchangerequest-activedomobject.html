@@ -5,20 +5,15 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Ensure that IDBVersionChangeRequest objects are not GC'd if they have pending events");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test() {
-    evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
+    removeVendorPrefixes();
 
     debug("");
-    evalAndLog("window.dbname = 'versionchangerequest-activedomobject'");
+    evalAndLog("self.dbname = 'versionchangerequest-activedomobject'");
 
     testDeleteDatabase();
 }
@@ -28,13 +23,13 @@ function testDeleteDatabase()
     debug("");
     debug("testDeleteDatabase():");
     // NOTE: deleteRequest is local variable so it is not captured in global scope.
-    var deleteRequest = evalAndLog("indexedDB.deleteDatabase(window.dbname)");
+    var deleteRequest = evalAndLog("indexedDB.deleteDatabase(self.dbname)");
     deleteRequest.onerror = unexpectedErrorCallback;
     deleteRequest.onblocked = unexpectedBlockedCallback;
     deleteRequest.onsuccess = function() { deleteSuccess(); };
     deleteRequest = null;
-    if (window.gc) {
-        evalAndLog("window.gc()");
+    if (self.gc) {
+        evalAndLog("self.gc()");
     }
 }
 
@@ -50,7 +45,7 @@ function testSetVersion()
     debug("testSetVersion():");
 
     // NOTE: This is just an IDBRequest, it can be global.
-    evalAndLog("openRequest = indexedDB.open(window.dbname)");
+    evalAndLog("openRequest = indexedDB.open(self.dbname)");
     openRequest.onerror = unexpectedErrorCallback;
     openRequest.onsuccess = function () {
         evalAndLog("db = openRequest.result");
@@ -61,8 +56,8 @@ function testSetVersion()
         versionRequest.onblocked = unexpectedBlockedCallback;
         versionRequest.onsuccess = function() { versionSuccess(); };
         versionRequest = null;
-        if (window.gc) {
-            evalAndLog("window.gc()");
+        if (self.gc) {
+            evalAndLog("self.gc()");
         }
     };
 }
@@ -70,11 +65,12 @@ function testSetVersion()
 function versionSuccess()
 {
     testPassed("setVersion's IDBVersionChangeRequest.onsuccess event fired");
-    done();
+    finishJSTest();
 }
 
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

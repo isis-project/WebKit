@@ -190,20 +190,8 @@ static const AtomicString& valueOrPropertyName(int valueOrPropertyID)
     return nullAtom;
 }
 
-CSSPrimitiveValue::CSSPrimitiveValue()
-    : CSSValue(PrimitiveClass)
-{
-}
-
 CSSPrimitiveValue::CSSPrimitiveValue(int ident)
     : CSSValue(PrimitiveClass)
-{
-    m_primitiveUnitType = CSS_IDENT;
-    m_value.ident = ident;
-}
-
-CSSPrimitiveValue::CSSPrimitiveValue(ClassType classType, int ident)
-    : CSSValue(classType)
 {
     m_primitiveUnitType = CSS_IDENT;
     m_value.ident = ident;
@@ -225,14 +213,6 @@ CSSPrimitiveValue::CSSPrimitiveValue(const String& str, UnitTypes type)
         m_value.string->ref();
 }
 
-
-CSSPrimitiveValue::CSSPrimitiveValue(ClassType classType, const String& str, UnitTypes type)
-    : CSSValue(classType)
-{
-    m_primitiveUnitType = type;
-    if ((m_value.string = str.impl()))
-        m_value.string->ref();
-}
 
 CSSPrimitiveValue::CSSPrimitiveValue(RGBA32 color)
     : CSSValue(PrimitiveClass)
@@ -266,6 +246,7 @@ CSSPrimitiveValue::CSSPrimitiveValue(const Length& length)
             ASSERT(isfinite(length.percent()));
             m_value.num = length.percent();
             break;
+        case Calculated:
         case Relative:
         case Undefined:
             ASSERT_NOT_REACHED();
@@ -393,28 +374,27 @@ double CSSPrimitiveValue::computeDegrees()
 
 template<> int CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
 {
-    return roundForImpreciseConversion<int, INT_MAX, INT_MIN>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
+    return roundForImpreciseConversion<int>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
 }
 
 template<> unsigned CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
 {
-    return roundForImpreciseConversion<unsigned, UINT_MAX, 0>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
+    return roundForImpreciseConversion<unsigned>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
 }
 
 template<> Length CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
 {
-    // FIXME: Length.h no longer expects 28 bit integers, so these bounds should be INT_MAX and INT_MIN
-    return Length(roundForImpreciseConversion<int, intMaxForLength, intMinForLength>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize)), Fixed);
+    return Length(roundForImpreciseConversion<int>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize)), Fixed);
 }
 
 template<> short CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
 {
-    return roundForImpreciseConversion<short, SHRT_MAX, SHRT_MIN>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
+    return roundForImpreciseConversion<short>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
 }
 
 template<> unsigned short CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
 {
-    return roundForImpreciseConversion<unsigned short, USHRT_MAX, 0>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
+    return roundForImpreciseConversion<unsigned short>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize));
 }
 
 template<> float CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
@@ -429,33 +409,26 @@ template<> double CSSPrimitiveValue::computeLength(RenderStyle* style, RenderSty
 
 double CSSPrimitiveValue::computeLengthDouble(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
 {
-    unsigned short type = primitiveType();
+    double factor;
 
-    // We do not apply the zoom factor when we are computing the value of the font-size property.  The zooming
-    // for font sizes is much more complicated, since we have to worry about enforcing the minimum font size preference
-    // as well as enforcing the implicit "smart minimum."  In addition the CSS property text-size-adjust is used to
-    // prevent text from zooming at all.  Therefore we will not apply the zoom here if we are computing font-size.
-    bool applyZoomMultiplier = !computingFontSize;
-
-    double factor = 1.0;
-    switch (type) {
+    switch (primitiveType()) {
         case CSS_EMS:
-            applyZoomMultiplier = false;
             factor = computingFontSize ? style->fontDescription().specifiedSize() : style->fontDescription().computedSize();
             break;
         case CSS_EXS:
             // FIXME: We have a bug right now where the zoom will be applied twice to EX units.
             // We really need to compute EX using fontMetrics for the original specifiedSize and not use
             // our actual constructed rendering font.
-            applyZoomMultiplier = false;
             factor = style->fontMetrics().xHeight();
             break;
         case CSS_REMS:
-            applyZoomMultiplier = false;
             if (rootStyle)
                 factor = computingFontSize ? rootStyle->fontDescription().specifiedSize() : rootStyle->fontDescription().computedSize();
+            else
+                factor = 1.0;
             break;
         case CSS_PX:
+            factor = 1.0;
             break;
         case CSS_CM:
             factor = cssPixelsPerInch / 2.54; // (2.54 cm/in)
@@ -489,15 +462,19 @@ double CSSPrimitiveValue::computeLengthDouble(RenderStyle* style, RenderStyle* r
     else
         computedValue = getDoubleValue();
     
+    // We do not apply the zoom factor when we are computing the value of the font-size property. The zooming
+    // for font sizes is much more complicated, since we have to worry about enforcing the minimum font size preference
+    // as well as enforcing the implicit "smart minimum." In addition the CSS property text-size-adjust is used to
+    // prevent text from zooming at all. Therefore we will not apply the zoom here if we are computing font-size.
     double result = computedValue * factor;
-    if (!applyZoomMultiplier || multiplier == 1.0f)
+    if (computingFontSize || isFontRelativeLength())
         return result;
 
     // Any original result that was >= 1 should not be allowed to fall below 1.  This keeps border lines from
     // vanishing.
     double zoomedResult = result * multiplier;
-    if (result >= 1.0)
-        zoomedResult = max(1.0, zoomedResult);
+    if (zoomedResult < 1.0 && result >= 1.0)
+        return 1.0;
     return zoomedResult;
 }
 

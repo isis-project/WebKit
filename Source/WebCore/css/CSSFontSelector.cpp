@@ -42,7 +42,6 @@
 #include "CachedResourceLoader.h"
 #include "Document.h"
 #include "FontCache.h"
-#include "FontFamilyValue.h"
 #include "Frame.h"
 #include "RenderObject.h"
 #include "Settings.h"
@@ -63,6 +62,7 @@ namespace WebCore {
 CSSFontSelector::CSSFontSelector(Document* document)
     : m_document(document)
     , m_beginLoadingTimer(this, &CSSFontSelector::beginLoadTimerFired)
+    , m_version(0)
 {
     // FIXME: An old comment used to say there was no need to hold a reference to m_document
     // because "we are guaranteed to be destroyed before the document". But there does not
@@ -254,11 +254,10 @@ void CSSFontSelector::addFontFaceRule(const CSSFontFaceRule* fontFaceRule)
         CSSPrimitiveValue* item = static_cast<CSSPrimitiveValue*>(familyList->itemWithoutBoundsCheck(i));
         String familyName;
         if (item->isString())
-            familyName = static_cast<FontFamilyValue*>(item)->familyName();
+            familyName = item->getStringValue();
         else if (item->isIdent()) {
             // We need to use the raw text for all the generic family types, since @font-face is a way of actually
             // defining what font to use for those types.
-            String familyName;
             switch (item->getIdent()) {
                 case CSSValueSerif:
                     familyName = serifFamily;
@@ -309,6 +308,8 @@ void CSSFontSelector::addFontFaceRule(const CSSFontFaceRule* fontFaceRule)
         }
 
         familyFontFaces->append(fontFace);
+        
+        ++m_version;
     }
 }
 
@@ -333,7 +334,7 @@ void CSSFontSelector::dispatchInvalidationCallbacks()
     if (!m_document)
         return;
     if (CSSStyleSelector* styleSelector = m_document->styleSelectorIfExists())
-        styleSelector->invalidateMatchedDeclarationCache();
+        styleSelector->invalidateMatchedPropertiesCache();
     if (m_document->inPageCache() || !m_document->renderer())
         return;
     m_document->scheduleForcedStyleRecalc();

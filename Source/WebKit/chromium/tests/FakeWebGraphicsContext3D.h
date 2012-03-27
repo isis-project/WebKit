@@ -35,8 +35,6 @@ namespace WebKit {
 // All operations are no-ops (returning 0 if necessary).
 class FakeWebGraphicsContext3D : public WebGraphicsContext3D {
 public:
-    virtual bool initialize(Attributes, WebView*, bool renderDirectlyToWebView) { return false; }
-
     virtual bool makeContextCurrent() { return true; }
 
     virtual int width() { return 0; }
@@ -64,6 +62,11 @@ public:
     virtual void unmapTexSubImage2DCHROMIUM(const void*) { }
 
     virtual void setVisibilityCHROMIUM(bool visible) { }
+
+    virtual void discardFramebufferEXT(WGC3Denum target, WGC3Dsizei numAttachments, const WGC3Denum* attachments) { }
+    virtual void ensureFramebufferCHROMIUM() { }
+
+    virtual void setMemoryAllocationChangedCallbackCHROMIUM(WebGraphicsMemoryAllocationChangedCallbackCHROMIUM* callback) { }
 
     virtual WebString getRequestableExtensionsCHROMIUM() { return WebString(); }
     virtual void requestExtensionCHROMIUM(const char*) { }
@@ -254,6 +257,14 @@ public:
 
     virtual void texStorage2DEXT(WGC3Denum target, WGC3Dint levels, WGC3Duint internalformat,
                                  WGC3Dint width, WGC3Dint height) { }
+
+    virtual WebGLId createQueryEXT() { return 1; }
+    virtual void deleteQueryEXT(WebGLId) { }
+    virtual GC3Dboolean isQueryEXT(WebGLId) { return true; }
+    virtual void beginQueryEXT(GC3Denum, WebGLId) { }
+    virtual void endQueryEXT(GC3Denum) { }
+    virtual void getQueryivEXT(GC3Denum, GC3Denum, GC3Dint*) { }
+    virtual void getQueryObjectuivEXT(WebGLId, GC3Denum, GC3Duint*) { }
 
 protected:
     Attributes m_attrs;

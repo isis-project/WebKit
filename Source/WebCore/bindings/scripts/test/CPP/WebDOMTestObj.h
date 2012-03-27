@@ -30,22 +30,20 @@ namespace WebCore {
 class TestObj;
 };
 
+class WebDOMDictionary;
 class WebDOMDocument;
 class WebDOMEventListener;
 class WebDOMIDBKey;
-class WebDOMOptionsObject;
 class WebDOMSVGPoint;
 class WebDOMString;
 class WebDOMTestObj;
-class WebDOMTestObjectAConstructor;
-class WebDOMTestObjectBConstructor;
-class WebDOMTestObjectCConstructor;
 class WebDOMa;
 class WebDOMb;
 class WebDOMbool;
 class WebDOMc;
 class WebDOMd;
 class WebDOMe;
+class WebDOMsequence;
 
 class WebDOMTestObj : public WebDOMObject {
 public:
@@ -120,23 +118,6 @@ public:
     void setStringAttrWithGetterException(const WebDOMString&);
     WebDOMString stringAttrWithSetterException() const;
     void setStringAttrWithSetterException(const WebDOMString&);
-    int withScriptStateAttribute() const;
-    void setWithScriptStateAttribute(int);
-    WebDOMTestObj withScriptExecutionContextAttribute() const;
-    void setWithScriptExecutionContextAttribute(const WebDOMTestObj&);
-    WebDOMTestObj withScriptStateAttributeRaises() const;
-    void setWithScriptStateAttributeRaises(const WebDOMTestObj&);
-    WebDOMTestObj withScriptExecutionContextAttributeRaises() const;
-    void setWithScriptExecutionContextAttributeRaises(const WebDOMTestObj&);
-    WebDOMTestObj withScriptExecutionContextAndScriptStateAttribute() const;
-    void setWithScriptExecutionContextAndScriptStateAttribute(const WebDOMTestObj&);
-    WebDOMTestObj withScriptExecutionContextAndScriptStateAttributeRaises() const;
-    void setWithScriptExecutionContextAndScriptStateAttributeRaises(const WebDOMTestObj&);
-    WebDOMTestObj withScriptExecutionContextAndScriptStateWithSpacesAttribute() const;
-    void setWithScriptExecutionContextAndScriptStateWithSpacesAttribute(const WebDOMTestObj&);
-    WebDOMTestObj withScriptArgumentsAndCallStackAttribute() const;
-    void setWithScriptArgumentsAndCallStackAttribute(const WebDOMTestObj&);
-    WebDOMString scriptStringAttr() const;
 #if ENABLE(Condition1)
     int conditionalAttr1() const;
     void setConditionalAttr1(int);
@@ -149,23 +130,13 @@ public:
     int conditionalAttr3() const;
     void setConditionalAttr3(int);
 #endif
-#if ENABLE(Condition1)
-    WebDOMTestObjectAConstructor conditionalAttr4() const;
-    void setConditionalAttr4(const WebDOMTestObjectAConstructor&);
-#endif
-#if ENABLE(Condition1) && ENABLE(Condition2)
-    WebDOMTestObjectBConstructor conditionalAttr5() const;
-    void setConditionalAttr5(const WebDOMTestObjectBConstructor&);
-#endif
-#if ENABLE(Condition1) || ENABLE(Condition2)
-    WebDOMTestObjectCConstructor conditionalAttr6() const;
-    void setConditionalAttr6(const WebDOMTestObjectCConstructor&);
-#endif
     WebDOMDocument contentDocument() const;
     WebDOMSVGPoint mutablePoint() const;
     void setMutablePoint(const WebDOMSVGPoint&);
     WebDOMSVGPoint immutablePoint() const;
     void setImmutablePoint(const WebDOMSVGPoint&);
+    int strawberry() const;
+    void setStrawberry(int);
     float strictFloat() const;
     void setStrictFloat(float);
     int description() const;
@@ -179,35 +150,37 @@ public:
     int intMethodWithArgs(int intArg, const WebDOMString& strArg, const WebDOMTestObj& objArg);
     WebDOMTestObj objMethod();
     WebDOMTestObj objMethodWithArgs(int intArg, const WebDOMString& strArg, const WebDOMTestObj& objArg);
+    void methodWithSequenceArg(const WebDOMsequence& );
     WebDOMTestObj methodThatRequiresAllArgsAndThrows(const WebDOMString& strArg, const WebDOMTestObj& objArg);
     void serializedValue(const WebDOMString& serializedArg);
     void idbKey(const WebDOMIDBKey& key);
-    void optionsObject(const WebDOMOptionsObject& oo, const WebDOMOptionsObject& ooo);
+    void optionsObject(const WebDOMDictionary& oo, const WebDOMDictionary& ooo);
     void methodWithException();
     void addEventListener(const WebDOMString& type, const WebDOMEventListener& listener, bool useCapture);
     void removeEventListener(const WebDOMString& type, const WebDOMEventListener& listener, bool useCapture);
-    void withScriptStateVoid();
-    WebDOMTestObj withScriptStateObj();
-    void withScriptStateVoidException();
-    WebDOMTestObj withScriptStateObjException();
-    void withScriptExecutionContext();
-    void withScriptExecutionContextAndScriptState();
-    WebDOMTestObj withScriptExecutionContextAndScriptStateObjException();
-    WebDOMTestObj withScriptExecutionContextAndScriptStateWithSpaces();
-    void withScriptArgumentsAndCallStack();
     void methodWithOptionalArg(int opt);
     void methodWithNonOptionalArgAndOptionalArg(int nonOpt, int opt);
     void methodWithNonOptionalArgAndTwoOptionalArgs(int nonOpt, int opt1, int opt2);
     void methodWithOptionalString(const WebDOMString& str);
     void methodWithOptionalStringIsUndefined(const WebDOMString& str);
     void methodWithOptionalStringIsNullString(const WebDOMString& str);
+#if ENABLE(Condition1)
     WebDOMString conditionalMethod1();
+#endif
+#if ENABLE(Condition1) && ENABLE(Condition2)
     void conditionalMethod2();
+#endif
+#if ENABLE(Condition1) || ENABLE(Condition2)
     void conditionalMethod3();
+#endif
     void classMethod();
     int classMethodWithOptional(int arg);
+#if ENABLE(Condition1)
     void overloadedMethod1(int arg);
+#endif
+#if ENABLE(Condition1)
     void overloadedMethod1(const WebDOMString& type);
+#endif
     void convert1(const WebDOMa& );
     void convert2(const WebDOMb& );
     void convert3(const WebDOMc& );
@@ -215,7 +188,7 @@ public:
     void convert5(const WebDOMe& );
     WebDOMSVGPoint mutablePointFunction();
     WebDOMSVGPoint immutablePointFunction();
-    void orange();
+    void banana();
     WebDOMbool strictFunction(const WebDOMString& str, float a, int b);
 
     WebCore::TestObj* impl() const;

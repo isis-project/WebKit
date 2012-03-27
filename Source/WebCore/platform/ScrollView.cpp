@@ -302,6 +302,7 @@ void ScrollView::setContentsSize(const IntSize& newSize)
         platformSetContentsSize();
     else
         updateScrollbars(scrollOffset());
+    updateOverhangAreas();
 }
 
 IntPoint ScrollView::maximumScrollPosition() const
@@ -361,6 +362,7 @@ void ScrollView::scrollTo(const IntSize& newOffset)
 
     repaintFixedElementsAfterScrolling();
     scrollContents(scrollDelta);
+    updateFixedElementsAfterScrolling();
 }
 
 int ScrollView::scrollPosition(Scrollbar* scrollbar) const
@@ -589,7 +591,13 @@ void ScrollView::updateScrollbars(const IntSize& desiredOffset)
             invalidateScrollCornerRect(oldScrollCornerRect);
     }
 
-    IntPoint adjustedScrollPosition = adjustScrollPositionWithinRange(IntPoint(desiredOffset));
+    IntPoint adjustedScrollPosition = IntPoint(desiredOffset);
+
+    if (ScrollAnimator* scrollAnimator = existingScrollAnimator()) {
+        if (!scrollAnimator->isRubberBandInProgress())
+            adjustedScrollPosition = adjustScrollPositionWithinRange(adjustedScrollPosition);
+    }
+
     if (adjustedScrollPosition != scrollPosition() || scrollOriginChanged()) {
         ScrollableArea::scrollToOffsetWithoutAnimation(adjustedScrollPosition + IntSize(scrollOrigin().x(), scrollOrigin().y()));
         resetScrollOriginChanged();
@@ -655,21 +663,7 @@ void ScrollView::scrollContents(const IntSize& scrollDelta)
     }
 
     // Invalidate the overhang areas if they are visible.
-    IntRect horizontalOverhangRect;
-    IntRect verticalOverhangRect;
-    calculateOverhangAreasForPainting(horizontalOverhangRect, verticalOverhangRect);
-#if USE(ACCELERATED_COMPOSITING) && PLATFORM(CHROMIUM) && ENABLE(RUBBER_BANDING)
-    if (GraphicsLayer* overhangLayer = layerForOverhangAreas()) {
-        bool hasOverhangArea = !horizontalOverhangRect.isEmpty() || !verticalOverhangRect.isEmpty();
-        overhangLayer->setDrawsContent(hasOverhangArea);
-        if (hasOverhangArea)
-            overhangLayer->setNeedsDisplay();
-    }
-#endif
-    if (!horizontalOverhangRect.isEmpty())
-        hostWindow()->invalidateContentsAndRootView(horizontalOverhangRect, false /*immediate*/);
-    if (!verticalOverhangRect.isEmpty())
-        hostWindow()->invalidateContentsAndRootView(verticalOverhangRect, false /*immediate*/);
+    updateOverhangAreas();
 
     // This call will move children with native widgets (plugins) and invalidate them as well.
     frameRectsChanged();
@@ -845,30 +839,6 @@ void ScrollView::setScrollbarOverlayStyle(ScrollbarOverlayStyle overlayStyle)
     platformSetScrollbarOverlayStyle(overlayStyle);
 }
 
-bool ScrollView::wheelEvent(const PlatformWheelEvent& e)
-{
-    // We don't allow mouse wheeling to happen in a ScrollView that has had its scrollbars explicitly disabled.
-#if PLATFORM(WX)
-    if (!canHaveScrollbars()) {
-#else
-    if (!canHaveScrollbars() || platformWidget()) {
-#endif
-        return false;
-    }
-
-    return ScrollableArea::handleWheelEvent(e);
-}
-
-#if ENABLE(GESTURE_EVENTS)
-void ScrollView::gestureEvent(const PlatformGestureEvent& gestureEvent)
-{
-    if (platformWidget())
-        return;
-
-    ScrollableArea::handleGestureEvent(gestureEvent);
-}
-#endif
-
 void ScrollView::setFrameRect(const IntRect& newRect)
 {
     IntRect oldRect = frameRect();
@@ -881,8 +851,8 @@ void ScrollView::setFrameRect(const IntRect& newRect)
     frameRectsChanged();
 
     updateScrollbars(scrollOffset());
-    
-    if (!m_useFixedLayout)
+
+    if (!m_useFixedLayout && oldRect.size() != newRect.size())
         contentsResized();
 }
 
@@ -1007,6 +977,11 @@ void ScrollView::paintScrollCorner(GraphicsContext* context, const IntRect& corn
     ScrollbarTheme::theme()->paintScrollCorner(this, context, cornerRect);
 }
 
+void ScrollView::paintScrollbar(GraphicsContext* context, Scrollbar* bar, const IntRect& rect)
+{
+    bar->paint(context, rect);
+}
+
 void ScrollView::invalidateScrollCornerRect(const IntRect& rect)
 {
     invalidateRect(rect);
@@ -1019,13 +994,13 @@ void ScrollView::paintScrollbars(GraphicsContext* context, const IntRect& rect)
         && !layerForHorizontalScrollbar()
 #endif
                                       )
-        m_horizontalScrollbar->paint(context, rect);
+        paintScrollbar(context, m_horizontalScrollbar.get(), rect);
     if (m_verticalScrollbar
 #if USE(ACCELERATED_COMPOSITING)
         && !layerForVerticalScrollbar()
 #endif
                                     )
-        m_verticalScrollbar->paint(context, rect);
+        paintScrollbar(context, m_verticalScrollbar.get(), rect);
 
 #if USE(ACCELERATED_COMPOSITING)
     if (layerForScrollCorner())
@@ -1037,7 +1012,10 @@ void ScrollView::paintScrollbars(GraphicsContext* context, const IntRect& rect)
 void ScrollView::paintPanScrollIcon(GraphicsContext* context)
 {
     static Image* panScrollIcon = Image::loadPlatformResource("panIcon").leakRef();
-    context->drawImage(panScrollIcon, ColorSpaceDeviceRGB, m_panScrollIconPoint);
+    IntPoint iconGCPoint = m_panScrollIconPoint;
+    if (parent())
+        iconGCPoint = parent()->windowToContents(iconGCPoint);
+    context->drawImage(panScrollIcon, ColorSpaceDeviceRGB, iconGCPoint);
 }
 
 void ScrollView::paint(GraphicsContext* context, const IntRect& rect)
@@ -1142,6 +1120,28 @@ void ScrollView::calculateOverhangAreasForPainting(IntRect& horizontalOverhangRe
         else
             verticalOverhangRect.setY(frameRect().y());
     }
+}
+
+void ScrollView::updateOverhangAreas()
+{
+    if (!hostWindow())
+        return;
+
+    IntRect horizontalOverhangRect;
+    IntRect verticalOverhangRect;
+    calculateOverhangAreasForPainting(horizontalOverhangRect, verticalOverhangRect);
+#if USE(ACCELERATED_COMPOSITING) && PLATFORM(CHROMIUM) && ENABLE(RUBBER_BANDING)
+    if (GraphicsLayer* overhangLayer = layerForOverhangAreas()) {
+        bool hasOverhangArea = !horizontalOverhangRect.isEmpty() || !verticalOverhangRect.isEmpty();
+        overhangLayer->setDrawsContent(hasOverhangArea);
+        if (hasOverhangArea)
+            overhangLayer->setNeedsDisplay();
+    }
+#endif
+    if (!horizontalOverhangRect.isEmpty())
+        hostWindow()->invalidateContentsAndRootView(horizontalOverhangRect, false /*immediate*/);
+    if (!verticalOverhangRect.isEmpty())
+        hostWindow()->invalidateContentsAndRootView(verticalOverhangRect, false /*immediate*/);
 }
 
 void ScrollView::paintOverhangAreas(GraphicsContext* context, const IntRect& horizontalOverhangRect, const IntRect& verticalOverhangRect, const IntRect& dirtyRect)

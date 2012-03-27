@@ -4,19 +4,13 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's IDBIndex.count().");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    evalAndLog("window.indexedDB = window.indexedDB || window.webkitIndexedDB");
-    evalAndLog("window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction");
-    evalAndLog("window.IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange");
+    removeVendorPrefixes();
     request = evalAndLog("indexedDB.open('index-count')");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function() {
@@ -31,14 +25,14 @@ function prepareDatabase()
 {
     debug("");
     debug("preparing database");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
 
     deleteAllObjectStores(db);
 
     store = evalAndLog("store = db.createObjectStore('storeName', null)");
 
-    window.index = evalAndLog("store.createIndex('indexName', '')");
+    self.index = evalAndLog("store.createIndex('indexName', '')");
     shouldBeTrue("store.indexNames.contains('indexName')");
 
     debug("adding 0 ... 99");
@@ -79,7 +73,7 @@ function verifyCountWithRange()
     trans = evalAndLog("trans = db.transaction('storeName', IDBTransaction.READ_ONLY)");
     shouldBeTrue("trans != null");
     trans.onabort = unexpectedAbortCallback;
-    trans.oncomplete = done;
+    trans.oncomplete = verifyCountWithKey;
 
     store = evalAndLog("store = trans.objectStore('storeName')");
     shouldBeTrue("store != null");
@@ -117,8 +111,52 @@ function verifyCountWithRange()
     nextTest();
 }
 
+function verifyCountWithKey()
+{
+    debug("");
+    debug("verifying count with key");
+    trans = evalAndLog("trans = db.transaction('storeName', IDBTransaction.READ_ONLY)");
+    shouldBeTrue("trans != null");
+    trans.onabort = unexpectedAbortCallback;
+    trans.oncomplete = finishJSTest;
+
+    store = evalAndLog("store = trans.objectStore('storeName')");
+    shouldBeTrue("store != null");
+    store = evalAndLog("index = trans.objectStore('storeName').index('indexName')");
+    shouldBeTrue("index != null");
+
+    evalAndExpectException("index.count(NaN)", "IDBDatabaseException.DATA_ERR");
+    evalAndExpectException("index.count({})", "IDBDatabaseException.DATA_ERR");
+    evalAndExpectException("index.count(/regex/)", "IDBDatabaseException.DATA_ERR");
+
+    var tests = [
+        { key: 0, expected: 1 },
+        { key: 100, expected: 0 },
+        { key: null, expected: 100 }
+    ];
+
+    function nextTest() {
+        debug("");
+        evalAndLog("test = " + JSON.stringify(tests.shift()));
+        request = evalAndLog("request = index.count(test.key)");
+        request.onerror = unexpectedErrorCallback;
+        request.onsuccess = function() {
+             shouldBeTrue("typeof request.result == 'number'");
+             shouldBe("request.result", String(test.expected));
+
+             if (tests.length) {
+                 nextTest();
+             }
+             // otherwise let the transaction complete
+        };
+    }
+
+    nextTest();
+}
+
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

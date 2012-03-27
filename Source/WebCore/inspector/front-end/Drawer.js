@@ -123,7 +123,7 @@ WebInspector.Drawer.prototype = {
         
         function animationFinished()
         {
-            WebInspector.inspectorView.currentPanel().statusBarResized();
+            WebInspector.inspectorView.currentPanel().doResize();
             if (this._view && this._view.afterShow)
                 this._view.afterShow();
             delete this._currentAnimation;
@@ -251,7 +251,7 @@ WebInspector.Drawer.prototype = {
 
         this._statusBarDragOffset = event.pageY - this.element.totalOffsetTop();
 
-        event.stopPropagation();
+        event.consume();
     },
 
     _statusBarDragging: function(event)
@@ -265,8 +265,7 @@ WebInspector.Drawer.prototype = {
             WebInspector.inspectorView.currentPanel().doResize();
         this._view.doResize();
 
-        event.preventDefault();
-        event.stopPropagation();
+        event.consume();
     },
 
     _endStatusBarDragging: function(event)
@@ -276,7 +275,7 @@ WebInspector.Drawer.prototype = {
         this._savedHeight = this.element.offsetHeight;
         delete this._statusBarDragOffset;
 
-        event.stopPropagation();
+        event.consume();
     }
 }
 

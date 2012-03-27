@@ -42,13 +42,23 @@
 #endif
 #include "ExceptionCode.h"
 #include "InjectedScriptHost.h"
+#include "InspectorDOMAgent.h"
 #include "InspectorDebuggerAgent.h"
 #include "InspectorValues.h"
+#include "JSEventListener.h"
+#include "JSFloat32Array.h"
+#include "JSFloat64Array.h"
 #include "JSHTMLAllCollection.h"
 #include "JSHTMLCollection.h"
+#include "JSInt16Array.h"
+#include "JSInt32Array.h"
+#include "JSInt8Array.h"
 #include "JSNode.h"
 #include "JSNodeList.h"
 #include "JSStorage.h"
+#include "JSUint16Array.h"
+#include "JSUint32Array.h"
+#include "JSUint8Array.h"
 #include "ScriptValue.h"
 #include "Storage.h"
 #include <parser/SourceCode.h>
@@ -76,17 +86,21 @@ ScriptValue InjectedScriptHost::nodeAsScriptValue(ScriptState* state, Node* node
     return ScriptValue(state->globalData(), toJS(state, deprecatedGlobalObjectForPrototype(state), node));
 }
 
-JSValue JSInjectedScriptHost::inspectedNode(ExecState* exec)
+JSValue JSInjectedScriptHost::inspectedObject(ExecState* exec)
 {
     if (exec->argumentCount() < 1)
         return jsUndefined();
 
-    Node* node = impl()->inspectedNode(exec->argument(0).toInt32(exec));
-    if (!node)
+    InjectedScriptHost::InspectableObject* object = impl()->inspectedObject(exec->argument(0).toInt32(exec));
+    if (!object)
         return jsUndefined();
 
     JSLock lock(SilenceAssertionsOnly);
-    return toJS(exec, globalObject(), node);
+    ScriptValue scriptValue = object->get(exec);
+    if (scriptValue.hasNoValue())
+        return jsUndefined();
+
+    return scriptValue.jsValue();
 }
 
 JSValue JSInjectedScriptHost::internalConstructorName(ExecState* exec)
@@ -132,6 +146,12 @@ JSValue JSInjectedScriptHost::type(ExecState* exec)
         return jsString(exec, String("array"));
     if (value.inherits(&JSHTMLCollection::s_info))
         return jsString(exec, String("array"));
+    if (value.inherits(&JSInt8Array::s_info) || value.inherits(&JSInt16Array::s_info) || value.inherits(&JSInt32Array::s_info))
+        return jsString(exec, String("array"));
+    if (value.inherits(&JSUint8Array::s_info) || value.inherits(&JSUint16Array::s_info) || value.inherits(&JSUint32Array::s_info))
+        return jsString(exec, String("array"));
+    if (value.inherits(&JSFloat32Array::s_info) || value.inherits(&JSFloat64Array::s_info))
+        return jsString(exec, String("array"));
     return jsUndefined();
 }
 
@@ -142,7 +162,7 @@ JSValue JSInjectedScriptHost::functionDetails(ExecState* exec)
     JSValue value = exec->argument(0);
     if (!value.asCell()->inherits(&JSFunction::s_info))
         return jsUndefined();
-    JSFunction* function = asFunction(value);
+    JSFunction* function = jsCast<JSFunction*>(value);
 
     const SourceCode* sourceCode = function->sourceCode();
     if (!sourceCode)
@@ -164,6 +184,58 @@ JSValue JSInjectedScriptHost::functionDetails(ExecState* exec)
     UString displayName = function->displayName(exec);
     if (!displayName.isEmpty())
         result->putDirect(exec->globalData(), Identifier(exec, "displayName"), jsString(exec, displayName));
+    return result;
+}
+
+static JSArray* getJSListenerFunctions(ExecState* exec, Document* document, const EventListenerInfo& listenerInfo)
+{
+    JSArray* result = constructEmptyArray(exec);
+    size_t handlersCount = listenerInfo.eventListenerVector.size();
+    for (size_t i = 0, outputIndex = 0; i < handlersCount; ++i) {
+        const JSEventListener* jsListener = JSEventListener::cast(listenerInfo.eventListenerVector[i].listener.get());
+        if (!jsListener) {
+            ASSERT_NOT_REACHED();
+            continue;
+        }
+        // Hide listeners from other contexts.
+        if (jsListener->isolatedWorld() != currentWorld(exec))
+            continue;
+        JSObject* function = jsListener->jsFunction(document);
+        JSObject* listenerEntry = constructEmptyObject(exec);
+        listenerEntry->putDirect(exec->globalData(), Identifier(exec, "listener"), function);
+        listenerEntry->putDirect(exec->globalData(), Identifier(exec, "useCapture"), jsBoolean(listenerInfo.eventListenerVector[i].useCapture));
+        result->putDirectIndex(exec, outputIndex++, JSValue(listenerEntry));
+    }
+    return result;
+}
+
+JSValue JSInjectedScriptHost::getEventListeners(ExecState* exec)
+{
+    if (exec->argumentCount() < 1)
+        return jsUndefined();
+    JSValue value = exec->argument(0);
+    if (!value.isObject() || value.isNull())
+        return jsUndefined();
+    Node* node = toNode(value);
+    if (!node)
+        return jsUndefined();
+    // This can only happen for orphan DocumentType nodes.
+    Document* document = node->document();
+    if (!node->document())
+        return jsUndefined();
+
+    Vector<EventListenerInfo> listenersArray;
+    impl()->getEventListenersImpl(node, listenersArray);
+
+    JSObject* result = constructEmptyObject(exec);
+    for (size_t i = 0; i < listenersArray.size(); ++i) {
+        JSArray* listeners = getJSListenerFunctions(exec, document, listenersArray[i]);
+        if (!listeners->length())
+            continue;
+        AtomicString eventType = listenersArray[i].eventType;
+        result->putDirect(exec->globalData(), Identifier(exec, eventType.impl()), JSValue(listeners));
+    }
+
     return result;
 }
 

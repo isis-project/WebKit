@@ -48,19 +48,13 @@ namespace JSC { namespace DFG {
 #define FLAG_FOR_MERGE_TO_SUCCESSORS   20
 #define FLAG_FOR_STRUCTURE_CLOBBERING  21
 
-AbstractState::AbstractState(CodeBlock* codeBlock, Graph& graph)
-    : m_codeBlock(codeBlock)
+AbstractState::AbstractState(Graph& graph)
+    : m_codeBlock(graph.m_codeBlock)
     , m_graph(graph)
-    , m_variables(codeBlock->numParameters(), graph.m_localVars)
+    , m_variables(m_codeBlock->numParameters(), graph.m_localVars)
     , m_block(0)
 {
-    size_t maxBlockSize = 0;
-    for (size_t i = 0; i < graph.m_blocks.size(); ++i) {
-        BasicBlock* block = graph.m_blocks[i].get();
-        if (block->end - block->begin > maxBlockSize)
-            maxBlockSize = block->end - block->begin;
-    }
-    m_nodes.resize(maxBlockSize);
+    m_nodes.resize(graph.size());
 }
 
 AbstractState::~AbstractState() { }
@@ -75,8 +69,9 @@ void AbstractState::beginBasicBlock(BasicBlock* basicBlock)
     ASSERT(basicBlock->variablesAtTail.numberOfLocals() == basicBlock->valuesAtTail.numberOfLocals());
     ASSERT(basicBlock->variablesAtHead.numberOfLocals() == basicBlock->variablesAtTail.numberOfLocals());
     
-    for (size_t i = 0; i < basicBlock->end - basicBlock->begin; ++i)
-        m_nodes[i].clear();
+    for (size_t i = 0; i < basicBlock->size(); i++)
+        m_nodes[basicBlock->at(i)].clear();
+
     m_variables = basicBlock->valuesAtHead;
     m_haveStructures = false;
     for (size_t i = 0; i < m_variables.numberOfArguments(); ++i) {
@@ -104,7 +99,21 @@ void AbstractState::initialize(Graph& graph)
     BasicBlock* root = graph.m_blocks[0].get();
     root->cfaShouldRevisit = true;
     for (size_t i = 0; i < root->valuesAtHead.numberOfArguments(); ++i) {
-        PredictedType prediction = graph[root->variablesAtHead.argument(i)].variableAccessData()->prediction();
+        Node& node = graph[root->variablesAtHead.argument(i)];
+        ASSERT(node.op() == SetArgument);
+        if (!node.shouldGenerate()) {
+            // The argument is dead. We don't do any checks for such arguments, and so
+            // for the purpose of the analysis, they contain no value.
+            root->valuesAtHead.argument(i).clear();
+            continue;
+        }
+        
+        if (graph.argumentIsCaptured(i)) {
+            root->valuesAtHead.argument(i).makeTop();
+            continue;
+        }
+        
+        PredictedType prediction = node.variableAccessData()->prediction();
         if (isInt32Prediction(prediction))
             root->valuesAtHead.argument(i).set(PredictInt32);
         else if (isArrayPrediction(prediction))
@@ -134,6 +143,11 @@ void AbstractState::initialize(Graph& graph)
         else
             root->valuesAtHead.argument(i).makeTop();
     }
+    for (size_t i = 0; i < root->valuesAtHead.numberOfLocals(); ++i) {
+        if (!graph.localIsCaptured(i))
+            continue;
+        root->valuesAtHead.local(i).makeTop();
+    }
 }
 
 bool AbstractState::endBasicBlock(MergeMode mergeMode)
@@ -155,14 +169,28 @@ bool AbstractState::endBasicBlock(MergeMode mergeMode)
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
             dataLog("        Merging state for argument %zu.\n", argument);
 #endif
-            changed |= mergeStateAtTail(block->valuesAtTail.argument(argument), m_variables.argument(argument), block->variablesAtTail.argument(argument));
+            AbstractValue& destination = block->valuesAtTail.argument(argument);
+            if (m_graph.argumentIsCaptured(argument)) {
+                if (!destination.isTop()) {
+                    destination.makeTop();
+                    changed = true;
+                }
+            } else
+                changed |= mergeStateAtTail(destination, m_variables.argument(argument), block->variablesAtTail.argument(argument));
         }
         
         for (size_t local = 0; local < block->variablesAtTail.numberOfLocals(); ++local) {
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
             dataLog("        Merging state for local %zu.\n", local);
 #endif
-            changed |= mergeStateAtTail(block->valuesAtTail.local(local), m_variables.local(local), block->variablesAtTail.local(local));
+            AbstractValue& destination = block->valuesAtTail.local(local);
+            if (m_graph.localIsCaptured(local)) {
+                if (!destination.isTop()) {
+                    destination.makeTop();
+                    changed = true;
+                }
+            } else
+                changed |= mergeStateAtTail(destination, m_variables.local(local), block->variablesAtTail.local(local));
         }
     }
     
@@ -182,21 +210,22 @@ void AbstractState::reset()
     m_isValid = false;
 }
 
-bool AbstractState::execute(NodeIndex nodeIndex)
+bool AbstractState::execute(unsigned indexInBlock)
 {
     PROFILE(FLAG_FOR_EXECUTION);
     ASSERT(m_block);
     ASSERT(m_isValid);
         
+    NodeIndex nodeIndex = m_block->at(indexInBlock);
     Node& node = m_graph[nodeIndex];
         
     if (!node.shouldGenerate())
         return true;
         
-    switch (node.op) {
+    switch (node.op()) {
     case JSConstant:
     case WeakJSConstant: {
-        JSValue value = m_graph.valueOfJSConstant(m_codeBlock, nodeIndex);
+        JSValue value = m_graph.valueOfJSConstant(nodeIndex);
         // Have to be careful here! It's tempting to call set(value), but
         // that would be wrong, since that would constitute a proof that this
         // value will always have the same structure. The whole point of a value
@@ -207,11 +236,17 @@ bool AbstractState::execute(NodeIndex nodeIndex)
     }
             
     case GetLocal: {
-        forNode(nodeIndex) = m_variables.operand(node.local());
+        if (m_graph.isCaptured(node.local()))
+            forNode(nodeIndex).makeTop();
+        else
+            forNode(nodeIndex) = m_variables.operand(node.local());
         break;
     }
         
     case SetLocal: {
+        if (m_graph.isCaptured(node.local()))
+            break;
+        
         if (node.variableAccessData()->shouldUseDoubleFormat()) {
             forNode(node.child1()).filter(PredictNumber);
             m_variables.operand(node.local()).set(PredictDouble);
@@ -256,18 +291,24 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         break;
             
     case ValueToInt32:
-        if (!m_graph[node.child1()].shouldNotSpeculateInteger()) {
-            if (m_graph[node.child1()].shouldSpeculateDouble())
-                forNode(node.child1()).filter(PredictNumber);
-            else
-                forNode(node.child1()).filter(PredictInt32);
-        }
+        if (m_graph[node.child1()].shouldSpeculateInteger())
+            forNode(node.child1()).filter(PredictInt32);
+        else if (m_graph[node.child1()].shouldSpeculateNumber())
+            forNode(node.child1()).filter(PredictNumber);
+        else if (m_graph[node.child1()].shouldSpeculateBoolean())
+            forNode(node.child1()).filter(PredictBoolean);
+        
         forNode(nodeIndex).set(PredictInt32);
+        break;
+        
+    case Int32ToDouble:
+        forNode(node.child1()).filter(PredictNumber);
+        forNode(nodeIndex).set(PredictDouble);
         break;
             
     case ValueAdd:
     case ArithAdd: {
-        if (m_graph.addShouldSpeculateInteger(node, m_codeBlock)) {
+        if (m_graph.addShouldSpeculateInteger(node)) {
             forNode(node.child1()).filter(PredictInt32);
             forNode(node.child2()).filter(PredictInt32);
             forNode(nodeIndex).set(PredictInt32);
@@ -279,14 +320,18 @@ bool AbstractState::execute(NodeIndex nodeIndex)
             forNode(nodeIndex).set(PredictDouble);
             break;
         }
-        ASSERT(node.op == ValueAdd);
-        clobberStructures(nodeIndex);
-        forNode(nodeIndex).set(PredictString | PredictInt32 | PredictNumber);
+        if (node.op() == ValueAdd) {
+            clobberStructures(indexInBlock);
+            forNode(nodeIndex).set(PredictString | PredictInt32 | PredictNumber);
+            break;
+        }
+        // We don't handle this yet. :-(
+        m_isValid = false;
         break;
     }
             
     case ArithSub: {
-        if (m_graph.addShouldSpeculateInteger(node, m_codeBlock)) {
+        if (m_graph.addShouldSpeculateInteger(node)) {
             forNode(node.child1()).filter(PredictInt32);
             forNode(node.child2()).filter(PredictInt32);
             forNode(nodeIndex).set(PredictInt32);
@@ -298,10 +343,22 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         break;
     }
         
+    case ArithNegate: {
+        if (m_graph.negateShouldSpeculateInteger(node)) {
+            forNode(node.child1()).filter(PredictInt32);
+            forNode(nodeIndex).set(PredictInt32);
+            break;
+        }
+        forNode(node.child1()).filter(PredictNumber);
+        forNode(nodeIndex).set(PredictDouble);
+        break;
+    }
+        
     case ArithMul:
     case ArithDiv:
     case ArithMin:
-    case ArithMax: {
+    case ArithMax:
+    case ArithMod: {
         if (Node::shouldSpeculateInteger(m_graph[node.child1()], m_graph[node.child2()]) && node.canSpeculateInteger()) {
             forNode(node.child1()).filter(PredictInt32);
             forNode(node.child2()).filter(PredictInt32);
@@ -311,19 +368,6 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         forNode(node.child1()).filter(PredictNumber);
         forNode(node.child2()).filter(PredictNumber);
         forNode(nodeIndex).set(PredictDouble);
-        break;
-    }
-            
-    case ArithMod: {
-        if (m_graph[node.child1()].shouldNotSpeculateInteger() || m_graph[node.child2()].shouldNotSpeculateInteger() || !node.canSpeculateInteger()) {
-            forNode(node.child1()).filter(PredictNumber);
-            forNode(node.child2()).filter(PredictNumber);
-            forNode(nodeIndex).set(PredictDouble);
-            break;
-        }
-        forNode(node.child1()).filter(PredictInt32);
-        forNode(node.child2()).filter(PredictInt32);
-        forNode(nodeIndex).set(PredictInt32);
         break;
     }
             
@@ -344,7 +388,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
             
     case LogicalNot: {
         Node& child = m_graph[node.child1()];
-        if (isBooleanPrediction(child.prediction()) || !child.prediction())
+        if (isBooleanPrediction(child.prediction()))
             forNode(node.child1()).filter(PredictBoolean);
         else if (child.shouldSpeculateFinalObjectOrOther())
             forNode(node.child1()).filter(PredictFinalObject | PredictOther);
@@ -355,7 +399,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         else if (child.shouldSpeculateNumber())
             forNode(node.child1()).filter(PredictNumber);
         else
-            clobberStructures(nodeIndex);
+            clobberStructures(indexInBlock);
         forNode(nodeIndex).set(PredictBoolean);
         break;
     }
@@ -372,13 +416,13 @@ bool AbstractState::execute(NodeIndex nodeIndex)
             filter = PredictInt32;
         else if (Node::shouldSpeculateNumber(left, right))
             filter = PredictNumber;
-        else if (node.op == CompareEq && Node::shouldSpeculateFinalObject(left, right))
+        else if (node.op() == CompareEq && Node::shouldSpeculateFinalObject(left, right))
             filter = PredictFinalObject;
-        else if (node.op == CompareEq && Node::shouldSpeculateArray(left, right))
+        else if (node.op() == CompareEq && Node::shouldSpeculateArray(left, right))
             filter = PredictArray;
         else {
             filter = PredictTop;
-            clobberStructures(nodeIndex);
+            clobberStructures(indexInBlock);
         }
         forNode(node.child1()).filter(filter);
         forNode(node.child2()).filter(filter);
@@ -408,7 +452,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
             break;
         }
         if (!isActionableArrayPrediction(m_graph[node.child1()].prediction()) || !m_graph[node.child2()].shouldSpeculateInteger()) {
-            clobberStructures(nodeIndex);
+            clobberStructures(indexInBlock);
             forNode(nodeIndex).makeTop();
             break;
         }
@@ -464,7 +508,10 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         if (m_graph[node.child1()].shouldSpeculateUint32Array()) {
             forNode(node.child1()).filter(PredictUint32Array);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(nodeIndex).set(PredictDouble);
+            if (node.shouldSpeculateInteger())
+                forNode(nodeIndex).set(PredictInt32);
+            else
+                forNode(nodeIndex).set(PredictDouble);
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateFloat32Array()) {
@@ -493,58 +540,82 @@ bool AbstractState::execute(NodeIndex nodeIndex)
             break;
         }
         if (!m_graph[node.child2()].shouldSpeculateInteger() || !isActionableMutableArrayPrediction(m_graph[node.child1()].prediction())) {
-            ASSERT(node.op == PutByVal);
-            clobberStructures(nodeIndex);
+            ASSERT(node.op() == PutByVal);
+            clobberStructures(indexInBlock);
             forNode(nodeIndex).makeTop();
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateByteArray()) {
             forNode(node.child1()).filter(PredictByteArray);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(node.child3()).filter(PredictNumber);
+            if (m_graph[node.child3()].shouldSpeculateInteger())
+                forNode(node.child3()).filter(PredictInt32);
+            else
+                forNode(node.child3()).filter(PredictNumber);
             break;
         }
         
         if (m_graph[node.child1()].shouldSpeculateInt8Array()) {
             forNode(node.child1()).filter(PredictInt8Array);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(node.child3()).filter(PredictNumber);
+            if (m_graph[node.child3()].shouldSpeculateInteger())
+                forNode(node.child3()).filter(PredictInt32);
+            else
+                forNode(node.child3()).filter(PredictNumber);
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateInt16Array()) {
             forNode(node.child1()).filter(PredictInt16Array);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(node.child3()).filter(PredictNumber);
+            if (m_graph[node.child3()].shouldSpeculateInteger())
+                forNode(node.child3()).filter(PredictInt32);
+            else
+                forNode(node.child3()).filter(PredictNumber);
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateInt32Array()) {
             forNode(node.child1()).filter(PredictInt32Array);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(node.child3()).filter(PredictNumber);
+            if (m_graph[node.child3()].shouldSpeculateInteger())
+                forNode(node.child3()).filter(PredictInt32);
+            else
+                forNode(node.child3()).filter(PredictNumber);
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateUint8Array()) {
             forNode(node.child1()).filter(PredictUint8Array);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(node.child3()).filter(PredictNumber);
+            if (m_graph[node.child3()].shouldSpeculateInteger())
+                forNode(node.child3()).filter(PredictInt32);
+            else
+                forNode(node.child3()).filter(PredictNumber);
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateUint8ClampedArray()) {
             forNode(node.child1()).filter(PredictUint8ClampedArray);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(node.child3()).filter(PredictNumber);
+            if (m_graph[node.child3()].shouldSpeculateInteger())
+                forNode(node.child3()).filter(PredictInt32);
+            else
+                forNode(node.child3()).filter(PredictNumber);
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateUint16Array()) {
             forNode(node.child1()).filter(PredictUint16Array);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(node.child3()).filter(PredictNumber);
+            if (m_graph[node.child3()].shouldSpeculateInteger())
+                forNode(node.child3()).filter(PredictInt32);
+            else
+                forNode(node.child3()).filter(PredictNumber);
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateUint32Array()) {
             forNode(node.child1()).filter(PredictUint32Array);
             forNode(node.child2()).filter(PredictInt32);
-            forNode(node.child3()).filter(PredictNumber);
+            if (m_graph[node.child3()].shouldSpeculateInteger())
+                forNode(node.child3()).filter(PredictInt32);
+            else
+                forNode(node.child3()).filter(PredictNumber);
             break;
         }
         if (m_graph[node.child1()].shouldSpeculateFloat32Array()) {
@@ -575,6 +646,13 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         forNode(nodeIndex).makeTop();
         break;
             
+    case RegExpExec:
+    case RegExpTest:
+        forNode(node.child1()).filter(PredictCell);
+        forNode(node.child2()).filter(PredictCell);
+        forNode(nodeIndex).makeTop();
+        break;
+            
     case Jump:
         break;
             
@@ -583,7 +661,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         // propagation, and to take it one step further, where a variable's value
         // is specialized on each direction of a branch. For now, we don't do this.
         Node& child = m_graph[node.child1()];
-        if (isBooleanPrediction(child.prediction()) || !child.prediction())
+        if (child.shouldSpeculateBoolean())
             forNode(node.child1()).filter(PredictBoolean);
         else if (child.shouldSpeculateFinalObjectOrOther())
             forNode(node.child1()).filter(PredictFinalObject | PredictOther);
@@ -680,10 +758,25 @@ bool AbstractState::execute(NodeIndex nodeIndex)
     }
             
     case NewObject:
-        forNode(nodeIndex).set(m_codeBlock->globalObject()->emptyObjectStructure());
+        forNode(nodeIndex).set(m_codeBlock->globalObjectFor(node.codeOrigin)->emptyObjectStructure());
         m_haveStructures = true;
         break;
-            
+        
+    case CreateActivation:
+        forNode(nodeIndex).set(m_graph.m_globalData.activationStructure.get());
+        m_haveStructures = true;
+        break;
+        
+    case TearOffActivation:
+        // Does nothing that is user-visible.
+        break;
+        
+    case NewFunction:
+    case NewFunctionExpression:
+    case NewFunctionNoCheck:
+        forNode(nodeIndex).set(m_codeBlock->globalObjectFor(node.codeOrigin)->functionStructure());
+        break;
+        
     case GetCallee:
         forNode(nodeIndex).set(PredictFunction);
         break;
@@ -697,7 +790,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         break;
             
     case PutScopedVar:
-        clobberStructures(nodeIndex);
+        clobberStructures(indexInBlock);
         break;
             
     case GetById:
@@ -708,7 +801,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         }
         if (isCellPrediction(m_graph[node.child1()].prediction()))
             forNode(node.child1()).filter(PredictCell);
-        clobberStructures(nodeIndex);
+        clobberStructures(indexInBlock);
         forNode(nodeIndex).makeTop();
         break;
             
@@ -770,7 +863,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
         break;
             
     case PutStructure:
-        clobberStructures(nodeIndex);
+        clobberStructures(indexInBlock);
         forNode(node.child1()).set(node.structureTransitionData().newStructure);
         m_haveStructures = true;
         break;
@@ -861,7 +954,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
     case PutById:
     case PutByIdDirect:
         forNode(node.child1()).filter(PredictCell);
-        clobberStructures(nodeIndex);
+        clobberStructures(indexInBlock);
         break;
             
     case GetGlobalVar:
@@ -897,7 +990,7 @@ bool AbstractState::execute(NodeIndex nodeIndex)
     case ResolveBase:
     case ResolveBaseStrictPut:
     case ResolveGlobal:
-        clobberStructures(nodeIndex);
+        clobberStructures(indexInBlock);
         forNode(nodeIndex).makeTop();
         break;
             
@@ -909,18 +1002,22 @@ bool AbstractState::execute(NodeIndex nodeIndex)
     case InlineStart:
     case Nop:
         break;
+        
+    case LastNodeType:
+        ASSERT_NOT_REACHED();
+        break;
     }
     
     return m_isValid;
 }
 
-inline void AbstractState::clobberStructures(NodeIndex nodeIndex)
+inline void AbstractState::clobberStructures(unsigned indexInBlock)
 {
     PROFILE(FLAG_FOR_STRUCTURE_CLOBBERING);
     if (!m_haveStructures)
         return;
-    for (size_t i = nodeIndex - m_block->begin + 1; i-- > 0;)
-        m_nodes[i].clobberStructures();
+    for (size_t i = indexInBlock + 1; i--;)
+        forNode(m_block->at(i)).clobberStructures();
     for (size_t i = 0; i < m_variables.numberOfArguments(); ++i)
         m_variables.argument(i).clobberStructures();
     for (size_t i = 0; i < m_variables.numberOfLocals(); ++i)
@@ -933,22 +1030,22 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
     if (nodeIndex == NoNode)
         return false;
         
-    AbstractValue* source;
+    AbstractValue source;
         
     Node& node = m_graph[nodeIndex];
     if (!node.refCount())
         return false;
     
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
-            dataLog("          It's live, node @%u.\n", nodeIndex);
+    dataLog("          It's live, node @%u.\n", nodeIndex);
 #endif
-
-    switch (node.op) {
+    
+    switch (node.op()) {
     case Phi:
     case SetArgument:
     case Flush:
         // The block transfers the value from head to tail.
-        source = &inVariable;
+        source = inVariable;
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
         dataLog("          Transfering from head to tail.\n");
 #endif
@@ -956,7 +1053,7 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
             
     case GetLocal:
         // The block refines the value with additional speculations.
-        source = &forNode(nodeIndex);
+        source = forNode(nodeIndex);
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
         dataLog("          Refining.\n");
 #endif
@@ -965,7 +1062,10 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
     case SetLocal:
         // The block sets the variable, and potentially refines it, both
         // before and after setting it.
-        source = &forNode(node.child1());
+        if (node.variableAccessData()->shouldUseDoubleFormat())
+            source.set(PredictDouble);
+        else
+            source = forNode(node.child1());
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
         dataLog("          Setting.\n");
 #endif
@@ -973,11 +1073,10 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
         
     default:
         ASSERT_NOT_REACHED();
-        source = 0;
         break;
     }
     
-    if (destination == *source) {
+    if (destination == source) {
         // Abstract execution did not change the output value of the variable, for this
         // basic block, on this iteration.
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
@@ -989,7 +1088,7 @@ inline bool AbstractState::mergeStateAtTail(AbstractValue& destination, Abstract
     // Abstract execution reached a new conclusion about the speculations reached about
     // this variable after execution of this basic block. Update the state, and return
     // true to indicate that the fixpoint must go on!
-    destination = *source;
+    destination = source;
 #if DFG_ENABLE(DEBUG_PROPAGATION_VERBOSE)
     dataLog("          Changed!\n");
 #endif
@@ -1003,11 +1102,29 @@ inline bool AbstractState::merge(BasicBlock* from, BasicBlock* to)
     
     bool changed = false;
     
-    for (size_t argument = 0; argument < from->variablesAtTail.numberOfArguments(); ++argument)
-        changed |= mergeVariableBetweenBlocks(to->valuesAtHead.argument(argument), from->valuesAtTail.argument(argument), to->variablesAtHead.argument(argument), from->variablesAtTail.argument(argument));
+    for (size_t argument = 0; argument < from->variablesAtTail.numberOfArguments(); ++argument) {
+        AbstractValue& destination = to->valuesAtHead.argument(argument);
+        if (m_graph.argumentIsCaptured(argument)) {
+            if (destination.isTop())
+                continue;
+            destination.makeTop();
+            changed = true;
+            continue;
+        }
+        changed |= mergeVariableBetweenBlocks(destination, from->valuesAtTail.argument(argument), to->variablesAtHead.argument(argument), from->variablesAtTail.argument(argument));
+    }
     
-    for (size_t local = 0; local < from->variablesAtTail.numberOfLocals(); ++local)
-        changed |= mergeVariableBetweenBlocks(to->valuesAtHead.local(local), from->valuesAtTail.local(local), to->variablesAtHead.local(local), from->variablesAtTail.local(local));
+    for (size_t local = 0; local < from->variablesAtTail.numberOfLocals(); ++local) {
+        AbstractValue& destination = to->valuesAtHead.local(local);
+        if (m_graph.localIsCaptured(local)) {
+            if (destination.isTop())
+                continue;
+            destination.makeTop();
+            changed = true;
+            continue;
+        }
+        changed |= mergeVariableBetweenBlocks(destination, from->valuesAtTail.local(local), to->variablesAtHead.local(local), from->variablesAtTail.local(local));
+    }
 
     if (!to->cfaHasVisited)
         changed = true;
@@ -1021,11 +1138,11 @@ inline bool AbstractState::mergeToSuccessors(Graph& graph, BasicBlock* basicBloc
 {
     PROFILE(FLAG_FOR_MERGE_TO_SUCCESSORS);
 
-    Node& terminal = graph[basicBlock->end - 1];
+    Node& terminal = graph[basicBlock->last()];
     
     ASSERT(terminal.isTerminal());
     
-    switch (terminal.op) {
+    switch (terminal.op()) {
     case Jump:
         return merge(basicBlock, graph.m_blocks[terminal.takenBlockIndex()].get());
         
@@ -1060,15 +1177,17 @@ inline bool AbstractState::mergeVariableBetweenBlocks(AbstractValue& destination
 void AbstractState::dump(FILE* out)
 {
     bool first = true;
-    for (size_t i = 0; i < m_nodes.size(); ++i) {
-        if (m_nodes[i].isClear())
+    for (size_t i = 0; i < m_block->size(); ++i) {
+        NodeIndex index = m_block->at(i);
+        AbstractValue& value = m_nodes[index];
+        if (value.isClear())
             continue;
         if (first)
             first = false;
         else
             fprintf(out, " ");
-        fprintf(out, "@%lu:", static_cast<unsigned long>(i + m_block->begin));
-        m_nodes[i].dump(out);
+        fprintf(out, "@%lu:", static_cast<unsigned long>(index));
+        value.dump(out);
     }
 }
 #endif

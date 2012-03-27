@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Google Inc. All rights reserved.
+ * Copyright (C) 2009, 2012 Google Inc. All rights reserved.
  * Copyright (C) 2011 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -37,19 +37,19 @@
 #include "Document.h"
 #include "DocumentLoader.h"
 #include "FormState.h"
-#include "FrameLoader.h"
 #include "FrameLoadRequest.h"
+#include "FrameLoader.h"
 #include "FrameNetworkingContextImpl.h"
 #include "FrameView.h"
-#include "HTTPParsers.h"
-#include "HistoryItem.h"
-#include "HitTestResult.h"
 #include "HTMLAppletElement.h"
 #include "HTMLFormElement.h"  // needed by FormState.h
 #include "HTMLNames.h"
+#include "HTTPParsers.h"
+#include "HistoryItem.h"
+#include "HitTestResult.h"
 #include "IntentRequest.h"
-#include "MessageEvent.h"
 #include "MIMETypeRegistry.h"
+#include "MessageEvent.h"
 #include "MouseEvent.h"
 #include "Page.h"
 #include "PlatformString.h"
@@ -59,7 +59,7 @@
 #include "ResourceHandleInternal.h"
 #include "ResourceLoader.h"
 #include "Settings.h"
-#include "StringExtras.h"
+#include "SocketStreamHandleInternal.h"
 #include "WebDOMEvent.h"
 #include "WebDataSourceImpl.h"
 #include "WebDevToolsAgentPrivate.h"
@@ -69,8 +69,6 @@
 #include "WebFrameImpl.h"
 #include "WebIntentRequest.h"
 #include "WebKit.h"
-#include "platform/WebKitPlatformSupport.h"
-#include <public/WebMimeRegistry.h>
 #include "WebNode.h"
 #include "WebPermissionClient.h"
 #include "WebPlugin.h"
@@ -78,14 +76,19 @@
 #include "WebPluginLoadObserver.h"
 #include "WebPluginParams.h"
 #include "WebSecurityOrigin.h"
-#include "platform/WebURL.h"
-#include "platform/WebURLError.h"
-#include "platform/WebVector.h"
+#include "platform/WebSocketStreamHandle.h"
 #include "WebViewClient.h"
 #include "WebViewImpl.h"
 #include "WindowFeatures.h"
 #include "WrappedResourceRequest.h"
 #include "WrappedResourceResponse.h"
+#include "platform/WebKitPlatformSupport.h"
+#include "platform/WebURL.h"
+#include "platform/WebURLError.h"
+#include "platform/WebVector.h"
+#include <public/WebMimeRegistry.h>
+
+#include <wtf/StringExtras.h>
 #include <wtf/text/CString.h>
 
 #if USE(V8)
@@ -145,10 +148,10 @@ void FrameLoaderClientImpl::documentElementAvailable()
 }
 
 #if USE(V8)
-void FrameLoaderClientImpl::didCreateScriptContext(v8::Handle<v8::Context> context, int worldId)
+void FrameLoaderClientImpl::didCreateScriptContext(v8::Handle<v8::Context> context, int extensionGroup, int worldId)
 {
     if (m_webFrame->client())
-        m_webFrame->client()->didCreateScriptContext(m_webFrame, context, worldId);
+        m_webFrame->client()->didCreateScriptContext(m_webFrame, context, extensionGroup, worldId);
 }
 
 void FrameLoaderClientImpl::willReleaseScriptContext(v8::Handle<v8::Context> context, int worldId)
@@ -612,7 +615,7 @@ void FrameLoaderClientImpl::dispatchWillPerformClientRedirect(
     // carry out such a navigation anyway, the best thing we can do for now to
     // not get confused is ignore this notification.
     if (m_expectedClientRedirectDest.isLocalFile()
-        && m_expectedClientRedirectSrc.protocolInHTTPFamily()) {
+        && m_expectedClientRedirectSrc.protocolIsInHTTPFamily()) {
         m_expectedClientRedirectSrc = KURL();
         m_expectedClientRedirectDest = KURL();
         return;
@@ -873,21 +876,27 @@ void FrameLoaderClientImpl::dispatchDidFirstVisuallyNonEmptyLayout()
 
 Frame* FrameLoaderClientImpl::dispatchCreatePage(const NavigationAction& action)
 {
-    struct WindowFeatures features;
-    Page* newPage = m_webFrame->frame()->page()->chrome()->createWindow(
-        m_webFrame->frame(), FrameLoadRequest(m_webFrame->frame()->document()->securityOrigin()),
-        features, action);
-
     // Make sure that we have a valid disposition.  This should have been set in
     // the preceeding call to dispatchDecidePolicyForNewWindowAction.
     ASSERT(m_nextNavigationPolicy != WebNavigationPolicyIgnore);
     WebNavigationPolicy policy = m_nextNavigationPolicy;
     m_nextNavigationPolicy = WebNavigationPolicyIgnore;
 
+    // Store the disposition on the opener ChromeClientImpl so that we can pass
+    // it to WebViewClient::createView.
+    ChromeClientImpl* chromeClient = static_cast<ChromeClientImpl*>(m_webFrame->frame()->page()->chrome()->client());
+    chromeClient->setNewWindowNavigationPolicy(policy);
+
+    struct WindowFeatures features;
+    Page* newPage = m_webFrame->frame()->page()->chrome()->createWindow(
+        m_webFrame->frame(), FrameLoadRequest(m_webFrame->frame()->document()->securityOrigin()),
+        features, action);
+
     // createWindow can return null (e.g., popup blocker denies the window).
     if (!newPage)
         return 0;
 
+    // Also give the disposition to the new window.
     WebViewImpl::fromPage(newPage)->setInitialNavigationPolicy(policy);
     return newPage->mainFrame();
 }
@@ -949,6 +958,11 @@ void FrameLoaderClientImpl::dispatchDecidePolicyForNewWindowAction(
         // creating or showing the new window that would allow us to avoid having
         // to keep this state.
         m_nextNavigationPolicy = navigationPolicy;
+
+        // Store the disposition on the opener ChromeClientImpl so that we can pass
+        // it to WebViewClient::createView.
+        ChromeClientImpl* chromeClient = static_cast<ChromeClientImpl*>(m_webFrame->frame()->page()->chrome()->client());
+        chromeClient->setNewWindowNavigationPolicy(navigationPolicy);
     }
     (m_webFrame->frame()->loader()->policyChecker()->*function)(policyAction);
 }
@@ -1448,33 +1462,6 @@ PassRefPtr<Frame> FrameLoaderClientImpl::createFrame(
     return m_webFrame->createChildFrame(frameRequest, ownerElement);
 }
 
-void FrameLoaderClientImpl::didTransferChildFrameToNewDocument(Page*)
-{
-    ASSERT(m_webFrame->frame()->ownerElement());
-
-    WebFrameImpl* newParent = static_cast<WebFrameImpl*>(m_webFrame->parent());
-    if (!newParent || !newParent->client())
-        return;
-
-    // Replace the client since the old client may be destroyed when the
-    // previous page is closed.
-    m_webFrame->setClient(newParent->client());
-}
-
-void FrameLoaderClientImpl::transferLoadingResourceFromPage(ResourceLoader* loader, const ResourceRequest& request, Page* oldPage)
-{
-    assignIdentifierToInitialRequest(loader->identifier(), loader->documentLoader(), request);
-
-    WebFrameImpl* oldWebFrame = WebFrameImpl::fromFrame(oldPage->mainFrame());
-    if (oldWebFrame && oldWebFrame->client())
-        oldWebFrame->client()->removeIdentifierForRequest(loader->identifier());
-
-    ResourceHandle* handle = loader->handle();
-    WebURLLoader* webURLLoader = ResourceHandleInternal::FromResourceHandle(handle)->loader();
-    if (webURLLoader && m_webFrame->client())
-        m_webFrame->client()->didAdoptURLLoader(webURLLoader);
-}
-
 PassRefPtr<Widget> FrameLoaderClientImpl::createPlugin(
     const IntSize& size, // FIXME: how do we use this?
     HTMLPlugInElement* element,
@@ -1637,5 +1624,10 @@ void FrameLoaderClientImpl::dispatchIntent(PassRefPtr<WebCore::IntentRequest> in
     m_webFrame->client()->dispatchIntent(webFrame(), intentRequest);
 }
 #endif
+
+void FrameLoaderClientImpl::dispatchWillOpenSocketStream(SocketStreamHandle* handle)
+{
+    m_webFrame->client()->willOpenSocketStream(SocketStreamHandleInternal::toWebSocketStreamHandle(handle));
+}
 
 } // namespace WebKit

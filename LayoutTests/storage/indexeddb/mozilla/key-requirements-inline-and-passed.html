@@ -11,22 +11,17 @@
 <script src="../resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's behavior adding inline and passed key simultaneously");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    shouldBeTrue("'webkitIndexedDB' in window");
-    shouldBeFalse("webkitIndexedDB == null");
+    removeVendorPrefixes();
 
-    name = window.location.pathname;
+    name = self.location.pathname;
     description = "My Test Database";
-    request = evalAndLog("webkitIndexedDB.open(name, description)");
+    request = evalAndLog("indexedDB.open(name, description)");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -46,13 +41,14 @@ function cleanDatabase()
     debug("cleanDatabase():");
     deleteAllObjectStores(db);
     objectStore = evalAndLog("objectStore = db.createObjectStore('baz', { keyPath: 'id' });");
-    evalAndExpectException("objectStore.add({id: 5}, 5);", "webkitIDBDatabaseException.DATA_ERR");
-    done();
+    evalAndExpectException("objectStore.add({id: 5}, 5);", "IDBDatabaseException.DATA_ERR");
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

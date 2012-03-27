@@ -78,11 +78,6 @@ void HTMLPlugInElement::detach()
         m_isCapturingMouseEvents = false;
     }
 
-    HTMLFrameOwnerElement::detach();
-}
-
-void HTMLPlugInElement::removedFromDocument()
-{
 #if ENABLE(NETSCAPE_PLUGIN_API)
     if (m_NPObject) {
         _NPN_ReleaseObject(m_NPObject);
@@ -90,7 +85,7 @@ void HTMLPlugInElement::removedFromDocument()
     }
 #endif
 
-    HTMLFrameOwnerElement::removedFromDocument();
+    HTMLFrameOwnerElement::detach();
 }
 
 PassScriptInstance HTMLPlugInElement::getInstance()
@@ -140,11 +135,11 @@ Widget* HTMLPlugInElement::pluginWidget()
     return renderWidget->widget();
 }
 
-bool HTMLPlugInElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLPlugInElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == widthAttr || attr->name() == heightAttr || attr->name() == vspaceAttr || attr->name() == hspaceAttr || attr->name() == alignAttr)
+    if (name == widthAttr || name == heightAttr || name == vspaceAttr || name == hspaceAttr || name == alignAttr)
         return true;
-    return HTMLFrameOwnerElement::isPresentationAttribute(attr);
+    return HTMLFrameOwnerElement::isPresentationAttribute(name);
 }
 
 void HTMLPlugInElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)

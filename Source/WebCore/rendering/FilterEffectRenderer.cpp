@@ -46,6 +46,7 @@
 #include "CustomFilterProgram.h"
 #include "CustomFilterOperation.h"
 #include "FECustomFilter.h"
+#include "FrameView.h"
 #include "Settings.h"
 #endif
 
@@ -237,7 +238,7 @@ void FilterEffectRenderer::build(Document* document, const FilterOperations& ope
         }
         case FilterOperation::BLUR: {
             BlurFilterOperation* blurOperation = static_cast<BlurFilterOperation*>(filterOperation);
-            float stdDeviation = blurOperation->stdDeviation().calcFloatValue(0);
+            float stdDeviation = floatValueForLength(blurOperation->stdDeviation(), 0);
             effect = FEGaussianBlur::create(this, stdDeviation, stdDeviation);
             break;
         }
@@ -258,7 +259,7 @@ void FilterEffectRenderer::build(Document* document, const FilterOperations& ope
             cachedCustomFilterPrograms.append(program);
             program->addClient(this);
             if (program->isLoaded()) {
-                effect = FECustomFilter::create(this, document, program, customFilterOperation->parameters(),
+                effect = FECustomFilter::create(this, document->view()->root()->hostWindow(), program, customFilterOperation->parameters(),
                                                 customFilterOperation->meshRows(), customFilterOperation->meshColumns(),
                                                 customFilterOperation->meshBoxType(), customFilterOperation->meshType());
             }
@@ -322,11 +323,13 @@ void FilterEffectRenderer::prepare()
     // source image sizes set. We just need to attach the graphic
     // buffer if we have not yet done so.
     if (!m_graphicsBufferAttached) {
-        setSourceImage(ImageBuffer::create(IntSize(m_sourceDrawingRegion.width(), m_sourceDrawingRegion.height()), ColorSpaceDeviceRGB, renderingMode()));
+        IntSize logicalSize(m_sourceDrawingRegion.width(), m_sourceDrawingRegion.height());
+        setSourceImage(ImageBuffer::create(logicalSize, 1, ColorSpaceDeviceRGB, renderingMode()));
         m_graphicsBufferAttached = true;
     }
     m_sourceGraphic->clearResult();
-    lastEffect()->clearResult();
+    for (size_t i = 0; i < m_effects.size(); ++i)
+        m_effects[i]->clearResult();
 }
 
 void FilterEffectRenderer::apply()

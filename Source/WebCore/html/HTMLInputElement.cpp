@@ -125,7 +125,8 @@ HTMLInputElement::~HTMLInputElement()
     setForm(0);
     // setForm(0) may register this to a document-level radio button group.
     // We should unregister it to avoid accessing a deleted object.
-    document()->checkedRadioButtons().removeButton(this);
+    if (isRadioButton())
+        document()->checkedRadioButtons().removeButton(this);
 }
 
 const AtomicString& HTMLInputElement::formControlName() const
@@ -509,7 +510,7 @@ void HTMLInputElement::updateType()
         return;
     }
 
-    checkedRadioButtons().removeButton(this);
+    removeFromRadioButtonGroup();
 
     bool wasAttached = attached();
     if (wasAttached)
@@ -564,7 +565,7 @@ void HTMLInputElement::updateType()
 
     setChangedSinceLastFormControlChangeEvent(false);
 
-    checkedRadioButtons().addButton(this);
+    addToRadioButtonGroup();
 
     setNeedsValidityCheck();
     notifyFormStateChanged();
@@ -660,11 +661,11 @@ void HTMLInputElement::accessKeyAction(bool sendMouseEvents)
     m_inputType->accessKeyAction(sendMouseEvents);
 }
 
-bool HTMLInputElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLInputElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == vspaceAttr || attr->name() == hspaceAttr || attr->name() == alignAttr || attr->name() == widthAttr || attr->name() == heightAttr || (attr->name() == borderAttr && isImageButton()))
+    if (name == vspaceAttr || name == hspaceAttr || name == alignAttr || name == widthAttr || name == heightAttr || (name == borderAttr && isImageButton()))
         return true;
-    return HTMLTextFormControlElement::isPresentationAttribute(attr);
+    return HTMLTextFormControlElement::isPresentationAttribute(name);
 }
 
 void HTMLInputElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
@@ -693,9 +694,9 @@ void HTMLInputElement::collectStyleForAttribute(Attribute* attr, StylePropertySe
 void HTMLInputElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == nameAttr) {
-        checkedRadioButtons().removeButton(this);
+        removeFromRadioButtonGroup();
         m_name = attr->value();
-        checkedRadioButtons().addButton(this);
+        addToRadioButtonGroup();
         HTMLTextFormControlElement::parseAttribute(attr);
     } else if (attr->name() == autocompleteAttr) {
         if (equalIgnoringCase(attr->value(), "off")) {
@@ -917,8 +918,9 @@ void HTMLInputElement::setChecked(bool nowChecked, TextFieldEventBehavior eventB
     m_reflectsCheckedAttribute = false;
     m_isChecked = nowChecked;
     setNeedsStyleRecalc();
-    if (isRadioButton())
-        checkedRadioButtons().updateCheckedState(this);
+
+    if (CheckedRadioButtons* buttons = checkedRadioButtons())
+            buttons->updateCheckedState(this);
     if (renderer() && renderer()->style()->hasAppearance())
         renderer()->theme()->stateChanged(renderer(), CheckedState);
     setNeedsValidityCheck();
@@ -1042,13 +1044,6 @@ void HTMLInputElement::setValue(const String& value, TextFieldEventBehavior even
 
     if (!valueChanged)
         return;
-
-    if (eventBehavior != DispatchNoEvent)
-        m_inputType->dispatchChangeEventInResponseToSetValue();
-
-    // FIXME: Why do we do this when eventBehavior == DispatchNoEvent
-    if (isTextField() && (!focused() || eventBehavior == DispatchNoEvent))
-        setTextAsOfLastFormControlChangeEvent(value);
 
     notifyFormStateChanged();
 }
@@ -1363,7 +1358,8 @@ void HTMLInputElement::setCanReceiveDroppedFiles(bool canReceiveDroppedFiles)
     if (m_canReceiveDroppedFiles == canReceiveDroppedFiles)
         return;
     m_canReceiveDroppedFiles = canReceiveDroppedFiles;
-    renderer()->updateFromElement();
+    if (renderer())
+        renderer()->updateFromElement();
 }
 
 String HTMLInputElement::visibleValue() const
@@ -1448,27 +1444,27 @@ void HTMLInputElement::documentDidResumeFromPageCache()
 
 void HTMLInputElement::willChangeForm()
 {
-    checkedRadioButtons().removeButton(this);
+    removeFromRadioButtonGroup();
     HTMLTextFormControlElement::willChangeForm();
 }
 
 void HTMLInputElement::didChangeForm()
 {
     HTMLTextFormControlElement::didChangeForm();
-    checkedRadioButtons().addButton(this);
+    addToRadioButtonGroup();
 }
 
 void HTMLInputElement::insertedIntoDocument()
 {
     HTMLTextFormControlElement::insertedIntoDocument();
     ASSERT(inDocument());
-    checkedRadioButtons().addButton(this);
+    addToRadioButtonGroup();
 }
 
 void HTMLInputElement::removedFromDocument()
 {
     ASSERT(inDocument());
-    checkedRadioButtons().removeButton(this);
+    removeFromRadioButtonGroup();
     HTMLTextFormControlElement::removedFromDocument();
 }
 
@@ -1480,7 +1476,8 @@ void HTMLInputElement::didMoveToNewDocument(Document* oldDocument)
         // Always unregister for cache callbacks when leaving a document, even if we would otherwise like to be registered
         if (needsSuspensionCallback)
             oldDocument->unregisterForPageCacheSuspensionCallbacks(this);
-        oldDocument->checkedRadioButtons().removeButton(this);
+        if (isRadioButton())
+            oldDocument->checkedRadioButtons().removeButton(this);
     }
 
     if (needsSuspensionCallback)
@@ -1504,7 +1501,8 @@ bool HTMLInputElement::recalcWillValidate() const
 void HTMLInputElement::requiredAttributeChanged()
 {
     HTMLTextFormControlElement::requiredAttributeChanged();
-    checkedRadioButtons().requiredAttributeChanged(this);
+    if (CheckedRadioButtons* buttons = checkedRadioButtons())
+        buttons->requiredAttributeChanged(this);
 }
 
 #if ENABLE(INPUT_COLOR)
@@ -1643,10 +1641,10 @@ void HTMLInputElement::stepUpFromRenderer(int n)
             current = m_inputType->minimum() - nextDiff;
         if (current > m_inputType->maximum() - nextDiff)
             current = m_inputType->maximum() - nextDiff;
-        setValueAsNumber(current, ec, DispatchChangeEvent);
+        setValueAsNumber(current, ec, DispatchInputAndChangeEvent);
     }
     if ((sign > 0 && current < m_inputType->minimum()) || (sign < 0 && current > m_inputType->maximum()))
-        setValue(m_inputType->serialize(sign > 0 ? m_inputType->minimum() : m_inputType->maximum()), DispatchChangeEvent);
+        setValue(m_inputType->serialize(sign > 0 ? m_inputType->minimum() : m_inputType->maximum()), DispatchInputAndChangeEvent);
     else {
         ExceptionCode ec;
         if (stepMismatch(value())) {
@@ -1666,14 +1664,14 @@ void HTMLInputElement::stepUpFromRenderer(int n)
             if (newValue > m_inputType->maximum())
                 newValue = m_inputType->maximum();
 
-            setValueAsNumber(newValue, ec, n == 1 || n == -1 ? DispatchChangeEvent : DispatchNoEvent);
+            setValueAsNumber(newValue, ec, n == 1 || n == -1 ? DispatchInputAndChangeEvent : DispatchNoEvent);
             current = newValue;
             if (n > 1)
-                applyStep(n - 1, AnyIsDefaultStep, DispatchChangeEvent, ec);
+                applyStep(n - 1, AnyIsDefaultStep, DispatchInputAndChangeEvent, ec);
             else if (n < -1)
-                applyStep(n + 1, AnyIsDefaultStep, DispatchChangeEvent, ec);
+                applyStep(n + 1, AnyIsDefaultStep, DispatchInputAndChangeEvent, ec);
         } else
-            applyStep(n, AnyIsDefaultStep, DispatchChangeEvent, ec);
+            applyStep(n, AnyIsDefaultStep, DispatchInputAndChangeEvent, ec);
     }
 }
 
@@ -1767,6 +1765,11 @@ bool HTMLInputElement::isEnumeratable() const
     return m_inputType->isEnumeratable();
 }
 
+bool HTMLInputElement::supportLabels() const
+{
+    return m_inputType->supportLabels();
+}
+
 bool HTMLInputElement::shouldAppearChecked() const
 {
     return checked() && m_inputType->isCheckable();
@@ -1780,13 +1783,6 @@ bool HTMLInputElement::supportsPlaceholder() const
 void HTMLInputElement::updatePlaceholderText()
 {
     return m_inputType->updatePlaceholderText();
-}
-
-CheckedRadioButtons& HTMLInputElement::checkedRadioButtons() const
-{
-    if (HTMLFormElement* formElement = form())
-        return formElement->checkedRadioButtons();
-    return document()->checkedRadioButtons();
 }
 
 void HTMLInputElement::parseMaxLengthAttribute(Attribute* attribute)
@@ -1820,6 +1816,44 @@ String HTMLInputElement::defaultToolTip() const
 bool HTMLInputElement::isIndeterminate() const 
 {
     return m_inputType->supportsIndeterminateAppearance() && indeterminate();
+}
+
+bool HTMLInputElement::isInRequiredRadioButtonGroup() const
+{
+    ASSERT(isRadioButton());
+    if (CheckedRadioButtons* buttons = checkedRadioButtons())
+        return buttons->isRequiredGroup(name());
+    return false;
+}
+
+HTMLInputElement* HTMLInputElement::checkedRadioButtonForGroup() const
+{
+    if (CheckedRadioButtons* buttons = checkedRadioButtons())
+        return buttons->checkedButtonForGroup(name());
+    return 0;
+}
+
+CheckedRadioButtons* HTMLInputElement::checkedRadioButtons() const
+{
+    if (!isRadioButton())
+        return 0;
+    if (HTMLFormElement* formElement = form())
+        return &formElement->checkedRadioButtons();
+    if (inDocument())
+        return &document()->checkedRadioButtons();
+    return 0;
+}
+
+inline void HTMLInputElement::addToRadioButtonGroup()
+{
+    if (CheckedRadioButtons* buttons = checkedRadioButtons())
+        buttons->addButton(this);
+}
+
+inline void HTMLInputElement::removeFromRadioButtonGroup()
+{
+    if (CheckedRadioButtons* buttons = checkedRadioButtons())
+        buttons->removeButton(this);
 }
 
 } // namespace

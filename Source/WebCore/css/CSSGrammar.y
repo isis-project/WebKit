@@ -28,7 +28,6 @@
 #include "CSSParser.h"
 #include "CSSPrimitiveValue.h"
 #include "CSSPropertyNames.h"
-#include "CSSRuleList.h"
 #include "CSSSelector.h"
 #include "CSSSelectorList.h"
 #include "CSSStyleSheet.h"
@@ -69,12 +68,12 @@ using namespace HTMLNames;
     CSSParserString string;
 
     CSSRule* rule;
-    CSSRuleList* ruleList;
+    Vector<RefPtr<CSSRule> >* ruleList;
     CSSParserSelector* selector;
     Vector<OwnPtr<CSSParserSelector> >* selectorList;
     CSSSelector::MarginBoxType marginBox;
     CSSSelector::Relation relation;
-    MediaList* mediaList;
+    MediaQuerySet* mediaList;
     MediaQuery* mediaQuery;
     MediaQuery::Restrictor mediaQueryRestrictor;
     MediaQueryExp* mediaQueryExp;
@@ -326,9 +325,9 @@ webkit_value:
         CSSParser* p = static_cast<CSSParser*>(parser);
         if ($4) {
             p->m_valueList = p->sinkFloatingValueList($4);
-            int oldParsedProperties = p->m_numParsedProperties;
+            int oldParsedProperties = p->m_parsedProperties.size();
             if (!p->parseValue(p->m_id, p->m_important))
-                p->rollbackLastProperties(p->m_numParsedProperties - oldParsedProperties);
+                p->rollbackLastProperties(p->m_parsedProperties.size() - oldParsedProperties);
             p->m_valueList = nullptr;
         }
     }
@@ -457,6 +456,9 @@ import:
     IMPORT_SYM maybe_space string_or_uri maybe_space maybe_media_list ';' {
         $$ = static_cast<CSSParser*>(parser)->createImportRule($3, $5);
     }
+  | IMPORT_SYM maybe_space string_or_uri maybe_space maybe_media_list TOKEN_EOF {
+        $$ = static_cast<CSSParser*>(parser)->createImportRule($3, $5);
+    }
   | IMPORT_SYM maybe_space string_or_uri maybe_space maybe_media_list invalid_block {
         $$ = 0;
     }
@@ -564,7 +566,7 @@ media_query:
 
 maybe_media_list:
      /* empty */ {
-        $$ = static_cast<CSSParser*>(parser)->createMediaList();
+        $$ = static_cast<CSSParser*>(parser)->createMediaQuerySet();
      }
      | media_list
      ;
@@ -572,15 +574,15 @@ maybe_media_list:
 media_list:
     media_query {
         CSSParser* p = static_cast<CSSParser*>(parser);
-        $$ = p->createMediaList();
-        $$->appendMediaQuery(p->sinkFloatingMediaQuery($1));
+        $$ = p->createMediaQuerySet();
+        $$->addMediaQuery(p->sinkFloatingMediaQuery($1));
         p->updateLastMediaLine($$);
     }
     | media_list ',' maybe_space media_query {
         $$ = $1;
         if ($$) {
             CSSParser* p = static_cast<CSSParser*>(parser);
-            $$->appendMediaQuery(p->sinkFloatingMediaQuery($4));
+            $$->addMediaQuery(p->sinkFloatingMediaQuery($4));
             p->updateLastMediaLine($$);
         }
     }
@@ -1300,10 +1302,10 @@ declaration:
         bool isPropertyParsed = false;
         if ($1 && $4) {
             p->m_valueList = p->sinkFloatingValueList($4);
-            int oldParsedProperties = p->m_numParsedProperties;
+            int oldParsedProperties = p->m_parsedProperties.size();
             $$ = p->parseValue($1, $5);
             if (!$$)
-                p->rollbackLastProperties(p->m_numParsedProperties - oldParsedProperties);
+                p->rollbackLastProperties(p->m_parsedProperties.size() - oldParsedProperties);
             else
                 isPropertyParsed = true;
             p->m_valueList = nullptr;

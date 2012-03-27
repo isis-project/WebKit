@@ -26,9 +26,10 @@
 #include "config.h"
 #include "YarrJIT.h"
 
-#include "ASCIICType.h"
+#include <wtf/ASCIICType.h>
 #include "LinkBuffer.h"
 #include "Yarr.h"
+#include "YarrCanonicalizeUCS2.h"
 
 #if ENABLE(YARR_JIT)
 
@@ -262,10 +263,10 @@ class YarrGenerator : private MacroAssembler {
 
         // For case-insesitive compares, non-ascii characters that have different
         // upper & lower case representations are converted to a character class.
-        ASSERT(!m_pattern.m_ignoreCase || isASCIIAlpha(ch) || (Unicode::toLower(ch) == Unicode::toUpper(ch)));
+        ASSERT(!m_pattern.m_ignoreCase || isASCIIAlpha(ch) || isCanonicallyUnique(ch));
         if (m_pattern.m_ignoreCase && isASCIIAlpha(ch)) {
-            or32(TrustedImm32(32), character);
-            ch = Unicode::toLower(ch);
+            or32(TrustedImm32(0x20), character);
+            ch |= 0x20;
         }
 
         return branch32(NotEqual, character, Imm32(ch));
@@ -685,9 +686,9 @@ class YarrGenerator : private MacroAssembler {
 
         // For case-insesitive compares, non-ascii characters that have different
         // upper & lower case representations are converted to a character class.
-        ASSERT(!m_pattern.m_ignoreCase || isASCIIAlpha(ch) || (Unicode::toLower(ch) == Unicode::toUpper(ch)));
+        ASSERT(!m_pattern.m_ignoreCase || isASCIIAlpha(ch) || isCanonicallyUnique(ch));
 
-        if ((m_pattern.m_ignoreCase) && (isASCIIAlpha(ch)))
+        if (m_pattern.m_ignoreCase && isASCIIAlpha(ch))
             ignoreCaseMask |= 32;
 
         for (numberCharacters = 1; numberCharacters < maxCharactersAtOnce && nextOp->m_op == OpTerm; ++numberCharacters, nextOp = &m_ops[opIndex + numberCharacters]) {
@@ -713,7 +714,7 @@ class YarrGenerator : private MacroAssembler {
 
             // For case-insesitive compares, non-ascii characters that have different
             // upper & lower case representations are converted to a character class.
-            ASSERT(!m_pattern.m_ignoreCase || isASCIIAlpha(currentCharacter) || (Unicode::toLower(currentCharacter) == Unicode::toUpper(currentCharacter)));
+            ASSERT(!m_pattern.m_ignoreCase || isASCIIAlpha(currentCharacter) || isCanonicallyUnique(currentCharacter));
 
             allCharacters |= (currentCharacter << shiftAmount);
 
@@ -790,10 +791,10 @@ class YarrGenerator : private MacroAssembler {
 
         // For case-insesitive compares, non-ascii characters that have different
         // upper & lower case representations are converted to a character class.
-        ASSERT(!m_pattern.m_ignoreCase || isASCIIAlpha(ch) || (Unicode::toLower(ch) == Unicode::toUpper(ch)));
+        ASSERT(!m_pattern.m_ignoreCase || isASCIIAlpha(ch) || isCanonicallyUnique(ch));
         if (m_pattern.m_ignoreCase && isASCIIAlpha(ch)) {
-            or32(TrustedImm32(32), character);
-            ch = Unicode::toLower(ch);
+            or32(TrustedImm32(0x20), character);
+            ch |= 0x20;
         }
 
         op.m_jumps.append(branch32(NotEqual, character, Imm32(ch)));
@@ -816,10 +817,8 @@ class YarrGenerator : private MacroAssembler {
 
         move(TrustedImm32(0), countRegister);
 
-        if ((ch > 0xff) && (m_charSize == Char8)) {
-            // Have a 16 bit pattern character and an 8 bit string - short circuit
-            op.m_jumps.append(jump());
-        } else {
+        // Unless have a 16 bit pattern character and an 8 bit string - short circuit
+        if (!((ch > 0xff) && (m_charSize == Char8))) {
             JumpList failures;
             Label loop(this);
             failures.append(atEndOfInput());
@@ -837,7 +836,6 @@ class YarrGenerator : private MacroAssembler {
         op.m_reentry = label();
 
         storeToFrame(countRegister, term->frameLocation);
-
     }
     void backtrackPatternCharacterGreedy(size_t opIndex)
     {
@@ -875,16 +873,13 @@ class YarrGenerator : private MacroAssembler {
         const RegisterID character = regT0;
         const RegisterID countRegister = regT1;
 
-        JumpList nonGreedyFailures;
-
         m_backtrackingState.link(this);
 
         loadFromFrame(term->frameLocation, countRegister);
 
-        if ((ch > 0xff) && (m_charSize == Char8)) {
-            // Have a 16 bit pattern character and an 8 bit string - short circuit
-            nonGreedyFailures.append(jump());
-        } else {
+        // Unless have a 16 bit pattern character and an 8 bit string - short circuit
+        if (!((ch > 0xff) && (m_charSize == Char8))) {
+            JumpList nonGreedyFailures;
             nonGreedyFailures.append(atEndOfInput());
             if (term->quantityCount != quantifyInfinite)
                 nonGreedyFailures.append(branch32(Equal, countRegister, Imm32(term->quantityCount.unsafeGet())));
@@ -894,8 +889,8 @@ class YarrGenerator : private MacroAssembler {
             add32(TrustedImm32(1), index);
 
             jump(op.m_reentry);
+            nonGreedyFailures.link(this);
         }
-        nonGreedyFailures.link(this);
 
         sub32(countRegister, index);
         m_backtrackingState.fallthrough();
@@ -1754,7 +1749,7 @@ class YarrGenerator : private MacroAssembler {
                                 if (alternative->m_minimumSize)
                                     sub32(Imm32(alternative->m_minimumSize - 1), regT0);
                                 else
-                                    add32(Imm32(1), regT0);
+                                    add32(TrustedImm32(1), regT0);
                                 store32(regT0, Address(output));
                             }
                         }
@@ -1853,7 +1848,7 @@ class YarrGenerator : private MacroAssembler {
                 if (alternative->m_minimumSize == m_pattern.m_body->m_minimumSize) {
                     // If the last alternative had the same minimum size as the disjunction,
                     // just simply increment input pos by 1, no adjustment based on minimum size.
-                    add32(Imm32(1), index);
+                    add32(TrustedImm32(1), index);
                 } else {
                     // If the minumum for the last alternative was one greater than than that
                     // for the disjunction, we're already progressed by 1, nothing to do!

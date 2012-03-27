@@ -42,10 +42,11 @@ public:
     void filterToken(HTMLToken&);
 
 private:
+    static const size_t kMaximumFragmentLengthTarget = 100;
+
     enum State {
         Uninitialized,
-        Initial,
-        AfterScriptStartTag,
+        Initialized
     };
 
     enum AttributeKind {
@@ -55,9 +56,9 @@ private:
 
     void init();
 
-    bool filterTokenInitial(HTMLToken&);
-    bool filterTokenAfterScriptStartTag(HTMLToken&);
-
+    bool filterStartToken(HTMLToken&);
+    void filterEndToken(HTMLToken&);
+    bool filterCharacterToken(HTMLToken&);
     bool filterScriptToken(HTMLToken&);
     bool filterObjectToken(HTMLToken&);
     bool filterParamToken(HTMLToken&);
@@ -71,9 +72,10 @@ private:
     bool eraseDangerousAttributesIfInjected(HTMLToken&);
     bool eraseAttributeIfInjected(HTMLToken&, const QualifiedName&, const String& replacementValue = String(), AttributeKind treatment = NormalAttribute);
 
-    String snippetForRange(const HTMLToken&, int start, int end);
-    String snippetForJavaScript(const String&);
+    String decodedSnippetForToken(const HTMLToken&);
+    String decodedSnippetForName(const HTMLToken&);
     String decodedSnippetForAttribute(const HTMLToken&, const HTMLToken::Attribute&, AttributeKind treatment = NormalAttribute);
+    String decodedSnippetForJavaScript(const HTMLToken&);
 
     bool isContainedInRequest(const String&);
     bool isSameOriginResource(const String& url);
@@ -87,7 +89,9 @@ private:
     OwnPtr<SuffixTree<ASCIICodebook> > m_decodedHTTPBodySuffixTree;
 
     State m_state;
-    String m_cachedSnippet;
+    String m_cachedDecodedSnippet;
+    bool m_shouldAllowCDATA;
+    unsigned m_scriptTagNestingLevel;
     bool m_notifiedClient;
 };
 

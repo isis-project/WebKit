@@ -25,10 +25,13 @@
 #include "WebKitEnumTypes.h"
 #include "WebKitError.h"
 #include "WebKitHitTestResultPrivate.h"
+#include "WebKitJavascriptResultPrivate.h"
 #include "WebKitLoaderClient.h"
 #include "WebKitMarshal.h"
 #include "WebKitPolicyClient.h"
+#include "WebKitPrintOperationPrivate.h"
 #include "WebKitPrivate.h"
+#include "WebKitScriptDialogPrivate.h"
 #include "WebKitSettingsPrivate.h"
 #include "WebKitUIClient.h"
 #include "WebKitWebContextPrivate.h"
@@ -36,6 +39,7 @@
 #include "WebKitWebViewPrivate.h"
 #include "WebKitWindowPropertiesPrivate.h"
 #include "WebPageProxy.h"
+#include <JavaScriptCore/APICast.h>
 #include <WebCore/DragIcon.h>
 #include <WebCore/GtkUtilities.h>
 #include <glib/gi18n-lib.h>
@@ -54,13 +58,13 @@ enum {
     READY_TO_SHOW,
     CLOSE,
 
-    SCRIPT_ALERT,
-    SCRIPT_CONFIRM,
-    SCRIPT_PROMPT,
+    SCRIPT_DIALOG,
 
     DECIDE_POLICY,
 
     MOUSE_TARGET_CHANGED,
+
+    PRINT_REQUESTED,
 
     LAST_SIGNAL
 };
@@ -75,13 +79,20 @@ enum {
     PROP_ZOOM_LEVEL
 };
 
+typedef enum {
+    NotReplacingContent,
+    WillReplaceContent,
+    ReplacingContent,
+    DidReplaceContent
+} ReplaceContentStatus;
+
 struct _WebKitWebViewPrivate {
     WebKitWebContext* context;
     CString title;
     CString customTextEncoding;
     double estimatedLoadProgress;
     CString activeURI;
-    bool replacingContent;
+    ReplaceContentStatus replaceContentStatus;
 
     GRefPtr<WebKitBackForwardList> backForwardList;
     GRefPtr<WebKitSettings> settings;
@@ -89,6 +100,9 @@ struct _WebKitWebViewPrivate {
 
     GRefPtr<WebKitHitTestResult> mouseTargetHitTestResult;
     unsigned mouseTargetModifiers;
+
+    GRefPtr<WebKitFindController> findController;
+    JSGlobalContextRef javascriptGlobalContext;
 };
 
 static guint signals[LAST_SIGNAL] = { 0, };
@@ -125,32 +139,33 @@ static GtkWidget* webkitWebViewCreateJavaScriptDialog(WebKitWebView* webView, Gt
     return dialog;
 }
 
-static gboolean webkitWebViewScriptAlert(WebKitWebView* webView, const char* message)
+static gboolean webkitWebViewScriptDialog(WebKitWebView* webView, WebKitScriptDialog* scriptDialog)
 {
-    GtkWidget* dialog = webkitWebViewCreateJavaScriptDialog(webView, GTK_MESSAGE_WARNING, GTK_BUTTONS_CLOSE, GTK_RESPONSE_CLOSE, message);
-    gtk_dialog_run(GTK_DIALOG(dialog));
+    GtkWidget* dialog = 0;
+
+    switch (scriptDialog->type) {
+    case WEBKIT_SCRIPT_DIALOG_ALERT:
+        dialog = webkitWebViewCreateJavaScriptDialog(webView, GTK_MESSAGE_WARNING, GTK_BUTTONS_CLOSE, GTK_RESPONSE_CLOSE, scriptDialog->message.data());
+        gtk_dialog_run(GTK_DIALOG(dialog));
+        break;
+    case WEBKIT_SCRIPT_DIALOG_CONFIRM:
+        dialog = webkitWebViewCreateJavaScriptDialog(webView, GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, GTK_RESPONSE_OK, scriptDialog->message.data());
+        scriptDialog->confirmed = gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK;
+        break;
+    case WEBKIT_SCRIPT_DIALOG_PROMPT:
+        dialog = webkitWebViewCreateJavaScriptDialog(webView, GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, GTK_RESPONSE_OK, scriptDialog->message.data());
+        GtkWidget* entry = gtk_entry_new();
+        gtk_entry_set_text(GTK_ENTRY(entry), scriptDialog->defaultText.data());
+        gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), entry);
+        gtk_entry_set_activates_default(GTK_ENTRY(entry), TRUE);
+        gtk_widget_show(entry);
+        if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK)
+            scriptDialog->text = gtk_entry_get_text(GTK_ENTRY(entry));
+        break;
+    }
+
     gtk_widget_destroy(dialog);
-    return TRUE;
-}
 
-static gboolean webkitWebViewScriptConfirm(WebKitWebView* webView, const char* message, gboolean* confirmed)
-{
-    GtkWidget* dialog = webkitWebViewCreateJavaScriptDialog(webView, GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, GTK_RESPONSE_OK, message);
-    *confirmed = gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK;
-    gtk_widget_destroy(dialog);
-    return TRUE;
-}
-
-static gboolean webkitWebViewScriptPrompt(WebKitWebView* webView, const char* message, const char* defaultText, char** text)
-{
-    GtkWidget* dialog = webkitWebViewCreateJavaScriptDialog(webView, GTK_MESSAGE_QUESTION, GTK_BUTTONS_OK_CANCEL, GTK_RESPONSE_OK, message);
-    GtkWidget* entry = gtk_entry_new();
-    gtk_entry_set_text(GTK_ENTRY(entry), defaultText);
-    gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(dialog))), entry);
-    gtk_entry_set_activates_default(GTK_ENTRY(entry), TRUE);
-    gtk_widget_show(entry);
-
-    *text = (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_OK) ? g_strdup(gtk_entry_get_text(GTK_ENTRY(entry))) : 0;
     return TRUE;
 }
 
@@ -158,6 +173,22 @@ static gboolean webkitWebViewDecidePolicy(WebKitWebView*, WebKitPolicyDecision* 
 {
     webkit_policy_decision_use(decision);
     return TRUE;
+}
+
+static void zoomTextOnlyChanged(WebKitSettings* settings, GParamSpec*, WebKitWebView* webView)
+{
+    WKPageRef wkPage = toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView)));
+    gboolean zoomTextOnly = webkit_settings_get_zoom_text_only(settings);
+    gdouble pageZoomLevel = zoomTextOnly ? 1 : WKPageGetTextZoomFactor(wkPage);
+    gdouble textZoomLevel = zoomTextOnly ? WKPageGetPageZoomFactor(wkPage) : 1;
+    WKPageSetPageAndTextZoomFactors(wkPage, pageZoomLevel, textZoomLevel);
+}
+
+static void webkitWebViewSetSettings(WebKitWebView* webView, WebKitSettings* settings, WKPageRef wkPage)
+{
+    webView->priv->settings = settings;
+    webkitSettingsAttachSettingsToPage(webView->priv->settings.get(), wkPage);
+    g_signal_connect(settings, "notify::zoom-text-only", G_CALLBACK(zoomTextOnlyChanged), webView);
 }
 
 static void webkitWebViewConstructed(GObject* object)
@@ -177,8 +208,9 @@ static void webkitWebViewConstructed(GObject* object)
 
     WebPageProxy* page = webkitWebViewBaseGetPage(webViewBase);
     priv->backForwardList = adoptGRef(webkitBackForwardListCreate(WKPageGetBackForwardList(toAPI(page))));
-    priv->settings = adoptGRef(webkit_settings_new());
-    webkitSettingsAttachSettingsToPage(priv->settings.get(), toAPI(page));
+
+    GRefPtr<WebKitSettings> settings = adoptGRef(webkit_settings_new());
+    webkitWebViewSetSettings(webView, settings.get(), toAPI(page));
 }
 
 static void webkitWebViewSetProperty(GObject* object, guint propId, const GValue* value, GParamSpec* paramSpec)
@@ -226,7 +258,10 @@ static void webkitWebViewGetProperty(GObject* object, guint propId, GValue* valu
 
 static void webkitWebViewFinalize(GObject* object)
 {
-    WEBKIT_WEB_VIEW(object)->priv->~WebKitWebViewPrivate();
+    WebKitWebViewPrivate* priv = WEBKIT_WEB_VIEW(object)->priv;
+    if (priv->javascriptGlobalContext)
+        JSGlobalContextRelease(priv->javascriptGlobalContext);
+    priv->~WebKitWebViewPrivate();
     G_OBJECT_CLASS(webkit_web_view_parent_class)->finalize(object);
 }
 
@@ -259,9 +294,7 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
 
     webViewClass->load_failed = webkitWebViewLoadFail;
     webViewClass->create = webkitWebViewCreate;
-    webViewClass->script_alert = webkitWebViewScriptAlert;
-    webViewClass->script_confirm = webkitWebViewScriptConfirm;
-    webViewClass->script_prompt = webkitWebViewScriptPrompt;
+    webViewClass->script_dialog = webkitWebViewScriptDialog;
     webViewClass->decide_policy = webkitWebViewDecidePolicy;
 
     g_type_class_add_private(webViewClass, sizeof(WebKitWebViewPrivate));
@@ -491,75 +524,40 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
                      G_TYPE_NONE, 0);
 
     /**
-     * WebKitWebView::script-alert:
+     * WebKitWebView::script-dialog:
      * @web_view: the #WebKitWebView on which the signal is emitted
-     * @message: the message text
+     * @dialog: the #WebKitScriptDialog to show
      *
-     * Emitted when JavaScript code calls <function>window.alert</function>. If the
-     * signal is not handled a message dialog with a single Close button will be
-     * shown with the message text.
+     * Emitted when JavaScript code calls <function>window.alert</function>,
+     * <function>window.confirm</function> or <function>window.prompt</function>.
+     * The @dialog parameter should be used to build the dialog.
+     * If the signal is not handled a different dialog will be built and shown depending
+     * on the dialog type:
+     * <itemizedlist>
+     * <listitem><para>
+     *  %WEBKIT_SCRIPT_DIALOG_ALERT: message dialog with a single Close button.
+     * </para></listitem>
+     * <listitem><para>
+     *  %WEBKIT_SCRIPT_DIALOG_CONFIRM: message dialog with OK and Cancel buttons.
+     * </para></listitem>
+     * <listitem><para>
+     *  %WEBKIT_SCRIPT_DIALOG_PROMPT: message dialog with OK and Cancel buttons and
+     *  a text entry with the default text.
+     * </para></listitem>
+     * </itemizedlist>
      *
      * Returns: %TRUE to stop other handlers from being invoked for the event.
      *    %FALSE to propagate the event further.
      */
-    signals[SCRIPT_ALERT] =
-            g_signal_new("script-alert",
-                         G_TYPE_FROM_CLASS(webViewClass),
-                         G_SIGNAL_RUN_LAST,
-                         G_STRUCT_OFFSET(WebKitWebViewClass, script_alert),
-                         g_signal_accumulator_true_handled, 0,
-                         webkit_marshal_BOOLEAN__STRING,
-                         G_TYPE_BOOLEAN, 1,
-                         G_TYPE_STRING);
-
-    /**
-     * WebKitWebView::script-confirm:
-     * @web_view: the #WebKitWebView on which the signal is emitted
-     * @message: the message text
-     * @confirmed: (out): return location for confirm dialog response
-     *
-     * Emitted when JavaScript code calls <function>confirm</function>. If the
-     * signal is not handled a message dialog with OK and Cancel buttons will be
-     * shown with the message text. If OK button is clicked @confirmed will be
-     * set to %TRUE, otherwise it will be %FALSE.
-     *
-     * Returns: %TRUE to stop other handlers from being invoked for the event.
-     *    %FALSE to propagate the event further.
-     */
-    signals[SCRIPT_CONFIRM] =
-            g_signal_new("script-confirm",
-                         G_TYPE_FROM_CLASS(webViewClass),
-                         G_SIGNAL_RUN_LAST,
-                         G_STRUCT_OFFSET(WebKitWebViewClass, script_confirm),
-                         g_signal_accumulator_true_handled, 0,
-                         webkit_marshal_BOOLEAN__STRING_POINTER,
-                         G_TYPE_BOOLEAN, 2,
-                         G_TYPE_STRING, G_TYPE_POINTER);
-
-    /**
-     * WebKitWebView::script-prompt:
-     * @web_view: the #WebKitWebView on which the signal is emitted
-     * @message: the message text
-     * @default (allow-none): the default text
-     * @text: (out): return location for prompt dialog text response
-     *
-     * Emitted when JavaScript code calls <function>prompt</function>. If the
-     * signal is not handled a message dialog with OK and Cancel buttons and
-     * a text entry will be shown with the message text. If OK button is clicked
-     * @text will contain the text entered by the user, otherwise it will be %NULL.
-     *
-     * Returns: %TRUE to stop other handlers from being invoked for the event.
-     *    %FALSE to propagate the event further.
-     */
-    signals[SCRIPT_PROMPT] =
-            g_signal_new("script-prompt",
-                         G_TYPE_FROM_CLASS(webViewClass),
-                         G_SIGNAL_RUN_LAST,
-                         G_STRUCT_OFFSET(WebKitWebViewClass, script_prompt),
-                         g_signal_accumulator_true_handled, 0,
-                         webkit_marshal_BOOLEAN__STRING_STRING_POINTER,
-                         G_TYPE_BOOLEAN, 3,
-                         G_TYPE_STRING, G_TYPE_STRING, G_TYPE_POINTER);
+    signals[SCRIPT_DIALOG] =
+        g_signal_new("script-dialog",
+                     G_TYPE_FROM_CLASS(webViewClass),
+                     G_SIGNAL_RUN_LAST,
+                     G_STRUCT_OFFSET(WebKitWebViewClass, script_dialog),
+                     g_signal_accumulator_true_handled, 0,
+                     webkit_marshal_BOOLEAN__BOXED,
+                     G_TYPE_BOOLEAN, 1,
+                     WEBKIT_TYPE_SCRIPT_DIALOG | G_SIGNAL_TYPE_STATIC_SCOPE);
 
     /**
      * WebKitWebView::decide-policy:
@@ -647,15 +645,58 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
                       G_TYPE_NONE, 2,
                       WEBKIT_TYPE_HIT_TEST_RESULT,
                       G_TYPE_UINT);
+    /**
+     * WebKitWebView::print-requested:
+     * @web_view: the #WebKitWebView on which the signal is emitted
+     * @print_operation: the #WebKitPrintOperation that will handle the print request
+     *
+     * Emitted when printing is requested on @web_view, usually by a javascript call,
+     * before the print dialog is shown. This signal can be used to set the initial
+     * print settings and page setup of @print_operation to be used as default values in
+     * the print dialog. You can call webkit_print_operation_set_print_settings() and
+     * webkit_print_operation_set_page_setup() and then return %FALSE to propagate the
+     * event so that the print dialog is shown.
+     *
+     * You can connect to this signal and return %TRUE to cancel the print operation
+     * or implement your own print dialog.
+     *
+     * Returns: %TRUE to stop other handlers from being invoked for the event.
+     *    %FALSE to propagate the event further.
+     */
+    signals[PRINT_REQUESTED] =
+        g_signal_new("print-requested",
+                     G_TYPE_FROM_CLASS(webViewClass),
+                     G_SIGNAL_RUN_LAST,
+                     G_STRUCT_OFFSET(WebKitWebViewClass, print_requested),
+                     g_signal_accumulator_true_handled, 0,
+                     webkit_marshal_BOOLEAN__OBJECT,
+                     G_TYPE_BOOLEAN, 1,
+                     WEBKIT_TYPE_PRINT_OPERATION);
+}
+
+static bool updateReplaceContentStatus(WebKitWebView* webView, WebKitLoadEvent loadEvent)
+{
+    if (webView->priv->replaceContentStatus == ReplacingContent) {
+        if (loadEvent == WEBKIT_LOAD_FINISHED)
+            webView->priv->replaceContentStatus = DidReplaceContent;
+        return true;
+    }
+
+    if (loadEvent == WEBKIT_LOAD_STARTED) {
+        if (webView->priv->replaceContentStatus == WillReplaceContent) {
+            webView->priv->replaceContentStatus = ReplacingContent;
+            return true;
+        }
+        webView->priv->replaceContentStatus = NotReplacingContent;
+    }
+
+    return false;
 }
 
 void webkitWebViewLoadChanged(WebKitWebView* webView, WebKitLoadEvent loadEvent)
 {
-    if (webView->priv->replacingContent) {
-        if (loadEvent == WEBKIT_LOAD_FINISHED)
-            webView->priv->replacingContent = false;
+    if (updateReplaceContentStatus(webView, loadEvent))
         return;
-    }
 
     if (loadEvent != WEBKIT_LOAD_FINISHED)
         webkitWebViewUpdateURI(webView);
@@ -664,7 +705,7 @@ void webkitWebViewLoadChanged(WebKitWebView* webView, WebKitLoadEvent loadEvent)
 
 void webkitWebViewLoadFailed(WebKitWebView* webView, WebKitLoadEvent loadEvent, const char* failingURI, GError *error)
 {
-    if (webView->priv->replacingContent)
+    if (webView->priv->replaceContentStatus == ReplacingContent)
         return;
 
     gboolean returnValue;
@@ -684,7 +725,7 @@ void webkitWebViewSetTitle(WebKitWebView* webView, const CString& title)
 
 void webkitWebViewSetEstimatedLoadProgress(WebKitWebView* webView, double estimatedLoadProgress)
 {
-    if (webView->priv->replacingContent)
+    if (webView->priv->replaceContentStatus != NotReplacingContent)
         return;
 
     if (webView->priv->estimatedLoadProgress == estimatedLoadProgress)
@@ -733,23 +774,25 @@ void webkitWebViewClosePage(WebKitWebView* webView)
 
 void webkitWebViewRunJavaScriptAlert(WebKitWebView* webView, const CString& message)
 {
+    WebKitScriptDialog dialog(WEBKIT_SCRIPT_DIALOG_ALERT, message);
     gboolean returnValue;
-    g_signal_emit(webView, signals[SCRIPT_ALERT], 0, message.data(), &returnValue);
+    g_signal_emit(webView, signals[SCRIPT_DIALOG], 0, &dialog, &returnValue);
 }
 
 bool webkitWebViewRunJavaScriptConfirm(WebKitWebView* webView, const CString& message)
 {
-    gboolean returnValue, confirmed;
-    g_signal_emit(webView, signals[SCRIPT_CONFIRM], 0, message.data(), &confirmed, &returnValue);
-    return confirmed;
+    WebKitScriptDialog dialog(WEBKIT_SCRIPT_DIALOG_CONFIRM, message);
+    gboolean returnValue;
+    g_signal_emit(webView, signals[SCRIPT_DIALOG], 0, &dialog, &returnValue);
+    return dialog.confirmed;
 }
 
 WKStringRef webkitWebViewRunJavaScriptPrompt(WebKitWebView* webView, const CString& message, const CString& defaultText)
 {
+    WebKitScriptDialog dialog(WEBKIT_SCRIPT_DIALOG_PROMPT, message, defaultText);
     gboolean returnValue;
-    GOwnPtr<char> text;
-    g_signal_emit(webView, signals[SCRIPT_PROMPT], 0, message.data(), defaultText.data(), &text.outPtr(), &returnValue);
-    return text ? WKStringCreateWithUTF8CString(text.get()) : 0;
+    g_signal_emit(webView, signals[SCRIPT_DIALOG], 0, &dialog, &returnValue);
+    return dialog.text.isNull() ? 0 : WKStringCreateWithUTF8CString(dialog.text.data());
 }
 
 void webkitWebViewMakePolicyDecision(WebKitWebView* webView, WebKitPolicyDecisionType type, WebKitPolicyDecision* decision)
@@ -769,6 +812,20 @@ void webkitWebViewMouseTargetChanged(WebKitWebView* webView, WKHitTestResultRef 
     priv->mouseTargetModifiers = modifiers;
     priv->mouseTargetHitTestResult = adoptGRef(webkitHitTestResultCreate(wkHitTestResult));
     g_signal_emit(webView, signals[MOUSE_TARGET_CHANGED], 0, priv->mouseTargetHitTestResult.get(), modifiers);
+}
+
+void webkitWebViewPrintFrame(WebKitWebView* webView, WKFrameRef wkFrame)
+{
+    GRefPtr<WebKitPrintOperation> printOperation = adoptGRef(webkit_print_operation_new(webView));
+    gboolean returnValue;
+    g_signal_emit(webView, signals[PRINT_REQUESTED], 0, printOperation.get(), &returnValue);
+    if (returnValue)
+        return;
+
+    WebKitPrintOperationResponse response = webkitPrintOperationRunDialogForFrame(printOperation.get(), 0, toImpl(wkFrame));
+    if (response == WEBKIT_PRINT_OPERATION_RESPONSE_CANCEL)
+        return;
+    g_signal_connect(printOperation.leakRef(), "finished", G_CALLBACK(g_object_unref), 0);
 }
 
 /**
@@ -841,10 +898,14 @@ void webkit_web_view_load_uri(WebKitWebView* webView, const gchar* uri)
  * @base_uri: (allow-none): The base URI for relative locations or %NULL
  *
  * Load the given @content string with the specified @base_uri.
- * Relative URLs in the @content will be resolved against @base_uri.
- * When @base_uri is %NULL, it defaults to "about:blank". The mime type
- * of the document will be "text/html". You can monitor the load operation
- * by connecting to #WebKitWebView::load-changed signal.
+ * If @base_uri is not %NULL, relative URLs in the @content will be
+ * resolved against @base_uri and absolute local paths must be children of the @base_uri.
+ * For security reasons absolute local paths that are not children of @base_uri
+ * will cause the web process to terminate.
+ * If you need to include URLs in @content that are local paths in a different
+ * directory than @base_uri you can build a data URI for them. When @base_uri is %NULL,
+ * it defaults to "about:blank". The mime type of the document will be "text/html".
+ * You can monitor the load operation by connecting to #WebKitWebView::load-changed signal.
  */
 void webkit_web_view_load_html(WebKitWebView* webView, const gchar* content, const gchar* baseURI)
 {
@@ -917,7 +978,7 @@ void webkit_web_view_replace_content(WebKitWebView* webView, const gchar* conten
     g_return_if_fail(content);
     g_return_if_fail(contentURI);
 
-    webView->priv->replacingContent = true;
+    webView->priv->replaceContentStatus = WillReplaceContent;
 
     WKRetainPtr<WKStringRef> htmlString(AdoptWK, WKStringCreateWithUTF8CString(content));
     WKRetainPtr<WKURLRef> contentURL(AdoptWK, WKURLCreateWithUTF8CString(contentURI));
@@ -1231,8 +1292,8 @@ void webkit_web_view_set_settings(WebKitWebView* webView, WebKitSettings* settin
     if (webView->priv->settings == settings)
         return;
 
-    webView->priv->settings = settings;
-    webkitSettingsAttachSettingsToPage(settings, toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView))));
+    g_signal_handlers_disconnect_by_func(webView->priv->settings.get(), reinterpret_cast<gpointer>(zoomTextOnlyChanged), webView);
+    webkitWebViewSetSettings(webView, settings, toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView))));
 }
 
 /**
@@ -1290,11 +1351,14 @@ void webkit_web_view_set_zoom_level(WebKitWebView* webView, gdouble zoomLevel)
 {
     g_return_if_fail(WEBKIT_IS_WEB_VIEW(webView));
 
-    WKPageRef wkPage = toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView)));
-    if (WKPageGetPageZoomFactor(wkPage) == zoomLevel)
+    if (webkit_web_view_get_zoom_level(webView) == zoomLevel)
         return;
 
-    WKPageSetPageZoomFactor(wkPage, zoomLevel);
+    WKPageRef wkPage = toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView)));
+    if (webkit_settings_get_zoom_text_only(webView->priv->settings.get()))
+        WKPageSetTextZoomFactor(wkPage, zoomLevel);
+    else
+        WKPageSetPageZoomFactor(wkPage, zoomLevel);
     g_object_notify(G_OBJECT(webView), "zoom-level");
 }
 
@@ -1312,9 +1376,9 @@ gdouble webkit_web_view_get_zoom_level(WebKitWebView* webView)
     g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(webView), 1);
 
     WKPageRef wkPage = toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView)));
-    return WKPageGetPageZoomFactor(wkPage);
+    gboolean zoomTextOnly = webkit_settings_get_zoom_text_only(webView->priv->settings.get());
+    return zoomTextOnly ? WKPageGetTextZoomFactor(wkPage) : WKPageGetPageZoomFactor(wkPage);
 }
-
 
 static void didValidateCommand(WKStringRef command, bool isEnabled, int32_t state, WKErrorRef, void* context)
 {
@@ -1387,4 +1451,161 @@ void webkit_web_view_execute_editing_command(WebKitWebView* webView, const char*
     WebPageProxy* page = webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView));
     WKRetainPtr<WKStringRef> wkCommand(AdoptWK, WKStringCreateWithUTF8CString(command));
     WKPageExecuteCommand(toAPI(page), wkCommand.get());
+}
+
+/**
+ * webkit_web_view_get_find_controller:
+ * @web_view: the #WebKitWebView
+ *
+ * Gets the #WebKitFindController that will allow the caller to query
+ * the #WebKitWebView for the text to look for.
+ *
+ * Returns: (transfer none): the #WebKitFindController associated to
+ * this particular #WebKitWebView.
+ */
+WebKitFindController* webkit_web_view_get_find_controller(WebKitWebView* webView)
+{
+    g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(webView), 0);
+
+    if (!webView->priv->findController)
+        webView->priv->findController = adoptGRef(WEBKIT_FIND_CONTROLLER(g_object_new(WEBKIT_TYPE_FIND_CONTROLLER, "web-view", webView, NULL)));
+
+    return webView->priv->findController.get();
+}
+
+/**
+ * webkit_web_view_get_javascript_global_context:
+ * @web_view: a #WebKitWebView
+ *
+ * Get the global JavaScript context used by @web_view to deserialize the
+ * result values of scripts executed with webkit_web_view_run_javascript().
+ *
+ * Returns: the <function>JSGlobalContextRef</function> used by @web_view to deserialize
+ *    the result values of scripts.
+ */
+JSGlobalContextRef webkit_web_view_get_javascript_global_context(WebKitWebView* webView)
+{
+    g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(webView), 0);
+
+    if (!webView->priv->javascriptGlobalContext)
+        webView->priv->javascriptGlobalContext = JSGlobalContextCreate(0);
+    return webView->priv->javascriptGlobalContext;
+}
+
+static void webkitWebViewRunJavaScriptCallback(WKSerializedScriptValueRef wkSerializedScriptValue, WKErrorRef, void* context)
+{
+    GRefPtr<GSimpleAsyncResult> result = adoptGRef(G_SIMPLE_ASYNC_RESULT(context));
+    if (wkSerializedScriptValue) {
+        GRefPtr<WebKitWebView> webView = adoptGRef(WEBKIT_WEB_VIEW(g_async_result_get_source_object(G_ASYNC_RESULT(result.get()))));
+        WebKitJavascriptResult* scriptResult = webkitJavascriptResultCreate(webView.get(), wkSerializedScriptValue);
+        g_simple_async_result_set_op_res_gpointer(result.get(), scriptResult, reinterpret_cast<GDestroyNotify>(webkit_javascript_result_unref));
+    } else {
+        GError* error = 0;
+        g_set_error_literal(&error, WEBKIT_JAVASCRIPT_ERROR, WEBKIT_JAVASCRIPT_ERROR_SCRIPT_FAILED, _("An exception was raised in JavaScript"));
+        g_simple_async_result_take_error(result.get(), error);
+    }
+    g_simple_async_result_complete(result.get());
+}
+
+/**
+ * webkit_web_view_run_javascript:
+ * @web_view: a #WebKitWebView
+ * @script: the script to run
+ * @callback: (scope async): a #GAsyncReadyCallback to call when the script finished
+ * @user_data: (closure): the data to pass to callback function
+ *
+ * Asynchronously run @script in the context of the current page in @web_view.
+ *
+ * When the operation is finished, @callback will be called. You can then call
+ * webkit_web_view_run_javascript_finish() to get the result of the operation.
+ */
+void webkit_web_view_run_javascript(WebKitWebView* webView, const gchar* script, GAsyncReadyCallback callback, gpointer userData)
+{
+    g_return_if_fail(WEBKIT_IS_WEB_VIEW(webView));
+    g_return_if_fail(script);
+
+    WKPageRef wkPage = toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView)));
+    WKRetainPtr<WKStringRef> wkScript = adoptWK(WKStringCreateWithUTF8CString(script));
+    GSimpleAsyncResult* result = g_simple_async_result_new(G_OBJECT(webView), callback, userData,
+                                                           reinterpret_cast<gpointer>(webkit_web_view_run_javascript));
+    WKPageRunJavaScriptInMainFrame(wkPage, wkScript.get(), result, webkitWebViewRunJavaScriptCallback);
+}
+
+/**
+ * webkit_web_view_run_javascript_finish:
+ * @web_view: a #WebKitWebView
+ * @result: a #GAsyncResult
+ * @error: return location for error or %NULL to ignore
+ *
+ * Finish an asynchronous operation started with webkit_web_view_run_javascript().
+ *
+ * This is an example of using webkit_web_view_run_javascript() with a script returning
+ * a string:
+ *
+ * <informalexample><programlisting>
+ * static void
+ * web_view_javascript_finished (GObject      *object,
+ *                               GAsyncResult *result,
+ *                               gpointer      user_data)
+ * {
+ *     WebKitJavascriptResult *js_result;
+ *     JSValueRef              value;
+ *     JSGlobalContextRef      context;
+ *     GError                 *error = NULL;
+ *
+ *     js_result = webkit_web_view_run_javascript_finish (WEBKIT_WEB_VIEW (object), result, &error);
+ *     if (!js_result) {
+ *         g_warning ("Error running javascript: %s", error->message);
+ *         g_error_free (error);
+ *         return;
+ *     }
+ *
+ *     context = webkit_javascript_result_get_global_context (js_result);
+ *     value = webkit_javascript_result_get_value (js_result);
+ *     if (JSValueIsString (context, value)) {
+ *         JSStringRef *js_str_value;
+ *         gchar       *str_value;
+ *         gsize        str_length;
+ *
+ *         js_str_value = JSValueToStringCopy (context, value, NULL));
+ *         str_length = JSStringGetMaximumUTF8CStringSize (js_str_value);
+ *         str_value = (gchar *)g_malloc (str_length));
+ *         JSStringGetUTF8CString (js_str_value, str_value, str_length);
+ *         JSStringRelease (js_str_value);
+ *         g_print ("Script result: %s\n", str_value);
+ *         g_free (str_value);
+ *     } else {
+ *         g_warning ("Error running javascript: unexpected return value");
+ *     }
+ *     webkit_javascript_result_unref (js_result);
+ * }
+ *
+ * static void
+ * web_view_get_link_url (WebKitWebView *web_view,
+ *                        const gchar   *link_id)
+ * {
+ *     gchar *script;
+ *
+ *     script = g_strdup_printf ("window.document.getElementById('%s').href;", link_id);
+ *     webkit_web_view_run_javascript (web_view, script, web_view_javascript_finished, NULL);
+ *     g_free (script);
+ * }
+ * </programlisting></informalexample>
+ *
+ * Returns: (transfer full): a #WebKitJavascriptResult with the result of the last executed statement in @script
+ *    or %NULL in case of error
+ */
+WebKitJavascriptResult* webkit_web_view_run_javascript_finish(WebKitWebView* webView, GAsyncResult* result, GError** error)
+{
+    g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(webView), 0);
+    g_return_val_if_fail(G_IS_ASYNC_RESULT(result), 0);
+
+    GSimpleAsyncResult* simpleResult = G_SIMPLE_ASYNC_RESULT(result);
+    g_warn_if_fail(g_simple_async_result_get_source_tag(simpleResult) == webkit_web_view_run_javascript);
+
+    if (g_simple_async_result_propagate_error(simpleResult, error))
+        return 0;
+
+    WebKitJavascriptResult* scriptResult = static_cast<WebKitJavascriptResult*>(g_simple_async_result_get_op_res_gpointer(simpleResult));
+    return scriptResult ? webkit_javascript_result_ref(scriptResult) : 0;
 }

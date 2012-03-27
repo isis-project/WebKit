@@ -51,7 +51,6 @@
 #include "FrameLoadRequest.h"
 #include "FrameView.h"
 #include "Geolocation.h"
-#include "GeolocationService.h"
 #include "GraphicsLayer.h"
 #include "HTMLNames.h"
 #include "HitTestResult.h"
@@ -136,6 +135,7 @@ ChromeClientImpl::ChromeClientImpl(WebViewImpl* webView)
     , m_scrollbarsVisible(true)
     , m_menubarVisible(true)
     , m_resizable(true)
+    , m_nextNewWindowNavigationPolicy(WebNavigationPolicyIgnore)
 {
 }
 
@@ -238,13 +238,23 @@ Page* ChromeClientImpl::createWindow(
     if (!m_webView->client())
         return 0;
 
+    // FrameLoaderClientImpl may have given us a policy to use for the next new
+    // window navigation. If not, determine the policy using the same logic as
+    // show().
+    WebNavigationPolicy policy;
+    if (m_nextNewWindowNavigationPolicy != WebNavigationPolicyIgnore) {
+        policy = m_nextNewWindowNavigationPolicy;
+        m_nextNewWindowNavigationPolicy = WebNavigationPolicyIgnore;
+    } else
+        policy = getNavigationPolicy();
+
     WrappedResourceRequest request;
     if (!r.resourceRequest().isEmpty())
         request.bind(r.resourceRequest());
     else if (!action.resourceRequest().isEmpty())
         request.bind(action.resourceRequest());
     WebViewImpl* newView = static_cast<WebViewImpl*>(
-        m_webView->client()->createView(WebFrameImpl::fromFrame(frame), request, features, r.frameName()));
+        m_webView->client()->createView(WebFrameImpl::fromFrame(frame), request, features, r.frameName(), policy));
     if (!newView)
         return 0;
 
@@ -287,11 +297,8 @@ static inline bool currentEventShouldCauseBackgroundTab(const WebInputEvent* inp
     return policy == WebNavigationPolicyNewBackgroundTab;
 }
 
-void ChromeClientImpl::show()
+WebNavigationPolicy ChromeClientImpl::getNavigationPolicy()
 {
-    if (!m_webView->client())
-        return;
-
     // If our default configuration was modified by a script or wasn't
     // created by a user gesture, then show as a popup. Else, let this
     // new window be opened as a toplevel window.
@@ -306,8 +313,15 @@ void ChromeClientImpl::show()
         policy = WebNavigationPolicyNewPopup;
     if (currentEventShouldCauseBackgroundTab(WebViewImpl::currentInputEvent()))
         policy = WebNavigationPolicyNewBackgroundTab;
+    return policy;
+}
+ 
+void ChromeClientImpl::show()
+{
+    if (!m_webView->client())
+        return;
 
-    m_webView->client()->show(policy);
+    m_webView->client()->show(getNavigationPolicy());
 }
 
 bool ChromeClientImpl::canRunModal()
@@ -603,7 +617,7 @@ void ChromeClientImpl::mouseDidMoveOverElement(
             Widget* widget = toRenderWidget(object)->widget();
             if (widget && widget->isPluginContainer()) {
                 WebPluginContainerImpl* plugin = static_cast<WebPluginContainerImpl*>(widget);
-                url = plugin->plugin()->linkAtPosition(result.point());
+                url = plugin->plugin()->linkAtPosition(result.roundedPoint());
             }
         }
     }
@@ -625,7 +639,7 @@ void ChromeClientImpl::setToolTip(const String& tooltipText, TextDirection dir)
 void ChromeClientImpl::dispatchViewportPropertiesDidChange(const ViewportArguments& arguments) const
 {
 #if ENABLE(VIEWPORT)
-    if (!m_webView->isFixedLayoutModeEnabled() || !m_webView->client() || !m_webView->page())
+    if (!m_webView->settings()->viewportEnabled() || !m_webView->isFixedLayoutModeEnabled() || !m_webView->client() || !m_webView->page())
         return;
 
     ViewportArguments args;
@@ -802,6 +816,11 @@ void ChromeClientImpl::setCursorForPlugin(const WebCursorInfo& cursor)
     setCursor(cursor);
 }
 
+void ChromeClientImpl::setNewWindowNavigationPolicy(WebNavigationPolicy policy)
+{
+    m_nextNewWindowNavigationPolicy = policy;
+}
+
 void ChromeClientImpl::formStateDidChange(const Node* node)
 {
     // The current history item is not updated yet.  That happens lazily when
@@ -868,20 +887,6 @@ bool ChromeClientImpl::paintCustomOverhangArea(GraphicsContext* context, const I
     return false;
 }
 
-// FIXME: Remove ChromeClientImpl::requestGeolocationPermissionForFrame and ChromeClientImpl::cancelGeolocationPermissionRequestForFrame
-// once all ports have moved to client-based geolocation (see https://bugs.webkit.org/show_bug.cgi?id=40373 ).
-// For client-based geolocation, these methods are now implemented as WebGeolocationClient::requestPermission and WebGeolocationClient::cancelPermissionRequest.
-// (see https://bugs.webkit.org/show_bug.cgi?id=50061 ).
-void ChromeClientImpl::requestGeolocationPermissionForFrame(Frame* frame, Geolocation* geolocation)
-{
-    ASSERT_NOT_REACHED();
-}
-
-void ChromeClientImpl::cancelGeolocationPermissionRequestForFrame(Frame* frame, Geolocation* geolocation)
-{
-    ASSERT_NOT_REACHED();
-}
-
 #if USE(ACCELERATED_COMPOSITING)
 void ChromeClientImpl::attachRootGraphicsLayer(Frame* frame, GraphicsLayer* graphicsLayer)
 {
@@ -890,7 +895,7 @@ void ChromeClientImpl::attachRootGraphicsLayer(Frame* frame, GraphicsLayer* grap
 
 void ChromeClientImpl::scheduleCompositingLayerSync()
 {
-    m_webView->setRootLayerNeedsDisplay();
+    m_webView->scheduleCompositingLayerSync();
 }
 
 ChromeClient::CompositingTriggerFlags ChromeClientImpl::allowedCompositingTriggers() const
@@ -1016,6 +1021,11 @@ bool ChromeClientImpl::shouldRubberBandInDirection(WebCore::ScrollDirection dire
 void ChromeClientImpl::numWheelEventHandlersChanged(unsigned numberOfWheelHandlers)
 {
     m_webView->numberOfWheelEventHandlersChanged(numberOfWheelHandlers);
+}
+
+void ChromeClientImpl::numTouchEventHandlersChanged(unsigned numberOfTouchHandlers)
+{
+    m_webView->numberOfTouchEventHandlersChanged(numberOfTouchHandlers);
 }
 
 #if ENABLE(POINTER_LOCK)

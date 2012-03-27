@@ -21,8 +21,8 @@
 #include "config.h"
 #include "Heap.h"
 
-#include "BumpSpace.h"
-#include "BumpSpaceInlineMethods.h"
+#include "CopiedSpace.h"
+#include "CopiedSpaceInlineMethods.h"
 #include "CodeBlock.h"
 #include "ConservativeRoots.h"
 #include "GCActivityCallback.h"
@@ -328,6 +328,7 @@ Heap::Heap(JSGlobalData* globalData, HeapSize heapSize)
     , m_handleHeap(globalData)
     , m_isSafeToCollect(false)
     , m_globalData(globalData)
+    , m_lastGCLength(0)
 {
     (*m_activityCallback)();
     m_numberOfFreeBlocks = 0;
@@ -345,7 +346,7 @@ Heap::~Heap()
         m_blockFreeingThreadShouldQuit = true;
         m_freeBlockCondition.broadcast();
     }
-    waitForThreadCompletion(m_blockFreeingThread, 0);
+    waitForThreadCompletion(m_blockFreeingThread);
 
     // The destroy function must already have been called, so assert this.
     ASSERT(!m_globalData);
@@ -378,8 +379,9 @@ void Heap::destroy()
     m_handleHeap.finalizeWeakHandles();
     m_globalData->smallStrings.finalizeSmallStrings();
     shrink();
+    m_storageSpace.destroy();
     ASSERT(!size());
-    
+
 #if ENABLE(SIMPLE_HEAP_PROFILING)
     m_slotVisitor.m_visitedTypeCounts.dump(WTF::dataFile(), "Visited Type Counts");
     m_destroyedTypeCounts.dump(WTF::dataFile(), "Destroyed Type Counts");
@@ -407,10 +409,9 @@ void Heap::waitForRelativeTime(double relative)
     waitForRelativeTimeWhileHoldingLock(relative);
 }
 
-void* Heap::blockFreeingThreadStartFunc(void* heap)
+void Heap::blockFreeingThreadStartFunc(void* heap)
 {
     static_cast<Heap*>(heap)->blockFreeingThreadMain();
-    return 0;
 }
 
 void Heap::blockFreeingThreadMain()
@@ -731,12 +732,12 @@ size_t Heap::objectCount()
 
 size_t Heap::size()
 {
-    return m_objectSpace.forEachBlock<Size>();
+    return m_objectSpace.forEachBlock<Size>() + m_storageSpace.size();
 }
 
 size_t Heap::capacity()
 {
-    return m_objectSpace.forEachBlock<Capacity>();
+    return m_objectSpace.forEachBlock<Capacity>() + m_storageSpace.capacity();
 }
 
 size_t Heap::protectedGlobalObjectCount()
@@ -782,6 +783,7 @@ void Heap::collect(SweepToggle sweepToggle)
     ASSERT(globalData()->identifierTable == wtfThreadData().currentIdentifierTable());
     ASSERT(m_isSafeToCollect);
     JAVASCRIPTCORE_GC_BEGIN();
+    double lastGCStartTime = WTF::currentTime();
 #if ENABLE(GGC)
     bool fullGC = sweepToggle == DoSweep;
     if (!fullGC)
@@ -830,12 +832,14 @@ void Heap::collect(SweepToggle sweepToggle)
     // water mark to be proportional to the current size of the heap. The exact
     // proportion is a bit arbitrary. A 2X multiplier gives a 1:1 (heap size :
     // new bytes allocated) proportion, and seems to work well in benchmarks.
-    size_t newSize = size() + m_storageSpace.totalMemoryUtilized();
+    size_t newSize = size();
     size_t proportionalBytes = 2 * newSize;
     if (fullGC) {
         m_lastFullGCSize = newSize;
         setHighWaterMark(max(proportionalBytes, m_minBytesPerCycle));
     }
+    double lastGCEndTime = WTF::currentTime();
+    m_lastGCLength = lastGCEndTime - lastGCStartTime;
     JAVASCRIPTCORE_GC_END();
 
     (*m_activityCallback)();

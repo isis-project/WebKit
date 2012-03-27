@@ -4,21 +4,13 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB transaction basics.");
 
 function test()
 {
-    evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB");
-    shouldBeTrue("indexedDB != null");
-    evalAndLog("IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction");
-    shouldBeTrue("IDBTransaction != null");
-    evalAndLog("IDBDatabaseException = window.IDBDatabaseException || window.webkitIDBDatabaseException");
-    shouldBeTrue("IDBDatabaseException != null");
-    debug("");
+    removeVendorPrefixes();
 
     request = evalAndLog("indexedDB.open('transaction-basics')");
     request.onsuccess = openSuccess;
@@ -28,7 +20,7 @@ function test()
 function openSuccess()
 {
     debug("openSuccess():");
-    window.db = evalAndLog("db = event.target.result");
+    self.db = evalAndLog("db = event.target.result");
     request = evalAndLog("request = db.setVersion('version 1')");
     request.onsuccess = cleanDatabase;
     request.onerror = unexpectedErrorCallback;
@@ -221,9 +213,9 @@ function startSetVersion(versionName)
 
 function checkMetadataEmpty()
 {
-    shouldBe("window.db.objectStoreNames", "[]");
-    shouldBe("window.db.objectStoreNames.length", "0");
-    shouldBe("window.db.objectStoreNames.contains('storeFail')", "false");
+    shouldBe("self.db.objectStoreNames", "[]");
+    shouldBe("self.db.objectStoreNames.length", "0");
+    shouldBe("self.db.objectStoreNames.contains('storeFail')", "false");
 }
 
 function checkMetadataExistingObjectStore()
@@ -244,11 +236,11 @@ function setVersionSuccess()
 {
     debug("");
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.addEventListener('complete', completeCallback, false);
-    window.completeEventFired = false;
+    self.completeEventFired = false;
 
     deleteAllObjectStores(db);
 
@@ -294,7 +286,6 @@ function testInvalidMode()
     finishJSTest();
 }
 
-var jsTestIsAsync = true;
 test();
 
 </script>

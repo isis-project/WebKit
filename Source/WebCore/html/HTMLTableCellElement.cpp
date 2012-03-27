@@ -75,17 +75,17 @@ int HTMLTableCellElement::cellIndex() const
     return index;
 }
 
-bool HTMLTableCellElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLTableCellElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == nowrapAttr || attr->name() == widthAttr || attr->name() == heightAttr)
+    if (name == nowrapAttr || name == widthAttr || name == heightAttr)
         return true;
-    return HTMLTablePartElement::isPresentationAttribute(attr);
+    return HTMLTablePartElement::isPresentationAttribute(name);
 }
 
 void HTMLTableCellElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == nowrapAttr) {
-        style->setProperty(CSSPropertyWhiteSpace, CSSValueWebkitNowrap);
+        addPropertyToAttributeStyle(style, CSSPropertyWhiteSpace, CSSValueWebkitNowrap);
     } else if (attr->name() == widthAttr) {
         if (!attr->value().isEmpty()) {
             int widthInt = attr->value().toInt();

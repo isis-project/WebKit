@@ -32,26 +32,26 @@ public:
     SVGProperty* baseVal()
     {
         if (!m_baseVal)
-            m_baseVal = SVGTransformListPropertyTearOff::create(this, BaseValRole);
+            m_baseVal = SVGTransformListPropertyTearOff::create(this, BaseValRole, m_values, m_wrappers);
         return m_baseVal.get();
     }
 
     SVGProperty* animVal()
     {
         if (!m_animVal)
-            m_animVal = SVGTransformListPropertyTearOff::create(this, AnimValRole);
+            m_animVal = SVGTransformListPropertyTearOff::create(this, AnimValRole, m_values, m_wrappers);
         return m_animVal.get();
     }
 
-    static PassRefPtr<SVGAnimatedTransformListPropertyTearOff> create(SVGElement* contextElement, const QualifiedName& attributeName, SVGTransformList& values)
+    static PassRefPtr<SVGAnimatedTransformListPropertyTearOff> create(SVGElement* contextElement, const QualifiedName& attributeName, AnimatedPropertyType animatedPropertyType, SVGTransformList& values)
     {
         ASSERT(contextElement);
-        return adoptRef(new SVGAnimatedTransformListPropertyTearOff(contextElement, attributeName, values));
+        return adoptRef(new SVGAnimatedTransformListPropertyTearOff(contextElement, attributeName, animatedPropertyType, values));
     }
 
 private:
-    SVGAnimatedTransformListPropertyTearOff(SVGElement* contextElement, const QualifiedName& attributeName, SVGTransformList& values)
-        : SVGAnimatedListPropertyTearOff<SVGTransformList>(contextElement, attributeName, values)
+    SVGAnimatedTransformListPropertyTearOff(SVGElement* contextElement, const QualifiedName& attributeName, AnimatedPropertyType animatedPropertyType, SVGTransformList& values)
+        : SVGAnimatedListPropertyTearOff<SVGTransformList>(contextElement, attributeName, animatedPropertyType, values)
     {
     }
 };

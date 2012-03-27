@@ -60,34 +60,38 @@ extern "C" {
     I: Identifier*
     G: GlobalResolveInfo*
 */
-typedef int32_t DFG_OPERATION (*Z_DFGOperation_D)(double);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EA)(ExecState*, JSArray*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_ECC)(ExecState*, JSCell*, JSCell*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_ECI)(ExecState*, JSCell*, Identifier*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_ECJ)(ExecState*, JSCell*, EncodedJSValue);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EGI)(ExecState*, GlobalResolveInfo*, Identifier*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EI)(ExecState*, Identifier*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJ)(ExecState*, EncodedJSValue);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJA)(ExecState*, EncodedJSValue, JSArray*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJI)(ExecState*, EncodedJSValue, Identifier*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJJ)(ExecState*, EncodedJSValue, EncodedJSValue);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJP)(ExecState*, EncodedJSValue, void*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EP)(ExecState*, void*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EPP)(ExecState*, void*, void*);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EPS)(ExecState*, void*, size_t);
+typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_ESS)(ExecState*, size_t, size_t);
 typedef JSCell* DFG_OPERATION (*C_DFGOperation_E)(ExecState*);
 typedef JSCell* DFG_OPERATION (*C_DFGOperation_EC)(ExecState*, JSCell*);
 typedef JSCell* DFG_OPERATION (*C_DFGOperation_ECC)(ExecState*, JSCell*, JSCell*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EA)(ExecState*, JSArray*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJA)(ExecState*, EncodedJSValue, JSArray*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_ECJ)(ExecState*, JSCell*, EncodedJSValue);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJJ)(ExecState*, EncodedJSValue, EncodedJSValue);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJ)(ExecState*, EncodedJSValue);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJP)(ExecState*, EncodedJSValue, void*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_ECI)(ExecState*, JSCell*, Identifier*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EJI)(ExecState*, EncodedJSValue, Identifier*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EP)(ExecState*, void*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EPP)(ExecState*, void*, void*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EGI)(ExecState*, GlobalResolveInfo*, Identifier*);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EPS)(ExecState*, void*, size_t);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_ESS)(ExecState*, size_t, size_t);
-typedef EncodedJSValue DFG_OPERATION (*J_DFGOperation_EI)(ExecState*, Identifier*);
+typedef double DFG_OPERATION (*D_DFGOperation_DD)(double, double);
+typedef double DFG_OPERATION (*D_DFGOperation_ZZ)(int32_t, int32_t);
+typedef double DFG_OPERATION (*D_DFGOperation_EJ)(ExecState*, EncodedJSValue);
+typedef int32_t DFG_OPERATION (*Z_DFGOperation_D)(double);
+typedef size_t DFG_OPERATION (*S_DFGOperation_ECC)(ExecState*, JSCell*, JSCell*);
 typedef size_t DFG_OPERATION (*S_DFGOperation_EJ)(ExecState*, EncodedJSValue);
 typedef size_t DFG_OPERATION (*S_DFGOperation_EJJ)(ExecState*, EncodedJSValue, EncodedJSValue);
-typedef void DFG_OPERATION (*V_DFGOperation_EJJJ)(ExecState*, EncodedJSValue, EncodedJSValue, EncodedJSValue);
-typedef void DFG_OPERATION (*V_DFGOperation_ECJJ)(ExecState*, JSCell*, EncodedJSValue, EncodedJSValue);
-typedef void DFG_OPERATION (*V_DFGOperation_EJPP)(ExecState*, EncodedJSValue, EncodedJSValue, void*);
-typedef void DFG_OPERATION (*V_DFGOperation_EJCI)(ExecState*, EncodedJSValue, JSCell*, Identifier*);
-typedef void DFG_OPERATION (*V_DFGOperation_EPZJ)(ExecState*, void*, int32_t, EncodedJSValue);
 typedef void DFG_OPERATION (*V_DFGOperation_EAZJ)(ExecState*, JSArray*, int32_t, EncodedJSValue);
-typedef double DFG_OPERATION (*D_DFGOperation_DD)(double, double);
-typedef double DFG_OPERATION (*D_DFGOperation_EJ)(ExecState*, EncodedJSValue);
+typedef void DFG_OPERATION (*V_DFGOperation_ECJJ)(ExecState*, JSCell*, EncodedJSValue, EncodedJSValue);
+typedef void DFG_OPERATION (*V_DFGOperation_EJCI)(ExecState*, EncodedJSValue, JSCell*, Identifier*);
+typedef void DFG_OPERATION (*V_DFGOperation_EJJJ)(ExecState*, EncodedJSValue, EncodedJSValue, EncodedJSValue);
+typedef void DFG_OPERATION (*V_DFGOperation_EJPP)(ExecState*, EncodedJSValue, EncodedJSValue, void*);
+typedef void DFG_OPERATION (*V_DFGOperation_EPZJ)(ExecState*, void*, int32_t, EncodedJSValue);
+typedef void DFG_OPERATION (V_DFGOperation_EC)(ExecState*, JSCell*);
 typedef void* DFG_OPERATION (*P_DFGOperation_E)(ExecState*);
 
 // These routines are provide callbacks out to C++ implementations of operations too complex to JIT.
@@ -118,9 +122,11 @@ void DFG_OPERATION operationPutByValStrict(ExecState*, EncodedJSValue encodedBas
 void DFG_OPERATION operationPutByValNonStrict(ExecState*, EncodedJSValue encodedBase, EncodedJSValue encodedProperty, EncodedJSValue encodedValue);
 void DFG_OPERATION operationPutByValCellStrict(ExecState*, JSCell*, EncodedJSValue encodedProperty, EncodedJSValue encodedValue);
 void DFG_OPERATION operationPutByValCellNonStrict(ExecState*, JSCell*, EncodedJSValue encodedProperty, EncodedJSValue encodedValue);
-void DFG_OPERATION operationPutByValBeyondArrayBounds(ExecState*, JSArray*, int32_t index, EncodedJSValue encodedValue);
+void DFG_OPERATION operationPutByValBeyondArrayBoundsStrict(ExecState*, JSArray*, int32_t index, EncodedJSValue encodedValue);
+void DFG_OPERATION operationPutByValBeyondArrayBoundsNonStrict(ExecState*, JSArray*, int32_t index, EncodedJSValue encodedValue);
 EncodedJSValue DFG_OPERATION operationArrayPush(ExecState*, EncodedJSValue encodedValue, JSArray*);
 EncodedJSValue DFG_OPERATION operationArrayPop(ExecState*, JSArray*);
+EncodedJSValue DFG_OPERATION operationRegExpExec(ExecState*, JSCell*, JSCell*);
 void DFG_OPERATION operationPutByIdStrict(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
 void DFG_OPERATION operationPutByIdNonStrict(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
 void DFG_OPERATION operationPutByIdDirectStrict(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
@@ -134,6 +140,7 @@ void DFG_OPERATION operationPutByIdNonStrictBuildList(ExecState*, EncodedJSValue
 void DFG_OPERATION operationPutByIdDirectStrictBuildList(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
 void DFG_OPERATION operationPutByIdDirectNonStrictBuildList(ExecState*, EncodedJSValue encodedValue, JSCell* base, Identifier*);
 // These comparisons return a boolean within a size_t such that the value is zero extended to fill the register.
+size_t DFG_OPERATION operationRegExpTest(ExecState*, JSCell*, JSCell*);
 size_t DFG_OPERATION operationCompareLess(ExecState*, EncodedJSValue encodedOp1, EncodedJSValue encodedOp2);
 size_t DFG_OPERATION operationCompareLessEq(ExecState*, EncodedJSValue encodedOp1, EncodedJSValue encodedOp2);
 size_t DFG_OPERATION operationCompareGreater(ExecState*, EncodedJSValue encodedOp1, EncodedJSValue encodedOp2);
@@ -145,24 +152,19 @@ void* DFG_OPERATION operationVirtualCall(ExecState*);
 void* DFG_OPERATION operationLinkCall(ExecState*);
 void* DFG_OPERATION operationVirtualConstruct(ExecState*);
 void* DFG_OPERATION operationLinkConstruct(ExecState*);
+JSCell* DFG_OPERATION operationCreateActivation(ExecState*);
+void DFG_OPERATION operationTearOffActivation(ExecState*, JSCell*);
+JSCell* DFG_OPERATION operationNewFunction(ExecState*, JSCell*);
+JSCell* DFG_OPERATION operationNewFunctionExpression(ExecState*, JSCell*);
+double operationFModOnInts(int32_t, int32_t);
 
 // This method is used to lookup an exception hander, keyed by faultLocation, which is
 // the return location from one of the calls out to one of the helper operations above.
+
+// According to C++ rules, a type used for the return signature of function with C linkage (i.e.
+// 'extern "C"') needs to be POD; hence putting any constructors into it could cause either compiler
+// warnings, or worse, a change in the ABI used to return these types.
 struct DFGHandler {
-    DFGHandler(ExecState* exec, void* handler)
-    {
-        u.s.exec = exec;
-        u.s.handler = handler;
-    }
-
-#if !CPU(X86_64)
-    uint64_t encoded()
-    {
-        COMPILE_ASSERT(sizeof(Union) == sizeof(uint64_t), DFGHandler_Union_is_64bit);
-        return u.encoded;
-    }
-#endif
-
     union Union {
         struct Struct {
             ExecState* exec;
@@ -171,17 +173,27 @@ struct DFGHandler {
         uint64_t encoded;
     } u;
 };
+
+inline DFGHandler createDFGHandler(ExecState* exec, void* handler)
+{
+    DFGHandler result;
+    result.u.s.exec = exec;
+    result.u.s.handler = handler;
+    return result;
+}
+
 #if CPU(X86_64)
 typedef DFGHandler DFGHandlerEncoded;
 inline DFGHandlerEncoded dfgHandlerEncoded(ExecState* exec, void* handler)
 {
-    return DFGHandler(exec, handler);
+    return createDFGHandler(exec, handler);
 }
 #else
 typedef uint64_t DFGHandlerEncoded;
 inline DFGHandlerEncoded dfgHandlerEncoded(ExecState* exec, void* handler)
 {
-    return DFGHandler(exec, handler).encoded();
+    COMPILE_ASSERT(sizeof(DFGHandler::Union) == sizeof(uint64_t), DFGHandler_Union_is_64bit);
+    return createDFGHandler(exec, handler).u.encoded;
 }
 #endif
 DFGHandlerEncoded DFG_OPERATION lookupExceptionHandler(ExecState*, uint32_t);

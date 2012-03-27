@@ -35,18 +35,27 @@
 #include "Database.h"
 #include "InjectedScript.h"
 #include "InjectedScriptHost.h"
+#include "InspectorDOMAgent.h"
 #include "InspectorValues.h"
 #include "ScriptValue.h"
 #include "V8Binding.h"
 #include "V8BindingState.h"
 #include "V8Database.h"
+#include "V8Float32Array.h"
+#include "V8Float64Array.h"
 #include "V8HTMLAllCollection.h"
 #include "V8HTMLCollection.h"
 #include "V8HiddenPropertyName.h"
+#include "V8Int16Array.h"
+#include "V8Int32Array.h"
+#include "V8Int8Array.h"
 #include "V8NodeList.h"
 #include "V8Node.h"
 #include "V8Proxy.h"
 #include "V8Storage.h"
+#include "V8Uint16Array.h"
+#include "V8Uint32Array.h"
+#include "V8Uint8Array.h"
 
 namespace WebCore {
 
@@ -66,19 +75,20 @@ ScriptValue InjectedScriptHost::nodeAsScriptValue(ScriptState* state, Node* node
     return ScriptValue(toV8(node));
 }
 
-v8::Handle<v8::Value> V8InjectedScriptHost::inspectedNodeCallback(const v8::Arguments& args)
+v8::Handle<v8::Value> V8InjectedScriptHost::inspectedObjectCallback(const v8::Arguments& args)
 {
-    INC_STATS("InjectedScriptHost.inspectedNode()");
+    INC_STATS("InjectedScriptHost.inspectedObject()");
     if (args.Length() < 1)
         return v8::Undefined();
 
-    InjectedScriptHost* host = V8InjectedScriptHost::toNative(args.Holder());
-
-    Node* node = host->inspectedNode(args[0]->ToInt32()->Value());
-    if (!node)
+    if (!args[0]->IsInt32()) {
+        throwError("argument has to be an integer");
         return v8::Undefined();
+    }
 
-    return toV8(node);
+    InjectedScriptHost* host = V8InjectedScriptHost::toNative(args.Holder());
+    InjectedScriptHost::InspectableObject* object = host->inspectedObject(args[0]->ToInt32()->Value());
+    return object->get(ScriptState::current()).v8Value();
 }
 
 v8::Handle<v8::Value> V8InjectedScriptHost::internalConstructorNameCallback(const v8::Arguments& args)
@@ -131,6 +141,12 @@ v8::Handle<v8::Value> V8InjectedScriptHost::typeCallback(const v8::Arguments& ar
         return v8::String::New("array");
     if (V8HTMLCollection::HasInstance(value))
         return v8::String::New("array");
+    if (V8Int8Array::HasInstance(value) || V8Int16Array::HasInstance(value) || V8Int32Array::HasInstance(value))
+        return v8::String::New("array");
+    if (V8Uint8Array::HasInstance(value) || V8Uint16Array::HasInstance(value) || V8Uint32Array::HasInstance(value))
+        return v8::String::New("array");
+    if (V8Float32Array::HasInstance(value) || V8Float64Array::HasInstance(value))
+        return v8::String::New("array");
     return v8::Undefined();
 }
 
@@ -164,6 +180,65 @@ v8::Handle<v8::Value> V8InjectedScriptHost::functionDetailsCallback(const v8::Ar
     v8::Handle<v8::Value> inferredName = function->GetInferredName();
     if (inferredName->IsString() && v8::Handle<v8::String>::Cast(inferredName)->Length())
         result->Set(v8::String::New("inferredName"), inferredName);
+    return result;
+}
+
+static v8::Handle<v8::Array> getJSListenerFunctions(Document* document, const EventListenerInfo& listenerInfo)
+{
+    v8::Local<v8::Array> result = v8::Array::New();
+    size_t handlersCount = listenerInfo.eventListenerVector.size();
+    for (size_t i = 0, outputIndex = 0; i < handlersCount; ++i) {
+        RefPtr<EventListener> listener = listenerInfo.eventListenerVector[i].listener;
+        if (listener->type() != EventListener::JSEventListenerType) {
+            ASSERT_NOT_REACHED();
+            continue;
+        }
+        V8AbstractEventListener* v8Listener = static_cast<V8AbstractEventListener*>(listener.get());
+        v8::Local<v8::Context> context = toV8Context(document, v8Listener->worldContext());
+        // Hide listeners from other contexts.
+        if (context != V8Proxy::currentContext())
+            continue;
+        v8::Local<v8::Object> function = v8Listener->getListenerObject(document);
+        v8::Local<v8::Object> listenerEntry = v8::Object::New();
+        listenerEntry->Set(v8::String::New("listener"), function);
+        listenerEntry->Set(v8::String::New("useCapture"), v8::Boolean::New(listenerInfo.eventListenerVector[i].useCapture));
+        result->Set(v8::Number::New(outputIndex++), listenerEntry);
+    }
+    return result;
+}
+
+v8::Handle<v8::Value> V8InjectedScriptHost::getEventListenersCallback(const v8::Arguments& args)
+{
+    INC_STATS("InjectedScriptHost.queryEventListenerCallback()");
+    if (args.Length() < 1)
+        return v8::Undefined();
+
+    v8::HandleScope handleScope;
+
+    v8::Local<v8::Value> value = args[0];
+    if (!value->IsObject())
+        return v8::Undefined();
+    Node* node = V8Node::toNative(value->ToObject());
+    if (!node)
+        return v8::Undefined();
+    // This can only happen for orphan DocumentType nodes.
+    Document* document = node->document();
+    if (!node->document())
+        return v8::Undefined();
+
+    InjectedScriptHost* host = V8InjectedScriptHost::toNative(args.Holder());
+    Vector<EventListenerInfo> listenersArray;
+    host->getEventListenersImpl(node, listenersArray);
+
+    v8::Local<v8::Object> result = v8::Object::New();
+    for (size_t i = 0; i < listenersArray.size(); ++i) {
+        v8::Handle<v8::Array> listeners = getJSListenerFunctions(document, listenersArray[i]);
+        if (!listeners->Length())
+            continue;
+        AtomicString eventType = listenersArray[i].eventType;
+        result->Set(v8::String::New(fromWebCoreString(eventType), eventType.length()), listeners);
+    }
+
     return result;
 }
 

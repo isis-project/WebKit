@@ -4,19 +4,16 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test consistency of IndexedDB's cursor objects.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 test();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('cursor-inconsistency')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('cursor-inconsistency')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -33,7 +30,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = openBasicCursor;
@@ -51,12 +48,12 @@ function setVersionSuccess()
 function openBasicCursor()
 {
     debug("openBasicCursor()");
-    evalAndLog("trans = db.transaction(['basicStore'], webkitIDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['basicStore'], IDBTransaction.READ_WRITE)");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = transactionComplete;
 
-    keyRange = webkitIDBKeyRange.lowerBound("someKey1");
-    window.objectStore = evalAndLog("trans.objectStore('basicStore')");
+    keyRange = IDBKeyRange.lowerBound("someKey1");
+    self.objectStore = evalAndLog("trans.objectStore('basicStore')");
     request = evalAndLog("objectStore.openCursor(keyRange)");
     request.onsuccess = checkCursor;
     request.onerror = unexpectedErrorCallback;
@@ -87,10 +84,11 @@ function checkCursor()
 function transactionComplete()
 {
     debug("transactionComplete()");
-    done();
+    finishJSTest();
 }
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

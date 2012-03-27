@@ -50,6 +50,7 @@ WebSettingsImpl::WebSettingsImpl(Settings* settings)
     , m_compositeToTextureEnabled(false)
     , m_showFPSCounter(false)
     , m_showPlatformLayerTree(false)
+    , m_viewportEnabled(false)
 {
     ASSERT(settings);
 }
@@ -107,6 +108,11 @@ void WebSettingsImpl::setMinimumFontSize(int size)
 void WebSettingsImpl::setMinimumLogicalFontSize(int size)
 {
     m_settings->setMinimumLogicalFontSize(size);
+}
+
+void WebSettingsImpl::setDefaultDeviceScaleFactor(int defaultDeviceScaleFactor)
+{
+    m_settings->setDefaultDeviceScaleFactor(defaultDeviceScaleFactor);
 }
 
 void WebSettingsImpl::setDefaultTextEncodingName(const WebString& encoding)
@@ -288,6 +294,16 @@ void WebSettingsImpl::setExperimentalWebGLEnabled(bool enabled)
     m_settings->setWebGLEnabled(enabled);
 }
 
+void WebSettingsImpl::setExperimentalCSSRegionsEnabled(bool enabled)
+{
+    m_settings->setCSSRegionsEnabled(enabled);
+}
+
+void WebSettingsImpl::setExperimentalCSSCustomFilterEnabled(bool enabled)
+{
+    m_settings->setCSSCustomFilterEnabled(enabled);
+}
+
 void WebSettingsImpl::setOpenGLMultisamplingEnabled(bool enabled)
 {
     m_settings->setOpenGLMultisamplingEnabled(enabled);
@@ -326,6 +342,7 @@ void WebSettingsImpl::setEditingBehavior(EditingBehavior behavior)
 void WebSettingsImpl::setAcceleratedCompositingEnabled(bool enabled)
 {
     m_settings->setAcceleratedCompositingEnabled(enabled);
+    m_settings->setScrollingCoordinatorEnabled(enabled);
 }
 
 void WebSettingsImpl::setForceCompositingMode(bool enabled)
@@ -457,6 +474,16 @@ void WebSettingsImpl::setAllowRunningOfInsecureContent(bool enabled)
     m_settings->setAllowRunningOfInsecureContent(enabled);
 }
 
+void WebSettingsImpl::setPasswordEchoEnabled(bool flag)
+{
+    m_settings->setPasswordEchoEnabled(flag);
+}
+
+void WebSettingsImpl::setPasswordEchoDurationInSeconds(double durationInSeconds)
+{
+    m_settings->setPasswordEchoDurationInSeconds(durationInSeconds);
+}
+
 void WebSettingsImpl::setShouldPrintBackgrounds(bool enabled)
 {
     m_settings->setShouldPrintBackgrounds(enabled);
@@ -525,6 +552,16 @@ void WebSettingsImpl::setPerTilePaintingEnabled(bool enabled)
 void WebSettingsImpl::setPartialSwapEnabled(bool enabled)
 {
     m_settings->setPartialSwapEnabled(enabled);
+}
+
+void WebSettingsImpl::setThreadedAnimationEnabled(bool enabled)
+{
+    m_settings->setThreadedAnimationEnabled(enabled);
+}
+
+void WebSettingsImpl::setViewportEnabled(bool enabled)
+{
+    m_viewportEnabled = enabled;
 }
 
 } // namespace WebKit

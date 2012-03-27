@@ -32,16 +32,18 @@
 #include "JSObject.h"
 #include "Register.h"
 #include "SymbolTable.h"
-#include "UnusedParam.h"
+#include <wtf/UnusedParam.h>
 #include <wtf/OwnArrayPtr.h>
 #include <wtf/UnusedParam.h>
 
 namespace JSC {
 
+    class LLIntOffsetsExtractor;
     class Register;
 
     class JSVariableObject : public JSNonFinalObject {
         friend class JIT;
+        friend class LLIntOffsetsExtractor;
 
     public:
         typedef JSNonFinalObject Base;

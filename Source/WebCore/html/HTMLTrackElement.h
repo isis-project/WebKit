@@ -76,10 +76,9 @@ private:
     virtual ~HTMLTrackElement();
 
     virtual void parseAttribute(Attribute*) OVERRIDE;
-    virtual void attributeChanged(Attribute*) OVERRIDE;
 
-    virtual void insertedIntoDocument() OVERRIDE;
-    virtual void removedFromDocument() OVERRIDE;
+    virtual void insertedIntoTree(bool) OVERRIDE;
+    virtual void willRemove() OVERRIDE;
     virtual bool isURLAttribute(Attribute*) const;
 
 #if ENABLE(MICRODATA)

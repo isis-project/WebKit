@@ -204,8 +204,8 @@ public:
     TextTrackList* textTracks();
     CueList currentlyActiveCues() const { return m_currentlyActiveCues; }
 
-    virtual void trackWasAdded(HTMLTrackElement*);
-    virtual void trackWasRemoved(HTMLTrackElement*);
+    virtual void didAddTrack(HTMLTrackElement*);
+    virtual void willRemoveTrack(HTMLTrackElement*);
 
     struct TrackGroup {
         enum GroupKind { CaptionsAndSubtitles, Description, Chapter, Metadata, Other };
@@ -337,9 +337,9 @@ private:
 
     virtual bool supportsFocus() const;
     virtual bool isMouseFocusable() const;
-    virtual void attributeChanged(Attribute*) OVERRIDE;
     virtual bool rendererIsNeeded(const NodeRenderingContext&);
     virtual RenderObject* createRenderer(RenderArena*, RenderStyle*);
+    virtual bool childShouldCreateRenderer(const NodeRenderingContext&) const OVERRIDE;
     virtual void insertedIntoDocument();
     virtual void removedFromDocument();
     virtual void didRecalcStyle(StyleChange);
@@ -388,6 +388,9 @@ private:
     virtual void mediaPlayerSourceOpened();
     virtual String mediaPlayerSourceURL() const;
 #endif
+
+    virtual String mediaPlayerReferrer() const OVERRIDE;
+    virtual String mediaPlayerUserAgent() const OVERRIDE;
 
     void loadTimerFired(Timer<HTMLMediaElement>*);
     void progressEventTimerFired(Timer<HTMLMediaElement>*);
@@ -475,6 +478,8 @@ private:
 
     void changeNetworkStateFromLoadingToIdle();
 
+    void removeBehaviorsRestrictionsAfterFirstUserGesture();
+
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;
     virtual void setItemValueText(const String&, ExceptionCode&);
@@ -523,9 +528,8 @@ private:
     // Loading state.
     enum LoadState { WaitingForSource, LoadingFromSrcAttr, LoadingFromSourceElement };
     LoadState m_loadState;
-    HTMLSourceElement* m_currentSourceNode;
-    Node* m_nextChildNodeToConsider;
-    Node* sourceChildEndOfListValue() { return static_cast<Node*>(this); }
+    RefPtr<HTMLSourceElement> m_currentSourceNode;
+    RefPtr<Node> m_nextChildNodeToConsider;
 
     OwnPtr<MediaPlayer> m_player;
 #if ENABLE(PLUGIN_PROXY_FOR_VIDEO)
@@ -595,10 +599,13 @@ private:
 #if ENABLE(VIDEO_TRACK)
     bool m_tracksAreReady : 1;
     bool m_haveVisibleTextTrack : 1;
+    float m_lastTextTrackUpdateTime;
 
     RefPtr<TextTrackList> m_textTracks;
     Vector<RefPtr<TextTrack> > m_textTracksWhenResourceSelectionBegan;
+
     CueIntervalTree m_cueTree;
+
     CueList m_currentlyActiveCues;
     int m_ignoreTrackDisplayUpdate;
 #endif

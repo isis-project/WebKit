@@ -26,34 +26,37 @@
 #ifndef NotificationController_h
 #define NotificationController_h
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
 
+#include "Page.h"
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
 
 namespace WebCore {
 
-class NotificationPresenter;
-class Page;
+class NotificationClient;
 
-class NotificationController {
+class NotificationController : public Supplement<Page> {
     WTF_MAKE_NONCOPYABLE(NotificationController);
 public:
     ~NotificationController();
 
-    static PassOwnPtr<NotificationController> create(Page*, NotificationPresenter*);
+    static PassOwnPtr<NotificationController> create(Page*, NotificationClient*);
+    static const AtomicString& supplementName();
+    static NotificationController* from(Page* page) { return static_cast<NotificationController*>(Supplement<Page>::from(page, supplementName())); }
+    static NotificationClient* clientFrom(Page*);
 
-    NotificationPresenter* client() { return m_client; }
+    NotificationClient* client() { return m_client; }
     
 private:
-    NotificationController(Page*, NotificationPresenter*);
+    NotificationController(Page*, NotificationClient*);
 
     Page* m_page;
-    NotificationPresenter* m_client;
+    NotificationClient* m_client;
 };
 
 } // namespace WebCore
 
-#endif // ENABLE(NOTIFICATIONS)
+#endif // ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
 
 #endif // NotificationController_h

@@ -4,21 +4,17 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Verify that you can put the same data in 2 different databases without uniqueness constraints firing.");
-if (window.layoutTestController) 
-    layoutTestController.waitUntilDone();
 
 testCount = 0;
 function test()
 {
     if (testCount++ == 0)
-        request = evalAndLog("webkitIndexedDB.open('duplicates-1')");
+        request = evalAndLog("indexedDB.open('duplicates-1')");
     else
-        request = evalAndLog("webkitIndexedDB.open('duplicates-2')");
+        request = evalAndLog("indexedDB.open('duplicates-2')");
     request.onsuccess = setVersion;
     request.onerror = unexpectedErrorCallback;
 }
@@ -35,14 +31,14 @@ function setVersion()
 function deleteExisting()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
 
     deleteAllObjectStores(db);
 
-    window.store = evalAndLog("db.createObjectStore('storeName', null)");
-    window.indexObject = evalAndLog("store.createIndex('indexName', 'x')");
+    self.store = evalAndLog("db.createObjectStore('storeName', null)");
+    self.indexObject = evalAndLog("store.createIndex('indexName', 'x')");
     addData();
 }
 
@@ -99,7 +95,7 @@ function openKeyCursor()
 {
     shouldBe("event.target.result", "undefined");
 
-    window.request = evalAndLog("indexObject.openKeyCursor()");
+    self.request = evalAndLog("indexObject.openKeyCursor()");
     request.onsuccess = cursor1Continue;
     request.onerror = unexpectedErrorCallback;
 }
@@ -112,7 +108,7 @@ function cursor1Continue()
 
     // We re-use the last request object.
     evalAndLog("event.target.result.continue()");
-    window.request.onsuccess = cursor1Continue2;
+    self.request.onsuccess = cursor1Continue2;
 }
 
 function cursor1Continue2()
@@ -123,14 +119,14 @@ function cursor1Continue2()
 
     // We re-use the last request object.
     evalAndLog("event.target.result.continue()");
-    window.request.onsuccess = openObjectCursor;
+    self.request.onsuccess = openObjectCursor;
 }
 
 function openObjectCursor()
 {
     shouldBeTrue("event.target.result === null");
 
-    window.request = evalAndLog("indexObject.openCursor()");
+    self.request = evalAndLog("indexObject.openCursor()");
     request.onsuccess = cursor2Continue;
     request.onerror = unexpectedErrorCallback;
 }
@@ -144,7 +140,7 @@ function cursor2Continue()
 
     // We re-use the last request object.
     evalAndLog("event.target.result.continue()");
-    window.request.onsuccess = cursor2Continue2;
+    self.request.onsuccess = cursor2Continue2;
 }
 
 function cursor2Continue2()
@@ -156,7 +152,7 @@ function cursor2Continue2()
 
     // We re-use the last request object.
     evalAndLog("event.target.result.continue()");
-    window.request.onsuccess = last;
+    self.request.onsuccess = last;
 }
 
 function last()
@@ -166,12 +162,14 @@ function last()
     if (testCount == 1)
         test();
     else
-        done();
+        finishJSTest();
 }
 
+removeVendorPrefixes();
 test();
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

@@ -273,7 +273,13 @@ typedef enum {
     WKMediaUIPartControlsPanel,
     WKMediaUIPartVolumeSliderContainer,
     WKMediaUIPartVolumeSlider,
-    WKMediaUIPartVolumeSliderThumb
+    WKMediaUIPartVolumeSliderThumb,
+    WKMediaUIPartFullScreenVolumeSlider,
+    WKMediaUIPartFullScreenVolumeSliderThumb,
+    WKMediaUIPartVolumeSliderMuteButton,
+    WKMediaUIPartTextTrackDisplayContainer,
+    WKMediaUIPartTextTrackDisplay,
+    WKMediaUIPartExitFullscreenButton,
 } WKMediaUIPart;
 
 typedef enum {
@@ -333,6 +339,19 @@ uint32_t WKCARemoteLayerClientGetClientId(WKCARemoteLayerClientRef);
 void WKCARemoteLayerClientSetLayer(WKCARemoteLayerClientRef, CALayer *);
 CALayer *WKCARemoteLayerClientGetLayer(WKCARemoteLayerClientRef);
 
+typedef struct __WKCAContextRef *WKCAContextRef;
+
+WKCAContextRef WKCAContextMakeRemoteWithServerPort(mach_port_t port);
+WKCAContextRef WKCAContextMakeRemoteForWindowServer(void);
+void WKCAContextInvalidate(WKCAContextRef);
+uint32_t WKCAContextGetContextId(WKCAContextRef);
+void WKCAContextSetLayer(WKCAContextRef, CALayer *);
+CALayer *WKCAContextGetLayer(WKCAContextRef);
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+void WKCALayerEnumerateRectsBeingDrawnWithBlock(CALayer *layer, CGContextRef context, void (^block)(CGRect rect));
+#endif
+
 @class CARenderer;
 
 void WKCARendererAddChangeNotificationObserver(CARenderer *, void (*callback)(void*), void* context);
@@ -343,6 +362,8 @@ typedef struct __WKWindowBounceAnimationContext *WKWindowBounceAnimationContextR
 WKWindowBounceAnimationContextRef WKWindowBounceAnimationContextCreate(NSWindow *window);
 void WKWindowBounceAnimationContextDestroy(WKWindowBounceAnimationContextRef context);
 void WKWindowBounceAnimationSetAnimationProgress(WKWindowBounceAnimationContextRef context, double animationProgress);
+
+void WKWindowSetClipRect(NSWindow*, NSRect);
 
 #if defined(__x86_64__)
 #import <mach/mig.h>
@@ -432,6 +453,8 @@ WKSandboxExtensionRef WKSandboxExtensionCreateFromSerializedFormat(const char* s
 
 OSStatus WKEnableSandboxStyleFileQuarantine(void);
 
+bool WKEnterPluginSandbox(const char* profile, const char* parameters[], const char* readOnlyPaths[], const char* readWritePaths[]);
+
 int WKRecommendedScrollerStyle(void);
 
 bool WKExecutableWasLinkedOnOrBeforeSnowLeopard(void);
@@ -459,6 +482,10 @@ dispatch_source_t WKCreateVMPressureDispatchOnMainQueue(void);
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1080
 NSString *WKGetMacOSXVersionString(void);
 bool WKExecutableWasLinkedOnOrBeforeLion(void);
+#endif
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
+void WKCGPathAddRoundedRect(CGMutablePathRef path, const CGAffineTransform* matrix, CGRect rect, CGFloat cornerWidth, CGFloat cornerHeight);
 #endif
 
 #ifdef __cplusplus

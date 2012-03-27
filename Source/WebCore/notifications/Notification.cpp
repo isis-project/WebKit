@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2009 Google Inc. All rights reserved.
- * Copyright (C) 2009, 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2009, 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -31,7 +31,7 @@
 
 #include "config.h"
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
 
 #include "Notification.h"
 
@@ -39,8 +39,7 @@
 #include "ErrorEvent.h"
 #include "EventNames.h"
 #include "NotificationCenter.h"
-#include "NotificationContents.h"
-#include "NotificationPresenter.h"
+#include "NotificationClient.h"
 #include "ResourceRequest.h"
 #include "ResourceResponse.h"
 #include "ThreadableLoader.h"
@@ -59,8 +58,7 @@ Notification::Notification(const KURL& url, ScriptExecutionContext* context, Exc
     , m_state(Idle)
     , m_notificationCenter(provider)
 {
-    ASSERT(m_notificationCenter->presenter());
-    if (m_notificationCenter->presenter()->checkPermission(context) != NotificationPresenter::PermissionAllowed) {
+    if (m_notificationCenter->checkPermission() != NotificationClient::PermissionAllowed) {
         ec = SECURITY_ERR;
         return;
     }
@@ -73,20 +71,21 @@ Notification::Notification(const KURL& url, ScriptExecutionContext* context, Exc
     m_notificationURL = url;
 }
 
-Notification::Notification(const NotificationContents& contents, ScriptExecutionContext* context, ExceptionCode& ec, PassRefPtr<NotificationCenter> provider)
+Notification::Notification(const String& title, const String& body, const String& iconURI, ScriptExecutionContext* context, ExceptionCode& ec, PassRefPtr<NotificationCenter> provider)
     : ActiveDOMObject(context, this)
     , m_isHTML(false)
-    , m_contents(contents)
+    , m_title(title)
+    , m_body(body)
     , m_state(Idle)
     , m_notificationCenter(provider)
 {
-    ASSERT(m_notificationCenter->presenter());
-    if (m_notificationCenter->presenter()->checkPermission(context) != NotificationPresenter::PermissionAllowed) {
+    if (m_notificationCenter->checkPermission() != NotificationClient::PermissionAllowed) {
         ec = SECURITY_ERR;
         return;
     }
 
-    if (!contents.icon.isEmpty() && !contents.icon.isValid()) {
+    m_icon = iconURI.isEmpty() ? KURL() : scriptExecutionContext()->completeURL(iconURI);
+    if (!m_icon.isEmpty() && !m_icon.isValid()) {
         ec = SYNTAX_ERR;
         return;
     }
@@ -107,9 +106,9 @@ PassRefPtr<Notification> Notification::create(const KURL& url, ScriptExecutionCo
     return notification.release();
 }
 
-PassRefPtr<Notification> Notification::create(const NotificationContents& contents, ScriptExecutionContext* context, ExceptionCode& ec, PassRefPtr<NotificationCenter> provider) 
+PassRefPtr<Notification> Notification::create(const String& title, const String& body, const String& iconURI, ScriptExecutionContext* context, ExceptionCode& ec, PassRefPtr<NotificationCenter> provider) 
 { 
-    RefPtr<Notification> notification(adoptRef(new Notification(contents, context, ec, provider)));
+    RefPtr<Notification> notification(adoptRef(new Notification(title, body, iconURI, context, ec, provider)));
     notification->suspendIfNeeded();
     return notification.release();
 }
@@ -127,19 +126,19 @@ void Notification::show()
         // handling of ondisplay may rely on that.
         if (m_state == Idle) {
             m_state = Showing;
-            if (m_notificationCenter->presenter())
-                m_notificationCenter->presenter()->show(this);
+            if (m_notificationCenter->client())
+                m_notificationCenter->client()->show(this);
         }
     } else
         startLoading();
 #elif PLATFORM(MAC)
-    if (m_state == Idle && m_notificationCenter->presenter()) {
-        m_notificationCenter->presenter()->show(this);
+    if (m_state == Idle && m_notificationCenter->client()) {
+        m_notificationCenter->client()->show(this);
         m_state = Showing;
     }
 #else
     // prevent double-showing
-    if (m_state == Idle && m_notificationCenter->presenter() && m_notificationCenter->presenter()->show(this))
+    if (m_state == Idle && m_notificationCenter->client() && m_notificationCenter->client()->show(this))
         m_state = Showing;
 #endif
 }
@@ -154,8 +153,8 @@ void Notification::cancel()
         stopLoading();
         break;
     case Showing:
-        if (m_notificationCenter->presenter())
-            m_notificationCenter->presenter()->cancel(this);
+        if (m_notificationCenter->client())
+            m_notificationCenter->client()->cancel(this);
         break;
     case Cancelled:
         break;
@@ -175,8 +174,8 @@ EventTargetData* Notification::ensureEventTargetData()
 void Notification::contextDestroyed()
 {
     ActiveDOMObject::contextDestroyed();
-    if (m_notificationCenter->presenter())
-        m_notificationCenter->presenter()->notificationObjectDestroyed(this);
+    if (m_notificationCenter->client())
+        m_notificationCenter->client()->notificationObjectDestroyed(this);
 }
 
 void Notification::startLoading()
@@ -234,7 +233,7 @@ void Notification::didFailRedirectCheck()
 void Notification::finishLoading()
 {
     if (m_state == Loading) {
-        if (m_notificationCenter->presenter() && m_notificationCenter->presenter()->show(this))
+        if (m_notificationCenter->client() && m_notificationCenter->client()->show(this))
             m_state = Showing;
     }
     unsetPendingActivity(this);
@@ -262,4 +261,4 @@ void Notification::dispatchErrorEvent()
 
 } // namespace WebCore
 
-#endif // ENABLE(NOTIFICATIONS)
+#endif // ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)

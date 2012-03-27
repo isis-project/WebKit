@@ -24,6 +24,7 @@
 #ifndef JSFunction_h
 #define JSFunction_h
 
+#include "InternalFunction.h"
 #include "JSObject.h"
 
 namespace JSC {
@@ -33,6 +34,7 @@ namespace JSC {
     class FunctionPrototype;
     class JSActivation;
     class JSGlobalObject;
+    class LLIntOffsetsExtractor;
     class NativeExecutable;
     class SourceCode;
     namespace DFG {
@@ -53,8 +55,7 @@ namespace JSC {
     public:
         typedef JSNonFinalObject Base;
 
-        JS_EXPORT_PRIVATE static JSFunction* create(ExecState*, JSGlobalObject*, int length, const Identifier& name, NativeFunction nativeFunction, NativeFunction nativeConstructor = callHostFunctionAsConstructor);
-        static JSFunction* create(ExecState*, JSGlobalObject*, int length, const Identifier& name, NativeExecutable* nativeExecutable);
+        JS_EXPORT_PRIVATE static JSFunction* create(ExecState*, JSGlobalObject*, int length, const Identifier& name, NativeFunction nativeFunction, Intrinsic = NoIntrinsic, NativeFunction nativeConstructor = callHostFunctionAsConstructor);
 
         static JSFunction* create(ExecState* exec, FunctionExecutable* executable, ScopeChainNode* scopeChain)
         {
@@ -132,6 +133,7 @@ namespace JSC {
         static bool getOwnPropertySlot(JSCell*, ExecState*, const Identifier&, PropertySlot&);
         static bool getOwnPropertyDescriptor(JSObject*, ExecState*, const Identifier&, PropertyDescriptor&);
         static void getOwnPropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode = ExcludeDontEnumProperties);
+        static bool defineOwnProperty(JSObject*, ExecState*, const Identifier& propertyName, PropertyDescriptor&, bool shouldThrow);
 
         static void put(JSCell*, ExecState*, const Identifier& propertyName, JSValue, PutPropertySlot&);
 
@@ -140,6 +142,8 @@ namespace JSC {
         static void visitChildren(JSCell*, SlotVisitor&);
 
     private:
+        friend class LLIntOffsetsExtractor;
+        
         JS_EXPORT_PRIVATE bool isHostFunctionNonInline() const;
 
         static JSValue argumentsGetter(ExecState*, JSValue, const Identifier&);
@@ -150,12 +154,9 @@ namespace JSC {
         WriteBarrier<ScopeChainNode> m_scopeChain;
     };
 
-    JSFunction* asFunction(JSValue);
-
-    inline JSFunction* asFunction(JSValue value)
+    inline bool JSValue::isFunction() const
     {
-        ASSERT(asObject(value)->inherits(&JSFunction::s_info));
-        return static_cast<JSFunction*>(asObject(value));
+        return isCell() && (asCell()->inherits(&JSFunction::s_info) || asCell()->inherits(&InternalFunction::s_info));
     }
 
 } // namespace JSC

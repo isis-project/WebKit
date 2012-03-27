@@ -25,17 +25,16 @@ SOURCES += \
 
 DESTDIR = $${ROOT_BUILD_DIR}/bin
 
-QT = core gui widgets network declarative testlib quick
+QT = core gui widgets network declarative testlib quick webkit
 
 load(features)
 
 WEBKIT += wtf javascriptcore webkit2
 
-CONFIG += qtwebkit
-
 DEFINES += USE_SYSTEM_MALLOC=1
 
 PREFIX_HEADER = WebKitTestRunnerPrefix.h
 *-g++*:QMAKE_CXXFLAGS += "-include $$PREFIX_HEADER"
+*-clang*:QMAKE_CXXFLAGS += "-include $$PREFIX_HEADER"
 
 RESOURCES = qt/WebKitTestRunner.qrc

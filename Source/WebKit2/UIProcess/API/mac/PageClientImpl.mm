@@ -33,15 +33,19 @@
 #import "WKAPICast.h"
 #import "WKStringCF.h"
 #import "WKViewInternal.h"
+#import "StringUtilities.h"
 #import "WebContextMenuProxyMac.h"
 #import "WebEditCommandProxy.h"
 #import "WebPopupMenuProxyMac.h"
+#import <WebCore/BitmapImage.h>
 #import <WebCore/Cursor.h>
 #import <WebCore/FloatRect.h>
 #import <WebCore/FoundationExtras.h>
 #import <WebCore/GraphicsContext.h>
+#import <WebCore/Image.h>
 #import <WebCore/KeyboardEvent.h>
 #import <WebCore/NotImplemented.h>
+#import <WebCore/SharedBuffer.h>
 #import <wtf/PassOwnPtr.h>
 #import <wtf/text/CString.h>
 #import <wtf/text/WTFString.h>
@@ -50,6 +54,12 @@
 @interface NSApplication (WebNSApplicationDetails)
 - (NSCursor *)_cursorRectCursor;
 @end
+
+#if HAVE(LAYER_HOSTING_IN_WINDOW_SERVER)
+@interface NSWindow (WebNSWindowDetails)
+- (BOOL)_hostsLayersInWindowServer;
+@end
+#endif
 
 using namespace WebCore;
 using namespace WebKit;
@@ -103,11 +113,6 @@ using namespace WebKit;
 @end
 
 namespace WebKit {
-
-NSString* nsStringFromWebCoreString(const String& string)
-{
-    return string.impl() ? HardAutorelease(WKStringCopyCFString(0, toAPI(string.impl()))) : @"";
-}
 
 PassOwnPtr<PageClientImpl> PageClientImpl::create(WKView* wkView)
 {
@@ -188,6 +193,18 @@ bool PageClientImpl::isViewInWindow()
     return [m_wkView window];
 }
 
+LayerHostingMode PageClientImpl::viewLayerHostingMode()
+{
+#if HAVE(LAYER_HOSTING_IN_WINDOW_SERVER)
+    if (![m_wkView window])
+        return LayerHostingModeDefault;
+
+    return [[m_wkView window] _hostsLayersInWindowServer] ? LayerHostingModeInWindowServer : LayerHostingModeDefault;
+#else
+    return LayerHostingModeDefault;
+#endif
+}
+
 void PageClientImpl::processDidCrash()
 {
     [m_wkView _processDidCrash];
@@ -262,6 +279,13 @@ void PageClientImpl::setDragImage(const IntPoint& clientPosition, PassRefPtr<Sha
     RetainPtr<NSImage> dragNSImage(AdoptNS, [[NSImage alloc] initWithCGImage:dragCGImage.get() size:dragImage->size()]);
 
     [m_wkView _setDragImage:dragNSImage.get() at:clientPosition linkDrag:isLinkDrag];
+}
+
+void PageClientImpl::setPromisedData(const String& pasteboardName, PassRefPtr<SharedBuffer> imageBuffer, const String& filename, const String& extension, const String& title, const String& url, const String& visibleUrl, PassRefPtr<SharedBuffer> archiveBuffer)
+{
+    RefPtr<Image> image = BitmapImage::create();
+    image->setData(imageBuffer.get(), true);
+    [m_wkView _setPromisedData:image.get() withFileName:filename withExtension:extension withTitle:title withURL:url withVisibleURL:visibleUrl withArchive:archiveBuffer.get() forPasteboard:pasteboardName];
 }
 
 void PageClientImpl::updateTextInputState(bool updateSecureInputState)
@@ -340,6 +364,11 @@ void PageClientImpl::enterAcceleratedCompositingMode(const LayerTreeContext& lay
 void PageClientImpl::exitAcceleratedCompositingMode()
 {
     [m_wkView _exitAcceleratedCompositingMode];
+}
+
+void PageClientImpl::updateAcceleratedCompositingMode(const LayerTreeContext& layerTreeContext)
+{
+    [m_wkView _updateAcceleratedCompositingMode:layerTreeContext];
 }
 #endif // USE(ACCELERATED_COMPOSITING)
 

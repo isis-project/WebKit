@@ -423,6 +423,12 @@ AccessibilityUIElement AccessibilityUIElement::selectedRowAtIndex(unsigned)
     return 0;
 }
 
+AccessibilityUIElement AccessibilityUIElement::rowAtIndex(unsigned)
+{
+    notImplemented();
+    return 0;
+}
+
 AccessibilityUIElement AccessibilityUIElement::disclosedByRow()
 {
     notImplemented();
@@ -503,6 +509,12 @@ bool AccessibilityUIElement::isSelectable() const
 }
 
 bool AccessibilityUIElement::isMultiSelectable() const
+{
+    notImplemented();
+    return false;
+}
+
+bool AccessibilityUIElement::isSelectedOptionActive() const
 {
     notImplemented();
     return false;

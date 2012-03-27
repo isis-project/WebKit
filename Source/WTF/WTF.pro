@@ -10,7 +10,7 @@ include(WTF.pri)
 
 CONFIG += staticlib
 
-VPATH += $$PWD/../JavaScriptCore/wtf
+VPATH += $$PWD/wtf
 
 HEADERS += \
     Alignment.h \

@@ -24,6 +24,7 @@
 #include "SVGTextPathElement.h"
 
 #include "Attribute.h"
+#include "NodeRenderingContext.h"
 #include "RenderSVGResource.h"
 #include "RenderSVGTextPath.h"
 #include "SVGElementInstance.h"
@@ -117,12 +118,12 @@ RenderObject* SVGTextPathElement::createRenderer(RenderArena* arena, RenderStyle
     return new (arena) RenderSVGTextPath(this);
 }
 
-bool SVGTextPathElement::childShouldCreateRenderer(Node* child) const
+bool SVGTextPathElement::childShouldCreateRenderer(const NodeRenderingContext& childContext) const
 {
-    if (child->isTextNode()
-        || child->hasTagName(SVGNames::aTag)
-        || child->hasTagName(SVGNames::trefTag)
-        || child->hasTagName(SVGNames::tspanTag))
+    if (childContext.node()->isTextNode()
+        || childContext.node()->hasTagName(SVGNames::aTag)
+        || childContext.node()->hasTagName(SVGNames::trefTag)
+        || childContext.node()->hasTagName(SVGNames::tspanTag))
         return true;
 
     return false;
@@ -140,7 +141,7 @@ bool SVGTextPathElement::rendererIsNeeded(const NodeRenderingContext& context)
 
 void SVGTextPathElement::insertedIntoDocument()
 {
-    SVGTextContentElement::insertedIntoDocument();
+    SVGStyledElement::insertedIntoDocument();
 
     String id;
     Element* targetElement = SVGURIReference::targetElementFromIRIString(href(), document(), &id);

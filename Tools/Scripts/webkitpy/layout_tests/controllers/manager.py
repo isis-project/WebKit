@@ -170,6 +170,9 @@ def summarize_results(port_obj, expectations, result_summary, retry_summary, tes
         if result.has_stderr:
             test_dict['has_stderr'] = True
 
+        if expectations.has_modifier(test_name, test_expectations.WONTFIX):
+            test_dict['wontfix'] = True
+
         if result_type == test_expectations.PASS:
             num_passes += 1
             # FIXME: include passing tests that have stderr output.
@@ -281,12 +284,6 @@ class Manager(object):
     """A class for managing running a series of tests on a series of layout
     test files."""
 
-
-    # The per-test timeout in milliseconds, if no --time-out-ms option was
-    # given to run_webkit_tests. This should correspond to the default timeout
-    # in DumpRenderTree.
-    DEFAULT_TEST_TIMEOUT_MS = 6 * 1000
-
     def __init__(self, port, options, printer):
         """Initialize test runner data structures.
 
@@ -364,13 +361,15 @@ class Manager(object):
         structure holding them. Throws an error if the test_list files have
         invalid syntax."""
         port = self._port
+        tests_to_ignore = set(self._options.ignore_tests)
         self._expectations = test_expectations.TestExpectations(
             port,
             self._test_files,
             port.test_expectations(),
             port.test_configuration(),
             self._options.lint_test_files,
-            port.test_expectations_overrides())
+            port.test_expectations_overrides(),
+            port.skipped_tests(self._test_files).union(tests_to_ignore))
 
     def _split_into_chunks_if_necessary(self, skipped):
         if not self._options.run_chunk and not self._options.run_part:
@@ -752,22 +751,29 @@ class Manager(object):
         num_workers = min(int(self._options.child_processes), len(all_shards))
         self._log_num_workers(num_workers, len(all_shards), len(locked_shards))
 
-        manager_connection = manager_worker_broker.get(self._port, self._options, self, worker.Worker)
+        manager_connection = manager_worker_broker.get(self._options.worker_model, self, worker.Worker)
 
         if self._options.dry_run:
             return (keyboard_interrupted, interrupted, thread_timings, self._group_stats, self._all_results)
 
         self._printer.print_update('Starting %s ...' % grammar.pluralize('worker', num_workers))
         for worker_number in xrange(num_workers):
-            worker_connection = manager_connection.start_worker(worker_number, self.results_directory())
-            worker_state = _WorkerState(worker_number, worker_connection)
-            self._worker_states[worker_connection.name] = worker_state
+            worker_arguments = worker.WorkerArguments(worker_number, self.results_directory(), self._options)
+            worker_connection = manager_connection.start_worker(worker_arguments)
+            if self._options.worker_model == 'inline':
+                # FIXME: We need to be able to share a port with the work so
+                # that some of the tests can query state on the port; ideally
+                # we'd rewrite the tests so that this wasn't necessary.
+                #
+                # Note that this only works because in the inline case
+                # the worker hasn't really started yet and won't start
+                # running until we call run_message_loop(), below.
+                worker_connection.set_inline_arguments(self._port)
 
-            # FIXME: If we start workers up too quickly, DumpRenderTree appears
-            # to thrash on something and time out its first few tests. Until
-            # we can figure out what's going on, sleep a bit in between
-            # workers. This needs a bug filed.
-            time.sleep(0.1)
+            worker_state = _WorkerState(worker_number, worker_connection)
+            self._worker_states[worker_connection.name()] = worker_state
+
+            time.sleep(self._port.worker_startup_delay_secs())
 
         self._printer.print_update("Starting testing ...")
         for shard in all_shards:
@@ -827,24 +833,10 @@ class Manager(object):
     def update(self):
         self.update_summary(self._current_result_summary)
 
-    def _collect_timing_info(self, threads):
-        test_timings = {}
-        individual_test_timings = []
-        thread_timings = []
-
-        for thread in threads:
-            thread_timings.append({'name': thread.getName(),
-                                   'num_tests': thread.get_num_tests(),
-                                   'total_time': thread.get_total_time()})
-            test_timings.update(thread.get_test_group_timing_stats())
-            individual_test_timings.extend(thread.get_test_results())
-
-        return (thread_timings, test_timings, individual_test_timings)
-
     def needs_servers(self):
         return any(self._test_requires_lock(test_name) for test_name in self._test_files) and self._options.http
 
-    def set_up_run(self):
+    def _set_up_run(self):
         """Configures the system to be ready to run tests.
 
         Returns a ResultSummary object if we should continue to run tests,
@@ -878,7 +870,7 @@ class Manager(object):
 
         return result_summary
 
-    def run(self, result_summary):
+    def run(self):
         """Run all our tests on all our test files.
 
         For each test file, we run each test type. If there are any failures,
@@ -893,6 +885,11 @@ class Manager(object):
         # collect_tests() must have been called first to initialize us.
         # If we didn't find any files to test, we've errored out already in
         # prepare_lists_and_print_output().
+
+        result_summary = self._set_up_run()
+        if not result_summary:
+            return -1
+
         assert(len(self._test_files))
 
         start_time = time.time()
@@ -915,11 +912,10 @@ class Manager(object):
 
         end_time = time.time()
 
+        self._clean_up_run()
+
         self._print_timing_statistics(end_time - start_time, thread_timings, test_timings, individual_test_timings, result_summary)
         self._print_result_summary(result_summary)
-
-        sys.stdout.flush()
-        sys.stderr.flush()
 
         self._printer.print_one_line_summary(result_summary.total, result_summary.expected, result_summary.unexpected)
 
@@ -966,9 +962,8 @@ class Manager(object):
             self._port.release_http_lock()
             self._has_http_lock = False
 
-    def clean_up_run(self):
+    def _clean_up_run(self):
         """Restores the system after we're done running tests."""
-
         _log.debug("flushing stdout")
         sys.stdout.flush()
         _log.debug("flushing stderr")
@@ -1519,7 +1514,7 @@ class _WorkerState(object):
         self.current_test_name = None
         self.next_timeout = None
         self.stats = {}
-        self.stats['name'] = worker_connection.name
+        self.stats['name'] = worker_connection.name()
         self.stats['num_tests'] = 0
         self.stats['total_time'] = 0
 

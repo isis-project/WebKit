@@ -4,24 +4,13 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB keys ordering and readback from cursors.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
-    evalAndLog("IDBCursor = window.IDBCursor || window.webkitIDBCursor;");
-    shouldBeFalse("IDBCursor == null");
-    evalAndLog("IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction");
-    shouldBeFalse("IDBTransaction == null");
-    evalAndLog("IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange");
-    shouldBeFalse("IDBKeyRange == null");
+    removeVendorPrefixes();
 
     prepareDatabase();
 }
@@ -72,7 +61,7 @@ function testCursor()
 
     if (tests.length === 0) {
         debug("No more tests.");
-        done();
+        finishJSTest();
         return;
     }
 
@@ -115,6 +104,7 @@ function testCursor()
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>
 

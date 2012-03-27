@@ -29,6 +29,7 @@
 #include "CachedScript.h"
 #include "CachedXSLStyleSheet.h"
 #include "CachedResourceLoader.h"
+#include "CrossThreadTask.h"
 #include "Document.h"
 #include "FrameLoader.h"
 #include "FrameLoaderTypes.h"
@@ -38,6 +39,9 @@
 #include "ResourceHandle.h"
 #include "SecurityOrigin.h"
 #include "SecurityOriginHash.h"
+#include "WorkerContext.h"
+#include "WorkerLoaderProxy.h"
+#include "WorkerThread.h"
 #include <stdio.h>
 #include <wtf/CurrentTime.h>
 #include <wtf/text/CString.h>
@@ -54,6 +58,8 @@ static const double cDefaultDecodedDataDeletionInterval = 0;
 MemoryCache* memoryCache()
 {
     static MemoryCache* staticCache = new MemoryCache;
+    ASSERT(WTF::isMainThread());
+
     return staticCache;
 }
 
@@ -77,7 +83,7 @@ KURL MemoryCache::removeFragmentIdentifierIfNeeded(const KURL& originalURL)
     // Strip away fragment identifier from HTTP URLs.
     // Data URLs must be unmodified. For file and custom URLs clients may expect resources 
     // to be unique even when they differ by the fragment identifier only.
-    if (!originalURL.protocolInHTTPFamily())
+    if (!originalURL.protocolIsInHTTPFamily())
         return originalURL;
     KURL url = originalURL;
     url.removeFragmentIdentifier();
@@ -88,7 +94,9 @@ bool MemoryCache::add(CachedResource* resource)
 {
     if (disabled())
         return false;
-    
+
+    ASSERT(WTF::isMainThread());
+
     m_resources.set(resource->url(), resource);
     resource->setInCache(true);
     
@@ -132,6 +140,7 @@ void MemoryCache::revalidationSucceeded(CachedResource* revalidatingResource, co
 
 void MemoryCache::revalidationFailed(CachedResource* revalidatingResource)
 {
+    ASSERT(WTF::isMainThread());
     LOG(ResourceLoading, "Revalidation failed for %p", revalidatingResource);
     ASSERT(revalidatingResource->resourceToRevalidate());
     revalidatingResource->clearResourceToRevalidate();
@@ -139,6 +148,7 @@ void MemoryCache::revalidationFailed(CachedResource* revalidatingResource)
 
 CachedResource* MemoryCache::resourceForURL(const KURL& resourceURL)
 {
+    ASSERT(WTF::isMainThread());
     KURL url = removeFragmentIdentifierIfNeeded(resourceURL);
     CachedResource* resource = m_resources.get(url);
     bool wasPurgeable = MemoryCache::shouldMakeResourcePurgeableOnEviction() && resource && resource->isPurgeable();
@@ -369,6 +379,7 @@ bool MemoryCache::makeResourcePurgeable(CachedResource* resource)
 
 void MemoryCache::evict(CachedResource* resource)
 {
+    ASSERT(WTF::isMainThread());
     LOG(ResourceLoading, "Evicting resource %p for '%s' from cache", resource, resource->url().string().latin1().data());
     // The resource may have already been removed by someone other than our caller,
     // who needed a fresh copy for a reload. See <http://bugs.webkit.org/show_bug.cgi?id=12479#c6>.
@@ -634,6 +645,28 @@ void MemoryCache::adjustSize(bool live, int delta)
         ASSERT(delta >= 0 || ((int)m_deadSize + delta >= 0));
         m_deadSize += delta;
     }
+}
+
+
+void MemoryCache::removeUrlFromCache(ScriptExecutionContext* context, const String& urlString) 
+{
+#if ENABLE(WORKERS)
+    if (context->isWorkerContext()) {
+      WorkerContext* workerContext = static_cast<WorkerContext*>(context);
+      workerContext->thread()->workerLoaderProxy().postTaskToLoader(
+          createCallbackTask(&removeUrlFromCacheImpl, urlString));
+      return;
+    }
+#endif
+    removeUrlFromCacheImpl(context, urlString);
+}
+
+void MemoryCache::removeUrlFromCacheImpl(ScriptExecutionContext*, const String& urlString)
+{
+    KURL url(KURL(), urlString);
+
+    if (CachedResource* resource = memoryCache()->resourceForURL(url))
+        memoryCache()->remove(resource);
 }
 
 void MemoryCache::TypeStatistic::addResource(CachedResource* o)

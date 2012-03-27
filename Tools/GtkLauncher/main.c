@@ -33,13 +33,14 @@
 
 static gint windowCount = 0;
 
-static GtkWidget* createWindow(WebKitWebView** outWebView, GtkWidget* openerWindow);
+static GtkWidget* createWindow(WebKitWebView** outWebView);
 
 static void activateUriEntryCb(GtkWidget* entry, gpointer data)
 {
     WebKitWebView *webView = g_object_get_data(G_OBJECT(entry), "web-view");
     const gchar* uri = gtk_entry_get_text(GTK_ENTRY(entry));
     g_assert(uri);
+    gtk_entry_set_icon_from_pixbuf(GTK_ENTRY(entry), GTK_ENTRY_ICON_PRIMARY, 0);
     webkit_web_view_load_uri(webView, uri);
 }
 
@@ -105,7 +106,7 @@ static WebKitWebView*
 createWebViewCb(WebKitWebView* webView, WebKitWebFrame* web_frame, GtkWidget* window)
 {
     WebKitWebView *newWebView;
-    createWindow(&newWebView, window);
+    createWindow(&newWebView);
     webkit_web_view_set_settings(newWebView, webkit_web_view_get_settings(webView));
     return newWebView;
 }
@@ -123,32 +124,110 @@ static gboolean closeWebViewCb(WebKitWebView* webView, GtkWidget* window)
     return TRUE;
 }
 
-static gboolean runModalDialogCb(WebKitWebView* webView, GtkWidget* openerWindow)
+static gboolean webViewFullscreenMessageWindowClose(GtkWidget *dialog)
 {
-    if (!openerWindow)
-        return FALSE;
+    if (GTK_IS_WIDGET(dialog))
+        gtk_widget_destroy(dialog);
+    return FALSE;
+}
 
-    GtkWidget *window = gtk_widget_get_toplevel(GTK_WIDGET(webView));
-    gtk_window_set_transient_for(GTK_WINDOW(window), GTK_WINDOW(openerWindow));
-    gtk_window_set_modal(GTK_WINDOW(window), TRUE);
+static gboolean webViewWindowStateEvent(GtkWidget *widget, GdkEventWindowState *event, WebKitWebView *webView)
+{
+    if (event->new_window_state & GDK_WINDOW_STATE_FULLSCREEN) {
+        WebKitWebFrame *frame = webkit_web_view_get_main_frame(webView);
+        const gchar *uri = webkit_web_frame_get_uri(frame);
+        GtkWidget *window = gtk_widget_get_toplevel(GTK_WIDGET(webView));
+        if (!gtk_widget_is_toplevel(window) || !GTK_IS_WINDOW(window) || GTK_IS_OFFSCREEN_WINDOW(window))
+            window = 0;
+
+        GtkWidget *dialog = gtk_message_dialog_new(window ? GTK_WINDOW(window) : 0,
+                                                    GTK_DIALOG_MODAL,
+                                                    GTK_MESSAGE_INFO,
+                                                    GTK_BUTTONS_CLOSE,
+                                                    "%s is now full screen. Press ESC or f to exit.", uri);
+        g_signal_connect_swapped(dialog, "response", G_CALLBACK(gtk_widget_destroy), dialog);
+        g_timeout_add(1500, (GSourceFunc) webViewFullscreenMessageWindowClose, dialog);
+        gtk_dialog_run(GTK_DIALOG(dialog));
+    }
     return TRUE;
 }
 
-static GtkWidget* createBrowser(GtkWidget* window, GtkWidget* uriEntry, GtkWidget* statusbar, WebKitWebView* webView, GtkWidget* openerWindow)
+static void hideWidget(GtkWidget* widget, gpointer data)
 {
+    if (!GTK_IS_SCROLLED_WINDOW(widget))
+        gtk_widget_hide(widget);
+}
+
+static void showWidget(GtkWidget* widget, gpointer data)
+{
+    if (!GTK_IS_SCROLLED_WINDOW(widget))
+        gtk_widget_show(widget);
+}
+
+static gboolean webViewEnteringFullScreen(WebKitWebView *webView, GObject *element, GtkWidget* vbox)
+{
+    WebKitWebFrame *frame = webkit_web_view_get_main_frame(webView);
+    const gchar *uri = webkit_web_frame_get_uri(frame);
+    GtkWidget *window = gtk_widget_get_toplevel(GTK_WIDGET(webView));
+    if (!gtk_widget_is_toplevel(window) || !GTK_IS_WINDOW(window) || GTK_IS_OFFSCREEN_WINDOW(window))
+        window = 0;
+
+    GtkWidget *dialog = gtk_message_dialog_new(window ? GTK_WINDOW(window) : 0,
+                                               GTK_DIALOG_MODAL,
+                                               GTK_MESSAGE_INFO,
+                                               GTK_BUTTONS_YES_NO,
+                                               "Allow full screen display of %s ?", uri);
+    gint result = gtk_dialog_run(GTK_DIALOG(dialog));
+    if (result == GTK_RESPONSE_YES) {
+        gtk_container_foreach(GTK_CONTAINER(vbox), (GtkCallback) hideWidget, NULL);
+        gtk_widget_destroy(GTK_WIDGET(dialog));
+        return FALSE;
+    }
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+    return TRUE;
+}
+
+static gboolean webViewLeavingFullScreen(WebKitWebView *webView, GObject *element, GtkWidget* vbox)
+{
+    GtkWidget *window = gtk_widget_get_toplevel(GTK_WIDGET(webView));
+    if (gtk_widget_is_toplevel(window) && GTK_IS_WINDOW(window) && !GTK_IS_OFFSCREEN_WINDOW(window))
+        g_signal_handlers_disconnect_by_func(window, G_CALLBACK(webViewWindowStateEvent), webView);
+    gtk_container_foreach(GTK_CONTAINER(vbox), (GtkCallback) showWidget, NULL);
+    return FALSE;
+}
+
+static void iconLoadedCb(WebKitWebView* webView, const char* iconURI, GtkWidget* uriEntry)
+{
+    GdkPixbuf *icon = webkit_web_view_try_get_favicon_pixbuf(webView, 16, 16);
+    if (!icon)
+        return;
+
+    gtk_entry_set_icon_from_pixbuf(GTK_ENTRY(uriEntry), GTK_ENTRY_ICON_PRIMARY, icon);
+    g_object_unref(icon);
+}
+
+static GtkWidget* createBrowser(GtkWidget* window, GtkWidget* uriEntry, GtkWidget* statusbar, WebKitWebView* webView, GtkWidget* vbox)
+{
+    char *iconDatabasePath;
     GtkWidget *scrolledWindow = gtk_scrolled_window_new(NULL, NULL);
     gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolledWindow), GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
 
     gtk_container_add(GTK_CONTAINER(scrolledWindow), GTK_WIDGET(webView));
 
+    iconDatabasePath = g_build_filename(g_get_user_data_dir(), "webkit", "icondatabase", NULL);
+    webkit_favicon_database_set_path(webkit_get_favicon_database(), iconDatabasePath);
+    g_free(iconDatabasePath);
+
     g_signal_connect(webView, "notify::title", G_CALLBACK(notifyTitleCb), window);
     g_signal_connect(webView, "notify::load-status", G_CALLBACK(notifyLoadStatusCb), uriEntry);
     g_signal_connect(webView, "notify::progress", G_CALLBACK(notifyProgressCb), window);
+    g_signal_connect(webView, "icon-loaded", G_CALLBACK(iconLoadedCb), uriEntry);
     g_signal_connect(webView, "hovering-over-link", G_CALLBACK(linkHoverCb), statusbar);
     g_signal_connect(webView, "create-web-view", G_CALLBACK(createWebViewCb), window);
     g_signal_connect(webView, "web-view-ready", G_CALLBACK(webViewReadyCb), window);
     g_signal_connect(webView, "close-web-view", G_CALLBACK(closeWebViewCb), window);
-    g_signal_connect(webView, "run-modal-dialog", G_CALLBACK(runModalDialogCb), openerWindow);
+    g_signal_connect(webView, "entering-fullscreen", G_CALLBACK(webViewEnteringFullScreen), vbox);
+    g_signal_connect(webView, "leaving-fullscreen", G_CALLBACK(webViewLeavingFullScreen), vbox);
 
     return scrolledWindow;
 }
@@ -202,7 +281,7 @@ static GtkWidget* createToolbar(GtkWidget* uriEntry, WebKitWebView* webView)
     return toolbar;
 }
 
-static GtkWidget* createWindow(WebKitWebView** outWebView, GtkWidget* openerWindow)
+static GtkWidget* createWindow(WebKitWebView** outWebView)
 {
     WebKitWebView *webView;
     GtkWidget *vbox;
@@ -226,7 +305,7 @@ static GtkWidget* createWindow(WebKitWebView** outWebView, GtkWidget* openerWind
 #endif
     statusbar = createStatusbar(webView);
     gtk_box_pack_start(GTK_BOX(vbox), createToolbar(uriEntry, webView), FALSE, FALSE, 0);
-    gtk_box_pack_start(GTK_BOX(vbox), createBrowser(window, uriEntry, statusbar, webView, openerWindow), TRUE, TRUE, 0);
+    gtk_box_pack_start(GTK_BOX(vbox), createBrowser(window, uriEntry, statusbar, webView, vbox), TRUE, TRUE, 0);
     gtk_box_pack_start(GTK_BOX(vbox), statusbar, FALSE, FALSE, 0);
 
     gtk_container_add(GTK_CONTAINER(window), vbox);
@@ -429,7 +508,7 @@ int main(int argc, char* argv[])
 #endif
 
     WebKitWebView *webView;
-    GtkWidget *main_window = createWindow(&webView, 0);
+    GtkWidget *main_window = createWindow(&webView);
 
     if (webkitSettings) {
         webkit_web_view_set_settings(WEBKIT_WEB_VIEW(webView), webkitSettings);

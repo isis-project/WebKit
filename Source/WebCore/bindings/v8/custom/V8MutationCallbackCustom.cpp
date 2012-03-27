@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Google Inc. All rights reserved.
+ * Copyright (C) 2010, 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -70,9 +70,13 @@ bool V8MutationCallback::handleEvent(MutationRecordArray* mutations, WebKitMutat
 
     v8::Handle<v8::Value> observerHandle = toV8(observer);
     if (observerHandle.IsEmpty()) {
-        CRASH();
+        if (!isScriptControllerTerminating())
+            CRASH();
         return true;
     }
+
+    if (!observerHandle->IsObject())
+        return true;
 
     v8::Handle<v8::Value> argv[] = {
         mutationsArray,
@@ -80,7 +84,7 @@ bool V8MutationCallback::handleEvent(MutationRecordArray* mutations, WebKitMutat
     };
 
     bool callbackReturnValue = false;
-    return !invokeCallback(m_callback, 2, argv, callbackReturnValue, scriptExecutionContext());
+    return !invokeCallback(m_callback, v8::Handle<v8::Object>::Cast(observerHandle), 2, argv, callbackReturnValue, scriptExecutionContext());
 }
 
 } // namespace WebCore

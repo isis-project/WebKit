@@ -73,12 +73,11 @@
 }
 
 #timeline-overview-grid {
-    position: absolute;
-    top: 0px;
-    bottom: 0px;
-    left: 200px;
-    right: 0px;
     background-color: rgb(255, 255, 255);
+}
+
+.timeline-vertical-overview #timeline-overview-grid {
+    display: none;
 }
 
 .timeline-window-selector {
@@ -89,7 +88,7 @@
     z-index: 250;
 }
 
-#timeline-overview-window {
+.timeline-overview-window {
     background-color: white;
     position: absolute;
     left: 0;
@@ -99,6 +98,10 @@
     z-index: 150;
 }
 
+.timeline-vertical-overview .timeline-overview-window {
+    bottom: 0;
+}
+
 .timeline-overview-dividers-background {
     left: 0%;
     right: 0%;
@@ -106,6 +109,10 @@
     bottom: 60px;
     background-color: black;
     position: absolute;
+}
+
+.timeline-vertical-overview .timeline-overview-dividers-background {
+    bottom: 0;
 }
 
 .timeline-overview-window-rulers {
@@ -147,7 +154,7 @@
     bottom: 0;
     right: 0;
     border-right: 0 none transparent;
-    overflow-y: auto;
+    overflow-y: scroll;
     overflow-x: hidden;
 }
 
@@ -268,6 +275,10 @@
     z-index: 160;
 }
 
+.timeline-vertical-overview #timeline-overview-memory {
+    display: none;
+}
+
 #timeline-overview-memory > canvas {
     position: absolute;
     left: 0;
@@ -363,15 +374,15 @@
     width: 10px;
 }
 
-.timeline-loading {
+.popover .timeline-loading {
     -webkit-border-image: url(Images/timelineBarBlue.png) 4 4 5 4;
 }
 
-.timeline-scripting {
+.popover .timeline-scripting {
     -webkit-border-image: url(Images/timelineBarOrange.png) 4 4 5 4;
 }
 
-.timeline-rendering {
+.popover .timeline-rendering {
     -webkit-border-image: url(Images/timelineBarPurple.png) 4 4 5 4;
 }
 
@@ -433,6 +444,14 @@
 
 .garbage-collect-status-bar-item .glyph {
     -webkit-mask-position: -128px -24px;
+}
+
+.glue-async-status-bar-item .glyph {
+    -webkit-mask-position: -128px -48px;
+}
+
+.timeline-vertical-overview-status-bar-item.toggled-on .glyph {
+    background-color: rgb(66, 129, 235) !important;
 }
 
 .timeline-records-counter, .storage-application-cache-status, .storage-application-cache-connectivity {
@@ -527,25 +546,158 @@
     border-top: 1px solid #AAA;
 }
 
+#memory-graphs-canvas-container {
+    border-right: 1px solid #AAA;
+}
+
+#memory-graphs-canvas-container .resources-dividers {
+    top: 15px;
+}
+
 #memory-graphs-container .split-view-contents {
     overflow: hidden;
 }
 
-.timeline-marker {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    border-left: 1px solid #AAA;
+.memory-counter-sidebar-info {
+    font-size: 11px;
+    margin: 10px;
 }
 
-.memory-counter-sidebar-info {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
+.memory-counter-sidebar-info .swatch{
+    background-image: none;
 }
 
 .memory-counter-sidebar-info.bottom-border-visible {
     border-bottom: 1px solid #AAA;
+}
+
+.memory-counter-sidebar-info .title {
+    margin: 4px;
+}
+
+.memory-counter-value {
+    margin: 4px;
+    font-size: 11px;
+}
+
+#counter-values-bar {
+    border-bottom: solid 1px lightgray;
+    min-height: 15px;
+}
+
+.timeline-vertical-overview-bars {
+    display: -webkit-box;
+    -webkit-box-align: end;
+    background-color: white;
+    padding-left: 4px;
+    padding-right: 4px;
+    z-index: 200;
+    background-color: rgba(255, 255, 255, 0.8);
+}
+
+.timeline-vertical-overview-bars .padding {
+    -webkit-box-flex: 100000;
+}
+
+.timeline-vertical-overview-bars .timeline-bar-vertical {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-box-pack: end;
+    width: 12px;
+    padding-right: 2px;
+    -webkit-box-flex: 1;
+}
+
+.timeline-bar-vertical div:first-child {
+    -webkit-border-top-left-radius: 2px;
+    -webkit-border-top-right-radius: 2px;
+}
+
+.timeline-bar-vertical .timeline-loading {
+    background: -webkit-linear-gradient(left, rgb(201, 220, 245), rgb(109, 157, 222));
+    border: solid 1px rgb(106, 152, 213);
+}
+
+.timeline-bar-vertical .timeline-scripting {
+    background: -webkit-linear-gradient(left, rgb(251, 222, 168), rgb(234, 182, 77));
+    border: solid 1px rgb(223, 175, 77);
+}
+
+.timeline-bar-vertical .timeline-rendering {
+    background: -webkit-linear-gradient(left, rgb(213, 185, 236), rgb(137, 62, 200));
+    border: solid 1px rgb(130, 59, 190);
+}
+
+.timeline .resources-event-divider {
+    height: 19px;
+    bottom: auto;
+}
+
+.timeline.timeline-vertical-overview .resources-divider {
+    height: 19px;
+    bottom: auto;
+}
+
+.timeline .resources-event-divider.timeline-frame-divider {
+    background-color: rgba(200, 185, 200, 0.8);
+    height: 100%;
+}
+
+.sidebar-tree-item .timeline-vertical-overview-status-bar-item {
+    position: absolute;
+    right: 10px;
+    top: 4px;
+}
+
+.timeline-overview-mode-selector {
+    float: right;
+    margin: 5px 10px 5px 10px;
+}
+
+.timeline-overview-mode-selector .glyph {
+    width: 32px;
+    height: 24px;
+    -webkit-mask-image: url(Images/statusbarButtonGlyphs.png);
+}
+
+.timeline-overview-mode-selector button {
+    width: 32px;
+    height: 24px;
+    margin: 0px;
+    border: none;
+    position: relative;
+}
+
+.timeline-overview-mode-selector button.toggled {
+    background-image: -webkit-linear-gradient(top, rgb(80, 80, 80), rgb(140, 140, 140) 3px, rgb(160, 160, 160));
+}
+
+.timeline-overview-mode-selector button:active {
+    background-image: -webkit-linear-gradient(top, rgb(60, 60, 60), rgb(100, 100, 100) 3px, rgb(120, 120, 120));
+}
+
+.sidebar-tree-item:not(.selected) .timeline-overview-mode-selector button {
+    opacity: 0.5;
+}
+
+.sidebar-tree-item:not(.selected) .timeline-overview-mode-selector button.toggled {
+    background-image: -webkit-linear-gradient(top, rgb(120, 120, 120), rgb(200, 200, 200) 3px, rgb(220, 220, 220));
+}
+
+.timeline-overview-mode-selector button:first-of-type {
+    border-top-left-radius: 3px;
+    border-bottom-left-radius: 3px;
+}
+
+.timeline-overview-mode-selector button:last-of-type {
+    border-top-right-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.timeline-mode-vertical-bars .glyph {
+    -webkit-mask-position: -160px -48px;
+}
+
+.timeline-mode-horizontal-bars .glyph {
+    -webkit-mask-position: -192px -48px;
 }

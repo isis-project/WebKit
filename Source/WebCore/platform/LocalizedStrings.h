@@ -69,6 +69,16 @@ namespace WebCore {
     String contextMenuItemTagDelete();
     String contextMenuItemTagInputMethods();
     String contextMenuItemTagUnicode();
+    String contextMenuItemTagUnicodeInsertLRMMark();
+    String contextMenuItemTagUnicodeInsertRLMMark();
+    String contextMenuItemTagUnicodeInsertLREMark();
+    String contextMenuItemTagUnicodeInsertRLEMark();
+    String contextMenuItemTagUnicodeInsertLROMark();
+    String contextMenuItemTagUnicodeInsertRLOMark();
+    String contextMenuItemTagUnicodeInsertPDFMark();
+    String contextMenuItemTagUnicodeInsertZWSMark();
+    String contextMenuItemTagUnicodeInsertZWJMark();
+    String contextMenuItemTagUnicodeInsertZWNJMark();
 #endif
 #if PLATFORM(GTK) || PLATFORM(QT) || PLATFORM(EFL)
     String contextMenuItemTagSelectAll();
@@ -141,7 +151,7 @@ namespace WebCore {
     String AXHeadingText();
     String AXDefinitionListTermText();
     String AXDefinitionListDefinitionText();
-
+    String AXFooterRoleDescriptionText();
 #if PLATFORM(MAC)
     String AXARIAContentGroupText(const String& ariaType);
 #endif
@@ -174,6 +184,10 @@ namespace WebCore {
     String keygenKeychainItemName(const String& host);
 #endif
 
+#if PLATFORM(IOS)
+    String htmlSelectMultipleItems(size_t num);
+#endif
+
     String imageTitle(const String& filename, const IntSize& size);
 
     String mediaElementLoadingStateText();
@@ -198,11 +212,12 @@ namespace WebCore {
     String validationMessageRangeOverflowText(const String& maximum);
     String validationMessageStepMismatchText(const String& base, const String& step);
 
-
+#if !PLATFORM(CHROMIUM)
 #define WEB_UI_STRING(string, description) WebCore::localizedString(string)
 #define WEB_UI_STRING_KEY(string, key, description) WebCore::localizedString(key)
 
     String localizedString(const char* key);
+#endif
 
 } // namespace WebCore
 

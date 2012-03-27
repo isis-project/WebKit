@@ -81,9 +81,6 @@ PASS DOMStringMapPrototype from inner.document.forms.testForm.0.dataset.__proto_
 PASS DOMTokenList from inner.document.forms.testForm.0.0.classList
 PASS DOMTokenListConstructor from inner.document.forms.testForm.0.classList.constructor
 PASS DOMTokenListPrototype from inner.document.forms.testForm.0.0.classList.__proto__
-PASS DOMWindow from inner
-PASS DOMWindowConstructor from inner.document.forms.testForm.0.ownerDocument.defaultView.constructor
-PASS DOMWindowPrototype from inner.document.forms.testForm.0.ownerDocument.defaultView.__proto__
 PASS DocumentPrototype from inner.document.forms.testForm.0.ownerDocument.__proto__.__proto__
 PASS ElementPrototype from inner.document.forms.testForm.0.__proto__.__proto__.__proto__
 PASS Function from inner.document.createElement
@@ -118,6 +115,7 @@ PASS HTMLCanvasElement from inner.document.getElementsByTagName("canvas")[0].get
 PASS HTMLCanvasElementConstructor from inner.document.getElementsByTagName("canvas")[0].getContext("2d").canvas.constructor
 PASS HTMLCanvasElementPrototype from inner.document.getElementsByTagName("canvas")[0].getContext("2d").canvas.__proto__
 PASS HTMLCollection from inner.document.testForm
+PASS HTMLCollectionPrototype from inner.document.forms.testForm.0.0.children.__proto__
 PASS HTMLDListElement from inner.document.getElementsByTagName("canvas")[0].getContext("2d").canvas.nextElementSibling
 PASS HTMLDListElementConstructor from inner.document.getElementsByTagName("canvas")[0].getContext("2d").canvas.nextElementSibling.constructor
 PASS HTMLDListElementPrototype from inner.document.getElementsByTagName("canvas")[0].getContext("2d").canvas.nextElementSibling.__proto__
@@ -178,6 +176,7 @@ PASS MimeTypeArrayPrototype from inner.document.forms.testForm.0.ownerDocument.d
 PASS MimeTypeConstructor from inner.document.forms.testForm.0.ownerDocument.defaultView.clientInformation.mimeTypes.0.constructor
 PASS MimeTypePrototype from inner.document.forms.testForm.0.ownerDocument.defaultView.clientInformation.mimeTypes.0.__proto__
 PASS NamedNodeMap from inner.document.forms.testForm.0.parentNode.attributes
+PASS NamedNodeMapPrototype from inner.document.forms.testForm.0.parentNode.attributes.__proto__
 PASS Navigator from inner.document.forms.testForm.0.ownerDocument.defaultView.clientInformation
 PASS NavigatorPrototype from inner.document.forms.testForm.0.ownerDocument.defaultView.clientInformation.__proto__
 PASS NodeList from inner.document.forms.testForm
@@ -233,6 +232,9 @@ PASS WebKitCSSKeyframeRulePrototype from inner.document.getElementById("dummySty
 PASS WebKitCSSKeyframesRule from inner.document.getElementById("dummyStyle").sheet.cssRules.6
 PASS WebKitCSSKeyframesRuleConstructor from inner.document.getElementById("dummyStyle").sheet.cssRules.6.constructor
 PASS WebKitCSSKeyframesRulePrototype from inner.document.getElementById("dummyStyle").sheet.cssRules.6.__proto__
+PASS Window from inner
+PASS WindowConstructor from inner.document.forms.testForm.0.ownerDocument.defaultView.constructor
+PASS WindowPrototype from inner.document.forms.testForm.0.ownerDocument.defaultView.__proto__
 Never found Audio
 Never found AudioContext
 Never found AudioPannerNode
@@ -245,7 +247,6 @@ Never found Clipboard
 Never found DOMParser
 Never found DOMSettableTokenList
 Never found DOMStringList
-Never found DOMURL
 Never found Document
 Never found DocumentFragment
 Never found DocumentType
@@ -269,7 +270,6 @@ Never found HTMLHRElement
 Never found HTMLHeadingElement
 Never found HTMLIFrameElement
 Never found HTMLImageElement
-Never found HTMLIsIndexElement
 Never found HTMLKeygenElement
 Never found HTMLLIElement
 Never found HTMLLabelElement
@@ -448,15 +448,18 @@ Never found SVGUnitTypes
 Never found SVGUseElement
 Never found SVGVKernElement
 Never found SVGViewElement
+Never found Selection
 Never found SharedWorker
 Never found StyleSheet
 Never found TextMetrics
 Never found TextTrackCue
 Never found TextTrackCueList
+Never found URL
 Never found WebKitCSSFilterValue
 Never found WebKitCSSMatrix
 Never found WebKitCSSRegionRule
 Never found WebKitCSSTransformValue
+Never found WebKitMutationObserver
 Never found WebKitPoint
 Never found WebSocket
 Never found Worker

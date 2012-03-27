@@ -57,13 +57,14 @@ public:
     enum FocusElementType { TextEdit, TextPopup /* Date/Time & Color */, SelectPopup, Plugin };
     enum CaretScrollType { CenterAlways, CenterIfNeeded, EdgeIfNeeded };
 
-    void nodeFocused(WebCore::Node*);
+    void enableInputMode(bool inputModeAllowed = true);
+
+    void focusedNodeChanged();
     void nodeTextChanged(const WebCore::Node*);
     void selectionChanged();
-    void frameUnloaded(WebCore::Frame*);
+    void frameUnloaded(const WebCore::Frame*);
 
     bool handleKeyboardInput(const BlackBerry::Platform::KeyboardEvent&, bool changeIsPartOfComposition = false);
-    bool handleNavigationMove(const unsigned short character, bool shiftDown, bool altDown, bool canExitField = true);
 
     bool deleteSelection();
     void insertText(const WTF::String&);
@@ -77,10 +78,13 @@ public:
 
     void setInputValue(const WTF::String&);
 
+    void setDelayKeyboardVisibilityChange(bool value);
+    void processPendingKeyboardVisibilityChange();
+
+    void notifyClientOfKeyboardVisibilityChange(bool visible);
+
     bool isInputMode() const { return isActiveTextEdit(); }
     bool isMultilineInputMode() const { return isActiveTextEdit() && elementType(m_currentFocusElement.get()) == BlackBerry::Platform::InputTypeTextArea; }
-
-    void setNavigationMode(bool active, bool sendMessage = true);
 
     void ensureFocusElementVisible(bool centerFieldInDisplay = true);
     void handleInputLocaleChanged(bool isRTL);
@@ -114,9 +118,9 @@ public:
     int32_t setComposingText(spannable_string_t*, int32_t relativeCursorPosition);
     int32_t commitText(spannable_string_t*, int32_t relativeCursorPosition);
 
-    bool shouldAcceptInputFocus();
-
 private:
+    enum PendingKeyboardStateChange { NoChange, Visible, NotVisible };
+
     void setElementFocused(WebCore::Element*);
     void setPluginFocused(WebCore::Element*);
     void setElementUnfocused(bool refocusOccuring = false);
@@ -173,9 +177,9 @@ private:
     WebPagePrivate* m_webPage;
 
     RefPtr<WebCore::Element> m_currentFocusElement;
+    bool m_inputModeEnabled;
 
     bool m_processingChange;
-    bool m_navigationMode;
     bool m_changingFocus;
 
     FocusElementType m_currentFocusElementType;
@@ -183,6 +187,9 @@ private:
 
     int m_composingTextStart;
     int m_composingTextEnd;
+
+    PendingKeyboardStateChange m_pendingKeyboardVisibilityChange;
+    bool m_delayKeyboardVisibilityChange;
 };
 
 }

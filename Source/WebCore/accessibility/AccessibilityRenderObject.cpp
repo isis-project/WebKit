@@ -33,6 +33,7 @@
 #include "AccessibilityImageMapLink.h"
 #include "AccessibilityListBox.h"
 #include "AccessibilitySpinButton.h"
+#include "AccessibilityTable.h"
 #include "EventNames.h"
 #include "FloatRect.h"
 #include "Frame.h"
@@ -1074,7 +1075,7 @@ String AccessibilityRenderObject::textUnderElement() const
     if (!m_renderer)
         return String();
     
-    if (isFileUploadButton())
+    if (m_renderer->isFileUploadControl())
         return toRenderFileUploadControl(m_renderer)->buttonValue();
     
     Node* node = m_renderer->node();
@@ -1197,7 +1198,7 @@ String AccessibilityRenderObject::stringValue() const
     if (isTextControl())
         return text();
     
-    if (isFileUploadButton())
+    if (m_renderer->isFileUploadControl())
         return toRenderFileUploadControl(m_renderer)->fileTextValue();
     
     // FIXME: We might need to implement a value here for more types
@@ -2650,7 +2651,7 @@ void AccessibilityRenderObject::setSelectedVisiblePositionRange(const VisiblePos
     }    
 }
 
-VisiblePosition AccessibilityRenderObject::visiblePositionForPoint(const LayoutPoint& point) const
+VisiblePosition AccessibilityRenderObject::visiblePositionForPoint(const IntPoint& point) const
 {
     if (!m_renderer)
         return VisiblePosition();
@@ -2675,7 +2676,7 @@ VisiblePosition AccessibilityRenderObject::visiblePositionForPoint(const LayoutP
     while (1) {
         LayoutPoint ourpoint;
 #if PLATFORM(MAC)
-        ourpoint = frameView->screenToContents(roundedIntPoint(point));
+        ourpoint = frameView->screenToContents(point);
 #else
         ourpoint = point;
 #endif
@@ -2818,7 +2819,7 @@ IntRect AccessibilityRenderObject::doAXBoundsForRange(const PlainTextRange& rang
     return IntRect();
 }
 
-AccessibilityObject* AccessibilityRenderObject::accessibilityImageMapHitTest(HTMLAreaElement* area, const LayoutPoint& point) const
+AccessibilityObject* AccessibilityRenderObject::accessibilityImageMapHitTest(HTMLAreaElement* area, const IntPoint& point) const
 {
     if (!area)
         return 0;
@@ -2854,7 +2855,7 @@ AccessibilityObject* AccessibilityRenderObject::accessibilityHitTest(const IntPo
     Node* node = hitTestResult.innerNode()->shadowAncestorNode();
 
     if (node->hasTagName(areaTag)) 
-        return accessibilityImageMapHitTest(static_cast<HTMLAreaElement*>(node), roundedIntPoint(point));
+        return accessibilityImageMapHitTest(static_cast<HTMLAreaElement*>(node), point);
     
     if (node->hasTagName(optionTag))
         node = static_cast<HTMLOptionElement*>(node)->ownerSelectElement();
@@ -3250,7 +3251,7 @@ AccessibilityRole AccessibilityRenderObject::determineAccessibilityRole()
     if (node && node->hasTagName(headerTag) && !isDescendantOfElementType(articleTag) && !isDescendantOfElementType(sectionTag))
         return LandmarkBannerRole;
     if (node && node->hasTagName(footerTag) && !isDescendantOfElementType(articleTag) && !isDescendantOfElementType(sectionTag))
-        return LandmarkContentInfoRole;
+        return FooterRole;
 
     if (m_renderer->isBlockFlow())
         return GroupRole;
@@ -3529,6 +3530,20 @@ void AccessibilityRenderObject::addAttachmentChildren()
         m_children.append(axWidget);
 }
     
+void AccessibilityRenderObject::updateAttachmentViewParents()
+{
+    // Only the unignored parent should set the attachment parent, because that's what is reflected in the AX 
+    // hierarchy to the client.
+    if (accessibilityIsIgnored())
+        return;
+    
+    size_t length = m_children.size();
+    for (size_t k = 0; k < length; k++) {
+        if (m_children[k]->isAttachment())
+            m_children[k]->overrideAttachmentParent(this);
+    }
+}
+    
 void AccessibilityRenderObject::addChildren()
 {
     // If the need to add more children in addition to existing children arises, 
@@ -3566,6 +3581,7 @@ void AccessibilityRenderObject::addChildren()
     addAttachmentChildren();
     addImageMapChildren();
     addTextFieldChildren();
+    updateAttachmentViewParents();
 }
         
 const AtomicString& AccessibilityRenderObject::ariaLiveRegionStatus() const
@@ -3621,7 +3637,10 @@ void AccessibilityRenderObject::ariaSelectedRows(AccessibilityChildrenVector& re
 {
     // Get all the rows. 
     AccessibilityChildrenVector allRows;
-    ariaTreeRows(allRows);
+    if (isTree())
+        ariaTreeRows(allRows);
+    else if (isAccessibilityTable() && toAccessibilityTable(this)->supportsSelectedRows())
+        allRows = toAccessibilityTable(this)->rows();
 
     // Determine which rows are selected.
     bool isMulti = isMultiSelectable();

@@ -35,6 +35,12 @@ class HTMLFormElement;
 class MicroDataItemValue;
 #endif
 
+enum TranslateAttributeMode {
+    TranslateAttributeYes,
+    TranslateAttributeNo,
+    TranslateAttributeInherit
+};
+
 class HTMLElement : public StyledElement {
 public:
     static PassRefPtr<HTMLElement> create(const QualifiedName& tagName, Document*);
@@ -68,6 +74,9 @@ public:
     bool spellcheck() const;
     void setSpellcheck(bool);
 
+    bool translate() const;
+    void setTranslate(bool);
+
     void click();
 
     virtual void accessKeyAction(bool sendMouseEvents);
@@ -81,6 +90,7 @@ public:
 
     HTMLFormElement* findFormAncestor() const;
 
+    bool hasDirectionAuto() const;
     TextDirection directionalityIfhasDirAutoAttribute(bool& isAuto) const;
 
 #if ENABLE(MICRODATA)
@@ -88,17 +98,24 @@ public:
     PassRefPtr<MicroDataItemValue> itemValue() const;
 #endif
 
+#ifndef NDEBUG
+    virtual bool isHTMLUnknownElement() const { return false; }
+#endif
+
+    virtual bool isInsertionPoint() const { return false; }
+    virtual bool isLabelable() const { return false; }
+
 protected:
     HTMLElement(const QualifiedName& tagName, Document*);
 
-    static void addHTMLLengthToStyle(StylePropertySet*, int propertyID, const String& value);
-    static void addHTMLColorToStyle(StylePropertySet*, int propertyID, const String& color);
+    void addHTMLLengthToStyle(StylePropertySet*, int propertyID, const String& value);
+    void addHTMLColorToStyle(StylePropertySet*, int propertyID, const String& color);
 
     void applyAlignmentAttributeToStyle(Attribute*, StylePropertySet*);
     void applyBorderAttributeToStyle(Attribute*, StylePropertySet*);
 
     virtual void parseAttribute(Attribute*) OVERRIDE;
-    virtual bool isPresentationAttribute(Attribute*) const OVERRIDE;
+    virtual bool isPresentationAttribute(const QualifiedName&) const OVERRIDE;
     virtual void collectStyleForAttribute(Attribute*, StylePropertySet*) OVERRIDE;
 
     virtual void childrenChanged(bool changedByParser = false, Node* beforeChange = 0, Node* afterChange = 0, int childCountDelta = 0);
@@ -120,6 +137,8 @@ private:
     void adjustDirectionalityIfNeededAfterChildAttributeChanged(Element* child);
     void adjustDirectionalityIfNeededAfterChildrenChanged(Node* beforeChange, int childCountDelta);
     TextDirection directionality(Node** strongDirectionalityTextNode= 0) const;
+
+    TranslateAttributeMode translateAttributeMode() const;
 
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const;

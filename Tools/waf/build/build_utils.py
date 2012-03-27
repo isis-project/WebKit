@@ -30,6 +30,7 @@ import platform
 import re
 import shutil
 import sys
+import urllib2
 import urllib
 import urlparse
 
@@ -47,21 +48,28 @@ def get_output(command):
 
 def get_excludes(root, patterns):
     """
-    Get a list of exclude patterns going down several dirs.
-    TODO: Make this fully recursive.
+    Get a list of exclude patterns for root and all its subdirs.
     """
     excludes = []
 
+    for afile in os.listdir(root):
+        fullpath = os.path.join(root, afile)
+        if os.path.isdir(fullpath):
+            excludes.extend(get_excludes(fullpath, patterns))
+            
     for pattern in patterns:
-        subdir_pattern = os.sep + '*'
-        for subdir in [subdir_pattern, subdir_pattern * 2, subdir_pattern * 3]:
-            adir = root + subdir + os.sep + pattern
-            files = glob.glob(adir)
-            for afile in files:
-                excludes.append(os.path.basename(afile))
+        adir = root + os.sep + pattern
+        files = glob.glob(adir)
+        for afile in files:
+            excludes.append(os.path.basename(afile))
 
     return excludes
 
+def get_excludes_in_dirs(dirs, patterns):
+    excludes = []
+    for adir in dirs:
+        excludes.extend(get_excludes(adir, patterns))
+    return excludes
 
 def get_dirs_for_features(root, features, dirs):
     """
@@ -91,7 +99,13 @@ def download_if_newer(url, destdir):
     filename = os.path.basename(obj.path)
     destfile = os.path.join(destdir, filename)
 
-    urlobj = urllib.urlopen(url)
+    try:
+        urlobj = urllib2.urlopen(url, timeout=20)
+    except:
+        if os.path.exists(destfile):
+            return None # 
+        else:
+            raise
     size = long(urlobj.info().getheader('Content-Length'))
 
     def download_callback(downloaded, block_size, total_size):

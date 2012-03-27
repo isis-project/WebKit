@@ -4,8 +4,6 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test for crbug.com/108071");
@@ -16,8 +14,7 @@ var names = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo'];
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
+    removeVendorPrefixes();
     DBNAME = 'prefetch-bugfix-108071';
     request = evalAndLog("indexedDB.deleteDatabase(DBNAME)");
     request.onerror = unexpectedErrorCallback;
@@ -41,7 +38,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = iterateAndDeleteFirstElement;
@@ -68,7 +65,7 @@ function iterateAndDeleteFirstElement()
 {
     debug("iterateAndDeleteFirstElement():");
 
-    evalAndLog("trans = db.transaction(['store'], webkitIDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['store'], IDBTransaction.READ_WRITE)");
     trans.onabort = transactionAborted;
     trans.oncomplete = unexpectedCompleteCallback;
 
@@ -121,7 +118,6 @@ function transactionAborted()
     finishJSTest();
 }
 
-var jsTestIsAsync = true;
 test();
 
 </script>

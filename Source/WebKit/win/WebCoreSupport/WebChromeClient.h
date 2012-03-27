@@ -120,10 +120,6 @@ public:
     virtual void reachedMaxAppCacheSize(int64_t spaceNeeded);
     virtual void reachedApplicationCacheOriginQuota(WebCore::SecurityOrigin*, int64_t totalSpaceNeeded);
 
-#if ENABLE(CONTEXT_MENUS)
-    virtual void showContextMenu() { }
-#endif
-
     virtual void populateVisitedLinks();
 
     virtual void runOpenPanel(WebCore::Frame*, PassRefPtr<WebCore::FileChooser>);
@@ -148,19 +144,14 @@ public:
 
     virtual void scrollRectIntoView(const WebCore::IntRect&) const { }
 
-    // FIXME: Remove once all ports are using client-based geolocation. https://bugs.webkit.org/show_bug.cgi?id=40373
-    // For client-based geolocation, these two methods have been moved to WebGeolocationClient. https://bugs.webkit.org/show_bug.cgi?id=50061
-    virtual void requestGeolocationPermissionForFrame(WebCore::Frame*, WebCore::Geolocation*) { }
-    virtual void cancelGeolocationPermissionRequestForFrame(WebCore::Frame*, WebCore::Geolocation*) { }
-
 #if ENABLE(VIDEO)
     virtual bool supportsFullscreenForNode(const WebCore::Node*);
     virtual void enterFullscreenForNode(WebCore::Node*);
     virtual void exitFullscreenForNode(WebCore::Node*);
 #endif
 
-#if ENABLE(NOTIFICATIONS)
-    virtual WebCore::NotificationPresenter* notificationPresenter() const { return reinterpret_cast<WebCore::NotificationPresenter*>(m_notificationsDelegate.get()); }
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+    virtual WebCore::NotificationClient* notificationPresenter() const { return reinterpret_cast<WebCore::NotificationClient*>(m_notificationsDelegate.get()); }
 #endif
 
     virtual bool selectItemWritingDirectionIsNatural();
@@ -177,13 +168,14 @@ public:
 
     virtual bool shouldRubberBandInDirection(WebCore::ScrollDirection) const { return true; }
     virtual void numWheelEventHandlersChanged(unsigned) { }
+    virtual void numTouchEventHandlersChanged(unsigned) { }
 
 private:
     COMPtr<IWebUIDelegate> uiDelegate();
 
     WebView* m_webView;
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     OwnPtr<WebDesktopNotificationsDelegate> m_notificationsDelegate;
 #endif
 };

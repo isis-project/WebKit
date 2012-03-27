@@ -35,7 +35,9 @@
 #import "WebEvent.h"
 #import "WebEventConversion.h"
 #import "WebFrame.h"
+#import "WebInspector.h"
 #import "WebPageProxyMessages.h"
+#import "WebPreferencesStore.h"
 #import "WebProcess.h"
 #import <WebCore/AXObjectCache.h>
 #import <WebCore/FocusController.h>
@@ -83,8 +85,10 @@ void WebPage::platformInitialize()
     m_mockAccessibilityElement = mockAccessibilityElement;
 }
 
-void WebPage::platformPreferencesDidChange(const WebPreferencesStore&)
+void WebPage::platformPreferencesDidChange(const WebPreferencesStore& store)
 {
+    if (WebInspector* inspector = this->inspector())
+        inspector->setInspectorUsesWebKitUserInterface(store.getBoolValueForKey(WebPreferencesKey::inspectorUsesWebKitUserInterfaceKey()));
 }
 
 typedef HashMap<String, String> SelectorNameMap;
@@ -264,10 +268,10 @@ void WebPage::insertText(const String& text, uint64_t replacementRangeStart, uin
 {
     Frame* frame = m_page->focusController()->focusedOrMainFrame();
 
-    RefPtr<Range> replacementRange;
     if (replacementRangeStart != NSNotFound) {
-        replacementRange = convertToRange(frame, NSMakeRange(replacementRangeStart, replacementRangeEnd - replacementRangeStart));
-        frame->selection()->setSelection(VisibleSelection(replacementRange.get(), SEL_DEFAULT_AFFINITY));
+        RefPtr<Range> replacementRange = convertToRange(frame, NSMakeRange(replacementRangeStart, replacementRangeEnd - replacementRangeStart));
+        if (replacementRange)
+            frame->selection()->setSelection(VisibleSelection(replacementRange.get(), SEL_DEFAULT_AFFINITY));
     }
 
     if (!frame->editor()->hasComposition()) {
@@ -440,7 +444,7 @@ void WebPage::performDictionaryLookupAtLocation(const FloatPoint& floatPoint)
 
     // Find the frame the point is over.
     IntPoint point = roundedIntPoint(floatPoint);
-    HitTestResult result = frame->eventHandler()->hitTestResultAtPoint(point, false);
+    HitTestResult result = frame->eventHandler()->hitTestResultAtPoint(frame->view()->windowToContents(point), false);
     frame = result.innerNonSharedNode() ? result.innerNonSharedNode()->document()->frame() : m_page->focusController()->focusedOrMainFrame();
 
     IntPoint translatedPoint = frame->view()->windowToContents(point);
@@ -539,7 +543,7 @@ void WebPage::performDictionaryLookupForRange(DictionaryPopupInfo::Type type, Fr
     
     DictionaryPopupInfo dictionaryPopupInfo;
     dictionaryPopupInfo.type = type;
-    dictionaryPopupInfo.origin = FloatPoint(rangeRect.x(), rangeRect.y() + style->fontMetrics().ascent());
+    dictionaryPopupInfo.origin = FloatPoint(rangeRect.x(), rangeRect.y() + (style->fontMetrics().ascent() * pageScaleFactor()));
     dictionaryPopupInfo.fontInfo.fontAttributeDictionary = fontDescriptorAttributes;
 #if !defined(BUILDING_ON_SNOW_LEOPARD)
     dictionaryPopupInfo.options = (CFDictionaryRef)options;
@@ -687,7 +691,7 @@ void WebPage::shouldDelayWindowOrderingEvent(const WebKit::WebMouseEvent& event,
     if (!frame)
         return;
 
-    HitTestResult hitResult = frame->eventHandler()->hitTestResultAtPoint(event.position(), true);
+    HitTestResult hitResult = frame->eventHandler()->hitTestResultAtPoint(frame->view()->windowToContents(event.position()), true);
     if (hitResult.isSelected())
         result = frame->eventHandler()->eventMayStartDrag(platform(event));
 }
@@ -699,7 +703,7 @@ void WebPage::acceptsFirstMouse(int eventNumber, const WebKit::WebMouseEvent& ev
     if (!frame)
         return;
     
-    HitTestResult hitResult = frame->eventHandler()->hitTestResultAtPoint(event.position(), true);
+    HitTestResult hitResult = frame->eventHandler()->hitTestResultAtPoint(frame->view()->windowToContents(event.position()), true);
     frame->eventHandler()->setActivationEventNumber(eventNumber);
     if (hitResult.isSelected())
         result = frame->eventHandler()->eventMayStartDrag(platform(event));

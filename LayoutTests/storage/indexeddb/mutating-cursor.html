@@ -4,19 +4,16 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test mutating an IndexedDB's objectstore from a cursor.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 test();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('mutating-cursor')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('mutating-cursor')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -33,7 +30,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = openForwardCursor;
@@ -50,21 +47,21 @@ function setVersionSuccess()
 function openForwardCursor()
 {
     debug("openForwardCursor()");
-    evalAndLog("trans = db.transaction(['store'], webkitIDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['store'], IDBTransaction.READ_WRITE)");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = forwardCursorComplete;
 
-    window.objectStore = evalAndLog("trans.objectStore('store')");
+    self.objectStore = evalAndLog("trans.objectStore('store')");
     request = evalAndLog("objectStore.openCursor()");
     request.onsuccess = forwardCursor;
     request.onerror = unexpectedErrorCallback;
-    window.cursorSteps = 0;
+    self.cursorSteps = 0;
 }
 
 function forwardCursor()
 {
     debug("forwardCursor()");
-    window.cursor = event.target.result;
+    self.cursor = event.target.result;
 
     if (event.target.result == null) {
         shouldBe("cursorSteps", "5");
@@ -95,21 +92,21 @@ function forwardCursorComplete()
 function openReverseCursor()
 {
     debug("openReverseCursor()");
-    evalAndLog("trans = db.transaction(['store'], webkitIDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['store'], IDBTransaction.READ_WRITE)");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = reverseCursorComplete;
 
-    window.objectStore = evalAndLog("trans.objectStore('store')");
-    request = evalAndLog("objectStore.openCursor(null, webkitIDBCursor.PREV)");
+    self.objectStore = evalAndLog("trans.objectStore('store')");
+    request = evalAndLog("objectStore.openCursor(null, IDBCursor.PREV)");
     request.onsuccess = reverseCursor;
     request.onerror = unexpectedErrorCallback;
-    window.cursorSteps = 6;
+    self.cursorSteps = 6;
 }
 
 function reverseCursor()
 {
     debug("reverseCursor()");
-    window.cursor = event.target.result;
+    self.cursor = event.target.result;
 
     if (event.target.result == null) {
         shouldBe("cursorSteps", "0");
@@ -134,10 +131,11 @@ function reverseCursor()
 function reverseCursorComplete()
 {
     debug("reverseCursorComplete()");
-    done();
+    finishJSTest();
 }
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

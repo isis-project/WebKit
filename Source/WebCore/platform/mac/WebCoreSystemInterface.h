@@ -41,6 +41,7 @@ typedef struct CGColor *CGColorRef;
 typedef struct CGFont *CGFontRef;
 typedef struct CGColorSpace *CGColorSpaceRef;
 typedef struct CGPattern *CGPatternRef;
+typedef struct CGPath *CGMutablePathRef;
 typedef unsigned short CGGlyph;
 typedef struct __CFReadStream * CFReadStreamRef;
 typedef struct __CFRunLoop * CFRunLoopRef;
@@ -78,6 +79,7 @@ typedef const struct _CFURLRequest* CFURLRequestRef;
 #endif
 
 OBJC_CLASS AVAsset;
+OBJC_CLASS CALayer;
 OBJC_CLASS NSArray;
 OBJC_CLASS NSButtonCell;
 OBJC_CLASS NSControl;
@@ -106,6 +108,10 @@ extern "C" {
 // In alphabetical order.
 
 extern void (*wkAdvanceDefaultButtonPulseAnimation)(NSButtonCell *);
+#if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+extern void (*wkCALayerEnumerateRectsBeingDrawnWithBlock)(CALayer *, CGContextRef, void (^block)(CGRect rect));
+#endif
+
 extern BOOL (*wkCGContextGetShouldSmoothFonts)(CGContextRef);
 typedef enum {
     wkPatternTilingNoDistortion,
@@ -287,7 +293,8 @@ extern CFArrayRef (*wkCFURLRequestCopyHTTPRequestBodyParts)(CFURLRequestRef);
 extern void (*wkCFURLRequestSetHTTPRequestBodyParts)(CFMutableURLRequestRef, CFArrayRef bodyParts);
 extern void (*wkSetRequestStorageSession)(CFURLStorageSessionRef, CFMutableURLRequestRef);
 #endif
-
+extern void (*wkSetMetadataURL)(NSString *urlString, NSString *referrer, NSString *path);
+    
 #if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
 #import <dispatch/dispatch.h>
 
@@ -298,6 +305,10 @@ extern dispatch_source_t (*wkCreateVMPressureDispatchOnMainQueue)(void);
 #if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
 extern NSString *(*wkGetMacOSXVersionString)(void);
 extern bool (*wkExecutableWasLinkedOnOrBeforeLion)(void);
+#endif
+
+#if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+extern void (*wkCGPathAddRoundedRect)(CGMutablePathRef path, const CGAffineTransform* matrix, CGRect rect, CGFloat cornerWidth, CGFloat cornerHeight);
 #endif
 
 }

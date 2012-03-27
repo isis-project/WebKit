@@ -42,7 +42,7 @@ var JSON = {}
 /** @param {string} str */
 JSON.parse = function(str) {}
 /**
- * @param {Object} obj
+ * @param {*} obj
  * @param {Function=} replacer
  * @param {number=} space
  * @return {string}
@@ -55,6 +55,8 @@ Element.prototype.scrollIntoViewIfNeeded = function(param) {}
 Event.prototype.isMetaOrCtrlForTest = false;
 /** @param {...*} vararg */
 Event.prototype.initWebKitWheelEvent = function(vararg) {}
+Event.prototype.stopImmediatePropagation = function() {}
+
 /** @param {Element} element */
 window.getComputedStyle = function(element) {}
 
@@ -118,7 +120,11 @@ WebInspector.openRequestInNetworkPanel = function(request) {}
 
 WebInspector.populateResourceContextMenu = function(contextMenu, url, preferredLineNumber) {}
 
-WebInspector.evaluateInConsole = function(expression) {}
+/**
+ * @param {string} expression
+ * @param {boolean=} showResultOnly
+ */
+WebInspector.evaluateInConsole = function(expression, showResultOnly) {}
 
 var InjectedFakeWorker = function() {}
 
@@ -191,3 +197,6 @@ WebInspector.showPanel = function(panel)
 WebInspector.inspectedPageDomain;
 
 WebInspector.isCompactMode = function() { return false; }
+
+WebInspector.SourceJavaScriptTokenizer = {}
+WebInspector.SourceJavaScriptTokenizer.Keywords = {}

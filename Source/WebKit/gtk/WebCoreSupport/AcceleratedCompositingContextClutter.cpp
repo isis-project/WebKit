@@ -25,6 +25,7 @@
 #include "Frame.h"
 #include "FrameView.h"
 #include "GraphicsLayer.h"
+#include "NotImplemented.h"
 #include "webkitwebviewprivate.h"
 #include <clutter-gtk/clutter-gtk.h>
 #include <clutter/clutter.h>
@@ -35,14 +36,16 @@ namespace WebKit {
 
 AcceleratedCompositingContext::AcceleratedCompositingContext(WebKitWebView* webView)
     : m_webView(webView)
+    , m_syncTimerCallbackId(0)
     , m_rootGraphicsLayer(0)
-    , m_syncTimer(this, &AcceleratedCompositingContext::syncLayersTimeout)
     , m_rootLayerEmbedder(0)
 {
 }
 
 AcceleratedCompositingContext::~AcceleratedCompositingContext()
 {
+    if (m_syncTimerCallbackId)
+        g_source_remove(m_syncTimerCallbackId);
 }
 
 bool AcceleratedCompositingContext::enabled()
@@ -50,7 +53,7 @@ bool AcceleratedCompositingContext::enabled()
     return m_rootGraphicsLayer;
 }
 
-bool AcceleratedCompositingContext::renderLayersToWindow(cairo_t* widgetCr, const IntRect& clipRect)
+bool AcceleratedCompositingContext::renderLayersToWindow(const IntRect& clipRect)
 {
     notImplemented();
     return false;
@@ -106,19 +109,41 @@ void AcceleratedCompositingContext::resizeRootLayer(const IntSize& size)
     allocation.y = 0;
     allocation.width = size.width();
     allocation.height = size.height();
-    gtk_widget_size_allocate(GTK_WIDGET(m_webView->priv->rootLayerEmbedder), &allocation);
+    gtk_widget_size_allocate(GTK_WIDGET(m_rootLayerEmbedder), &allocation);
+}
+
+static gboolean syncLayersTimeoutCallback(AcceleratedCompositingContext* context)
+{
+    context->syncLayersTimeout();
+    return FALSE;
 }
 
 void AcceleratedCompositingContext::markForSync()
 {
-    if (m_syncTimer.isActive())
+    if (m_syncTimerCallbackId)
         return;
-    m_syncTimer.startOneShot(0);
+
+    // We use a GLib timer because otherwise GTK+ event handling during
+    // dragging can starve WebCore timers, which have a lower priority.
+    m_syncTimerCallbackId = g_timeout_add_full(GDK_PRIORITY_EVENTS, 0, reinterpret_cast<GSourceFunc>(syncLayersTimeoutCallback), this, 0);
 }
 
-void AcceleratedCompositingContext::syncLayersTimeout(Timer<AcceleratedCompositingContext>*)
+void AcceleratedCompositingContext::syncLayersNow()
 {
+    if (m_rootGraphicsLayer)
+        m_rootGraphicsLayer->syncCompositingStateForThisLayerOnly();
+
     core(m_webView)->mainFrame()->view()->syncCompositingStateIncludingSubframes();
+}
+
+void AcceleratedCompositingContext::syncLayersTimeout()
+{
+    m_syncTimerCallbackId = 0;
+    syncLayersNow();
+    if (!m_rootGraphicsLayer)
+        return;
+
+    renderLayersToWindow(IntRect());
 }
 
 void AcceleratedCompositingContext::notifyAnimationStarted(const WebCore::GraphicsLayer*, double time)

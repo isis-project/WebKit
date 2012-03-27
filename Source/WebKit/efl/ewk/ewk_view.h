@@ -95,6 +95,7 @@
 
 #include <Evas.h>
 #include <cairo.h>
+#include <libsoup/soup-session.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -2238,7 +2239,8 @@ EAPI Eina_Bool ewk_view_mode_set(Evas_Object *o, Ewk_View_Mode view_mode);
  *
  * @param o view object to get the view mode
  *
- * @return enum value of @a Ewk_View_Mode that indicates current view mode
+ * @return enum value of @a Ewk_View_Mode that indicates current view mode on success or
+ *         EWK_VIEW_MODE_INVALID otherwise
  *
  * @see ewk_view_mode_set()
  */
@@ -2334,6 +2336,34 @@ EAPI Eina_Bool ewk_view_mixed_content_displayed_get(const Evas_Object *o);
  * @sa ewk_frame_mixed_content_run_get
  */
 EAPI Eina_Bool ewk_view_mixed_content_run_get(const Evas_Object *o);
+
+/**
+ * Returns the SoupSession associated with this view.
+ *
+ * By default, all views share the same, default soup session also available
+ * by calling ewk_network_default_soup_session_get.
+ *
+ * @param o The view to query.
+ *
+ * @sa ewk_view_soup_session_set, ewk_network_default_soup_session_get
+ */
+EAPI SoupSession* ewk_view_soup_session_get(const Evas_Object *o);
+
+/**
+ * Associates a new SoupSession with this view.
+ *
+ * Only sessions of type SoupSessionAsync are supported.
+ *
+ * @note Changing the SoupSession should not be needed in most cases. If
+ *       a different SoupSession is used, the cookie management and some
+ *       network functions in ewk will not have any effect on it.
+ *
+ * @param o The view to change.
+ * @param session The new SoupSession.
+ *
+ * @sa ewk_view_soup_session_get, ewk_network_default_soup_session_get
+ */
+EAPI void ewk_view_soup_session_set(Evas_Object *o, SoupSession *session);
 
 #ifdef __cplusplus
 }

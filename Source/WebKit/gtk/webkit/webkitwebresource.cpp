@@ -122,12 +122,12 @@ static void webkit_web_resource_class_init(WebKitWebResourceClass* webResourceCl
     gobject_class->get_property = webkit_web_resource_get_property;
     gobject_class->set_property = webkit_web_resource_set_property;
 
-    /*
-     * WebKitWebResource::response-received
-     * @webResource: the #WebKitWebResource being loaded
+    /**
+     * WebKitWebResource::response-received:
+     * @web_resource: the #WebKitWebResource being loaded
      * @response: the #WebKitNetworkResponse that was received
      *
-     * Emitted when the first byte of data arrives
+     * Emitted when the response is received from the server.
      *
      * Since: 1.7.5
      */
@@ -140,12 +140,12 @@ static void webkit_web_resource_class_init(WebKitWebResourceClass* webResourceCl
             G_TYPE_NONE, 1,
             WEBKIT_TYPE_NETWORK_RESPONSE);
 
-    /*
-     * WebKitWebResource::load-failed
-     * @webResource: the #WebKitWebResource that was loaded
-     * @webError: the #GError that was triggered
+    /**
+     * WebKitWebResource::load-failed:
+     * @web_resource: the #WebKitWebResource that was loaded
+     * @error: the #GError that was triggered
      *
-     * Invoked when a resource failed to load
+     * Invoked when the @web_resource failed to load
      *
      * Since: 1.7.5
      */
@@ -154,13 +154,13 @@ static void webkit_web_resource_class_init(WebKitWebResourceClass* webResourceCl
             G_SIGNAL_RUN_LAST,
             0,
             0, 0,
-            g_cclosure_marshal_VOID__OBJECT,
+            g_cclosure_marshal_VOID__POINTER,
             G_TYPE_NONE, 1,
             G_TYPE_POINTER);
 
-    /*
-     * WebKitWebResource::load-finished
-     * @webResource: the #WebKitWebResource being loaded
+    /**
+     * WebKitWebResource::load-finished:
+     * @web_resource: the #WebKitWebResource being loaded
      *
      * Emitted when all the data for the resource was loaded
      *
@@ -174,12 +174,15 @@ static void webkit_web_resource_class_init(WebKitWebResourceClass* webResourceCl
             g_cclosure_marshal_VOID__VOID,
             G_TYPE_NONE, 0);
 
-    /*
-     * WebKitWebResource::content-length-received
-     * @webResource: the #WebKitWebResource that was loaded
-     * @lengthReceived: the resource data length in bytes
+    /**
+     * WebKitWebResource::content-length-received:
+     * @web_resource: the #WebKitWebResource that was loaded
+     * @length_received: the amount of data received since the last signal emission
      *
-     * Emitted when all the data for the resource was loaded
+     * Emitted when new resource data has been received. The
+     * @length_received variable stores the amount of bytes received
+     * since the last time this signal was emitted. This is useful to
+     * provide progress information about the resource load operation.
      *
      * Since: 1.7.5
      */
@@ -204,7 +207,7 @@ static void webkit_web_resource_class_init(WebKitWebResourceClass* webResourceCl
                                     g_param_spec_string(
                                     "uri",
                                     _("URI"),
-                                    _("The uri of the resource"),
+                                    _("The URI of the resource"),
                                     NULL,
                                     (GParamFlags)(WEBKIT_PARAM_READWRITE|G_PARAM_CONSTRUCT_ONLY)));
     /**
@@ -326,7 +329,7 @@ void webkit_web_resource_init_with_core_resource(WebKitWebResource* webResource,
  * webkit_web_resource_new:
  * @data: the data to initialize the #WebKitWebResource
  * @size: the length of @data
- * @uri: the uri of the #WebKitWebResource
+ * @uri: the URI of the #WebKitWebResource
  * @mime_type: the MIME type of the #WebKitWebResource
  * @encoding: the text encoding name of the #WebKitWebResource
  * @frame_name: the frame name of the #WebKitWebResource

@@ -4,22 +4,13 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB keys ordering and readback from cursors.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
-    evalAndLog("IDBCursor = window.IDBCursor || window.webkitIDBCursor;");
-    shouldBeFalse("IDBCursor == null");
-    evalAndLog("IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction");
-    shouldBeFalse("IDBTransaction == null");
+    removeVendorPrefixes();
 
     prepareDatabase();
 }
@@ -40,7 +31,7 @@ function prepareDatabase()
     };
 }
 
-window.keys = [
+self.keys = [
     "-Infinity",
     "-Number.MAX_VALUE",
     "-1",
@@ -188,7 +179,7 @@ function checkStore()
 function finishUp()
 {
     testKeyCompare();
-    done();
+    finishJSTest();
 }
 
 function testKeyCompare()
@@ -237,5 +228,6 @@ function testKeyCompare()
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

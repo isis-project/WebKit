@@ -4,20 +4,15 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB transaction does not crash on abort.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    shouldBeTrue("'webkitIndexedDB' in window");
-    shouldBeFalse("webkitIndexedDB == null");
+    removeVendorPrefixes();
 
-    request = evalAndLog("webkitIndexedDB.open('transaction-crash-on-abort')");
+    request = evalAndLog("indexedDB.open('transaction-crash-on-abort')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -34,14 +29,20 @@ function openSuccess()
 function setVersionSuccess()
 {
     evalAndLog("db.createObjectStore('foo')");
+    event.target.result.oncomplete = setVersionComplete;
+}
+
+function setVersionComplete()
+{
     evalAndLog("db.transaction('foo')");
-    evalAndLog("window.gc()");
-    done();
+    evalAndLog("self.gc()");
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

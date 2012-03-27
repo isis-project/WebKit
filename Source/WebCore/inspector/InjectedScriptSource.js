@@ -422,9 +422,9 @@ InjectedScript.prototype = {
 
         // FireBug's array detection.
         try {
-            if (isFinite(obj.length) && typeof obj.splice === "function")
+            if (typeof obj.splice === "function" && isFinite(obj.length))
                 return "array";
-            if (isFinite(obj.length) && typeof obj.callee === "function") // arguments.
+            if (Object.prototype.toString.call(obj) === "[object Arguments]" && isFinite(obj.length)) // arguments.
                 return "array";
         } catch (e) {
         }
@@ -571,13 +571,13 @@ function CommandLineAPI(commandLineAPIImpl, callFrame)
         if (member in inspectedWindow || inScopeVariables(member))
             continue;
 
-        this.__defineGetter__("$" + i, bind(commandLineAPIImpl, commandLineAPIImpl._inspectedNode, i));
+        this.__defineGetter__("$" + i, bind(commandLineAPIImpl, commandLineAPIImpl._inspectedObject, i));
     }
 }
 
 CommandLineAPI.members_ = [
     "$", "$$", "$x", "dir", "dirxml", "keys", "values", "profile", "profileEnd",
-    "monitorEvents", "unmonitorEvents", "inspect", "copy", "clear"
+    "monitorEvents", "unmonitorEvents", "inspect", "copy", "clear", "getEventListeners"
 ];
 
 function CommandLineAPIImpl()
@@ -685,9 +685,14 @@ CommandLineAPIImpl.prototype = {
         InjectedScriptHost.clearConsoleMessages();
     },
 
-    _inspectedNode: function(num)
+    getEventListeners: function(node)
     {
-        return InjectedScriptHost.inspectedNode(num);
+        return InjectedScriptHost.getEventListeners(node);
+    },
+
+    _inspectedObject: function(num)
+    {
+        return InjectedScriptHost.inspectedObject(num);
     },
 
     _normalizeEventTypes: function(types)

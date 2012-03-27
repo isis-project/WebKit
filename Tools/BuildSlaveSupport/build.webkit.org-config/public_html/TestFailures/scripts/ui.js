@@ -64,15 +64,15 @@ ui.onebar = base.extends('div', {
         this.innerHTML =
             '<ul>' +
                 '<li><a href="#unexpected">Unexpected Failures</a></li>' +
-                '<li><a href="#failures">All Failures</a></li>' +
+                '<li><a href="#expected">Expected Failures</a></li>' +
                 '<li><a href="#results">Results</a></li>' +
             '</ul>' +
             '<div id="unexpected"></div>' +
-            '<div id="failures"></div>' +
+            '<div id="expected"></div>' +
             '<div id="results"></div>';
         this._tabNames = [
             'unexpected',
-            'failures',
+            'expected',
             'results',
         ]
         this._tabs = $(this).tabs({
@@ -100,9 +100,9 @@ ui.onebar = base.extends('div', {
     {
         return this.tabNamed('unexpected');
     },
-    failures: function()
+    expected: function()
     {
-        return this.tabNamed('failures');
+        return this.tabNamed('expected');
     },
     results: function()
     {
@@ -143,38 +143,67 @@ ui.RelativeTime = base.extends('time', {
     }
 });
 
-ui.MessageBox = base.extends('div',  {
-    init: function(title, message)
+ui.StatusArea = base.extends('div',  {
+    init: function()
     {
-        this._content = document.createElement('div');
-        this.appendChild(this._content);
-        this.addMessage(message);
+        // This is a Singleton.
+        if (ui.StatusArea._instance)
+            return ui.StatusArea._instance;
+        ui.StatusArea._instance = this;
+
+        this.className = 'status';
         document.body.appendChild(this);
-        $(this).dialog({
-            resizable: false,
-            width: $(window).width() * 0.80,  // FIXME: We should have CSS do this work for us.
-        });
-        $('.ui-dialog-title', this.parentNode).text(title);
-        $(this).bind('dialogclose', function() {
-            $(this).detach();
-        }.bind(this));
+        this._currentId = 0;
+        this._unfinishedIds = {};
+
+        this.appendChild(new ui.actions.List([new ui.actions.Close()]));
+        $(this).bind('close', this.close.bind(this));
+
+        var processing = document.createElement('div');
+        processing.className = 'process-text';
+        processing.textContent = 'Processing...';
+        this.appendChild(processing);
     },
     close: function()
     {
-        $(this).dialog('close');
+        this.style.visibility = 'hidden';
+        Array.prototype.forEach.call(this.querySelectorAll('.status-content'), function(node) {
+            node.parentNode.removeChild(node);
+        });
     },
-    addMessage: function(message)
+    addMessage: function(id, message)
     {
+        this.style.visibility = 'visible';
+        $(this).addClass('processing');
+
         var element = document.createElement('div');
         $(element).addClass('message').text(message);
-        this._content.appendChild(element);
+
+        var content = this.querySelector('#' + id);
+        if (!content) {
+            content = document.createElement('div');
+            content.id = id;
+            content.className = 'status-content';
+            this.appendChild(content);
+        }
+
+        content.appendChild(element);
+        if (element.offsetTop < this.scrollTop || element.offsetTop + element.offsetHeight > this.scrollTop + this.offsetHeight)
+            this.scrollTop = element.offsetTop;
     },
     // FIXME: It's unclear whether this code could live here or in a controller.
-    addFinalMessage: function(message)
+    addFinalMessage: function(id, message)
     {
-        this.addMessage(message);
-        this.appendChild(new ui.actions.List([new ui.actions.Close()]));
-        $(this).bind('close', this.close.bind(this));
+        this.addMessage(id, message);
+
+        delete this._unfinishedIds[id];
+        if (!Object.keys(this._unfinishedIds).length)
+            $(this).removeClass('processing');
+    },
+    newId: function() {
+        var id = 'status-content-' + ++this._currentId;
+        this._unfinishedIds[id] = 1;
+        return id;
     }
 });
 

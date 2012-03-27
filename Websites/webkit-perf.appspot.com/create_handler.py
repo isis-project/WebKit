@@ -64,23 +64,20 @@ class CreateHandler(webapp2.RequestHandler):
 
         # No need to clear manifest or runs since they only contain ones with test results
         schedule_dashboard_update()
-        self.response.out.write(error + '\n' if error else 'OK')
+        self.response.out.write(error + '\n' if error else 'OK\n')
 
     def _create_builder(self, name, password):
         if not name or not password:
             return 'Invalid name or password'
-
-        password = Builder.hashed_password(password)
 
         def execute():
             message = None
             bot = Builder.get_by_key_name(name)
             if bot:
                 message = 'Updating the password since bot "%s" already exists' % name
-                bot.password = password
+                bot.update_password(password)
             else:
-                bot = Builder(name=name, password=password, key_name=name)
-            bot.put()
+                Builder.create(name, password)
             return message
 
         return db.run_in_transaction(execute)
@@ -88,33 +85,9 @@ class CreateHandler(webapp2.RequestHandler):
     def _create_branch(self, key, name):
         if not key or not name:
             return 'Invalid key or name'
-
-        error = [None]
-
-        def execute(id):
-            if Branch.get_by_key_name(key):
-                error[0] = 'Branch "%s" already exists' % key
-                return
-            branch = Branch(id=id, name=name, key_name=key)
-            branch.put()
-            return branch
-
-        create_in_transaction_with_numeric_id_holder(execute)
-        return error[0]
+        return None if Branch.create_if_possible(key, name) else 'Branch "%s" already exists' % key
 
     def _create_platform(self, key, name):
         if not key or not name:
             return 'Invalid key name'
-
-        error = [None]
-
-        def execute(id):
-            if Platform.get_by_key_name(key):
-                error[0] = 'Platform "%s" already exists' % key
-                return
-            platform = Platform(id=id, name=name, key_name=key)
-            platform.put()
-            return platform
-
-        create_in_transaction_with_numeric_id_holder(execute)
-        return error[0]
+        return None if Platform.create_if_possible(key, name) else 'Platform "%s" already exists' % key

@@ -30,6 +30,7 @@
 #include "EventTarget.h"
 #include "FrameDestructionObserver.h"
 #include "KURL.h"
+#include "Supplementable.h"
 
 namespace WebCore {
 
@@ -46,10 +47,7 @@ namespace WebCore {
     class DatabaseCallback;
     class Document;
     class Element;
-    class EntryCallback;
-    class ErrorCallback;
     class EventListener;
-    class FileSystemCallback;
     class FloatRect;
     class Frame;
     class History;
@@ -58,7 +56,7 @@ namespace WebCore {
     class MediaQueryList;
     class Navigator;
     class Node;
-    class NotificationCenter;
+    class Page;
     class Performance;
     class PostMessageTimer;
     class ScheduledAction;
@@ -82,7 +80,7 @@ namespace WebCore {
 
     enum SetLocationLocking { LockHistoryBasedOnGestureState, LockHistoryAndBackForwardList };
 
-    class DOMWindow : public RefCounted<DOMWindow>, public EventTarget, public FrameDestructionObserver {
+    class DOMWindow : public RefCounted<DOMWindow>, public EventTarget, public FrameDestructionObserver, public Supplementable<DOMWindow> {
     public:
         static PassRefPtr<DOMWindow> create(Frame* frame) { return adoptRef(new DOMWindow(frame)); }
         virtual ~DOMWindow();
@@ -92,12 +90,12 @@ namespace WebCore {
 
         virtual DOMWindow* toDOMWindow();
 
-        virtual void frameDestroyed() OVERRIDE;
-
         void registerProperty(DOMWindowProperty*);
         void unregisterProperty(DOMWindowProperty*);
 
         void clear();
+        void suspendForPageCache();
+        void resumeFromPageCache();
 
         PassRefPtr<MediaQueryList> matchMedia(const String&);
 
@@ -231,9 +229,6 @@ namespace WebCore {
         void printErrorMessage(const String&);
         String crossDomainAccessErrorMessage(DOMWindow* activeWindow);
 
-        void pageDestroyed();
-        void resetGeolocation();
-
         void postMessage(PassRefPtr<SerializedScriptValue> message, const MessagePortArray*, const String& targetOrigin, DOMWindow* source, ExceptionCode&);
         // FIXME: remove this when we update the ObjC bindings (bug #28774).
         void postMessage(PassRefPtr<SerializedScriptValue> message, MessagePort*, const String& targetOrigin, DOMWindow* source, ExceptionCode&);
@@ -360,24 +355,6 @@ namespace WebCore {
         Storage* sessionStorage(ExceptionCode&) const;
         Storage* localStorage(ExceptionCode&) const;
 
-#if ENABLE(FILE_SYSTEM)
-        // They are placed here and in all capital letters so they can be checked against the constants in the
-        // IDL at compile time.
-        enum FileSystemType {
-            TEMPORARY,
-            PERSISTENT,
-        };
-        void webkitRequestFileSystem(int type, long long size, PassRefPtr<FileSystemCallback>, PassRefPtr<ErrorCallback>);
-        void webkitResolveLocalFileSystemURL(const String&, PassRefPtr<EntryCallback>, PassRefPtr<ErrorCallback>);
-#endif
-
-#if ENABLE(NOTIFICATIONS)
-        NotificationCenter* webkitNotifications() const;
-        // Renders webkitNotifications object safely inoperable, disconnects
-        // if from embedder-provided NotificationPresenter.
-        void resetNotifications();
-#endif
-
 #if ENABLE(QUOTA)
         StorageInfo* webkitStorageInfo() const;
 #endif
@@ -411,13 +388,13 @@ namespace WebCore {
         // by the document that is currently active in m_frame.
         bool isCurrentlyDisplayedInFrame() const;
 
-#if ENABLE(INDEXED_DATABASE)
-        IDBFactory* idbFactory() { return m_idbFactory.get(); }
-        void setIDBFactory(PassRefPtr<IDBFactory>);
-#endif
-
     private:
         explicit DOMWindow(Frame*);
+
+        Page* page();
+
+        virtual void frameDestroyed() OVERRIDE;
+        virtual void willDetachPage() OVERRIDE;
 
         virtual void refEventTarget() { ref(); }
         virtual void derefEventTarget() { deref(); }
@@ -429,10 +406,15 @@ namespace WebCore {
             PrepareDialogFunction = 0, void* functionContext = 0);
         bool isInsecureScriptAccess(DOMWindow* activeWindow, const String& urlString);
 
+        void clearDOMWindowProperties();
+        void disconnectDOMWindowProperties();
+        void reconnectDOMWindowProperties();
+
         RefPtr<SecurityOrigin> m_securityOrigin;
         KURL m_url;
 
         bool m_shouldPrintWhenFinishedLoading;
+        bool m_suspendedForPageCache;
 
         HashSet<DOMWindowProperty*> m_properties;
 
@@ -458,16 +440,7 @@ namespace WebCore {
 
         mutable RefPtr<Storage> m_sessionStorage;
         mutable RefPtr<Storage> m_localStorage;
-
-#if ENABLE(INDEXED_DATABASE)
-        mutable RefPtr<IDBFactory> m_idbFactory;
-#endif
-
         mutable RefPtr<DOMApplicationCache> m_applicationCache;
-
-#if ENABLE(NOTIFICATIONS)
-        mutable RefPtr<NotificationCenter> m_notifications;
-#endif
 
 #if ENABLE(WEB_TIMING)
         mutable RefPtr<Performance> m_performance;

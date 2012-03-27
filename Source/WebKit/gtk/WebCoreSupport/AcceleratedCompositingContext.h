@@ -28,8 +28,8 @@
 #include <wtf/PassOwnPtr.h>
 
 #if USE(TEXTURE_MAPPER_GL)
-#include "TextureMapperNode.h"
-#include "WindowGLContext.h"
+#include "GLContext.h"
+#include "TextureMapperLayer.h"
 #endif
 
 #if USE(ACCELERATED_COMPOSITING)
@@ -48,7 +48,7 @@ public:
     void attachRootGraphicsLayer(WebCore::GraphicsLayer*);
     void scheduleRootLayerRepaint(const WebCore::IntRect&);
     void markForSync();
-    void syncLayersTimeout(WebCore::Timer<AcceleratedCompositingContext>*);
+    void syncLayersTimeout();
     void syncLayersNow();
     void resizeRootLayer(const WebCore::IntSize&);
     bool renderLayersToWindow(const WebCore::IntRect& clipRect);
@@ -63,17 +63,15 @@ public:
 
 private:
     WebKitWebView* m_webView;
-    OwnPtr<WebCore::GraphicsLayer> m_rootGraphicsLayer;
-    WebCore::Timer<AcceleratedCompositingContext> m_syncTimer;
+    unsigned int m_syncTimerCallbackId;
 
 #if USE(CLUTTER)
+    WebCore::GraphicsLayer* m_rootGraphicsLayer;
     GtkWidget* m_rootLayerEmbedder;
 #elif USE(TEXTURE_MAPPER_GL)
-    void initializeIfNecessary();
-
-    bool m_initialized;
-    WebCore::TextureMapperNode* m_rootTextureMapperNode;
-    OwnPtr<WebCore::WindowGLContext> m_context;
+    WebCore::GLContext* glContext();
+    WebCore::TextureMapperLayer* m_rootTextureMapperLayer;
+    OwnPtr<WebCore::GraphicsLayer> m_rootGraphicsLayer;
     OwnPtr<WebCore::TextureMapper> m_textureMapper;
 #endif
 

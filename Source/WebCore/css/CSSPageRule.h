@@ -35,13 +35,13 @@ class CSSSelectorList;
 
 class CSSPageRule : public CSSRule {
 public:
-    static PassRefPtr<CSSPageRule> create(CSSStyleSheet* parent, int sourceLine)
+    static PassRefPtr<CSSPageRule> create(CSSStyleSheet* parent)
     {
-        return adoptRef(new CSSPageRule(parent, sourceLine));
+        return adoptRef(new CSSPageRule(parent));
     }
     ~CSSPageRule();
 
-    CSSStyleDeclaration* style() const { return m_style->ensureCSSStyleDeclaration(); }
+    CSSStyleDeclaration* style() const { return m_style->ensureRuleCSSStyleDeclaration(this); }
 
     String selectorText() const;
     void setSelectorText(const String&);
@@ -52,10 +52,10 @@ public:
     StylePropertySet* properties() const { return m_style.get(); }
     
     void adoptSelectorVector(Vector<OwnPtr<CSSParserSelector> >& selectors) { m_selectorList.adoptSelectorVector(selectors); }
-    void setDeclaration(PassRefPtr<StylePropertySet> style) { ASSERT(style->parentRuleInternal() == this); m_style = style; }
+    void setDeclaration(PassRefPtr<StylePropertySet> style) { m_style = style; }
 
 private:
-    CSSPageRule(CSSStyleSheet* parent, int sourceLine);
+    CSSPageRule(CSSStyleSheet* parent);
 
     RefPtr<StylePropertySet> m_style;
     CSSSelectorList m_selectorList;

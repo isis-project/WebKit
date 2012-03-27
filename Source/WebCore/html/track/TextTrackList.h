@@ -51,6 +51,8 @@ public:
     ~TextTrackList();
 
     unsigned length() const;
+    unsigned getTrackIndex(TextTrack*);
+
     TextTrack* item(unsigned index);
     void append(PassRefPtr<TextTrack>);
     void remove(TextTrack*);
@@ -64,7 +66,7 @@ public:
     DEFINE_ATTRIBUTE_EVENT_LISTENER(addtrack);
 
     void clearOwner() { m_owner = 0; }
-    HTMLMediaElement* owner() { return m_owner; }
+    Node* owner() const;
     
     bool isFiringEventListeners() { return m_dispatchingEvents; }
 

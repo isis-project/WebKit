@@ -6,7 +6,7 @@ module webos {
         Constructor,
         Conditional=PALM_SERVICE_BRIDGE,
         CallWith=ScriptExecutionContext,
-        NoStaticTables
+        JSNoStaticTables
             ] PalmServiceBridge {
 
         // event handler attributes

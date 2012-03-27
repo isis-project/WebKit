@@ -27,12 +27,16 @@
 
 #include "WebCompositorInputHandlerImpl.h"
 
+#include "PlatformGestureCurveTarget.h"
+#include "TouchpadFlingPlatformGestureCurve.h"
+#include "TraceEvent.h"
 #include "WebCompositorImpl.h"
 #include "WebCompositorInputHandlerClient.h"
 #include "WebInputEvent.h"
 #include "WebKit.h"
-#include "platform/WebKitPlatformSupport.h"
+#include "cc/CCActiveGestureAnimation.h"
 #include "cc/CCProxy.h"
+#include "platform/WebKitPlatformSupport.h"
 #include <wtf/ThreadingPrimitives.h>
 
 using namespace WebCore;
@@ -44,6 +48,41 @@ PassOwnPtr<CCInputHandler> CCInputHandler::create(CCInputHandlerClient* inputHan
     return WebKit::WebCompositorInputHandlerImpl::create(inputHandlerClient);
 }
 
+class PlatformGestureToCCGestureAdapter : public CCGestureCurve, public PlatformGestureCurveTarget {
+public:
+    static PassOwnPtr<CCGestureCurve> create(PassOwnPtr<PlatformGestureCurve> platformCurve)
+    {
+        return adoptPtr(new PlatformGestureToCCGestureAdapter(platformCurve));
+    }
+
+    virtual const char* debugName() const
+    {
+        return m_curve->debugName();
+    }
+
+    virtual bool apply(double time, CCGestureCurveTarget* target)
+    {
+        ASSERT(target);
+        m_target = target;
+        return m_curve->apply(time, this);
+    }
+
+    virtual void scrollBy(const IntPoint& scrollDelta)
+    {
+        ASSERT(m_target);
+        m_target->scrollBy(scrollDelta);
+    }
+
+private:
+    PlatformGestureToCCGestureAdapter(PassOwnPtr<PlatformGestureCurve> curve)
+        : m_curve(curve)
+    {
+    }
+
+    OwnPtr<PlatformGestureCurve> m_curve;
+    CCGestureCurveTarget* m_target;
+};
+
 }
 
 namespace WebKit {
@@ -52,9 +91,9 @@ namespace WebKit {
 int WebCompositorInputHandlerImpl::s_nextAvailableIdentifier = 1;
 HashSet<WebCompositorInputHandlerImpl*>* WebCompositorInputHandlerImpl::s_compositors = 0;
 
-WebCompositor* WebCompositorInputHandler::fromIdentifier(int identifier)
+WebCompositorInputHandler* WebCompositorInputHandler::fromIdentifier(int identifier)
 {
-    return static_cast<WebCompositor*>(WebCompositorInputHandlerImpl::fromIdentifier(identifier));
+    return WebCompositorInputHandlerImpl::fromIdentifier(identifier);
 }
 
 PassOwnPtr<WebCompositorInputHandlerImpl> WebCompositorInputHandlerImpl::create(WebCore::CCInputHandlerClient* inputHandlerClient)
@@ -85,7 +124,7 @@ WebCompositorInputHandlerImpl::WebCompositorInputHandlerImpl(CCInputHandlerClien
     , m_expectScrollUpdateEnd(false)
     , m_expectPinchUpdateEnd(false)
 #endif
-    , m_scrollStarted(false)
+    , m_gestureScrollStarted(false)
 {
     ASSERT(CCProxy::isImplThread());
 
@@ -121,83 +160,130 @@ void WebCompositorInputHandlerImpl::handleInputEvent(const WebInputEvent& event)
     ASSERT(CCProxy::isImplThread());
     ASSERT(m_client);
 
-    if (event.type == WebInputEvent::MouseWheel && !m_inputHandlerClient->haveWheelEventHandlers()) {
+    WebCompositorInputHandlerImpl::EventDisposition disposition = handleInputEventInternal(event);
+    switch (disposition) {
+    case DidHandle:
+        m_client->didHandleInputEvent();
+        break;
+    case DidNotHandle:
+        m_client->didNotHandleInputEvent(true /* sendToWidget */);
+        break;
+    case DropEvent:
+        m_client->didNotHandleInputEvent(false /* sendToWidget */);
+        break;
+    }
+}
+
+WebCompositorInputHandlerImpl::EventDisposition WebCompositorInputHandlerImpl::handleInputEventInternal(const WebInputEvent& event)
+{
+    if (event.type == WebInputEvent::MouseWheel) {
         const WebMouseWheelEvent& wheelEvent = *static_cast<const WebMouseWheelEvent*>(&event);
-        CCInputHandlerClient::ScrollStatus scrollStatus = m_inputHandlerClient->scrollBegin(IntPoint(wheelEvent.x, wheelEvent.y));
+        CCInputHandlerClient::ScrollStatus scrollStatus = m_inputHandlerClient->scrollBegin(IntPoint(wheelEvent.x, wheelEvent.y), CCInputHandlerClient::Wheel);
         switch (scrollStatus) {
-        case CCInputHandlerClient::ScrollStarted:
+        case CCInputHandlerClient::ScrollStarted: {
+            TRACE_EVENT_INSTANT2("cc", "WebCompositorInputHandlerImpl::handleInput wheel scroll", "deltaX", -wheelEvent.deltaX, "deltaY", -wheelEvent.deltaY);
             m_inputHandlerClient->scrollBy(IntSize(-wheelEvent.deltaX, -wheelEvent.deltaY));
             m_inputHandlerClient->scrollEnd();
-            m_client->didHandleInputEvent();
-            return;
+            return DidHandle;
+        }
         case CCInputHandlerClient::ScrollIgnored:
-            m_client->didNotHandleInputEvent(false /* sendToWidget */);
-            return;
+            return DropEvent;
         case CCInputHandlerClient::ScrollFailed:
-            break;
+            return DidNotHandle;
         }
     } else if (event.type == WebInputEvent::GestureScrollBegin) {
-        ASSERT(!m_scrollStarted);
+        ASSERT(!m_gestureScrollStarted);
         ASSERT(!m_expectScrollUpdateEnd);
 #ifndef NDEBUG
         m_expectScrollUpdateEnd = true;
 #endif
         const WebGestureEvent& gestureEvent = *static_cast<const WebGestureEvent*>(&event);
-        CCInputHandlerClient::ScrollStatus scrollStatus = m_inputHandlerClient->scrollBegin(IntPoint(gestureEvent.x, gestureEvent.y));
+        CCInputHandlerClient::ScrollStatus scrollStatus = m_inputHandlerClient->scrollBegin(IntPoint(gestureEvent.x, gestureEvent.y), CCInputHandlerClient::Gesture);
         switch (scrollStatus) {
         case CCInputHandlerClient::ScrollStarted:
-            m_scrollStarted = true;
-            m_client->didHandleInputEvent();
-            return;
-        case CCInputHandlerClient::ScrollIgnored:
-            m_client->didNotHandleInputEvent(false /* sendToWidget */);
-            return;
+            m_gestureScrollStarted = true;
+            return DidHandle;
         case CCInputHandlerClient::ScrollFailed:
-            break;
+            return DidNotHandle;
+        case CCInputHandlerClient::ScrollIgnored:
+            return DropEvent;
         }
     } else if (event.type == WebInputEvent::GestureScrollUpdate) {
         ASSERT(m_expectScrollUpdateEnd);
-        if (m_scrollStarted) {
-            const WebGestureEvent& gestureEvent = *static_cast<const WebGestureEvent*>(&event);
-            m_inputHandlerClient->scrollBy(IntSize(-gestureEvent.deltaX, -gestureEvent.deltaY));
-            m_client->didHandleInputEvent();
-            return;
-        }
+
+        if (!m_gestureScrollStarted)
+            return DidNotHandle;
+
+        const WebGestureEvent& gestureEvent = *static_cast<const WebGestureEvent*>(&event);
+        m_inputHandlerClient->scrollBy(IntSize(-gestureEvent.deltaX, -gestureEvent.deltaY));
+        return DidHandle;
     } else if (event.type == WebInputEvent::GestureScrollEnd) {
         ASSERT(m_expectScrollUpdateEnd);
 #ifndef NDEBUG
         m_expectScrollUpdateEnd = false;
 #endif
-        if (m_scrollStarted) {
-            m_inputHandlerClient->scrollEnd();
-            m_client->didHandleInputEvent();
-            m_scrollStarted = false;
-            return;
-        }
+        if (!m_gestureScrollStarted)
+            return DidNotHandle;
+
+        m_inputHandlerClient->scrollEnd();
+        m_gestureScrollStarted = false;
+        return DidHandle;
     } else if (event.type == WebInputEvent::GesturePinchBegin) {
         ASSERT(!m_expectPinchUpdateEnd);
 #ifndef NDEBUG
         m_expectPinchUpdateEnd = true;
 #endif
         m_inputHandlerClient->pinchGestureBegin();
-        m_client->didHandleInputEvent();
-        return;
+        return DidHandle;
     } else if (event.type == WebInputEvent::GesturePinchEnd) {
         ASSERT(m_expectPinchUpdateEnd);
 #ifndef NDEBUG
         m_expectPinchUpdateEnd = false;
 #endif
         m_inputHandlerClient->pinchGestureEnd();
-        m_client->didHandleInputEvent();
-        return;
+        return DidHandle;
     } else if (event.type == WebInputEvent::GesturePinchUpdate) {
         ASSERT(m_expectPinchUpdateEnd);
         const WebGestureEvent& gestureEvent = *static_cast<const WebGestureEvent*>(&event);
         m_inputHandlerClient->pinchGestureUpdate(gestureEvent.deltaX, IntPoint(gestureEvent.x, gestureEvent.y));
-        m_client->didHandleInputEvent();
-        return;
+        return DidHandle;
+    } else if (event.type == WebInputEvent::GestureFlingStart) {
+        const WebGestureEvent& gestureEvent = *static_cast<const WebGestureEvent*>(&event);
+        return handleGestureFling(gestureEvent);
+    } else if (event.type == WebInputEvent::GestureFlingCancel) {
+        if (cancelCurrentFling())
+            return DidHandle;
+    } else if (WebInputEvent::isKeyboardEventType(event.type)) {
+         cancelCurrentFling();
     }
-    m_client->didNotHandleInputEvent(true /* sendToWidget */);
+
+    return DidNotHandle;
+}
+
+WebCompositorInputHandlerImpl::EventDisposition WebCompositorInputHandlerImpl::handleGestureFling(const WebGestureEvent& gestureEvent)
+{
+    CCInputHandlerClient::ScrollStatus scrollStatus = m_inputHandlerClient->scrollBegin(IntPoint(gestureEvent.x, gestureEvent.y), CCInputHandlerClient::Wheel);
+    switch (scrollStatus) {
+    case CCInputHandlerClient::ScrollStarted: {
+        TRACE_EVENT_INSTANT0("cc", "WebCompositorInputHandlerImpl::handleGestureFling::started");
+        OwnPtr<PlatformGestureCurve> flingCurve = TouchpadFlingPlatformGestureCurve::create(FloatPoint(-gestureEvent.deltaX, -gestureEvent.deltaY));
+        m_wheelFlingAnimation = CCActiveGestureAnimation::create(PlatformGestureToCCGestureAdapter::create(flingCurve.release()), this);
+        m_wheelFlingPoint = IntPoint(gestureEvent.x, gestureEvent.y);
+        m_inputHandlerClient->scheduleAnimation();
+        return DidHandle;
+    }
+    case CCInputHandlerClient::ScrollFailed: {
+        TRACE_EVENT_INSTANT0("cc", "WebCompositorInputHandlerImpl::handleGestureFling::failed");
+        return DidNotHandle;
+    }
+    case CCInputHandlerClient::ScrollIgnored: {
+        TRACE_EVENT_INSTANT0("cc", "WebCompositorInputHandlerImpl::handleGestureFling::ignored");
+        // We still pass the curve to the main thread if there's nothing scrollable, in case something
+        // registers a handler before the curve is over.
+        return DidNotHandle;
+    }
+    }
+    return DidNotHandle;
 }
 
 int WebCompositorInputHandlerImpl::identifier() const
@@ -206,8 +292,58 @@ int WebCompositorInputHandlerImpl::identifier() const
     return m_identifier;
 }
 
-void WebCompositorInputHandlerImpl::willDraw(double frameBeginTimeMs)
+void WebCompositorInputHandlerImpl::animate(double monotonicTime)
 {
+    if (!m_wheelFlingAnimation)
+        return;
+
+    if (m_wheelFlingAnimation->animate(monotonicTime))
+        m_inputHandlerClient->scheduleAnimation();
+    else {
+        TRACE_EVENT_INSTANT0("cc", "WebCompositorInputHandlerImpl::animate::flingOver");
+        m_wheelFlingAnimation.clear();
+    }
+}
+
+bool WebCompositorInputHandlerImpl::cancelCurrentFling()
+{
+    bool hadFlingAnimation = m_wheelFlingAnimation;
+    TRACE_EVENT_INSTANT1("cc", "WebCompositorInputHandlerImpl::cancelCurrentFling", "hadFlingAnimation", hadFlingAnimation);
+    m_wheelFlingAnimation.clear();
+    return hadFlingAnimation;
+}
+
+void WebCompositorInputHandlerImpl::scrollBy(const IntPoint& increment)
+{
+    if (increment == IntPoint::zero())
+        return;
+
+    TRACE_EVENT2("cc", "WebCompositorInputHandlerImpl::scrollBy", "x", increment.x(), "y", increment.y());
+
+    WebMouseWheelEvent event;
+    event.type = WebInputEvent::MouseWheel;
+    event.deltaX = -increment.x();
+    event.deltaY = -increment.y();
+    event.hasPreciseScrollingDeltas = true;
+    event.x = m_wheelFlingPoint.x();
+    event.y = m_wheelFlingPoint.y();
+
+    WebCompositorInputHandlerImpl::EventDisposition disposition = handleInputEventInternal(event);
+    switch (disposition) {
+    case DidHandle:
+    case DropEvent:
+        break;
+    case DidNotHandle:
+        TRACE_EVENT_INSTANT0("cc", "WebCompositorInputHandlerImpl::scrollBy::AbortFling");
+        // FIXME: If we got a DidNotHandle, that means we need to deliver wheels on the main thread.
+        // In this case we need to schedule a commit and transfer the fling curve over to the main
+        // thread and run the rest of the wheels from there.
+        // This can happen when flinging a page that contains a scrollable subarea that we can't
+        // scroll on the thread if the fling starts outside the subarea but then is flung "under" the
+        // pointer.
+        // For now, just abort the fling.
+        cancelCurrentFling();
+    }
 }
 
 }

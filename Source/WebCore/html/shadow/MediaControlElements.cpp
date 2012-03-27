@@ -40,6 +40,7 @@
 #include "Frame.h"
 #include "HTMLMediaElement.h"
 #include "HTMLNames.h"
+#include "HTMLVideoElement.h"
 #include "LocalizedStrings.h"
 #include "MediaControls.h"
 #include "MouseEvent.h"
@@ -52,6 +53,7 @@
 #include "RenderView.h"
 #include "ScriptController.h"
 #include "Settings.h"
+#include "Text.h"
 
 namespace WebCore {
 
@@ -92,12 +94,12 @@ MediaControlElement::MediaControlElement(Document* document)
 
 void MediaControlElement::show()
 {
-    ensureInlineStyleDecl()->removeProperty(CSSPropertyDisplay);
+    removeInlineStyleProperty(CSSPropertyDisplay);
 }
 
 void MediaControlElement::hide()
 {
-    ensureInlineStyleDecl()->setProperty(CSSPropertyDisplay, CSSValueNone);
+    setInlineStyleProperty(CSSPropertyDisplay, CSSValueNone);
 }
 
 // ----------------------------
@@ -107,6 +109,7 @@ inline MediaControlPanelElement::MediaControlPanelElement(Document* document)
     , m_canBeDragged(false)
     , m_isBeingDragged(false)
     , m_opaque(true)
+    , m_transitionTimer(this, &MediaControlPanelElement::transitionTimerFired)
 {
 }
 
@@ -173,19 +176,43 @@ void MediaControlPanelElement::endDrag()
     frame->eventHandler()->setCapturingMouseEventsNode(0);
 }
 
+void MediaControlPanelElement::startTimer()
+{
+    stopTimer();
+
+    // The timer is required to set the property display:'none' on the panel,
+    // such that captions are correctly displayed at the bottom of the video
+    // at the end of the fadeout transition.
+    double duration = document()->page() ? document()->page()->theme()->mediaControlsFadeOutDuration() : 0;
+    m_transitionTimer.startOneShot(duration);
+}
+
+void MediaControlPanelElement::stopTimer()
+{
+    if (m_transitionTimer.isActive())
+        m_transitionTimer.stop();
+}
+
+
+void MediaControlPanelElement::transitionTimerFired(Timer<MediaControlPanelElement>*)
+{
+    if (!m_opaque)
+        hide();
+
+    stopTimer();
+}
+
 void MediaControlPanelElement::setPosition(const LayoutPoint& position)
 {
-    StylePropertySet* style = ensureInlineStyleDecl();
-
     double left = position.x();
     double top = position.y();
 
     // Set the left and top to control the panel's position; this depends on it being absolute positioned.
     // Set the margin to zero since the position passed in will already include the effect of the margin.
-    style->setProperty(CSSPropertyLeft, left, CSSPrimitiveValue::CSS_PX);
-    style->setProperty(CSSPropertyTop, top, CSSPrimitiveValue::CSS_PX);
-    style->setProperty(CSSPropertyMarginLeft, 0.0, CSSPrimitiveValue::CSS_PX);
-    style->setProperty(CSSPropertyMarginTop, 0.0, CSSPrimitiveValue::CSS_PX);
+    setInlineStyleProperty(CSSPropertyLeft, left, CSSPrimitiveValue::CSS_PX);
+    setInlineStyleProperty(CSSPropertyTop, top, CSSPrimitiveValue::CSS_PX);
+    setInlineStyleProperty(CSSPropertyMarginLeft, 0.0, CSSPrimitiveValue::CSS_PX);
+    setInlineStyleProperty(CSSPropertyMarginTop, 0.0, CSSPrimitiveValue::CSS_PX);
 
     ExceptionCode ignored;
     classList()->add("dragged", ignored);
@@ -193,12 +220,10 @@ void MediaControlPanelElement::setPosition(const LayoutPoint& position)
 
 void MediaControlPanelElement::resetPosition()
 {
-    StylePropertySet* style = ensureInlineStyleDecl();
-
-    style->removeProperty(CSSPropertyLeft);
-    style->removeProperty(CSSPropertyTop);
-    style->removeProperty(CSSPropertyMarginLeft);
-    style->removeProperty(CSSPropertyMarginTop);
+    removeInlineStyleProperty(CSSPropertyLeft);
+    removeInlineStyleProperty(CSSPropertyTop);
+    removeInlineStyleProperty(CSSPropertyMarginLeft);
+    removeInlineStyleProperty(CSSPropertyMarginTop);
 
     ExceptionCode ignored;
     classList()->remove("dragged", ignored);
@@ -211,12 +236,15 @@ void MediaControlPanelElement::makeOpaque()
 
     double duration = document()->page() ? document()->page()->theme()->mediaControlsFadeInDuration() : 0;
 
-    StylePropertySet* style = ensureInlineStyleDecl();
-    style->setProperty(CSSPropertyWebkitTransitionProperty, CSSPropertyOpacity);
-    style->setProperty(CSSPropertyWebkitTransitionDuration, duration, CSSPrimitiveValue::CSS_S);
-    style->setProperty(CSSPropertyOpacity, 1.0, CSSPrimitiveValue::CSS_NUMBER);
+    setInlineStyleProperty(CSSPropertyWebkitTransitionProperty, CSSPropertyOpacity);
+    setInlineStyleProperty(CSSPropertyWebkitTransitionDuration, duration, CSSPrimitiveValue::CSS_S);
+    setInlineStyleProperty(CSSPropertyOpacity, 1.0, CSSPrimitiveValue::CSS_NUMBER);
 
     m_opaque = true;
+
+    // FIXME(BUG 79347): The display:none property should be toggled below only
+    // when display logic is introduced.
+    // show();
 }
 
 void MediaControlPanelElement::makeTransparent()
@@ -224,12 +252,15 @@ void MediaControlPanelElement::makeTransparent()
     if (!m_opaque)
         return;
 
-    StylePropertySet* style = ensureInlineStyleDecl();
-    style->setProperty(CSSPropertyWebkitTransitionProperty, CSSPropertyOpacity);
-    style->setProperty(CSSPropertyWebkitTransitionDuration, document()->page()->theme()->mediaControlsFadeOutDuration(), CSSPrimitiveValue::CSS_S);
-    style->setProperty(CSSPropertyOpacity, 0.0, CSSPrimitiveValue::CSS_NUMBER);
+    setInlineStyleProperty(CSSPropertyWebkitTransitionProperty, CSSPropertyOpacity);
+    setInlineStyleProperty(CSSPropertyWebkitTransitionDuration, document()->page()->theme()->mediaControlsFadeOutDuration(), CSSPrimitiveValue::CSS_S);
+    setInlineStyleProperty(CSSPropertyOpacity, 0.0, CSSPrimitiveValue::CSS_NUMBER);
 
     m_opaque = false;
+
+    // FIXME(BUG 79347): The display:none property should be toggled below
+    // (through the timer start) when display logic is introduced.
+    // startTimer();
 }
 
 void MediaControlPanelElement::defaultEventHandler(Event* event)
@@ -434,12 +465,12 @@ MediaControlInputElement::MediaControlInputElement(Document* document, MediaCont
 
 void MediaControlInputElement::show()
 {
-    ensureInlineStyleDecl()->removeProperty(CSSPropertyDisplay);
+    removeInlineStyleProperty(CSSPropertyDisplay);
 }
 
 void MediaControlInputElement::hide()
 {
-    ensureInlineStyleDecl()->setProperty(CSSPropertyDisplay, CSSValueNone);
+    setInlineStyleProperty(CSSPropertyDisplay, CSSValueNone);
 }
 
 
@@ -941,7 +972,7 @@ const AtomicString& MediaControlFullscreenVolumeSliderElement::shadowPseudoId() 
 // ----------------------------
 
 inline MediaControlFullscreenButtonElement::MediaControlFullscreenButtonElement(Document* document, MediaControls* controls)
-    : MediaControlInputElement(document, MediaFullscreenButton)
+    : MediaControlInputElement(document, MediaEnterFullscreenButton)
     , m_controls(controls)
 {
 }
@@ -983,6 +1014,11 @@ const AtomicString& MediaControlFullscreenButtonElement::shadowPseudoId() const
 {
     DEFINE_STATIC_LOCAL(AtomicString, id, ("-webkit-media-controls-fullscreen-button"));
     return id;
+}
+
+void MediaControlFullscreenButtonElement::setIsFullscreen(bool isFullscreen)
+{
+    setDisplayType(isFullscreen ? MediaExitFullscreenButton : MediaEnterFullscreenButton);
 }
 
 // ----------------------------
@@ -1171,7 +1207,6 @@ void RenderTextTrackContainerElement::layout()
 inline MediaControlTextTrackContainerElement::MediaControlTextTrackContainerElement(Document* document)
     : MediaControlElement(document)
     , m_fontSize(0)
-    , m_bottom(0)
 {
 }
 
@@ -1193,16 +1228,89 @@ const AtomicString& MediaControlTextTrackContainerElement::shadowPseudoId() cons
     return id;
 }
 
+void MediaControlTextTrackContainerElement::updateDisplay()
+{
+    HTMLMediaElement* mediaElement = toParentMediaElement(this);
+
+    // 1. If the media element is an audio element, or is another playback
+    // mechanism with no rendering area, abort these steps. There is nothing to
+    // render.
+    if (!mediaElement->isVideo())
+        return;
+
+    // 2. Let video be the media element or other playback mechanism.
+    HTMLVideoElement* video = static_cast<HTMLVideoElement*>(mediaElement);
+
+    // 3. Let output be an empty list of absolutely positioned CSS block boxes.
+    Vector<RefPtr<HTMLDivElement> > output;
+
+    // 4. If the user agent is exposing a user interface for video, add to
+    // output one or more completely transparent positioned CSS block boxes that
+    // cover the same region as the user interface.
+
+    // 5. If the last time these rules were run, the user agent was not exposing
+    // a user interface for video, but now it is, let reset be true. Otherwise,
+    // let reset be false.
+
+    // There is nothing to be done explicitly for 4th and 5th steps, as
+    // everything is handled through CSS. The caption box is on top of the
+    // controls box, in a container set with the -webkit-box display property.
+
+    // 6. Let tracks be the subset of video's list of text tracks that have as
+    // their rules for updating the text track rendering these rules for
+    // updating the display of WebVTT text tracks, and whose text track mode is
+    // showing or showing by default.
+    // 7. Let cues be an empty list of text track cues.
+    // 8. For each track track in tracks, append to cues all the cues from
+    // track's list of cues that have their text track cue active flag set.
+    CueList activeCues = video->currentlyActiveCues();
+
+    // 9. If reset is false, then, for each text track cue cue in cues: if cue's
+    // text track cue display state has a set of CSS boxes, then add those boxes
+    // to output, and remove cue from cues.
+
+    // There is nothing explicitly to be done here, as all the caching occurs
+    // within the TextTrackCue instance itself. If parameters of the cue change,
+    // the display tree is cleared.
+
+    // 10. For each text track cue cue in cues that has not yet had
+    // corresponding CSS boxes added to output, in text track cue order, run the
+    // following substeps:
+
+    // Simple renderer for now.
+    for (size_t i = 0; i < activeCues.size(); ++i) {
+        TextTrackCue* cue = activeCues[i].data();
+
+        ASSERT(cue->isActive());
+        if (!cue->track() || cue->track()->mode() != TextTrack::SHOWING)
+            continue;
+
+        RefPtr<HTMLDivElement> displayTree = cue->getDisplayTree();
+
+        // Append only new display trees.
+        if (displayTree->hasChildNodes() && !contains(displayTree.get()))
+            appendChild(displayTree, ASSERT_NO_EXCEPTION, true);
+
+        // The display tree of a cue is removed when the active flag of the cue is unset.
+
+        // FIXME(BUG 79750): Render the TextTrackCue when snap-to-lines is set.
+        // FIXME(BUG 79751): Render the TextTrackCue when snap-to-lines is not set.
+    }
+
+    // 11. Return output.
+    hasChildNodes() ? show() : hide();
+}
+
 static const float mimimumFontSize = 16;
 static const float videoHeightFontSizePercentage = .05;
 static const float trackBottomMultiplier = .9;
-    
+
 void MediaControlTextTrackContainerElement::updateSizes()
 {
     HTMLMediaElement* mediaElement = toParentMediaElement(this);
     if (!mediaElement || !mediaElement->renderer() || !mediaElement->renderer()->isVideo())
         return;
-    
+
     IntRect videoBox = toRenderVideo(mediaElement->renderer())->videoBox();
     if (m_videoDisplaySize == videoBox)
         return;
@@ -1211,35 +1319,11 @@ void MediaControlTextTrackContainerElement::updateSizes()
     float fontSize = m_videoDisplaySize.size().height() * videoHeightFontSizePercentage;
     if (fontSize != m_fontSize) {
         m_fontSize = fontSize;
-        ensureInlineStyleDecl()->setProperty(CSSPropertyFontSize, String::number(fontSize) + "px");
-    }
-
-    LayoutUnit bottom = static_cast<LayoutUnit>(m_videoDisplaySize.y() + m_videoDisplaySize.height() - (m_videoDisplaySize.height() * trackBottomMultiplier));
-    if (bottom != m_bottom) {
-        m_bottom = bottom;
-        ensureInlineStyleDecl()->setProperty(CSSPropertyBottom, String::number(bottom) + "px");
+        setInlineStyleProperty(CSSPropertyFontSize, String::number(fontSize) + "px");
     }
 }
 
-// ----------------------------
-
-MediaControlTextTrackDisplayElement::MediaControlTextTrackDisplayElement(Document* document)
-    : MediaControlElement(document)
-{
-}
-
-PassRefPtr<MediaControlTextTrackDisplayElement> MediaControlTextTrackDisplayElement::create(Document* document)
-{
-    return adoptRef(new MediaControlTextTrackDisplayElement(document));
-}
-
-const AtomicString& MediaControlTextTrackDisplayElement::shadowPseudoId() const
-{
-    DEFINE_STATIC_LOCAL(AtomicString, id, ("-webkit-media-text-track-display"));
-    return id;
-}
-
-#endif
+#endif // ENABLE(VIDEO_TRACK)
 
 // ----------------------------
 

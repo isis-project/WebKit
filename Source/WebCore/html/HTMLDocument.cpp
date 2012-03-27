@@ -136,29 +136,10 @@ void HTMLDocument::setDesignMode(const String& value)
     Document::setDesignMode(mode);
 }
 
-static Node* focusedFrameOwnerElement(Frame* focusedFrame, Frame* currentFrame)
-{
-    for (; focusedFrame; focusedFrame = focusedFrame->tree()->parent()) {
-        if (focusedFrame->tree()->parent() == currentFrame)
-            return focusedFrame->ownerElement();
-    }
-    return 0;
-}
-
 Element* HTMLDocument::activeElement()
 {
-    Node* node = focusedNode();
-    if (!node && page())
-        node = focusedFrameOwnerElement(page()->focusController()->focusedFrame(), frame());
-    if (!node)
-        return body();
-    ASSERT(node->document() == this);
-    while (node->treeScope() != this) {
-        node = node->parentOrHostNode();
-        ASSERT(node);
-    }
-    if (node->isElementNode())
-        return toElement(node);
+    if (Node* node = treeScope()->focusedNode())
+        return node->isElementNode() ? toElement(node) : body();
     return body();
 }
 

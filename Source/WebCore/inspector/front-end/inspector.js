@@ -39,6 +39,8 @@ var WebInspector = {
 
         if (WebInspector.WorkerManager.isWorkerFrontend()) {
             this.panels.scripts = new WebInspector.ScriptsPanel(this.debuggerPresentationModel);
+            this.panels.timeline = new WebInspector.TimelinePanel();
+            this.panels.profiles = new WebInspector.ProfilesPanel();
             this.panels.console = new WebInspector.ConsolePanel();
             return;
         }
@@ -71,6 +73,7 @@ var WebInspector = {
         this._dockToggleButton = new WebInspector.StatusBarButton(this._dockButtonTitle(), "dock-status-bar-item");
         this._dockToggleButton.addEventListener("click", this._toggleAttach.bind(this), false);
         this._dockToggleButton.toggled = !this.attached;
+        WebInspector.updateDockToggleButton();
 
         this._settingsButton = new WebInspector.StatusBarButton(WebInspector.UIString("Settings"), "settings-status-bar-item");
         this._settingsButton.addEventListener("click", this._toggleSettings.bind(this), false);
@@ -120,16 +123,6 @@ var WebInspector = {
             this.drawer.hide(animationType);
             delete this._consoleWasShown;
         }
-    },
-
-    _escPressed: function()
-    {
-        
-        // If drawer is open with some view other than console then close it.
-        if (!this._toggleConsoleButton.toggled && WebInspector.drawer.visible)
-            this.closeDrawerView();
-        else
-            this._toggleConsoleButtonClicked();
     },
 
     closeDrawerView: function()
@@ -306,6 +299,30 @@ var WebInspector = {
         Capabilities[name] = result;
         if (callback)
             callback();
+    },
+
+    _zoomIn: function()
+    {
+        ++this._zoomLevel;
+        this._requestZoom();
+    },
+
+    _zoomOut: function()
+    {
+        --this._zoomLevel;
+        this._requestZoom();
+    },
+
+    _resetZoom: function()
+    {
+        this._zoomLevel = 0;
+        this._requestZoom();
+    },
+
+    _requestZoom: function()
+    {
+        WebInspector.settings.zoomLevel.set(this._zoomLevel);
+        InspectorFrontendHost.setZoomFactor(Math.pow(1.2, this._zoomLevel));
     }
 }
 
@@ -379,6 +396,7 @@ WebInspector._doLoadedDoneWithCapabilities = function()
     this.console.addEventListener(WebInspector.ConsoleModel.Events.RepeatCountUpdated, this._updateErrorAndWarningCounts, this);
 
     this.debuggerModel = new WebInspector.DebuggerModel();
+    this.snippetsModel = new WebInspector.SnippetsModel();
     this.debuggerPresentationModel = new WebInspector.DebuggerPresentationModel();
 
     this.drawer = new WebInspector.Drawer();
@@ -403,9 +421,12 @@ WebInspector._doLoadedDoneWithCapabilities = function()
     if (Capabilities.nativeInstrumentationEnabled)
         this.domBreakpointsSidebarPane = new WebInspector.DOMBreakpointsSidebarPane();
 
+    this._zoomLevel = WebInspector.settings.zoomLevel.get();
+    if (this._zoomLevel)
+        this._requestZoom();
+
     this._createPanels();
     this._createGlobalStatusBarItems();
-
 
     this.toolbar = new WebInspector.Toolbar();
     WebInspector._installDockToRight();
@@ -439,6 +460,9 @@ WebInspector._doLoadedDoneWithCapabilities = function()
     InspectorAgent.enable(showInitialPanel);
     DatabaseAgent.enable();
     DOMStorageAgent.enable();
+
+    if (WebInspector.settings.showPaintRects.get())
+        PageAgent.setShowPaintRects(true);
 
     WebInspector.CSSCompletions.requestCSSNameCompletions();
     WebInspector.WorkerManager.loadCompleted();
@@ -532,6 +556,20 @@ WebInspector.windowResize = function(event)
 WebInspector.setAttachedWindow = function(attached)
 {
     this.attached = attached;
+    WebInspector.updateDockToggleButton();
+}
+
+WebInspector.setDockingUnavailable = function(unavailable)
+{
+    this._isDockingUnavailable = unavailable;
+    WebInspector.updateDockToggleButton();
+}
+
+WebInspector.updateDockToggleButton = function()
+{
+    if (!this._dockToggleButton)
+        return;
+    this._dockToggleButton.disabled = this.attached ? false : this._isDockingUnavailable;
 }
 
 WebInspector.close = function(event)
@@ -550,12 +588,11 @@ WebInspector.documentClick = function(event)
         return;
 
     // Prevent the link from navigating, since we don't do any navigation by following links normally.
-    event.preventDefault();
-    event.stopPropagation();
+    event.consume();
 
     function followLink()
     {
-        if (WebInspector._showAnchorLocation(anchor))
+        if (WebInspector.isBeingEdited(event.target) || WebInspector._showAnchorLocation(anchor))
             return;
 
         const profileMatch = WebInspector.ProfileType.URLRegExp.exec(anchor.href);
@@ -595,8 +632,8 @@ WebInspector.openResource = function(resourceURL, inResourcesPanel)
 {
     var resource = WebInspector.resourceForURL(resourceURL);
     if (inResourcesPanel && resource) {
-        WebInspector.panels.resources.showResource(resource);
         WebInspector.showPanel("resources");
+        WebInspector.panels.resources.showResource(resource);
     } else
         InspectorFrontendHost.openInNewTab(resourceURL);
 }
@@ -639,17 +676,16 @@ WebInspector.documentKeyDown = function(event)
     const helpKey = WebInspector.isMac() ? "U+003F" : "U+00BF"; // "?" for both platforms
 
     if (event.keyIdentifier === "F1" ||
-        (event.keyIdentifier === helpKey && event.shiftKey && (!WebInspector.isInEditMode(event) || event.metaKey))) {
+        (event.keyIdentifier === helpKey && event.shiftKey && (!WebInspector.isBeingEdited(event.target) || event.metaKey))) {
         WebInspector.shortcutsScreen.show();
-        event.stopPropagation();
-        event.preventDefault();
+        event.consume();
         return;
     }
 
     if (WebInspector.currentFocusElement() && WebInspector.currentFocusElement().handleKeyEvent) {
         WebInspector.currentFocusElement().handleKeyEvent(event);
         if (event.handled) {
-            event.preventDefault();
+            event.consume();
             return;
         }
     }
@@ -657,7 +693,7 @@ WebInspector.documentKeyDown = function(event)
     if (WebInspector.inspectorView.currentPanel()) {
         WebInspector.inspectorView.currentPanel().handleShortcut(event);
         if (event.handled) {
-            event.preventDefault();
+            event.consume();
             return;
         }
     }
@@ -665,32 +701,65 @@ WebInspector.documentKeyDown = function(event)
     WebInspector.searchController.handleShortcut(event);
     WebInspector.advancedSearchController.handleShortcut(event);
     if (event.handled) {
-        event.preventDefault();
+        event.consume();
         return;
     }
 
     var isMac = WebInspector.isMac();
     switch (event.keyIdentifier) {
-        case "U+001B": // Escape key
-            if (event.target.hasStyleClass("text-prompt") || !WebInspector.isInEditMode(event)) {
-                event.preventDefault();
-                this._escPressed();
-            }
-            break;
         case "U+0052": // R key
-            if (WebInspector.isInEditMode(event))
-                return;
             if ((event.metaKey && isMac) || (event.ctrlKey && !isMac)) {
                 PageAgent.reload(event.shiftKey);
-                event.preventDefault();
+                event.consume();
             }
             break;
         case "F5":
-            if (!isMac && !WebInspector.isInEditMode(event)) {
+            if (!isMac) {
                 PageAgent.reload(event.ctrlKey || event.shiftKey);
-                event.preventDefault();
+                event.consume();
             }
             break;
+    }
+
+    var isValidZoomShortcut = WebInspector.KeyboardShortcut.eventHasCtrlOrMeta(event) &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !InspectorFrontendHost.isStub;
+    switch (event.keyCode) {
+        case 107: // +
+        case 187: // +
+            if (isValidZoomShortcut) {
+                WebInspector._zoomIn();
+                event.consume();
+            }
+            break;
+        case 109: // -
+        case 189: // -
+            if (isValidZoomShortcut) {
+                WebInspector._zoomOut();
+                event.consume();
+            }
+            break;
+        case 48: // 0
+            if (isValidZoomShortcut) {
+                WebInspector._resetZoom();
+                event.consume();
+            }
+            break;
+    }
+}
+
+WebInspector.postDocumentKeyDown = function(event)
+{
+    if (event.handled)
+        return;
+
+    if (event.keyIdentifier === "U+001B") { // Escape key
+        // If drawer is open with some view other than console then close it.
+        if (!this._toggleConsoleButton.toggled && WebInspector.drawer.visible)
+            this.closeDrawerView();
+        else
+            this._toggleConsoleButtonClicked();
     }
 }
 
@@ -908,15 +977,16 @@ WebInspector.showProfileForURL = function(url)
     WebInspector.panels.profiles.showProfileForURL(url);
 }
 
-WebInspector.evaluateInConsole = function(expression)
+WebInspector.evaluateInConsole = function(expression, showResultOnly)
 {
     this.showConsole();
-    this.consoleView.evaluateUsingTextPrompt(expression);
+    this.consoleView.evaluateUsingTextPrompt(expression, showResultOnly);
 }
 
 WebInspector.addMainEventListeners = function(doc)
 {
-    doc.addEventListener("keydown", this.documentKeyDown.bind(this), false);
+    doc.addEventListener("keydown", this.documentKeyDown.bind(this), true);
+    doc.addEventListener("keydown", this.postDocumentKeyDown.bind(this), false);
     doc.addEventListener("beforecopy", this.documentCanCopy.bind(this), true);
     doc.addEventListener("copy", this.documentCopy.bind(this), true);
     doc.addEventListener("contextmenu", this.contextMenuEventFired.bind(this), true);

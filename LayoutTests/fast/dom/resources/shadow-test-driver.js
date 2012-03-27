@@ -53,17 +53,27 @@ function check() {
     }
 }
 
-function createSpanWithText(text) {
+function createSpanWithText(text, className) {
     var span = document.createElement('span');
     span.appendChild(document.createTextNode(text));
+    if (className)
+        span.className = className;
     return span;
 }
 
-function createContentWithSelect(select, fallback) {
+function createContentWithSelect(select, fallbackText) {
     var content = internals.createContentElement(document);
     content.setAttribute('select', select);
-    if (!fallback)
-        content.appendChild(createSpanWithText("FALLBACK"));
+    if (fallbackText)
+        content.appendChild(createSpanWithText(fallbackText));
+
+    return content;
+}
+
+function createContentWithText(fallbackText) {
+    var content = internals.createContentElement(document);
+    if (fallbackText)
+        content.innerHTML = fallbackText;
 
     return content;
 }
@@ -118,11 +128,16 @@ function doTestIfLeft(restTests) {
 
 function doneTest() {
     log("TEST COMPLETED");
+    if (window.tearDownOnce)
+        window.tearDownOnce();
     layoutTestController.notifyDone();
 }
 
 // A test driver. Call this body.onload.
 function doTest(tests) {
+    if (window.setUpOnce)
+        window.setUpOnce();
+
     if (window.layoutTestController) {
         layoutTestController.waitUntilDone();
         layoutTestController.dumpAsText();

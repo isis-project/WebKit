@@ -11,20 +11,15 @@
 <script src="../resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB: result property after deleting existing and non-existing record");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
+    removeVendorPrefixes();
 
-    name = window.location.pathname;
+    name = self.location.pathname;
     description = "My Test Database";
     request = evalAndLog("indexedDB.open(name, description)");
     request.onsuccess = openSuccess;
@@ -58,7 +53,7 @@ function deleteRecord1()
 
 function deleteRecord2()
 {
-    shouldBe("event.target.result", "true");
+    shouldBe("event.target.result", "undefined");
     request = evalAndLog("request = objectStore.delete(id);");
     request.onsuccess = finalCheck;
     request.onerror = unexpectedSuccessCallback;
@@ -66,12 +61,13 @@ function deleteRecord2()
 
 function finalCheck()
 {
-    shouldBe("event.target.result", "false");
-    done();
+    shouldBe("event.target.result", "undefined");
+    finishJSTest();
 }
 
 test();
 
 </script>
+<script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

@@ -61,8 +61,10 @@ static const PredictedType PredictDoubleNaN         = 0x00040000; // It's defini
 static const PredictedType PredictDouble            = 0x00060000; // It's either a non-NaN or a NaN double.
 static const PredictedType PredictNumber            = 0x00070000; // It's either an Int32 or a Double.
 static const PredictedType PredictBoolean           = 0x00080000; // It's definitely a Boolean.
-static const PredictedType PredictOther             = 0x40000000; // It's definitely none of the above.
-static const PredictedType PredictTop               = 0x7fffffff; // It can be any of the above.
+static const PredictedType PredictOther             = 0x08000000; // It's definitely none of the above.
+static const PredictedType PredictTop               = 0x0fffffff; // It can be any of the above.
+static const PredictedType PredictEmpty             = 0x10000000; // It's definitely an empty value marker.
+static const PredictedType PredictEmptyOrTop        = 0x1fffffff; // It can be any of the above.
 static const PredictedType FixedIndexedStorageMask = PredictByteArray | PredictInt8Array | PredictInt16Array | PredictInt32Array | PredictUint8Array | PredictUint8ClampedArray | PredictUint16Array | PredictUint32Array | PredictFloat32Array | PredictFloat64Array;
 
 typedef bool (*PredictionChecker)(PredictedType);
@@ -89,7 +91,7 @@ inline bool isFinalObjectOrOtherPrediction(PredictedType value)
 
 inline bool isFixedIndexedStorageObjectPrediction(PredictedType value)
 {
-    return (value & FixedIndexedStorageMask) == value;
+    return !!value && (value & FixedIndexedStorageMask) == value;
 }
 
 inline bool isStringPrediction(PredictedType value)
@@ -157,10 +159,9 @@ inline bool isFloat64ArrayPrediction(PredictedType value)
     return value == PredictFloat64Array;
 }
 
-inline bool isActionableMutableArrayPrediction(PredictedType value)
+inline bool isActionableIntMutableArrayPrediction(PredictedType value)
 {
-    return isArrayPrediction(value)
-        || isByteArrayPrediction(value)
+    return isByteArrayPrediction(value)
 #if CPU(X86) || CPU(X86_64)
         || isInt8ArrayPrediction(value)
         || isInt16ArrayPrediction(value)
@@ -169,11 +170,28 @@ inline bool isActionableMutableArrayPrediction(PredictedType value)
         || isUint8ArrayPrediction(value)
         || isUint8ClampedArrayPrediction(value)
         || isUint16ArrayPrediction(value)
-        || isUint32ArrayPrediction(value)
+        || isUint32ArrayPrediction(value);
+}
+
+inline bool isActionableFloatMutableArrayPrediction(PredictedType value)
+{
+    return false
 #if CPU(X86) || CPU(X86_64)
         || isFloat32ArrayPrediction(value)
 #endif
         || isFloat64ArrayPrediction(value);
+}
+
+inline bool isActionableTypedMutableArrayPrediction(PredictedType value)
+{
+    return isActionableIntMutableArrayPrediction(value)
+        || isActionableFloatMutableArrayPrediction(value);
+}
+
+inline bool isActionableMutableArrayPrediction(PredictedType value)
+{
+    return isArrayPrediction(value)
+        || isActionableTypedMutableArrayPrediction(value);
 }
 
 inline bool isActionableArrayPrediction(PredictedType value)
@@ -199,7 +217,7 @@ inline bool isDoubleRealPrediction(PredictedType value)
 
 inline bool isDoublePrediction(PredictedType value)
 {
-    return (value & PredictDouble) == value;
+    return !!value && (value & PredictDouble) == value;
 }
 
 inline bool isNumberPrediction(PredictedType value)
@@ -217,7 +235,13 @@ inline bool isOtherPrediction(PredictedType value)
     return value == PredictOther;
 }
 
+inline bool isEmptyPrediction(PredictedType value)
+{
+    return value == PredictEmpty;
+}
+
 const char* predictionToString(PredictedType value);
+const char* predictionToAbbreviatedString(PredictedType value);
 
 // Merge two predictions. Note that currently this just does left | right. It may
 // seem tempting to do so directly, but you would be doing so at your own peril,

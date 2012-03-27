@@ -133,6 +133,21 @@ void EditorClient::setInputMethodState(bool active)
 #endif
 }
 
+bool EditorClient::shouldShowUnicodeMenu()
+{
+    if (gtk_major_version > 2 || (gtk_major_version == 2 && gtk_minor_version >= 10)) {
+        GtkSettings* settings = gtk_widget_get_settings(GTK_WIDGET(m_webView));
+        if (!settings)
+            return true;
+
+        gboolean enabled;
+        g_object_get(settings, "gtk-show-unicode-menu", &enabled, NULL);
+        return enabled;
+    }
+
+    return true;
+}
+
 bool EditorClient::shouldDeleteRange(Range* range)
 {
     gboolean accept = TRUE;
@@ -235,10 +250,10 @@ bool EditorClient::shouldChangeSelectedRange(Range* fromRange, Range* toRange, E
     return accept;
 }
 
-bool EditorClient::shouldApplyStyle(WebCore::CSSStyleDeclaration* declaration, WebCore::Range* range)
+bool EditorClient::shouldApplyStyle(WebCore::StylePropertySet* set, WebCore::Range* range)
 {
     gboolean accept = TRUE;
-    GRefPtr<WebKitDOMCSSStyleDeclaration> kitDeclaration(kit(declaration));
+    GRefPtr<WebKitDOMCSSStyleDeclaration> kitDeclaration(kit(set->ensureCSSStyleDeclaration()));
     GRefPtr<WebKitDOMRange> kitRange(adoptGRef(kit(range)));
     g_signal_emit_by_name(m_webView, "should-apply-style", kitDeclaration.get(), kitRange.get(), &accept);
     return accept;

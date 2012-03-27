@@ -116,6 +116,17 @@ WEBKIT_API WebKitDOMTestObj*
 webkit_dom_test_obj_obj_method_with_args(WebKitDOMTestObj* self, glong int_arg, const gchar* str_arg, WebKitDOMTestObj* obj_arg);
 
 /**
+ * webkit_dom_test_obj_method_with_sequence_arg:
+ * @self: A #WebKitDOMTestObj
+ * @: A #WebKitDOMsequence
+ *
+ * Returns:
+ *
+**/
+WEBKIT_API void
+webkit_dom_test_obj_method_with_sequence_arg(WebKitDOMTestObj* self, WebKitDOMsequence* );
+
+/**
  * webkit_dom_test_obj_method_that_requires_all_args_and_throws:
  * @self: A #WebKitDOMTestObj
  * @str_arg: A #gchar
@@ -153,14 +164,14 @@ webkit_dom_test_obj_idb_key(WebKitDOMTestObj* self, WebKitDOMIDBKey* key);
 /**
  * webkit_dom_test_obj_options_object:
  * @self: A #WebKitDOMTestObj
- * @oo: A #WebKitDOMOptionsObject
- * @ooo: A #WebKitDOMOptionsObject
+ * @oo: A #WebKitDOMDictionary
+ * @ooo: A #WebKitDOMDictionary
  *
  * Returns:
  *
 **/
 WEBKIT_API void
-webkit_dom_test_obj_options_object(WebKitDOMTestObj* self, WebKitDOMOptionsObject* oo, WebKitDOMOptionsObject* ooo);
+webkit_dom_test_obj_options_object(WebKitDOMTestObj* self, WebKitDOMDictionary* oo, WebKitDOMDictionary* ooo);
 
 /**
  * webkit_dom_test_obj_method_with_exception:
@@ -1149,16 +1160,6 @@ WEBKIT_API void
 webkit_dom_test_obj_set_with_script_execution_context_and_script_state_with_spaces_attribute(WebKitDOMTestObj* self, WebKitDOMTestObj* value);
 
 /**
- * webkit_dom_test_obj_get_script_string_attr:
- * @self: A #WebKitDOMTestObj
- *
- * Returns:
- *
-**/
-WEBKIT_API gchar*
-webkit_dom_test_obj_get_script_string_attr(WebKitDOMTestObj* self);
-
-/**
  * webkit_dom_test_obj_get_conditional_attr1:
  * @self: A #WebKitDOMTestObj
  *
@@ -1272,6 +1273,27 @@ webkit_dom_test_obj_get_immutable_point(WebKitDOMTestObj* self);
 **/
 WEBKIT_API void
 webkit_dom_test_obj_set_immutable_point(WebKitDOMTestObj* self, WebKitDOMSVGPoint* value);
+
+/**
+ * webkit_dom_test_obj_get_strawberry:
+ * @self: A #WebKitDOMTestObj
+ *
+ * Returns:
+ *
+**/
+WEBKIT_API gint
+webkit_dom_test_obj_get_strawberry(WebKitDOMTestObj* self);
+
+/**
+ * webkit_dom_test_obj_set_strawberry:
+ * @self: A #WebKitDOMTestObj
+ * @value: A #gint
+ *
+ * Returns:
+ *
+**/
+WEBKIT_API void
+webkit_dom_test_obj_set_strawberry(WebKitDOMTestObj* self, gint value);
 
 /**
  * webkit_dom_test_obj_get_strict_float:

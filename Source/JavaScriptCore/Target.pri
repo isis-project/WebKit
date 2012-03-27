@@ -53,20 +53,22 @@ SOURCES += \
     bytecode/CallLinkStatus.cpp \
     bytecode/CodeBlock.cpp \
     bytecode/DFGExitProfile.cpp \
+    bytecode/ExecutionCounter.cpp \
     bytecode/GetByIdStatus.cpp \
     bytecode/JumpTable.cpp \
+    bytecode/LazyOperandValueProfile.cpp \
     bytecode/MethodCallLinkInfo.cpp \
     bytecode/MethodCallLinkStatus.cpp \
+    bytecode/MethodOfGettingAValueProfile.cpp \
     bytecode/Opcode.cpp \
     bytecode/PolymorphicPutByIdList.cpp \
     bytecode/PredictedType.cpp \
     bytecode/PutByIdStatus.cpp \
     bytecode/SamplingTool.cpp \
     bytecode/StructureStubInfo.cpp \
-    bytecode/ValueProfile.cpp \
     bytecompiler/BytecodeGenerator.cpp \
     bytecompiler/NodesCodegen.cpp \
-    heap/BumpSpace.cpp \
+    heap/CopiedSpace.cpp \
     heap/ConservativeRoots.cpp \
     heap/DFGCodeBlocks.cpp \
     heap/HandleHeap.cpp \
@@ -86,28 +88,36 @@ SOURCES += \
     dfg/DFGAssemblyHelpers.cpp \
     dfg/DFGByteCodeParser.cpp \
     dfg/DFGCapabilities.cpp \
+    dfg/DFGCFAPhase.cpp \
     dfg/DFGCorrectableJumpPoint.cpp \
+    dfg/DFGCSEPhase.cpp \
     dfg/DFGDriver.cpp \
+    dfg/DFGFixupPhase.cpp \
     dfg/DFGGraph.cpp \
     dfg/DFGJITCompiler.cpp \
+    dfg/DFGNodeFlags.cpp \
     dfg/DFGOperations.cpp \
     dfg/DFGOSREntry.cpp \
     dfg/DFGOSRExit.cpp \
     dfg/DFGOSRExitCompiler.cpp \
     dfg/DFGOSRExitCompiler64.cpp \
     dfg/DFGOSRExitCompiler32_64.cpp \
-    dfg/DFGPropagator.cpp \
+    dfg/DFGPhase.cpp \
+    dfg/DFGPredictionPropagationPhase.cpp \
+    dfg/DFGRedundantPhiEliminationPhase.cpp \
     dfg/DFGRepatch.cpp \
     dfg/DFGSpeculativeJIT.cpp \
     dfg/DFGSpeculativeJIT32_64.cpp \
     dfg/DFGSpeculativeJIT64.cpp \
     dfg/DFGThunks.cpp \
+    dfg/DFGVirtualRegisterAllocationPhase.cpp \
     interpreter/AbstractPC.cpp \
     interpreter/CallFrame.cpp \
     interpreter/Interpreter.cpp \
     interpreter/RegisterFile.cpp \
     jit/ExecutableAllocatorFixedVMPool.cpp \
     jit/ExecutableAllocator.cpp \
+    jit/HostCallReturnValue.cpp \
     jit/JITArithmetic.cpp \
     jit/JITArithmetic32_64.cpp \
     jit/JITCall.cpp \
@@ -195,6 +205,8 @@ SOURCES += \
     runtime/PropertyNameArray.cpp \
     runtime/PropertySlot.cpp \
     runtime/RegExpConstructor.cpp \
+    runtime/RegExpCachedResult.cpp \
+    runtime/RegExpMatchesArray.cpp \
     runtime/RegExp.cpp \
     runtime/RegExpObject.cpp \
     runtime/RegExpPrototype.cpp \

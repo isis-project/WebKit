@@ -71,6 +71,7 @@ typedef void (*WKPageDidChangeBackForwardListCallback)(WKPageRef page, WKBackFor
 typedef bool (*WKPageShouldGoToBackForwardListItemCallback)(WKPageRef page, WKBackForwardListItemRef item, const void *clientInfo);
 typedef void (*WKPageDidFailToInitializePluginCallback)(WKPageRef page, WKStringRef mimeType, const void* clientInfo);
 typedef void (*WKPageDidNewFirstVisuallyNonEmptyLayoutCallback)(WKPageRef page, WKTypeRef userData, const void *clientInfo);
+typedef void (*WKPageWillGoToBackForwardListItemCallback)(WKPageRef page, WKBackForwardListItemRef item, const void *clientInfo);
 
 struct WKPageLoaderClient {
     int                                                                 version;
@@ -110,6 +111,8 @@ struct WKPageLoaderClient {
 
     // FIXME: didFirstVisuallyNonEmptyLayoutForFrame and didNewFirstVisuallyNonEmptyLayout should be merged.
     WKPageDidNewFirstVisuallyNonEmptyLayoutCallback                     didNewFirstVisuallyNonEmptyLayout;
+
+    WKPageWillGoToBackForwardListItemCallback                           willGoToBackForwardListItem;
 };
 typedef struct WKPageLoaderClient WKPageLoaderClient;
 
@@ -282,24 +285,29 @@ enum {
 };
 
 // ContextMenu client
-typedef void (*WKPageGetContextMenuFromProposedContextMenuCallback)(WKPageRef page, WKArrayRef proposedMenu, WKArrayRef* newMenu, WKTypeRef userData, const void* clientInfo);
+typedef void (*WKPageGetContextMenuFromProposedContextMenuCallback)(WKPageRef page, WKArrayRef proposedMenu, WKArrayRef* newMenu, WKHitTestResultRef hitTestResult, WKTypeRef userData, const void* clientInfo);
 typedef void (*WKPageCustomContextMenuItemSelectedCallback)(WKPageRef page, WKContextMenuItemRef contextMenuItem, const void* clientInfo);
 typedef void (*WKPageContextMenuDismissedCallback)(WKPageRef page, const void* clientInfo);
 
+// Deprecated
+typedef void (*WKPageGetContextMenuFromProposedContextMenuCallback_deprecatedForUseWithV0)(WKPageRef page, WKArrayRef proposedMenu, WKArrayRef* newMenu, WKTypeRef userData, const void* clientInfo);
 struct WKPageContextMenuClient {
-    int                                                                 version;
-    const void *                                                        clientInfo;
-    
+    int                                                                          version;
+    const void *                                                                 clientInfo;
+
     // Version 0
-    WKPageGetContextMenuFromProposedContextMenuCallback                 getContextMenuFromProposedMenu;
-    WKPageCustomContextMenuItemSelectedCallback                         customContextMenuItemSelected;
-    
+    WKPageGetContextMenuFromProposedContextMenuCallback_deprecatedForUseWithV0   getContextMenuFromProposedMenu_deprecatedForUseWithV0;
+    WKPageCustomContextMenuItemSelectedCallback                                  customContextMenuItemSelected;
+
     // Version 1
-    WKPageContextMenuDismissedCallback                                  contextMenuDismissed;
+    WKPageContextMenuDismissedCallback                                           contextMenuDismissed;
+
+    // Version 2
+    WKPageGetContextMenuFromProposedContextMenuCallback                          getContextMenuFromProposedMenu;
 };
 typedef struct WKPageContextMenuClient WKPageContextMenuClient;
 
-enum { kWKPageContextMenuClientCurrentVersion = 1 };
+enum { kWKPageContextMenuClientCurrentVersion = 2 };
 
 WK_EXPORT WKTypeID WKPageGetTypeID();
 
@@ -311,6 +319,7 @@ WK_EXPORT void WKPageLoadURLRequest(WKPageRef page, WKURLRequestRef urlRequest);
 WK_EXPORT void WKPageLoadHTMLString(WKPageRef page, WKStringRef htmlString, WKURLRef baseURL);
 WK_EXPORT void WKPageLoadAlternateHTMLString(WKPageRef page, WKStringRef htmlString, WKURLRef baseURL, WKURLRef unreachableURL);
 WK_EXPORT void WKPageLoadPlainTextString(WKPageRef page, WKStringRef plainTextString);
+WK_EXPORT void WKPageLoadWebArchiveData(WKPageRef page, WKDataRef webArchiveData);
 
 WK_EXPORT void WKPageStopLoading(WKPageRef page);
 WK_EXPORT void WKPageReload(WKPageRef page);

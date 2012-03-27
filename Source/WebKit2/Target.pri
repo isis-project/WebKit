@@ -12,7 +12,7 @@ load(features)
 include(WebKit2.pri)
 
 WEBKIT += wtf javascriptcore webcore
-QT += declarative quick widgets
+QT += declarative quick quick-private
 
 CONFIG += staticlib
 
@@ -49,6 +49,8 @@ HEADERS += \
     Shared/API/c/WKMutableDictionary.h \
     Shared/API/c/WKNumber.h \
     Shared/API/c/WKPageLoadTypes.h \
+    Shared/API/c/WKRenderLayer.h \
+    Shared/API/c/WKRenderObject.h \
     Shared/API/c/WKSecurityOrigin.h \
     Shared/API/c/WKSerializedScriptValue.h \
     Shared/API/c/WKSharedAPICast.h \
@@ -112,6 +114,8 @@ HEADERS += \
     Shared/WebPopupItem.h \
     Shared/WebPreferencesStore.h \
     Shared/WebProcessCreationParameters.h \
+    Shared/WebRenderLayer.h \
+    Shared/WebRenderObject.h \
     Shared/WebURLRequest.h \
     Shared/WebURLResponse.h \
     Shared/WebUserContentURLPattern.h \
@@ -173,6 +177,8 @@ HEADERS += \
     UIProcess/API/qt/qwebdownloaditem_p.h \
     UIProcess/API/qt/qwebdownloaditem_p_p.h \
     UIProcess/API/qt/qwebpermissionrequest_p.h \
+    UIProcess/API/qt/qtwebsecurityorigin_p.h \
+    UIProcess/API/qt/qwebloadrequest_p.h \
     UIProcess/API/qt/qwebnavigationrequest_p.h \
     UIProcess/API/qt/qquickwebpage_p.h \
     UIProcess/API/qt/qquickwebpage_p_p.h \
@@ -240,6 +246,7 @@ HEADERS += \
     UIProcess/WebIconDatabaseClient.h \
     UIProcess/WebInspectorProxy.h \
     UIProcess/WebKeyValueStorageManagerProxy.h \
+    UIProcess/WebLayerTreeRenderer.h \
     UIProcess/WebLoaderClient.h \
     UIProcess/WebMediaCacheManagerProxy.h \
     UIProcess/WebNavigationData.h \
@@ -253,6 +260,7 @@ HEADERS += \
     UIProcess/WebResourceCacheManagerProxy.h \
     UIProcess/WebResourceLoadClient.h \
     UIProcess/WebUIClient.h \
+    UIProcess/qt/LayerBackingStore.h \
     UIProcess/qt/QtWebContext.h \
     UIProcess/qt/QtWebPageEventHandler.h \
     UIProcess/qt/QtGestureRecognizer.h \
@@ -265,6 +273,7 @@ HEADERS += \
     UIProcess/qt/QtPageClient.h \
     UIProcess/qt/QtWebPageLoadClient.h \
     UIProcess/qt/QtWebPagePolicyClient.h \
+    UIProcess/qt/QtWebPageSGNode.h \
     UIProcess/qt/QtWebPageUIClient.h \
     UIProcess/qt/QtFlickProvider.h \
     UIProcess/qt/QtViewportInteractionEngine.h \
@@ -280,7 +289,6 @@ HEADERS += \
     WebProcess/Downloads/DownloadManager.h \
     WebProcess/Downloads/qt/QtFileDownloader.h \
     WebProcess/FullScreen/WebFullScreenManager.h \
-    WebProcess/FullScreen/qt/WebFullScreenManagerQt.h \
     WebProcess/Geolocation/GeolocationPermissionRequestManager.h \
     WebProcess/Geolocation/WebGeolocationManager.h \
     WebProcess/IconDatabase/WebIconDatabaseProxy.h \
@@ -316,7 +324,7 @@ HEADERS += \
     WebProcess/Plugins/Netscape/NPJSObject.h \
     WebProcess/Plugins/Netscape/NPRuntimeObjectMap.h \
     WebProcess/Plugins/Netscape/NPRuntimeUtilities.h \
-    WebProcess/Plugins/Netscape/NetscapeBrowserFuncs.cpp \
+    WebProcess/Plugins/Netscape/NetscapeBrowserFuncs.h \
     WebProcess/Plugins/Netscape/NetscapePlugin.h \
     WebProcess/Plugins/Netscape/NetscapePluginStream.h \
     WebProcess/Plugins/Plugin.h \
@@ -390,6 +398,8 @@ SOURCES += \
     Shared/API/c/WKImage.cpp \
     Shared/API/c/WKMutableDictionary.cpp \
     Shared/API/c/WKNumber.cpp \
+    Shared/API/c/WKRenderLayer.cpp \
+    Shared/API/c/WKRenderObject.cpp \
     Shared/API/c/WKSecurityOrigin.cpp \
     Shared/API/c/WKSerializedScriptValue.cpp \
     Shared/API/c/WKString.cpp \
@@ -452,6 +462,8 @@ SOURCES += \
     Shared/WebPopupItem.cpp \
     Shared/WebPreferencesStore.cpp \
     Shared/WebProcessCreationParameters.cpp \
+    Shared/WebRenderLayer.cpp \
+    Shared/WebRenderObject.cpp \
     Shared/WebTouchEvent.cpp \
     Shared/WebURLRequest.cpp \
     Shared/WebURLResponse.cpp \
@@ -500,6 +512,8 @@ SOURCES += \
     UIProcess/API/cpp/qt/WKURLQt.cpp \
     UIProcess/API/qt/qwebdownloaditem.cpp \
     UIProcess/API/qt/qwebpermissionrequest.cpp \
+    UIProcess/API/qt/qtwebsecurityorigin.cpp \
+    UIProcess/API/qt/qwebloadrequest.cpp \
     UIProcess/API/qt/qwebnavigationrequest.cpp \
     UIProcess/API/qt/qquickwebpage.cpp \
     UIProcess/API/qt/qwebnavigationhistory.cpp \
@@ -527,6 +541,7 @@ SOURCES += \
     UIProcess/Launcher/ThreadLauncher.cpp \
     UIProcess/Launcher/qt/ProcessLauncherQt.cpp \
     UIProcess/Launcher/qt/ThreadLauncherQt.cpp \
+    UIProcess/LayerTreeHostProxy.cpp \
     UIProcess/Notifications/NotificationPermissionRequest.cpp \
     UIProcess/Notifications/NotificationPermissionRequestManagerProxy.cpp \
     UIProcess/Notifications/WebNotification.cpp \
@@ -567,6 +582,7 @@ SOURCES += \
     UIProcess/WebIconDatabaseClient.cpp \
     UIProcess/WebInspectorProxy.cpp \
     UIProcess/WebKeyValueStorageManagerProxy.cpp \
+    UIProcess/WebLayerTreeRenderer.cpp \
     UIProcess/WebLoaderClient.cpp \
     UIProcess/WebMediaCacheManagerProxy.cpp \
     UIProcess/WebNavigationData.cpp \
@@ -581,7 +597,7 @@ SOURCES += \
     UIProcess/WebResourceLoadClient.cpp \
     UIProcess/WebUIClient.cpp \
     UIProcess/qt/QtWebContext.cpp \
-    UIProcess/qt/LayerTreeHostProxyQt.cpp \
+    UIProcess/qt/LayerBackingStore.cpp \
     UIProcess/qt/QtWebPageEventHandler.cpp \
     UIProcess/qt/QtGestureRecognizer.cpp \
     UIProcess/qt/QtPanGestureRecognizer.cpp \
@@ -593,6 +609,7 @@ SOURCES += \
     UIProcess/qt/QtPageClient.cpp \
     UIProcess/qt/QtWebPageLoadClient.cpp \
     UIProcess/qt/QtWebPagePolicyClient.cpp \
+    UIProcess/qt/QtWebPageSGNode.cpp \
     UIProcess/qt/QtWebPageUIClient.cpp \
     UIProcess/qt/TextCheckerQt.cpp \
     UIProcess/qt/QtFlickProvider.cpp \
@@ -615,7 +632,6 @@ SOURCES += \
     WebProcess/Downloads/qt/DownloadQt.cpp \
     WebProcess/Downloads/qt/QtFileDownloader.cpp \
     WebProcess/FullScreen/WebFullScreenManager.cpp \
-    WebProcess/FullScreen/qt/WebFullScreenManagerQt.cpp \
     WebProcess/Geolocation/GeolocationPermissionRequestManager.cpp \
     WebProcess/Geolocation/WebGeolocationManager.cpp \
     WebProcess/IconDatabase/WebIconDatabaseProxy.cpp \
@@ -718,7 +734,6 @@ SOURCES += \
     WebProcess/qt/QtNetworkReply.cpp \
     WebProcess/qt/WebProcessMainQt.cpp \
     WebProcess/qt/WebProcessQt.cpp
-
 
 mac: {
     INCLUDEPATH += \

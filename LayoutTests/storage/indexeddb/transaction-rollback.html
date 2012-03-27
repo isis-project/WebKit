@@ -4,20 +4,15 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB transaction rollback.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    shouldBeTrue("'webkitIndexedDB' in window");
-    shouldBeFalse("webkitIndexedDB == null");
+    removeVendorPrefixes();
 
-    request = evalAndLog("webkitIndexedDB.open('transaction-rollback')");
+    request = evalAndLog("indexedDB.open('transaction-rollback')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -25,7 +20,7 @@ function test()
 function openSuccess()
 {
     debug("openSuccess():");
-    window.db = evalAndLog("db = event.target.result");
+    self.db = evalAndLog("db = event.target.result");
     request = evalAndLog("request = db.setVersion('version 1')");
     request.onsuccess = cleanDatabase;
     request.onerror = unexpectedErrorCallback;
@@ -34,7 +29,7 @@ function openSuccess()
 function cleanDatabase()
 {
     debug("cleanDatabase():");
-    window.transaction = evalAndLog("transaction = event.target.result");
+    self.transaction = evalAndLog("transaction = event.target.result");
     transaction.onabort = unexpectedErrorCallback;
     transaction.oncomplete = setVersionComplete;
 
@@ -47,11 +42,11 @@ function setVersionComplete()
 {
     debug("setVersionComplete():");
 
-    window.transaction = evalAndLog("transaction = db.transaction(['myObjectStore'], webkitIDBTransaction.READ_WRITE)");
+    self.transaction = evalAndLog("transaction = db.transaction(['myObjectStore'], IDBTransaction.READ_WRITE)");
     transaction.onabort = abortCallback;
     transaction.oncomplete = unexpectedCompleteCallback;
 
-    window.store = evalAndLog("store = transaction.objectStore('myObjectStore')");
+    self.store = evalAndLog("store = transaction.objectStore('myObjectStore')");
     request = evalAndLog("store.add('rollbackValue', 'rollbackKey123')");
     request.onsuccess = addSuccess;
     request.onerror = unexpectedErrorCallback;
@@ -70,7 +65,7 @@ function addSuccess()
 function openCursorSuccess()
 {
     debug("openCursorSuccess():");
-    window.cursor = evalAndLog("cursor = event.target.result");
+    self.cursor = evalAndLog("cursor = event.target.result");
 
     transaction.abort();
 }
@@ -80,8 +75,8 @@ function abortCallback()
     debug("abortCallback():");
     debug('Transaction was aborted.');
 
-    window.transaction = evalAndLog("transaction = db.transaction(['myObjectStore'], webkitIDBTransaction.READ)");
-    window.store = evalAndLog("store = transaction.objectStore('myObjectStore')");
+    self.transaction = evalAndLog("transaction = db.transaction(['myObjectStore'], IDBTransaction.READ)");
+    self.store = evalAndLog("store = transaction.objectStore('myObjectStore')");
     request = evalAndLog("store.get('rollbackKey123')");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = getSuccess;
@@ -93,12 +88,13 @@ function getSuccess()
     shouldBe("event.target.result", "undefined");
 
     shouldBe("cursor.value", "'rollbackValue'");
-    done();
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

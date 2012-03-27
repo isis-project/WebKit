@@ -23,9 +23,11 @@
 #import "BitmapImage.h"
 #import "ColorMac.h"
 #import "CSSStyleSelector.h"
+#import "CSSValueList.h"
 #import "CSSValueKeywords.h"
 #import "Document.h"
 #import "Element.h"
+#import "FileList.h"
 #import "FrameView.h"
 #import "GraphicsContextCG.h"
 #import "HTMLInputElement.h"
@@ -487,7 +489,7 @@ NSView* RenderThemeMac::documentViewFor(RenderObject* o) const
 bool RenderThemeMac::isControlStyled(const RenderStyle* style, const BorderData& border,
                                      const FillLayer& background, const Color& backgroundColor) const
 {
-    if (style->appearance() == TextFieldPart || style->appearance() == TextAreaPart || style->appearance() == ListboxPart)
+    if (style->appearance() == TextAreaPart || style->appearance() == ListboxPart)
         return style->border() != border;
         
     // FIXME: This is horrible, but there is not much else that can be done.  Menu lists cannot draw properly when
@@ -990,7 +992,7 @@ bool RenderThemeMac::paintProgressBar(RenderObject* renderObject, const PaintInf
     trackInfo.reserved = 0;
     trackInfo.filler1 = 0;
 
-    OwnPtr<ImageBuffer> imageBuffer = ImageBuffer::create(inflatedRect.size());
+    OwnPtr<ImageBuffer> imageBuffer = ImageBuffer::create(inflatedRect.size(), 1);
     if (!imageBuffer)
         return true;
 
@@ -1720,24 +1722,34 @@ void RenderThemeMac::adjustSliderThumbSize(RenderStyle* style) const
 
 void RenderThemeMac::adjustMediaSliderThumbSize(RenderStyle* style) const
 {
-    ControlPart part = style->appearance();
-
-    if (part == MediaSliderThumbPart || part == MediaVolumeSliderThumbPart) {
-        int width = mediaSliderThumbWidth;
-        int height = mediaSliderThumbHeight;
-        
-        if (mediaControllerTheme() == MediaControllerThemeQuickTime) {
-            CGSize size;
-            
-            wkMeasureMediaUIPart(part == MediaSliderThumbPart ? MediaSliderThumb : MediaVolumeSliderThumb, MediaControllerThemeQuickTime, NULL, &size);
-            width = size.width;
-            height = size.height;
-        }
-
-        float zoomLevel = style->effectiveZoom();
-        style->setWidth(Length(static_cast<int>(width * zoomLevel), Fixed));
-        style->setHeight(Length(static_cast<int>(height * zoomLevel), Fixed));
+    int wkPart;
+    switch (style->appearance()) {
+    case MediaSliderThumbPart:
+        wkPart = MediaSliderThumb;
+        break;
+    case MediaVolumeSliderThumbPart:
+        wkPart = MediaVolumeSliderThumb;
+        break;
+    case MediaFullScreenVolumeSliderThumbPart:
+        wkPart = MediaFullScreenVolumeSliderThumb;
+        break;
+    default:
+        return;
     }
+
+    int width = mediaSliderThumbWidth;
+    int height = mediaSliderThumbHeight;
+
+    if (mediaControllerTheme() == MediaControllerThemeQuickTime) {
+        CGSize size;
+        wkMeasureMediaUIPart(wkPart, MediaControllerThemeQuickTime, NULL, &size);
+        width = size.width;
+        height = size.height;
+    }
+
+    float zoomLevel = style->effectiveZoom();
+    style->setWidth(Length(static_cast<int>(width * zoomLevel), Fixed));
+    style->setHeight(Length(static_cast<int>(height * zoomLevel), Fixed));
 }
 
 enum WKMediaControllerThemeState { 
@@ -1779,8 +1791,10 @@ bool RenderThemeMac::paintMediaFullscreenButton(RenderObject* o, const PaintInfo
     if (!node)
         return false;
 
-    LocalCurrentGraphicsContext localContext(paintInfo.context);
-    wkDrawMediaUIPart(MediaFullscreenButton, mediaControllerTheme(), localContext.cgContext(), r, getMediaUIPartStateFlags(node));
+    if (MediaControlFullscreenButtonElement* btn = static_cast<MediaControlFullscreenButtonElement*>(o->node())) {
+        LocalCurrentGraphicsContext localContext(paintInfo.context);
+        wkDrawMediaUIPart(btn->displayType(), mediaControllerTheme(), localContext.cgContext(), r, getMediaUIPartStateFlags(node));
+    }
     return false;
 }
 
@@ -1977,7 +1991,29 @@ bool RenderThemeMac::paintMediaVolumeSliderThumb(RenderObject* o, const PaintInf
     wkDrawMediaUIPart(MediaVolumeSliderThumb, mediaControllerTheme(), localContext.cgContext(), r, getMediaUIPartStateFlags(node));
     return false;
 }
+
+bool RenderThemeMac::paintMediaFullScreenVolumeSliderTrack(RenderObject* o, const PaintInfo& paintInfo, const IntRect& r)
+{
+    Node* node = o->node();
+    if (!node)
+        return false;
     
+    LocalCurrentGraphicsContext localContext(paintInfo.context);
+    wkDrawMediaUIPart(MediaFullScreenVolumeSlider, mediaControllerTheme(), localContext.cgContext(), r, getMediaUIPartStateFlags(node));
+    return false;
+}
+
+bool RenderThemeMac::paintMediaFullScreenVolumeSliderThumb(RenderObject* o, const PaintInfo& paintInfo, const IntRect& r)
+{
+    Node* node = o->node();
+    if (!node)
+        return false;
+    
+    LocalCurrentGraphicsContext localContext(paintInfo.context);
+    wkDrawMediaUIPart(MediaFullScreenVolumeSliderThumb, mediaControllerTheme(), localContext.cgContext(), r, getMediaUIPartStateFlags(node));
+    return false;
+}
+
 String RenderThemeMac::extraMediaControlsStyleSheet()
 {
 #if PLATFORM(MAC)
@@ -2105,32 +2141,23 @@ NSTextFieldCell* RenderThemeMac::textField() const
         [m_textField.get() setBezeled:YES];
         [m_textField.get() setEditable:YES];
         [m_textField.get() setFocusRingType:NSFocusRingTypeExterior];
-
-        // Setting a clear background on the cell is necessary for CSS-styled backgrounds
-        // to show through. Ideally, there would be a better way to do this.
-        [m_textField.get() setDrawsBackground:YES];
-        [m_textField.get() setBackgroundColor:[NSColor clearColor]];
     }
 
     return m_textField.get();
 }
 
-String RenderThemeMac::fileListNameForWidth(const Vector<String>& filenames, const Font& font, int width, bool multipleFilesAllowed)
+String RenderThemeMac::fileListNameForWidth(const FileList* fileList, const Font& font, int width, bool multipleFilesAllowed) const
 {
     if (width <= 0)
         return String();
 
     String strToTruncate;
-    if (filenames.isEmpty()) {
-        if (multipleFilesAllowed)
-            strToTruncate = fileButtonNoFilesSelectedLabel();
-        else
-            strToTruncate = fileButtonNoFileSelectedLabel();
-    }
-    else if (filenames.size() == 1)
-        strToTruncate = [[NSFileManager defaultManager] displayNameAtPath:(filenames[0])];
+    if (fileList->isEmpty())
+        strToTruncate = fileListDefaultLabel(multipleFilesAllowed);
+    else if (fileList->length() == 1)
+        strToTruncate = [[NSFileManager defaultManager] displayNameAtPath:(fileList->item(0)->path())];
     else
-        return StringTruncator::rightTruncate(multipleFileUploadText(filenames.size()), width, font, StringTruncator::EnableRoundingHacks);
+        return StringTruncator::rightTruncate(multipleFileUploadText(fileList->length()), width, font, StringTruncator::EnableRoundingHacks);
 
     return StringTruncator::centerTruncate(strToTruncate, width, font, StringTruncator::EnableRoundingHacks);
 }

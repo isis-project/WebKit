@@ -44,9 +44,6 @@ CachedRawResource::CachedRawResource(ResourceRequest& resourceRequest)
 void CachedRawResource::data(PassRefPtr<SharedBuffer> data, bool allDataReceived)
 {
     CachedResourceHandle<CachedRawResource> protect(this);
-    if (!m_identifier)
-        m_identifier = m_loader->identifier();
-
     if (data) {
         // If we are buffering data, then we are saving the buffer in m_data and need to manually
         // calculate the incremental data. If we are not buffering, then m_data will be null and
@@ -71,75 +68,19 @@ void CachedRawResource::data(PassRefPtr<SharedBuffer> data, bool allDataReceived
     CachedResource::data(m_data, allDataReceived);
 }
 
-class CachedRawResourceCallback {
-public:    
-    static CachedRawResourceCallback* schedule(CachedRawResource* resource, CachedRawResourceClient* client)
-    {
-        return new CachedRawResourceCallback(resource, client);
-    }
-
-    void cancel()
-    {
-        if (m_callbackTimer.isActive())
-            m_callbackTimer.stop();
-    }
-
-private:
-    CachedRawResourceCallback(CachedRawResource* resource, CachedRawResourceClient* client)
-        : m_resource(resource)
-        , m_client(client)
-        , m_callbackTimer(this, &CachedRawResourceCallback::timerFired)
-    {
-        m_callbackTimer.startOneShot(0);
-    }
-
-    void timerFired(Timer<CachedRawResourceCallback>*)
-    {
-        m_resource->sendCallbacks(m_client);
-    }
-    CachedResourceHandle<CachedRawResource> m_resource;
-    CachedRawResourceClient* m_client;
-    Timer<CachedRawResourceCallback> m_callbackTimer;
-};
-
-void CachedRawResource::sendCallbacks(CachedRawResourceClient* c)
-{
-    if (!m_clientsAwaitingCallback.contains(c))
-        return;
-    m_clientsAwaitingCallback.remove(c);
-    c->responseReceived(this, m_response);
-    if (!m_clients.contains(c) || !m_data)
-        return;
-    c->dataReceived(this, m_data->data(), m_data->size());
-    if (!m_clients.contains(c) || isLoading())
-       return;
-    c->notifyFinished(this);
-}
-
 void CachedRawResource::didAddClient(CachedResourceClient* c)
 {
-    if (m_response.isNull())
+    if (m_response.isNull() || !hasClient(c))
         return;
-
-    // CachedRawResourceClients (especially XHRs) do crazy things if an asynchronous load returns
-    // synchronously (e.g., scripts may not have set all the state they need to handle the load).
-    // Therefore, rather than immediately sending callbacks on a cache hit like other CachedResources,
-    // we schedule the callbacks and ensure we never finish synchronously.
-    // FIXME: We also use an async callback on 304 because we don't have sufficient information to
-    // know whether we are receiving new clients because of revalidation or pure reuse. Perhaps move
-    // this logic to CachedResource?
     CachedRawResourceClient* client = static_cast<CachedRawResourceClient*>(c);
-    ASSERT(!m_clientsAwaitingCallback.contains(client));
-    m_clientsAwaitingCallback.add(client, adoptPtr(CachedRawResourceCallback::schedule(this, client)));
-}
- 
-void CachedRawResource::removeClient(CachedResourceClient* c)
-{
-    OwnPtr<CachedRawResourceCallback> callback = m_clientsAwaitingCallback.take(static_cast<CachedRawResourceClient*>(c));
-    if (callback)
-        callback->cancel();
-    callback.clear();
-    CachedResource::removeClient(c);
+    client->responseReceived(this, m_response);
+    if (!hasClient(c))
+        return;
+    if (m_data)
+        client->dataReceived(this, m_data->data(), m_data->size());
+    if (!hasClient(c))
+       return;
+    CachedResource::didAddClient(client);
 }
 
 void CachedRawResource::allClientsRemoved()
@@ -160,6 +101,8 @@ void CachedRawResource::willSendRequest(ResourceRequest& request, const Resource
 
 void CachedRawResource::setResponse(const ResourceResponse& response)
 {
+    if (!m_identifier)
+        m_identifier = m_loader->identifier();
     CachedResource::setResponse(response);
     CachedResourceClientWalker<CachedRawResourceClient> w(m_clients);
     while (CachedRawResourceClient* c = w.next())
@@ -179,14 +122,36 @@ void CachedRawResource::setDefersLoading(bool defers)
         m_loader->setDefersLoading(defers);
 }
 
-bool CachedRawResource::canReuse() const
+bool CachedRawResource::canReuse(const ResourceRequest& newRequest) const
 {
     if (m_options.shouldBufferData == DoNotBufferData)
         return false;
 
-    if (m_resourceRequest.httpMethod() != "GET")
+    if (m_resourceRequest.httpMethod() != newRequest.httpMethod())
         return false;
 
+    if (m_resourceRequest.httpBody() != newRequest.httpBody())
+        return false;
+
+    if (m_resourceRequest.allowCookies() != newRequest.allowCookies())
+        return false;
+
+    // Ensure all headers match the existing headers before continuing.
+    // Note that only headers set by our client will be present in either
+    // ResourceRequest, since SubresourceLoader creates a separate copy
+    // for its purposes.
+    // FIXME: There might be some headers that shouldn't block reuse.
+    const HTTPHeaderMap& newHeaders = newRequest.httpHeaderFields();
+    const HTTPHeaderMap& oldHeaders = m_resourceRequest.httpHeaderFields();
+    if (newHeaders.size() != oldHeaders.size())
+        return false;
+
+    HTTPHeaderMap::const_iterator end = newHeaders.end();
+    for (HTTPHeaderMap::const_iterator i = newHeaders.begin(); i != end; ++i) {
+        AtomicString headerName = i->first;
+        if (i->second != oldHeaders.get(headerName))
+            return false;
+    }
     return true;
 }
 

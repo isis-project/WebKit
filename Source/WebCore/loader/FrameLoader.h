@@ -119,6 +119,7 @@ public:
 
     void open(CachedFrameBase&);
     void loadItem(HistoryItem*, FrameLoadType);
+    HistoryItem* requestedHistoryItem() const { return m_requestedHistoryItem.get(); }
 
     static void reportLocalLoadFailed(Frame*, const String& url);
 
@@ -134,8 +135,6 @@ public:
     bool isLoadingMainResource() const { return m_isLoadingMainResource; }
     bool isLoading() const;
     bool frameHasLoaded() const;
-    void transferLoadingResourcesFromPage(Page*);
-    void dispatchTransferLoadingResourceFromPage(ResourceLoader*, const ResourceRequest&, Page*);
 
     int numPendingOrLoadingRequests(bool recurse) const;
     String referrer() const;
@@ -437,6 +436,7 @@ private:
 #endif
 
     KURL m_previousUrl;
+    RefPtr<HistoryItem> m_requestedHistoryItem;
 };
 
 // This function is called by createWindow() in JSDOMWindowBase.cpp, for example, for

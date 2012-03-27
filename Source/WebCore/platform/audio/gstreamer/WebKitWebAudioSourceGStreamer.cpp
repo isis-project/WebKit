@@ -24,7 +24,7 @@
 
 #include "AudioBus.h"
 #include "AudioSourceProvider.h"
-#include "GOwnPtr.h"
+#include <wtf/gobject/GOwnPtr.h>
 #include "GRefPtrGStreamer.h"
 #include <gst/audio/multichannel.h>
 #include <gst/pbutils/pbutils.h>
@@ -93,7 +93,7 @@ static GstCaps* getGStreamerMonoAudioCaps(float sampleRate)
 
 static GstAudioChannelPosition webKitWebAudioGStreamerChannelPosition(int channelIndex)
 {
-    GstAudioChannelPosition position;
+    GstAudioChannelPosition position = GST_AUDIO_CHANNEL_POSITION_NONE;
 
     switch (channelIndex) {
     case AudioBus::ChannelLeft:

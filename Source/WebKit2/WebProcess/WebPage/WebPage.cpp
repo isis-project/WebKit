@@ -196,10 +196,14 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
 #endif
     , m_setCanStartMediaTimer(WebProcess::shared().runLoop(), this, &WebPage::setCanStartMediaTimerFired)
     , m_findController(this)
+#if ENABLE(TOUCH_EVENTS)
 #if PLATFORM(QT)
     , m_tapHighlightController(this)
 #endif
+#endif
+#if ENABLE(GEOLOCATION)
     , m_geolocationPermissionRequestManager(this)
+#endif
     , m_pageID(pageID)
     , m_canRunBeforeUnloadConfirmPanel(parameters.canRunBeforeUnloadConfirmPanel)
     , m_canRunModal(parameters.canRunModal)
@@ -210,6 +214,7 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
     , m_numWheelEventHandlers(0)
     , m_cachedPageCount(0)
     , m_isShowingContextMenu(false)
+    , m_willGoToBackForwardItemCallbackEnabled(true)
 #if PLATFORM(WIN)
     , m_gestureReachedScrollingLimit(false)
 #endif
@@ -225,17 +230,18 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
     pageClients.editorClient = new WebEditorClient(this);
     pageClients.dragClient = new WebDragClient(this);
     pageClients.backForwardClient = WebBackForwardListProxy::create(this);
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
     pageClients.geolocationClient = new WebGeolocationClient(this);
 #endif
 #if ENABLE(INSPECTOR)
     pageClients.inspectorClient = new WebInspectorClient(this);
 #endif
-#if ENABLE(NOTIFICATIONS)
-    pageClients.notificationClient = new WebNotificationClient(this);
-#endif
     
     m_page = adoptPtr(new Page(pageClients));
+
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+    WebCore::provideNotification(m_page.get(), new WebNotificationClient(this));
+#endif
 
     // Qt does not yet call setIsInWindow. Until it does, just leave
     // this line out so plug-ins and video will work. Eventually all platforms
@@ -678,6 +684,12 @@ void WebPage::loadPlainTextString(const String& string)
     loadData(sharedBuffer, "text/plain", "utf-16", blankURL(), KURL());
 }
 
+void WebPage::loadWebArchiveData(const CoreIPC::DataReference& webArchiveData)
+{
+    RefPtr<SharedBuffer> sharedBuffer = SharedBuffer::create(reinterpret_cast<const char*>(webArchiveData.data()), webArchiveData.size() * sizeof(uint8_t));
+    loadData(sharedBuffer, "application/x-webarchive", "utf-16", blankURL(), KURL());
+}
+
 void WebPage::linkClicked(const String& url, const WebMouseEvent& event)
 {
     Frame* frame = m_page->mainFrame();
@@ -840,7 +852,7 @@ void WebPage::resizeToContentsIfNeeded()
     if (contentSize == m_viewSize)
         return;
 
-    m_viewSize = contentSize;
+    m_viewSize = contentSize.expandedTo(view->fixedLayoutSize());
     view->resize(m_viewSize);
     view->setNeedsLayout();
 }
@@ -1153,9 +1165,6 @@ PassRefPtr<WebImage> WebPage::snapshotInDocumentCoordinates(const IntRect& rect,
 
 void WebPage::pageDidScroll()
 {
-    // Hide the find indicator.
-    m_findController.hideFindIndicator();
-
     m_uiClient.pageDidScroll(this);
 
     send(Messages::WebPageProxy::PageDidScroll());
@@ -1218,25 +1227,25 @@ static bool isContextClick(const PlatformMouseEvent& event)
     return false;
 }
 
-static bool handleContextMenuEvent(const PlatformMouseEvent& platformMouseEvent, Page* page)
+static bool handleContextMenuEvent(const PlatformMouseEvent& platformMouseEvent, WebPage* page)
 {
-    IntPoint point = page->mainFrame()->view()->windowToContents(platformMouseEvent.position());
-    HitTestResult result = page->mainFrame()->eventHandler()->hitTestResultAtPoint(point, false);
+    IntPoint point = page->corePage()->mainFrame()->view()->windowToContents(platformMouseEvent.position());
+    HitTestResult result = page->corePage()->mainFrame()->eventHandler()->hitTestResultAtPoint(point, false);
 
-    Frame* frame = page->mainFrame();
+    Frame* frame = page->corePage()->mainFrame();
     if (result.innerNonSharedNode())
         frame = result.innerNonSharedNode()->document()->frame();
     
     bool handled = frame->eventHandler()->sendContextMenuEvent(platformMouseEvent);
     if (handled)
-        page->chrome()->showContextMenu();
+        page->contextMenu()->show();
 
     return handled;
 }
 
-static bool handleMouseEvent(const WebMouseEvent& mouseEvent, Page* page, bool onlyUpdateScrollbars)
+static bool handleMouseEvent(const WebMouseEvent& mouseEvent, WebPage* page, bool onlyUpdateScrollbars)
 {
-    Frame* frame = page->mainFrame();
+    Frame* frame = page->corePage()->mainFrame();
     if (!frame->view())
         return false;
 
@@ -1245,7 +1254,7 @@ static bool handleMouseEvent(const WebMouseEvent& mouseEvent, Page* page, bool o
     switch (platformMouseEvent.type()) {
         case PlatformEvent::MousePressed: {
             if (isContextClick(platformMouseEvent))
-                page->contextMenuController()->clearContextMenu();
+                page->corePage()->contextMenuController()->clearContextMenu();
             
             bool handled = frame->eventHandler()->handleMousePressEvent(platformMouseEvent);
             if (isContextClick(platformMouseEvent))
@@ -1289,7 +1298,7 @@ void WebPage::mouseEvent(const WebMouseEvent& mouseEvent)
         // of those cases where the page is not active and the mouse is not pressed, then we can fire a more
         // efficient scrollbars-only version of the event.
         bool onlyUpdateScrollbars = !(m_page->focusController()->isActive() || (mouseEvent.button() != WebMouseEvent::NoButton));
-        handled = handleMouseEvent(mouseEvent, m_page.get(), onlyUpdateScrollbars);
+        handled = handleMouseEvent(mouseEvent, this, onlyUpdateScrollbars);
     }
 
     send(Messages::WebPageProxy::DidReceiveEvent(static_cast<uint32_t>(mouseEvent.type()), handled));
@@ -1297,12 +1306,6 @@ void WebPage::mouseEvent(const WebMouseEvent& mouseEvent)
 
 void WebPage::mouseEventSyncForTesting(const WebMouseEvent& mouseEvent, bool& handled)
 {
-    // Don't try to handle any pending mouse events if a context menu is showing.
-    if (m_isShowingContextMenu) {
-        handled = true;
-        return;
-    }
-
     handled = m_pageOverlay && m_pageOverlay->mouseEvent(mouseEvent);
 
     if (!handled) {
@@ -1314,7 +1317,7 @@ void WebPage::mouseEventSyncForTesting(const WebMouseEvent& mouseEvent, bool& ha
         // of those cases where the page is not active and the mouse is not pressed, then we can fire a more
         // efficient scrollbars-only version of the event.
         bool onlyUpdateScrollbars = !(m_page->focusController()->isActive() || (mouseEvent.button() != WebMouseEvent::NoButton));
-        handled = handleMouseEvent(mouseEvent, m_page.get(), onlyUpdateScrollbars);
+        handled = handleMouseEvent(mouseEvent, this, onlyUpdateScrollbars);
     }
 }
 
@@ -1445,17 +1448,27 @@ void WebPage::restoreSessionAndNavigateToCurrentItem(const SessionState& session
 
 #if ENABLE(TOUCH_EVENTS)
 #if PLATFORM(QT)
-void WebPage::highlightPotentialActivation(const IntPoint& point)
+void WebPage::highlightPotentialActivation(const IntPoint& point, const IntSize& area)
 {
     Node* activationNode = 0;
     Frame* mainframe = m_page->mainFrame();
+    IntPoint adjustedPoint;
 
     if (point != IntPoint::zero()) {
+#if ENABLE(TOUCH_ADJUSTMENT)
+        mainframe->eventHandler()->bestClickableNodeForTouchPoint(point, IntSize(area.width() / 2, area.height() / 2), adjustedPoint, activationNode);
+#else
         HitTestResult result = mainframe->eventHandler()->hitTestResultAtPoint(mainframe->view()->windowToContents(point), /*allowShadowContent*/ false, /*ignoreClipping*/ true);
         activationNode = result.innerNode();
-
-        if (!activationNode->isFocusable())
-            activationNode = activationNode->enclosingLinkEventParentOrSelf();
+#endif
+        if (activationNode && !activationNode->isFocusable()) {
+            for (Node* node = activationNode; node; node = node->parentOrHostNode()) {
+                if (node->isFocusable()) {
+                    activationNode = node;
+                    break;
+                }
+            }
+        }
     }
 
     if (activationNode)
@@ -1658,7 +1671,20 @@ void WebPage::setUserAgent(const String& userAgent)
 {
     m_userAgent = userAgent;
 }
-  
+
+void WebPage::suspendActiveDOMObjectsAndAnimations()
+{
+    m_page->suspendActiveDOMObjectsAndAnimations();
+}
+
+void WebPage::resumeActiveDOMObjectsAndAnimations()
+{
+    m_page->resumeActiveDOMObjectsAndAnimations();
+
+    // We need to repaint on resume to kickstart animated painting again.
+    m_drawingArea->setNeedsDisplay(IntRect(IntPoint(0, 0), m_viewSize));
+}
+
 IntPoint WebPage::screenToWindow(const IntPoint& point)
 {
     IntPoint windowPoint;
@@ -1812,6 +1838,9 @@ void WebPage::forceRepaintWithoutCallback()
 
 void WebPage::forceRepaint(uint64_t callbackID)
 {
+    if (m_drawingArea->forceRepaintAsync(callbackID))
+        return;
+
     forceRepaintWithoutCallback();
     send(Messages::WebPageProxy::VoidCallback(callbackID));
 }
@@ -1886,10 +1915,13 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     settings->setShowDebugBorders(store.getBoolValueForKey(WebPreferencesKey::compositingBordersVisibleKey()));
     settings->setShowRepaintCounter(store.getBoolValueForKey(WebPreferencesKey::compositingRepaintCountersVisibleKey()));
     settings->setCSSCustomFilterEnabled(store.getBoolValueForKey(WebPreferencesKey::cssCustomFilterEnabledKey()));
+    settings->setCSSRegionsEnabled(store.getBoolValueForKey(WebPreferencesKey::cssRegionsEnabledKey()));
+    settings->setRegionBasedColumnsEnabled(store.getBoolValueForKey(WebPreferencesKey::regionBasedColumnsEnabledKey()));
     settings->setWebGLEnabled(store.getBoolValueForKey(WebPreferencesKey::webGLEnabledKey()));
     settings->setMediaPlaybackRequiresUserGesture(store.getBoolValueForKey(WebPreferencesKey::mediaPlaybackRequiresUserGestureKey()));
     settings->setMediaPlaybackAllowsInline(store.getBoolValueForKey(WebPreferencesKey::mediaPlaybackAllowsInlineKey()));
     settings->setMockScrollbarsEnabled(store.getBoolValueForKey(WebPreferencesKey::mockScrollbarsEnabledKey()));
+    settings->setHyperlinkAuditingEnabled(store.getBoolValueForKey(WebPreferencesKey::hyperlinkAuditingEnabledKey()));
 
     // <rdar://problem/10697417>: It is necessary to force compositing when accelerate drawing
     // is enabled on Mac so that scrollbars are always in their own layers.
@@ -1923,7 +1955,7 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
 #endif
 
     settings->setApplicationChromeMode(store.getBoolValueForKey(WebPreferencesKey::applicationChromeModeKey()));    
-    settings->setSuppressIncrementalRendering(store.getBoolValueForKey(WebPreferencesKey::suppressIncrementalRenderingKey()));
+    settings->setSuppressesIncrementalRendering(store.getBoolValueForKey(WebPreferencesKey::suppressesIncrementalRenderingKey()));
     settings->setBackspaceKeyNavigationEnabled(store.getBoolValueForKey(WebPreferencesKey::backspaceKeyNavigationEnabledKey()));
     settings->setCaretBrowsingEnabled(store.getBoolValueForKey(WebPreferencesKey::caretBrowsingEnabledKey()));
 
@@ -1933,7 +1965,7 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     settings->setShouldDisplayTextDescriptions(store.getBoolValueForKey(WebPreferencesKey::shouldDisplayTextDescriptionsKey()));
 #endif
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     settings->setNotificationsEnabled(store.getBoolValueForKey(WebPreferencesKey::notificationsEnabledKey()));
 #endif
 
@@ -2077,7 +2109,7 @@ void WebPage::performDragControllerAction(uint64_t action, WebCore::DragData dra
 }
 
 #else
-void WebPage::performDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, const String& dragStorageName, uint32_t flags, const SandboxExtension::Handle& sandboxExtensionHandle)
+void WebPage::performDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, const String& dragStorageName, uint32_t flags, const SandboxExtension::Handle& sandboxExtensionHandle, const SandboxExtension::HandleArray& sandboxExtensionsHandleArray)
 {
     if (!m_page) {
         send(Messages::WebPageProxy::DidPerformDragControllerAction(WebCore::DragSession()));
@@ -2102,6 +2134,8 @@ void WebPage::performDragControllerAction(uint64_t action, WebCore::IntPoint cli
         ASSERT(!m_pendingDropSandboxExtension);
 
         m_pendingDropSandboxExtension = SandboxExtension::create(sandboxExtensionHandle);
+        for (size_t i = 0; i < sandboxExtensionsHandleArray.size(); i++)
+            m_pendingDropExtensionsForFileUpload.append(SandboxExtension::create(sandboxExtensionsHandleArray[i]));
 
         m_page->dragController()->performDrag(&dragData);
 
@@ -2111,7 +2145,10 @@ void WebPage::performDragControllerAction(uint64_t action, WebCore::IntPoint cli
             m_pendingDropSandboxExtension->invalidate();
             m_pendingDropSandboxExtension = nullptr;
         }
+        for (size_t i = 0; i < m_pendingDropExtensionsForFileUpload.size(); i++)
+            m_pendingDropExtensionsForFileUpload[i]->invalidate();
 
+        m_pendingDropExtensionsForFileUpload.clear();
         break;
     }
 
@@ -2138,6 +2175,13 @@ void WebPage::dragEnded(WebCore::IntPoint clientPosition, WebCore::IntPoint glob
 void WebPage::willPerformLoadDragDestinationAction()
 {
     m_sandboxExtensionTracker.willPerformLoadDragDestinationAction(m_pendingDropSandboxExtension.release());
+}
+
+void WebPage::performUploadDragDestinationAction()
+{
+    for (size_t i = 0; i < m_pendingDropExtensionsForFileUpload.size(); i++)
+        m_pendingDropExtensionsForFileUpload[i]->consumePermanently();
+    m_pendingDropExtensionsForFileUpload.clear();
 }
 
 WebUndoStep* WebPage::webUndoStep(uint64_t stepID)
@@ -2240,10 +2284,12 @@ void WebPage::extendSandboxForFileFromOpenPanel(const SandboxExtension::Handle& 
 }
 #endif
 
+#if ENABLE(GEOLOCATION)
 void WebPage::didReceiveGeolocationPermissionDecision(uint64_t geolocationID, bool allowed)
 {
     m_geolocationPermissionRequestManager.didReceiveGeolocationPermissionDecision(geolocationID, allowed);
 }
+#endif
 
 void WebPage::didReceiveNotificationPermissionDecision(uint64_t notificationID, bool allowed)
 {
@@ -2596,8 +2642,13 @@ void WebPage::SandboxExtensionTracker::didCommitProvisionalLoad(WebFrame* frame)
 {
     if (!frame->isMainFrame())
         return;
-    
-    ASSERT(!m_pendingProvisionalSandboxExtension);
+
+    // Generally, there should be no pending extension at this stage, but we can have one if UI process
+    // has an out of date idea of WebProcess state, and initiates a load or reload without stopping an existing one.
+    if (m_pendingProvisionalSandboxExtension) {
+        m_pendingProvisionalSandboxExtension->invalidate();
+        m_pendingProvisionalSandboxExtension = nullptr;
+    }
 
     // The provisional load has been committed. Invalidate the currently committed sandbox
     // extension and make the provisional sandbox extension the committed sandbox extension.
@@ -2611,6 +2662,13 @@ void WebPage::SandboxExtensionTracker::didFailProvisionalLoad(WebFrame* frame)
 {
     if (!frame->isMainFrame())
         return;
+
+    // Generally, there should be no pending extension at this stage, but we can have one if UI process
+    // has an out of date idea of WebProcess state, and initiates a load or reload without stopping an existing one.
+    if (m_pendingProvisionalSandboxExtension) {
+        m_pendingProvisionalSandboxExtension->invalidate();
+        m_pendingProvisionalSandboxExtension = nullptr;
+    }
 
     if (!m_provisionalSandboxExtension)
         return;
@@ -3035,7 +3093,8 @@ static bool pageContainsAnyHorizontalScrollbars(Frame* mainFrame)
 
         for (HashSet<ScrollableArea*>::const_iterator it = scrollableAreas->begin(), end = scrollableAreas->end(); it != end; ++it) {
             ScrollableArea* scrollableArea = *it;
-            ASSERT(scrollableArea->isOnActivePage());
+            if (!scrollableArea->isOnActivePage())
+                continue;
 
             if (hasEnabledHorizontalScrollbar(scrollableArea))
                 return true;

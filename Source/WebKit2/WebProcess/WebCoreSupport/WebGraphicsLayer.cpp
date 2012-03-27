@@ -19,8 +19,7 @@
 
 #include "config.h"
 
-#if USE(ACCELERATED_COMPOSITING)
-
+#if USE(UI_SIDE_COMPOSITING)
 #include "WebGraphicsLayer.h"
 
 #include "Animation.h"
@@ -251,6 +250,8 @@ void WebGraphicsLayer::setContentsOpaque(bool b)
 {
     if (contentsOpaque() == b)
         return;
+    if (m_mainBackingStore)
+        m_mainBackingStore->setSupportsAlpha(!b);
     GraphicsLayer::setContentsOpaque(b);
     notifyChange();
 }
@@ -429,35 +430,44 @@ WebGraphicsLayer* toWebGraphicsLayer(GraphicsLayer* layer)
 
 void WebGraphicsLayer::syncCompositingStateForThisLayerOnly()
 {
+    // The remote image might have been released by purgeBackingStores.
+    if (m_image) {
+        if (!m_layerInfo.imageBackingStoreID) {
+            m_layerInfo.imageBackingStoreID = m_webGraphicsLayerClient->adoptImageBackingStore(m_image.get());
+            m_layerInfo.imageIsUpdated = true;
+        }
+    }
+
+    if (m_modified) {
+        computeTransformedVisibleRect();
+
+        m_layerInfo.name = name();
+        m_layerInfo.anchorPoint = anchorPoint();
+        m_layerInfo.backfaceVisible = backfaceVisibility();
+        m_layerInfo.childrenTransform = childrenTransform();
+        m_layerInfo.contentsOpaque = contentsOpaque();
+        m_layerInfo.contentsRect = contentsRect();
+        m_layerInfo.drawsContent = drawsContent();
+        m_layerInfo.mask = toWebLayerID(maskLayer());
+        m_layerInfo.masksToBounds = masksToBounds();
+        m_layerInfo.opacity = opacity();
+        m_layerInfo.parent = toWebLayerID(parent());
+        m_layerInfo.pos = position();
+        m_layerInfo.preserves3D = preserves3D();
+        m_layerInfo.replica = toWebLayerID(replicaLayer());
+        m_layerInfo.size = size();
+        m_layerInfo.transform = transform();
+        m_contentNeedsDisplay = false;
+        m_layerInfo.children.clear();
+
+        for (size_t i = 0; i < children().size(); ++i)
+            m_layerInfo.children.append(toWebLayerID(children()[i]));
+
+        m_webGraphicsLayerClient->didSyncCompositingStateForLayer(m_layerInfo);
+    }
+
     updateContentBuffers();
 
-    if (!m_modified)
-        return;
-
-    computeTransformedVisibleRect();
-    m_layerInfo.name = name();
-    m_layerInfo.anchorPoint = anchorPoint();
-    m_layerInfo.backfaceVisible = backfaceVisibility();
-    m_layerInfo.childrenTransform = childrenTransform();
-    m_layerInfo.contentsOpaque = contentsOpaque();
-    m_layerInfo.contentsRect = contentsRect();
-    m_layerInfo.drawsContent = drawsContent();
-    m_layerInfo.mask = toWebLayerID(maskLayer());
-    m_layerInfo.masksToBounds = masksToBounds();
-    m_layerInfo.opacity = opacity();
-    m_layerInfo.parent = toWebLayerID(parent());
-    m_layerInfo.pos = position();
-    m_layerInfo.preserves3D = preserves3D();
-    m_layerInfo.replica = toWebLayerID(replicaLayer());
-    m_layerInfo.size = size();
-    m_layerInfo.transform = transform();
-    m_contentNeedsDisplay = false;
-    m_layerInfo.children.clear();
-
-    for (size_t i = 0; i < children().size(); ++i)
-        m_layerInfo.children.append(toWebLayerID(children()[i]));
-
-    m_webGraphicsLayerClient->didSyncCompositingStateForLayer(m_layerInfo);
     m_modified = false;
     m_layerInfo.imageIsUpdated = false;
     if (m_hasPendingAnimations)
@@ -480,24 +490,39 @@ void WebGraphicsLayer::setRootLayer(bool isRoot)
 void WebGraphicsLayer::setVisibleContentRectTrajectoryVector(const FloatPoint& trajectoryVector)
 {
     if (m_mainBackingStore)
-        m_mainBackingStore->setVisibleRectTrajectoryVector(trajectoryVector);
+        m_mainBackingStore->coverWithTilesIfNeeded(trajectoryVector);
 }
 
 void WebGraphicsLayer::setContentsScale(float scale)
 {
     m_contentsScale = scale;
-    if (m_mainBackingStore && m_mainBackingStore->contentsScale() != scale) {
-        m_previousBackingStore = m_mainBackingStore.release();
-        m_mainBackingStore = adoptPtr(new TiledBackingStore(this, TiledBackingStoreRemoteTileBackend::create(this)));
-        m_mainBackingStore->setContentsScale(scale);
-    }
+
+    if (!m_mainBackingStore || m_mainBackingStore->contentsScale() == scale)
+        return;
+
+    // Between creating the new backing store and painting the content,
+    // we do not want to drop the previous one as that might result in
+    // briefly seeing flickering as the old tiles may be dropped before
+    // something replaces them.
+    m_previousBackingStore = m_mainBackingStore.release();
+
+    // No reason to save the previous backing store for non-visible areas.
+    m_previousBackingStore->removeAllNonVisibleTiles();
+
+    createBackingStore();
+}
+
+void WebGraphicsLayer::createBackingStore()
+{
+    m_mainBackingStore = adoptPtr(new TiledBackingStore(this, TiledBackingStoreRemoteTileBackend::create(this)));
+    m_mainBackingStore->setSupportsAlpha(!contentsOpaque());
+    m_mainBackingStore->setContentsScale(m_contentsScale);
 }
 
 void WebGraphicsLayer::tiledBackingStorePaint(GraphicsContext* context, const IntRect& rect)
 {
     if (rect.isEmpty())
         return;
-    m_modified = true;
     paintGraphicsLayerContents(*context, rect);
 }
 
@@ -541,32 +566,21 @@ Color WebGraphicsLayer::tiledBackingStoreBackgroundColor() const
 }
 void WebGraphicsLayer::createTile(int tileID, const UpdateInfo& updateInfo)
 {
-    m_modified = true;
     m_webGraphicsLayerClient->createTile(id(), tileID, updateInfo);
 }
 
 void WebGraphicsLayer::updateTile(int tileID, const UpdateInfo& updateInfo)
 {
-    m_modified = true;
     m_webGraphicsLayerClient->updateTile(id(), tileID, updateInfo);
 }
 
 void WebGraphicsLayer::removeTile(int tileID)
 {
-    m_modified = true;
     m_webGraphicsLayerClient->removeTile(id(), tileID);
 }
 
 void WebGraphicsLayer::updateContentBuffers()
 {
-    // The remote image might have been released by purgeBackingStores.
-    if (m_image) {
-        if (!m_layerInfo.imageBackingStoreID) {
-            m_layerInfo.imageBackingStoreID = m_webGraphicsLayerClient->adoptImageBackingStore(m_image.get());
-            m_layerInfo.imageIsUpdated = true;
-        }
-    }
-
     if (!drawsContent()) {
         m_mainBackingStore.clear();
         m_previousBackingStore.clear();
@@ -574,14 +588,18 @@ void WebGraphicsLayer::updateContentBuffers()
     }
 
     m_inUpdateMode = true;
-    // This is the only place we (re)create the main tiled backing store,
-    // once we have a remote client and we are ready to send our data to the UI process.
-    if (!m_mainBackingStore) {
-        m_mainBackingStore = adoptPtr(new TiledBackingStore(this, TiledBackingStoreRemoteTileBackend::create(this)));
-        m_mainBackingStore->setContentsScale(m_contentsScale);
-    }
+    // This is the only place we (re)create the main tiled backing store, once we
+    // have a remote client and we are ready to send our data to the UI process.
+    if (!m_mainBackingStore)
+        createBackingStore();
     m_mainBackingStore->updateTileBuffers();
     m_inUpdateMode = false;
+
+    // The previous backing store is kept around to avoid flickering between
+    // removing the existing tiles and painting the new ones. The first time
+    // the visibleRect is full painted we remove the previous backing store.
+    if (m_mainBackingStore->visibleAreaIsCovered())
+        m_previousBackingStore.clear();
 }
 
 void WebGraphicsLayer::purgeBackingStores()
@@ -622,7 +640,7 @@ void WebGraphicsLayer::setWebGraphicsLayerClient(WebKit::WebGraphicsLayerClient*
 void WebGraphicsLayer::adjustVisibleRect()
 {
     if (m_mainBackingStore)
-        m_mainBackingStore->adjustVisibleRect();
+        m_mainBackingStore->coverWithTilesIfNeeded();
 }
 
 void WebGraphicsLayer::computeTransformedVisibleRect()
@@ -635,9 +653,9 @@ void WebGraphicsLayer::computeTransformedVisibleRect()
     m_layerTransform.setFlattening(!preserves3D());
     m_layerTransform.setChildrenTransform(childrenTransform());
     m_layerTransform.combineTransforms(parent() ? toWebGraphicsLayer(parent())->m_layerTransform.combinedForChildren() : TransformationMatrix());
+
     // The combined transform will be used in tiledBackingStoreVisibleRect.
-    if (m_mainBackingStore)
-        m_mainBackingStore->adjustVisibleRect();
+    adjustVisibleRect();
 }
 #endif
 

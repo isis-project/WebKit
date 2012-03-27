@@ -29,10 +29,7 @@
 #if USE(ACCELERATED_COMPOSITING)
 
 #include "PlatformString.h"
-
-#if USE(SKIA)
 #include "SkColorPriv.h"
-#endif
 
 namespace WebCore {
 
@@ -145,6 +142,23 @@ private:
     int m_vertexTexTransformLocation;
 };
 
+class VertexShaderVideoTransform {
+public:
+    VertexShaderVideoTransform();
+
+    bool init(GraphicsContext3D*, unsigned program);
+    String getShaderString() const;
+
+    int matrixLocation() const { return m_matrixLocation; }
+    int texTransformLocation() const { return m_texTransformLocation; }
+    int texMatrixLocation() const { return m_texMatrixLocation; }
+
+private:
+    int m_matrixLocation;
+    int m_texTransformLocation;
+    int m_texMatrixLocation;
+};
+
 class FragmentTexAlphaBinding {
 public:
     FragmentTexAlphaBinding();
@@ -209,6 +223,15 @@ public:
 class FragmentShaderRGBATexSwizzleOpaque : public FragmentTexOpaqueBinding {
 public:
     String getShaderString() const;
+};
+
+// Fragment shader for external textures.
+class FragmentShaderOESImageExternal : public FragmentTexAlphaBinding {
+public:
+    String getShaderString() const;
+    bool init(GraphicsContext3D*, unsigned program);
+private:
+    int m_samplerLocation;
 };
 
 class FragmentShaderRGBATexAlphaAA {

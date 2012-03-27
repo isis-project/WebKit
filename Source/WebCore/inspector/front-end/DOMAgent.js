@@ -33,11 +33,13 @@
  * @constructor
  * @param {WebInspector.DOMAgent} domAgent
  * @param {?WebInspector.DOMDocument} doc
+ * @param {boolean} isInShadowTree
  * @param {DOMAgent.Node} payload
  */
-WebInspector.DOMNode = function(domAgent, doc, payload) {
+WebInspector.DOMNode = function(domAgent, doc, isInShadowTree, payload) {
     this._domAgent = domAgent;
     this.ownerDocument = doc;
+    this._isInShadowTree = isInShadowTree;
 
     this.id = payload.nodeId;
     domAgent._idToDOMNode[this.id] = this;
@@ -45,6 +47,8 @@ WebInspector.DOMNode = function(domAgent, doc, payload) {
     this._nodeName = payload.nodeName;
     this._localName = payload.localName;
     this._nodeValue = payload.nodeValue;
+
+    this._shadowRoots = [];
 
     this._attributes = [];
     this._attributesMap = {};
@@ -67,6 +71,14 @@ WebInspector.DOMNode = function(domAgent, doc, payload) {
         this._contentDocument = new WebInspector.DOMDocument(domAgent, payload.contentDocument);
         this.children = [this._contentDocument];
         this._renumber();
+    }
+
+    if (payload.shadowRoots && WebInspector.experimentsSettings.showShadowDOM.isEnabled()) {
+        for (var i = 0; i < payload.shadowRoots.length; ++i) {
+            var root = payload.shadowRoots[i];
+            var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, true, root);
+            this._shadowRoots.push(node);
+        }
     }
 
     if (this._nodeType === Node.ELEMENT_NODE) {
@@ -117,7 +129,7 @@ WebInspector.DOMNode.prototype = {
      */
     hasChildNodes: function()
     {
-        return this._childNodeCount > 0;
+        return this._childNodeCount > 0 || !!this._shadowRoots.length;
     },
 
     /**
@@ -134,6 +146,14 @@ WebInspector.DOMNode.prototype = {
     nodeName: function()
     {
         return this._nodeName;
+    },
+
+    /**
+     * @return {boolean}
+     */
+    isInShadowTree: function()
+    {
+        return this._isInShadowTree;
     },
 
     /**
@@ -345,7 +365,7 @@ WebInspector.DOMNode.prototype = {
 
         var className = this.getAttribute("class");
         if (className) {
-            var selector = "." + className.replace(/\s+/, ".");
+            var selector = "." + className.trim().replace(/\s+/g, ".");
             return (justSelector ? selector : lowerCaseName + selector);
         }
 
@@ -400,11 +420,11 @@ WebInspector.DOMNode.prototype = {
      */
     _insertChild: function(prev, payload)
     {
-        var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, payload);
+        var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, this._isInShadowTree, payload);
         if (!prev) {
             if (!this.children) {
                 // First node
-                this.children = [ node ];
+                this.children = this._shadowRoots.concat([ node ]);
             } else
                 this.children.unshift(node);
         } else
@@ -432,10 +452,10 @@ WebInspector.DOMNode.prototype = {
         if (this._contentDocument)
             return;
 
-        this.children = [];
+        this.children = this._shadowRoots.slice();
         for (var i = 0; i < payloads.length; ++i) {
             var payload = payloads[i];
-            var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, payload);
+            var node = new WebInspector.DOMNode(this._domAgent, this.ownerDocument, this._isInShadowTree, payload);
             this.children.push(node);
         }
         this._renumber();
@@ -642,7 +662,7 @@ WebInspector.DOMNode.prototype = {
  */
 WebInspector.DOMDocument = function(domAgent, payload)
 {
-    WebInspector.DOMNode.call(this, domAgent, this, payload);
+    WebInspector.DOMNode.call(this, domAgent, this, false, payload);
     this.documentURL = payload.documentURL || "";
     this.xmlVersion = payload.xmlVersion;
     this._listeners = {};
@@ -660,9 +680,6 @@ WebInspector.DOMAgent = function() {
     this._document = null;
     this._attributeLoadNodeIds = {};
     InspectorBackend.registerDOMDispatcher(new WebInspector.DOMDispatcher(this));
-    if (WebInspector.experimentsSettings.freeFlowDOMEditing.isEnabled())
-        new WebInspector.DOMModelResourceBinding(this);
-
     if (WebInspector.settings.emulateTouchEvents.get())
         this._emulateTouchEventsChanged();
     WebInspector.settings.emulateTouchEvents.addChangeListener(this._emulateTouchEventsChanged, this);
@@ -678,8 +695,8 @@ WebInspector.DOMAgent.Events = {
     ChildNodeCountUpdated: "ChildNodeCountUpdated",
     InspectElementRequested: "InspectElementRequested",
     StyleInvalidated: "StyleInvalidated",
-    UndoRequested: "UndoRequested",
-    UndoCompleted: "UndoCompleted"
+    UndoRedoRequested: "UndoRedoRequested",
+    UndoRedoCompleted: "UndoRedoCompleted"
 }
 
 WebInspector.DOMAgent.prototype = {
@@ -890,7 +907,10 @@ WebInspector.DOMAgent.prototype = {
      */
     _setDetachedRoot: function(payload)
     {
-        new WebInspector.DOMNode(this, null, payload);
+        if (payload.nodeName === "#document")
+            new WebInspector.DOMDocument(this, payload);
+        else
+            new WebInspector.DOMNode(this, null, false, payload);
     },
 
     /**
@@ -944,6 +964,13 @@ WebInspector.DOMAgent.prototype = {
         parent._removeChild(node);
         this._unbind(node);
         this.dispatchEventToListeners(WebInspector.DOMAgent.Events.NodeRemoved, {node:node, parent:parent});
+    },
+
+    /**
+     * @param {DOMAgent.NodeId} rootId
+     */
+    _shadowRootPopped: function(rootId)
+    {
     },
 
     /**
@@ -1117,50 +1144,23 @@ WebInspector.DOMAgent.prototype = {
     {
         function wrapperFunction(error)
         {
+            if (!error)
+                this.markUndoableState();
+
             if (callback)
                 callback.apply(this, arguments);
-            if (error || !WebInspector.experimentsSettings.freeFlowDOMEditing.isEnabled())
-                return;
-            if (this._captureDOMTimer)
-               clearTimeout(this._captureDOMTimer);
-            this._captureDOMTimer = setTimeout(this._captureDOM.bind(this, node), 500);
         }
         return wrapperFunction.bind(this);
-    },
-
-    /**
-     * @param {WebInspector.DOMNode} node
-     */
-    _captureDOM: function(node)
-    {
-        delete this._captureDOMTimer;
-        if (!node.ownerDocument)
-            return;
-
-        function callback(error, text)
-        {
-            if (error) {
-                console.error(error);
-                return;
-            }
-
-            var url = node.ownerDocument.documentURL;
-            if (!url)
-                return;
-
-            var resource = WebInspector.resourceForURL(url);
-            if (!resource)
-                return;
-
-            resource.addRevision(text);
-        }
-        DOMAgent.getOuterHTML(node.ownerDocument.id, callback);
-        
     },
 
     _emulateTouchEventsChanged: function()
     {
         DOMAgent.setTouchEmulationEnabled(WebInspector.settings.emulateTouchEvents.get());
+    },
+
+    markUndoableState: function()
+    {
+        DOMAgent.markUndoableState();
     },
 
     /**
@@ -1170,12 +1170,27 @@ WebInspector.DOMAgent.prototype = {
     {
         function mycallback(error)
         {
-            this.dispatchEventToListeners(WebInspector.DOMAgent.Events.UndoCompleted);
+            this.dispatchEventToListeners(WebInspector.DOMAgent.Events.UndoRedoCompleted);
             callback(error);
         }
 
-        this.dispatchEventToListeners(WebInspector.DOMAgent.Events.UndoRequested);
+        this.dispatchEventToListeners(WebInspector.DOMAgent.Events.UndoRedoRequested);
         DOMAgent.undo(callback);
+    },
+
+    /**
+     * @param {function(?Protocol.Error)=} callback
+     */
+    redo: function(callback)
+    {
+        function mycallback(error)
+        {
+            this.dispatchEventToListeners(WebInspector.DOMAgent.Events.UndoRedoCompleted);
+            callback(error);
+        }
+
+        this.dispatchEventToListeners(WebInspector.DOMAgent.Events.UndoRedoRequested);
+        DOMAgent.redo(callback);
     }
 }
 
@@ -1268,6 +1283,24 @@ WebInspector.DOMDispatcher.prototype = {
     childNodeRemoved: function(parentNodeId, nodeId)
     {
         this._domAgent._childNodeRemoved(parentNodeId, nodeId);
+    },
+
+    /**
+     * @param {DOMAgent.NodeId} hostId
+     * @param {DOMAgent.Node} root
+     */
+    shadowRootPushed: function(hostId, root)
+    {
+        this._domAgent._childNodeInserted(hostId, 0, root);
+    },
+
+    /**
+     * @param {DOMAgent.NodeId} hostId
+     * @param {DOMAgent.NodeId} rootId
+     */
+    shadowRootPopped: function(hostId, rootId)
+    {
+        this._domAgent._childNodeRemoved(hostId, rootId);
     }
 }
 
@@ -1275,39 +1308,3 @@ WebInspector.DOMDispatcher.prototype = {
  * @type {?WebInspector.DOMAgent}
  */
 WebInspector.domAgent = null;
-
-/**
- * @constructor
- * @implements {WebInspector.ResourceDomainModelBinding}
- */
-WebInspector.DOMModelResourceBinding = function(domAgent)
-{
-    this._domAgent = domAgent;
-    WebInspector.Resource.registerDomainModelBinding(WebInspector.Resource.Type.Document, this);
-}
-
-WebInspector.DOMModelResourceBinding.prototype = {
-    setContent: function(resource, content, majorChange, userCallback)
-    {
-        var frameId = resource.frameId;
-        if (!frameId)
-            return;
-
-        PageAgent.setDocumentContent(frameId, content, callbackWrapper);
-
-        function callbackWrapper(error)
-        {
-            if (majorChange)
-                resource.addRevision(content);
-            if (userCallback)
-                userCallback(error);
-        }
-    },
-
-    canSetContent: function()
-    {
-        return true;
-    }
-}
-
-WebInspector.DOMModelResourceBinding.prototype.__proto__ = WebInspector.ResourceDomainModelBinding.prototype;

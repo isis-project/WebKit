@@ -40,6 +40,8 @@ public:
     virtual const char* renderName() const { return "RenderButton"; }
     virtual bool isRenderButton() const { return true; }
 
+    virtual bool canBeSelectionLeaf() const OVERRIDE { return node() && node()->rendererIsEditable(); }
+
     virtual void addChild(RenderObject* newChild, RenderObject *beforeChild = 0);
     virtual void removeChild(RenderObject*);
     virtual void removeLeftoverAnonymousBlock(RenderBlock*) { }
@@ -50,13 +52,12 @@ public:
 
     virtual void updateBeforeAfterContent(PseudoId);
 
+    virtual bool canHaveGeneratedChildren() const OVERRIDE;
     virtual bool hasControlClip() const { return true; }
     virtual LayoutRect controlClipRect(const LayoutPoint&) const;
 
     void setText(const String&);
     String text() const;
-
-    virtual bool canHaveChildren() const;
 
 private:
     virtual void styleWillChange(StyleDifference, const RenderStyle* newStyle);

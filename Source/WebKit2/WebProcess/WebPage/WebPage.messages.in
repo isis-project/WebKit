@@ -40,9 +40,8 @@ messages -> WebPage {
 #if ENABLE(TOUCH_EVENTS)
     TouchEvent(WebKit::WebTouchEvent event)
     TouchEventSyncForTesting(WebKit::WebTouchEvent event) -> (bool handled)
-#if PLATFORM(QT)
-    HighlightPotentialActivation(WebCore::IntPoint point)
-#endif
+#if ENABLE(TOUCH_EVENTS) && PLATFORM(QT)
+    HighlightPotentialActivation(WebCore::IntPoint point, WebCore::IntSize area)
 #endif
 
     ContextMenuHidden()
@@ -57,6 +56,7 @@ messages -> WebPage {
     LoadHTMLString(WTF::String htmlString, WTF::String baseURL)
     LoadAlternateHTMLString(WTF::String htmlString, WTF::String baseURL, WTF::String unreachableURL); 
     LoadPlainTextString(WTF::String string)
+    LoadWebArchiveData(CoreIPC::DataReference webArchiveData)
     LoadURL(WTF::String url, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
     LoadURLRequest(WebCore::ResourceRequest request, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
     LinkClicked(WTF::String url, WebKit::WebMouseEvent event)
@@ -74,6 +74,7 @@ messages -> WebPage {
     RestoreSessionAndNavigateToCurrentItem(WebKit::SessionState state)
 
     DidRemoveBackForwardItem(uint64_t backForwardItemID)
+    SetWillGoToBackForwardItemCallbackEnabled(bool willGoToBackForwardItemEnabled)
 
     DidReceivePolicyDecision(uint64_t frameID, uint64_t listenerID, uint32_t policyAction, uint64_t downloadID)
 
@@ -99,6 +100,9 @@ messages -> WebPage {
 
     SetUserAgent(WTF::String userAgent)
     SetCustomTextEncodingName(WTF::String encodingName)
+
+    SuspendActiveDOMObjectsAndAnimations()
+    ResumeActiveDOMObjectsAndAnimations()
 
 #if USE(TILED_BACKING_STORE)
     SetFixedVisibleContentRect(WebCore::IntRect rect)
@@ -143,7 +147,7 @@ messages -> WebPage {
     PerformDragControllerAction(uint64_t action, WebCore::DragData dragData)
 #endif
 #if !PLATFORM(WIN) && !PLATFORM(QT) && !PLATFORM(GTK)
-    PerformDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, WTF::String dragStorageName, uint32_t flags, WebKit::SandboxExtension::Handle sandboxExtensionHandle)
+    PerformDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, WTF::String dragStorageName, uint32_t flags, WebKit::SandboxExtension::Handle sandboxExtensionHandle, WebKit::SandboxExtension::HandleArray sandboxExtensionsForUpload)
 #endif
     DragEnded(WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t operation)
 
@@ -175,9 +179,11 @@ messages -> WebPage {
     SetSmartInsertDeleteEnabled(bool isSmartInsertDeleteEnabled);
 #endif
 
+#if ENABLE(GEOLOCATION)
     # Geolocation
     DidReceiveGeolocationPermissionDecision(uint64_t geolocationID, bool allowed)
-    
+#endif
+
     # Notification
     DidReceiveNotificationPermissionDecision(uint64_t notificationID, bool allowed)
 

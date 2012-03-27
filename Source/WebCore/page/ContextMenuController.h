@@ -65,6 +65,10 @@ namespace WebCore {
         void setHitTestResult(const HitTestResult& result) { m_hitTestResult = result; }
         const HitTestResult& hitTestResult() { return m_hitTestResult; }
 
+#if USE(ACCESSIBILITY_CONTEXT_MENUS)
+        void showContextMenuAt(Frame*, const IntPoint& clickPoint);
+#endif
+
     private:
         ContextMenuController(Page*, ContextMenuClient*);
 
@@ -81,6 +85,9 @@ namespace WebCore {
         void createAndAppendTextDirectionSubMenu(ContextMenuItem&);
         void createAndAppendSubstitutionsSubMenu(ContextMenuItem&);
         void createAndAppendTransformationsSubMenu(ContextMenuItem&);
+#if PLATFORM(GTK)
+        void createAndAppendUnicodeSubMenu(ContextMenuItem&);
+#endif
 
         Page* m_page;
         ContextMenuClient* m_client;

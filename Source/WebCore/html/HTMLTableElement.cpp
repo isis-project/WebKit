@@ -30,6 +30,7 @@
 #include "CSSPropertyNames.h"
 #include "CSSStyleSheet.h"
 #include "CSSValueKeywords.h"
+#include "CSSValuePool.h"
 #include "ExceptionCode.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
@@ -186,13 +187,15 @@ PassRefPtr<HTMLElement> HTMLTableElement::insertRow(int index, ExceptionCode& ec
         return 0;
     }
 
-    HTMLTableRowElement* lastRow = 0;
-    HTMLTableRowElement* row = 0;
+    RefPtr<Node> protectFromMutationEvents(this);
+
+    RefPtr<HTMLTableRowElement> lastRow = 0;
+    RefPtr<HTMLTableRowElement> row = 0;
     if (index == -1)
         lastRow = HTMLTableRowsCollection::lastRow(this);
     else {
         for (int i = 0; i <= index; ++i) {
-            row = HTMLTableRowsCollection::rowAfter(this, lastRow);
+            row = HTMLTableRowsCollection::rowAfter(this, lastRow.get());
             if (!row) {
                 if (i != index) {
                     ec = INDEX_SIZE_ERR;
@@ -204,7 +207,7 @@ PassRefPtr<HTMLElement> HTMLTableElement::insertRow(int index, ExceptionCode& ec
         }
     }
 
-    ContainerNode* parent;
+    RefPtr<ContainerNode> parent;
     if (lastRow)
         parent = row ? row->parentNode() : lastRow->parentNode();
     else {
@@ -219,7 +222,7 @@ PassRefPtr<HTMLElement> HTMLTableElement::insertRow(int index, ExceptionCode& ec
     }
 
     RefPtr<HTMLTableRowElement> newRow = HTMLTableRowElement::create(document());
-    parent->insertBefore(newRow, row, ec);
+    parent->insertBefore(newRow, row.get(), ec);
     return newRow.release();
 }
 
@@ -300,8 +303,8 @@ void HTMLTableElement::collectStyleForAttribute(Attribute* attr, StylePropertySe
     else if (attr->name() == heightAttr)
         addHTMLLengthToStyle(style, CSSPropertyHeight, attr->value());
     else if (attr->name() == borderAttr) {
-        int border = attr->isEmpty() ? 1 : attr->value().toInt();
-        addHTMLLengthToStyle(style, CSSPropertyBorderWidth, String::number(border)); // FIXME: Pass as integer.
+        int borderWidth = attr->isEmpty() ? 1 : attr->value().toInt();
+        addPropertyToAttributeStyle(style, CSSPropertyBorderWidth, borderWidth, CSSPrimitiveValue::CSS_PX);
     } else if (attr->name() == bordercolorAttr) {
         if (!attr->isEmpty())
             addHTMLColorToStyle(style, CSSPropertyBorderColor, attr->value());
@@ -313,7 +316,7 @@ void HTMLTableElement::collectStyleForAttribute(Attribute* attr, StylePropertySe
             style->setProperty(CSSProperty(CSSPropertyBackgroundImage, CSSImageValue::create(document()->completeURL(url).string())));
     } else if (attr->name() == valignAttr) {
         if (!attr->isEmpty())
-            style->setProperty(CSSPropertyVerticalAlign, attr->value());
+            addPropertyToAttributeStyle(style, CSSPropertyVerticalAlign, attr->value());
     } else if (attr->name() == cellspacingAttr) {
         if (!attr->isEmpty())
             addHTMLLengthToStyle(style, CSSPropertyBorderSpacing, attr->value());
@@ -326,39 +329,36 @@ void HTMLTableElement::collectStyleForAttribute(Attribute* attr, StylePropertySe
     } else if (attr->name() == alignAttr) {
         if (!attr->value().isEmpty()) {
             if (equalIgnoringCase(attr->value(), "center")) {
-                style->setProperty(CSSPropertyWebkitMarginStart, CSSValueAuto);
-                style->setProperty(CSSPropertyWebkitMarginEnd, CSSValueAuto);
+                addPropertyToAttributeStyle(style, CSSPropertyWebkitMarginStart, CSSValueAuto);
+                addPropertyToAttributeStyle(style, CSSPropertyWebkitMarginEnd, CSSValueAuto);
             } else
-                style->setProperty(CSSPropertyFloat, attr->value());
+                addPropertyToAttributeStyle(style, CSSPropertyFloat, attr->value());
         }
     } else if (attr->name() == rulesAttr) {
         // The presence of a valid rules attribute causes border collapsing to be enabled.
         if (m_rulesAttr != UnsetRules)
-            style->setProperty(CSSPropertyBorderCollapse, CSSValueCollapse);
+            addPropertyToAttributeStyle(style, CSSPropertyBorderCollapse, CSSValueCollapse);
     } else if (attr->name() == frameAttr) {
         bool borderTop;
         bool borderRight;
         bool borderBottom;
         bool borderLeft;
         if (getBordersFromFrameAttributeValue(attr->value(), borderTop, borderRight, borderBottom, borderLeft)) {
-            style->setProperty(CSSPropertyBorderTopWidth, CSSValueThin);
-            style->setProperty(CSSPropertyBorderBottomWidth, CSSValueThin);
-            style->setProperty(CSSPropertyBorderLeftWidth, CSSValueThin);
-            style->setProperty(CSSPropertyBorderRightWidth, CSSValueThin);
-            style->setProperty(CSSPropertyBorderTopStyle, borderTop ? CSSValueSolid : CSSValueHidden);
-            style->setProperty(CSSPropertyBorderBottomStyle, borderBottom ? CSSValueSolid : CSSValueHidden);
-            style->setProperty(CSSPropertyBorderLeftStyle, borderLeft ? CSSValueSolid : CSSValueHidden);
-            style->setProperty(CSSPropertyBorderRightStyle, borderRight ? CSSValueSolid : CSSValueHidden);
+            addPropertyToAttributeStyle(style, CSSPropertyBorderWidth, CSSValueThin);
+            addPropertyToAttributeStyle(style, CSSPropertyBorderTopStyle, borderTop ? CSSValueSolid : CSSValueHidden);
+            addPropertyToAttributeStyle(style, CSSPropertyBorderBottomStyle, borderBottom ? CSSValueSolid : CSSValueHidden);
+            addPropertyToAttributeStyle(style, CSSPropertyBorderLeftStyle, borderLeft ? CSSValueSolid : CSSValueHidden);
+            addPropertyToAttributeStyle(style, CSSPropertyBorderRightStyle, borderRight ? CSSValueSolid : CSSValueHidden);
         }
     } else
         HTMLElement::collectStyleForAttribute(attr, style);
 }
 
-bool HTMLTableElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLTableElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == widthAttr || attr->name() == heightAttr || attr->name() == bgcolorAttr || attr->name() == backgroundAttr || attr->name() == valignAttr || attr->name() == vspaceAttr || attr->name() == hspaceAttr || attr->name() == alignAttr || attr->name() == cellspacingAttr || attr->name() == borderAttr || attr->name() == bordercolorAttr || attr->name() == frameAttr || attr->name() == rulesAttr)
+    if (name == widthAttr || name == heightAttr || name == bgcolorAttr || name == backgroundAttr || name == valignAttr || name == vspaceAttr || name == hspaceAttr || name == alignAttr || name == cellspacingAttr || name == borderAttr || name == bordercolorAttr || name == frameAttr || name == rulesAttr)
         return true;
-    return HTMLElement::isPresentationAttribute(attr);
+    return HTMLElement::isPresentationAttribute(name);
 }
 
 void HTMLTableElement::parseAttribute(Attribute* attr)
@@ -464,49 +464,40 @@ PassRefPtr<StylePropertySet> HTMLTableElement::createSharedCellStyle()
 {
     RefPtr<StylePropertySet> style = StylePropertySet::create();
 
+    CSSValuePool* cssValuePool = document()->cssValuePool().get();
+
     switch (cellBorders()) {
     case SolidBordersColsOnly:
         style->setProperty(CSSPropertyBorderLeftWidth, CSSValueThin);
         style->setProperty(CSSPropertyBorderRightWidth, CSSValueThin);
         style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
         style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderColor, "inherit");
+        style->setProperty(CSSPropertyBorderColor, cssValuePool->createInheritedValue());
         break;
     case SolidBordersRowsOnly:
         style->setProperty(CSSPropertyBorderTopWidth, CSSValueThin);
         style->setProperty(CSSPropertyBorderBottomWidth, CSSValueThin);
         style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
         style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderColor, "inherit");
+        style->setProperty(CSSPropertyBorderColor, cssValuePool->createInheritedValue());
         break;
     case SolidBorders:
-        style->setProperty(CSSPropertyBorderWidth, "1px");
-        style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderColor, "inherit");
+        style->setProperty(CSSPropertyBorderWidth, cssValuePool->createValue(1, CSSPrimitiveValue::CSS_PX));
+        style->setProperty(CSSPropertyBorderStyle, cssValuePool->createIdentifierValue(CSSValueSolid));
+        style->setProperty(CSSPropertyBorderColor, cssValuePool->createInheritedValue());
         break;
     case InsetBorders:
-        style->setProperty(CSSPropertyBorderWidth, "1px");
-        style->setProperty(CSSPropertyBorderTopStyle, CSSValueInset);
-        style->setProperty(CSSPropertyBorderBottomStyle, CSSValueInset);
-        style->setProperty(CSSPropertyBorderLeftStyle, CSSValueInset);
-        style->setProperty(CSSPropertyBorderRightStyle, CSSValueInset);
-        style->setProperty(CSSPropertyBorderColor, "inherit");
+        style->setProperty(CSSPropertyBorderWidth, cssValuePool->createValue(1, CSSPrimitiveValue::CSS_PX));
+        style->setProperty(CSSPropertyBorderStyle, cssValuePool->createIdentifierValue(CSSValueInset));
+        style->setProperty(CSSPropertyBorderColor, cssValuePool->createInheritedValue());
         break;
     case NoBorders:
-        style->setProperty(CSSPropertyBorderWidth, "0");
+        style->setProperty(CSSPropertyBorderWidth, cssValuePool->createValue(0, CSSPrimitiveValue::CSS_PX));
         break;
     }
 
-    if (m_padding) {
-        String value = String::number(m_padding) + "px";
-        style->setProperty(CSSPropertyPaddingTop, value);
-        style->setProperty(CSSPropertyPaddingBottom, value);
-        style->setProperty(CSSPropertyPaddingLeft, value);
-        style->setProperty(CSSPropertyPaddingRight, value);
-    }
+    if (m_padding)
+        style->setProperty(CSSPropertyPadding, cssValuePool->createValue(m_padding, CSSPrimitiveValue::CSS_PX));
 
     return style.release();
 }
@@ -546,12 +537,6 @@ StylePropertySet* HTMLTableElement::additionalGroupStyle(bool rows)
     }
     static StylePropertySet* columnBorderStyle = leakGroupBorderStyle(false);
     return columnBorderStyle;
-}
-
-void HTMLTableElement::attach()
-{
-    ASSERT(!attached());
-    HTMLElement::attach();
 }
 
 bool HTMLTableElement::isURLAttribute(Attribute *attr) const

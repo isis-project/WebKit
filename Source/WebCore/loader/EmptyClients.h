@@ -151,9 +151,9 @@ public:
     virtual bool hasOpenedPopup() const OVERRIDE { return false; }
     virtual PassRefPtr<PopupMenu> createPopupMenu(PopupMenuClient*) const { return adoptRef(new EmptyPopupMenu()); }
     virtual PassRefPtr<SearchPopupMenu> createSearchPopupMenu(PopupMenuClient*) const { return adoptRef(new EmptySearchPopupMenu()); }
-
-#if ENABLE(CONTEXT_MENUS)
-    virtual void showContextMenu() { }
+#if ENABLE(PAGE_POPUP)
+    virtual PagePopup* openPagePopup(PagePopupClient*, const IntRect&) OVERRIDE { return 0; }
+    virtual void closePagePopup(PagePopup*) OVERRIDE { }
 #endif
 
 #if ENABLE(REGISTER_PROTOCOL_HANDLER)
@@ -217,9 +217,6 @@ public:
 
     virtual void scrollRectIntoView(const IntRect&) const { }
 
-    virtual void requestGeolocationPermissionForFrame(Frame*, Geolocation*) {}
-    virtual void cancelGeolocationPermissionRequestForFrame(Frame*, Geolocation*) {}
-
 #if USE(ACCELERATED_COMPOSITING)
     virtual void attachRootGraphicsLayer(Frame*, GraphicsLayer*) {}
     virtual void setNeedsOneShotDrawingSynchronization() {}
@@ -233,7 +230,8 @@ public:
     virtual void needTouchEvents(bool) { }
 #endif
     
-    virtual void numWheelEventHandlersChanged(unsigned) { }
+    virtual void numWheelEventHandlersChanged(unsigned) OVERRIDE { }
+    virtual void numTouchEventHandlersChanged(unsigned) OVERRIDE { }
     
     virtual bool shouldRubberBandInDirection(WebCore::ScrollDirection) const { return false; }
 };
@@ -376,8 +374,6 @@ public:
     virtual void didRunInsecureContent(SecurityOrigin*, const KURL&) { }
     virtual void didDetectXSS(const KURL&, bool) { }
     virtual PassRefPtr<Frame> createFrame(const KURL&, const String&, HTMLFrameOwnerElement*, const String&, bool, int, int) { return 0; }
-    virtual void didTransferChildFrameToNewDocument(Page*) { }
-    virtual void transferLoadingResourceFromPage(ResourceLoader*, const ResourceRequest&, Page*) { }
     virtual PassRefPtr<Widget> createPlugin(const IntSize&, HTMLPlugInElement*, const KURL&, const Vector<String>&, const Vector<String>&, const String&, bool) { return 0; }
     virtual PassRefPtr<Widget> createJavaAppletWidget(const IntSize&, HTMLAppletElement*, const KURL&, const Vector<String>&, const Vector<String>&) { return 0; }
 #if ENABLE(PLUGIN_PROXY_FOR_VIDEO)
@@ -397,7 +393,7 @@ public:
     virtual void registerForIconNotification(bool) { }
 
 #if USE(V8)
-    virtual void didCreateScriptContext(v8::Handle<v8::Context>, int worldId) { }
+    virtual void didCreateScriptContext(v8::Handle<v8::Context>, int extensionGroup, int worldId) { }
     virtual void willReleaseScriptContext(v8::Handle<v8::Context>, int worldId) { }
     virtual bool allowScriptExtension(const String& extensionName, int extensionGroup, int worldId) { return false; }
 #endif
@@ -431,7 +427,7 @@ public:
 #endif
 
     virtual void getGuessesForWord(const String&, const String&, Vector<String>&) { }
-    virtual void requestCheckingOfString(SpellChecker*, int, TextCheckingTypeMask, const String&) { }
+    virtual void requestCheckingOfString(SpellChecker*, const TextCheckingRequest&) { }
 };
 
 class EmptyEditorClient : public EditorClient {
@@ -460,7 +456,7 @@ public:
     virtual bool shouldInsertText(const String&, Range*, EditorInsertAction) { return false; }
     virtual bool shouldChangeSelectedRange(Range*, Range*, EAffinity, bool) { return false; }
 
-    virtual bool shouldApplyStyle(CSSStyleDeclaration*, Range*) { return false; }
+    virtual bool shouldApplyStyle(StylePropertySet*, Range*) { return false; }
     virtual bool shouldMoveRangeAfterDelete(Range*, Range*) { return false; }
 
     virtual void didBeginEditing() { }
@@ -497,7 +493,7 @@ public:
 
     virtual NSString* userVisibleString(NSURL*) { return 0; }
     virtual DocumentFragment* documentFragmentFromAttributedString(NSAttributedString*, Vector<RefPtr<ArchiveResource> >&) { return 0; };
-    virtual void setInsertionPasteboard(NSPasteboard*) { };
+    virtual void setInsertionPasteboard(const String&) { };
     virtual NSURL* canonicalizeURL(NSURL*) { return 0; }
     virtual NSURL* canonicalizeURLString(NSString*) { return 0; }
 #endif
@@ -518,6 +514,9 @@ public:
     virtual void toggleAutomaticTextReplacement() { }
     virtual bool isAutomaticSpellingCorrectionEnabled() { return false; }
     virtual void toggleAutomaticSpellingCorrection() { }
+#endif
+#if PLATFORM(GTK)
+    virtual bool shouldShowUnicodeMenu() { return false; }
 #endif
     TextCheckerClient* textChecker() { return &m_textCheckerClient; }
 
@@ -564,6 +563,10 @@ public:
 
 #if PLATFORM(MAC)
     virtual void searchWithSpotlight() { }
+#endif
+
+#if USE(ACCESSIBILITY_CONTEXT_MENUS)
+    virtual void showContextMenu() { }
 #endif
 };
 #endif // ENABLE(CONTEXT_MENUS)

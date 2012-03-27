@@ -1,13 +1,11 @@
-
 Test structured clone permutations in IndexedDB. File/FileList tests require DumpRenderTree.
 
 On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE".
 
 
-indexedDB = window.indexedDB || window.webkitIndexedDB
-PASS indexedDB != null is true
-IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction
-PASS IDBTransaction != null is true
+indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;
+PASS Boolean(indexedDB && IDBCursor && IDBDatabase && IDBDatabaseError && IDBDatabaseException && IDBFactory && IDBIndex && IDBKeyRange && IDBObjectStore && IDBRequest && IDBTransaction) is true
+
 
 Prepare Database
 indexedDB.deleteDatabase('structured-clone')
@@ -599,7 +597,7 @@ PASS Exception was thrown.
 PASS code is DOMException.DATA_CLONE_ERR
 
 Other host object types:
-Expecting exception from store.put(window, 'key')
+Expecting exception from store.put(self, 'key')
 PASS Exception was thrown.
 PASS code is DOMException.DATA_CLONE_ERR
 Expecting exception from store.put(document, 'key')

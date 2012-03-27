@@ -62,8 +62,6 @@ private:
 
     virtual void updateFromElement();
 
-    virtual bool canHaveChildren() const { return false; }
-
     virtual bool hasControlClip() const { return true; }
     virtual void paintObject(PaintInfo&, const LayoutPoint&);
     virtual LayoutRect controlClipRect(const LayoutPoint&) const;
@@ -79,7 +77,7 @@ private:
 
     virtual void layout();
 
-    virtual void addFocusRingRects(Vector<LayoutRect>&, const LayoutPoint&);
+    virtual void addFocusRingRects(Vector<IntRect>&, const LayoutPoint&);
 
     virtual bool canBeProgramaticallyScrolled() const { return true; }
     virtual void autoscroll();
@@ -99,9 +97,9 @@ private:
     virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
 
     // ScrollableArea interface.
-    virtual LayoutUnit scrollSize(ScrollbarOrientation) const;
-    virtual LayoutUnit scrollPosition(Scrollbar*) const;
-    virtual void setScrollOffset(const LayoutPoint&);
+    virtual int scrollSize(ScrollbarOrientation) const;
+    virtual int scrollPosition(Scrollbar*) const;
+    virtual void setScrollOffset(const IntPoint&);
     virtual void invalidateScrollbarRect(Scrollbar*, const IntRect&);
     virtual bool isActive() const;
     virtual bool isScrollCornerVisible() const { return false; } // We don't support resize on list boxes yet. If we did these would have to change.

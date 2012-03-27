@@ -29,10 +29,6 @@
 #include <wtf/HashMap.h>
 #include <wtf/Vector.h>
 
-#if USE(OPENVG)
-#include <egl.h>
-#endif
-
 #include <pthread.h>
 
 namespace WebCore {
@@ -109,6 +105,11 @@ public:
     // required because the surface pool is not large enough to meet
     // the minimum number of tiles required to scroll.
     bool shouldDirectRenderingToWindow() const;
+
+    // Returns whether we're using the OpenGL code path for compositing the
+    // backing store tiles. This can be due to the main window using
+    // BlackBerry::Platform::Graphics::Window::GLES2Usage.
+    bool isOpenGLCompositing() const;
 
     bool isSuspended() const { return m_suspendBackingStoreUpdates; }
 
@@ -200,6 +201,13 @@ public:
     void blendCompositingSurface(const Platform::IntRect& dstRect);
     void clearCompositingSurface();
     bool drawSubLayers();
+    bool drawLayersOnCommitIfNeeded();
+    void drawAndBlendLayersForDirectRendering(const Platform::IntRect& dirtyRect);
+    // WebPage will call this when drawing layers to tell us we don't need to
+    void willDrawLayersOnCommit() { m_needsDrawLayersOnCommit = false; }
+    // WebPageCompositor uses this to cut down on excessive message sending.
+    bool isDirectRenderingAnimationMessageScheduled() { return m_isDirectRenderingAnimationMessageScheduled; }
+    void setDirectRenderingAnimationMessageScheduled() { m_isDirectRenderingAnimationMessageScheduled = true; }
 #endif
 
     void blitHorizontalScrollbar(const Platform::IntPoint&);
@@ -316,6 +324,10 @@ public:
     static WebPage* currentBackingStoreOwner() { return BackingStorePrivate::s_currentBackingStoreOwner; }
     bool isActive() const;
 
+    // Surface abstraction, maybe BlackBerry::Platform::Graphics::Buffer could be made public instead.
+    BlackBerry::Platform::IntSize surfaceSize() const;
+    BlackBerry::Platform::Graphics::Buffer* buffer() const;
+
     static WebPage* s_currentBackingStoreOwner;
 
     bool m_suspendScreenUpdates;
@@ -332,9 +344,6 @@ public:
     bool m_defersBlit;
     bool m_hasBlitJobs;
 
-#if USE(OPENVG)
-    EGLDisplay m_eglDisplay;
-#endif
     mutable unsigned m_frontState;
     mutable unsigned m_backState;
 
@@ -354,6 +363,11 @@ public:
     pthread_mutex_t m_blitGenerationLock;
     pthread_cond_t m_blitGenerationCond;
     struct timespec m_currentBlitEnd;
+
+#if USE(ACCELERATED_COMPOSITING)
+    mutable bool m_needsDrawLayersOnCommit; // Not thread safe, WebKit thread only
+    bool m_isDirectRenderingAnimationMessageScheduled;
+#endif
 };
 } // namespace WebKit
 } // namespace BlackBerry

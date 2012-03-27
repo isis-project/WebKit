@@ -100,6 +100,7 @@ public:
     virtual bool isFileUpload() const;
     virtual bool isHiddenType() const;
     virtual bool isImageButton() const;
+    virtual bool supportLabels() const;
     virtual bool isNumberField() const;
     virtual bool isPasswordField() const;
     virtual bool isRadioButton() const;
@@ -115,7 +116,7 @@ public:
     // Form value functions
 
     virtual bool saveFormControlState(String&) const;
-    virtual void restoreFormControlState(const String&) const;
+    virtual void restoreFormControlState(const String&);
     virtual bool isFormDataAppendable() const;
     virtual bool appendFormData(FormDataList&, bool multipart) const;
 
@@ -227,7 +228,6 @@ public:
     virtual bool canSetValue(const String&);
     virtual bool storesValueSeparateFromAttribute();
     virtual void setValue(const String&, bool valueChanged, TextFieldEventBehavior);
-    virtual void dispatchChangeEventInResponseToSetValue();
     virtual bool shouldResetOnDocumentActivation();
     virtual bool shouldRespectListAttribute();
     virtual bool shouldRespectSpeechAttribute();

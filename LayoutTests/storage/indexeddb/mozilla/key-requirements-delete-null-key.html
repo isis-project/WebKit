@@ -11,20 +11,15 @@
 <script src="../resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's behavior deleting entry with no key");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
+    removeVendorPrefixes();
 
-    name = window.location.pathname;
+    name = self.location.pathname;
     description = "My Test Database";
     request = evalAndLog("indexedDB.open(name, description)");
     request.onsuccess = openSuccess;
@@ -44,14 +39,15 @@ function cleanDatabaseAndCreateObjectStore()
 {
     deleteAllObjectStores(db);
     objectStore = evalAndLog("objectStore = db.createObjectStore('bar');");
-    evalAndExpectException("objectStore.delete(null);", "webkitIDBDatabaseException.DATA_ERR");
-    done();
+    evalAndExpectException("objectStore.delete(null);", "IDBDatabaseException.DATA_ERR");
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>
 

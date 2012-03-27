@@ -116,7 +116,7 @@ static NSString* descriptionOfValue(id valueObject, id focusedAccessibilityObjec
         return NULL;
 
     if ([valueObject isKindOfClass:[NSArray class]])
-        return [NSString stringWithFormat:@"<array of size %d>", [(NSArray*)valueObject count]];
+        return [NSString stringWithFormat:@"<array of size %lu>", static_cast<unsigned long>([(NSArray*)valueObject count])];
 
     if ([valueObject isKindOfClass:[NSNumber class]])
         return [(NSNumber*)valueObject stringValue];
@@ -342,6 +342,17 @@ AccessibilityUIElement AccessibilityUIElement::selectedRowAtIndex(unsigned index
 {
     BEGIN_AX_OBJC_EXCEPTIONS
     NSArray* rows = [m_element accessibilityAttributeValue:NSAccessibilitySelectedRowsAttribute];
+    if (index < [rows count])
+        return [rows objectAtIndex:index];
+    END_AX_OBJC_EXCEPTIONS
+    
+    return 0;
+}
+
+AccessibilityUIElement AccessibilityUIElement::rowAtIndex(unsigned index)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSArray* rows = [m_element accessibilityAttributeValue:NSAccessibilityRowsAttribute];
     if (index < [rows count])
         return [rows objectAtIndex:index];
     END_AX_OBJC_EXCEPTIONS
@@ -1021,12 +1032,12 @@ int AccessibilityUIElement::indexInTable()
 
 JSStringRef AccessibilityUIElement::rowIndexRange()
 {
-    NSRange range = NSMakeRange(0,0);
+    NSRange range = NSMakeRange(0, 0);
     BEGIN_AX_OBJC_EXCEPTIONS
     NSValue* indexRange = [m_element accessibilityAttributeValue:@"AXRowIndexRange"];
     if (indexRange)
         range = [indexRange rangeValue];
-    NSMutableString* rangeDescription = [NSMutableString stringWithFormat:@"{%d, %d}",range.location, range.length];
+    NSMutableString* rangeDescription = [NSMutableString stringWithFormat:@"{%lu, %lu}", static_cast<unsigned long>(range.location), static_cast<unsigned long>(range.length)];
     return [rangeDescription createJSStringRef];
     END_AX_OBJC_EXCEPTIONS
     
@@ -1035,12 +1046,12 @@ JSStringRef AccessibilityUIElement::rowIndexRange()
 
 JSStringRef AccessibilityUIElement::columnIndexRange()
 {
-    NSRange range = NSMakeRange(0,0);
+    NSRange range = NSMakeRange(0, 0);
     BEGIN_AX_OBJC_EXCEPTIONS
     NSNumber* indexRange = [m_element accessibilityAttributeValue:@"AXColumnIndexRange"];
     if (indexRange)
         range = [indexRange rangeValue];
-    NSMutableString* rangeDescription = [NSMutableString stringWithFormat:@"{%d, %d}",range.location, range.length];
+    NSMutableString* rangeDescription = [NSMutableString stringWithFormat:@"{%lu, %lu}",static_cast<unsigned long>(range.location), static_cast<unsigned long>(range.length)];
     return [rangeDescription createJSStringRef];    
     END_AX_OBJC_EXCEPTIONS
     
@@ -1082,7 +1093,7 @@ JSStringRef AccessibilityUIElement::selectedTextRange()
     NSValue *indexRange = [m_element accessibilityAttributeValue:NSAccessibilitySelectedTextRangeAttribute];
     if (indexRange)
         range = [indexRange rangeValue];
-    NSMutableString *rangeDescription = [NSMutableString stringWithFormat:@"{%d, %d}",range.location, range.length];
+    NSMutableString *rangeDescription = [NSMutableString stringWithFormat:@"{%lu, %lu}", static_cast<unsigned long>(range.location), static_cast<unsigned long>(range.length)];
     return [rangeDescription createJSStringRef];    
     END_AX_OBJC_EXCEPTIONS
     
@@ -1307,6 +1318,36 @@ bool AccessibilityUIElement::attributedStringForTextMarkerRangeContainsAttribute
         return true;    
     END_AX_OBJC_EXCEPTIONS
     
+    return false;
+}
+
+int AccessibilityUIElement::indexForTextMarker(AccessibilityTextMarker* marker)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSNumber* indexNumber = [m_element accessibilityAttributeValue:@"AXIndexForTextMarker" forParameter:(id)marker->platformTextMarker()];
+    return [indexNumber intValue];
+    END_AX_OBJC_EXCEPTIONS
+    
+    return -1;
+}
+
+AccessibilityTextMarker AccessibilityUIElement::textMarkerForIndex(int textIndex)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    id textMarker = [m_element accessibilityAttributeValue:@"AXTextMarkerForIndex" forParameter:[NSNumber numberWithInteger:textIndex]];
+    return AccessibilityTextMarker(textMarker);
+    END_AX_OBJC_EXCEPTIONS
+    
+    return 0;
+}
+
+bool AccessibilityUIElement::isTextMarkerValid(AccessibilityTextMarker* textMarker)
+{
+    BEGIN_AX_OBJC_EXCEPTIONS
+    NSNumber* validNumber = [m_element accessibilityAttributeValue:@"AXTextMarkerIsValid" forParameter:(id)textMarker->platformTextMarker()];
+    return [validNumber boolValue];
+    END_AX_OBJC_EXCEPTIONS
+
     return false;
 }
 

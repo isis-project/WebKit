@@ -82,6 +82,7 @@ public:
         SiteSpecificQuirksEnabled,
         JavascriptCanCloseWindows,
         WebGLEnabled,
+        CSSRegionsEnabled,
         HyperlinkAuditingEnabled
     };
     enum WebGraphic {

@@ -4,18 +4,13 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test the basics of IndexedDB's IDBFactory.");
-if (window.layoutTestController) 
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
+    removeVendorPrefixes();
 
     shouldBeTrue("typeof indexedDB.open === 'function'");
     shouldBeTrue("typeof indexedDB.cmp === 'function'");
@@ -84,12 +79,13 @@ function getDatabaseNamesSuccess3()
 
 function deleteDatabaseSuccess2()
 {
-    done();
+    finishJSTest();
 }
 
 test();
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

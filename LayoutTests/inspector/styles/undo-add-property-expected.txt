@@ -1,12 +1,13 @@
 Tests that adding a property is undone properly.
 
-Initial value
+=== Last property ===
+(Initial value)
 [expanded] 
 element.style  { ()
 
 ======== Matched CSS Rules ========
 [expanded] 
-#container  { (undo-add-property.html:7)
+.container  { (undo-add-property.html:7)
 font-weight: bold;
 
 [expanded] 
@@ -14,29 +15,174 @@ div  { (user agent stylesheet)
 display: block;
 
 
-After adding property
+(After adding property)
 [expanded] 
 element.style  { ()
 
 ======== Matched CSS Rules ========
 [expanded] 
-#container  { (undo-add-property.html:7)
+.container  { (undo-add-property.html:7)
 font-weight: bold;
-margin-left: 1px;
+margin-left: 2px;
 
 [expanded] 
 div  { (user agent stylesheet)
 display: block;
 
 
-After undo
+(After undo)
 [expanded] 
 element.style  { ()
 
 ======== Matched CSS Rules ========
 [expanded] 
-#container  { (undo-add-property.html:7)
+.container  { (undo-add-property.html:7)
 font-weight: bold;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+(After redo)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+font-weight: bold;
+margin-left: 2px;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+=== First property ===
+(Initial value)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+font-weight: bold;
+margin-left: 2px;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+(After adding property)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+margin-top: 0px;
+font-weight: bold;
+margin-left: 2px;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+(After undo)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+font-weight: bold;
+margin-left: 2px;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+(After redo)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+margin-top: 0px;
+font-weight: bold;
+margin-left: 2px;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+=== Middle property ===
+(Initial value)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+margin-top: 0px;
+font-weight: bold;
+margin-left: 2px;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+(After adding property)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+margin-top: 0px;
+margin-right: 1px;
+font-weight: bold;
+margin-left: 2px;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+(After undo)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+margin-top: 0px;
+font-weight: bold;
+margin-left: 2px;
+
+[expanded] 
+div  { (user agent stylesheet)
+display: block;
+
+
+(After redo)
+[expanded] 
+element.style  { ()
+
+======== Matched CSS Rules ========
+[expanded] 
+.container  { (undo-add-property.html:7)
+margin-top: 0px;
+margin-right: 1px;
+font-weight: bold;
+margin-left: 2px;
 
 [expanded] 
 div  { (user agent stylesheet)

@@ -28,16 +28,29 @@
 #include "ResourceHandleInternal.h"
 
 #include "BlobRegistry.h"
-#include "DNS.h"
 #include "Logging.h"
 #include "ResourceHandleClient.h"
 #include "Timer.h"
 #include <algorithm>
+#include <wtf/MainThread.h>
 #include <wtf/text/CString.h>
 
 namespace WebCore {
 
 static bool shouldForceContentSniffing;
+
+typedef HashMap<AtomicString, ResourceHandle::BuiltinConstructor> BuiltinResourceHandleConstructorMap;
+static BuiltinResourceHandleConstructorMap& builtinResourceHandleConstructorMap()
+{
+    ASSERT(isMainThread());
+    DEFINE_STATIC_LOCAL(BuiltinResourceHandleConstructorMap, map, ());
+    return map;
+}
+
+void ResourceHandle::registerBuiltinConstructor(const AtomicString& protocol, ResourceHandle::BuiltinConstructor constructor)
+{
+    builtinResourceHandleConstructorMap().add(protocol, constructor);
+}
 
 ResourceHandle::ResourceHandle(const ResourceRequest& request, ResourceHandleClient* client, bool defersLoading, bool shouldContentSniff)
     : d(adoptPtr(new ResourceHandleInternal(this, request, client, defersLoading, shouldContentSniff && shouldContentSniffURL(request.url()))))
@@ -55,13 +68,10 @@ ResourceHandle::ResourceHandle(const ResourceRequest& request, ResourceHandleCli
 
 PassRefPtr<ResourceHandle> ResourceHandle::create(NetworkingContext* context, const ResourceRequest& request, ResourceHandleClient* client, bool defersLoading, bool shouldContentSniff)
 {
-#if ENABLE(BLOB)
-    if (request.url().protocolIs("blob")) {
-        PassRefPtr<ResourceHandle> handle = blobRegistry().createResourceHandle(request, client);
-        if (handle)
-            return handle;
-    }
-#endif
+    BuiltinResourceHandleConstructorMap::iterator protocolMapItem = builtinResourceHandleConstructorMap().find(request.url().protocol());
+
+    if (protocolMapItem != builtinResourceHandleConstructorMap().end())
+        return protocolMapItem->second(request, client);
 
     RefPtr<ResourceHandle> newHandle(adoptRef(new ResourceHandle(request, client, defersLoading, shouldContentSniff)));
 
@@ -173,13 +183,6 @@ void ResourceHandle::setDefersLoading(bool defers)
 
     platformSetDefersLoading(defers);
 }
-
-#if !USE(SOUP)
-void ResourceHandle::prepareForURL(const KURL& url)
-{
-    return prefetchDNS(url.host());
-}
-#endif
 
 void ResourceHandle::cacheMetadata(const ResourceResponse&, const Vector<char>&)
 {

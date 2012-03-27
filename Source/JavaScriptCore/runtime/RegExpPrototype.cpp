@@ -84,7 +84,7 @@ EncodedJSValue JSC_HOST_CALL regExpProtoFuncTest(ExecState* exec)
     JSValue thisValue = exec->hostThisValue();
     if (!thisValue.inherits(&RegExpObject::s_info))
         return throwVMTypeError(exec);
-    return JSValue::encode(asRegExpObject(thisValue)->test(exec));
+    return JSValue::encode(jsBoolean(asRegExpObject(thisValue)->test(exec, exec->argument(0).toString(exec))));
 }
 
 EncodedJSValue JSC_HOST_CALL regExpProtoFuncExec(ExecState* exec)
@@ -92,7 +92,7 @@ EncodedJSValue JSC_HOST_CALL regExpProtoFuncExec(ExecState* exec)
     JSValue thisValue = exec->hostThisValue();
     if (!thisValue.inherits(&RegExpObject::s_info))
         return throwVMTypeError(exec);
-    return JSValue::encode(asRegExpObject(thisValue)->exec(exec));
+    return JSValue::encode(asRegExpObject(thisValue)->exec(exec, exec->argument(0).toString(exec)));
 }
 
 EncodedJSValue JSC_HOST_CALL regExpProtoFuncCompile(ExecState* exec)
@@ -129,7 +129,7 @@ EncodedJSValue JSC_HOST_CALL regExpProtoFuncCompile(ExecState* exec)
         return throwVMError(exec, createSyntaxError(exec, regExp->errorMessage()));
 
     asRegExpObject(thisValue)->setRegExp(exec->globalData(), regExp);
-    asRegExpObject(thisValue)->setLastIndex(0);
+    asRegExpObject(thisValue)->setLastIndex(exec, 0);
     return JSValue::encode(jsUndefined());
 }
 
@@ -155,7 +155,7 @@ EncodedJSValue JSC_HOST_CALL regExpProtoFuncToString(ExecState* exec)
         postfix[index] = 'm';
     UString source = thisObject->get(exec, exec->propertyNames().source).toString(exec)->value(exec);
     // If source is empty, use "/(?:)/" to avoid colliding with comment syntax
-    return JSValue::encode(jsMakeNontrivialString(exec, "/", source.length() ? source : UString("(?:)"), postfix));
+    return JSValue::encode(jsMakeNontrivialString(exec, "/", source, postfix));
 }
 
 } // namespace JSC

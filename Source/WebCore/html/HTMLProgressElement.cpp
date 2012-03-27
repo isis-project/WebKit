@@ -25,9 +25,8 @@
 #include "Attribute.h"
 #include "EventNames.h"
 #include "ExceptionCode.h"
-#include "FormDataList.h"
+#include "NodeRenderingContext.h"
 #include "HTMLDivElement.h"
-#include "HTMLFormElement.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
 #include "ProgressShadowElement.h"
@@ -42,8 +41,8 @@ using namespace HTMLNames;
 const double HTMLProgressElement::IndeterminatePosition = -1;
 const double HTMLProgressElement::InvalidPosition = -2;
 
-HTMLProgressElement::HTMLProgressElement(const QualifiedName& tagName, Document* document, HTMLFormElement* form)
-    : HTMLFormControlElement(tagName, document, form)
+HTMLProgressElement::HTMLProgressElement(const QualifiedName& tagName, Document* document)
+    : LabelableElement(tagName, document)
 {
     ASSERT(hasTagName(progressTag));
 }
@@ -52,9 +51,9 @@ HTMLProgressElement::~HTMLProgressElement()
 {
 }
 
-PassRefPtr<HTMLProgressElement> HTMLProgressElement::create(const QualifiedName& tagName, Document* document, HTMLFormElement* form)
+PassRefPtr<HTMLProgressElement> HTMLProgressElement::create(const QualifiedName& tagName, Document* document)
 {
-    RefPtr<HTMLProgressElement> progress = adoptRef(new HTMLProgressElement(tagName, document, form));
+    RefPtr<HTMLProgressElement> progress = adoptRef(new HTMLProgressElement(tagName, document));
     progress->createShadowSubtree();
     return progress;
 }
@@ -64,15 +63,14 @@ RenderObject* HTMLProgressElement::createRenderer(RenderArena* arena, RenderStyl
     return new (arena) RenderProgress(this);
 }
 
+bool HTMLProgressElement::childShouldCreateRenderer(const NodeRenderingContext& childContext) const
+{
+    return childContext.isOnUpperEncapsulationBoundary() && HTMLElement::childShouldCreateRenderer(childContext);
+}
+
 bool HTMLProgressElement::supportsFocus() const
 {
     return Node::supportsFocus() && !disabled();
-}
-
-const AtomicString& HTMLProgressElement::formControlType() const
-{
-    DEFINE_STATIC_LOCAL(const AtomicString, progress, ("progress"));
-    return progress;
 }
 
 void HTMLProgressElement::parseAttribute(Attribute* attribute)
@@ -82,12 +80,12 @@ void HTMLProgressElement::parseAttribute(Attribute* attribute)
     else if (attribute->name() == maxAttr)
         didElementStateChange();
     else
-        HTMLFormControlElement::parseAttribute(attribute);
+        LabelableElement::parseAttribute(attribute);
 }
 
 void HTMLProgressElement::attach()
 {
-    HTMLFormControlElement::attach();
+    LabelableElement::attach();
     didElementStateChange();
 }
 

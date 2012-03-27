@@ -33,10 +33,9 @@ namespace WebCore {
 class CCDebugBorderDrawQuad;
 class CCRenderSurfaceDrawQuad;
 class CCSolidColorDrawQuad;
+class CCTextureDrawQuad;
 class CCTileDrawQuad;
-class CCCanvasDrawQuad;
 class CCVideoDrawQuad;
-class CCPluginDrawQuad;
 
 // CCDrawQuad is a bag of data used for drawing a quad. Because different
 // materials need different bits of per-quad data to render, classes that derive
@@ -51,9 +50,9 @@ public:
     const IntRect& layerRect() const { return m_sharedQuadState->layerRect(); }
     const IntRect& clipRect() const { return m_sharedQuadState->clipRect(); }
     float opacity() const { return m_sharedQuadState->opacity(); }
-    // For the purposes of culling, what part of the contents of this quad are opaque?
+    // For the purposes of blending, what part of the contents of this quad are opaque?
     IntRect opaqueRect() const;
-    bool needsBlending() const { return m_needsBlending || opaqueRect() != m_quadRect; }
+    bool needsBlending() const { return m_needsBlending || !opaqueRect().contains(m_quadVisibleRect); }
     bool isLayerAxisAlignedIntRect() const { return m_sharedQuadState->isLayerAxisAlignedIntRect(); }
 
     // Allows changing the rect that gets drawn to make it smaller. Parameter passed
@@ -65,11 +64,10 @@ public:
         Invalid,
         DebugBorder,
         RenderSurface,
+        TextureContent,
         SolidColor,
         TiledContent,
-        CanvasContent,
         VideoContent,
-        PluginContent,
     };
 
     Material material() const { return m_material; }
@@ -77,10 +75,9 @@ public:
     const CCDebugBorderDrawQuad* toDebugBorderDrawQuad() const;
     const CCRenderSurfaceDrawQuad* toRenderSurfaceDrawQuad() const;
     const CCSolidColorDrawQuad* toSolidColorDrawQuad() const;
+    const CCTextureDrawQuad* toTextureDrawQuad() const;
     const CCTileDrawQuad* toTileDrawQuad() const;
-    const CCCanvasDrawQuad* toCanvasDrawQuad() const;
     const CCVideoDrawQuad* toVideoDrawQuad() const;
-    const CCPluginDrawQuad* toPluginDrawQuad() const;
 
 protected:
     CCDrawQuad(const CCSharedQuadState*, Material, const IntRect&);

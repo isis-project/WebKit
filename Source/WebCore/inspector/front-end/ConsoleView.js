@@ -111,7 +111,7 @@ WebInspector.ConsoleView = function(hideContextSelector)
 
     this._linkifier = WebInspector.debuggerPresentationModel.createLinkifier();
 
-    this.prompt = new WebInspector.TextPromptWithHistory(this.completions.bind(this), ExpressionStopCharacters + ".");
+    this.prompt = new WebInspector.TextPromptWithHistory(this.completionsForTextPrompt.bind(this), ExpressionStopCharacters + ".");
     this.prompt.setSuggestBoxEnabled("generic-suggest");
     this.prompt.renderAsBlock();
     this.prompt.attach(this.promptElement);
@@ -342,16 +342,16 @@ WebInspector.ConsoleView.prototype = {
         this._linkifier.reset();
     },
 
-    completions: function(wordRange, force, completionsReadyCallback)
+    completionsForTextPrompt: function(textPrompt, wordRange, force, completionsReadyCallback)
     {
         // Pass less stop characters to rangeOfWord so the range will be a more complete expression.
-        var expressionRange = wordRange.startContainer.rangeOfWord(wordRange.startOffset, ExpressionStopCharacters, this.promptElement, "backward");
+        var expressionRange = wordRange.startContainer.rangeOfWord(wordRange.startOffset, ExpressionStopCharacters, textPrompt.proxyElement, "backward");
         var expressionString = expressionRange.toString();
         var prefix = wordRange.toString();
-        this._completions(expressionString, prefix, force, completionsReadyCallback);
+        this.completionsForExpression(expressionString, prefix, force, completionsReadyCallback);
     },
 
-    _completions: function(expressionString, prefix, force, completionsReadyCallback)
+    completionsForExpression: function(expressionString, prefix, force, completionsReadyCallback)
     {
         var lastIndex = expressionString.length - 1;
 
@@ -372,7 +372,7 @@ WebInspector.ConsoleView.prototype = {
             return;
         }
 
-        if (!expressionString && WebInspector.debuggerPresentationModel.paused)
+        if (!expressionString && WebInspector.debuggerPresentationModel.selectedCallFrame)
             WebInspector.debuggerPresentationModel.getSelectedCallFrameVariables(receivedPropertyNames.bind(this));
         else
             this.evalInInspectedWindow(expressionString, "completion", true, true, false, evaluated.bind(this));
@@ -409,7 +409,7 @@ WebInspector.ConsoleView.prototype = {
             }
 
             if (result.type === "object" || result.type === "function")
-                result.callFunctionJSON(getCompletions, receivedPropertyNames.bind(this));
+                result.callFunctionJSON(getCompletions, undefined, receivedPropertyNames.bind(this));
             else if (result.type === "string" || result.type === "number" || result.type === "boolean")
                 this.evalInInspectedWindow("(" + getCompletions + ")(\"" + result.type + "\")", "completion", false, true, true, receivedPropertyNamesFromEval.bind(this));
         }
@@ -592,7 +592,7 @@ WebInspector.ConsoleView.prototype = {
      */
     evalInInspectedWindow: function(expression, objectGroup, includeCommandLineAPI, doNotPauseOnExceptions, returnByValue, callback)
     {
-        if (WebInspector.debuggerPresentationModel.paused) {
+        if (WebInspector.debuggerPresentationModel.selectedCallFrame) {
             WebInspector.debuggerPresentationModel.evaluateInSelectedCallFrame(expression, objectGroup, includeCommandLineAPI, returnByValue, callback);
             return;
         }
@@ -618,9 +618,9 @@ WebInspector.ConsoleView.prototype = {
         RuntimeAgent.evaluate(expression, objectGroup, includeCommandLineAPI, doNotPauseOnExceptions, this._currentEvaluationContextId(), returnByValue, evalCallback);
     },
 
-    evaluateUsingTextPrompt: function(expression)
+    evaluateUsingTextPrompt: function(expression, showResultOnly)
     {
-        this._appendCommand(expression, this.prompt.text);
+        this._appendCommand(expression, this.prompt.text, false, showResultOnly);
     },
 
     _enterKeyPressed: function(event)
@@ -628,32 +628,34 @@ WebInspector.ConsoleView.prototype = {
         if (event.altKey || event.ctrlKey || event.shiftKey)
             return;
 
-        event.preventDefault();
-        event.stopPropagation();
+        event.consume();
 
         this.prompt.clearAutoComplete(true);
 
         var str = this.prompt.text;
         if (!str.length)
             return;
-        this._appendCommand(str, "");
+        this._appendCommand(str, "", true, false);
     },
 
-    _appendCommand: function(text, newPromptText)
+    _appendCommand: function(text, newPromptText, useCommandLineAPI, showResultOnly)
     {
-        var commandMessage = new WebInspector.ConsoleCommand(text);
-        WebInspector.console.interruptRepeatCount();
-        this._appendConsoleMessage(commandMessage);
+        if (!showResultOnly) {
+            var commandMessage = new WebInspector.ConsoleCommand(text);
+            WebInspector.console.interruptRepeatCount();
+            this._appendConsoleMessage(commandMessage);
+        }
+        this.prompt.text = newPromptText;
 
         function printResult(result, wasThrown)
         {
             if (!result)
                 return;
 
-            this.prompt.pushHistoryItem(text);
-            this.prompt.text = newPromptText;
-
-            WebInspector.settings.consoleHistory.set(this.prompt.historyData.slice(-30));
+            if (!showResultOnly) {
+                this.prompt.pushHistoryItem(text);
+                WebInspector.settings.consoleHistory.set(this.prompt.historyData.slice(-30));
+            }
 
             this._appendConsoleMessage(new WebInspector.ConsoleCommandResult(result, wasThrown, commandMessage, this._linkifier));
         }
@@ -844,8 +846,7 @@ WebInspector.ConsoleGroup.prototype = {
             groupTitleElement.scrollIntoViewIfNeeded(true);
         }
 
-        event.stopPropagation();
-        event.preventDefault();
+        event.consume();
     }
 }
 

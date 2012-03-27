@@ -320,11 +320,14 @@ public:
     static const WebEvent* currentEvent();
 
     FindController& findController() { return m_findController; }
-#if PLATFORM(QT)
+#if ENABLE(TOUCH_EVENTS) && PLATFORM(QT)
     TapHighlightController& tapHighlightController() { return m_tapHighlightController; }
 #endif
 
+#if ENABLE(GEOLOCATION)
     GeolocationPermissionRequestManager& geolocationPermissionRequestManager() { return m_geolocationPermissionRequestManager; }
+#endif
+
     NotificationPermissionRequestManager* notificationPermissionRequestManager();
 
     void pageDidScroll();
@@ -436,11 +439,12 @@ public:
 #elif PLATFORM(QT) || PLATFORM(GTK)
     void performDragControllerAction(uint64_t action, WebCore::DragData);
 #else
-    void performDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, const WTF::String& dragStorageName, uint32_t flags, const SandboxExtension::Handle&);
+    void performDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, const WTF::String& dragStorageName, uint32_t flags, const SandboxExtension::Handle&, const SandboxExtension::HandleArray&);
 #endif
     void dragEnded(WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t operation);
 
     void willPerformLoadDragDestinationAction();
+    void performUploadDragDestinationAction();
 
     void beginPrinting(uint64_t frameID, const PrintInfo&);
     void endPrinting();
@@ -503,6 +507,8 @@ public:
     void numWheelEventHandlersChanged(unsigned);
     void recomputeShortCircuitHorizontalWheelEventsState();
 
+    bool willGoToBackForwardItemCallbackEnabled() const { return m_willGoToBackForwardItemCallbackEnabled; }
+    
 private:
     WebPage(uint64_t pageID, const WebPageCreationParameters&);
 
@@ -535,6 +541,7 @@ private:
     void loadHTMLString(const String& htmlString, const String& baseURL);
     void loadAlternateHTMLString(const String& htmlString, const String& baseURL, const String& unreachableURL);
     void loadPlainTextString(const String&);
+    void loadWebArchiveData(const CoreIPC::DataReference&);
     void linkClicked(const String& url, const WebMouseEvent&);
     void reload(bool reloadFromOrigin, const SandboxExtension::Handle&);
     void goForward(uint64_t);
@@ -558,7 +565,7 @@ private:
     void touchEvent(const WebTouchEvent&);
     void touchEventSyncForTesting(const WebTouchEvent&, bool& handled);
 #if PLATFORM(QT)
-    void highlightPotentialActivation(const WebCore::IntPoint&);
+    void highlightPotentialActivation(const WebCore::IntPoint&, const WebCore::IntSize& area);
 #endif
 #endif
     void contextMenuHidden() { m_isShowingContextMenu = false; }
@@ -571,6 +578,8 @@ private:
 
     void didRemoveBackForwardItem(uint64_t);
 
+    void setWillGoToBackForwardItemCallbackEnabled(bool enabled) { m_willGoToBackForwardItemCallbackEnabled = enabled; }
+    
     void setDrawsBackground(bool);
     void setDrawsTransparentBackground(bool);
 
@@ -594,6 +603,8 @@ private:
     void didReceivePolicyDecision(uint64_t frameID, uint64_t listenerID, uint32_t policyAction, uint64_t downloadID);
     void setUserAgent(const String&);
     void setCustomTextEncodingName(const String&);
+    void suspendActiveDOMObjectsAndAnimations();
+    void resumeActiveDOMObjectsAndAnimations();
 
 #if PLATFORM(MAC)
     void performDictionaryLookupAtLocation(const WebCore::FloatPoint&);
@@ -629,6 +640,7 @@ private:
 #endif
 
     void didReceiveGeolocationPermissionDecision(uint64_t geolocationID, bool allowed);
+
     void didReceiveNotificationPermissionDecision(uint64_t notificationID, bool allowed);
 
     void advanceToNextMisspelling(bool startBeforeSelection);
@@ -723,7 +735,7 @@ private:
 #endif
 
     FindController m_findController;
-#if PLATFORM(QT)
+#if ENABLE(TOUCH_EVENTS) && PLATFORM(QT)
     TapHighlightController m_tapHighlightController;
 #endif
     RefPtr<PageOverlay> m_pageOverlay;
@@ -739,8 +751,11 @@ private:
     RefPtr<WebPopupMenu> m_activePopupMenu;
     RefPtr<WebContextMenu> m_contextMenu;
     RefPtr<WebOpenPanelResultListener> m_activeOpenPanelResultListener;
-    GeolocationPermissionRequestManager m_geolocationPermissionRequestManager;
     RefPtr<NotificationPermissionRequestManager> m_notificationPermissionRequestManager;
+
+#if ENABLE(GEOLOCATION)
+    GeolocationPermissionRequestManager m_geolocationPermissionRequestManager;
+#endif
 
     OwnPtr<WebCore::PrintContext> m_printContext;
 #if PLATFORM(GTK)
@@ -751,6 +766,7 @@ private:
     uint64_t m_pageID;
 
     RefPtr<SandboxExtension> m_pendingDropSandboxExtension;
+    Vector<RefPtr<SandboxExtension> > m_pendingDropExtensionsForFileUpload;
 
     bool m_canRunBeforeUnloadConfirmPanel;
 
@@ -765,6 +781,8 @@ private:
     unsigned m_cachedPageCount;
 
     bool m_isShowingContextMenu;
+    
+    bool m_willGoToBackForwardItemCallbackEnabled;
 
 #if PLATFORM(WIN)
     bool m_gestureReachedScrollingLimit;

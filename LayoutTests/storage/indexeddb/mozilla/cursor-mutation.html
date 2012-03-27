@@ -11,22 +11,13 @@
 <script src="../resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's cursor mutation");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB");
-    shouldBeFalse("indexedDB == null");
-    IDBDatabaseException = evalAndLog("IDBDatabaseException = window.IDBDatabaseException || window.webkitIDBDatabaseException");
-    shouldBeFalse("IDBDatabaseException == null");
-    IDBTransaction = evalAndLog("IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction");
-    shouldBeFalse("IDBTransaction == null");
+    removeVendorPrefixes();
 
     debug("");
     name = 'cursor-mutation';
@@ -188,12 +179,13 @@ function checkMutatingCursorResults()
     shouldBe("count", "objectStoreData.length - 1");
     shouldBe("sawAdded", "true");
     shouldBe("sawRemoved", "false");
-    done();
+    finishJSTest();
 }
 
 test();
 
 </script>
+<script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>
 

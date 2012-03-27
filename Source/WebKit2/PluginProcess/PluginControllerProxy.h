@@ -36,18 +36,13 @@
 #include <WebCore/RunLoop.h>
 #include <wtf/Noncopyable.h>
 
-#if PLATFORM(MAC)
-#include <wtf/RetainPtr.h>
-
-typedef struct __WKCARemoteLayerClientRef *WKCARemoteLayerClientRef;
-#endif
-
 namespace CoreIPC {
     class DataReference;
 }
 
 namespace WebKit {
 
+class LayerHostingContext;
 class ShareableBitmap;
 class WebProcessConnection;
 struct PluginCreationParameters;
@@ -89,7 +84,6 @@ private:
     virtual NPObject* windowScriptNPObject();
     virtual NPObject* pluginElementNPObject();
     virtual bool evaluate(NPObject*, const String& scriptString, NPVariant* result, bool allowPopups);
-    virtual bool tryToShortCircuitInvoke(NPObject*, NPIdentifier methodName, const NPVariant* arguments, uint32_t argumentCount, bool& returnValue, NPVariant& result);
     virtual void setStatusbarText(const String&);
     virtual bool isAcceleratedCompositingEnabled();
     virtual void pluginProcessCrashed();
@@ -144,8 +138,6 @@ private:
     void privateBrowsingStateChanged(bool);
     void getFormValue(bool& returnValue, String& formValue);
 
-    bool tryToShortCircuitEvaluate(NPObject*, const String& scriptString, NPVariant* result);
-
     bool inInitialize() const { return m_pluginCreationParameters; }
 
     void platformInitialize();
@@ -191,7 +183,7 @@ private:
     bool m_isComplexTextInputEnabled;
 
     // For CA plug-ins, this holds the information needed to export the layer hierarchy to the UI process.
-    RetainPtr<WKCARemoteLayerClientRef> m_remoteLayerClient;
+    OwnPtr<LayerHostingContext> m_layerHostingContext;
 #endif
 
     // The contents scale factor of this plug-in.

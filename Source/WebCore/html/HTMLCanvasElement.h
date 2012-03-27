@@ -45,6 +45,7 @@ namespace WebCore {
 class CanvasContextAttributes;
 class CanvasRenderingContext;
 class GraphicsContext;
+class GraphicsContextStateSaver;
 class HTMLCanvasElement;
 class Image;
 class ImageData;
@@ -143,10 +144,13 @@ private:
     void reset();
 
     void createImageBuffer() const;
+    void clearImageBuffer() const;
 
     void setSurfaceSize(const IntSize&);
 
     bool shouldDefer() const;
+
+    bool paintsIntoCanvasBuffer() const;
 
     HashSet<CanvasObserver*> m_observers;
 
@@ -164,7 +168,9 @@ private:
 
     // m_createdImageBuffer means we tried to malloc the buffer.  We didn't necessarily get it.
     mutable bool m_hasCreatedImageBuffer;
+    mutable bool m_didClearImageBuffer;
     mutable OwnPtr<ImageBuffer> m_imageBuffer;
+    mutable OwnPtr<GraphicsContextStateSaver> m_contextStateSaver;
     
     mutable RefPtr<Image> m_presentedImage;
     mutable RefPtr<Image> m_copiedImage; // FIXME: This is temporary for platforms that have to copy the image buffer to render (and for CSSCanvasValue).

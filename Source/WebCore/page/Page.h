@@ -24,10 +24,11 @@
 #include "FrameLoaderTypes.h"
 #include "FindOptions.h"
 #include "LayoutTypes.h"
-#include "PageSupplement.h"
 #include "PageVisibilityState.h"
 #include "PlatformScreen.h"
 #include "PlatformString.h"
+#include "Region.h"
+#include "Supplementable.h"
 #include "ViewportArguments.h"
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
@@ -70,8 +71,6 @@ namespace WebCore {
     class InspectorController;
     class MediaCanStartListener;
     class Node;
-    class NotificationController;
-    class NotificationPresenter;
     class PageGroup;
     class PluginData;
     class PointerLockController;
@@ -83,13 +82,7 @@ namespace WebCore {
     class ScrollableArea;
     class ScrollingCoordinator;
     class Settings;
-    class SpeechInput;
-    class SpeechInputClient;
-    class UserMediaClient;
     class StorageNamespace;
-#if ENABLE(NOTIFICATIONS)
-    class NotificationPresenter;
-#endif
 
     typedef uint64_t LinkHash;
 
@@ -97,7 +90,7 @@ namespace WebCore {
 
     float deviceScaleFactor(Frame*);
 
-    class Page {
+    class Page : public Supplementable<Page> {
         WTF_MAKE_NONCOPYABLE(Page);
         friend class Settings;
     public:
@@ -117,9 +110,6 @@ namespace WebCore {
             InspectorClient* inspectorClient;
             GeolocationClient* geolocationClient;
             RefPtr<BackForwardList> backForwardClient;
-            SpeechInputClient* speechInputClient;
-            NotificationPresenter* notificationClient;
-            UserMediaClient* userMediaClient;
         };
 
         Page(PageClients&);
@@ -177,24 +167,14 @@ namespace WebCore {
 #if ENABLE(INSPECTOR)
         InspectorController* inspectorController() const { return m_inspectorController.get(); }
 #endif
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
         GeolocationController* geolocationController() const { return m_geolocationController.get(); }
-#endif
-#if ENABLE(NOTIFICATIONS)
-        NotificationController* notificationController() const { return m_notificationController.get(); }
 #endif
 #if ENABLE(POINTER_LOCK)
         PointerLockController* pointerLockController() const { return m_pointerLockController.get(); }
 #endif
-#if ENABLE(INPUT_SPEECH)
-        SpeechInput* speechInput();
-#endif
-#if ENABLE(MEDIA_STREAM)
-        UserMediaClient* userMediaClient() const { return m_userMediaClient; }
-#endif
-#if ENABLE(THREADED_SCROLLING)
+
         ScrollingCoordinator* scrollingCoordinator();
-#endif
 
         Settings* settings() const { return m_settings.get(); }
         ProgressTracker* progress() const { return m_progress.get(); }
@@ -287,6 +267,7 @@ namespace WebCore {
         // Notifications when the Page starts and stops being presented via a native window.
         void didMoveOnscreen();
         void willMoveOffscreen();
+        bool isOnscreen() const { return m_isOnscreen; }
 
         void windowScreenDidChange(PlatformDisplayID);
         
@@ -341,18 +322,18 @@ namespace WebCore {
 
         PlatformDisplayID displayID() const { return m_displayID; }
 
+        bool isCountingRelevantRepaintedObjects() const;
         void setRelevantRepaintedObjectsCounterThreshold(uint64_t);
         void startCountingRelevantRepaintedObjects();
-        void addRelevantRepaintedObject(RenderObject*, const IntRect& objectPaintRect);
+        void resetRelevantPaintedObjectCounter();
+        void addRelevantRepaintedObject(RenderObject*, const LayoutRect& objectPaintRect);
+        void addRelevantUnpaintedObject(RenderObject*, const LayoutRect& objectPaintRect);
 
-        void provideSupplement(const AtomicString&, PassOwnPtr<PageSupplement>);
-        PageSupplement* requireSupplement(const AtomicString&);
+        void suspendActiveDOMObjectsAndAnimations();
+        void resumeActiveDOMObjectsAndAnimations();
 
     private:
         void initGroup();
-
-        typedef HashMap<AtomicStringImpl*, OwnPtr<PageSupplement> > PageSupplementMap;
-        PageSupplementMap m_suppliments;
 
 #if ASSERT_DISABLED
         void checkFrameCountConsistency() const { }
@@ -378,25 +359,14 @@ namespace WebCore {
 #if ENABLE(INSPECTOR)
         OwnPtr<InspectorController> m_inspectorController;
 #endif
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
         OwnPtr<GeolocationController> m_geolocationController;
-#endif
-#if ENABLE(NOTIFICATIONS)
-        OwnPtr<NotificationController> m_notificationController;
 #endif
 #if ENABLE(POINTER_LOCK)
         OwnPtr<PointerLockController> m_pointerLockController;
 #endif
-#if ENABLE(INPUT_SPEECH)
-        SpeechInputClient* m_speechInputClient;
-        OwnPtr<SpeechInput> m_speechInput;
-#endif
-#if ENABLE(MEDIA_STREAM)
-        UserMediaClient* m_userMediaClient;
-#endif
-#if ENABLE(THREADED_SCROLLING)
         RefPtr<ScrollingCoordinator> m_scrollingCoordinator;
-#endif
+
         OwnPtr<Settings> m_settings;
         OwnPtr<ProgressTracker> m_progress;
         
@@ -445,22 +415,21 @@ namespace WebCore {
 
         RefPtr<StorageNamespace> m_sessionStorage;
 
-#if ENABLE(NOTIFICATIONS)
-        NotificationPresenter* m_notificationPresenter;
-#endif
-
         ViewMode m_viewMode;
 
         double m_minimumTimerInterval;
 
         bool m_isEditable;
+        bool m_isOnscreen;
 
 #if ENABLE(PAGE_VISIBILITY_API)
         PageVisibilityState m_visibilityState;
 #endif
         PlatformDisplayID m_displayID;
 
-        HashSet<RenderObject*> m_relevantPaintedRenderObjects;
+        HashSet<RenderObject*> m_relevantUnpaintedRenderObjects;
+        Region m_relevantPaintedRegion;
+        Region m_relevantUnpaintedRegion;
         bool m_isCountingRelevantRepaintedObjects;
     };
 

@@ -103,11 +103,11 @@ static bool applyCommandToFrame(Frame* frame, EditorCommandSource source, EditAc
     // FIXME: We don't call shouldApplyStyle when the source is DOM; is there a good reason for that?
     switch (source) {
     case CommandFromMenuOrKeyBinding:
-        frame->editor()->applyStyleToSelection(style->ensureCSSStyleDeclaration(), action);
+        frame->editor()->applyStyleToSelection(style, action);
         return true;
     case CommandFromDOM:
     case CommandFromDOMWithUserInterface:
-        frame->editor()->applyStyle(style->ensureCSSStyleDeclaration());
+        frame->editor()->applyStyle(style);
         return true;
     }
     ASSERT_NOT_REACHED();
@@ -179,11 +179,11 @@ static bool executeApplyParagraphStyle(Frame* frame, EditorCommandSource source,
     // FIXME: We don't call shouldApplyStyle when the source is DOM; is there a good reason for that?
     switch (source) {
     case CommandFromMenuOrKeyBinding:
-        frame->editor()->applyParagraphStyleToSelection(style->ensureCSSStyleDeclaration(), action);
+        frame->editor()->applyParagraphStyleToSelection(style.get(), action);
         return true;
     case CommandFromDOM:
     case CommandFromDOMWithUserInterface:
-        frame->editor()->applyParagraphStyle(style->ensureCSSStyleDeclaration());
+        frame->editor()->applyParagraphStyle(style.get());
         return true;
     }
     ASSERT_NOT_REACHED();
@@ -241,7 +241,9 @@ static String valueStyle(Frame* frame, int propertyID)
 static TriState stateTextWritingDirection(Frame* frame, WritingDirection direction)
 {
     bool hasNestedOrMultipleEmbeddings;
-    WritingDirection selectionDirection = frame->editor()->textDirectionForSelection(hasNestedOrMultipleEmbeddings);
+    WritingDirection selectionDirection = EditingStyle::textDirectionForSelection(frame->selection()->selection(),
+        frame->selection()->typingStyle(), hasNestedOrMultipleEmbeddings);
+    // FXIME: We should be returning MixedTriState when selectionDirection == direction && hasNestedOrMultipleEmbeddings
     return (selectionDirection == direction && !hasNestedOrMultipleEmbeddings) ? TrueTriState : FalseTriState;
 }
 
@@ -302,6 +304,16 @@ static bool executeCut(Frame* frame, Event*, EditorCommandSource source, const S
         frame->editor()->cut();
     } else
         frame->editor()->cut();
+    return true;
+}
+
+static bool executeDefaultParagraphSeparator(Frame* frame, Event*, EditorCommandSource, const String& value)
+{
+    if (equalIgnoringCase(value, "div"))
+        frame->editor()->setDefaultParagraphSeparator(EditorParagraphSeparatorIsDiv);
+    else if (equalIgnoringCase(value, "p"))
+        frame->editor()->setDefaultParagraphSeparator(EditorParagraphSeparatorIsP);
+
     return true;
 }
 
@@ -583,7 +595,7 @@ static bool executeMakeTextWritingDirectionLeftToRight(Frame* frame, Event*, Edi
     RefPtr<StylePropertySet> style = StylePropertySet::create();
     style->setProperty(CSSPropertyUnicodeBidi, CSSValueEmbed);
     style->setProperty(CSSPropertyDirection, CSSValueLtr);
-    frame->editor()->applyStyle(style->ensureCSSStyleDeclaration(), EditActionSetWritingDirection);
+    frame->editor()->applyStyle(style.get(), EditActionSetWritingDirection);
     return true;
 }
 
@@ -591,7 +603,7 @@ static bool executeMakeTextWritingDirectionNatural(Frame* frame, Event*, EditorC
 {
     RefPtr<StylePropertySet> style = StylePropertySet::create();
     style->setProperty(CSSPropertyUnicodeBidi, CSSValueNormal);
-    frame->editor()->applyStyle(style->ensureCSSStyleDeclaration(), EditActionSetWritingDirection);
+    frame->editor()->applyStyle(style.get(), EditActionSetWritingDirection);
     return true;
 }
 
@@ -600,7 +612,7 @@ static bool executeMakeTextWritingDirectionRightToLeft(Frame* frame, Event*, Edi
     RefPtr<StylePropertySet> style = StylePropertySet::create();
     style->setProperty(CSSPropertyUnicodeBidi, CSSValueEmbed);
     style->setProperty(CSSPropertyDirection, CSSValueRtl);
-    frame->editor()->applyStyle(style->ensureCSSStyleDeclaration(), EditActionSetWritingDirection);
+    frame->editor()->applyStyle(style.get(), EditActionSetWritingDirection);
     return true;
 }
 
@@ -1376,6 +1388,19 @@ static String valueBackColor(Frame* frame, Event*)
     return valueStyle(frame, CSSPropertyBackgroundColor);
 }
 
+static String valueDefaultParagraphSeparator(Frame* frame, Event*)
+{
+    switch (frame->editor()->defaultParagraphSeparator()) {
+    case EditorParagraphSeparatorIsDiv:
+        return divTag.localName();
+    case EditorParagraphSeparatorIsP:
+        return pTag.localName();
+    }
+
+    ASSERT_NOT_REACHED();
+    return String();
+}
+
 static String valueFontName(Frame* frame, Event*)
 {
     return valueStyle(frame, CSSPropertyFontFamily);
@@ -1427,6 +1452,7 @@ static const CommandMap& createCommandMap()
         { "Copy", { executeCopy, supportedCopyCut, enabledCopy, stateNone, valueNull, notTextInsertion, allowExecutionWhenDisabled } },
         { "CreateLink", { executeCreateLink, supported, enabledInRichlyEditableText, stateNone, valueNull, notTextInsertion, doNotAllowExecutionWhenDisabled } },
         { "Cut", { executeCut, supportedCopyCut, enabledCut, stateNone, valueNull, notTextInsertion, allowExecutionWhenDisabled } },
+        { "DefaultParagraphSeparator", { executeDefaultParagraphSeparator, supported, enabled, stateNone, valueDefaultParagraphSeparator, notTextInsertion, doNotAllowExecutionWhenDisabled} },
         { "Delete", { executeDelete, supported, enabledDelete, stateNone, valueNull, notTextInsertion, doNotAllowExecutionWhenDisabled } },
         { "DeleteBackward", { executeDeleteBackward, supportedFromMenuOrKeyBinding, enabledInEditableText, stateNone, valueNull, notTextInsertion, doNotAllowExecutionWhenDisabled } },
         { "DeleteBackwardByDecomposingPreviousCharacter", { executeDeleteBackwardByDecomposingPreviousCharacter, supportedFromMenuOrKeyBinding, enabledInEditableText, stateNone, valueNull, notTextInsertion, doNotAllowExecutionWhenDisabled } },

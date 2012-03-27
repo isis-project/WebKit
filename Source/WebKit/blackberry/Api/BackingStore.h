@@ -40,6 +40,7 @@ namespace WebKit {
 
 class WebPage;
 class WebPagePrivate;
+class WebPageCompositorPrivate;
 class BackingStorePrivate;
 class BackingStoreClient;
 
@@ -73,10 +74,14 @@ public:
 
     bool isDirectRenderingToWindow() const;
 
+    void createBackingStoreMemory();
+    void releaseBackingStoreMemory();
+
 private:
     friend class BlackBerry::WebKit::BackingStoreClient;
     friend class BlackBerry::WebKit::WebPage;
     friend class BlackBerry::WebKit::WebPagePrivate; // FIXME: For now, we expose our internals to WebPagePrivate. See PR #120301.
+    friend class BlackBerry::WebKit::WebPageCompositorPrivate;
     friend class WebCore::ChromeClientBlackBerry;
     friend class WebCore::FrameLoaderClientBlackBerry;
     friend class WebCore::GLES2Context;

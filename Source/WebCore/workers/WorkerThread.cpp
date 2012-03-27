@@ -30,6 +30,7 @@
 
 #include "WorkerThread.h"
 
+#include "DatabaseContext.h"
 #include "DedicatedWorkerContext.h"
 #include "InspectorInstrumentation.h"
 #include "KURL.h"
@@ -95,8 +96,8 @@ WorkerThread::WorkerThread(const KURL& scriptURL, const String& userAgent, const
     , m_workerLoaderProxy(workerLoaderProxy)
     , m_workerReportingProxy(workerReportingProxy)
     , m_startupData(WorkerThreadStartupData::create(scriptURL, userAgent, sourceCode, startMode, contentSecurityPolicy, contentSecurityPolicyType))
-#if ENABLE(NOTIFICATIONS)
-    , m_notificationPresenter(0)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+    , m_notificationClient(0)
 #endif
 {
     MutexLocker lock(threadCountMutex());
@@ -123,12 +124,12 @@ bool WorkerThread::start()
     return m_threadID;
 }
 
-void* WorkerThread::workerThreadStart(void* thread)
+void WorkerThread::workerThreadStart(void* thread)
 {
-    return static_cast<WorkerThread*>(thread)->workerThread();
+    static_cast<WorkerThread*>(thread)->workerThread();
 }
 
-void* WorkerThread::workerThread()
+void WorkerThread::workerThread()
 {
     {
         MutexLocker lock(m_threadCreationMutex);
@@ -173,8 +174,6 @@ void* WorkerThread::workerThread()
 
     // The thread object may be already destroyed from notification now, don't try to access "this".
     detachThread(threadID);
-
-    return 0;
 }
 
 void WorkerThread::runEventLoop()
@@ -217,8 +216,9 @@ public:
         WorkerContext* workerContext = static_cast<WorkerContext*>(context);
 
 #if ENABLE(SQL_DATABASE)
+        // FIXME: Should we stop the databases as part of stopActiveDOMObjects() below?
         DatabaseTaskSynchronizer cleanupSync;
-        workerContext->stopDatabases(&cleanupSync);
+        DatabaseContext::stopDatabases(workerContext, &cleanupSync);
 #endif
 
         workerContext->stopActiveDOMObjects();

@@ -39,6 +39,7 @@
 #include "ErrorEvent.h"
 #include "Frame.h"
 #include "FrameLoaderClient.h"
+#include "InspectorInstrumentation.h"
 #include "MessageEvent.h"
 #include "MessagePort.h"
 #include "MessagePortChannel.h"
@@ -90,6 +91,7 @@ void WebWorkerClientImpl::startWorkerContext(const KURL& scriptURL, const String
                                                                          m_scriptExecutionContext->contentSecurityPolicy()->headerType());
     m_proxy->workerThreadCreated(thread);
     thread->start();
+    InspectorInstrumentation::didStartWorkerContext(m_scriptExecutionContext.get(), m_proxy, scriptURL);
 }
 
 void WebWorkerClientImpl::terminateWorkerContext()
@@ -211,6 +213,16 @@ bool WebWorkerClientImpl::allowDatabase(WebFrame*, const WebString& name, const 
     if (!webView)
         return false;
     return !webView->permissionClient() || webView->permissionClient()->allowDatabase(m_webFrame, name, displayName, estimatedSize);
+}
+
+bool WebWorkerClientImpl::allowIndexedDB(const WebString& name)
+{
+    if (m_proxy->askedToTerminate())
+        return false;
+    WebKit::WebViewImpl* webView = m_webFrame->viewImpl();
+    if (!webView)
+        return false;
+    return !webView->permissionClient() || webView->permissionClient()->allowIndexedDB(m_webFrame, name, WebSecurityOrigin());
 }
  
 WebView* WebWorkerClientImpl::view() const 

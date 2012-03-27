@@ -47,7 +47,7 @@ namespace JSC {
             , m_cache(cache ? cache : new SourceProviderCache)
             , m_cacheOwned(!cache)
         {
-            deprecatedTurnOffVerifier();
+            turnOffVerifier();
         }
         virtual ~SourceProvider()
         {
@@ -86,7 +86,7 @@ namespace JSC {
             return adoptRef(new UStringSourceProvider(source, url, startPosition));
         }
 
-        UString getRange(int start, int end) const
+        virtual UString getRange(int start, int end) const OVERRIDE
         {
             return m_source.substringSharingImpl(start, end - start);
         }

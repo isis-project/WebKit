@@ -44,17 +44,19 @@ public:
 
     static bool isSMILElement(Node*);
 
+    bool isSupportedAttribute(const QualifiedName&);
     virtual void parseAttribute(Attribute*) OVERRIDE;
-    virtual void attributeChanged(Attribute*) OVERRIDE;
+    virtual void svgAttributeChanged(const QualifiedName&) OVERRIDE;
     virtual void insertedIntoDocument();
     virtual void removedFromDocument();
     
     virtual bool hasValidAttributeType() = 0;
+    virtual void animationAttributeChanged() = 0;
 
     SMILTimeContainer* timeContainer() const { return m_timeContainer.get(); }
 
     SVGElement* targetElement();
-    void resetTargetElement() { m_targetElement = 0; }
+    void resetTargetElement();
     const QualifiedName& attributeName() const { return m_attributeName; }
 
     void beginByLinkActivation();
@@ -73,8 +75,6 @@ public:
     };
 
     FillMode fill() const;
-
-    String xlinkHref() const;
 
     SMILTime dur() const;
     SMILTime repeatDur() const;
@@ -114,10 +114,13 @@ protected:
 
     void setInactive() { m_activeState = Inactive; }
 
+    // Sub-classes may need to take action when the target is changed.
+    virtual void targetElementWillChange(SVGElement* currentTarget, SVGElement* newTarget);
+    virtual void endedActiveInterval();
+
 private:
     virtual void startedActiveInterval() = 0;
     virtual void updateAnimation(float percent, unsigned repeat, SVGSMILElement* resultElement) = 0;
-    void endedActiveInterval();
 
     enum BeginOrEnd {
         Begin,
@@ -230,4 +233,3 @@ private:
 
 #endif // ENABLE(SVG)
 #endif // SVGSMILElement_h
-

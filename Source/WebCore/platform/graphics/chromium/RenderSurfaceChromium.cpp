@@ -29,6 +29,7 @@
 
 #include "RenderSurfaceChromium.h"
 
+#include "FilterOperations.h"
 #include "GraphicsContext3D.h"
 #include "LayerChromium.h"
 #include "LayerRendererChromium.h"
@@ -41,6 +42,10 @@ RenderSurfaceChromium::RenderSurfaceChromium(LayerChromium* owningLayer)
     , m_maskLayer(0)
     , m_skipsDraw(false)
     , m_drawOpacity(1)
+    , m_drawOpacityIsAnimating(false)
+    , m_targetSurfaceTransformsAreAnimating(false)
+    , m_screenSpaceTransformsAreAnimating(false)
+    , m_nearestAncestorThatMovesPixels(0)
 {
 }
 

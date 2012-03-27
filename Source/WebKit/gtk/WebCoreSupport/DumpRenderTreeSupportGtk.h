@@ -23,7 +23,6 @@
 #include <atk/atk.h>
 #include <glib.h>
 #include <webkit/webkitdefines.h>
-#include <webkit/webkitdomdefines.h>
 #include <wtf/text/CString.h>
 
 namespace WebKit {
@@ -54,12 +53,9 @@ public:
     static void setSelectTrailingWhitespaceEnabled(bool);
     static bool selectTrailingWhitespaceEnabled();
 
-    static JSValueRef nodesFromRect(JSContextRef context, JSValueRef value, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping);
     static void dumpConfigurationForViewport(WebKitWebView* webView, gint deviceDPI, gint deviceWidth, gint deviceHeight, gint availableWidth, gint availableHeight);
 
     static void clearOpener(WebKitWebFrame*);
-
-    static WebKitDOMRange* jsValueToDOMRange(JSContextRef, JSValueRef);
 
     // FIXME: Move these to webkitwebframe.h once their API has been discussed.
     static GSList* getFrameChildren(WebKitWebFrame*);
@@ -87,6 +83,7 @@ public:
     static void setValueForUser(JSContextRef, JSValueRef, JSStringRef);
     static bool shouldClose(WebKitWebFrame*);
     static bool elementDoesAutoCompleteForElementWithId(WebKitWebFrame*, JSStringRef);
+    static JSValueRef computedStyleIncludingVisitedInfo(JSContextRef, JSValueRef);
 
     // WebKitWebView
     static void executeCoreCommandByName(WebKitWebView*, const gchar* name, const gchar* value);
@@ -119,7 +116,6 @@ public:
     static void whiteListAccessFromOrigin(const gchar* sourceOrigin, const gchar* destinationProtocol, const gchar* destinationHost, bool allowDestinationSubdomains);
     static void resetOriginAccessWhiteLists();
     static unsigned int workerThreadCount();
-    static bool webkitWebFrameSelectionHasSpellingMarker(WebKitWebFrame*, gint from, gint length);
 
     static void resetGeolocationClientMock(WebKitWebView*);
     static void setMockGeolocationPermission(WebKitWebView*, bool allowed);
@@ -128,6 +124,9 @@ public:
     static int numberOfPendingGeolocationPermissionRequests(WebKitWebView*);
 
     static void setHixie76WebSocketProtocolEnabled(WebKitWebView*, bool enabled);
+    static void setPageCacheSupportsPlugins(WebKitWebView*, bool enabled);
+
+    static void deliverAllMutationsIfNecessary();
 
 private:
     static bool s_drtRun;

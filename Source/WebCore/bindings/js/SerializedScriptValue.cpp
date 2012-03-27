@@ -31,13 +31,27 @@
 #include "File.h"
 #include "FileList.h"
 #include "ImageData.h"
+#include "JSArrayBuffer.h"
+#include "JSArrayBufferView.h"
 #include "JSBlob.h"
+#include "JSDataView.h"
 #include "JSDOMGlobalObject.h"
 #include "JSFile.h"
 #include "JSFileList.h"
+#include "JSFloat32Array.h"
+#include "JSFloat64Array.h"
 #include "JSImageData.h"
+#include "JSInt16Array.h"
+#include "JSInt32Array.h"
+#include "JSInt8Array.h"
 #include "JSMessagePort.h"
 #include "JSNavigator.h"
+#include "JSUint16Array.h"
+#include "JSUint32Array.h"
+#include "JSUint8Array.h"
+#include "JSUint8ClampedArray.h"
+#include "NotImplemented.h"
+#include "ScriptValue.h"
 #include "SharedBuffer.h"
 #include <limits>
 #include <JavaScriptCore/APICast.h>
@@ -48,6 +62,7 @@
 #include <runtime/PropertyNameArray.h>
 #include <runtime/RegExp.h>
 #include <runtime/RegExpObject.h>
+#include <wtf/ArrayBuffer.h>
 #include <wtf/ByteArray.h>
 #include <wtf/HashTraits.h>
 #include <wtf/Vector.h>
@@ -90,8 +105,47 @@ enum SerializationTag {
     RegExpTag = 18,
     ObjectReferenceTag = 19,
     MessagePortReferenceTag = 20,
+    ArrayBufferTag = 21,
+    ArrayBufferViewTag = 22,
+    ArrayBufferTransferTag = 23,
     ErrorTag = 255
 };
+
+enum ArrayBufferViewSubtag {
+    DataViewTag = 0,
+    Int8ArrayTag = 1,
+    Uint8ArrayTag = 2,
+    Uint8ClampedArrayTag = 3,
+    Int16ArrayTag = 4,
+    Uint16ArrayTag = 5,
+    Int32ArrayTag = 6,
+    Uint32ArrayTag = 7,
+    Float32ArrayTag = 8,
+    Float64ArrayTag = 9
+};
+
+static unsigned typedArrayElementSize(ArrayBufferViewSubtag tag)
+{
+    switch (tag) {
+    case DataViewTag:
+    case Int8ArrayTag:
+    case Uint8ArrayTag:
+    case Uint8ClampedArrayTag:
+        return 1;
+    case Int16ArrayTag:
+    case Uint16ArrayTag:
+        return 2;
+    case Int32ArrayTag:
+    case Uint32ArrayTag:
+    case Float32ArrayTag:
+        return 4;
+    case Float64ArrayTag:
+        return 8;
+    default:
+        return 0;
+    }
+
+}
 
 /* CurrentVersion tracks the serialization version so that persistant stores
  * are able to correctly bail out in the case of encountering newer formats.
@@ -136,8 +190,11 @@ static const unsigned int StringPoolTag = 0xFFFFFFFE;
  *    | FileList
  *    | ImageData
  *    | Blob
- *    | ObjectReferenceTag <opIndex:IndexType>
+ *    | ObjectReference
  *    | MessagePortReferenceTag <value:uint32_t>
+ *    | ArrayBuffer
+ *    | ArrayBufferViewTag ArrayBufferViewSubtag <byteOffset:uint32_t> <byteLenght:uint32_t> (ArrayBuffer | ObjectReference)
+ *    | ArrayBufferTransferTag <value:uint32_t>
  *
  * String :-
  *      EmptyStringTag
@@ -164,6 +221,12 @@ static const unsigned int StringPoolTag = 0xFFFFFFFE;
  *
  * RegExp :-
  *    RegExpTag <pattern:StringData><flags:StringData>
+ *
+ * ObjectReference :-
+ *    ObjectReferenceTag <opIndex:IndexType>
+ *
+ * ArrayBuffer :-
+ *    ArrayBufferTag <length:uint32_t> <contents:byte{length}>
  */
 
 typedef pair<JSC::JSValue, SerializationReturnCode> DeserializationResult;
@@ -256,9 +319,11 @@ template <typename T> static bool writeLittleEndian(Vector<uint8_t>& buffer, con
 
 class CloneSerializer : CloneBase {
 public:
-    static SerializationReturnCode serialize(ExecState* exec, JSValue value, MessagePortArray* messagePorts, Vector<uint8_t>& out)
+    static SerializationReturnCode serialize(ExecState* exec, JSValue value,
+                                             MessagePortArray* messagePorts, ArrayBufferArray* arrayBuffers,
+                                             Vector<String>& blobURLs, Vector<uint8_t>& out)
     {
-        CloneSerializer serializer(exec, messagePorts, out);
+        CloneSerializer serializer(exec, messagePorts, arrayBuffers, blobURLs, out);
         return serializer.serialize(value);
     }
 
@@ -287,19 +352,30 @@ public:
     }
 
 private:
-    CloneSerializer(ExecState* exec, MessagePortArray* messagePorts, Vector<uint8_t>& out)
+    typedef HashMap<JSObject*, uint32_t> ObjectPool;
+
+    CloneSerializer(ExecState* exec, MessagePortArray* messagePorts, ArrayBufferArray* arrayBuffers, Vector<String>& blobURLs, Vector<uint8_t>& out)
         : CloneBase(exec)
         , m_buffer(out)
+        , m_blobURLs(blobURLs)
         , m_emptyIdentifier(exec, UString("", 0))
     {
         write(CurrentVersion);
-        if (messagePorts) {
-            JSDOMGlobalObject* globalObject = static_cast<JSDOMGlobalObject*>(exec->lexicalGlobalObject());
-            for (size_t i = 0; i < messagePorts->size(); i++) {
-                JSC::JSValue value = toJS(exec, globalObject, messagePorts->at(i).get());
-                if (value.getObject())
-                    m_transferredMessagePorts.add(value.getObject(), i);
-            }
+        fillTransferMap(messagePorts, m_transferredMessagePorts);
+        fillTransferMap(arrayBuffers, m_transferredArrayBuffers);
+    }
+
+    template <class T>
+    void fillTransferMap(Vector<RefPtr<T>, 1>* input, ObjectPool& result)
+    {
+        if (!input)
+            return;
+        JSDOMGlobalObject* globalObject = static_cast<JSDOMGlobalObject*>(m_exec->lexicalGlobalObject());
+        for (size_t i = 0; i < input->size(); i++) {
+            JSC::JSValue value = toJS(m_exec, globalObject, input->at(i).get());
+            JSC::JSObject* obj = value.getObject();
+            if (obj && !result.contains(obj))
+                result.add(obj, i);
         }
     }
 
@@ -416,7 +492,45 @@ private:
         }
     }
 
-    bool dumpIfTerminal(JSValue value)
+    bool dumpArrayBufferView(JSObject* obj, SerializationReturnCode& code)
+    {
+        write(ArrayBufferViewTag);
+        if (obj->inherits(&JSDataView::s_info))
+            write(DataViewTag);
+        else if (obj->inherits(&JSUint8ClampedArray::s_info))
+            write(Uint8ClampedArrayTag);
+        else if (obj->inherits(&JSInt8Array::s_info))
+            write(Int8ArrayTag);
+        else if (obj->inherits(&JSUint8Array::s_info))
+            write(Uint8ArrayTag);
+        else if (obj->inherits(&JSInt16Array::s_info))
+            write(Int16ArrayTag);
+        else if (obj->inherits(&JSUint16Array::s_info))
+            write(Uint16ArrayTag);
+        else if (obj->inherits(&JSInt32Array::s_info))
+            write(Int32ArrayTag);
+        else if (obj->inherits(&JSUint32Array::s_info))
+            write(Uint32ArrayTag);
+        else if (obj->inherits(&JSFloat32Array::s_info))
+            write(Float32ArrayTag);
+        else if (obj->inherits(&JSFloat64Array::s_info))
+            write(Float64ArrayTag);
+        else
+            return false;
+
+        RefPtr<ArrayBufferView> arrayBufferView = toArrayBufferView(obj);
+        write(static_cast<uint32_t>(arrayBufferView->byteOffset()));
+        write(static_cast<uint32_t>(arrayBufferView->byteLength()));
+        RefPtr<ArrayBuffer> arrayBuffer = arrayBufferView->buffer();
+        if (!arrayBuffer) {
+            code = ValidationError;
+            return true;
+        }
+        JSValue bufferObj = toJS(m_exec, static_cast<JSDOMGlobalObject*>(m_exec->lexicalGlobalObject()), arrayBuffer.get());
+        return dumpIfTerminal(bufferObj, code);
+    }
+
+    bool dumpIfTerminal(JSValue value, SerializationReturnCode& code)
     {
         if (!value.isCell()) {
             dumpImmediate(value);
@@ -470,6 +584,7 @@ private:
             if (obj->inherits(&JSBlob::s_info)) {
                 write(BlobTag);
                 Blob* blob = toBlob(obj);
+                m_blobURLs.append(blob->url());
                 write(blob->url());
                 write(blob->type());
                 write(blob->size());
@@ -503,11 +618,34 @@ private:
                 ObjectPool::iterator index = m_transferredMessagePorts.find(obj);
                 if (index != m_transferredMessagePorts.end()) {
                     write(MessagePortReferenceTag);
-                    uint32_t i = index->second;
-                    write(i);
+                    write(index->second);
                     return true;
                 }
                 return false;
+            }
+            if (obj->inherits(&JSArrayBuffer::s_info)) {
+                RefPtr<ArrayBuffer> arrayBuffer = toArrayBuffer(obj);
+                if (arrayBuffer->isNeutered()) {
+                    code = ValidationError;
+                    return true;
+                }
+                ObjectPool::iterator index = m_transferredArrayBuffers.find(obj);
+                if (index != m_transferredArrayBuffers.end()) {
+                    write(ArrayBufferTransferTag);
+                    write(index->second);
+                    return true;
+                }
+                if (!startObjectInternal(obj)) // handle duplicates
+                    return true;
+                write(ArrayBufferTag);
+                write(arrayBuffer->byteLength());
+                write(static_cast<const uint8_t *>(arrayBuffer->data()), arrayBuffer->byteLength());
+                return true;
+            }
+            if (obj->inherits(&JSArrayBufferView::s_info)) {
+                if (!startObjectInternal(obj))
+                    return true;
+                return dumpArrayBufferView(obj, code);
             }
 
             CallData unusedData;
@@ -520,6 +658,11 @@ private:
     }
 
     void write(SerializationTag tag)
+    {
+        writeLittleEndian<uint8_t>(m_buffer, static_cast<uint8_t>(tag));
+    }
+
+    void write(ArrayBufferViewSubtag tag)
     {
         writeLittleEndian<uint8_t>(m_buffer, static_cast<uint8_t>(tag));
     }
@@ -626,6 +769,7 @@ private:
 
     void write(const File* file)
     {
+        m_blobURLs.append(file->url());
         write(file->path());
         write(file->url());
         write(file->type());
@@ -637,9 +781,10 @@ private:
     }
 
     Vector<uint8_t>& m_buffer;
-    typedef HashMap<JSObject*, uint32_t> ObjectPool;
+    Vector<String>& m_blobURLs;
     ObjectPool m_objectPool;
     ObjectPool m_transferredMessagePorts;
+    ObjectPool m_transferredArrayBuffers;
     typedef HashMap<RefPtr<StringImpl>, uint32_t, IdentifierRepHash> StringConstantPool;
     StringConstantPool m_constantPool;
     Identifier m_emptyIdentifier;
@@ -702,7 +847,10 @@ SerializationReturnCode CloneSerializer::serialize(JSValue in)
                 }
 
                 write(index);
-                if (dumpIfTerminal(inValue)) {
+                SerializationReturnCode terminalCode = SuccessfullyCompleted;
+                if (dumpIfTerminal(inValue, terminalCode)) {
+                    if (terminalCode != SuccessfullyCompleted)
+                        return terminalCode;
                     indexStack.last()++;
                     goto arrayStartVisitMember;
                 }
@@ -759,10 +907,13 @@ SerializationReturnCode CloneSerializer::serialize(JSValue in)
                 if (shouldTerminate())
                     return ExistingExceptionError;
 
-                if (!dumpIfTerminal(inValue)) {
+                SerializationReturnCode terminalCode = SuccessfullyCompleted;
+                if (!dumpIfTerminal(inValue, terminalCode)) {
                     stateStack.append(ObjectEndVisitMember);
                     goto stateUnknown;
                 }
+                if (terminalCode != SuccessfullyCompleted)
+                    return terminalCode;
                 // fallthrough
             }
             case ObjectEndVisitMember: {
@@ -773,13 +924,18 @@ SerializationReturnCode CloneSerializer::serialize(JSValue in)
                 goto objectStartVisitMember;
             }
             stateUnknown:
-            case StateUnknown:
-                if (dumpIfTerminal(inValue))
+            case StateUnknown: {
+                SerializationReturnCode terminalCode = SuccessfullyCompleted;
+                if (dumpIfTerminal(inValue, terminalCode)) {
+                    if (terminalCode != SuccessfullyCompleted)
+                        return terminalCode;
                     break;
+                }
 
                 if (isArray(inValue))
                     goto arrayStartState;
                 goto objectStartState;
+            }
         }
         if (stateStack.isEmpty())
             break;
@@ -798,6 +954,8 @@ SerializationReturnCode CloneSerializer::serialize(JSValue in)
 
     return SuccessfullyCompleted;
 }
+
+typedef Vector<WTF::ArrayBufferContents> ArrayBufferContentsArray;
 
 class CloneDeserializer : CloneBase {
 public:
@@ -820,12 +978,13 @@ public:
         return String(str.impl());
     }
 
-    static DeserializationResult deserialize(ExecState* exec, JSGlobalObject* globalObject, MessagePortArray* messagePorts,
+    static DeserializationResult deserialize(ExecState* exec, JSGlobalObject* globalObject,
+                                             MessagePortArray* messagePorts, ArrayBufferContentsArray* arrayBufferContentsArray,
                                              const Vector<uint8_t>& buffer)
     {
         if (!buffer.size())
             return make_pair(jsNull(), UnspecifiedError);
-        CloneDeserializer deserializer(exec, globalObject, messagePorts, buffer);
+        CloneDeserializer deserializer(exec, globalObject, messagePorts, arrayBufferContentsArray, buffer);
         if (!deserializer.isValid())
             return make_pair(JSValue(), ValidationError);
         return deserializer.deserialize();
@@ -870,7 +1029,9 @@ private:
         size_t m_index;
     };
 
-    CloneDeserializer(ExecState* exec, JSGlobalObject* globalObject, MessagePortArray* messagePorts, const Vector<uint8_t>& buffer)
+    CloneDeserializer(ExecState* exec, JSGlobalObject* globalObject, 
+                      MessagePortArray* messagePorts, ArrayBufferContentsArray* arrayBufferContents,
+                      const Vector<uint8_t>& buffer)
         : CloneBase(exec)
         , m_globalObject(globalObject)
         , m_isDOMGlobalObject(globalObject->inherits(&JSDOMGlobalObject::s_info))
@@ -878,6 +1039,8 @@ private:
         , m_end(buffer.data() + buffer.size())
         , m_version(0xFFFFFFFF)
         , m_messagePorts(messagePorts)
+        , m_arrayBufferContents(arrayBufferContents)
+        , m_arrayBuffers(arrayBufferContents ? arrayBufferContents->size() : 0)
     {
         if (!read(m_version))
             m_version = 0xFFFFFFFF;
@@ -1064,12 +1227,17 @@ private:
         return static_cast<SerializationTag>(*m_ptr++);
     }
 
+    bool readArrayBufferViewSubtag(ArrayBufferViewSubtag& tag)
+    {
+        if (m_ptr >= m_end)
+            return false;
+        tag = static_cast<ArrayBufferViewSubtag>(*m_ptr++);
+        return true;
+    }
+
     void putProperty(JSArray* array, unsigned index, JSValue value)
     {
-        if (array->canSetIndex(index))
-            array->setIndex(m_exec->globalData(), index, value);
-        else
-            array->methodTable()->putByIndex(array, m_exec, index, value);
+        array->putDirectIndex(m_exec, index, value, false);
     }
 
     void putProperty(JSObject* object, const Identifier& property, JSValue value)
@@ -1091,6 +1259,83 @@ private:
         if (m_isDOMGlobalObject)
             file = File::create(String(path->ustring().impl()), KURL(KURL(), String(url->ustring().impl())), String(type->ustring().impl()));
         return true;
+    }
+
+    bool readArrayBuffer(RefPtr<ArrayBuffer>& arrayBuffer)
+    {
+        uint32_t length;
+        if (!read(length))
+            return false;
+        if (m_ptr + length > m_end)
+            return false;
+        arrayBuffer = ArrayBuffer::create(m_ptr, length);
+        m_ptr += length;
+        return true;
+    }
+
+    bool readArrayBufferView(JSValue& arrayBufferView)
+    {
+        ArrayBufferViewSubtag arrayBufferViewSubtag;
+        if (!readArrayBufferViewSubtag(arrayBufferViewSubtag))
+            return false;
+        uint32_t byteOffset;
+        if (!read(byteOffset))
+            return false;
+        uint32_t byteLength;
+        if (!read(byteLength))
+            return false;
+        JSObject* arrayBufferObj = asObject(readTerminal());
+        if (!arrayBufferObj || !arrayBufferObj->inherits(&JSArrayBuffer::s_info))
+            return false;
+
+        unsigned elementSize = typedArrayElementSize(arrayBufferViewSubtag);
+        if (!elementSize)
+            return false;
+        unsigned length = byteLength / elementSize;
+        if (length * elementSize != byteLength)
+            return false;
+
+        RefPtr<ArrayBuffer> arrayBuffer = toArrayBuffer(arrayBufferObj);
+        switch (arrayBufferViewSubtag) {
+        case DataViewTag:
+            arrayBufferView = getJSValue(DataView::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Int8ArrayTag:
+            arrayBufferView = getJSValue(Int8Array::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Uint8ArrayTag:
+            arrayBufferView = getJSValue(Uint8Array::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Uint8ClampedArrayTag:
+            arrayBufferView = getJSValue(Uint8ClampedArray::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Int16ArrayTag:
+            arrayBufferView = getJSValue(Int16Array::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Uint16ArrayTag:
+            arrayBufferView = getJSValue(Uint16Array::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Int32ArrayTag:
+            arrayBufferView = getJSValue(Int32Array::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Uint32ArrayTag:
+            arrayBufferView = getJSValue(Uint32Array::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Float32ArrayTag:
+            arrayBufferView = getJSValue(Float32Array::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        case Float64ArrayTag:
+            arrayBufferView = getJSValue(Float64Array::create(arrayBuffer, byteOffset, length).get());
+            return true;
+        default:
+            return false;
+        }
+    }
+
+    template<class T>
+    JSValue getJSValue(T* nativeObj)
+    {
+        return toJS(m_exec, static_cast<JSDOMGlobalObject*>(m_globalObject), nativeObj);
     }
 
     JSValue readTerminal()
@@ -1149,7 +1394,7 @@ private:
             }
             if (!m_isDOMGlobalObject)
                 return jsNull();
-            return toJS(m_exec, static_cast<JSDOMGlobalObject*>(m_globalObject), result.get());
+            return getJSValue(result.get());
         }
         case ImageDataTag: {
             int32_t width;
@@ -1172,7 +1417,7 @@ private:
             RefPtr<ImageData> result = ImageData::create(IntSize(width, height));
             memcpy(result->data()->data()->data(), m_ptr, length);
             m_ptr += length;
-            return toJS(m_exec, static_cast<JSDOMGlobalObject*>(m_globalObject), result.get());
+            return getJSValue(result.get());
         }
         case BlobTag: {
             CachedStringRef url;
@@ -1186,7 +1431,7 @@ private:
                 return JSValue();
             if (!m_isDOMGlobalObject)
                 return jsNull();
-            return toJS(m_exec, static_cast<JSDOMGlobalObject*>(m_globalObject), Blob::create(KURL(KURL(), url->ustring().impl()), String(type->ustring().impl()), size));
+            return getJSValue(Blob::create(KURL(KURL(), url->ustring().impl()), String(type->ustring().impl()), size).get());
         }
         case StringTag: {
             CachedStringRef cachedString;
@@ -1223,8 +1468,39 @@ private:
                 fail();
                 return JSValue();
             }
-            return toJS(m_exec, static_cast<JSDOMGlobalObject*>(m_exec->lexicalGlobalObject()),
-                        m_messagePorts->at(index).get());
+            return getJSValue(m_messagePorts->at(index).get());
+        }
+        case ArrayBufferTag: {
+            RefPtr<ArrayBuffer> arrayBuffer;
+            if (!readArrayBuffer(arrayBuffer)) {
+                fail();
+                return JSValue();
+            }
+            JSValue result = getJSValue(arrayBuffer.get());
+            m_gcBuffer.append(result);
+            return result;
+        }
+        case ArrayBufferTransferTag: {
+            uint32_t index;
+            bool indexSuccessfullyRead = read(index);
+            if (!indexSuccessfullyRead || index >= m_arrayBuffers.size()) {
+                fail();
+                return JSValue();
+            }
+
+            if (!m_arrayBuffers[index])
+                m_arrayBuffers[index] = ArrayBuffer::create(m_arrayBufferContents->at(index));
+
+            return getJSValue(m_arrayBuffers[index].get());
+        }
+        case ArrayBufferViewTag: {
+            JSValue arrayBufferView;
+            if (!readArrayBufferView(arrayBufferView)) {
+                fail();
+                return JSValue();
+            }
+            m_gcBuffer.append(arrayBufferView);
+            return arrayBufferView;
         }
         default:
             m_ptr--; // Push the tag back
@@ -1239,6 +1515,8 @@ private:
     unsigned m_version;
     Vector<CachedString> m_constantPool;
     MessagePortArray* m_messagePorts;
+    ArrayBufferContentsArray* m_arrayBufferContents;
+    ArrayBufferArray m_arrayBuffers;
 };
 
 DeserializationResult CloneDeserializer::deserialize()
@@ -1388,17 +1666,69 @@ SerializedScriptValue::SerializedScriptValue(Vector<uint8_t>& buffer)
     m_data.swap(buffer);
 }
 
-PassRefPtr<SerializedScriptValue> SerializedScriptValue::create(ExecState* exec, JSValue value, MessagePortArray* messagePorts, SerializationErrorMode throwExceptions)
+SerializedScriptValue::SerializedScriptValue(Vector<uint8_t>& buffer, Vector<String>& blobURLs)
+{
+    m_data.swap(buffer);
+    m_blobURLs.swap(blobURLs);
+}
+
+SerializedScriptValue::SerializedScriptValue(Vector<uint8_t>& buffer, Vector<String>& blobURLs, PassOwnPtr<ArrayBufferContentsArray> arrayBufferContentsArray)
+    : m_arrayBufferContentsArray(arrayBufferContentsArray)
+{
+    m_data.swap(buffer);
+    m_blobURLs.swap(blobURLs);
+}
+
+PassOwnPtr<SerializedScriptValue::ArrayBufferContentsArray> SerializedScriptValue::transferArrayBuffers(
+    ArrayBufferArray& arrayBuffers, SerializationReturnCode& code)
+{
+    for (size_t i = 0; i < arrayBuffers.size(); i++) {
+        if (arrayBuffers[i]->isNeutered()) {
+            code = ValidationError;
+            return nullptr;
+        }
+    }
+
+    OwnPtr<ArrayBufferContentsArray> contents = adoptPtr(new ArrayBufferContentsArray(arrayBuffers.size()));
+
+    HashSet<WTF::ArrayBuffer*> visited;
+    for (size_t i = 0; i < arrayBuffers.size(); i++) {
+        Vector<RefPtr<ArrayBufferView> > neuteredViews;
+
+        if (visited.contains(arrayBuffers[i].get()))
+            continue;
+        visited.add(arrayBuffers[i].get());
+
+        bool result = arrayBuffers[i]->transfer(contents->at(i), neuteredViews);
+        if (!result) {
+            code = ValidationError;
+            return nullptr;
+        }
+    }
+    return contents.release();
+}
+
+
+PassRefPtr<SerializedScriptValue> SerializedScriptValue::create(ExecState* exec, JSValue value,
+                                                                MessagePortArray* messagePorts, ArrayBufferArray* arrayBuffers,
+                                                                SerializationErrorMode throwExceptions)
 {
     Vector<uint8_t> buffer;
-    SerializationReturnCode code = CloneSerializer::serialize(exec, value, messagePorts, buffer);
+    Vector<String> blobURLs;
+    SerializationReturnCode code = CloneSerializer::serialize(exec, value, messagePorts, arrayBuffers, blobURLs, buffer);
+
+    OwnPtr<ArrayBufferContentsArray> arrayBufferContentsArray;
+
+    if (arrayBuffers && serializationDidCompleteSuccessfully(code))
+        arrayBufferContentsArray = transferArrayBuffers(*arrayBuffers, code);
+
     if (throwExceptions == Throwing)
         maybeThrowExceptionIfSerializationFailed(exec, code);
 
     if (!serializationDidCompleteSuccessfully(code))
         return 0;
-        
-    return adoptRef(new SerializedScriptValue(buffer));
+
+    return adoptRef(new SerializedScriptValue(buffer, blobURLs, arrayBufferContentsArray.release()));
 }
 
 PassRefPtr<SerializedScriptValue> SerializedScriptValue::create()
@@ -1415,13 +1745,45 @@ PassRefPtr<SerializedScriptValue> SerializedScriptValue::create(const String& st
     return adoptRef(new SerializedScriptValue(buffer));
 }
 
+#if ENABLE(INDEXED_DATABASE)
+PassRefPtr<SerializedScriptValue> SerializedScriptValue::create(JSC::ExecState*, JSC::JSValue)
+{
+    notImplemented();
+    return PassRefPtr<SerializedScriptValue>();
+}
+
+String SerializedScriptValue::toWireString() const
+{
+    notImplemented();
+    return String();
+}
+PassRefPtr<SerializedScriptValue> SerializedScriptValue::createFromWire(const String&)
+{
+    notImplemented();
+    return PassRefPtr<SerializedScriptValue>();
+}
+
+PassRefPtr<SerializedScriptValue> SerializedScriptValue::numberValue(double)
+{
+    notImplemented();
+    return PassRefPtr<SerializedScriptValue>();
+}
+
+JSValue SerializedScriptValue::deserialize(JSC::ExecState*, JSC::JSGlobalObject*)
+{
+    notImplemented();
+    return JSValue();
+}
+#endif
+
 PassRefPtr<SerializedScriptValue> SerializedScriptValue::create(JSContextRef originContext, JSValueRef apiValue, 
-                                                                MessagePortArray* messagePorts, JSValueRef* exception)
+                                                                MessagePortArray* messagePorts, ArrayBufferArray* arrayBuffers,
+                                                                JSValueRef* exception)
 {
     ExecState* exec = toJS(originContext);
     APIEntryShim entryShim(exec);
     JSValue value = toJS(exec, apiValue);
-    RefPtr<SerializedScriptValue> serializedValue = SerializedScriptValue::create(exec, value, messagePorts);
+    RefPtr<SerializedScriptValue> serializedValue = SerializedScriptValue::create(exec, value, messagePorts, arrayBuffers);
     if (exec->hadException()) {
         if (exception)
             *exception = toRef(exec, exec->exception());
@@ -1435,7 +1797,7 @@ PassRefPtr<SerializedScriptValue> SerializedScriptValue::create(JSContextRef ori
 PassRefPtr<SerializedScriptValue> SerializedScriptValue::create(JSContextRef originContext, JSValueRef apiValue,
                                                                 JSValueRef* exception)
 {
-    return create(originContext, apiValue, 0, exception);
+    return create(originContext, apiValue, 0, 0, exception);
 }
 
 String SerializedScriptValue::toString()
@@ -1443,14 +1805,23 @@ String SerializedScriptValue::toString()
     return CloneDeserializer::deserializeString(m_data);
 }
 
-JSValue SerializedScriptValue::deserialize(ExecState* exec, JSGlobalObject* globalObject, 
+JSValue SerializedScriptValue::deserialize(ExecState* exec, JSGlobalObject* globalObject,
                                            MessagePortArray* messagePorts, SerializationErrorMode throwExceptions)
 {
-    DeserializationResult result = CloneDeserializer::deserialize(exec, globalObject, messagePorts, m_data);
+    DeserializationResult result = CloneDeserializer::deserialize(exec, globalObject, messagePorts,
+                                                                  m_arrayBufferContentsArray.get(), m_data);
     if (throwExceptions == Throwing)
         maybeThrowExceptionIfSerializationFailed(exec, result.second);
     return result.first;
 }
+
+#if ENABLE(INSPECTOR)
+ScriptValue SerializedScriptValue::deserializeForInspector(ScriptState* scriptState)
+{
+    JSValue value = deserialize(scriptState, scriptState->lexicalGlobalObject(), 0);
+    return ScriptValue(scriptState->globalData(), value);
+}
+#endif
 
 JSValueRef SerializedScriptValue::deserialize(JSContextRef destinationContext, JSValueRef* exception, MessagePortArray* messagePorts)
 {

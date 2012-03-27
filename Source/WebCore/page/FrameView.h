@@ -27,6 +27,7 @@
 
 #include "AdjustViewSizeOrNot.h"
 #include "Color.h"
+#include "Frame.h"
 #include "LayoutTypes.h"
 #include "PaintPhase.h"
 #include "ScrollView.h"
@@ -69,11 +70,14 @@ public:
     virtual void setFrameRect(const IntRect&);
 
 #if ENABLE(REQUEST_ANIMATION_FRAME)
-    void scheduleAnimation();
+    virtual bool scheduleAnimation();
 #endif
 
     Frame* frame() const { return m_frame.get(); }
     void clearFrame();
+
+    int mapFromLayoutToCSSUnits(LayoutUnit);
+    LayoutUnit mapFromCSSToLayoutUnits(int);
 
     LayoutUnit marginWidth() const { return m_margins.width(); } // -1 means default
     LayoutUnit marginHeight() const { return m_margins.height(); } // -1 means default
@@ -99,6 +103,7 @@ public:
     bool isInLayout() const { return m_inLayout; }
 
     RenderObject* layoutRoot(bool onlyDuringLayout = false) const;
+    void clearLayoutRoot() { m_layoutRoot = 0; }
     int layoutCount() const { return m_layoutCount; }
 
     bool needsLayout() const;
@@ -120,6 +125,8 @@ public:
     // Called when changes to the GraphicsLayer hierarchy have to be synchronized with
     // content rendered via the normal painting path.
     void setNeedsOneShotDrawingSynchronization();
+
+    virtual TiledBacking* tiledBacking() OVERRIDE;
 #endif
 
     bool hasCompositedContent() const;
@@ -168,6 +175,7 @@ public:
     void setScrollPosition(const IntPoint&);
     void scrollPositionChangedViaPlatformWidget();
     virtual void repaintFixedElementsAfterScrolling();
+    virtual void updateFixedElementsAfterScrolling();
     virtual bool shouldRubberBandInDirection(ScrollDirection) const;
     virtual bool requestScrollPositionUpdate(const IntPoint&) OVERRIDE;
 
@@ -200,7 +208,12 @@ public:
     void beginDeferredRepaints();
     void endDeferredRepaints();
     void checkStopDelayingDeferredRepaints();
+    void startDeferredRepaintTimer(double delay);
     void resetDeferredRepaintDelay();
+
+    void beginDisableRepaints();
+    void endDisableRepaints();
+    bool repaintsDisabled() { return m_disableRepaints > 0; }
 
 #if ENABLE(DASHBOARD_SUPPORT)
     void updateDashboardRegions();
@@ -229,6 +242,7 @@ public:
 
     virtual void paintOverhangAreas(GraphicsContext*, const IntRect& horizontalOverhangArea, const IntRect& verticalOverhangArea, const IntRect& dirtyRect);
     virtual void paintScrollCorner(GraphicsContext*, const IntRect& cornerRect);
+    virtual void paintScrollbar(GraphicsContext*, Scrollbar*, const IntRect&) OVERRIDE;
 
     Color documentBackgroundColor() const;
 
@@ -316,6 +330,11 @@ public:
     virtual void addChild(PassRefPtr<Widget>) OVERRIDE;
     virtual void removeChild(Widget*) OVERRIDE;
 
+    // This function exists for ports that need to handle wheel events manually.
+    // On Mac WebKit1 the underlying NSScrollView just does the scrolling, but on most other platforms
+    // we need this function in order to do the scroll ourselves.
+    bool wheelEvent(const PlatformWheelEvent&);
+
 protected:
     virtual bool scrollContentsFastPath(const IntSize& scrollDelta, const IntRect& rectToScroll, const IntRect& clipRect);
     virtual void scrollContentsSlowPath(const IntRect& updateRect);
@@ -399,6 +418,8 @@ private:
 
     FrameView* parentFrameView() const;
 
+    bool isInChildFrameWithFrameFlattening();
+
     virtual AXObjectCache* axObjectCache() const;
     void notifyWidgetsInAllFrames(WidgetNotification);
     
@@ -437,7 +458,7 @@ private:
     bool m_firstLayout;
     bool m_isTransparent;
     Color m_baseBackgroundColor;
-    LayoutSize m_lastLayoutSize;
+    IntSize m_lastViewportSize;
     float m_lastZoomFactor;
 
     String m_mediaType;
@@ -459,7 +480,9 @@ private:
     Timer<FrameView> m_deferredRepaintTimer;
     double m_deferredRepaintDelay;
     double m_lastPaintTime;
-    
+
+    unsigned m_disableRepaints;
+
     bool m_isTrackingRepaints; // Used for testing.
     Vector<IntRect> m_trackedRepaintRects;
 
@@ -519,6 +542,16 @@ inline void FrameView::incrementVisuallyNonEmptyPixelCount(const IntSize& size)
     static const unsigned visualPixelThreshold = 32 * 32;
     if (m_visuallyNonEmptyPixelCount > visualPixelThreshold)
         setIsVisuallyNonEmpty();
+}
+
+inline int FrameView::mapFromLayoutToCSSUnits(LayoutUnit value)
+{
+    return value / (m_frame->pageZoomFactor() * m_frame->frameScaleFactor());
+}
+
+inline LayoutUnit FrameView::mapFromCSSToLayoutUnits(int value)
+{
+    return value * m_frame->pageZoomFactor() * m_frame->frameScaleFactor();
 }
 
 } // namespace WebCore

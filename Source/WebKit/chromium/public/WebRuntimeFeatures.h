@@ -91,6 +91,9 @@ public:
     WEBKIT_EXPORT static void enableSpeechInput(bool);
     WEBKIT_EXPORT static bool isSpeechInputEnabled();
 
+    WEBKIT_EXPORT static void enableScriptedSpeech(bool);
+    WEBKIT_EXPORT static bool isScriptedSpeechEnabled();
+
     WEBKIT_EXPORT static void enableXHRResponseBlob(bool);
     WEBKIT_EXPORT static bool isXHRResponseBlobEnabled();
 
@@ -123,6 +126,9 @@ public:
 
     WEBKIT_EXPORT static void enableShadowDOM(bool);
     WEBKIT_EXPORT static bool isShadowDOMEnabled();
+
+    WEBKIT_EXPORT static void enableStyleScoped(bool);
+    WEBKIT_EXPORT static bool isStyleScopedEnabled();
 
 private:
     WebRuntimeFeatures();

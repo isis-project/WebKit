@@ -23,7 +23,7 @@
 #include "config.h"
 #include "FileSystem.h"
 
-#include "GOwnPtr.h"
+#include <wtf/gobject/GOwnPtr.h>
 #include "PlatformString.h"
 #include "UUID.h"
 #include <gio/gio.h>
@@ -188,6 +188,26 @@ CString applicationDirectoryPath()
 
     GOwnPtr<char> dirname(g_path_get_dirname(currentExePath.get()));
     return dirname.get();
+}
+
+CString sharedResourcesPath()
+{
+    static CString cachedPath;
+    if (!cachedPath.isNull())
+        return cachedPath;
+
+#if OS(WINDOWS)
+    HMODULE hmodule = 0;
+    GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS, reinterpret_cast<char*>(sharedResourcesPath), &hmodule);
+
+    GOwnPtr<gchar> runtimeDir(g_win32_get_package_installation_directory_of_module(hmodule));
+    GOwnPtr<gchar> dataPath(g_build_filename(runtimeDir.get(), "share", "webkitgtk-"WEBKITGTK_API_VERSION_STRING, NULL));
+#else
+    GOwnPtr<gchar> dataPath(g_build_filename(DATA_DIR, "webkitgtk-"WEBKITGTK_API_VERSION_STRING, NULL));
+#endif
+
+    cachedPath = dataPath.get();
+    return cachedPath;
 }
 
 uint64_t getVolumeFreeSizeForPath(const char* path)

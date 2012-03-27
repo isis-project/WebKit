@@ -53,7 +53,6 @@ public:
     void cancelSelection();
     WebString selectedText() const;
 
-    bool findNextString(const WTF::String&, bool);
     bool selectionContains(const WebCore::IntPoint&);
 
     void setSelection(const WebCore::IntPoint& start, const WebCore::IntPoint& end);
@@ -77,6 +76,7 @@ private:
     WebCore::Node* DOMContainerNodeForVisiblePosition(const WebCore::VisiblePosition&) const;
     bool shouldUpdateSelectionOrCaretForPoint(const WebCore::IntPoint&, const WebCore::IntRect&, bool startCaret = true) const;
     unsigned short extendSelectionToFieldBoundary(bool isStartHandle, const WebCore::IntPoint& selectionPoint, WebCore::VisibleSelection& newSelection);
+    WebCore::IntPoint clipPointToVisibleContainer(const WebCore::IntPoint&) const;
 
     WebPagePrivate* m_webPage;
 

@@ -203,7 +203,7 @@ public:
     float contentsScale() const;
     void setContentsScale(float);
 
-    void visibleRectChanged();
+    TiledBacking* tiledBacking();
 
 #if PLATFORM(WIN)
     HashMap<String, RefPtr<PlatformCAAnimation> >& animations() { return m_animations; }

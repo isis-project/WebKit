@@ -35,14 +35,14 @@ class LayerRendererChromium;
 
 class CCSolidColorLayerImpl : public CCLayerImpl {
 public:
-    static PassRefPtr<CCSolidColorLayerImpl> create(int id)
+    static PassOwnPtr<CCSolidColorLayerImpl> create(int id)
     {
-        return adoptRef(new CCSolidColorLayerImpl(id));
+        return adoptPtr(new CCSolidColorLayerImpl(id));
     }
     virtual ~CCSolidColorLayerImpl();
 
     virtual TransformationMatrix quadTransform() const;
-    virtual void appendQuads(CCQuadList&, const CCSharedQuadState*);
+    virtual void appendQuads(CCQuadCuller&, const CCSharedQuadState*, bool& usedCheckerboard);
 
 protected:
     explicit CCSolidColorLayerImpl(int id);

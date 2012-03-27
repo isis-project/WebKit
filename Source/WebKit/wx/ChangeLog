@@ -1,3 +1,96 @@
+2012-03-25  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix. Add header needed for Unix builds.
+
+        * WebKitSupport/FrameLoaderClientWx.cpp:
+
+2012-03-19  Adam Barth  <abarth@webkit.org>
+
+        Remove support for "magic" iframe
+        https://bugs.webkit.org/show_bug.cgi?id=81590
+
+        Reviewed by Eric Seidel.
+
+        Remove FrameLoaderClient methods that no longer exist.
+
+        * WebKitSupport/FrameLoaderClientWx.cpp:
+        (WebCore):
+        * WebKitSupport/FrameLoaderClientWx.h:
+        (FrameLoaderClientWx):
+
+2012-03-15  Kevin Ollivier  <kevino@theolliviers.com>
+
+        Move wx port to using export macros
+        https://bugs.webkit.org/show_bug.cgi?id=77279
+
+        Reviewed by Hajime Morita.
+
+        * wscript:
+
+2012-03-13  Adam Barth  <abarth@webkit.org> && Benjamin Poulain  <bpoulain@apple.com>
+
+        Always enable ENABLE(CLIENT_BASED_GEOLOCATION)
+        https://bugs.webkit.org/show_bug.cgi?id=78853
+
+        Reviewed by Adam Barth.
+
+        * WebKitSupport/ChromeClientWx.cpp:
+        * WebKitSupport/ChromeClientWx.h:
+
+2012-02-26  Hajime Morrita  <morrita@chromium.org>
+
+        Move ChromeClient::showContextMenu() to ContextMenuClient
+        https://bugs.webkit.org/show_bug.cgi?id=79427
+
+        Reviewed by Adam Barth.
+
+        * WebKitSupport/ChromeClientWx.h:
+        (ChromeClientWx):
+
+2012-02-24  Shinya Kawanaka  <shinyak@chromium.org>
+
+        SpellCheckRequest needs to know the context where the spellcheck happened.
+        https://bugs.webkit.org/show_bug.cgi?id=79320
+
+        Reviewed by Hajime Morita.
+
+        * WebKitSupport/EditorClientWx.h:
+        (WebCore::EditorClientWx::requestCheckingOfString):
+
+2012-02-21  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Remove the remaining uses of CSSStyleDeclaration in Editor
+        https://bugs.webkit.org/show_bug.cgi?id=78939
+
+        Reviewed by Enrica Casucci.
+
+        * WebKitSupport/EditorClientWx.cpp:
+        (WebCore::EditorClientWx::shouldApplyStyle):
+        * WebKitSupport/EditorClientWx.h:
+        (EditorClientWx):
+
+2012-02-22  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Remove the remaining uses of CSSStyleDeclaration in Editor
+        https://bugs.webkit.org/show_bug.cgi?id=78939
+
+        Reviewed by Enrica Casucci.
+
+        * WebKitSupport/EditorClientWx.cpp:
+        (WebCore::EditorClientWx::shouldApplyStyle):
+        * WebKitSupport/EditorClientWx.h:
+        (EditorClientWx):
+
+2012-02-15  Sadrul Habib Chowdhury  <sadrul@chromium.org>
+
+        Notify ChromeClient when touch-event handlers are installed/removed.
+        https://bugs.webkit.org/show_bug.cgi?id=77440
+
+        Reviewed by Darin Fisher and Ryosuke Niwa.
+
+        * WebKitSupport/ChromeClientWx.h:
+        (WebCore::ChromeClientWx::numTouchEventHandlersChanged):
+
 2012-01-30  Kevin Ollivier  <kevino@theolliviers.com>
 
         [wx] Unreviewed. Build fix, add JavaScriptCore/runtime

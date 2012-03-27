@@ -54,7 +54,6 @@ fast/events/context-onmousedown-event.html
 fast/events/contextmenu-scrolled-page-with-frame.html
 fast/events/continuous-platform-wheelevent-in-scrolling-div.html
 fast/events/fire-mousedown-while-pressing-mouse-button.html
-fast/events/mouse-click-events.html
 fast/events/mouseup-from-button2.html
 fast/events/open-window-from-another-frame.html
 fast/events/platform-wheelevent-in-scrolling-div.html
@@ -111,8 +110,6 @@ fast/dom/Geolocation/page-reload-cancel-permission-requests.html
 # WebKit2 needs keygen support
 fast/html/keygen.html
 fast/invalid/residual-style.html
-
-# WebKit2 needs to support defaultLanguage
 
 # WebKit2 needs to support authentication
 http/tests/appcache/auth.html
@@ -208,7 +205,6 @@ storage/read-transactions-running-concurrently.html
 http/tests/appcache
 fast/dom/beforeload/video-before-load.html
 media/video-source-moved.html
-http/tests/websocket/tests/hixie76/frame-lengths.html
 http/tests/misc/object-image-error.html
 http/tests/security/contentSecurityPolicy/media-src-allowed.html
 
@@ -292,10 +288,6 @@ css2.1/20110323/height-width-table-001.htm
 css2.1/20110323/inline-block-replaced-height-008.htm
 css2.1/20110323/inline-replaced-height-008.htm
 
-# [Qt][WK2] Crash with http/tests/websocket/tests/hixie76/long-invalid-header.html
-# https://bugs.webkit.org/show_bug.cgi?id=70917
-http/tests/websocket/tests/hixie76/long-invalid-header.html
-
 # [Qt][WK2] fast/events/drag-selects-image.html fails
 # https://bugs.webkit.org/show_bug.cgi?id=70907
 fast/events/drag-selects-image.html
@@ -333,6 +325,10 @@ css3/unicode-bidi-isolate-aharon-failing.html
 # https://bugs.webkit.org/show_bug.cgi?id=74504
 fast/dom/rtl-scroll-to-leftmost-and-resize.html
 
+#[Qt][WK2]REGRESSION(r110699): It made fast/animation/request-animation-frame-during-modal.html timeout
+#https://bugs.webkit.org/show_bug.cgi?id=81671
+fast/animation/request-animation-frame-during-modal.html
+
 # flakey svg tests
 svg/custom/getscreenctm-in-scrollable-svg-area.xhtml
 svg/custom/getscreenctm-in-scrollable-div-area.xhtml
@@ -342,8 +338,10 @@ svg/custom/getscreenctm-in-scrollable-div-area.xhtml
 editing/text-iterator/findString-selection-disabled.html
 
 # Failing tests on qt-wk2 after unskipping qt-5.0/Skipped tests, need more investigation
+editing/selection/click-in-margins-inside-editable-div.html
 fast/block/basic/020.html
 fast/dom/access-key-iframe.html
+fast/dom/Window/window-properties.html
 fast/forms/basic-selects.html
 fast/history/visited-link-background-color.html
 fast/layers/layer-visibility-sublayer.html
@@ -354,7 +352,7 @@ fast/replaced/no-focus-ring-embed.html
 fast/replaced/no-focus-ring-object.html
 fast/text/whitespace/028.html
 http/tests/cache/history-only-cached-subresource-loads.html
-http/tests/workers/interrupt-database-sync-open-crash.html
+http/tests/security/mixedContent/insecure-plugin-in-iframe.html
 security/autocomplete-cleared-on-back.html
 # Crashing test on qt-wk2 after unskipping qt-5.0/Skipped tests, need more investigation
 editing/execCommand/align-in-span.html
@@ -383,16 +381,25 @@ fast/loader/submit-form-while-parsing-2.html
 # https://bugs.webkit.org/show_bug.cgi?id=76061
 css3/filters/should-not-have-compositing-layer.html
 
+# Hardware filters don't work with GL yet
+# https://bugs.webkit.org/show_bug.cgi?id=75778
+css3/filters/crash-hw-sw-switch.html
+css3/filters/effect-blur-hw.html
+css3/filters/effect-combined-hw.html
+css3/filters/effect-drop-shadow-hw.html
+css3/filters/effect-grayscale-hw.html
+css3/filters/effect-hue-rotate-hw.html
+css3/filters/effect-invert-hw.html
+css3/filters/effect-opacity-hw.html
+css3/filters/effect-saturate-hw.html
+css3/filters/effect-sepia-hw.html
+css3/filters/custom
+
 # Unskipped on Qt5, but still fail on qt-wk2 platform
 editing/input/emacs-ctrl-o.html
 fast/block/float/float-in-float-hit-testing.html
 fast/dynamic/012.html
 platform/qt/plugins/qt-qwidget-plugin.html
-
-# [Qt][WK2] WebKitTestRunner should use 480x360 sized view for W3C SVG tests
-# https://bugs.webkit.org/show_bug.cgi?id=76546
-svg/W3C-SVG-1.1
-svg/W3C-SVG-1.1-SE
 
 # [Qt][WK2]REGRESSION(r105461): It made 8 tests fail
 # https://bugs.webkit.org/show_bug.cgi?id=76699
@@ -422,3 +429,130 @@ http/tests/loading/progress-finished-callback.html
 fast/history/form-submit-in-frame-via-onclick.html
 fast/history/form-submit-in-frame.html
 http/tests/loading/state-object-security-exception.html
+
+# [Qt][WK2] fast/frames/flattening/iframe-flattening-out-of-view-and-scroll.html crashes regularly
+# https://bugs.webkit.org/show_bug.cgi?id=79656
+fast/frames/flattening/iframe-flattening-out-of-view-and-scroll.html
+fast/frames/flattening/iframe-flattening-out-of-view-scroll-and-relayout.html
+
+###################################
+# Unskipping 'compositing' tests. #
+###################################
+
+# Most of these tests crash or doesn't generate expected results.
+compositing/reflections
+
+# Does not transform child as expected.
+compositing/flat-with-transformed-child.html
+
+# Flaky tests.
+compositing/masks/simple-composited-mask.html
+compositing/masks/direct-image-mask.html
+compositing/masks/masked-ancestor.html
+compositing/geometry/limit-layer-bounds-fixed-positioned.html
+compositing/geometry/video-opacity-overlay.html
+compositing/rtl/rtl-absolute-overflow-scrolled.html
+compositing/visibility/layer-visible-content.html
+
+# Some of them crashes once other tests are skipped.
+compositing/overflow/clip-descendents.html
+compositing/overflow/clip-content-under-overflow-controls.html
+compositing/overflow/ancestor-overflow.html
+compositing/masks/simple-composited-mask.html
+compositing/masks/multiple-masks.html
+compositing/color-matching/image-color-matching.html
+compositing/culling/tile-occlusion-boundaries.html
+compositing/direct-image-compositing.html
+compositing/fixed-position-changed-in-composited-layer.html
+compositing/images/content-image-change.html
+compositing/images/content-image.html
+compositing/tiling/crash-huge-layer.html
+compositing/visibility/visibility-image-layers-dynamic.html
+compositing/visibility/visibility-image-layers.html
+compositing/visibility/visibility-simple-webgl-layer.html
+
+# Black square instead of green square is displayed.
+compositing/masks/layer-mask-placement.html
+
+# Blur effect doesnt show up.
+compositing/culling/filter-occlusion-blur-large.html
+compositing/culling/filter-occlusion-blur.html
+
+# The following tests doesnt match expected text files.
+compositing/geometry/fixed-position-composited-switch.html
+compositing/geometry/layer-due-to-layer-children-deep-switch.html
+compositing/geometry/layer-due-to-layer-children-switch.html
+compositing/geometry/limit-layer-bounds-clipping-ancestor.html
+compositing/geometry/limit-layer-bounds-opacity-transition.html
+compositing/geometry/limit-layer-bounds-overflow-root.html
+compositing/geometry/limit-layer-bounds-positioned-transition.html
+compositing/geometry/limit-layer-bounds-positioned.html
+compositing/geometry/limit-layer-bounds-transformed-overflow.html
+compositing/geometry/limit-layer-bounds-transformed.html
+compositing/iframes/become-composited-nested-iframes.html
+compositing/iframes/become-overlapped-iframe.html
+compositing/iframes/composited-iframe-scroll.html
+compositing/iframes/composited-parent-iframe.html
+compositing/iframes/connect-compositing-iframe-delayed.html
+compositing/iframes/connect-compositing-iframe.html
+compositing/iframes/connect-compositing-iframe2.html
+compositing/iframes/connect-compositing-iframe3.html
+compositing/iframes/enter-compositing-iframe.html
+compositing/iframes/iframe-content-flipping.html
+compositing/iframes/iframe-resize.html
+compositing/iframes/iframe-size-to-zero.html
+compositing/iframes/invisible-nested-iframe-show.html
+compositing/iframes/leave-compositing-iframe.html
+compositing/iframes/overlapped-iframe.html
+compositing/iframes/overlapped-nested-iframes.html
+compositing/iframes/scrolling-iframe.html
+compositing/layer-creation/fixed-position-out-of-view.html
+compositing/layer-creation/overflow-scroll-overlap.html
+compositing/layer-creation/scroll-partial-update.html
+compositing/layer-creation/spanOverlapsCanvas.html
+compositing/overflow/content-gains-scrollbars.html
+compositing/overflow/overflow-scrollbar-layers.html
+compositing/plugins/1x1-composited-plugin.html
+compositing/plugins/invalidate_rect.html
+compositing/plugins/large-to-small-composited-plugin.html
+compositing/plugins/small-to-large-composited-plugin.html
+compositing/tiled-layers-hidpi.html
+compositing/tiling/crash-reparent-tiled-layer.html
+compositing/video/video-poster.html
+compositing/layers-inside-overflow-scroll.html
+
+# The following tests get image mismatch.
+compositing/culling/filter-occlusion-alpha-large.html
+compositing/culling/filter-occlusion-alpha.html
+compositing/backface-visibility-hierarchical-transform.html
+compositing/backface-visibility.html
+compositing/images/direct-pdf-image.html
+compositing/visibility/visibility-simple-video-layer.html
+
+# The following tests doesnt match both expected image and text.
+compositing/geometry/ancestor-overflow-change.html
+compositing/geometry/tall-page-composited.html
+
+# Boxes are not showing the correct perspective.
+transforms/3d/general/perspective-units.html
+
+# "backface-visibility: hidden" is not hiding test boxes.
+transforms/3d/hit-testing
+
+# Generated results doesn't contain any visible 3d transformation.
+transforms/3d/point-mapping
+
+# [Qt][WK2] http/tests/security/xss-DENIED-xsl-document-securityOrigin.xml crashes
+# https://bugs.webkit.org/show_bug.cgi?id=80209
+http/tests/security/xss-DENIED-xsl-document-securityOrigin.xml
+
+# [Qt][WK2] New hybi tests crash
+# https://bugs.webkit.org/show_bug.cgi?id=80385
+http/tests/websocket/tests/hybi/unpaired-surrogates-in-message.html
+http/tests/websocket/tests/hybi/unpaired-surrogates-in-close-reason.html
+
+# [Qt][WK2] fast/repaint/scroll-in-clipped-layer.html crashes
+# https://bugs.webkit.org/show_bug.cgi?id=80387
+fast/repaint/scroll-fixed-reflected-layer.html
+fast/repaint/scroll-in-clipped-layer.html
+fast/repaint/scroll-in-fixed-layer.html

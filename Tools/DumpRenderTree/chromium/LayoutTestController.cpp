@@ -49,16 +49,19 @@
 #include "WebGeolocationClientMock.h"
 #include "WebIDBFactory.h"
 #include "WebInputElement.h"
+#include "WebIntentRequest.h"
 #include "WebKit.h"
 #include "WebNotificationPresenter.h"
 #include "WebPermissions.h"
 #include "WebScriptSource.h"
 #include "WebSecurityPolicy.h"
+#include "platform/WebSerializedScriptValue.h"
 #include "WebSettings.h"
 #include "platform/WebSize.h"
 #include "platform/WebURL.h"
 #include "WebView.h"
 #include "WebViewHost.h"
+#include "v8/include/v8.h"
 #include "webkit/support/webkit_support.h"
 #include <algorithm>
 #include <cctype>
@@ -101,6 +104,7 @@ LayoutTestController::LayoutTestController(TestShell* shell)
 #if ENABLE(POINTER_LOCK)
     bindMethod("didLosePointerLock", &LayoutTestController::didLosePointerLock);
 #endif
+    bindMethod("disableAutoResizeMode", &LayoutTestController::disableAutoResizeMode);
     bindMethod("disableImageLoading", &LayoutTestController::disableImageLoading);
     bindMethod("display", &LayoutTestController::display);
     bindMethod("displayInvalidatedRegion", &LayoutTestController::displayInvalidatedRegion);
@@ -128,7 +132,6 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("execCommand", &LayoutTestController::execCommand);
     bindMethod("forceRedSelectionColors", &LayoutTestController::forceRedSelectionColors);
     bindMethod("grantDesktopNotificationPermission", &LayoutTestController::grantDesktopNotificationPermission);
-    bindMethod("hasSpellingMarker", &LayoutTestController::hasSpellingMarker);
     bindMethod("findString", &LayoutTestController::findString);
     bindMethod("isCommandEnabled", &LayoutTestController::isCommandEnabled);
     bindMethod("hasCustomPageSizeStyle", &LayoutTestController::hasCustomPageSizeStyle);
@@ -247,6 +250,7 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("setShouldStayOnPageAfterHandlingBeforeUnload", &LayoutTestController::setShouldStayOnPageAfterHandlingBeforeUnload);
     bindMethod("enableFixedLayoutMode", &LayoutTestController::enableFixedLayoutMode);
     bindMethod("setFixedLayoutSize", &LayoutTestController::setFixedLayoutSize);
+    bindMethod("selectionAsMarkup", &LayoutTestController::selectionAsMarkup);
     
     // The fallback method is called when an unknown method is invoked.
     bindFallbackMethod(&LayoutTestController::fallbackMethod);
@@ -261,6 +265,7 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindProperty("platformName", &m_platformName);
     bindProperty("interceptPostMessage", &m_interceptPostMessage);
     bindProperty("workerThreadCount", &LayoutTestController::workerThreadCount);
+    bindMethod("sendWebIntentResponse", &LayoutTestController::sendWebIntentResponse);
 }
 
 LayoutTestController::~LayoutTestController()
@@ -619,7 +624,7 @@ void LayoutTestController::reset()
 #endif
         m_shell->webView()->removeAllUserContent();
         WebKit::WebSize empty;
-        m_shell->webView()->enableAutoResizeMode(false, empty, empty);
+        m_shell->webView()->disableAutoResizeMode();
     }
     m_dumpAsText = false;
     m_dumpAsAudio = false;
@@ -1124,7 +1129,23 @@ void LayoutTestController::enableAutoResizeMode(const CppArgumentList& arguments
     int maxHeight = cppVariantToInt32(arguments[3]);
     WebKit::WebSize maxSize(maxWidth, maxHeight);
 
-    m_shell->webView()->enableAutoResizeMode(true, minSize, maxSize);
+    m_shell->webView()->enableAutoResizeMode(minSize, maxSize);
+    result->set(true);
+}
+
+void LayoutTestController::disableAutoResizeMode(const CppArgumentList& arguments, CppVariant* result)
+{
+    if (arguments.size() !=2) {
+        result->set(false);
+        return;
+    }
+    int newWidth = cppVariantToInt32(arguments[0]);
+    int newHeight = cppVariantToInt32(arguments[1]);
+    WebKit::WebSize newSize(newWidth, newHeight);
+
+    m_shell->webViewHost()->setWindowRect(WebRect(0, 0, newSize.width, newSize.height));
+    m_shell->webView()->disableAutoResizeMode();
+    m_shell->webView()->resize(newSize);
     result->set(true);
 }
 
@@ -1169,7 +1190,7 @@ void LayoutTestController::grantDesktopNotificationPermission(const CppArgumentL
         result->set(false);
         return;
     }
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     m_shell->notificationPresenter()->grantPermission(cppVariantToWebString(arguments[0]));
 #endif
     result->set(true);
@@ -1181,7 +1202,7 @@ void LayoutTestController::simulateDesktopNotificationClick(const CppArgumentLis
         result->set(false);
         return;
     }
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     if (m_shell->notificationPresenter()->simulateClick(cppVariantToWebString(arguments[0])))
         result->set(true);
     else
@@ -1521,6 +1542,8 @@ void LayoutTestController::overridePreference(const CppArgumentList& arguments, 
         prefs->tabsToLinks = cppVariantToBool(value);
     else if (key == "WebKitWebGLEnabled")
         prefs->experimentalWebGLEnabled = cppVariantToBool(value);
+    else if (key == "WebKitCSSRegionsEnabled")
+        prefs->experimentalCSSRegionsEnabled = cppVariantToBool(value);
     else if (key == "WebKitHyperlinkAuditingEnabled")
         prefs->hyperlinkAuditingEnabled = cppVariantToBool(value);
     else if (key == "WebKitEnableCaretBrowsing")
@@ -1531,6 +1554,8 @@ void LayoutTestController::overridePreference(const CppArgumentList& arguments, 
         prefs->allowRunningOfInsecureContent = cppVariantToBool(value);
     else if (key == "WebKitHixie76WebSocketProtocolEnabled")
         prefs->hixie76WebSocketProtocolEnabled = cppVariantToBool(value);
+    else if (key == "WebKitCSSCustomFilterEnabled")
+        prefs->cssCustomFilterEnabled = cppVariantToBool(value);
     else if (key == "WebKitWebAudioEnabled") {
         ASSERT(cppVariantToBool(value));
     } else {
@@ -1979,13 +2004,6 @@ void LayoutTestController::markerTextForListItem(const CppArgumentList& args, Cp
         result->set(element.document().frame()->markerTextForListItem(element).utf8());
 }
 
-void LayoutTestController::hasSpellingMarker(const CppArgumentList& arguments, CppVariant* result)
-{
-    if (arguments.size() < 2 || !arguments[0].isNumber() || !arguments[1].isNumber())
-        return;
-    result->set(m_shell->webView()->mainFrame()->selectionStartHasSpellingMarkerFor(arguments[0].toInt32(), arguments[1].toInt32()));
-}
-
 void LayoutTestController::findString(const CppArgumentList& arguments, CppVariant* result)
 {
     if (arguments.size() < 1 || !arguments[0].isString())
@@ -2113,9 +2131,36 @@ void LayoutTestController::setFixedLayoutSize(const CppArgumentList& arguments, 
     m_shell->webView()->setFixedLayoutSize(WebSize(width, height));
 }
 
+void LayoutTestController::selectionAsMarkup(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->set(m_shell->webView()->mainFrame()->selectionAsMarkup().utf8());
+}
+
 void LayoutTestController::workerThreadCount(CppVariant* result)
 {
     result->set(static_cast<int>(WebWorkerInfo::dedicatedWorkerCount()));
+}
+
+void LayoutTestController::sendWebIntentResponse(const CppArgumentList& arguments, CppVariant* result)
+{
+    v8::HandleScope scope;
+    v8::Local<v8::Context> ctx = m_shell->webView()->mainFrame()->mainWorldScriptContext();
+    result->set(m_shell->webView()->mainFrame()->selectionAsMarkup().utf8());
+    v8::Context::Scope cscope(ctx);
+
+    WebKit::WebIntentRequest* request = m_shell->webViewHost()->currentIntentRequest();
+    if (request->isNull())
+        return;
+
+    if (arguments.size() == 1) {
+        WebKit::WebCString reply = cppVariantToWebString(arguments[0]).utf8();
+        v8::Handle<v8::Value> v8value = v8::String::New(reply.data(), reply.length());
+        request->postResult(WebKit::WebSerializedScriptValue::serialize(v8value));
+    } else {
+        v8::Handle<v8::Value> v8value = v8::String::New("ERROR");
+        request->postFailure(WebKit::WebSerializedScriptValue::serialize(v8value));
+    }
+    result->setNull();
 }
 
 void LayoutTestController::setPluginsEnabled(const CppArgumentList& arguments, CppVariant* result)

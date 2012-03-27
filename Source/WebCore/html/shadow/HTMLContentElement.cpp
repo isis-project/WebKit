@@ -31,7 +31,9 @@
 #include "HTMLContentSelector.h"
 #include "HTMLNames.h"
 #include "QualifiedName.h"
+#include "RuntimeEnabledFeatures.h"
 #include "ShadowRoot.h"
+#include "ShadowTree.h"
 #include <wtf/StdLibExtras.h>
 
 namespace WebCore {
@@ -41,10 +43,11 @@ using HTMLNames::selectAttr;
 static const QualifiedName& contentTagName()
 {
 #if ENABLE(SHADOW_DOM)
+    if (!RuntimeEnabledFeatures::shadowDOMEnabled())
+        return HTMLNames::webkitShadowContentTag;
     return HTMLNames::contentTag;
 #else
-    DEFINE_STATIC_LOCAL(QualifiedName, tagName, (nullAtom, "webkitShadowContent", HTMLNames::divTag.namespaceURI()));
-    return tagName;
+    return HTMLNames::webkitShadowContentTag;
 #endif
 }
 
@@ -59,47 +62,12 @@ PassRefPtr<HTMLContentElement> HTMLContentElement::create(const QualifiedName& t
 }
 
 HTMLContentElement::HTMLContentElement(const QualifiedName& name, Document* document)
-    : HTMLElement(name, document)
-    , m_selections(adoptPtr(new HTMLContentSelectionList()))
+    : InsertionPoint(name, document)
 {
 }
 
 HTMLContentElement::~HTMLContentElement()
 {
-}
-
-void HTMLContentElement::attach()
-{
-    ShadowRoot* root = toShadowRoot(shadowTreeRootNode());
-
-    // Before calling StyledElement::attach, selector must be calculated.
-    if (root) {
-        HTMLContentSelector* selector = root->ensureSelector();
-        selector->unselect(m_selections.get());
-        selector->select(this, m_selections.get());
-    }
-
-    HTMLElement::attach();
-
-    if (root) {
-        for (HTMLContentSelection* selection = m_selections->first(); selection; selection = selection->next())
-            selection->node()->attach();
-    }
-}
-
-void HTMLContentElement::detach()
-{
-    if (ShadowRoot* root = toShadowRoot(shadowTreeRootNode())) {
-        if (HTMLContentSelector* selector = root->selector())
-            selector->unselect(m_selections.get());
-
-        // When content element is detached, shadow tree should be recreated to re-calculate selector for
-        // other content elements.
-        root->setNeedsReattachHostChildrenAndShadow();
-    }
-
-    ASSERT(m_selections->isEmpty());
-    HTMLElement::detach();
 }
 
 const AtomicString& HTMLContentElement::select() const
@@ -122,9 +90,9 @@ void HTMLContentElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == selectAttr) {
         if (ShadowRoot* root = toShadowRoot(shadowTreeRootNode()))
-            root->setNeedsReattachHostChildrenAndShadow();
+            root->tree()->setNeedsReattachHostChildrenAndShadow();
     } else
-        HTMLElement::parseAttribute(attr);
+        InsertionPoint::parseAttribute(attr);
 }
 
 }

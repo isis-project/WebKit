@@ -37,7 +37,6 @@
 
 #if PLATFORM(MAC)
 OBJC_CLASS NSAttributedString;
-OBJC_CLASS NSPasteboard;
 OBJC_CLASS NSString;
 OBJC_CLASS NSURL;
 #endif
@@ -45,7 +44,6 @@ OBJC_CLASS NSURL;
 namespace WebCore {
 
 class ArchiveResource;
-class CSSStyleDeclaration;
 class DocumentFragment;
 class Editor;
 class Element;
@@ -55,6 +53,7 @@ class KeyboardEvent;
 class Node;
 class Range;
 class SpellChecker;
+class StylePropertySet;
 class TextCheckerClient;
 class VisibleSelection;
 class VisiblePosition;
@@ -82,7 +81,7 @@ public:
     virtual bool shouldInsertText(const String&, Range*, EditorInsertAction) = 0;
     virtual bool shouldChangeSelectedRange(Range* fromRange, Range* toRange, EAffinity, bool stillSelecting) = 0;
     
-    virtual bool shouldApplyStyle(CSSStyleDeclaration*, Range*) = 0;
+    virtual bool shouldApplyStyle(StylePropertySet*, Range*) = 0;
     virtual bool shouldMoveRangeAfterDelete(Range*, Range*) = 0;
 
     virtual void didBeginEditing() = 0;
@@ -117,7 +116,7 @@ public:
 #if PLATFORM(MAC)
     virtual NSString* userVisibleString(NSURL*) = 0;
     virtual DocumentFragment* documentFragmentFromAttributedString(NSAttributedString*, Vector< RefPtr<ArchiveResource> >&) = 0;
-    virtual void setInsertionPasteboard(NSPasteboard*) = 0;
+    virtual void setInsertionPasteboard(const String& pasteboardName) = 0;
     virtual NSURL* canonicalizeURL(NSURL*) = 0;
     virtual NSURL* canonicalizeURLString(NSString*) = 0;
 #endif
@@ -139,6 +138,10 @@ public:
     virtual void toggleAutomaticTextReplacement() = 0;
     virtual bool isAutomaticSpellingCorrectionEnabled() = 0;
     virtual void toggleAutomaticSpellingCorrection() = 0;
+#endif
+
+#if PLATFORM(GTK)
+    virtual bool shouldShowUnicodeMenu() = 0;
 #endif
 
     virtual TextCheckerClient* textChecker() = 0;

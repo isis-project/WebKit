@@ -72,9 +72,9 @@ my (
     $threeDRenderingSupport,
     $accelerated2dCanvasSupport,
     $animationAPISupport,
+    $batterystatusAPISupport,
     $blobSupport,
     $channelMessagingSupport,
-    $clientBasedGeolocationSupport,
     $coverageSupport,
     $cssFiltersSupport,
     $cssGridLayoutSupport,
@@ -97,6 +97,7 @@ my (
     $indexedDatabaseSupport,
     $inputColorSupport,
     $inputSpeechSupport,
+    $scriptedSpeechSupport,
     $inputTypeDateSupport,
     $inputTypeDatetimeSupport,
     $inputTypeDatetimelocalSupport,
@@ -104,6 +105,7 @@ my (
     $inputTypeTimeSupport,
     $inputTypeWeekSupport,
     $javaScriptDebuggerSupport,
+    $legacyNotificationsSupport,
     $linkPrefetchSupport,
     $mathmlSupport,
     $mediaSourceSupport,
@@ -130,6 +132,7 @@ my (
     $tiledBackingStoreSupport,
     $touchEventsSupport,
     $touchIconLoadingSupport,
+    $vibrationSupport,
     $videoSupport,
     $videoTrackSupport,
     $webAudioSupport,
@@ -143,7 +146,7 @@ my (
 
 my @features = (
     { option => "request-animation-frame", desc => "Toggle requestAnimationFrame support",
-      define => "ENABLE_REQUEST_ANIMATION_FRAME", default => (isAppleMacWebKit() || isGtk()), value => \$requestAnimationFrameSupport },
+      define => "ENABLE_REQUEST_ANIMATION_FRAME", default => (isAppleMacWebKit() || isGtk() || isBlackBerry()), value => \$requestAnimationFrameSupport },
 
     { option => "download-attribute", desc => "Toggle download attribute support",
       define => "ENABLE_DOWNLOAD_ATTRIBUTE", default => isBlackBerry(), value =>\$downloadAttributeSupport },
@@ -160,14 +163,14 @@ my @features = (
     { option => "animation-api", desc => "Toggle animation API support",
       define => "ENABLE_ANIMATION_API", default => isBlackBerry(), value => \$animationAPISupport },
 
+    { option => "battery-status-api", desc => "Toggle battery status API support",
+      define => "ENABLE_BATTERY_STATUS", default => isEfl(), value => \$batterystatusAPISupport },
+
     { option => "blob", desc => "Toggle Blob support",
       define => "ENABLE_BLOB", default => (isAppleMacWebKit() || isGtk() || isChromium() || isBlackBerry()), value => \$blobSupport },
 
     { option => "channel-messaging", desc => "Toggle MessageChannel and MessagePort support",
       define => "ENABLE_CHANNEL_MESSAGING", default => 1, value => \$channelMessagingSupport },
-
-    { option => "client-based-geolocation", desc => "Toggle client-based Geolocation support",
-      define => "ENABLE_CLIENT_BASED_GEOLOCATION", default => (isAppleWebKit() || isGtk() || isBlackBerry()), value => \$clientBasedGeolocationSupport },
 
     { option => "css-filters", desc => "Toggle CSS Filters support",
       define => "ENABLE_CSS_FILTERS", default => isAppleWebKit(), value => \$cssFiltersSupport },
@@ -176,7 +179,7 @@ my @features = (
       define => "ENABLE_CSS_GRID_LAYOUT", default => 0, value => \$cssGridLayoutSupport },
 
     { option => "css-shaders", desc => "Toggle CSS Shaders (within CSS Filters) support",
-      define => "ENABLE_CSS_SHADERS", default => isAppleWebKit(), value => \$cssShadersSupport },
+      define => "ENABLE_CSS_SHADERS", default => 0, value => \$cssShadersSupport },
 
     { option => "coverage", desc => "Toggle code coverage support",
       define => "", default => 0, value => \$coverageSupport },
@@ -200,13 +203,13 @@ my @features = (
       define => "ENABLE_DIRECTORY_UPLOAD", default => 0, value => \$directoryUploadSupport },
 
     { option => "file-system", desc => "Toggle FileSystem support",
-      define => "ENABLE_FILE_SYSTEM", default => 0, value => \$fileSystemSupport },
+      define => "ENABLE_FILE_SYSTEM", default => isBlackBerry(), value => \$fileSystemSupport },
 
     { option => "filters", desc => "Toggle SVG Filters support",
       define => "ENABLE_FILTERS", default => (isAppleWebKit() || isGtk() || isQt() || isEfl() || isBlackBerry()), value => \$filtersSupport },
 
     { option => "ftpdir", desc => "Toggle FTP directory support",
-      define => "ENABLE_FTPDIR", default => 1, value => \$ftpDirSupport },
+      define => "ENABLE_FTPDIR", default => !isWinCE(), value => \$ftpDirSupport },
 
     { option => "fullscreen-api", desc => "Toggle Fullscreen API support",
       define => "ENABLE_FULLSCREEN_API", default => (isAppleMacWebKit() || isGtk()), value => \$fullscreenAPISupport },
@@ -229,6 +232,9 @@ my @features = (
     { option => "input-speech", desc => "Speech Input API support",
       define => "ENABLE_INPUT_SPEECH", default => 0, value => \$inputSpeechSupport },
 
+    { option => "scripted-speech", desc => "Scripted Speech API support",
+      define => "ENABLE_SCRIPTED_SPEECH", default => 0, value => \$scriptedSpeechSupport },
+
     { option => "input-type-date", desc => "Toggle date type <input> support",
       define => "ENABLE_INPUT_TYPE_DATE", default => 0, value => \$inputTypeDateSupport },
 
@@ -248,10 +254,13 @@ my @features = (
       define => "ENABLE_INPUT_TYPE_WEEK", default => 0, value => \$inputTypeWeekSupport },
 
     { option => "inspector", desc => "Toggle Web Inspector support",
-      define => "ENABLE_INSPECTOR", default => 1, value => \$webInspectorSupport },
+      define => "ENABLE_INSPECTOR", default => !isWinCE(), value => \$webInspectorSupport },
 
     { option => "javascript-debugger", desc => "Toggle JavaScript Debugger/Profiler support",
       define => "ENABLE_JAVASCRIPT_DEBUGGER", default => 1, value => \$javaScriptDebuggerSupport },
+
+    { option => "legacy-notifications", desc => "Toggle Legacy Desktop Notifications Support",
+      define => "ENABLE_LEGACY_NOTIFICATIONS", default => isBlackBerry(), value => \$legacyNotificationsSupport },
 
     { option => "link-prefetch", desc => "Toggle pre fetching support",
       define => "ENABLE_LINK_PREFETCH", default => 0, value => \$linkPrefetchSupport },
@@ -290,7 +299,7 @@ my @features = (
       define => "ENABLE_ORIENTATION_EVENTS", default => isBlackBerry(), value => \$orientationEventsSupport },
 
     { option => "page-visibility-api", desc => "Page Visibility API support",
-      define => "ENABLE_PAGE_VISIBILITY_API", default => isEfl(), value => \$pageVisibilityApiSupport },
+      define => "ENABLE_PAGE_VISIBILITY_API", default => (isBlackBerry() || isEfl()), value => \$pageVisibilityApiSupport },
 
     { option => "progress-tag", desc => "Progress Tag support",
       define => "ENABLE_PROGRESS_TAG", default => 1, value => \$progressTagSupport },
@@ -331,6 +340,9 @@ my @features = (
     { option => "touch-icon-loading", desc => "Toggle Touch Icon Loading Support",
       define => "ENABLE_TOUCH_ICON_LOADING", default => 0, value => \$touchIconLoadingSupport },
 
+    { option => "vibration", desc => "Toggle Vibration API support",
+      define => "ENABLE_VIBRATION", default => isEfl(), value => \$vibrationSupport },
+
     { option => "video", desc => "Toggle Video support",
       define => "ENABLE_VIDEO", default => (isAppleWebKit() || isGtk() || isBlackBerry() || isEfl()), value => \$videoSupport },
 
@@ -344,7 +356,7 @@ my @features = (
       define => "ENABLE_WEB_SOCKETS", default => 1, value=> \$webSocketsSupport },
 
     { option => "web-timing", desc => "Toggle Web Timing support",
-      define => "ENABLE_WEB_TIMING", default => 0, value=> \$webTimingSupport },
+      define => "ENABLE_WEB_TIMING", default => isBlackBerry(), value=> \$webTimingSupport },
 
     { option => "workers", desc => "Toggle Web Workers support",
       define => "ENABLE_WORKERS", default => (isAppleWebKit() || isGtk() || isBlackBerry() || isEfl()), value => \$workersSupport },
@@ -488,6 +500,9 @@ sub unlinkZeroFiles()
 
 # Check that all the project directories are there.
 my @projects = ("Source/JavaScriptCore", "Source/WebCore", "Source/WebKit");
+
+# Build WTF as a separate static library on ports which support it.
+splice @projects, 0, 0, "Source/WTF" if isAppleMacWebKit() or isAppleWinWebKit();
 
 for my $dir (@projects) {
     if (! -d $dir) {
@@ -673,7 +688,7 @@ if (isBlackBerry()) {
     }
     $makeArgs .= ($makeArgs ? " " : "") . "-j" . $numberOfJobs if $makeArgs !~ /-j\s*\d+/;
     $prefixPath = $ENV{"STAGE_DIR"} unless $prefixPath;
-    buildCMakeProjectOrExit($clean, "BlackBerry", $prefixPath, $makeArgs, (cmakeBasedPortArguments(), cMakeArgsFromFeatures()));
+    buildCMakeProjectOrExit($clean, "BlackBerry", $prefixPath, $makeArgs, (cmakeBasedPortArguments(), cMakeArgsFromFeatures()), $cmakeArgs);
 }
 
 if (isQt()) {
@@ -736,6 +751,10 @@ exit if $clean;
 
 # Don't report congrats message if build was interrupted by the user.
 exit if ($result & 127) == SIGINT;
+
+# Explicitly chdir back to where exit will take us anyway, since the following "launcher"
+# message is relative to that directory.
+chdir $originalWorkingDirectory;
 
 # Write out congratulations message.
 writeCongrats();

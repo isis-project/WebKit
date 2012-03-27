@@ -1,7 +1,7 @@
 /**
  * This file is part of the theme implementation for form controls in WebCore.
  *
- * Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010 Apple Computer, Inc.
+ * Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2012 Apple Computer, Inc.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -24,6 +24,7 @@
 
 #include "CSSValueKeywords.h"
 #include "Document.h"
+#include "FileList.h"
 #include "FileSystem.h"
 #include "FloatConversion.h"
 #include "FocusController.h"
@@ -205,6 +206,7 @@ void RenderTheme::adjustStyle(CSSStyleSelector* selector, RenderStyle* style, El
             return adjustMenuListButtonStyle(selector, style, e);
         case MediaSliderPart:
         case MediaVolumeSliderPart:
+        case MediaFullScreenVolumeSliderPart:
         case SliderHorizontalPart:
         case SliderVerticalPart:
             return adjustSliderTrackStyle(selector, style, e);
@@ -310,7 +312,8 @@ bool RenderTheme::paint(RenderObject* o, const PaintInfo& paintInfo, const Layou
         case SliderThumbHorizontalPart:
         case SliderThumbVerticalPart:
             return paintSliderThumb(o, paintInfo, r);
-        case MediaFullscreenButtonPart:
+        case MediaEnterFullscreenButtonPart:
+        case MediaExitFullscreenButtonPart:
             return paintMediaFullscreenButton(o, paintInfo, r);
         case MediaPlayButtonPart:
             return paintMediaPlayButton(o, paintInfo, r);
@@ -338,6 +341,10 @@ bool RenderTheme::paint(RenderObject* o, const PaintInfo& paintInfo, const Layou
             return paintMediaVolumeSliderTrack(o, paintInfo, r);
         case MediaVolumeSliderThumbPart:
             return paintMediaVolumeSliderThumb(o, paintInfo, r);
+        case MediaFullScreenVolumeSliderPart:
+            return paintMediaFullScreenVolumeSliderTrack(o, paintInfo, r);
+        case MediaFullScreenVolumeSliderThumbPart:
+            return paintMediaFullScreenVolumeSliderThumb(o, paintInfo, r);
         case MediaTimeRemainingPart:
             return paintMediaTimeRemaining(o, paintInfo, r);
         case MediaCurrentTimePart:
@@ -1125,22 +1132,25 @@ Color RenderTheme::focusRingColor()
     return customFocusRingColor().isValid() ? customFocusRingColor() : defaultTheme()->platformFocusRingColor();
 }
 
-String RenderTheme::fileListNameForWidth(const Vector<String>& filenames, const Font& font, int width, bool multipleFilesAllowed)
+String RenderTheme::fileListDefaultLabel(bool multipleFilesAllowed) const
+{
+    if (multipleFilesAllowed)
+        return fileButtonNoFilesSelectedLabel();
+    return fileButtonNoFileSelectedLabel();
+}
+
+String RenderTheme::fileListNameForWidth(const FileList* fileList, const Font& font, int width, bool multipleFilesAllowed) const
 {
     if (width <= 0)
         return String();
 
     String string;
-    if (filenames.isEmpty()) {
-        if (multipleFilesAllowed)
-            string = fileButtonNoFilesSelectedLabel();
-        else
-            string = fileButtonNoFileSelectedLabel();
-    }
-    else if (filenames.size() == 1)
-        string = pathGetFileName(filenames[0]);
+    if (fileList->isEmpty())
+        string = fileListDefaultLabel(multipleFilesAllowed);
+    else if (fileList->length() == 1)
+        string = fileList->item(0)->name();
     else
-        return StringTruncator::rightTruncate(multipleFileUploadText(filenames.size()), width, font, StringTruncator::EnableRoundingHacks);
+        return StringTruncator::rightTruncate(multipleFileUploadText(fileList->length()), width, font, StringTruncator::EnableRoundingHacks);
 
     return StringTruncator::centerTruncate(string, width, font, StringTruncator::EnableRoundingHacks);
 }

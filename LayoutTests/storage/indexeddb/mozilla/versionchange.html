@@ -11,22 +11,15 @@
 <script src="../resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's triggering versionchange event");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
-    IDBTransaction = evalAndLog("IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction;");
-    shouldBeFalse("IDBTransaction == null");
+    removeVendorPrefixes();
 
-    name = window.location.pathname;
+    name = self.location.pathname;
     description = "My Test Database";
     request = evalAndLog("indexedDB.open(name, description)");
     request.onsuccess = openSuccess;
@@ -106,13 +99,14 @@ function postSetVersion2()
     shouldBe("event.target.transaction.mode", "IDBTransaction.VERSION_CHANGE");
     shouldBe("db3.version", "'2'");
     shouldBe("versionChangeEventCount", "3");
-    done();
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>
 

@@ -259,6 +259,7 @@ z-index
 -webkit-flex-direction
 -webkit-flex-flow
 -webkit-flex-item-align
+-webkit-flex-line-pack
 -webkit-flex-order
 -webkit-flex-pack
 -webkit-flex-wrap
@@ -271,6 +272,7 @@ z-index
 -webkit-hyphens
 -epub-hyphens = -webkit-hyphens
 -webkit-line-box-contain
+-webkit-line-align
 -webkit-line-break
 -webkit-line-clamp
 -webkit-line-grid
@@ -375,7 +377,12 @@ z-index
 #if defined(ENABLE_CSS_GRID_LAYOUT) && ENABLE_CSS_GRID_LAYOUT
 -webkit-grid-columns
 -webkit-grid-rows
+-webkit-grid-column
+-webkit-grid-row
 #endif
 #if defined(ENABLE_DASHBOARD_SUPPORT) && ENABLE_DASHBOARD_SUPPORT
 -webkit-dashboard-region
+#endif
+#if defined(ENABLE_OVERFLOW_SCROLLING)
+-webkit-overflow-scrolling
 #endif

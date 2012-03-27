@@ -37,8 +37,10 @@
 #include "HTMLParserIdioms.h"
 #include "KeyboardEvent.h"
 #include "MouseEvent.h"
+#include "NodeRenderingContext.h"
 #include "PlatformMouseEvent.h"
 #include "RenderSVGInline.h"
+#include "RenderSVGText.h"
 #include "RenderSVGTransformableContainer.h"
 #include "ResourceRequest.h"
 #include "SVGElementInstance.h"
@@ -143,7 +145,7 @@ void SVGAElement::svgAttributeChanged(const QualifiedName& attrName)
 
 RenderObject* SVGAElement::createRenderer(RenderArena* arena, RenderStyle*)
 {
-    if (static_cast<SVGElement*>(parentNode())->isTextContent())
+    if (parentNode() && parentNode()->isSVGElement() && static_cast<SVGElement*>(parentNode())->isTextContent())
         return new (arena) RenderSVGInline(this);
 
     return new (arena) RenderSVGTransformableContainer(this);
@@ -224,16 +226,29 @@ bool SVGAElement::isKeyboardFocusable(KeyboardEvent* event) const
     return document()->frame()->eventHandler()->tabsToLinks(event);
 }
 
-bool SVGAElement::childShouldCreateRenderer(Node* child) const
+bool SVGAElement::childShouldCreateRenderer(const NodeRenderingContext& childContext) const
 {
     // http://www.w3.org/2003/01/REC-SVG11-20030114-errata#linking-text-environment
     // The 'a' element may contain any element that its parent may contain, except itself.
-    if (child->hasTagName(SVGNames::aTag))
+    if (childContext.node()->hasTagName(SVGNames::aTag))
         return false;
     if (parentNode() && parentNode()->isSVGElement())
-        return parentNode()->childShouldCreateRenderer(child);
+        return parentNode()->childShouldCreateRenderer(childContext);
 
-    return SVGElement::childShouldCreateRenderer(child);
+    return SVGElement::childShouldCreateRenderer(childContext);
+}
+
+void SVGAElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
+{
+    SVGStyledTransformableElement::childrenChanged(changedByParser, beforeChange, afterChange, childCountDelta);
+
+    if (changedByParser || !renderer())
+        return;
+
+    // Invalidate the TextPosition cache in SVGTextLayoutAttributesBuilder as it may now point
+    // to no-longer existing SVGTextPositioningElements and thus needs to be rebuilt.
+    if (RenderSVGText* textRenderer = RenderSVGText::locateRenderSVGTextAncestor(renderer()))
+        textRenderer->invalidateTextPositioningElements();
 }
 
 } // namespace WebCore

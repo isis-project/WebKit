@@ -19,18 +19,17 @@
 #include "config.h"
 #include "NotificationPresenterImpl.h"
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
 #include <Event.h>
 #include <Notification.h>
 #include <NotificationPresenterBlackBerry.h>
 #include <ScriptExecutionContext.h>
 #include <UUID.h>
 
-using namespace WebCore;
 
-namespace WebKit {
+namespace WebCore {
 
-NotificationPresenter* NotificationPresenterImpl::instance()
+NotificationClient* NotificationPresenterImpl::instance()
 {
     static NotificationPresenterImpl* s_instance = 0;
     if (!s_instance)
@@ -55,7 +54,7 @@ bool NotificationPresenterImpl::show(Notification* notification)
     if (m_notifications.contains(n))
         return false;
 
-    if (checkPermission(notification->scriptExecutionContext()) != NotificationPresenter::PermissionAllowed)
+    if (checkPermission(notification->scriptExecutionContext()) != NotificationClient::PermissionAllowed)
         return false;
 
     String uuid = createCanonicalUUIDString();
@@ -66,7 +65,7 @@ bool NotificationPresenterImpl::show(Notification* notification)
         message = n->url().string();
     } else {
         // FIXME: Strip the content into one line.
-        message = n->contents().title() + ": " + n->contents().body();
+        message = n->contents().title + ": " + n->contents().body;
     }
 
     m_platformPresenter->show(std::string(uuid.utf8().data()), std::string(message.utf8().data()));
@@ -108,10 +107,10 @@ void NotificationPresenterImpl::onPermission(const std::string& domain, bool isA
     ASSERT(!domain.empty());
     String domainString = String::fromUTF8(domain.c_str());
     PermissionRequestMap::iterator it = m_permissionRequests.begin();
-    PermissionRequestMap::iterator end = m_permissionRequests.end();
-    for (; it != end; ++it) {
+    for (; it != m_permissionRequests.end(); ++it) {
         if (it->first->url().host() != domainString)
             continue;
+
         if (isAllowed) {
             m_allowedDomains.add(domainString);
             it->second->handleEvent();
@@ -119,6 +118,7 @@ void NotificationPresenterImpl::onPermission(const std::string& domain, bool isA
             m_allowedDomains.remove(domainString);
 
         m_permissionRequests.remove(it);
+        return;
     }
 }
 
@@ -127,14 +127,14 @@ void NotificationPresenterImpl::cancelRequestsForPermission(ScriptExecutionConte
     // Because we are using modal dialogs to request permission, it's impossible to cancel them.
 }
 
-NotificationPresenter::Permission NotificationPresenterImpl::checkPermission(ScriptExecutionContext* context)
+NotificationClient::Permission NotificationPresenterImpl::checkPermission(ScriptExecutionContext* context)
 {
     ASSERT(context);
     // FIXME: Should store the permission information into file permanently instead of in m_allowedDomains.
     // The suggested place to do this is in m_platformPresenter->checkPermission().
     if (m_allowedDomains.contains(context->url().host()))
-        return NotificationPresenter::PermissionAllowed;
-    return NotificationPresenter::PermissionNotAllowed;
+        return NotificationClient::PermissionAllowed;
+    return NotificationClient::PermissionNotAllowed;
 }
 
 // This function is called in platform side.
@@ -143,15 +143,16 @@ void NotificationPresenterImpl::notificationClicked(const std::string& id)
     ASSERT(!id.empty());
     String idString = String::fromUTF8(id.c_str());
     NotificationMap::iterator it = m_notifications.begin();
-    NotificationMap::iterator end = m_notifications.end();
-    for (; it != end; ++it) {
+    for (; it != m_notifications.end(); ++it) {
         if (it->second == idString && it->first->scriptExecutionContext()) {
+            RefPtr<Notification> notification = it->first;
             it->first->dispatchEvent(Event::create(eventNames().clickEvent, false, true));
-            m_notifications.remove(it);
+            m_notifications.remove(notification);
+            return;
         }
     }
 }
 
 } // namespace WebKit
 
-#endif // ENABLE(NOTIFICATIONS)
+#endif // ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)

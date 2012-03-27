@@ -185,15 +185,15 @@ shouldBeEqualToString('flexbox.style.webkitFlexDirection', 'column-reverse');
 shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexDirection', 'column-reverse');
 
 shouldBeEqualToString('flexbox.style.webkitFlexWrap', '');
-// The initial value is 'stretch'.
-shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexWrap', 'nowrap');
+// The initial value is 'none'.
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexWrap', 'none');
 
 flexbox.style.webkitFlexWrap = 'foo';
 shouldBeEqualToString('flexbox.style.webkitFlexWrap', '');
 
-flexbox.style.webkitFlexWrap = 'nowrap';
-shouldBeEqualToString('flexbox.style.webkitFlexWrap', 'nowrap');
-shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexWrap', 'nowrap');
+flexbox.style.webkitFlexWrap = 'none';
+shouldBeEqualToString('flexbox.style.webkitFlexWrap', 'none');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexWrap', 'none');
 
 flexbox.style.webkitFlexWrap = 'wrap';
 shouldBeEqualToString('flexbox.style.webkitFlexWrap', 'wrap');
@@ -205,7 +205,7 @@ shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexWrap', '
 
 flexbox.style.webkitFlexFlow = '';
 shouldBeEqualToString('flexbox.style.webkitFlexFlow', '');
-shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'row nowrap');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'row none');
 
 flexbox.style.webkitFlexFlow = 'foo';
 shouldBeEqualToString('flexbox.style.webkitFlexFlow', '');
@@ -218,10 +218,10 @@ function testFlexFlowValue(value, expected, expectedComputed)
 }
 
 var directions = ['', 'row', 'row-reverse', 'column', 'column-reverse'];
-var wraps = ['', 'nowrap', 'wrap', 'wrap-reverse'];
+var wraps = ['', 'none', 'wrap', 'wrap-reverse'];
 directions.forEach(function(direction) {
     wraps.forEach(function(wrap) {
-        var expectedComputed = (direction || 'row') + ' ' + (wrap || 'nowrap');
+        var expectedComputed = (direction || 'row') + ' ' + (wrap || 'none');
         var expected = direction + ' ' + wrap;
         testFlexFlowValue(direction + ' ' + wrap, expected, expectedComputed);
         testFlexFlowValue(wrap + ' ' + direction, expected, expectedComputed);
@@ -237,10 +237,10 @@ shouldBeEqualToString('flexbox.style.webkitFlexFlow', '');
 
 flexbox.style.webkitFlexFlow = '';
 shouldBeEqualToString('flexbox.style.webkitFlexFlow', '');
-shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'row nowrap');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'row none');
 flexbox.style.webkitFlexDirection = 'column';
 shouldBeEqualToString('flexbox.style.webkitFlexFlow', 'column');
-shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'column nowrap');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'column none');
 flexbox.style.webkitFlexWrap = 'wrap';
 shouldBeEqualToString('flexbox.style.webkitFlexFlow', 'column wrap');
 shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'column wrap');
@@ -248,5 +248,40 @@ flexbox.style.webkitFlexFlow = 'row-reverse wrap-reverse';
 shouldBeEqualToString('flexbox.style.webkitFlexFlow', 'row-reverse wrap-reverse');
 shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'row-reverse wrap-reverse');
 
+// The initial value is 'stretch'.
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', '');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'stretch');
+
+flexbox.style.webkitFlexLinePack = 'start';
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', 'start');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'start');
+
+flexbox.style.webkitFlexLinePack = 'end';
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', 'end');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'end');
+
+flexbox.style.webkitFlexLinePack = 'center';
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', 'center');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'center');
+
+flexbox.style.webkitFlexLinePack = 'justify';
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', 'justify');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'justify');
+
+flexbox.style.webkitFlexLinePack = 'distribute';
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', 'distribute');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'distribute');
+
+flexbox.style.webkitFlexLinePack = 'stretch';
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', 'stretch');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'stretch');
+
+flexbox.style.webkitFlexLinePack = '';
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', '');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'stretch');
+
+flexbox.style.webkitFlexLinePack = 'foo';
+shouldBeEqualToString('flexbox.style.webkitFlexLinePack', '');
+shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexLinePack', 'stretch');
 
 successfullyParsed = true;

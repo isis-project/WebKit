@@ -37,12 +37,15 @@
 #include "LayerChromium.h"
 #include "GraphicsContext.h"
 #include "GraphicsLayer.h"
+#include "cc/CCLayerAnimationDelegate.h"
+
+#include <wtf/HashMap.h>
 
 namespace WebCore {
 
 class LayerChromium;
 
-class GraphicsLayerChromium : public GraphicsLayer, public ContentLayerDelegate {
+class GraphicsLayerChromium : public GraphicsLayer, public ContentLayerDelegate, public CCLayerAnimationDelegate {
 public:
     GraphicsLayerChromium(GraphicsLayerClient*);
     virtual ~GraphicsLayerChromium();
@@ -94,6 +97,13 @@ public:
     virtual void setContentsToImage(Image*);
     virtual void setContentsToMedia(PlatformLayer*);
     virtual void setContentsToCanvas(PlatformLayer*);
+    virtual bool hasContentsLayer() const { return m_contentsLayer; }
+
+    virtual bool addAnimation(const KeyframeValueList&, const IntSize& boxSize, const Animation*, const String&, double timeOffset);
+    virtual void pauseAnimation(const String& animationName, double timeOffset);
+    virtual void removeAnimation(const String& animationName);
+    virtual void suspendAnimations(double time);
+    virtual void resumeAnimations();
 
     virtual PlatformLayer* platformLayer() const;
 
@@ -104,10 +114,15 @@ public:
     // ContentLayerDelegate implementation.
     virtual void paintContents(GraphicsContext&, const IntRect& clip);
 
+    // CCLayerAnimationDelegate implementation.
+    virtual void notifyAnimationStarted(double startTime);
+
     // Exposed for tests.
     LayerChromium* contentsLayer() const { return m_contentsLayer.get(); }
 
 private:
+    typedef HashMap<String, int> AnimationIdMap;
+
     LayerChromium* primaryLayer() const  { return m_transformLayer.get() ? m_transformLayer.get() : m_layer.get(); }
     LayerChromium* hostLayerForChildren() const;
     LayerChromium* layerForParent() const;
@@ -132,6 +147,8 @@ private:
     void setupContentsLayer(LayerChromium*);
     float contentsScale() const;
 
+    int mapAnimationNameToId(const String& animationName);
+
     String m_nameBase;
 
     RefPtr<ContentLayerChromium> m_layer;
@@ -148,6 +165,9 @@ private:
     ContentsLayerPurpose m_contentsLayerPurpose;
     bool m_contentsLayerHasBackgroundColor : 1;
     bool m_inSetChildren;
+    bool m_pageScaleChanged;
+
+    AnimationIdMap m_animationIdMap;
 };
 
 } // namespace WebCore

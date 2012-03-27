@@ -43,6 +43,7 @@
 #include <WebKit2/WKRetainPtr.h>
 #include <WebKit2/WebKit2.h>
 #include <wtf/HashMap.h>
+#include <wtf/text/StringBuilder.h>
 
 namespace WTR {
 
@@ -150,14 +151,16 @@ void LayoutTestController::waitForPolicyDelegate()
 void LayoutTestController::waitUntilDone()
 {
     m_waitToDump = true;
-    initializeWaitToDumpWatchdogTimerIfNeeded();
+    if (InjectedBundle::shared().useWaitToDumpWatchdogTimer())
+        initializeWaitToDumpWatchdogTimerIfNeeded();
 }
 
 void LayoutTestController::waitToDumpWatchdogTimerFired()
 {
     invalidateWaitToDumpWatchdogTimer();
     const char* message = "FAIL: Timed out waiting for notifyDone to be called\n";
-    InjectedBundle::shared().os() << message << "\n";
+    InjectedBundle::shared().stringBuilder()->append(message);
+    InjectedBundle::shared().stringBuilder()->append("\n");
     InjectedBundle::shared().done();
 }
 
@@ -428,6 +431,15 @@ bool LayoutTestController::isPageBoxVisible(int pageIndex)
     return WKBundleIsPageBoxVisible(InjectedBundle::shared().bundle(), mainFrame, pageIndex);
 }
 
+void LayoutTestController::setValueForUser(JSContextRef context, JSValueRef element, JSStringRef value)
+{
+    if (!element || !JSValueIsObject(context, element))
+        return;
+
+    WKRetainPtr<WKBundleNodeHandleRef> nodeHandle(AdoptWK, WKBundleNodeHandleCreate(context, const_cast<JSObjectRef>(element)));
+    WKBundleNodeHandleSetHTMLInputElementValueForUser(nodeHandle.get(), toWK(value).get());
+}
+
 unsigned LayoutTestController::windowCount()
 {
     return InjectedBundle::shared().pageCount();
@@ -526,7 +538,7 @@ void LayoutTestController::setShouldStayOnPageAfterHandlingBeforeUnload(bool sho
 
 void LayoutTestController::dumpConfigurationForViewport(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight)
 {
-    InjectedBundle::shared().os() << toSTD(adoptWK(WKBundlePageViewportConfigurationAsText(InjectedBundle::shared().page()->page(), deviceDPI, deviceWidth, deviceHeight, availableWidth, availableHeight)));
+    InjectedBundle::shared().stringBuilder()->append(toWTFString(adoptWK(WKBundlePageViewportConfigurationAsText(InjectedBundle::shared().page()->page(), deviceDPI, deviceWidth, deviceHeight, availableWidth, availableHeight))));
 }
 
 typedef WTF::HashMap<unsigned, JSValueRef> CallbackMap;
@@ -537,7 +549,7 @@ static CallbackMap& callbackMap()
 }
 
 enum {
-    AddChromeInputFieldCallbackID,
+    AddChromeInputFieldCallbackID = 1,
     RemoveChromeInputFieldCallbackID,
     FocusWebViewCallbackID,
     SetBackingScaleFactorCallbackID

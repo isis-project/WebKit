@@ -109,23 +109,24 @@ void FindController::findString(const String& string, FindOptions options, unsig
         m_webPage->send(Messages::WebPageProxy::DidFailToFindString(string));
     } else {
         shouldShowOverlay = options & FindOptionsShowOverlay;
+        bool shouldShowHighlight = options & FindOptionsShowHighlight;
+        unsigned matchCount = 1;
 
-        if (shouldShowOverlay) {
-            bool shouldShowHighlight = options & FindOptionsShowHighlight;
+        if (shouldShowOverlay || shouldShowHighlight) {
 
             if (maxMatchCount == numeric_limits<unsigned>::max())
                 --maxMatchCount;
-            
-            unsigned matchCount = m_webPage->corePage()->markAllMatchesForText(string, core(options), shouldShowHighlight, maxMatchCount + 1);
+
+            matchCount = m_webPage->corePage()->markAllMatchesForText(string, core(options), shouldShowHighlight, maxMatchCount + 1);
 
             // Check if we have more matches than allowed.
             if (matchCount > maxMatchCount) {
                 shouldShowOverlay = false;
                 matchCount = static_cast<unsigned>(kWKMoreThanMaximumMatchCount);
             }
-
-            m_webPage->send(Messages::WebPageProxy::DidFindString(string, matchCount));
         }
+
+        m_webPage->send(Messages::WebPageProxy::DidFindString(string, matchCount));
 
         if (!(options & FindOptionsShowFindIndicator) || !updateFindIndicator(selectedFrame, shouldShowOverlay)) {
             // Either we shouldn't show the find indicator, or we couldn't update it.
@@ -215,6 +216,7 @@ bool FindController::updateFindIndicator(Frame* selectedFrame, bool isShowingOve
     }            
 
     m_webPage->send(Messages::WebPageProxy::SetFindIndicator(selectionRectInWindowCoordinates, textRectsInSelectionRectCoordinates, m_webPage->corePage()->deviceScaleFactor(), handle, !isShowingOverlay, shouldAnimate));
+    m_findIndicatorRect = selectionRectInWindowCoordinates;
     m_isShowingFindIndicator = true;
 
     return true;
@@ -346,6 +348,16 @@ void FindController::drawRect(PageOverlay* pageOverlay, GraphicsContext& graphic
     // Clear out the holes.
     for (size_t i = 0; i < rects.size(); ++i)
         graphicsContext.fillRect(rects[i]);
+
+    if (!m_isShowingFindIndicator)
+        return;
+
+    if (Frame* selectedFrame = frameWithSelection(m_webPage->corePage())) {
+        IntRect findIndicatorRect = selectedFrame->view()->contentsToWindow(enclosingIntRect(selectedFrame->selection()->bounds()));
+
+        if (findIndicatorRect != m_findIndicatorRect)
+            hideFindIndicator();
+    }
 }
 
 bool FindController::mouseEvent(PageOverlay* pageOverlay, const WebMouseEvent& mouseEvent)

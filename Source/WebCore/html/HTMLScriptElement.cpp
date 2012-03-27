@@ -54,15 +54,8 @@ bool HTMLScriptElement::isURLAttribute(Attribute* attr) const
 
 void HTMLScriptElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
 {
-    ScriptElement::childrenChanged();
     HTMLElement::childrenChanged(changedByParser, beforeChange, afterChange, childCountDelta);
-}
-
-void HTMLScriptElement::attributeChanged(Attribute* attr)
-{
-    if (attr->name() == asyncAttr)
-        handleAsyncAttribute();
-    HTMLElement::attributeChanged(attr);
+    ScriptElement::childrenChanged();
 }
 
 void HTMLScriptElement::parseAttribute(Attribute* attr)
@@ -71,6 +64,8 @@ void HTMLScriptElement::parseAttribute(Attribute* attr)
 
     if (attrName == srcAttr)
         handleSourceAttribute(attr->value());
+    else if (attr->name() == asyncAttr)
+        handleAsyncAttribute();
     else if (attrName == onloadAttr)
         setAttributeEventListener(eventNames().loadEvent, createAttributeEventListener(this, attr));
     else if (attrName == onbeforeloadAttr)
@@ -87,6 +82,8 @@ void HTMLScriptElement::insertedIntoDocument()
 
 void HTMLScriptElement::setText(const String &value)
 {
+    RefPtr<Node> protectFromMutationEvents(this);
+
     ExceptionCode ec = 0;
     int numChildren = childNodeCount();
 

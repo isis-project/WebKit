@@ -93,7 +93,7 @@ bool ContentLayerChromium::drawsContent() const
     return TiledLayerChromium::drawsContent() && m_delegate;
 }
 
-void ContentLayerChromium::paintContentsIfDirty(const Region& /* occludedScreenSpace */)
+void ContentLayerChromium::paintContentsIfDirty(const CCOcclusionTracker* occlusion)
 {
     updateTileSizeAndTilingOption();
     createTextureUpdaterIfNeeded();
@@ -105,20 +105,17 @@ void ContentLayerChromium::paintContentsIfDirty(const Region& /* occludedScreenS
     if (drawsContent())
         layerRect = visibleLayerRect();
 
-    prepareToUpdate(layerRect);
+    prepareToUpdate(layerRect, occlusion);
     m_needsDisplay = false;
 }
 
-void ContentLayerChromium::idlePaintContentsIfDirty()
+void ContentLayerChromium::idlePaintContentsIfDirty(const CCOcclusionTracker* occlusion)
 {
     if (!drawsContent())
         return;
 
-    const IntRect& layerRect = visibleLayerRect();
-    if (layerRect.isEmpty())
-        return;
-
-    prepareToUpdateIdle(layerRect);
+    const IntRect layerRect = visibleLayerRect();
+    prepareToUpdateIdle(layerRect, occlusion);
     if (needsIdlePaint(layerRect))
         setNeedsCommit();
 }
@@ -127,13 +124,11 @@ void ContentLayerChromium::createTextureUpdaterIfNeeded()
 {
     if (m_textureUpdater)
         return;
-#if USE(SKIA)
     if (layerTreeHost()->settings().acceleratePainting)
         m_textureUpdater = FrameBufferSkPictureCanvasLayerTextureUpdater::create(ContentLayerPainter::create(m_delegate));
     else if (layerTreeHost()->settings().perTilePainting)
         m_textureUpdater = BitmapSkPictureCanvasLayerTextureUpdater::create(ContentLayerPainter::create(m_delegate), layerTreeHost()->layerRendererCapabilities().usingMapSub);
     else
-#endif // USE(SKIA)
         m_textureUpdater = BitmapCanvasLayerTextureUpdater::create(ContentLayerPainter::create(m_delegate), layerTreeHost()->layerRendererCapabilities().usingMapSub);
     m_textureUpdater->setOpaque(opaque());
 

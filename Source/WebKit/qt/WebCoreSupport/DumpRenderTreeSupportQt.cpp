@@ -100,11 +100,14 @@
 #include "MediaPlayerPrivateQt.h"
 #endif
 
+#include <QAction>
+#include <QMenu>
+
 using namespace WebCore;
 
 QMap<int, QWebScriptWorld*> m_worldMap;
 
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
 GeolocationClientMock* toGeolocationClientMock(GeolocationClient* client)
 {
      ASSERT(QWebPagePrivate::drtRun);
@@ -789,7 +792,7 @@ void DumpRenderTreeSupportQt::dumpSetAcceptsEditing(bool b)
 
 void DumpRenderTreeSupportQt::dumpNotification(bool b)
 {
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     NotificationPresenterClientQt::dumpNotification = b;
 #endif
 }
@@ -880,7 +883,7 @@ void DumpRenderTreeSupportQt::setMockDeviceOrientation(QWebPage* page, bool canP
 
 void DumpRenderTreeSupportQt::resetGeolocationMock(QWebPage* page)
 {
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
     GeolocationClientMock* mockClient = toGeolocationClientMock(corePage->geolocationController()->client());
     mockClient->reset();
@@ -889,7 +892,7 @@ void DumpRenderTreeSupportQt::resetGeolocationMock(QWebPage* page)
 
 void DumpRenderTreeSupportQt::setMockGeolocationPermission(QWebPage* page, bool allowed)
 {
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
     GeolocationClientMock* mockClient = toGeolocationClientMock(corePage->geolocationController()->client());
     mockClient->setPermission(allowed);
@@ -898,7 +901,7 @@ void DumpRenderTreeSupportQt::setMockGeolocationPermission(QWebPage* page, bool 
 
 void DumpRenderTreeSupportQt::setMockGeolocationPosition(QWebPage* page, double latitude, double longitude, double accuracy)
 {
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
     GeolocationClientMock* mockClient = toGeolocationClientMock(corePage->geolocationController()->client());
     mockClient->setPosition(GeolocationPosition::create(currentTime(), latitude, longitude, accuracy));
@@ -907,7 +910,7 @@ void DumpRenderTreeSupportQt::setMockGeolocationPosition(QWebPage* page, double 
 
 void DumpRenderTreeSupportQt::setMockGeolocationError(QWebPage* page, int errorCode, const QString& message)
 {
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
 
     GeolocationError::ErrorCode code = GeolocationError::PositionUnavailable;
@@ -927,7 +930,7 @@ void DumpRenderTreeSupportQt::setMockGeolocationError(QWebPage* page, int errorC
 
 int DumpRenderTreeSupportQt::numberOfPendingGeolocationPermissionRequests(QWebPage* page)
 {
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
     GeolocationClientMock* mockClient = toGeolocationClientMock(corePage->geolocationController()->client());
     return mockClient->numberOfPendingPermissionRequests();
@@ -1029,39 +1032,9 @@ void DumpRenderTreeSupportQt::addUserStyleSheet(QWebPage* page, const QString& s
 
 void DumpRenderTreeSupportQt::simulateDesktopNotificationClick(const QString& title)
 {
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     NotificationPresenterClientQt::notificationPresenter()->notificationClicked(title);
 #endif
-}
-
-QString DumpRenderTreeSupportQt::plainText(const QVariant& range)
-{
-    QMap<QString, QVariant> map = range.toMap();
-    QVariant startContainer  = map.value(QLatin1String("startContainer"));
-    map = startContainer.toMap();
-
-    return map.value(QLatin1String("innerText")).toString();
-}
-
-QVariantList DumpRenderTreeSupportQt::nodesFromRect(const QWebElement& document, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping)
-{
-    QVariantList res;
-    WebCore::Element* webElement = document.m_element;
-    if (!webElement)
-        return res;
-
-    Document* doc = webElement->document();
-    if (!doc)
-        return res;
-    RefPtr<NodeList> nodes = doc->nodesFromRect(x, y, top, right, bottom, left, ignoreClipping);
-    for (unsigned i = 0; i < nodes->length(); i++) {
-        // QWebElement will be null if the Node is not an HTML Element
-        if (nodes->item(i)->isHTMLElement())
-            res << QVariant::fromValue(QWebElement(nodes->item(i)));
-        else
-            res << QVariant::fromValue(QDRTNode(nodes->item(i)));
-    }
-    return res;
 }
 
 void DumpRenderTreeSupportQt::setDefersLoading(QWebPage* page, bool flag)

@@ -24,7 +24,6 @@
 #define CSSMediaRule_h
 
 #include "CSSRule.h"
-#include "CSSRuleList.h"
 #include "MediaList.h"
 #include "PlatformString.h" // needed so bindings will compile
 
@@ -34,14 +33,14 @@ class CSSRuleList;
 
 class CSSMediaRule : public CSSRule {
 public:
-    static PassRefPtr<CSSMediaRule> create(CSSStyleSheet* parent, PassRefPtr<MediaList> media, PassRefPtr<CSSRuleList> rules)
+    static PassRefPtr<CSSMediaRule> create(CSSStyleSheet* parent, PassRefPtr<MediaQuerySet> media, Vector<RefPtr<CSSRule> >& adoptRules)
     {
-        return adoptRef(new CSSMediaRule(parent, media, rules));
+        return adoptRef(new CSSMediaRule(parent, media, adoptRules));
     }
     ~CSSMediaRule();
 
-    MediaList* media() const { return m_lstMedia.get(); }
-    CSSRuleList* cssRules() { return m_lstCSSRules.get(); }
+    MediaList* media() const { return m_mediaQueries ? m_mediaQueries->ensureMediaList(parentStyleSheet()) : 0; }
+    CSSRuleList* cssRules();
 
     unsigned insertRule(const String& rule, unsigned index, ExceptionCode&);
     void deleteRule(unsigned index, ExceptionCode&);
@@ -50,12 +49,18 @@ public:
 
     // Not part of the CSSOM
     unsigned append(CSSRule*);
+    MediaQuerySet* mediaQueries() const { return m_mediaQueries.get(); }
+
+    unsigned ruleCount() const { return m_childRules.size(); }
+    CSSRule* ruleAt(unsigned index) const { return m_childRules[index].get(); }
 
 private:
-    CSSMediaRule(CSSStyleSheet* parent, PassRefPtr<MediaList>, PassRefPtr<CSSRuleList>);
+    CSSMediaRule(CSSStyleSheet* parent, PassRefPtr<MediaQuerySet>, Vector<RefPtr<CSSRule> >& adoptRules);
 
-    RefPtr<MediaList> m_lstMedia;
-    RefPtr<CSSRuleList> m_lstCSSRules;
+    RefPtr<MediaQuerySet> m_mediaQueries;
+    Vector<RefPtr<CSSRule> > m_childRules;
+    
+    OwnPtr<CSSRuleList> m_ruleListCSSOMWrapper;
 };
 
 } // namespace WebCore

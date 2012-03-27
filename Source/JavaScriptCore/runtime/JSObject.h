@@ -49,6 +49,7 @@ namespace JSC {
     class GetterSetter;
     class HashEntry;
     class InternalFunction;
+    class LLIntOffsetsExtractor;
     class MarkedBlock;
     class PropertyDescriptor;
     class PropertyNameArray;
@@ -105,8 +106,10 @@ namespace JSC {
         JS_EXPORT_PRIVATE static bool getOwnPropertySlotByIndex(JSCell*, ExecState*, unsigned propertyName, PropertySlot&);
         JS_EXPORT_PRIVATE static bool getOwnPropertyDescriptor(JSObject*, ExecState*, const Identifier&, PropertyDescriptor&);
 
+        bool allowsAccessFrom(ExecState*);
+
         JS_EXPORT_PRIVATE static void put(JSCell*, ExecState*, const Identifier& propertyName, JSValue, PutPropertySlot&);
-        JS_EXPORT_PRIVATE static void putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue);
+        JS_EXPORT_PRIVATE static void putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
 
         // putDirect is effectively an unchecked vesion of 'defineOwnProperty':
         //  - the prototype chain is not consulted
@@ -262,6 +265,8 @@ namespace JSC {
         JSObject(JSGlobalData&, Structure*, PropertyStorage inlineStorage);
 
     private:
+        friend class LLIntOffsetsExtractor;
+        
         // Nobody should ever ask any of these questions on something already known to be a JSObject.
         using JSCell::isAPIValueWrapper;
         using JSCell::isGetterSetter;
@@ -367,6 +372,8 @@ COMPILE_ASSERT((JSFinalObject_inlineStorageCapacity >= JSNonFinalObject_inlineSt
         }
 
     private:
+        friend class LLIntOffsetsExtractor;
+        
         explicit JSFinalObject(JSGlobalData& globalData, Structure* structure)
             : JSObject(globalData, structure, m_inlineStorage)
         {
@@ -486,19 +493,6 @@ inline JSValue JSObject::prototype() const
     return structure()->storedPrototype();
 }
 
-inline bool JSObject::setPrototypeWithCycleCheck(JSGlobalData& globalData, JSValue prototype)
-{
-    JSValue nextPrototypeValue = prototype;
-    while (nextPrototypeValue && nextPrototypeValue.isObject()) {
-        JSObject* nextPrototype = asObject(nextPrototypeValue)->unwrappedObject();
-        if (nextPrototype == this)
-            return false;
-        nextPrototypeValue = nextPrototype->prototype();
-    }
-    setPrototype(globalData, prototype);
-    return true;
-}
-
 inline void JSObject::setPrototype(JSGlobalData& globalData, JSValue prototype)
 {
     ASSERT(prototype);
@@ -547,12 +541,6 @@ ALWAYS_INLINE bool JSObject::inlineGetOwnPropertySlot(ExecState* exec, const Ide
             fillGetterPropertySlot(slot, location);
         else
             slot.setValue(this, location->get(), offsetForLocation(location));
-        return true;
-    }
-
-    // non-standard Netscape extension
-    if (propertyName == exec->propertyNames().underscoreProto) {
-        slot.setValue(prototype());
         return true;
     }
 
@@ -803,8 +791,6 @@ inline JSValue JSValue::get(ExecState* exec, const Identifier& propertyName, Pro
 {
     if (UNLIKELY(!isCell())) {
         JSObject* prototype = synthesizePrototype(exec);
-        if (propertyName == exec->propertyNames().underscoreProto)
-            return prototype;
         if (!prototype->getPropertySlot(exec, propertyName, slot))
             return jsUndefined();
         return slot.getValue(exec, propertyName);
@@ -848,21 +834,20 @@ inline JSValue JSValue::get(ExecState* exec, unsigned propertyName, PropertySlot
 inline void JSValue::put(ExecState* exec, const Identifier& propertyName, JSValue value, PutPropertySlot& slot)
 {
     if (UNLIKELY(!isCell())) {
-        JSObject* thisObject = synthesizeObject(exec);
-        thisObject->methodTable()->put(thisObject, exec, propertyName, value, slot);
+        putToPrimitive(exec, propertyName, value, slot);
         return;
     }
     asCell()->methodTable()->put(asCell(), exec, propertyName, value, slot);
 }
 
-inline void JSValue::put(ExecState* exec, unsigned propertyName, JSValue value)
+inline void JSValue::putByIndex(ExecState* exec, unsigned propertyName, JSValue value, bool shouldThrow)
 {
     if (UNLIKELY(!isCell())) {
-        JSObject* thisObject = synthesizeObject(exec);
-        thisObject->methodTable()->putByIndex(thisObject, exec, propertyName, value);
+        PutPropertySlot slot(shouldThrow);
+        putToPrimitive(exec, Identifier::from(exec, propertyName), value, slot);
         return;
     }
-    asCell()->methodTable()->putByIndex(asCell(), exec, propertyName, value);
+    asCell()->methodTable()->putByIndex(asCell(), exec, propertyName, value, shouldThrow);
 }
 
 // --- JSValue inlines ----------------------------

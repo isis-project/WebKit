@@ -28,6 +28,7 @@
 
 #if WEBKIT_VERSION_MAX_ALLOWED >= WEBKIT_VERSION_LATEST
 
+@class DOMNode;
 @class DOMTestObj;
 @class NSString;
 
@@ -53,9 +54,22 @@ enum {
 - (NSString *)supplementalStr3;
 - (void)setSupplementalStr3:(NSString *)newSupplementalStr3;
 #endif
+#if ENABLE(Condition11) || ENABLE(Condition12)
+- (DOMNode *)supplementalNode;
+- (void)setSupplementalNode:(DOMNode *)newSupplementalNode;
+#endif
+#if ENABLE(Condition11) || ENABLE(Condition12)
 - (void)supplementalMethod1;
+#endif
+#if ENABLE(Condition11) || ENABLE(Condition12)
 - (DOMTestObj *)supplementalMethod2:(NSString *)strArg objArg:(DOMTestObj *)objArg;
+#endif
+#if ENABLE(Condition11) || ENABLE(Condition12)
 - (void)supplementalMethod3;
+#endif
+#if ENABLE(Condition11) || ENABLE(Condition12)
+- (void)supplementalMethod4;
+#endif
 @end
 
 #endif

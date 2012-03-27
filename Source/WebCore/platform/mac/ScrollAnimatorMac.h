@@ -86,6 +86,8 @@ private:
     virtual bool handleWheelEvent(const PlatformWheelEvent&) OVERRIDE;
 #endif
 
+    virtual void handleWheelEventPhase(PlatformWheelEventPhase) OVERRIDE;
+
     virtual void cancelAnimations();
     virtual void setIsActive();
     
@@ -103,6 +105,7 @@ private:
     virtual void contentAreaDidHide() const;
     void didBeginScrollGesture() const;
     void didEndScrollGesture() const;
+    void mayBeginScrollGesture() const;
 
     virtual void didAddVerticalScrollbar(Scrollbar*);
     virtual void willRemoveVerticalScrollbar(Scrollbar*);
@@ -116,6 +119,8 @@ private:
     FloatPoint adjustScrollPositionIfNecessary(const FloatPoint&) const;
 
     void immediateScrollTo(const FloatPoint&);
+
+    virtual bool isRubberBandInProgress() const OVERRIDE;
 
 #if ENABLE(RUBBER_BANDING)
     /// ScrollElasticityControllerClient member functions.

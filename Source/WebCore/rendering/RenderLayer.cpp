@@ -108,7 +108,7 @@
 #include "SVGNames.h"
 #endif
 
-#if PLATFORM(CHROMIUM)
+#if PLATFORM(CHROMIUM) || PLATFORM(BLACKBERRY)
 // FIXME: border radius clipping triggers too-slow path on Chromium
 // https://bugs.webkit.org/show_bug.cgi?id=69866
 #define DISABLE_ROUNDED_CORNER_CLIPPING
@@ -153,7 +153,6 @@ RenderLayer::RenderLayer(RenderBoxModelObject* renderer)
     , m_paintingInsideReflection(false)
     , m_inOverflowRelayout(false)
     , m_repaintStatus(NeedsNormalRepaint)
-    , m_overflowStatusDirty(true)
     , m_visibleContentStatusDirty(true)
     , m_hasVisibleContent(false)
     , m_visibleDescendantStatusDirty(false)
@@ -358,7 +357,7 @@ void RenderLayer::updateLayerPositions(LayoutPoint* offsetFromRoot, UpdateLayerP
         // as canUseConvertToLayerCoords may be true for an ancestor layer.
         convertToLayerCoords(root(), offset);
     }
-    positionOverflowControls(toSize(offset));
+    positionOverflowControls(toSize(roundedIntPoint(offset)));
 
     updateVisibilityStatus();
 
@@ -376,8 +375,8 @@ void RenderLayer::updateLayerPositions(LayoutPoint* offsetFromRoot, UpdateLayerP
         ASSERT(!view->layoutStateEnabled());
 
         RenderBoxModelObject* repaintContainer = renderer()->containerForRepaint();
-        IntRect oldRepaintRect = m_repaintRect;
-        IntRect oldOutlineBox = m_outlineBox;
+        LayoutRect oldRepaintRect = m_repaintRect;
+        LayoutRect oldOutlineBox = m_outlineBox;
         computeRepaintRects(offsetFromRoot);
         // FIXME: Should ASSERT that value calculated for m_outlineBox using the cached offset is the same
         // as the value not using the cached offset, but we can't due to https://bugs.webkit.org/show_bug.cgi?id=37048
@@ -434,7 +433,7 @@ LayoutRect RenderLayer::repaintRectIncludingDescendants() const
     return repaintRect;
 }
 
-void RenderLayer::computeRepaintRects(IntPoint* offsetFromRoot)
+void RenderLayer::computeRepaintRects(LayoutPoint* offsetFromRoot)
 {
     ASSERT(!m_visibleContentStatusDirty);
 
@@ -454,8 +453,9 @@ void RenderLayer::clearRepaintRects()
 
 void RenderLayer::updateLayerPositionsAfterScroll(UpdateLayerPositionsAfterScrollFlags flags)
 {
-    ASSERT(!m_visibleDescendantStatusDirty);
-    ASSERT(!m_visibleContentStatusDirty);
+    // FIXME: This shouldn't be needed, but there are some corner cases where
+    // these flags are still dirty. Update so that the check below is valid.
+    updateVisibilityStatus();
 
     // If we have no visible content and no visible descendants, there is no point recomputing
     // our rectangles as they will be empty. If our visibility changes, we are expected to
@@ -820,8 +820,8 @@ TransformationMatrix RenderLayer::perspectiveTransform() const
     const float boxWidth = borderBox.width();
     const float boxHeight = borderBox.height();
 
-    float perspectiveOriginX = style->perspectiveOriginX().calcFloatValue(boxWidth);
-    float perspectiveOriginY = style->perspectiveOriginY().calcFloatValue(boxHeight);
+    float perspectiveOriginX = floatValueForLength(style->perspectiveOriginX(), boxWidth);
+    float perspectiveOriginY = floatValueForLength(style->perspectiveOriginY(), boxHeight);
 
     // A perspective origin of 0,0 makes the vanishing point in the center of the element.
     // We want it to be in the top-left, so subtract half the height and width.
@@ -844,8 +844,8 @@ FloatPoint RenderLayer::perspectiveOrigin() const
     const LayoutRect borderBox = toRenderBox(renderer())->borderBoxRect();
     RenderStyle* style = renderer()->style();
 
-    return FloatPoint(style->perspectiveOriginX().calcFloatValue(borderBox.width()),
-                      style->perspectiveOriginY().calcFloatValue(borderBox.height()));
+    return FloatPoint(floatValueForLength(style->perspectiveOriginX(), borderBox.width()),
+                      floatValueForLength(style->perspectiveOriginY(), borderBox.height()));
 }
 
 RenderLayer* RenderLayer::stackingContext() const
@@ -1192,13 +1192,12 @@ void RenderLayer::removeOnlyThisLayer()
     // Dirty the clip rects.
     clearClipRectsIncludingDescendants();
 
-    // Remove us from the parent.
-    RenderLayer* parent = m_parent;
     RenderLayer* nextSib = nextSibling();
     bool hasLayerOffset;
     const LayoutPoint offsetFromRootBeforeMove = computeOffsetFromRoot(hasLayerOffset);
-    parent->removeChild(this);
-    
+
+    // Remove the child reflection layer before moving other child layers.
+    // The reflection layer should not be moved to the parent.
     if (reflection())
         removeChild(reflectionLayer());
 
@@ -1207,7 +1206,7 @@ void RenderLayer::removeOnlyThisLayer()
     while (current) {
         RenderLayer* next = current->nextSibling();
         removeChild(current);
-        parent->addChild(current, nextSib);
+        m_parent->addChild(current, nextSib);
         current->setRepaintStatus(NeedsFullRepaint);
         LayoutPoint offsetFromRoot = offsetFromRootBeforeMove;
         // updateLayerPositions depends on hasLayer() already being false for proper layout.
@@ -1216,6 +1215,8 @@ void RenderLayer::removeOnlyThisLayer()
         current = next;
     }
 
+    // Remove us from the parent.
+    m_parent->removeChild(this);
     m_renderer->destroyLayer();
 }
 
@@ -1238,8 +1239,21 @@ void RenderLayer::insertOnlyThisLayer()
     clearClipRectsIncludingDescendants();
 }
 
-void 
-RenderLayer::convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutPoint& location) const
+void RenderLayer::convertToPixelSnappedLayerCoords(const RenderLayer* ancestorLayer, IntPoint& roundedLocation) const
+{
+    LayoutPoint location = roundedLocation;
+    convertToLayerCoords(ancestorLayer, location);
+    roundedLocation = roundedIntPoint(location);
+}
+
+void RenderLayer::convertToPixelSnappedLayerCoords(const RenderLayer* ancestorLayer, IntRect& roundedRect) const
+{
+    LayoutRect rect = roundedRect;
+    convertToLayerCoords(ancestorLayer, rect);
+    roundedRect = pixelSnappedIntRect(rect);
+}
+
+void RenderLayer::convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutPoint& location) const
 {
     if (ancestorLayer == this)
         return;
@@ -1326,8 +1340,7 @@ RenderLayer::convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutPoint&
     location += toSize(m_topLeft);
 }
 
-void
-RenderLayer::convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutRect& rect) const
+void RenderLayer::convertToLayerCoords(const RenderLayer* ancestorLayer, LayoutRect& rect) const
 {
     LayoutPoint delta;
     convertToLayerCoords(ancestorLayer, delta);
@@ -1374,7 +1387,7 @@ void RenderLayer::panScrollFromPoint(const LayoutPoint& sourcePoint)
     scrollByRecursively(adjustedScrollDelta(xDelta), adjustedScrollDelta(yDelta), ScrollOffsetClamped);
 }
 
-void RenderLayer::scrollByRecursively(LayoutUnit xDelta, LayoutUnit yDelta, ScrollOffsetClamping clamp)
+void RenderLayer::scrollByRecursively(int xDelta, int yDelta, ScrollOffsetClamping clamp)
 {
     if (!xDelta && !yDelta)
         return;
@@ -1384,13 +1397,13 @@ void RenderLayer::scrollByRecursively(LayoutUnit xDelta, LayoutUnit yDelta, Scro
         restrictedByLineClamp = !renderer()->parent()->style()->lineClamp().isNone();
 
     if (renderer()->hasOverflowClip() && !restrictedByLineClamp) {
-        LayoutUnit newOffsetX = scrollXOffset() + xDelta;
-        LayoutUnit newOffsetY = scrollYOffset() + yDelta;
+        int newOffsetX = scrollXOffset() + xDelta;
+        int newOffsetY = scrollYOffset() + yDelta;
         scrollToOffset(newOffsetX, newOffsetY, clamp);
 
         // If this layer can't do the scroll we ask the next layer up that can scroll to try
-        LayoutUnit leftToScrollX = newOffsetX - scrollXOffset();
-        LayoutUnit leftToScrollY = newOffsetY - scrollYOffset();
+        int leftToScrollX = newOffsetX - scrollXOffset();
+        int leftToScrollY = newOffsetY - scrollYOffset();
         if ((leftToScrollX || leftToScrollY) && renderer()->parent()) {
             if (RenderLayer* scrollableLayer = enclosingScrollableLayer())
                 scrollableLayer->scrollByRecursively(leftToScrollX, leftToScrollY);
@@ -1408,21 +1421,21 @@ void RenderLayer::scrollByRecursively(LayoutUnit xDelta, LayoutUnit yDelta, Scro
     }
 }
 
-void RenderLayer::scrollToOffset(LayoutUnit x, LayoutUnit y, ScrollOffsetClamping clamp)
+void RenderLayer::scrollToOffset(int x, int y, ScrollOffsetClamping clamp)
 {
     if (clamp == ScrollOffsetClamped) {
         RenderBox* box = renderBox();
         if (!box)
             return;
 
-        LayoutUnit maxX = scrollWidth() - box->clientWidth();
-        LayoutUnit maxY = scrollHeight() - box->clientHeight();
+        int maxX = scrollWidth() - box->clientWidth();
+        int maxY = scrollHeight() - box->clientHeight();
 
-        x = min(max<LayoutUnit>(x, 0), maxX);
-        y = min(max<LayoutUnit>(y, 0), maxY);
+        x = min(max(x, 0), maxX);
+        y = min(max(y, 0), maxY);
     }
 
-    LayoutPoint newScrollOffset(x, y);
+    IntPoint newScrollOffset(x, y);
     if (newScrollOffset != LayoutPoint(scrollXOffset(), scrollYOffset()))
         scrollToOffsetWithoutAnimation(newScrollOffset);
 }
@@ -1467,23 +1480,9 @@ void RenderLayer::scrollTo(int x, int y)
         view->updateWidgetPositions();
     }
 
-#if USE(ACCELERATED_COMPOSITING)
-    if (compositor()->inCompositingMode()) {
-        // Our stacking context is guaranteed to contain all of our descendants that may need
-        // repositioning, so update compositing layers from there.
-        if (RenderLayer* compositingAncestor = stackingContext()->enclosingCompositingLayer()) {
-            if (compositor()->compositingConsultsOverlap())
-                compositor()->updateCompositingLayers(CompositingUpdateOnScroll, compositingAncestor);
-            else {
-                bool isUpdateRoot = true;
-                compositingAncestor->backing()->updateAfterLayout(RenderLayerBacking::AllDescendants, isUpdateRoot);
-            }
-        }
-    }
-#endif
+    updateCompositingLayersAfterScroll();
 
     RenderBoxModelObject* repaintContainer = renderer()->containerForRepaint();
-
     Frame* frame = renderer()->frame();
     if (frame) {
         // The caret rect needs to be invalidated after scrolling
@@ -1533,15 +1532,18 @@ void RenderLayer::scrollRectToVisible(const LayoutRect& rect, const ScrollAlignm
         LayoutRect exposeRect = LayoutRect(rect.x() + scrollXOffset(), rect.y() + scrollYOffset(), rect.width(), rect.height());
         LayoutRect r = getRectToExpose(layerBounds, exposeRect, alignX, alignY);
         
-        LayoutUnit xOffset = r.x() - absPos.x();
-        LayoutUnit yOffset = r.y() - absPos.y();
+        LayoutUnit adjustedX = r.x() - absPos.x();
+        LayoutUnit adjustedY = r.y() - absPos.y();
         // Adjust offsets if they're outside of the allowable range.
-        xOffset = max<LayoutUnit>(0, min(scrollWidth() - layerBounds.width(), xOffset));
-        yOffset = max<LayoutUnit>(0, min(scrollHeight() - layerBounds.height(), yOffset));
+        adjustedX = max<LayoutUnit>(0, min(scrollWidth() - layerBounds.width(), adjustedX));
+        adjustedY = max<LayoutUnit>(0, min(scrollHeight() - layerBounds.height(), adjustedY));
+
+        int xOffset = roundToInt(adjustedX);
+        int yOffset = roundToInt(adjustedY);
         
         if (xOffset != scrollXOffset() || yOffset != scrollYOffset()) {
-            LayoutUnit diffX = scrollXOffset();
-            LayoutUnit diffY = scrollYOffset();
+            int diffX = scrollXOffset();
+            int diffY = scrollYOffset();
             scrollToOffset(xOffset, yOffset);
             diffX = scrollXOffset() - diffX;
             diffY = scrollYOffset() - diffY;
@@ -1564,11 +1566,11 @@ void RenderLayer::scrollRectToVisible(const LayoutRect& rect, const ScrollAlignm
                     LayoutRect viewRect = frameView->visibleContentRect();
                     LayoutRect exposeRect = getRectToExpose(viewRect, rect, alignX, alignY);
 
-                    LayoutUnit xOffset = exposeRect.x();
-                    LayoutUnit yOffset = exposeRect.y();
+                    int xOffset = roundToInt(exposeRect.x());
+                    int yOffset = roundToInt(exposeRect.y());
                     // Adjust offsets if they're outside of the allowable range.
-                    xOffset = max<LayoutUnit>(0, min(frameView->contentsWidth(), xOffset));
-                    yOffset = max<LayoutUnit>(0, min(frameView->contentsHeight(), yOffset));
+                    xOffset = max(0, min(frameView->contentsWidth(), xOffset));
+                    yOffset = max(0, min(frameView->contentsHeight(), yOffset));
 
                     frameView->setScrollPosition(IntPoint(xOffset, yOffset));
                     parentLayer = ownerElement->renderer()->enclosingLayer();
@@ -1599,6 +1601,24 @@ void RenderLayer::scrollRectToVisible(const LayoutRect& rect, const ScrollAlignm
 
     if (frameView)
         frameView->resumeScheduledEvents();
+}
+
+void RenderLayer::updateCompositingLayersAfterScroll()
+{
+#if USE(ACCELERATED_COMPOSITING)
+    if (compositor()->inCompositingMode()) {
+        // Our stacking context is guaranteed to contain all of our descendants that may need
+        // repositioning, so update compositing layers from there.
+        if (RenderLayer* compositingAncestor = stackingContext()->enclosingCompositingLayer()) {
+            if (compositor()->compositingConsultsOverlap())
+                compositor()->updateCompositingLayers(CompositingUpdateOnScroll, compositingAncestor);
+            else {
+                bool isUpdateRoot = true;
+                compositingAncestor->backing()->updateAfterLayout(RenderLayerBacking::AllDescendants, isUpdateRoot);
+            }
+        }
+    }
+#endif
 }
 
 LayoutRect RenderLayer::getRectToExpose(const LayoutRect &visibleRect, const LayoutRect &exposeRect, const ScrollAlignment& alignX, const ScrollAlignment& alignY)
@@ -1722,33 +1742,37 @@ void RenderLayer::resize(const PlatformMouseEvent& evt, const LayoutSize& oldOff
     element->setMinimumSizeForResizing(minimumSize);
     
     LayoutSize adjustedOldOffset = LayoutSize(oldOffset.width() / zoomFactor, oldOffset.height() / zoomFactor);
+    if (renderer->style()->shouldPlaceBlockDirectionScrollbarOnLogicalLeft()) {
+        newOffset.setWidth(-newOffset.width());
+        adjustedOldOffset.setWidth(-adjustedOldOffset.width());
+    }
     
     LayoutSize difference = (currentSize + newOffset - adjustedOldOffset).expandedTo(minimumSize) - currentSize;
 
     ASSERT(element->isStyledElement());
-    StylePropertySet* styleDeclaration = static_cast<StyledElement*>(element)->ensureInlineStyleDecl();
+    StyledElement* styledElement = static_cast<StyledElement*>(element);
     bool isBoxSizingBorder = renderer->style()->boxSizing() == BORDER_BOX;
 
     if (resize != RESIZE_VERTICAL && difference.width()) {
         if (element->isFormControlElement()) {
             // Make implicit margins from the theme explicit (see <http://bugs.webkit.org/show_bug.cgi?id=9547>).
-            styleDeclaration->setProperty(CSSPropertyMarginLeft, String::number(renderer->marginLeft() / zoomFactor) + "px", false);
-            styleDeclaration->setProperty(CSSPropertyMarginRight, String::number(renderer->marginRight() / zoomFactor) + "px", false);
+            styledElement->setInlineStyleProperty(CSSPropertyMarginLeft, String::number(renderer->marginLeft() / zoomFactor) + "px", false);
+            styledElement->setInlineStyleProperty(CSSPropertyMarginRight, String::number(renderer->marginRight() / zoomFactor) + "px", false);
         }
-        LayoutUnit baseWidth = renderer->width() - (isBoxSizingBorder ? 0 : renderer->borderAndPaddingWidth());
+        LayoutUnit baseWidth = renderer->width() - (isBoxSizingBorder ? zeroLayoutUnit : renderer->borderAndPaddingWidth());
         baseWidth = baseWidth / zoomFactor;
-        styleDeclaration->setProperty(CSSPropertyWidth, String::number(baseWidth + difference.width()) + "px", false);
+        styledElement->setInlineStyleProperty(CSSPropertyWidth, String::number(baseWidth + difference.width()) + "px", false);
     }
 
     if (resize != RESIZE_HORIZONTAL && difference.height()) {
         if (element->isFormControlElement()) {
             // Make implicit margins from the theme explicit (see <http://bugs.webkit.org/show_bug.cgi?id=9547>).
-            styleDeclaration->setProperty(CSSPropertyMarginTop, String::number(renderer->marginTop() / zoomFactor) + "px", false);
-            styleDeclaration->setProperty(CSSPropertyMarginBottom, String::number(renderer->marginBottom() / zoomFactor) + "px", false);
+            styledElement->setInlineStyleProperty(CSSPropertyMarginTop, String::number(renderer->marginTop() / zoomFactor) + "px", false);
+            styledElement->setInlineStyleProperty(CSSPropertyMarginBottom, String::number(renderer->marginBottom() / zoomFactor) + "px", false);
         }
-        LayoutUnit baseHeight = renderer->height() - (isBoxSizingBorder ? 0 : renderer->borderAndPaddingHeight());
+        LayoutUnit baseHeight = renderer->height() - (isBoxSizingBorder ? zeroLayoutUnit : renderer->borderAndPaddingHeight());
         baseHeight = baseHeight / zoomFactor;
-        styleDeclaration->setProperty(CSSPropertyHeight, String::number(baseHeight + difference.height()) + "px", false);
+        styledElement->setInlineStyleProperty(CSSPropertyHeight, String::number(baseHeight + difference.height()) + "px", false);
     }
 
     document->updateLayout();
@@ -1789,7 +1813,7 @@ IntPoint RenderLayer::minimumScrollPosition() const
 IntPoint RenderLayer::maximumScrollPosition() const
 {
     // FIXME: m_scrollSize may not be up-to-date if m_scrollDimensionsDirty is true.
-    return scrollOrigin() + m_scrollSize - visibleContentRect(true).size();
+    return scrollOrigin() + roundedIntSize(m_scrollSize) - visibleContentRect(true).size();
 }
 
 IntRect RenderLayer::visibleContentRect(bool includeScrollbars) const
@@ -1817,6 +1841,13 @@ bool RenderLayer::isActive() const
     return page && page->focusController()->isActive();
 }
 
+static int cornerStart(const RenderLayer* layer, int minX, int maxX, int thickness)
+{
+    if (layer->renderer()->style()->shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
+        return minX + layer->renderer()->style()->borderLeftWidth();
+    return maxX - thickness - layer->renderer()->style()->borderRightWidth();
+}
+
 static IntRect cornerRect(const RenderLayer* layer, const IntRect& bounds)
 {
     int horizontalThickness;
@@ -1836,7 +1867,7 @@ static IntRect cornerRect(const RenderLayer* layer, const IntRect& bounds)
         horizontalThickness = layer->verticalScrollbar()->width();
         verticalThickness = layer->horizontalScrollbar()->height();
     }
-    return IntRect(bounds.maxX() - horizontalThickness - layer->renderer()->style()->borderRightWidth(), 
+    return IntRect(cornerStart(layer, bounds.x(), bounds.maxX(), horizontalThickness),
                    bounds.maxY() - verticalThickness - layer->renderer()->style()->borderBottomWidth(),
                    horizontalThickness, verticalThickness);
 }
@@ -1851,7 +1882,7 @@ IntRect RenderLayer::scrollCornerRect() const
     bool hasVerticalBar = verticalScrollbar();
     bool hasResizer = renderer()->style()->resize() != RESIZE_NONE;
     if ((hasHorizontalBar && hasVerticalBar) || (hasResizer && (hasHorizontalBar || hasVerticalBar)))
-        return cornerRect(this, renderBox()->borderBoxRect());
+        return cornerRect(this, pixelSnappedIntRect(renderBox()->borderBoxRect()));
     return IntRect();
 }
 
@@ -1870,7 +1901,7 @@ IntRect RenderLayer::scrollCornerAndResizerRect() const
         return IntRect();
     IntRect scrollCornerAndResizer = scrollCornerRect();
     if (scrollCornerAndResizer.isEmpty())
-        scrollCornerAndResizer = resizerCornerRect(this, box->borderBoxRect());
+        scrollCornerAndResizer = resizerCornerRect(this, pixelSnappedIntRect(box->borderBoxRect()));
     return scrollCornerAndResizer;
 }
 
@@ -1959,15 +1990,32 @@ IntPoint RenderLayer::currentMousePosition() const
     return renderer()->frame() ? renderer()->frame()->eventHandler()->currentMousePosition() : IntPoint();
 }
 
+LayoutUnit RenderLayer::verticalScrollbarStart(int minX, int maxX) const
+{
+    const RenderBox* box = renderBox();
+    if (renderer()->style()->shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
+        return minX + box->borderLeft();
+    return maxX - box->borderRight() - m_vBar->width();
+}
+
+LayoutUnit RenderLayer::horizontalScrollbarStart(int minX) const
+{
+    const RenderBox* box = renderBox();
+    int x = minX + box->borderLeft();
+    if (renderer()->style()->shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
+        x += m_vBar ? m_vBar->width() : resizerCornerRect(this, box->borderBoxRect()).width();
+    return x;
+}
+
 IntSize RenderLayer::scrollbarOffset(const Scrollbar* scrollbar) const
 {
     RenderBox* box = renderBox();
 
     if (scrollbar == m_vBar.get())
-        return IntSize(box->width() - box->borderRight() - scrollbar->width(), box->borderTop());
+        return IntSize(verticalScrollbarStart(0, box->width()), box->borderTop());
 
     if (scrollbar == m_hBar.get())
-        return IntSize(box->borderLeft(), box->height() - box->borderBottom() - scrollbar->height());
+        return IntSize(horizontalScrollbarStart(0), box->height() - box->borderBottom() - scrollbar->height());
     
     ASSERT_NOT_REACHED();
     return IntSize();
@@ -1992,9 +2040,9 @@ void RenderLayer::invalidateScrollbarRect(Scrollbar* scrollbar, const IntRect& r
     RenderBox* box = renderBox();
     ASSERT(box);
     if (scrollbar == m_vBar.get())
-        scrollRect.move(box->width() - box->borderRight() - scrollbar->width(), box->borderTop());
+        scrollRect.move(verticalScrollbarStart(0, box->width()), box->borderTop());
     else
-        scrollRect.move(box->borderLeft(), box->height() - box->borderBottom() - scrollbar->height());
+        scrollRect.move(horizontalScrollbarStart(0), box->height() - box->borderBottom() - scrollbar->height());
     renderer()->repaintRectangle(scrollRect);
 }
 
@@ -2132,13 +2180,16 @@ int RenderLayer::horizontalScrollbarHeight(OverlayScrollbarSizeRelevancy relevan
     return m_hBar->height();
 }
 
-LayoutSize RenderLayer::offsetFromResizeCorner(const LayoutPoint& absolutePoint) const
+IntSize RenderLayer::offsetFromResizeCorner(const IntPoint& absolutePoint) const
 {
-    // Currently the resize corner is always the bottom right corner
+    // Currently the resize corner is either the bottom right corner or the bottom left corner.
     // FIXME: This assumes the location is 0, 0. Is this guaranteed to always be the case?
-    IntPoint bottomRight = toPoint(size());
+    IntSize elementSize = size();
+    if (renderer()->style()->shouldPlaceBlockDirectionScrollbarOnLogicalLeft())
+        elementSize.setWidth(0);
+    IntPoint resizerPoint = toPoint(elementSize);
     IntPoint localPoint = roundedIntPoint(absoluteToContents(absolutePoint));
-    return localPoint - bottomRight;
+    return localPoint - resizerPoint;
 }
 
 bool RenderLayer::hasOverflowControls() const
@@ -2146,7 +2197,7 @@ bool RenderLayer::hasOverflowControls() const
     return m_hBar || m_vBar || m_scrollCorner || renderer()->style()->resize() != RESIZE_NONE;
 }
 
-void RenderLayer::positionOverflowControls(const LayoutSize& offsetFromLayer)
+void RenderLayer::positionOverflowControls(const IntSize& offsetFromLayer)
 {
     if (!m_hBar && !m_vBar && (!renderer()->hasOverflowClip() || renderer()->style()->resize() == RESIZE_NONE))
         return;
@@ -2159,13 +2210,13 @@ void RenderLayer::positionOverflowControls(const LayoutSize& offsetFromLayer)
     const IntRect& scrollCorner = scrollCornerRect();
     IntRect absBounds(borderBox.location() + offsetFromLayer, borderBox.size());
     if (m_vBar)
-        m_vBar->setFrameRect(IntRect(absBounds.maxX() - box->borderRight() - m_vBar->width(),
+        m_vBar->setFrameRect(IntRect(verticalScrollbarStart(absBounds.x(), absBounds.maxX()),
                                      absBounds.y() + box->borderTop(),
                                      m_vBar->width(),
                                      absBounds.height() - (box->borderTop() + box->borderBottom()) - scrollCorner.height()));
 
     if (m_hBar)
-        m_hBar->setFrameRect(IntRect(absBounds.x() + box->borderLeft(),
+        m_hBar->setFrameRect(IntRect(horizontalScrollbarStart(absBounds.x()),
                                      absBounds.maxY() - box->borderBottom() - m_hBar->height(),
                                      absBounds.width() - (box->borderLeft() + box->borderRight()) - scrollCorner.width(),
                                      m_hBar->height()));
@@ -2200,28 +2251,18 @@ void RenderLayer::positionOverflowControls(const LayoutSize& offsetFromLayer)
         m_resizer->setFrameRect(resizerCornerRect(this, borderBox));
 }
 
-LayoutUnit RenderLayer::scrollWidth()
+int RenderLayer::scrollWidth()
 {
     if (m_scrollDimensionsDirty)
         computeScrollDimensions();
     return m_scrollSize.width();
 }
 
-LayoutUnit RenderLayer::scrollHeight()
+int RenderLayer::scrollHeight()
 {
     if (m_scrollDimensionsDirty)
         computeScrollDimensions();
     return m_scrollSize.height();
-}
-
-int RenderLayer::pixelSnappedScrollWidth()
-{
-    return scrollWidth();
-}
-
-int RenderLayer::pixelSnappedScrollHeight()
-{
-    return scrollHeight();
 }
 
 LayoutUnit RenderLayer::overflowTop() const
@@ -2272,32 +2313,9 @@ void RenderLayer::computeScrollDimensions(bool* needHBar, bool* needVBar)
     setScrollOrigin(IntPoint(-m_scrollOverflow.width(), -m_scrollOverflow.height()));
 
     if (needHBar)
-        *needHBar = pixelSnappedScrollWidth() > box->pixelSnappedClientWidth();
+        *needHBar = scrollWidth() > box->pixelSnappedClientWidth();
     if (needVBar)
-        *needVBar = pixelSnappedScrollHeight() > box->pixelSnappedClientHeight();
-}
-
-void RenderLayer::updateOverflowStatus(bool horizontalOverflow, bool verticalOverflow)
-{
-    if (m_overflowStatusDirty) {
-        m_horizontalOverflow = horizontalOverflow;
-        m_verticalOverflow = verticalOverflow;
-        m_overflowStatusDirty = false;
-        return;
-    }
-    
-    bool horizontalOverflowChanged = (m_horizontalOverflow != horizontalOverflow);
-    bool verticalOverflowChanged = (m_verticalOverflow != verticalOverflow);
-    
-    if (horizontalOverflowChanged || verticalOverflowChanged) {
-        m_horizontalOverflow = horizontalOverflow;
-        m_verticalOverflow = verticalOverflow;
-        
-        if (FrameView* frameView = renderer()->document()->view()) {
-            frameView->scheduleEvent(OverflowEvent::create(horizontalOverflowChanged, horizontalOverflow, verticalOverflowChanged, verticalOverflow),
-                renderer()->node());
-        }
-    }
+        *needVBar = scrollHeight() > box->pixelSnappedClientHeight();
 }
 
 void RenderLayer::updateScrollInfoAfterLayout()
@@ -2315,8 +2333,8 @@ void RenderLayer::updateScrollInfoAfterLayout()
     if (box->style()->overflowX() != OMARQUEE) {
         // Layout may cause us to be in an invalid scroll position.  In this case we need
         // to pull our scroll offsets back to the max (or push them up to the min).
-        int newX = max(0, min(scrollXOffset(), scrollWidth() - box->clientWidth()));
-        int newY = max(0, min(scrollYOffset(), scrollHeight() - box->clientHeight()));
+        int newX = max(0, min<int>(scrollXOffset(), scrollWidth() - box->clientWidth()));
+        int newY = max(0, min<int>(scrollYOffset(), scrollHeight() - box->clientHeight()));
         if (newX != scrollXOffset() || newY != scrollYOffset())
             scrollToOffset(newX, newY);
     }
@@ -2392,13 +2410,10 @@ void RenderLayer::updateScrollInfoAfterLayout()
     }
 
     if (scrollOffsetOriginal != scrollOffset())
-        scrollToOffsetWithoutAnimation(LayoutPoint(scrollXOffset(), scrollYOffset()));
-
-    if (renderer()->node() && renderer()->document()->hasListenerType(Document::OVERFLOWCHANGED_LISTENER))
-        updateOverflowStatus(horizontalOverflow, verticalOverflow);
+        scrollToOffsetWithoutAnimation(IntPoint(scrollXOffset(), scrollYOffset()));
 }
 
-void RenderLayer::paintOverflowControls(GraphicsContext* context, const LayoutPoint& paintOffset, const LayoutRect& damageRect, bool paintingOverlayControls)
+void RenderLayer::paintOverflowControls(GraphicsContext* context, const IntPoint& paintOffset, const IntRect& damageRect, bool paintingOverlayControls)
 {
     // Don't do anything if we have no overflow.
     if (!renderer()->hasOverflowClip())
@@ -2422,7 +2437,7 @@ void RenderLayer::paintOverflowControls(GraphicsContext* context, const LayoutPo
     if (paintingOverlayControls && !hasOverlayScrollbars())
         return;
 
-    LayoutPoint adjustedPaintOffset = paintOffset;
+    IntPoint adjustedPaintOffset = paintOffset;
     if (paintingOverlayControls)
         adjustedPaintOffset = m_cachedOverlayScrollbarOffset;
 
@@ -2458,12 +2473,12 @@ void RenderLayer::paintOverflowControls(GraphicsContext* context, const LayoutPo
     paintResizer(context, adjustedPaintOffset, damageRect);
 }
 
-void RenderLayer::paintScrollCorner(GraphicsContext* context, const LayoutPoint& paintOffset, const LayoutRect& damageRect)
+void RenderLayer::paintScrollCorner(GraphicsContext* context, const IntPoint& paintOffset, const IntRect& damageRect)
 {
     RenderBox* box = renderBox();
     ASSERT(box);
 
-    LayoutRect absRect = scrollCornerRect();
+    IntRect absRect = scrollCornerRect();
     absRect.moveBy(paintOffset);
     if (!absRect.intersects(damageRect))
         return;
@@ -2484,7 +2499,7 @@ void RenderLayer::paintScrollCorner(GraphicsContext* context, const LayoutPoint&
         context->fillRect(absRect, Color::white, box->style()->colorSpace());
 }
 
-void RenderLayer::drawPlatformResizerImage(GraphicsContext* context, LayoutRect resizerCornerRect)
+void RenderLayer::drawPlatformResizerImage(GraphicsContext* context, IntRect resizerCornerRect)
 {
     float deviceScaleFactor = WebCore::deviceScaleFactor(renderer()->frame());
 
@@ -2502,10 +2517,20 @@ void RenderLayer::drawPlatformResizerImage(GraphicsContext* context, LayoutRect 
     }
 
     IntRect imageRect(resizerCornerRect.maxXMaxYCorner() - cornerResizerSize, cornerResizerSize);
+    if (renderer()->style()->shouldPlaceBlockDirectionScrollbarOnLogicalLeft()) {
+        context->save();
+        context->translate(imageRect.x(), imageRect.y());
+        imageRect.setX(0);
+        imageRect.setY(0);
+        context->scale(FloatSize(-1.0, 1.0));
+        context->drawImage(resizeCornerImage.get(), renderer()->style()->colorSpace(), imageRect);
+        context->restore();
+        return;
+    }
     context->drawImage(resizeCornerImage.get(), renderer()->style()->colorSpace(), imageRect);
 }
 
-void RenderLayer::paintResizer(GraphicsContext* context, const LayoutPoint& paintOffset, const LayoutRect& damageRect)
+void RenderLayer::paintResizer(GraphicsContext* context, const IntPoint& paintOffset, const IntRect& damageRect)
 {
     if (renderer()->style()->resize() == RESIZE_NONE)
         return;
@@ -2513,7 +2538,7 @@ void RenderLayer::paintResizer(GraphicsContext* context, const LayoutPoint& pain
     RenderBox* box = renderBox();
     ASSERT(box);
 
-    LayoutRect absRect = resizerCornerRect(this, box->borderBoxRect());
+    IntRect absRect = resizerCornerRect(this, pixelSnappedIntRect(box->borderBoxRect()));
     absRect.moveBy(paintOffset);
     if (!absRect.intersects(damageRect))
         return;
@@ -2535,8 +2560,8 @@ void RenderLayer::paintResizer(GraphicsContext* context, const LayoutPoint& pain
     if (!hasOverlayScrollbars() && (m_vBar || m_hBar)) {
         GraphicsContextStateSaver stateSaver(*context);
         context->clip(absRect);
-        LayoutRect largerCorner = absRect;
-        largerCorner.setSize(LayoutSize(largerCorner.width() + 1, largerCorner.height() + 1));
+        IntRect largerCorner = absRect;
+        largerCorner.setSize(IntSize(largerCorner.width() + 1, largerCorner.height() + 1));
         context->setStrokeColor(Color(makeRGB(217, 217, 217)), ColorSpaceDeviceRGB);
         context->setStrokeThickness(1.0f);
         context->setFillColor(Color::transparent, ColorSpaceDeviceRGB);
@@ -2558,7 +2583,7 @@ bool RenderLayer::isPointInResizeControl(const IntPoint& absolutePoint) const
     return resizerCornerRect(this, localBounds).contains(localPoint);
 }
     
-bool RenderLayer::hitTestOverflowControls(HitTestResult& result, const LayoutPoint& localPoint)
+bool RenderLayer::hitTestOverflowControls(HitTestResult& result, const IntPoint& localPoint)
 {
     if (!m_hBar && !m_vBar && (!renderer()->hasOverflowClip() || renderer()->style()->resize() == RESIZE_NONE))
         return false;
@@ -2568,7 +2593,7 @@ bool RenderLayer::hitTestOverflowControls(HitTestResult& result, const LayoutPoi
     
     IntRect resizeControlRect;
     if (renderer()->style()->resize() != RESIZE_NONE) {
-        resizeControlRect = resizerCornerRect(this, box->borderBoxRect());
+        resizeControlRect = resizerCornerRect(this, pixelSnappedIntRect(box->borderBoxRect()));
         if (resizeControlRect.contains(localPoint))
             return true;
     }
@@ -2576,7 +2601,7 @@ bool RenderLayer::hitTestOverflowControls(HitTestResult& result, const LayoutPoi
     int resizeControlSize = max(resizeControlRect.height(), 0);
 
     if (m_vBar && m_vBar->shouldParticipateInHitTesting()) {
-        LayoutRect vBarRect(box->width() - box->borderRight() - m_vBar->width(), 
+        LayoutRect vBarRect(verticalScrollbarStart(0, box->width()),
                             box->borderTop(),
                             m_vBar->width(),
                             box->height() - (box->borderTop() + box->borderBottom()) - (m_hBar ? m_hBar->height() : resizeControlSize));
@@ -2588,7 +2613,7 @@ bool RenderLayer::hitTestOverflowControls(HitTestResult& result, const LayoutPoi
 
     resizeControlSize = max(resizeControlRect.width(), 0);
     if (m_hBar && m_hBar->shouldParticipateInHitTesting()) {
-        LayoutRect hBarRect(box->borderLeft(),
+        LayoutRect hBarRect(horizontalScrollbarStart(0),
                             box->height() - box->borderBottom() - m_hBar->height(),
                             box->width() - (box->borderLeft() + box->borderRight()) - (m_vBar ? m_vBar->width() : resizeControlSize),
                             m_hBar->height());
@@ -2646,7 +2671,7 @@ void RenderLayer::clipToRect(RenderLayer* rootLayer, GraphicsContext* context, c
     if (clipRect.rect() == paintDirtyRect)
         return;
     context->save();
-    context->clip(clipRect.rect());
+    context->clip(pixelSnappedIntRect(clipRect.rect()));
     
     if (!clipRect.hasRadius())
         return;
@@ -2947,7 +2972,7 @@ void RenderLayer::paintLayerContents(RenderLayer* rootLayer, GraphicsContext* co
 
     if (isPaintingOverlayScrollbars) {
         clipToRect(rootLayer, context, paintDirtyRect, damageRect);
-        paintOverflowControls(context, roundedIntPoint(paintOffset), damageRect.rect(), true);
+        paintOverflowControls(context, roundedIntPoint(paintOffset), pixelSnappedIntRect(damageRect.rect()), true);
         restoreClip(context, paintDirtyRect, damageRect);
     }
 
@@ -3111,9 +3136,9 @@ bool RenderLayer::hitTest(const HitTestRequest& request, HitTestResult& result)
 {
     renderer()->document()->updateLayout();
     
-    LayoutRect hitTestArea = renderer()->isRenderFlowThread() ? toRenderFlowThread(renderer())->borderBoxRect() : renderer()->view()->documentRect();
+    IntRect hitTestArea = renderer()->isRenderFlowThread() ? toRenderFlowThread(renderer())->borderBoxRect() : renderer()->view()->documentRect();
     if (!request.ignoreClipping())
-        hitTestArea.intersect(frameVisibleRect(renderer()));
+        hitTestArea.intersect(pixelSnappedIntRect(frameVisibleRect(renderer())));
 
     RenderLayer* insideLayer = hitTestLayer(this, 0, request, result, hitTestArea, result.point(), false);
     if (!insideLayer) {
@@ -3641,8 +3666,12 @@ void RenderLayer::calculateClipRects(const RenderLayer* rootLayer, RenderRegion*
     // Update the clip rects that will be passed to child layers.
     if (renderer()->hasOverflowClip() || renderer()->hasClip()) {
         // This layer establishes a clip of some kind.
+
+        // This offset cannot use convertToLayerCoords, because sometimes our rootLayer may be across
+        // some transformed layer boundary, for example, in the RenderLayerCompositor overlapMap, where
+        // clipRects are needed in view space.
         LayoutPoint offset;
-        convertToLayerCoords(rootLayer, offset);
+        offset = roundedIntPoint(renderer()->localToContainerPoint(FloatPoint(), rootLayer->renderer()));
         RenderView* view = renderer()->view();
         ASSERT(view);
         if (view && clipRects.fixed() && rootLayer->renderer() == view) {
@@ -3779,6 +3808,26 @@ LayoutRect RenderLayer::selfClipRect() const
     return clippingRootLayer->renderer()->localToAbsoluteQuad(FloatQuad(backgroundRect.rect())).enclosingBoundingBox();
 }
 
+LayoutRect RenderLayer::localClipRect() const
+{
+    // FIXME: border-radius not accounted for.
+    // FIXME: Regions not accounted for.
+    RenderLayer* clippingRootLayer = clippingRoot();
+    LayoutRect layerBounds;
+    ClipRect backgroundRect, foregroundRect, outlineRect;
+    calculateRects(clippingRootLayer, 0, PaintInfo::infiniteRect(), layerBounds, backgroundRect, foregroundRect, outlineRect);
+
+    LayoutRect clipRect = backgroundRect.rect();
+    if (clipRect == PaintInfo::infiniteRect())
+        return clipRect;
+
+    LayoutPoint clippingRootOffset;
+    convertToLayerCoords(clippingRootLayer, clippingRootOffset);
+    clipRect.moveBy(-clippingRootOffset);
+
+    return clipRect;
+}
+
 void RenderLayer::addBlockSelectionGapsBounds(const LayoutRect& bounds)
 {
     m_blockSelectionGapsBounds.unite(bounds);
@@ -3894,9 +3943,9 @@ LayoutRect RenderLayer::boundingBox(const RenderLayer* ancestorLayer) const
     return result;
 }
 
-LayoutRect RenderLayer::absoluteBoundingBox() const
+IntRect RenderLayer::absoluteBoundingBox() const
 {
-    return boundingBox(root());
+    return pixelSnappedIntRect(boundingBox(root()));
 }
 
 void RenderLayer::clearClipRectsIncludingDescendants()
@@ -4270,7 +4319,7 @@ void RenderLayer::setBackingNeedsRepaintInRect(const LayoutRect& r)
         if (view)
             view->repaintViewRectangle(absRect);
     } else
-        backing()->setContentsNeedDisplayInRect(r);
+        backing()->setContentsNeedDisplayInRect(pixelSnappedIntRect(r));
 }
 
 // Since we're only painting non-composited layers, we know that they all share the same repaintContainer.

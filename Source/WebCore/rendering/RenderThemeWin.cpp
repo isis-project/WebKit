@@ -457,6 +457,8 @@ unsigned RenderThemeWin::determineState(RenderObject* o)
         result = TS_HOVER;
     if (isChecked(o))
         result += 4; // 4 unchecked states, 4 checked states.
+    else if (isIndeterminate(o) && appearance == CheckboxPart)
+        result += 8;
     return result;
 }
 
@@ -1054,7 +1056,7 @@ bool RenderThemeWin::supportsClosedCaptioning() const
 
 bool RenderThemeWin::paintMediaFullscreenButton(RenderObject* o, const PaintInfo& paintInfo, const IntRect& r)
 {
-    return RenderMediaControls::paintMediaControlsPart(MediaFullscreenButton, o, paintInfo, r);
+    return RenderMediaControls::paintMediaControlsPart(MediaEnterFullscreenButton, o, paintInfo, r);
 }
 
 bool RenderThemeWin::paintMediaMuteButton(RenderObject* o, const PaintInfo& paintInfo, const IntRect& r)

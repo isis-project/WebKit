@@ -7,7 +7,9 @@ function isCloseEnough(actual, desired, tolerance) {
 }
 
 function shouldBeCloseEnough(_a, _b, tolerance) {
-    if (typeof _a != "string" || typeof _b != "string" || typeof tolerance != "number")
+    if (typeof tolerance != "number")
+      tolerance = 0.1 // Default
+    if (typeof _a != "string" || typeof _b != "string")
         debug("WARN: shouldBeCloseEnough() expects two string and one number arguments");
     var exception;
     var _av;
@@ -28,18 +30,48 @@ function shouldBeCloseEnough(_a, _b, tolerance) {
         testFailed(_a + " should be close to " + _bv + " (of type " + typeof _bv + "). Was " + _av + " (of type " + typeof _av + ").");
 }
 
+function expectMatrix(actualMatrix, expectedA, expectedB, expectedC, expectedD, expectedE, expectedF, tolerance) {
+    shouldBeCloseEnough(actualMatrix + ".a", expectedA, tolerance);
+    shouldBeCloseEnough(actualMatrix + ".b", expectedB, tolerance);
+    shouldBeCloseEnough(actualMatrix + ".c", expectedC, tolerance);
+    shouldBeCloseEnough(actualMatrix + ".d", expectedD, tolerance);
+    shouldBeCloseEnough(actualMatrix + ".e", expectedE, tolerance);
+    shouldBeCloseEnough(actualMatrix + ".f", expectedF, tolerance);
+}
+
+function expectTranslationMatrix(actualMatrix, expectedE, expectedF, tolerance) {
+    shouldBeCloseEnough(actualMatrix + ".e", expectedE, tolerance);
+    shouldBeCloseEnough(actualMatrix + ".f", expectedF, tolerance);
+}
+
+function expectColor(element, red, green, blue, property) {
+    if (typeof property != "string")
+        color = getComputedStyle(element).getPropertyCSSValue("color").getRGBColorValue();
+    else {
+        fillPaint = getComputedStyle(element).getPropertyCSSValue(property);
+        color = getComputedStyle(element).getPropertyCSSValue(property).rgbColor;
+    }
+
+    // Allow a tolerance of 1 for color values, as they are integers.
+    shouldBeCloseEnough("color.red.getFloatValue(CSSPrimitiveValue.CSS_NUMBER)", "" + red, 1);
+    shouldBeCloseEnough("color.green.getFloatValue(CSSPrimitiveValue.CSS_NUMBER)", "" + green, 1);
+    shouldBeCloseEnough("color.blue.getFloatValue(CSSPrimitiveValue.CSS_NUMBER)", "" + blue, 1);
+}
+
+function expectFillColor(element, red, green, blue) {
+    expectColor(element, red, green, blue, "fill");
+}
+
 function moveAnimationTimelineAndSample(index) {
     var animationId = expectedResults[index][0];
     var time = expectedResults[index][1];
     var sampleCallback = expectedResults[index][2];
-    var animation = document.getElementById(animationId);
+    var animation = rootSVGElement.ownerDocument.getElementById(animationId);
 
     // If we want to sample the animation end, add a small delta, to reliable point past the end of the animation.
     newTime = time;
 
     try {
-        if (newTime == animation.getSimpleDuration())
-            newTime += 0.01;
         newTime += animation.getStartTime();
     } catch(e) {
         debug('Exception thrown: ' + e);
@@ -79,7 +111,7 @@ function runSMILTest() {
         useX = window.clickX;
     if (window.clickY)
         useY = window.clickY;
-    setTimeout("triggerUpdate(" + useX + "," + useY + ")", 0);
+    setTimeout("clickAt(" + useX + "," + useY + ")", 0);
 }
 
 function runAnimationTest(expected) {

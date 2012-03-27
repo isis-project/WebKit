@@ -53,11 +53,14 @@ namespace WebCore {
     class Frame;
     class Geolocation;
     class GraphicsLayer;
+    class HTMLInputElement;
     class HitTestResult;
     class IntRect;
     class NavigationAction;
     class Node;
     class Page;
+    class PagePopup;
+    class PagePopupClient;
     class PopupMenuClient;
     class SecurityOrigin;
     class GraphicsContext3D;
@@ -212,13 +215,6 @@ namespace WebCore {
 
         virtual bool paintCustomOverhangArea(GraphicsContext*, const IntRect&, const IntRect&, const IntRect&);
 
-        // FIXME: Remove once all ports are using client-based geolocation. https://bugs.webkit.org/show_bug.cgi?id=40373
-        // For client-based geolocation, these two methods have moved to GeolocationClient. https://bugs.webkit.org/show_bug.cgi?id=50061
-        // This can be either a synchronous or asynchronous call. The ChromeClient can display UI asking the user for permission
-        // to use Geolocation.
-        virtual void requestGeolocationPermissionForFrame(Frame*, Geolocation*) = 0;
-        virtual void cancelGeolocationPermissionRequestForFrame(Frame*, Geolocation*) = 0;
-
 #if ENABLE(INPUT_COLOR)
         virtual PassOwnPtr<ColorChooser> createColorChooser(ColorChooserClient*, const Color&) = 0;
 #endif
@@ -306,10 +302,19 @@ namespace WebCore {
         virtual bool hasOpenedPopup() const = 0;
         virtual PassRefPtr<PopupMenu> createPopupMenu(PopupMenuClient*) const = 0;
         virtual PassRefPtr<SearchPopupMenu> createSearchPopupMenu(PopupMenuClient*) const = 0;
-
-#if ENABLE(CONTEXT_MENUS)
-        virtual void showContextMenu() = 0;
+#if ENABLE(PAGE_POPUP)
+        // Creates a PagePopup object, and shows it beside originBoundsInRootView.
+        // The return value can be 0.
+        virtual PagePopup* openPagePopup(PagePopupClient*, const IntRect& originBoundsInRootView) = 0;
+        virtual void closePagePopup(PagePopup*) = 0;
 #endif
+        // This function is called whenever a text field <input> is
+        // created. The implementation should return true if it wants
+        // to do something in addTextFieldDecorationsTo().
+        // The argument is always non-0.
+        virtual bool willAddTextFieldDecorationsTo(HTMLInputElement*) { return false; }
+        // The argument is always non-0.
+        virtual void addTextFieldDecorationsTo(HTMLInputElement*) { }
 
         virtual void postAccessibilityNotification(AccessibilityObject*, AXObjectCache::AXNotification) { }
         
@@ -325,6 +330,7 @@ namespace WebCore {
         virtual bool shouldRunModalDialogDuringPageDismissal(const DialogType&, const String& dialogMessage, FrameLoader::PageDismissalType) const { UNUSED_PARAM(dialogMessage); return true; }
 
         virtual void numWheelEventHandlersChanged(unsigned) = 0;
+        virtual void numTouchEventHandlersChanged(unsigned) = 0;
         
         virtual bool isSVGImageChromeClient() const { return false; }
 

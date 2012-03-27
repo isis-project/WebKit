@@ -41,6 +41,7 @@
 #include "cc/CCLayerImpl.h"
 #include "cc/CCProxy.h"
 #include "cc/CCRenderSurfaceFilters.h"
+#include "cc/CCSharedQuadState.h"
 #include <wtf/text/CString.h>
 
 namespace WebCore {
@@ -51,21 +52,16 @@ CCRenderSurface::CCRenderSurface(CCLayerImpl* owningLayer)
     , m_skipsDraw(false)
     , m_surfacePropertyChanged(false)
     , m_drawOpacity(1)
+    , m_drawOpacityIsAnimating(false)
+    , m_targetSurfaceTransformsAreAnimating(false)
+    , m_screenSpaceTransformsAreAnimating(false)
+    , m_nearestAncestorThatMovesPixels(0)
 {
     m_damageTracker = CCDamageTracker::create();
 }
 
 CCRenderSurface::~CCRenderSurface()
 {
-    cleanupResources();
-}
-
-void CCRenderSurface::cleanupResources()
-{
-    if (!m_contentsTexture)
-        return;
-
-    m_contentsTexture.clear();
 }
 
 FloatRect CCRenderSurface::drawableContentRect() const
@@ -215,7 +211,7 @@ void CCRenderSurface::drawSurface(LayerRendererChromium* layerRenderer, CCLayerI
         float edge[24];
         layerQuad.toFloatArray(edge);
         deviceRect.toFloatArray(&edge[12]);
-        GLC(context3D, context3D->uniform3fv(shaderEdgeLocation, edge, 8));
+        GLC(context3D, context3D->uniform3fv(shaderEdgeLocation, 8, edge));
     }
 
     // Map device space quad to layer space.
@@ -233,12 +229,12 @@ SkBitmap CCRenderSurface::applyFilters(LayerRendererChromium* layerRenderer)
         return SkBitmap();
 
     layerRenderer->context()->flush();
-    return CCRenderSurfaceFilters::apply(m_filters, m_contentsTexture->textureId(), m_contentRect.size(), SharedGraphicsContext3D::get());
+    return CCRenderSurfaceFilters::apply(m_filters, m_contentsTexture->textureId(), m_contentRect.size(), SharedGraphicsContext3D::get().get());
 }
 
 String CCRenderSurface::name() const
 {
-    return String::format("RenderSurface(id=%i,owner=%s)", m_owningLayer->id(), m_owningLayer->name().utf8().data());
+    return String::format("RenderSurface(id=%i,owner=%s)", m_owningLayer->id(), m_owningLayer->debugName().utf8().data());
 }
 
 static void writeIndent(TextStream& ts, int indent)
@@ -270,6 +266,11 @@ void CCRenderSurface::dumpSurface(TextStream& ts, int indent) const
 int CCRenderSurface::owningLayerId() const
 {
     return m_owningLayer ? m_owningLayer->id() : 0;
+}
+
+bool CCRenderSurface::hasReplica()
+{
+    return m_owningLayer->replicaLayer();
 }
 
 void CCRenderSurface::setClipRect(const IntRect& clipRect)
@@ -307,6 +308,18 @@ bool CCRenderSurface::surfacePropertyChanged() const
 bool CCRenderSurface::surfacePropertyChangedOnlyFromDescendant() const
 {
     return m_surfacePropertyChanged && !m_owningLayer->layerPropertyChanged();
+}
+
+PassOwnPtr<CCSharedQuadState> CCRenderSurface::createSharedQuadState() const
+{
+    bool isOpaque = false;
+    return CCSharedQuadState::create(originTransform(), drawTransform(), contentRect(), clipRect(), drawOpacity(), isOpaque);
+}
+
+PassOwnPtr<CCSharedQuadState> CCRenderSurface::createReplicaSharedQuadState() const
+{
+    bool isOpaque = false;
+    return CCSharedQuadState::create(replicaOriginTransform(), replicaDrawTransform(), contentRect(), clipRect(), drawOpacity(), isOpaque);
 }
 
 }

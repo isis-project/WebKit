@@ -47,6 +47,7 @@ LIST(APPEND WebCore_SOURCES
   platform/efl/PopupMenuEfl.cpp
   platform/efl/RefPtrEfl.cpp
   platform/efl/RenderThemeEfl.cpp
+  platform/efl/RunLoopEfl.cpp
   platform/efl/ScrollViewEfl.cpp
   platform/efl/ScrollbarEfl.cpp
   platform/efl/ScrollbarThemeEfl.cpp
@@ -74,6 +75,7 @@ LIST(APPEND WebCore_SOURCES
   platform/image-decoders/webp/WEBPImageDecoder.cpp
   platform/network/soup/CookieJarSoup.cpp
   platform/network/soup/CredentialStorageSoup.cpp
+  platform/network/soup/DNSSoup.cpp
   platform/network/soup/GOwnPtrSoup.cpp
   platform/network/soup/ProxyServerSoup.cpp
   platform/network/soup/ResourceHandleSoup.cpp
@@ -146,9 +148,6 @@ IF (WTF_USE_CAIRO)
       platform/graphics/freetype/GlyphPageTreeNodeFreeType.cpp
       platform/graphics/freetype/SimpleFontDataFreeType.cpp
     )
-    LIST(APPEND WebCore_LIBRARIES
-      ${ZLIB_LIBRARIES}
-    )
   ENDIF ()
 
   IF (WTF_USE_PANGO)
@@ -181,12 +180,6 @@ IF (WTF_USE_ICU_UNICODE)
   )
 ENDIF ()
 
-IF (ENABLE_GEOLOCATION)
-  LIST(APPEND WebCore_SOURCES
-    platform/efl/GeolocationServiceEfl.cpp
-  )
-ENDIF()
-
 IF (ENABLE_VIDEO)
   LIST(APPEND WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/graphics/gstreamer"
@@ -194,6 +187,7 @@ IF (ENABLE_VIDEO)
   LIST(APPEND WebCore_SOURCES
     platform/graphics/gstreamer/GRefPtrGStreamer.cpp
     platform/graphics/gstreamer/GStreamerGWorld.cpp
+    platform/graphics/gstreamer/GStreamerVersioning.cpp
     platform/graphics/gstreamer/ImageGStreamerCairo.cpp
     platform/graphics/gstreamer/MediaPlayerPrivateGStreamer.cpp
     platform/graphics/gstreamer/PlatformVideoWindowEfl.cpp
@@ -209,11 +203,14 @@ LIST(APPEND WebCore_LIBRARIES
   ${EVAS_LIBRARIES}
   ${FREETYPE_LIBRARIES}
   ${ICU_LIBRARIES}
+  ${JPEG_LIBRARY}
   ${LIBXML2_LIBRARIES}
   ${LIBXSLT_LIBRARIES}
+  ${PNG_LIBRARY}
   ${SQLITE_LIBRARIES}
   ${Glib_LIBRARIES}
   ${LIBSOUP24_LIBRARIES}
+  ${ZLIB_LIBRARIES}
 )
 
 IF (ENABLE_VIDEO)
@@ -237,6 +234,7 @@ LIST(APPEND WebCore_INCLUDE_DIRECTORIES
   ${SQLITE_INCLUDE_DIR}
   ${Glib_INCLUDE_DIRS}
   ${LIBSOUP24_INCLUDE_DIRS}
+  ${ZLIB_INCLUDE_DIRS}
 )
 
 IF (ENABLE_VIDEO)
@@ -259,11 +257,10 @@ IF (ENABLE_WEBGL)
     ${OPENGL_gl_LIBRARY}
   )
   LIST(APPEND WebCore_SOURCES
+    platform/graphics/cairo/DrawingBufferCairo.cpp
     platform/graphics/cairo/GraphicsContext3DCairo.cpp
-    platform/graphics/cairo/OpenGLShims.cpp
-    platform/graphics/efl/DrawingBufferEfl.cpp
-    platform/graphics/efl/GraphicsContext3DEfl.cpp
     platform/graphics/glx/GraphicsContext3DPrivate.cpp
+    platform/graphics/OpenGLShims.cpp
     platform/graphics/opengl/Extensions3DOpenGL.cpp
     platform/graphics/opengl/GraphicsContext3DOpenGL.cpp
     platform/graphics/opengl/GraphicsContext3DOpenGLCommon.cpp

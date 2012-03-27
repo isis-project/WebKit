@@ -76,8 +76,11 @@ public:
 
     void wheelEvent(QWheelEvent*);
     void pagePositionRequest(const QPoint& pos);
+    void touchBegin();
+    void touchEnd();
 
     bool scrollAnimationActive() const;
+    void cancelScrollAnimation();
 
     bool panGestureActive() const;
     void panGestureStarted(const QTouchEvent*);
@@ -103,6 +106,8 @@ Q_SIGNALS:
     void contentSuspendRequested();
     void contentResumeRequested();
 
+    void contentViewportChanged(const QPointF& trajectory = QPointF());
+
     void viewportTrajectoryVectorChanged(const QPointF&);
     void visibleContentRectAndScaleChanged();
 
@@ -110,9 +115,13 @@ private Q_SLOTS:
     // Respond to changes of content that are not driven by us, like the page resizing itself.
     void itemSizeChanged();
 
-    void scrollStateChanged();
+    void flickableMovingPositionUpdate();
+
     void scaleAnimationStateChanged(QAbstractAnimation::State, QAbstractAnimation::State);
     void scaleAnimationValueChanged(QVariant value) { setItemRectVisible(value.toRectF()); }
+
+    void flickableMoveStarted(); // Called when panning starts.
+    void flickableMoveEnded(); //   Called when panning (+ kinetic animation) ends.
 
 private:
     friend class ViewportUpdateDeferrer;
@@ -138,8 +147,10 @@ private:
     Constraints m_constraints;
 
     int m_suspendCount;
+    bool m_hasSuspendedContent;
     OwnPtr<ViewportUpdateDeferrer> m_scaleUpdateDeferrer;
     OwnPtr<ViewportUpdateDeferrer> m_scrollUpdateDeferrer;
+    OwnPtr<ViewportUpdateDeferrer> m_touchUpdateDeferrer;
 
     bool m_hadUserInteraction;
 
@@ -154,6 +165,7 @@ private:
 
     ScaleAnimation* m_scaleAnimation;
     QPointF m_lastPinchCenterInViewportCoordinates;
+    QPointF m_lastScrollPosition;
     qreal m_pinchStartScale;
 };
 

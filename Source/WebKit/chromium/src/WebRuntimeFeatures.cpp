@@ -34,7 +34,7 @@
 #include "AbstractDatabase.h"
 #include "RuntimeEnabledFeatures.h"
 #include "WebMediaPlayerClientImpl.h"
-#include "websockets/WebSocket.h"
+#include "Modules/websockets/WebSocket.h"
 
 #include <wtf/UnusedParam.h>
 
@@ -116,14 +116,14 @@ bool WebRuntimeFeatures::isSocketsEnabled()
 
 void WebRuntimeFeatures::enableNotifications(bool enable)
 {
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     RuntimeEnabledFeatures::setWebkitNotificationsEnabled(enable);
 #endif
 }
 
 bool WebRuntimeFeatures::isNotificationsEnabled()
 {
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     return RuntimeEnabledFeatures::webkitNotificationsEnabled();
 #else
     return false;
@@ -258,6 +258,22 @@ void WebRuntimeFeatures::enableSpeechInput(bool enable)
 bool WebRuntimeFeatures::isSpeechInputEnabled()
 {
     return RuntimeEnabledFeatures::speechInputEnabled();
+}
+
+void WebRuntimeFeatures::enableScriptedSpeech(bool enable)
+{
+#if ENABLE(SCRIPTED_SPEECH)
+    RuntimeEnabledFeatures::setScriptedSpeechEnabled(enable);
+#endif
+}
+
+bool WebRuntimeFeatures::isScriptedSpeechEnabled()
+{
+#if ENABLE(SCRIPTED_SPEECH)
+    return RuntimeEnabledFeatures::scriptedSpeechEnabled();
+#else
+    return false;
+#endif
 }
 
 void WebRuntimeFeatures::enableXHRResponseBlob(bool enable)
@@ -445,6 +461,24 @@ bool WebRuntimeFeatures::isShadowDOMEnabled()
 {
 #if ENABLE(SHADOW_DOM)
     return RuntimeEnabledFeatures::shadowDOMEnabled();
+#else
+    return false;
+#endif
+}
+
+void WebRuntimeFeatures::enableStyleScoped(bool enable)
+{
+#if ENABLE(STYLE_SCOPED)
+    RuntimeEnabledFeatures::setStyleScopedEnabled(enable);
+#else
+    UNUSED_PARAM(enable);
+#endif
+}
+
+bool WebRuntimeFeatures::isStyleScopedEnabled()
+{
+#if ENABLE(STYLE_SCOPED)
+    return RuntimeEnabledFeatures::styleScopedEnabled();
 #else
     return false;
 #endif

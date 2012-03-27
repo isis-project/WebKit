@@ -11,12 +11,13 @@ SET(JavaScriptCore_INCLUDE_DIRECTORIES
     "${JAVASCRIPTCORE_DIR}/debugger"
     "${JAVASCRIPTCORE_DIR}/interpreter"
     "${JAVASCRIPTCORE_DIR}/jit"
+    "${JAVASCRIPTCORE_DIR}/llint"
     "${JAVASCRIPTCORE_DIR}/parser"
     "${JAVASCRIPTCORE_DIR}/profiler"
     "${JAVASCRIPTCORE_DIR}/runtime"
     "${JAVASCRIPTCORE_DIR}/tools"
     "${JAVASCRIPTCORE_DIR}/yarr"
-    "${JAVASCRIPTCORE_DIR}/wtf"
+    "${WTF_DIR}"
     "${DERIVED_SOURCES_JAVASCRIPTCORE_DIR}"
     "${CMAKE_SOURCE_DIR}/Source"
 )
@@ -39,17 +40,19 @@ SET(JavaScriptCore_SOURCES
     bytecode/CallLinkStatus.cpp
     bytecode/CodeBlock.cpp
     bytecode/DFGExitProfile.cpp
+    bytecode/ExecutionCounter.cpp
     bytecode/GetByIdStatus.cpp
     bytecode/JumpTable.cpp
+    bytecode/LazyOperandValueProfile.cpp
     bytecode/MethodCallLinkInfo.cpp
     bytecode/MethodCallLinkStatus.cpp
+    bytecode/MethodOfGettingAValueProfile.cpp
     bytecode/Opcode.cpp
     bytecode/PolymorphicPutByIdList.cpp
     bytecode/PredictedType.cpp
     bytecode/PutByIdStatus.cpp
     bytecode/SamplingTool.cpp
     bytecode/StructureStubInfo.cpp
-    bytecode/ValueProfile.cpp
 
     bytecompiler/BytecodeGenerator.cpp
     bytecompiler/NodesCodegen.cpp
@@ -58,24 +61,31 @@ SET(JavaScriptCore_SOURCES
     dfg/DFGAssemblyHelpers.cpp
     dfg/DFGByteCodeParser.cpp
     dfg/DFGCapabilities.cpp
+    dfg/DFGCFAPhase.cpp
     dfg/DFGCorrectableJumpPoint.cpp
+    dfg/DFGCSEPhase.cpp
     dfg/DFGDriver.cpp
+    dfg/DFGFixupPhase.cpp
     dfg/DFGGraph.cpp
     dfg/DFGJITCompiler.cpp
+    dfg/DFGNodeFlags.cpp
     dfg/DFGOSREntry.cpp
     dfg/DFGOSRExit.cpp
     dfg/DFGOSRExitCompiler.cpp
     dfg/DFGOSRExitCompiler32_64.cpp
     dfg/DFGOSRExitCompiler64.cpp
     dfg/DFGOperations.cpp
-    dfg/DFGPropagator.cpp
+    dfg/DFGPhase.cpp
+    dfg/DFGPredictionPropagationPhase.cpp
+    dfg/DFGRedundantPhiEliminationPhase.cpp
     dfg/DFGRepatch.cpp
     dfg/DFGSpeculativeJIT.cpp
     dfg/DFGSpeculativeJIT32_64.cpp
     dfg/DFGSpeculativeJIT64.cpp
     dfg/DFGThunks.cpp
+    dfg/DFGVirtualRegisterAllocationPhase.cpp
 
-    heap/BumpSpace.cpp
+    heap/CopiedSpace.cpp
     heap/DFGCodeBlocks.cpp
     heap/Heap.cpp
     heap/HandleHeap.cpp
@@ -97,6 +107,7 @@ SET(JavaScriptCore_SOURCES
     interpreter/RegisterFile.cpp
 
     jit/ExecutableAllocator.cpp
+    jit/HostCallReturnValue.cpp
     jit/JITArithmetic32_64.cpp
     jit/JITArithmetic.cpp
     jit/JITCall32_64.cpp
@@ -189,6 +200,8 @@ SET(JavaScriptCore_SOURCES
     runtime/RegExp.cpp
     runtime/RegExpCache.cpp
     runtime/RegExpConstructor.cpp
+    runtime/RegExpCachedResult.cpp
+    runtime/RegExpMatchesArray.cpp
     runtime/RegExpObject.cpp
     runtime/RegExpPrototype.cpp
     runtime/ScopeChain.cpp
@@ -206,6 +219,7 @@ SET(JavaScriptCore_SOURCES
     tools/CodeProfile.cpp
     tools/CodeProfiling.cpp
 
+    yarr/YarrCanonicalizeUCS2.cpp
     yarr/YarrPattern.cpp
     yarr/YarrInterpreter.cpp
     yarr/YarrJIT.cpp
@@ -281,10 +295,9 @@ ELSE ()
 ENDIF ()
 
 
-INCLUDE_IF_EXISTS(${JAVASCRIPTCORE_DIR}/Platform${PORT}.cmake)
+WEBKIT_INCLUDE_CONFIG_FILES_IF_EXISTS()
 
 
-ADD_SUBDIRECTORY(wtf)
 ADD_SUBDIRECTORY(shell)
 
 WEBKIT_WRAP_SOURCELIST(${JavaScriptCore_SOURCES})
@@ -292,6 +305,7 @@ INCLUDE_DIRECTORIES(${JavaScriptCore_INCLUDE_DIRECTORIES})
 ADD_DEFINITIONS(-DBUILDING_JavaScriptCore)
 ADD_LIBRARY(${JavaScriptCore_LIBRARY_NAME} ${JavaScriptCore_LIBRARY_TYPE} ${JavaScriptCore_HEADERS} ${JavaScriptCore_SOURCES})
 TARGET_LINK_LIBRARIES(${JavaScriptCore_LIBRARY_NAME} ${JavaScriptCore_LIBRARIES})
+SET_TARGET_PROPERTIES(${JavaScriptCore_LIBRARY_NAME} PROPERTIES LINK_INTERFACE_LIBRARIES "")
 
 IF (JavaScriptCore_LINK_FLAGS)
     ADD_TARGET_PROPERTIES(${JavaScriptCore_LIBRARY_NAME} LINK_FLAGS "${JavaScriptCore_LINK_FLAGS}")
@@ -299,5 +313,5 @@ ENDIF ()
 
 IF (SHARED_CORE)
     SET_TARGET_PROPERTIES(${JavaScriptCore_LIBRARY_NAME} PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${PROJECT_VERSION_MAJOR})
-    INSTALL(TARGETS ${JavaScriptCore_LIBRARY_NAME} DESTINATION lib)
+    INSTALL(TARGETS ${JavaScriptCore_LIBRARY_NAME} DESTINATION "${LIB_INSTALL_DIR}")
 ENDIF ()

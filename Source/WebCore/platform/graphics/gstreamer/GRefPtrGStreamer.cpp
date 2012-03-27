@@ -19,6 +19,7 @@
 
 #include "config.h"
 #include "GRefPtrGStreamer.h"
+#include "GStreamerVersioning.h"
 
 #if USE(GSTREAMER)
 #include <gst/gstelement.h>
@@ -33,10 +34,8 @@ template <> GRefPtr<GstElement> adoptGRef(GstElement* ptr)
 
 template <> GstElement* refGPtr<GstElement>(GstElement* ptr)
 {
-    if (ptr) {
-        gst_object_ref(GST_OBJECT(ptr));
-        gst_object_sink(GST_OBJECT(ptr));
-    }
+    if (ptr)
+        webkitGstObjectRefSink(GST_OBJECT(ptr));
 
     return ptr;
 }
@@ -55,10 +54,9 @@ template <> GRefPtr<GstPad> adoptGRef(GstPad* ptr)
 
 template <> GstPad* refGPtr<GstPad>(GstPad* ptr)
 {
-    if (ptr) {
-        gst_object_ref(GST_OBJECT(ptr));
-        gst_object_sink(GST_OBJECT(ptr));
-    }
+    if (ptr)
+        webkitGstObjectRefSink(GST_OBJECT(ptr));
+
     return ptr;
 }
 
@@ -76,10 +74,9 @@ template <> GRefPtr<GstPadTemplate> adoptGRef(GstPadTemplate* ptr)
 
 template <> GstPadTemplate* refGPtr<GstPadTemplate>(GstPadTemplate* ptr)
 {
-    if (ptr) {
-        gst_object_ref(GST_OBJECT(ptr));
-        gst_object_sink(GST_OBJECT(ptr));
-    }
+    if (ptr)
+        webkitGstObjectRefSink(GST_OBJECT(ptr));
+
     return ptr;
 }
 
@@ -111,15 +108,33 @@ template <> GRefPtr<GstTask> adoptGRef(GstTask* ptr)
 
 template <> GstTask* refGPtr<GstTask>(GstTask* ptr)
 {
-    if (ptr) {
-        gst_object_ref(GST_OBJECT(ptr));
-        gst_object_sink(GST_OBJECT(ptr));
-    }
+    if (ptr)
+        webkitGstObjectRefSink(GST_OBJECT(ptr));
 
     return ptr;
 }
 
 template <> void derefGPtr<GstTask>(GstTask* ptr)
+{
+    if (ptr)
+        gst_object_unref(ptr);
+}
+
+template <> GRefPtr<GstBus> adoptGRef(GstBus* ptr)
+{
+    ASSERT(!GST_OBJECT_IS_FLOATING(GST_OBJECT(ptr)));
+    return GRefPtr<GstBus>(ptr, GRefPtrAdopt);
+}
+
+template <> GstBus* refGPtr<GstBus>(GstBus* ptr)
+{
+    if (ptr)
+        webkitGstObjectRefSink(GST_OBJECT(ptr));
+
+    return ptr;
+}
+
+template <> void derefGPtr<GstBus>(GstBus* ptr)
 {
     if (ptr)
         gst_object_unref(ptr);

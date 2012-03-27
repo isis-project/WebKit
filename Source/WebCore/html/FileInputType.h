@@ -32,7 +32,7 @@
 #ifndef FileInputType_h
 #define FileInputType_h
 
-#include "BaseButtonInputType.h"
+#include "BaseClickableWithKeyInputType.h"
 #include "FileChooser.h"
 #include "FileIconLoader.h"
 #include <wtf/RefPtr.h>
@@ -41,13 +41,15 @@ namespace WebCore {
 
 class FileList;
 
-class FileInputType : public BaseButtonInputType, private FileChooserClient, private FileIconLoaderClient {
+class FileInputType : public BaseClickableWithKeyInputType, private FileChooserClient, private FileIconLoaderClient {
 public:
     static PassOwnPtr<InputType> create(HTMLInputElement*);
 
 private:
     FileInputType(HTMLInputElement*);
     virtual const AtomicString& formControlType() const OVERRIDE;
+    virtual bool saveFormControlState(String&) const OVERRIDE;
+    virtual void restoreFormControlState(const String&) OVERRIDE;
     virtual bool appendFormData(FormDataList&, bool) const OVERRIDE;
     virtual bool valueMissing(const String&) const OVERRIDE;
     virtual String valueMissingText() const OVERRIDE;
@@ -58,7 +60,6 @@ private:
     virtual FileList* files() OVERRIDE;
     virtual bool canSetValue(const String&) OVERRIDE;
     virtual bool getTypeSpecificValue(String&) OVERRIDE; // Checked first, before internal storage or the value attribute.
-    virtual bool storesValueSeparateFromAttribute() OVERRIDE;
     virtual void setValue(const String&, bool valueChanged, TextFieldEventBehavior) OVERRIDE;
     virtual void receiveDroppedFiles(const Vector<String>&) OVERRIDE;
     virtual Icon* icon() const OVERRIDE;
@@ -68,12 +69,12 @@ private:
     virtual String defaultToolTip() const OVERRIDE;
 
     // FileChooserClient implementation.
-    virtual void filesChosen(const Vector<String>&) OVERRIDE;
+    virtual void filesChosen(const Vector<FileChooserFileInfo>&) OVERRIDE;
 
     // FileIconLoaderClient implementation.
     virtual void updateRendering(PassRefPtr<Icon>) OVERRIDE;
 
-    void setFileList(const Vector<String>& paths);
+    void setFileList(const Vector<FileChooserFileInfo>&);
 #if ENABLE(DIRECTORY_UPLOAD)
     void receiveDropForDirectoryUpload(const Vector<String>&);
 #endif

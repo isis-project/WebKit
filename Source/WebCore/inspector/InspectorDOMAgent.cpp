@@ -29,9 +29,10 @@
  */
 
 #include "config.h"
-#include "InspectorDOMAgent.h"
 
 #if ENABLE(INSPECTOR)
+
+#include "InspectorDOMAgent.h"
 
 #include "Attr.h"
 #include "CSSComputedStyleDeclaration.h"
@@ -81,6 +82,8 @@
 #include "RenderStyleConstants.h"
 #include "ScriptEventListener.h"
 #include "Settings.h"
+#include "ShadowRoot.h"
+#include "ShadowTree.h"
 #include "StylePropertySet.h"
 #include "StyleSheetList.h"
 #include "Text.h"
@@ -197,6 +200,7 @@ InspectorDOMAgent::InspectorDOMAgent(InstrumentingAgents* instrumentingAgents, I
     , m_domListener(0)
     , m_lastNodeId(1)
     , m_searchingForNode(false)
+    , m_suppressAttributeModifiedEvent(false)
 {
 }
 
@@ -334,6 +338,11 @@ void InspectorDOMAgent::unbind(Node* node, NodeToIdMap* nodesMap)
         unbind(frameOwner->contentDocument(), nodesMap);
     }
 
+    if (node->isElementNode() && toElement(node)->hasShadowRoot()) {
+        for (ShadowRoot* root = toElement(node)->shadowTree()->youngestShadowRoot(); root; root = root->olderShadowRoot())
+            unbind(root, nodesMap);
+    }
+
     nodesMap->remove(node);
     bool childrenRequested = m_childrenRequested.contains(id);
     if (childrenRequested) {
@@ -370,18 +379,31 @@ Element* InspectorDOMAgent::assertElement(ErrorString* errorString, int nodeId)
     return toElement(node);
 }
 
+Node* InspectorDOMAgent::assertEditableNode(ErrorString* errorString, int nodeId)
+{
+    Node* node = assertNode(errorString, nodeId);
+    if (!node)
+        return 0;
 
-HTMLElement* InspectorDOMAgent::assertHTMLElement(ErrorString* errorString, int nodeId)
+    if (node->isInShadowTree()) {
+        *errorString = "Can not edit nodes from shadow trees";
+        return 0;
+    }
+
+    return node;
+}
+
+Element* InspectorDOMAgent::assertEditableElement(ErrorString* errorString, int nodeId)
 {
     Element* element = assertElement(errorString, nodeId);
     if (!element)
         return 0;
 
-    if (!element->isHTMLElement()) {
-        *errorString = "Node is not an HTML Element";
+    if (element->isInShadowTree()) {
+        *errorString = "Can not edit elements from shadow trees";
         return 0;
     }
-    return toHTMLElement(element);
+    return element;
 }
 
 void InspectorDOMAgent::getDocument(ErrorString*, RefPtr<InspectorObject>& root)
@@ -402,7 +424,7 @@ void InspectorDOMAgent::getDocument(ErrorString*, RefPtr<InspectorObject>& root)
 void InspectorDOMAgent::pushChildNodesToFrontend(int nodeId)
 {
     Node* node = nodeForId(nodeId);
-    if (!node || (node->nodeType() != Node::ELEMENT_NODE && node->nodeType() != Node::DOCUMENT_NODE && node->nodeType() != Node::DOCUMENT_FRAGMENT_NODE) || node->isShadowRoot())
+    if (!node || (node->nodeType() != Node::ELEMENT_NODE && node->nodeType() != Node::DOCUMENT_NODE && node->nodeType() != Node::DOCUMENT_FRAGMENT_NODE))
         return;
     if (m_childrenRequested.contains(nodeId))
         return;
@@ -533,17 +555,16 @@ int InspectorDOMAgent::boundNodeId(Node* node)
 
 void InspectorDOMAgent::setAttributeValue(ErrorString* errorString, int elementId, const String& name, const String& value)
 {
-    Element* element = assertElement(errorString, elementId);
+    Element* element = assertEditableElement(errorString, elementId);
     if (!element)
         return;
 
     m_domEditor->setAttribute(element, name, value, errorString);
-    m_history->markUndoableState();
 }
 
 void InspectorDOMAgent::setAttributesAsText(ErrorString* errorString, int elementId, const String& text, const String* const name)
 {
-    Element* element = assertElement(errorString, elementId);
+    Element* element = assertEditableElement(errorString, elementId);
     if (!element)
         return;
 
@@ -569,7 +590,6 @@ void InspectorDOMAgent::setAttributesAsText(ErrorString* errorString, int elemen
     Element* childElement = toElement(child);
     if (!childElement->hasAttributes() && name) {
         m_domEditor->removeAttribute(element, *name, errorString);
-        m_history->markUndoableState();
         return;
     }
 
@@ -585,23 +605,20 @@ void InspectorDOMAgent::setAttributesAsText(ErrorString* errorString, int elemen
 
     if (!foundOriginalAttribute && name && !name->stripWhiteSpace().isEmpty())
         m_domEditor->removeAttribute(element, *name, errorString);
-
-    m_history->markUndoableState();
 }
 
 void InspectorDOMAgent::removeAttribute(ErrorString* errorString, int elementId, const String& name)
 {
-    Element* element = assertElement(errorString, elementId);
+    Element* element = assertEditableElement(errorString, elementId);
     if (!element)
         return;
 
     m_domEditor->removeAttribute(element, name, errorString);
-    m_history->markUndoableState();
 }
 
 void InspectorDOMAgent::removeNode(ErrorString* errorString, int nodeId)
 {
-    Node* node = assertNode(errorString, nodeId);
+    Node* node = assertEditableNode(errorString, nodeId);
     if (!node)
         return;
 
@@ -612,7 +629,6 @@ void InspectorDOMAgent::removeNode(ErrorString* errorString, int nodeId)
     }
 
     m_domEditor->removeChild(parentNode, node, errorString);
-    m_history->markUndoableState();
 }
 
 void InspectorDOMAgent::setNodeName(ErrorString* errorString, int nodeId, const String& tagName, int* newId)
@@ -644,7 +660,6 @@ void InspectorDOMAgent::setNodeName(ErrorString* errorString, int nodeId, const 
         return;
     if (!m_domEditor->removeChild(parent, oldNode, errorString))
         return;
-    m_history->markUndoableState();
 
     *newId = pushNodePathToFrontend(newElem.get());
     if (m_childrenRequested.contains(nodeId))
@@ -668,7 +683,7 @@ void InspectorDOMAgent::setOuterHTML(ErrorString* errorString, int nodeId, const
         return;
     }
 
-    Node* node = assertNode(errorString, nodeId);
+    Node* node = assertEditableNode(errorString, nodeId);
     if (!node)
         return;
 
@@ -681,7 +696,6 @@ void InspectorDOMAgent::setOuterHTML(ErrorString* errorString, int nodeId, const
     Node* newNode = 0;
     if (!m_domEditor->setOuterHTML(node, outerHTML, &newNode, errorString))
         return;
-    m_history->markUndoableState();
 
     if (!newNode) {
         // The only child node has been deleted.
@@ -697,7 +711,7 @@ void InspectorDOMAgent::setOuterHTML(ErrorString* errorString, int nodeId, const
 
 void InspectorDOMAgent::setNodeValue(ErrorString* errorString, int nodeId, const String& value)
 {
-    Node* node = assertNode(errorString, nodeId);
+    Node* node = assertEditableNode(errorString, nodeId);
     if (!node)
         return;
 
@@ -709,44 +723,13 @@ void InspectorDOMAgent::setNodeValue(ErrorString* errorString, int nodeId, const
     m_domEditor->replaceWholeText(toText(node), value, errorString);
 }
 
-void InspectorDOMAgent::getEventListenersForNode(ErrorString*, int nodeId, RefPtr<InspectorArray>& listenersArray)
+void InspectorDOMAgent::getEventListenersForNode(ErrorString* errorString, int nodeId, RefPtr<InspectorArray>& listenersArray)
 {
-    Node* node = nodeForId(nodeId);
-    EventTargetData* d;
-
-    // Quick break if a null node or no listeners at all
-    if (!node || !(d = node->eventTargetData()))
+    Node* node = assertNode(errorString, nodeId);
+    if (!node)
         return;
-
-    // Get the list of event types this Node is concerned with
-    Vector<AtomicString> eventTypes = d->eventListenerMap.eventTypes();
-
-    // Quick break if no useful listeners
-    size_t eventTypesLength = eventTypes.size();
-    if (!eventTypesLength)
-        return;
-
-    // The Node's Ancestors (not including self)
-    Vector<ContainerNode*> ancestors;
-    for (ContainerNode* ancestor = node->parentOrHostNode(); ancestor; ancestor = ancestor->parentOrHostNode())
-        ancestors.append(ancestor);
-
-    // Nodes and their Listeners for the concerned event types (order is top to bottom)
     Vector<EventListenerInfo> eventInformation;
-    for (size_t i = ancestors.size(); i; --i) {
-        ContainerNode* ancestor = ancestors[i - 1];
-        for (size_t j = 0; j < eventTypesLength; ++j) {
-            AtomicString& type = eventTypes[j];
-            if (ancestor->hasEventListeners(type))
-                eventInformation.append(EventListenerInfo(ancestor, type, ancestor->getEventListeners(type)));
-        }
-    }
-
-    // Insert the Current Node at the end of that list (last in capturing, first in bubbling)
-    for (size_t i = 0; i < eventTypesLength; ++i) {
-        const AtomicString& type = eventTypes[i];
-        eventInformation.append(EventListenerInfo(node, type, node->getEventListeners(type)));
-    }
+    getEventListeners(node, eventInformation, true);
 
     // Get Capturing Listeners (in this order)
     size_t eventInformationLength = eventInformation.size();
@@ -768,6 +751,40 @@ void InspectorDOMAgent::getEventListenersForNode(ErrorString*, int nodeId, RefPt
             const RegisteredEventListener& listener = vector[j];
             if (!listener.useCapture)
                 listenersArray->pushObject(buildObjectForEventListener(listener, info.eventType, info.node));
+        }
+    }
+}
+
+void InspectorDOMAgent::getEventListeners(Node* node, Vector<EventListenerInfo>& eventInformation, bool includeAncestors)
+{
+    // The Node's Ancestors including self.
+    Vector<Node*> ancestors;
+    // Push this node as the firs element.
+    ancestors.append(node);
+    if (includeAncestors) {
+        for (ContainerNode* ancestor = node->parentOrHostNode(); ancestor; ancestor = ancestor->parentOrHostNode())
+            ancestors.append(ancestor);
+    }
+
+    // Nodes and their Listeners for the concerned event types (order is top to bottom)
+    for (size_t i = ancestors.size(); i; --i) {
+        Node* ancestor = ancestors[i - 1];
+        EventTargetData* d = ancestor->eventTargetData();
+        if (!d)
+            continue;
+        // Get the list of event types this Node is concerned with
+        Vector<AtomicString> eventTypes = d->eventListenerMap.eventTypes();
+        for (size_t j = 0; j < eventTypes.size(); ++j) {
+            AtomicString& type = eventTypes[j];
+            const EventListenerVector& listeners = ancestor->getEventListeners(type);
+            EventListenerVector filteredListeners;
+            filteredListeners.reserveCapacity(listeners.size());
+            for (size_t k = 0; k < listeners.size(); ++k) {
+                if (listeners[k].listener->type() == EventListener::JSEventListenerType)
+                    filteredListeners.append(listeners[k]);
+            }
+            if (!filteredListeners.isEmpty())
+                eventInformation.append(EventListenerInfo(ancestor, type, filteredListeners));
         }
     }
 }
@@ -1045,17 +1062,17 @@ void InspectorDOMAgent::hideHighlight(ErrorString*)
 
 void InspectorDOMAgent::moveTo(ErrorString* errorString, int nodeId, int targetElementId, const int* const anchorNodeId, int* newNodeId)
 {
-    Node* node = assertNode(errorString, nodeId);
+    Node* node = assertEditableNode(errorString, nodeId);
     if (!node)
         return;
 
-    Element* targetElement = assertElement(errorString, targetElementId);
+    Element* targetElement = assertEditableElement(errorString, targetElementId);
     if (!targetElement)
         return;
 
     Node* anchorNode = 0;
     if (anchorNodeId && *anchorNodeId) {
-        anchorNode = assertNode(errorString, *anchorNodeId);
+        anchorNode = assertEditableNode(errorString, *anchorNodeId);
         if (!anchorNode)
             return;
         if (anchorNode->parentNode() != targetElement) {
@@ -1066,7 +1083,6 @@ void InspectorDOMAgent::moveTo(ErrorString* errorString, int nodeId, int targetE
 
     if (!m_domEditor->insertBefore(targetElement, node, anchorNode, errorString))
         return;
-    m_history->markUndoableState();
 
     *newNodeId = pushNodePathToFrontend(node);
 }
@@ -1088,6 +1104,13 @@ void InspectorDOMAgent::undo(ErrorString* errorString)
 {
     ExceptionCode ec = 0;
     m_history->undo(ec);
+    *errorString = InspectorDOMAgent::toErrorString(ec);
+}
+
+void InspectorDOMAgent::redo(ErrorString* errorString)
+{
+    ExceptionCode ec = 0;
+    m_history->redo(ec);
     *errorString = InspectorDOMAgent::toErrorString(ec);
 }
 
@@ -1160,9 +1183,6 @@ PassRefPtr<InspectorObject> InspectorDOMAgent::buildObjectForNode(Node* node, in
         localName = node->localName();
         break;
     case Node::DOCUMENT_FRAGMENT_NODE:
-        if (!node->isShadowRoot())
-            break;
-        // Fall through
     case Node::DOCUMENT_NODE:
     case Node::ELEMENT_NODE:
     default:
@@ -1194,6 +1214,12 @@ PassRefPtr<InspectorObject> InspectorDOMAgent::buildObjectForNode(Node* node, in
             Document* doc = frameOwner->contentDocument();
             if (doc)
                 value->setContentDocument(buildObjectForNode(doc, 0, nodesMap));
+        }
+        if (element->hasShadowRoot()) {
+            RefPtr<InspectorArray> shadowRoots = InspectorArray::create();
+            for (ShadowRoot* root = element->shadowTree()->youngestShadowRoot(); root; root = root->olderShadowRoot())
+                shadowRoots->pushObject(buildObjectForNode(root, 0, nodesMap));
+            value->setShadowRoots(shadowRoots);
         }
     } else if (node->isDocumentNode()) {
         Document* document = static_cast<Document*>(node);
@@ -1403,8 +1429,18 @@ void InspectorDOMAgent::didRemoveDOMNode(Node* node)
     unbind(node, &m_documentNodeToIdMap);
 }
 
+void InspectorDOMAgent::willModifyDOMAttr(Element*, const AtomicString& oldValue, const AtomicString& newValue)
+{
+    m_suppressAttributeModifiedEvent = (oldValue == newValue);
+}
+
 void InspectorDOMAgent::didModifyDOMAttr(Element* element, const AtomicString& name, const AtomicString& value)
 {
+    bool shouldSuppressEvent = m_suppressAttributeModifiedEvent;
+    m_suppressAttributeModifiedEvent = false;
+    if (shouldSuppressEvent)
+        return;
+
     int id = boundNodeId(element);
     // If node is not mapped yet -> ignore the event.
     if (!id)
@@ -1464,6 +1500,21 @@ void InspectorDOMAgent::didInvalidateStyleAttr(Node* node)
     if (!m_revalidateStyleAttrTask)
         m_revalidateStyleAttrTask = adoptPtr(new RevalidateStyleAttributeTask(this));
     m_revalidateStyleAttrTask->scheduleFor(static_cast<Element*>(node));
+}
+
+void InspectorDOMAgent::didPushShadowRoot(Element* host, ShadowRoot* root)
+{
+    int hostId = m_documentNodeToIdMap.get(host);
+    if (hostId)
+        m_frontend->shadowRootPushed(hostId, buildObjectForNode(root, 0, &m_documentNodeToIdMap));
+}
+
+void InspectorDOMAgent::willPopShadowRoot(Element* host, ShadowRoot* root)
+{
+    int hostId = m_documentNodeToIdMap.get(host);
+    int rootId = m_documentNodeToIdMap.get(root);
+    if (hostId && rootId)
+        m_frontend->shadowRootPopped(hostId, rootId);
 }
 
 Node* InspectorDOMAgent::nodeForPath(const String& path)

@@ -40,13 +40,17 @@ class RenderProgress;
 class RenderStyle;
 class HTMLMediaElement;
 class StylePainter;
+class ScrollbarTheme;
+
+typedef PassRefPtr<RenderTheme> (*QtThemeFactoryFunction)(Page* page);
 
 class RenderThemeQt : public RenderTheme {
 
 public:
     RenderThemeQt(Page*);
 
-    static bool useMobileTheme();
+    static void setCustomTheme(QtThemeFactoryFunction, ScrollbarTheme* customScrollbarTheme);
+    static ScrollbarTheme* customScrollbarTheme();
 
     String extraDefaultStyleSheet();
 
@@ -151,7 +155,7 @@ protected:
 #endif
     virtual void computeSizeBasedOnStyle(RenderStyle*) const = 0;
 
-    virtual String fileListNameForWidth(const Vector<String>& filenames, const Font&, int width);
+    virtual String fileListNameForWidth(const FileList*, const Font&, int width, bool multipleFilesAllowed) const OVERRIDE;
 
     virtual QRect inflateButtonRect(const QRect& originalRect) const;
 

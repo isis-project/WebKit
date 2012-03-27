@@ -26,6 +26,7 @@
 #define CCSchedulerTestCommon_h
 
 #include "cc/CCDelayBasedTimeSource.h"
+#include "cc/CCFrameRateController.h"
 #include "cc/CCThread.h"
 #include <gtest/gtest.h>
 #include <wtf/OwnPtr.h>
@@ -61,7 +62,7 @@ public:
         task->performTask();
     }
 
-    long long pendingDelay() const
+    long long pendingDelayMs() const
     {
         EXPECT_TRUE(hasPendingTask());
         return m_pendingTaskDelay;
@@ -107,20 +108,27 @@ protected:
 
 class FakeCCDelayBasedTimeSource : public WebCore::CCDelayBasedTimeSource {
 public:
-    static PassRefPtr<FakeCCDelayBasedTimeSource> create(double intervalMs, WebCore::CCThread* thread)
+    static PassRefPtr<FakeCCDelayBasedTimeSource> create(double interval, WebCore::CCThread* thread)
     {
-        return adoptRef(new FakeCCDelayBasedTimeSource(intervalMs, thread));
+        return adoptRef(new FakeCCDelayBasedTimeSource(interval, thread));
     }
 
-    void setMonotonicallyIncreasingTimeMs(double time) { m_monotonicallyIncreasingTimeMs = time; }
-    virtual double monotonicallyIncreasingTimeMs() const { return m_monotonicallyIncreasingTimeMs; }
+    void setMonotonicallyIncreasingTime(double time) { m_monotonicallyIncreasingTime = time; }
+    virtual double monotonicallyIncreasingTime() const { return m_monotonicallyIncreasingTime; }
 
 protected:
-    FakeCCDelayBasedTimeSource(double intervalMs, WebCore::CCThread* thread)
-        : CCDelayBasedTimeSource(intervalMs, thread)
-        , m_monotonicallyIncreasingTimeMs(0) { }
+    FakeCCDelayBasedTimeSource(double interval, WebCore::CCThread* thread)
+        : CCDelayBasedTimeSource(interval, thread)
+        , m_monotonicallyIncreasingTime(0) { }
 
-    double m_monotonicallyIncreasingTimeMs;
+    double m_monotonicallyIncreasingTime;
+};
+
+class FakeCCFrameRateController : public WebCore::CCFrameRateController {
+public:
+    FakeCCFrameRateController(PassRefPtr<WebCore::CCTimeSource> timer) : WebCore::CCFrameRateController(timer) { }
+
+    int numFramesPending() const { return m_numFramesPending; }
 };
 
 }

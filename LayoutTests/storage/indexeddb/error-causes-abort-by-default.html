@@ -4,17 +4,14 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Verify that a transaction with an error aborts unless preventDefault() is called.");
-if (window.layoutTestController) 
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('error-causes-abort-by-default')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('error-causes-abort-by-default')");
     request.onsuccess = setVersion;
     request.onerror = unexpectedErrorCallback;
 }
@@ -31,7 +28,7 @@ function setVersion()
 function deleteExisting()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     evalAndLog("trans.oncomplete = addData");
@@ -43,7 +40,7 @@ function deleteExisting()
 
 function addData()
 {
-    trans = evalAndLog("trans = db.transaction(['storeName'], webkitIDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
     evalAndLog("trans.onabort = unexpectedAbortCallback");
     evalAndLog("trans.oncomplete = transactionCompleted");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -70,7 +67,7 @@ function transactionCompleted()
     testPassed("Transaction completed");
     debug("");
     debug("");
-    trans = evalAndLog("trans = db.transaction(['storeName'], webkitIDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
     evalAndLog("trans.onabort = transactionAborted1");
     evalAndLog("trans.oncomplete = unexpectedCompleteCallback");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -89,7 +86,7 @@ function transactionAborted1()
     testPassed("Transaction aborted");
     debug("");
     debug("");
-    trans = evalAndLog("trans = db.transaction(['storeName'], webkitIDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
     evalAndLog("trans.onabort = transactionAborted2");
     evalAndLog("trans.oncomplete = unexpectedCompleteCallback");
     store = evalAndLog("store = trans.objectStore('storeName')");
@@ -101,12 +98,13 @@ function transactionAborted1()
 function transactionAborted2()
 {
     testPassed("Transaction aborted");
-    done();
+    finishJSTest();
 }
 
 test();
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

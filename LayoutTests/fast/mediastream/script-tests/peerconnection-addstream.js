@@ -1,6 +1,6 @@
-description("Tests PeerConnection::addStream().");
+description("Tests DeprecatedPeerConnection::addStream().");
 
-var pc = new webkitPeerConnection("STUN some.server.com", function() {});
+var pc = new webkitDeprecatedPeerConnection("STUN some.server.com", function() {});
 
 try {
     pc.addStream();
@@ -25,8 +25,26 @@ try {
 } catch(e) {
     testPassed('pc.addStream(new Array()) threw ' + e);
 }
-
-finishJSTest();
+try {
+    pc.addStream({});
+} catch(e) {
+    testPassed('pc.addStream({}) threw' + e);
+}
+try {
+    pc.addStream(42);
+} catch(e) {
+    testPassed('pc.addStream(42) threw' + e);
+}
+try {
+    pc.addStream(Infinity);
+} catch(e) {
+    testPassed('pc.addStream(Infinity) threw' + e);
+}
+try {
+    pc.addStream(-Infinity);
+} catch(e) {
+    testPassed('pc.addStream(-Infinity) threw' + e);
+}
 
 window.successfullyParsed = true;
 

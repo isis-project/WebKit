@@ -235,14 +235,6 @@ public:
     // For platforms that need to hit test scrollbars from within the engine's event handlers (like Win32).
     Scrollbar* scrollbarAtPoint(const IntPoint& windowPoint);
 
-    // This function exists for scrollviews that need to handle wheel events manually.
-    // On Mac the underlying NSScrollView just does the scrolling, but on other platforms
-    // (like Windows), we need this function in order to do the scroll ourselves.
-    bool wheelEvent(const PlatformWheelEvent&);
-#if ENABLE(GESTURE_EVENTS)
-    void gestureEvent(const PlatformGestureEvent&);
-#endif
-
     IntPoint convertChildToSelf(const Widget* child, const IntPoint& point) const
     {
         IntPoint newPoint = point;
@@ -280,6 +272,7 @@ public:
     virtual bool scrollbarCornerPresent() const;
     virtual IntRect scrollCornerRect() const;
     virtual void paintScrollCorner(GraphicsContext*, const IntRect& cornerRect);
+    virtual void paintScrollbar(GraphicsContext*, Scrollbar*, const IntRect&);
 
     virtual IntRect convertFromScrollbarToContainingView(const Scrollbar*, const IntRect&) const;
     virtual IntRect convertFromContainingViewToScrollbar(const Scrollbar*, const IntRect&) const;
@@ -297,7 +290,6 @@ protected:
     virtual void repaintContentRectangle(const IntRect&, bool now = false);
     virtual void paintContents(GraphicsContext*, const IntRect& damageRect) = 0;
 
-    void calculateOverhangAreasForPainting(IntRect& horizontalOverhangRect, IntRect& verticalOverhangRect);
     virtual void paintOverhangAreas(GraphicsContext*, const IntRect& horizontalOverhangArea, const IntRect& verticalOverhangArea, const IntRect& dirtyRect);
 
     virtual void visibleContentsResized() = 0;
@@ -370,7 +362,8 @@ private:
     IntRect rectToCopyOnScroll() const;
 
     // Called when the scroll position within this view changes.  FrameView overrides this to generate repaint invalidations.
-    virtual void repaintFixedElementsAfterScrolling() {}
+    virtual void repaintFixedElementsAfterScrolling() { }
+    virtual void updateFixedElementsAfterScrolling() { }
 
     void platformInit();
     void platformDestroy();
@@ -392,6 +385,9 @@ private:
     void platformSetScrollbarOverlayStyle(ScrollbarOverlayStyle);
    
     void platformSetScrollOrigin(const IntPoint&, bool updatePositionAtAll, bool updatePositionSynchronously);
+
+    void calculateOverhangAreasForPainting(IntRect& horizontalOverhangRect, IntRect& verticalOverhangRect);
+    void updateOverhangAreas();
 
 #if PLATFORM(MAC) && defined __OBJC__
 public:

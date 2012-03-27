@@ -180,7 +180,8 @@ void V8DOMWindowShell::disposeContextHandles()
         // It's likely that disposing the context has created a lot of
         // garbage. Notify V8 about this so it'll have a chance of cleaning
         // it up when idle.
-        V8GCForContextDispose::instance().notifyContextDisposed();
+        bool isMainFrame = m_frame->page() && (m_frame->page()->mainFrame() == m_frame); 
+        V8GCForContextDispose::instance().notifyContextDisposed(isMainFrame);
     }
 
     WrapperBoilerplateMap::iterator it = m_wrapperBoilerplates.begin();
@@ -339,7 +340,7 @@ bool V8DOMWindowShell::initContextIfNeeded()
 
     setSecurityToken();
 
-    m_frame->loader()->client()->didCreateScriptContext(m_context, 0);
+    m_frame->loader()->client()->didCreateScriptContext(m_context, 0, 0);
 
     // FIXME: This is wrong. We should actually do this for the proper world once
     // we do isolated worlds the WebCore way.
@@ -577,6 +578,18 @@ void V8DOMWindowShell::namedItemAdded(HTMLDocument* doc, const AtomicString& nam
 
 void V8DOMWindowShell::namedItemRemoved(HTMLDocument* doc, const AtomicString& name)
 {
+    if (doc->hasNamedItem(name.impl()) || doc->hasExtraNamedItem(name.impl()))
+        return;
+
+    if (!initContextIfNeeded())
+        return;
+
+    v8::HandleScope handleScope;
+    v8::Context::Scope contextScope(m_context);
+
+    ASSERT(!m_document.IsEmpty());
+    checkDocumentWrapper(m_document, doc);
+    m_document->Delete(v8String(name));
 }
 
 void V8DOMWindowShell::updateSecurityOrigin()

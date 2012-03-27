@@ -43,8 +43,11 @@ namespace WebCore {
     V(devtoolsInjectedScript) \
     V(sleepFunction) \
     V(toStringString) \
-    V(event)
-
+    V(event) \
+    V(state) \
+    V(domStringMap) \
+    V(domTokenList) \
+    V(ownerNode)
 
     class V8HiddenPropertyName {
     public:

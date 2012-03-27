@@ -203,13 +203,14 @@ WebInspector.HeapSnapshotGenericObjectNode = function(tree, node)
     WebInspector.HeapSnapshotGridNode.call(this, tree, false);
     this._name = node.name;
     this._type = node.type;
+    this._distanceToWindow = node.distanceToWindow;
     this._shallowSize = node.selfSize;
     this._retainedSize = node.retainedSize;
     this.snapshotNodeId = node.id;
     this.snapshotNodeIndex = node.nodeIndex;
     if (this._type === "string")
         this.hasHoverMessage = true;
-    else if (this._type === "object" && this.isDOMWindow(this._name)) {
+    else if (this._type === "object" && this.isWindow(this._name)) {
         this._name = this.shortenWindowURL(this._name, false);
         this.hasHoverMessage = true;
     } else if (node.flags & tree.snapshot.nodeFlags.canBeQueried)
@@ -300,6 +301,7 @@ WebInspector.HeapSnapshotGenericObjectNode.prototype = {
         data["object"] = { valueStyle: valueStyle, value: value, nodeId: this.snapshotNodeId };
 
         var view = this.dataGrid.snapshotView;
+        data["distanceToWindow"] =  this._distanceToWindow;
         data["shallowSize"] = Number.withThousandsSeparator(this._shallowSize);
         data["retainedSize"] = Number.withThousandsSeparator(this._retainedSize);
         data["shallowSize-percent"] = this._toPercentString(this._shallowSizePercent);
@@ -343,9 +345,9 @@ WebInspector.HeapSnapshotGenericObjectNode.prototype = {
         this._provider.isEmpty(isEmptyCallback.bind(this));
     },
 
-    isDOMWindow: function(fullName)
+    isWindow: function(fullName)
     {
-        return fullName.substr(0, 9) === "DOMWindow";
+        return fullName.substr(0, 9) === "Window";
     },
 
     shortenWindowURL: function(fullName, hasObjectId)
@@ -526,6 +528,7 @@ WebInspector.HeapSnapshotInstanceNode.prototype = {
         var sortColumnIdentifier = this.dataGrid.sortColumnIdentifier;
         var sortFields = {
             object: ["!edgeName", sortAscending, "retainedSize", false],
+            distanceToWindow: ["distanceToWindow", sortAscending, "retainedSize", false],
             count: ["!edgeName", true, "retainedSize", false],
             addedSize: ["selfSize", sortAscending, "!edgeName", true],
             removedSize: ["selfSize", sortAscending, "!edgeName", true],
@@ -568,6 +571,7 @@ WebInspector.HeapSnapshotConstructorNode = function(tree, className, aggregate, 
 {
     WebInspector.HeapSnapshotGridNode.call(this, tree, aggregate.count > 0);
     this._name = className;
+    this._distanceToWindow = aggregate.distanceToWindow;
     this._count = aggregate.count;
     this._shallowSize = aggregate.self;
     this._retainedSize = aggregate.maxRet;
@@ -599,6 +603,7 @@ WebInspector.HeapSnapshotConstructorNode.prototype = {
         var sortColumnIdentifier = this.dataGrid.sortColumnIdentifier;
         var sortFields = {
             object: ["id", sortAscending, "retainedSize", false],
+            distanceToWindow: ["distanceToWindow", true, "retainedSize", false],
             count: ["id", true, "retainedSize", false],
             shallowSize: ["selfSize", sortAscending, "id", true],
             retainedSize: ["retainedSize", sortAscending, "id", true]
@@ -621,6 +626,7 @@ WebInspector.HeapSnapshotConstructorNode.prototype = {
         var data = { object: this._name };
         var view = this.dataGrid.snapshotView;
         data["count"] =  Number.withThousandsSeparator(this._count);
+        data["distanceToWindow"] =  this._distanceToWindow;
         data["shallowSize"] = Number.withThousandsSeparator(this._shallowSize);
         data["retainedSize"] = Number.withThousandsSeparator(this._retainedSize);
         data["count-percent"] =  this._toPercentString(this._countPercent);

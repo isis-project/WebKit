@@ -23,18 +23,19 @@
 
 #include "LayerTreeHostProxy.h"
 #include "QtWebPageEventHandler.h"
+#include "QtWebPageSGNode.h"
 #include "TransformationMatrix.h"
+#include "WebLayerTreeRenderer.h"
 #include "qquickwebpage_p_p.h"
 #include "qquickwebview_p.h"
 #include <QtQuick/QQuickCanvas>
-#include <QtQuick/QSGGeometryNode>
-#include <QtQuick/QSGMaterial>
 
 QQuickWebPage::QQuickWebPage(QQuickWebView* viewportItem)
     : QQuickItem(viewportItem)
     , d(new QQuickWebPagePrivate(this, viewportItem))
 {
     setFlag(ItemHasContents);
+    setClip(true);
 
     // We do the transform from the top left so the viewport can assume the position 0, 0
     // is always where rendering starts.
@@ -62,144 +63,32 @@ void QQuickWebPagePrivate::initialize(WebKit::WebPageProxy* webPageProxy)
     eventHandler.reset(new QtWebPageEventHandler(toAPI(webPageProxy), q, viewportItem));
 }
 
-static float computeEffectiveOpacity(const QQuickItem* item)
-{
-    if (!item)
-        return 1;
-
-    float opacity = item->opacity();
-    if (opacity < 0.01)
-        return 0;
-
-    return opacity * computeEffectiveOpacity(item->parentItem());
-}
-
-void QQuickWebPagePrivate::setDrawingAreaSize(const QSize& size)
-{
-    DrawingAreaProxy* drawingArea = webPageProxy->drawingArea();
-    if (!drawingArea)
-        return;
-    drawingArea->setSize(WebCore::IntSize(size), WebCore::IntSize());
-}
-
 void QQuickWebPagePrivate::paint(QPainter* painter)
 {
     if (webPageProxy->drawingArea())
         webPageProxy->drawingArea()->paintLayerTree(painter);
 }
 
-void QQuickWebPagePrivate::paintToCurrentGLContext()
-{
-    if (!q->isVisible())
-        return;
-
-    QTransform transform = q->itemTransform(0, 0);
-    transform.scale(contentsScale, contentsScale);
-
-    float opacity = computeEffectiveOpacity(q);
-    QRectF clipRect = viewportItem->mapRectToScene(viewportItem->boundingRect());
-
-    if (!clipRect.isValid())
-        return;
-
-    DrawingAreaProxy* drawingArea = webPageProxy->drawingArea();
-    if (!drawingArea)
-        return;
-
-    drawingArea->paintToCurrentGLContext(transform, opacity, clipRect);
-}
-
-struct PageProxyMaterial;
-struct PageProxyNode;
-
-// FIXME: temporary until Qt Scenegraph will support custom painting.
-struct PageProxyMaterialShader : public QSGMaterialShader {
-    virtual void updateState(const RenderState& state, QSGMaterial* newMaterial, QSGMaterial* oldMaterial);
-    virtual char const* const* attributeNames() const
-    {
-        static char const* const attr[] = { "vertex", 0 };
-        return attr;
-    }
-
-    // vertexShader and fragmentShader are no-op shaders.
-    // All real painting is gone by TextureMapper through LayerTreeHostProxy.
-    virtual const char* vertexShader() const
-    {
-        return "attribute highp vec4 vertex; \n"
-               "void main() { gl_Position = vertex; }";
-    }
-
-    virtual const char* fragmentShader() const
-    {
-        return "void main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0); }";
-    }
-};
-
-struct PageProxyMaterial : public QSGMaterial {
-    PageProxyMaterial(PageProxyNode* node) : m_node(node) { }
-
-    QSGMaterialType* type() const
-    {
-        static QSGMaterialType type;
-        return &type;
-    }
-
-    QSGMaterialShader* createShader() const
-    {
-        return new PageProxyMaterialShader;
-    }
-
-    PageProxyNode* m_node;
-};
-
-struct PageProxyNode : public QSGGeometryNode {
-    PageProxyNode(QQuickWebPagePrivate* page) :
-        m_pagePrivate(page)
-      , m_material(this)
-      , m_geometry(QSGGeometry::defaultAttributes_Point2D(), 4)
-    {
-        setGeometry(&m_geometry);
-        setMaterial(&m_material);
-    }
-
-    ~PageProxyNode()
-    {
-        if (m_pagePrivate)
-            m_pagePrivate->resetPaintNode();
-    }
-
-    QQuickWebPagePrivate* m_pagePrivate;
-    PageProxyMaterial m_material;
-    QSGGeometry m_geometry;
-};
-
-void PageProxyMaterialShader::updateState(const RenderState& state, QSGMaterial* newMaterial, QSGMaterial* oldMaterial)
-{
-    if (!newMaterial)
-        return;
-
-    PageProxyNode* node = static_cast<PageProxyMaterial*>(newMaterial)->m_node;
-    // FIXME: Normally we wouldn't paint inside QSGMaterialShader::updateState,
-    // but this is a temporary hack until custom paint nodes are available.
-    if (node->m_pagePrivate)
-        node->m_pagePrivate->paintToCurrentGLContext();
-}
-
 QSGNode* QQuickWebPage::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
 {
-    if (!(flags() & ItemHasContents)) {
-        if (oldNode)
-            delete oldNode;
-        return 0;
-    }
+    if (!d->webPageProxy->drawingArea())
+        return oldNode;
 
-    PageProxyNode* proxyNode = static_cast<PageProxyNode*>(oldNode);
-    if (!proxyNode) {
-        proxyNode = new PageProxyNode(d);
-        d->m_paintNode = proxyNode;
-    }
+    LayerTreeHostProxy* layerTreeHostProxy = d->webPageProxy->drawingArea()->layerTreeHostProxy();
+    WebLayerTreeRenderer* renderer = layerTreeHostProxy->layerTreeRenderer();
 
-    return proxyNode;
+    QtWebPageSGNode* node = static_cast<QtWebPageSGNode*>(oldNode);
+    if (!node)
+        node = new QtWebPageSGNode();
+    node->setRenderer(renderer);
+    renderer->syncRemoteContent();
+
+    node->setScale(d->contentsScale);
+    QColor backgroundColor = d->webPageProxy->drawsTransparentBackground() ? Qt::transparent : Qt::white;
+    QRectF backgroundRect(QPointF(0, 0), d->contentsSize);
+    node->setBackground(backgroundRect, backgroundColor);
+
+    return node;
 }
 
 QtWebPageEventHandler* QQuickWebPage::eventHandler() const
@@ -214,7 +103,6 @@ void QQuickWebPage::setContentsSize(const QSizeF& size)
 
     d->contentsSize = size;
     d->updateSize();
-    d->setDrawingAreaSize(d->contentsSize.toSize());
 }
 
 const QSizeF& QQuickWebPage::contentsSize() const
@@ -253,18 +141,8 @@ void QQuickWebPagePrivate::updateSize()
     viewportItem->updateContentsSize(scaledSize);
 }
 
-void QQuickWebPagePrivate::resetPaintNode()
-{
-    m_paintNode = 0;
-    DrawingAreaProxy* drawingArea = webPageProxy->drawingArea();
-    if (drawingArea && drawingArea->layerTreeHostProxy())
-        drawingArea->layerTreeHostProxy()->purgeGLResources();
-}
-
 QQuickWebPagePrivate::~QQuickWebPagePrivate()
 {
-    if (m_paintNode)
-        static_cast<PageProxyNode*>(m_paintNode)->m_pagePrivate = 0;
 }
 
 #include "moc_qquickwebpage_p.cpp"

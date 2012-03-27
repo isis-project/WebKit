@@ -60,6 +60,12 @@ WebLayerTreeViewImpl::~WebLayerTreeViewImpl()
 {
 }
 
+void WebLayerTreeViewImpl::willBeginFrame()
+{
+    if (m_client)
+        m_client->willBeginFrame();
+}
+
 void WebLayerTreeViewImpl::updateAnimations(double frameBeginTime)
 {
     if (m_client)
@@ -78,7 +84,7 @@ void WebLayerTreeViewImpl::applyScrollAndScale(const WebCore::IntSize& scrollDel
         m_client->applyScrollAndScale(WebSize(scrollDelta), pageScale);
 }
 
-PassRefPtr<GraphicsContext3D> WebLayerTreeViewImpl::createLayerTreeHostContext3D()
+PassRefPtr<GraphicsContext3D> WebLayerTreeViewImpl::createContext()
 {
     if (!m_client)
         return 0;
@@ -86,37 +92,25 @@ PassRefPtr<GraphicsContext3D> WebLayerTreeViewImpl::createLayerTreeHostContext3D
     if (!webContext)
         return 0;
 
-    WebGraphicsContext3D::Attributes webAttributes = webContext->getContextAttributes();
-    GraphicsContext3D::Attributes attributes;
-    attributes.alpha = webAttributes.alpha;
-    attributes.depth = webAttributes.depth;
-    attributes.stencil = webAttributes.stencil;
-    attributes.antialias = webAttributes.antialias;
-    attributes.premultipliedAlpha = webAttributes.premultipliedAlpha;
-    attributes.canRecoverFromContextLoss = webAttributes.canRecoverFromContextLoss;
-    attributes.noExtensions = webAttributes.noExtensions;
-    attributes.shareResources = webAttributes.shareResources;
-    attributes.preserveDrawingBuffer = false;
+    return GraphicsContext3DPrivate::createGraphicsContextFromWebContext(webContext.release(), GraphicsContext3D::RenderDirectlyToHostWindow, false /* preserveDrawingBuffer */ );
+}
 
-    GraphicsContext3D::RenderStyle style = GraphicsContext3D::RenderDirectlyToHostWindow;
-    GraphicsContext3DPrivate::ThreadUsage usage = CCProxy::hasImplThread() ? GraphicsContext3DPrivate::ForUseOnAnotherThread : GraphicsContext3DPrivate::ForUseOnThisThread;
-    return GraphicsContext3DPrivate::createGraphicsContextFromWebContext(webContext.release(), attributes, 0, style, usage);
+void WebLayerTreeViewImpl::didRecreateContext(bool success)
+{
+    if (m_client)
+        m_client->didRebindGraphicsContext(success);
 }
 
 void WebLayerTreeViewImpl::didCommitAndDrawFrame()
 {
-    // FIXME: route this up to the WebLayerTreeView client
+    if (m_client)
+        m_client->didCommitAndDrawFrame();
 }
 
 void WebLayerTreeViewImpl::didCompleteSwapBuffers()
 {
-    // FIXME: route this up to the WebLayerTreeView client
-}
-
-void WebLayerTreeViewImpl::didRecreateGraphicsContext(bool success)
-{
     if (m_client)
-        m_client->didRebindGraphicsContext(success);
+        m_client->didCompleteSwapBuffers();
 }
 
 void WebLayerTreeViewImpl::scheduleComposite()

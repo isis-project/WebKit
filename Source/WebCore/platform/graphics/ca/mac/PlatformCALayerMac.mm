@@ -34,6 +34,7 @@
 #import "FloatConversion.h"
 #import "GraphicsContext.h"
 #import "GraphicsLayerCA.h"
+#import "LengthFunctions.h"
 #import "WebLayer.h"
 #import "WebTiledLayer.h"
 #import "WebTileCacheLayer.h"
@@ -823,7 +824,7 @@ void PlatformCALayer::setFilters(const FilterOperations& filters)
             const BlurFilterOperation* op = static_cast<const BlurFilterOperation*>(filterOperation);
             CIFilter* caFilter = [CIFilter filterWithName:@"CIGaussianBlur"];
             [caFilter setDefaults];
-            [caFilter setValue:[NSNumber numberWithFloat:op->stdDeviation().calcFloatValue(0)] forKey:@"inputRadius"];
+            [caFilter setValue:[NSNumber numberWithFloat:floatValueForLength(op->stdDeviation(), 0)] forKey:@"inputRadius"];
             [caFilter setName:filterName];
             [array.get() addObject:caFilter];
             break;
@@ -956,13 +957,13 @@ void PlatformCALayer::setContentsScale(float value)
 #endif
 }
 
-void PlatformCALayer::visibleRectChanged()
+TiledBacking* PlatformCALayer::tiledBacking()
 {
     if (m_layerType != LayerTypeTileCacheLayer)
-        return;
+        return 0;
 
     WebTileCacheLayer *tileCacheLayer = static_cast<WebTileCacheLayer *>(m_layer.get());
-    [tileCacheLayer visibleRectChanged];
+    return [tileCacheLayer tiledBacking];
 }
 
 #if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)

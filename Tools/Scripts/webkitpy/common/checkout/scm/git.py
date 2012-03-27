@@ -105,19 +105,18 @@ class Git(SCM, SVNRepository):
             # The Windows bots seem to through a WindowsError when git isn't installed.
             return False
 
-    @classmethod
-    def find_checkout_root(cls, path):
-        # FIXME: This should use a FileSystem object instead of os.path.
+    def find_checkout_root(self, path):
         # "git rev-parse --show-cdup" would be another way to get to the root
-        (checkout_root, dot_git) = os.path.split(run_command(['git', 'rev-parse', '--git-dir'], cwd=(path or "./")))
-        if not os.path.isabs(checkout_root):  # Sometimes git returns relative paths
-            checkout_root = os.path.join(path, checkout_root)
+        git_output = self._executive.run_command(['git', 'rev-parse', '--git-dir'], cwd=(path or "./"))
+        (checkout_root, dot_git) = self._filesystem.split(git_output)
+        if not self._filesystem.isabs(checkout_root):  # Sometimes git returns relative paths
+            checkout_root = self._filesystem.join(path, checkout_root)
         return checkout_root
 
-    @classmethod
-    def to_object_name(cls, filepath):
-        # FIXME: This should use a FileSystem object instead of os.path.
-        root_end_with_slash = os.path.join(cls.find_checkout_root(os.path.dirname(filepath)), '')
+    def to_object_name(self, filepath):
+        # FIXME: This can't be the right way to append a slash.
+        root_end_with_slash = self._filesystem.join(self.find_checkout_root(self._filesystem.dirname(filepath)), '')
+        # FIXME: This seems to want some sort of rel_path instead?
         return filepath.replace(root_end_with_slash, '')
 
     @classmethod
@@ -171,11 +170,28 @@ class Git(SCM, SVNRepository):
         return_code = self.run(["git", "show", "HEAD:%s" % path], return_exit_code=True, decode_output=False)
         return return_code != self.ERROR_FILE_IS_MISSING
 
+    def _branch_from_ref(self, ref):
+        return ref.replace('refs/heads/', '')
+
+    def _current_branch(self):
+        return self._branch_from_ref(self.run(['git', 'symbolic-ref', '-q', 'HEAD'], cwd=self.checkout_root).strip())
+
+    def _upstream_branch(self):
+        current_branch = self._current_branch()
+        return self._branch_from_ref(self.read_git_config('branch.%s.merge' % current_branch, cwd=self.checkout_root).strip())
+
     def merge_base(self, git_commit):
         if git_commit:
-            # Special-case HEAD.. to mean working-copy changes only.
-            if git_commit.upper() == 'HEAD..':
-                return 'HEAD'
+            # Rewrite UPSTREAM to the upstream branch
+            if 'UPSTREAM' in git_commit:
+                upstream = self._upstream_branch()
+                if not upstream:
+                    raise ScriptError(message='No upstream/tracking branch set.')
+                git_commit = git_commit.replace('UPSTREAM', upstream)
+
+            # Special-case <refname>.. to include working copy changes, e.g., 'HEAD....' shows only the diffs from HEAD.
+            if git_commit.endswith('....'):
+                return git_commit[:-4]
 
             if '..' not in git_commit:
                 git_commit = git_commit + "^.." + git_commit
@@ -351,8 +367,7 @@ class Git(SCM, SVNRepository):
         return self.push_local_commits_to_server(username=username, password=password)
 
     def _commit_on_branch(self, message, git_commit, username=None, password=None):
-        branch_ref = self.run(['git', 'symbolic-ref', 'HEAD']).strip()
-        branch_name = branch_ref.replace('refs/heads/', '')
+        branch_name = self._current_branch()
         commit_ids = self.commit_ids_from_commitish_arguments([git_commit])
 
         # We want to squash all this branch's commits into one commit with the proper description.

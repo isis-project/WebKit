@@ -2,25 +2,16 @@
 <html>
 <head>
 <script src="../../fast/js/resources/js-test-pre.js"></script>
-<script src="../../fast/js/resources/js-test-post-function.js"></script>
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB deleteIndex method");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
-    IDBDatabaseException = evalAndLog("IDBDatabaseException = window.IDBDatabaseException || window.webkitIDBDatabaseException;");
-    shouldBeFalse("IDBDatabaseException == null");
-
+    removeVendorPrefixes();
     request = evalAndLog("indexedDB.open('deleteIndex')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
@@ -57,11 +48,12 @@ function postTwiddling()
 {
     evalAndExpectException("db.createObjectStore('bar');", "IDBDatabaseException.NOT_ALLOWED_ERR");
     evalAndExpectException("objectStore.deleteIndex('second')", "IDBDatabaseException.TRANSACTION_INACTIVE_ERR");
-    done();
+    finishJSTest();
 }
 
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

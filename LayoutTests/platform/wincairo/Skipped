@@ -574,6 +574,11 @@ css3/filters/effect-invert-hw.html
 css3/filters/effect-opacity-hw.html
 css3/filters/effect-saturate-hw.html
 css3/filters/effect-sepia-hw.html
+css3/filters/custom
+
+# CSS image-set support not yet enabled (needs ENABLE_CSS_IMAGE_SET).
+fast/css/image-set-parsing.html
+fast/css/image-set-parsing-invalid.html
 
 # Should be moved to platform/mac <rdar://5621425>
 http/tests/misc/willCacheResponse-delegate-callback.html
@@ -1429,6 +1434,9 @@ plugins/reloadplugins-no-pages.html
 # This test requires ogg codecs
 media/media-can-play-ogg.html
 
+# This test requires flac codec
+media/media-can-play-flac-audio.html
+
 # These tests require touch support
 fast/events/touch
 
@@ -1685,6 +1693,9 @@ gamepad/
 
 # Speech input is not yet enabled.
 fast/speech
+
+# Speech JavaScript API is not yet enabled.
+fast/events/constructors/speech-recognition-event-constructor.html
 
 # Media Stream API is not yet enabled.
 fast/dom/MediaStream
@@ -1963,8 +1974,24 @@ fast/css-grid-layout
 fast/css/style-scoped
 
 # ENABLE(SHADOW_DOM) is disabled.
+fast/dom/shadow/content-element-api.html
+fast/dom/shadow/content-element-outside-shadow.html
+fast/dom/shadow/content-element-in-media-element.html
+fast/dom/shadow/content-element-in-meter-element.html
+fast/dom/shadow/get-element-by-id-in-shadow-root.html
+fast/dom/shadow/reified-tree-traversal.html
 fast/dom/shadow/shadow-root-js-api.html
 fast/dom/shadow/shadow-disable.html
+fast/dom/shadow/shadow-root-activeElement.html
+fast/dom/shadow/shadow-root-attached.html
+fast/dom/shadow/shadow-root-innerHTML.html
+fast/dom/shadow/shadow-root-new.html
+fast/dom/shadow/shadow-root-append.html
+fast/dom/shadow/shadow-element-rendering-single.html
+fast/dom/shadow/shadow-element-rendering-multiple.html
+fast/dom/shadow/multiple-shadowroot.html
+fast/dom/shadow/multiple-shadowroot-rendering.html
+fast/dom/shadow/multiple-shadowroot-adopt.html
 
 # CSS Regions support not yet enabled. http://webkit.org/b/57312
 fast/regions
@@ -2024,11 +2051,6 @@ fast/events/platform-wheelevent-paging-y-in-non-scrolling-page.html
 fast/events/platform-wheelevent-paging-y-in-scrolling-div.html
 fast/events/platform-wheelevent-paging-y-in-scrolling-page.html
 
-# DRT doesn't support overridePreference("WebKit*FontMap"...)
-fast/text/international/content-language-font-selection.html
-fast/text/international/content-language-with-subtags.html
-fast/text/international/locale-sensitive-fonts.html
-
 # Web Intents is not yet enabled.
 webintents/
 
@@ -2038,9 +2060,12 @@ pointer-lock/
 # https://bugs.webkit.org/show_bug.cgi?id=72435
 fast/dom/Window/window-postmessage-arrays.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=73493
-fast/canvas/webgl/arraybuffer-transfer-of-control.html
-
 # Fails because MutationObservers are not notified at end-of-task
 # https://bugs.webkit.org/show_bug.cgi?id=78290
 fast/mutation/end-of-task-delivery.html
+
+#Vibration API is not implemented.
+fast/dom/navigator-vibration.html
+
+#Battery Status API is not implemented.
+batterystatus

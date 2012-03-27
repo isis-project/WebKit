@@ -32,7 +32,7 @@
 
 vars = {
   'chromium_svn': 'http://src.chromium.org/svn/trunk/src',
-  'chromium_rev': '121421'
+  'chromium_rev': '128426'
 }
 
 deps = {
@@ -145,8 +145,6 @@ deps_os = {
   'win': {
     'third_party/cygwin':
       From('chromium_deps', 'src/third_party/cygwin'),
-    'third_party/ffmpeg/binaries/chromium/win/ia32':
-      From('chromium_deps', 'src/third_party/ffmpeg/binaries/chromium/win/ia32'),
     'third_party/lighttpd':
       From('chromium_deps', 'src/third_party/lighttpd'),
     'third_party/nss':
@@ -163,6 +161,8 @@ deps_os = {
     # Linux, actually.
     'tools/xdisplaycheck':
       Var('chromium_svn')+'/tools/xdisplaycheck@'+Var('chromium_rev'),
+    'third_party/gold':
+      From('chromium_deps', 'src/third_party/gold'),
     'third_party/openssl':
       From('chromium_deps', 'src/third_party/openssl'),
   },

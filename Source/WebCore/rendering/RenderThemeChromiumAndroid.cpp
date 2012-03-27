@@ -30,6 +30,7 @@
 #include "Color.h"
 #include "PaintInfo.h"
 #include "PlatformSupport.h"
+#include "RenderMediaControlsChromium.h"
 #include "RenderObject.h"
 #include "RenderProgress.h"
 #include "RenderSlider.h"
@@ -63,6 +64,17 @@ Color RenderThemeChromiumAndroid::systemColor(int cssValueId) const
     return RenderTheme::systemColor(cssValueId);
 }
 
+String RenderThemeChromiumAndroid::extraMediaControlsStyleSheet()
+{
+    return String(mediaControlsChromiumAndroidUserAgentStyleSheet, sizeof(mediaControlsChromiumAndroidUserAgentStyleSheet));
+}
+
+String RenderThemeChromiumAndroid::extraDefaultStyleSheet()
+{
+    return RenderThemeChromiumLinux::extraDefaultStyleSheet() +
+        String(themeChromiumAndroidUserAgentStyleSheet, sizeof(themeChromiumAndroidUserAgentStyleSheet));
+}
+
 void RenderThemeChromiumAndroid::adjustInnerSpinButtonStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
 {
     if (PlatformSupport::layoutTestMode()) {
@@ -73,6 +85,18 @@ void RenderThemeChromiumAndroid::adjustInnerSpinButtonStyle(CSSStyleSelector*, R
         style->setWidth(Length(size.width(), Fixed));
         style->setMinWidth(Length(size.width(), Fixed));
     }
+}
+
+bool RenderThemeChromiumAndroid::paintMediaFullscreenButton(RenderObject* object, const PaintInfo& paintInfo, const IntRect& rect)
+{
+#if ENABLE(VIDEO)
+    return RenderMediaControlsChromium::paintMediaControlsPart(MediaEnterFullscreenButton, object, paintInfo, rect);
+#else
+    UNUSED_PARAM(object);
+    UNUSED_PARAM(paintInfo);
+    UNUSED_PARAM(rect);
+    return false;
+#endif
 }
 
 } // namespace WebCore

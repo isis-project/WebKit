@@ -55,7 +55,7 @@ static PassRefPtr<WebPageGroup> createInspectorPageGroup()
 #endif
 
     pageGroup->preferences()->setApplicationChromeModeEnabled(true);
-    pageGroup->preferences()->setSuppressIncrementalRendering(true);
+    pageGroup->preferences()->setSuppressesIncrementalRendering(true);
 
     return pageGroup.release();
 }
@@ -100,6 +100,14 @@ void WebInspectorProxy::invalidate()
 }
 
 // Public APIs
+bool WebInspectorProxy::isFront()
+{
+    if (!m_page)
+        return false;
+
+    return platformIsFront();
+}
+
 void WebInspectorProxy::show()
 {
     if (!m_page)
@@ -122,6 +130,14 @@ void WebInspectorProxy::showConsole()
         return;
 
     m_page->process()->send(Messages::WebInspector::ShowConsole(), m_page->pageID());
+}
+
+void WebInspectorProxy::showResources()
+{
+    if (!m_page)
+        return;
+
+    m_page->process()->send(Messages::WebInspector::ShowResources(), m_page->pageID());
 }
 
 void WebInspectorProxy::showMainResourceForFrame(WebFrameProxy* frame)

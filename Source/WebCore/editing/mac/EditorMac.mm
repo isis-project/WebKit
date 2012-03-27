@@ -37,6 +37,8 @@
 #import "FrameView.h"
 #import "HTMLNames.h"
 #import "Pasteboard.h"
+#import "PasteboardStrategy.h"
+#import "PlatformStrategies.h"
 #import "RenderBlock.h"
 #import "RuntimeApplicationChecks.h"
 #import "Sound.h"
@@ -49,7 +51,7 @@ using namespace HTMLNames;
 PassRefPtr<Clipboard> Editor::newGeneralClipboard(ClipboardAccessPolicy policy, Frame* frame)
 {
     return ClipboardMac::create(Clipboard::CopyAndPaste,
-        policy == ClipboardWritable ? [NSPasteboard pasteboardWithUniqueName] : [NSPasteboard generalPasteboard], policy, frame);
+        policy == ClipboardWritable ? platformStrategies()->pasteboardStrategy()->uniqueName() : String(NSGeneralPboard), policy, frame);
 }
 
 void Editor::showFontPanel()
@@ -72,7 +74,7 @@ void Editor::pasteWithPasteboard(Pasteboard* pasteboard, bool allowPlainText)
     RefPtr<Range> range = selectedRange();
     bool choosePlainText;
     
-    m_frame->editor()->client()->setInsertionPasteboard([NSPasteboard generalPasteboard]);
+    m_frame->editor()->client()->setInsertionPasteboard(NSGeneralPboard);
 #if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
     RefPtr<DocumentFragment> fragment = pasteboard->documentFragment(m_frame, range, allowPlainText, choosePlainText);
     if (fragment && shouldInsertFragment(fragment, range, EditorInsertActionPasted))
@@ -92,7 +94,7 @@ void Editor::pasteWithPasteboard(Pasteboard* pasteboard, bool allowPlainText)
             pasteAsFragment(fragment, canSmartReplaceWithPasteboard(pasteboard), false);
     }
 #endif
-    m_frame->editor()->client()->setInsertionPasteboard(nil);
+    m_frame->editor()->client()->setInsertionPasteboard(String());
 }
 
 static RenderStyle* styleForSelectionStart(Frame* frame, Node *&nodeToRemove)
@@ -280,11 +282,10 @@ void Editor::takeFindStringFromSelection()
         return;
     }
 
-    NSString *nsSelectedText = m_frame->displayStringModifiedByEncoding(selectedText());
-
-    NSPasteboard *findPasteboard = [NSPasteboard pasteboardWithName:NSFindPboard];
-    [findPasteboard declareTypes:[NSArray arrayWithObject:NSStringPboardType] owner:nil];
-    [findPasteboard setString:nsSelectedText forType:NSStringPboardType];
+    Vector<String> types;
+    types.append(String(NSStringPboardType));
+    platformStrategies()->pasteboardStrategy()->setTypes(types, NSFindPboard);
+    platformStrategies()->pasteboardStrategy()->setStringForType(m_frame->displayStringModifiedByEncoding(selectedText()), NSStringPboardType, NSFindPboard);
 }
 
 void Editor::writeSelectionToPasteboard(const String& pasteboardName, const Vector<String>& pasteboardTypes)

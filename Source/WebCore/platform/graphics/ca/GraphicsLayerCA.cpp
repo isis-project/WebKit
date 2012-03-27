@@ -243,6 +243,18 @@ static bool animationHasStepsTimingFunction(const KeyframeValueList& valueList, 
     return false;
 }
 
+#if ENABLE(CSS_FILTERS)
+static inline bool supportsAcceleratedFilterAnimations()
+{
+// <rdar://problem/10907251> - WebKit2 doesn't support CA animations of CI filters on Lion and below
+#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+    return true;
+#else
+    return false;
+#endif
+}
+#endif
+
 PassOwnPtr<GraphicsLayer> GraphicsLayer::create(GraphicsLayerClient* client)
 {
     return adoptPtr(new GraphicsLayerCA(client));
@@ -661,8 +673,10 @@ bool GraphicsLayerCA::addAnimation(const KeyframeValueList& valueList, const Int
     if (valueList.property() == AnimatedPropertyWebkitTransform)
         createdAnimations = createTransformAnimationsFromKeyframes(valueList, anim, animationName, timeOffset, boxSize);
 #if ENABLE(CSS_FILTERS)
-    else if (valueList.property() == AnimatedPropertyWebkitFilter)
-        createdAnimations = createFilterAnimationsFromKeyframes(valueList, anim, animationName, timeOffset);
+    else if (valueList.property() == AnimatedPropertyWebkitFilter) {
+        if (supportsAcceleratedFilterAnimations())
+            createdAnimations = createFilterAnimationsFromKeyframes(valueList, anim, animationName, timeOffset);
+    }
 #endif
     else
         createdAnimations = createAnimationFromKeyframes(valueList, anim, animationName, timeOffset);
@@ -859,9 +873,9 @@ void GraphicsLayerCA::syncCompositingStateForThisLayerOnly()
     commitLayerChangesAfterSublayers();
 }
 
-void GraphicsLayerCA::visibleRectChanged()
+TiledBacking* GraphicsLayerCA::tiledBacking()
 {
-    m_layer->visibleRectChanged();
+    return m_layer->tiledBacking();
 }
 
 void GraphicsLayerCA::recursiveCommitChanges(const TransformState& state, float pageScaleFactor, const FloatPoint& positionRelativeToBase, bool affectedByPageScale)
@@ -949,13 +963,21 @@ void GraphicsLayerCA::platformCALayerPaintContents(GraphicsContext& context, con
     paintGraphicsLayerContents(context, clip);
 }
 
-void GraphicsLayerCA::platformCALayerDidCreateTiles()
+void GraphicsLayerCA::platformCALayerDidCreateTiles(const Vector<FloatRect>& dirtyRects)
 {
     ASSERT(m_layer->layerType() == PlatformCALayer::LayerTypeTileCacheLayer);
+
+    for (size_t i = 0; i < dirtyRects.size(); ++i)
+        setNeedsDisplayInRect(dirtyRects[i]);
 
     // Ensure that the layout is up to date before any individual tiles are painted by telling the client
     // that it needs to sync its layer state, which will end up scheduling the layer flusher.
     client()->notifySyncRequired(this);
+}
+
+float GraphicsLayerCA::platformCALayerDeviceScaleFactor()
+{
+    return deviceScaleFactor();
 }
 
 void GraphicsLayerCA::commitLayerChangesBeforeSublayers(float pageScaleFactor, const FloatPoint& positionRelativeToBase)
@@ -1763,7 +1785,7 @@ void GraphicsLayerCA::updateContentsNeedsDisplay()
 
 bool GraphicsLayerCA::createAnimationFromKeyframes(const KeyframeValueList& valueList, const Animation* animation, const String& animationName, double timeOffset)
 {
-    ASSERT(valueList.property() != AnimatedPropertyWebkitTransform && valueList.property() != AnimatedPropertyWebkitFilter);
+    ASSERT(valueList.property() != AnimatedPropertyWebkitTransform && (!supportsAcceleratedFilterAnimations() || valueList.property() != AnimatedPropertyWebkitFilter));
     
     bool isKeyframe = valueList.size() > 2;
     bool valuesOK;

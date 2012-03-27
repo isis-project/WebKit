@@ -10,10 +10,7 @@ HEADERS += \
 INCLUDEPATH += \
     ../../../../WebCore/platform/network \
     ../../../../JavaScriptCore \
-    ../../../../JavaScriptCore/runtime
-
-debug {
-    SOURCES += ../../../../JavaScriptCore/wtf/Assertions.cpp
-}
+    ../../../../JavaScriptCore/runtime \
+    ../../../../WTF
 
 RESOURCES += resources.qrc

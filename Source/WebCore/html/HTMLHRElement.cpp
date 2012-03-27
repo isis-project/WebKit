@@ -26,6 +26,7 @@
 #include "Attribute.h"
 #include "CSSPropertyNames.h"
 #include "CSSValueKeywords.h"
+#include "CSSValuePool.h"
 #include "HTMLNames.h"
 
 namespace WebCore {
@@ -48,54 +49,50 @@ PassRefPtr<HTMLHRElement> HTMLHRElement::create(const QualifiedName& tagName, Do
     return adoptRef(new HTMLHRElement(tagName, document));
 }
 
-bool HTMLHRElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLHRElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == alignAttr || attr->name() == widthAttr || attr->name() == colorAttr || attr->name() == noshadeAttr || attr->name() == sizeAttr)
+    if (name == alignAttr || name == widthAttr || name == colorAttr || name == noshadeAttr || name == sizeAttr)
         return true;
-    return HTMLElement::isPresentationAttribute(attr);
+    return HTMLElement::isPresentationAttribute(name);
 }
 
 void HTMLHRElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == alignAttr) {
         if (equalIgnoringCase(attr->value(), "left")) {
-            style->setProperty(CSSPropertyMarginLeft, "0"); // FIXME: Pass as integer.
-            style->setProperty(CSSPropertyMarginRight, CSSValueAuto);
+            addPropertyToAttributeStyle(style, CSSPropertyMarginLeft, 0, CSSPrimitiveValue::CSS_PX);
+            addPropertyToAttributeStyle(style, CSSPropertyMarginRight, CSSValueAuto);
         } else if (equalIgnoringCase(attr->value(), "right")) {
-            style->setProperty(CSSPropertyMarginLeft, CSSValueAuto);
-            style->setProperty(CSSPropertyMarginRight, "0"); // FIXME: Pass as integer.
+            addPropertyToAttributeStyle(style, CSSPropertyMarginLeft, CSSValueAuto);
+            addPropertyToAttributeStyle(style, CSSPropertyMarginRight, 0, CSSPrimitiveValue::CSS_PX);
         } else {
-            style->setProperty(CSSPropertyMarginLeft, CSSValueAuto);
-            style->setProperty(CSSPropertyMarginRight, CSSValueAuto);
+            addPropertyToAttributeStyle(style, CSSPropertyMarginLeft, CSSValueAuto);
+            addPropertyToAttributeStyle(style, CSSPropertyMarginRight, CSSValueAuto);
         }
     } else if (attr->name() == widthAttr) {
         bool ok;
         int v = attr->value().toInt(&ok);
         if (ok && !v)
-            addHTMLLengthToStyle(style, CSSPropertyWidth, "1"); // FIXME: Pass as integer.
+            addPropertyToAttributeStyle(style, CSSPropertyWidth, 1, CSSPrimitiveValue::CSS_PX);
         else
             addHTMLLengthToStyle(style, CSSPropertyWidth, attr->value());
     } else if (attr->name() == colorAttr) {
-        style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
+        addPropertyToAttributeStyle(style, CSSPropertyBorderStyle, CSSValueSolid);
         addHTMLColorToStyle(style, CSSPropertyBorderColor, attr->value());
         addHTMLColorToStyle(style, CSSPropertyBackgroundColor, attr->value());
     } else if (attr->name() == noshadeAttr) {
-        style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
-        style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
-        addHTMLColorToStyle(style, CSSPropertyBorderColor, String("grey")); // FIXME: Pass as rgb() value.
-        addHTMLColorToStyle(style, CSSPropertyBackgroundColor, String("grey")); // FIXME: Pass as rgb() value.
+        addPropertyToAttributeStyle(style, CSSPropertyBorderStyle, CSSValueSolid);
+
+        RefPtr<CSSPrimitiveValue> darkGrayValue = document()->cssValuePool()->createColorValue(Color::darkGray);
+        style->setProperty(CSSPropertyBorderColor, darkGrayValue);
+        style->setProperty(CSSPropertyBackgroundColor, darkGrayValue);
     } else if (attr->name() == sizeAttr) {
         StringImpl* si = attr->value().impl();
         int size = si->toInt();
         if (size <= 1)
-            style->setProperty(CSSPropertyBorderBottomWidth, String("0")); // FIXME: Pass as integer.
+            addPropertyToAttributeStyle(style, CSSPropertyBorderBottomWidth, 0, CSSPrimitiveValue::CSS_PX);
         else
-            addHTMLLengthToStyle(style, CSSPropertyHeight, String::number(size - 2)); // FIXME: Pass as integer.
+            addPropertyToAttributeStyle(style, CSSPropertyHeight, size - 2, CSSPrimitiveValue::CSS_PX);
     } else
         HTMLElement::collectStyleForAttribute(attr, style);
 }

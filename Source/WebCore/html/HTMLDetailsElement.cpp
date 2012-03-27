@@ -28,9 +28,10 @@
 #include "HTMLSummaryElement.h"
 #include "LocalizedStrings.h"
 #include "MouseEvent.h"
-#include "RenderDetails.h"
+#include "NodeRenderingContext.h"
+#include "RenderBlock.h"
 #include "ShadowRoot.h"
-#include "ShadowRootList.h"
+#include "ShadowTree.h"
 #include "Text.h"
 
 namespace WebCore {
@@ -49,7 +50,7 @@ public:
 
 private:
     DetailsContentElement(Document* document)
-        : HTMLContentElement(HTMLNames::divTag, document)
+        : HTMLContentElement(HTMLNames::webkitShadowContentTag, document)
     {
     }
 };
@@ -71,7 +72,7 @@ public:
 
 private:
     DetailsSummaryElement(Document* document)
-        : HTMLContentElement(HTMLNames::divTag, document)
+        : HTMLContentElement(HTMLNames::webkitShadowContentTag, document)
     {
         setSelect(summaryQuerySelector());
     }
@@ -104,7 +105,7 @@ HTMLDetailsElement::HTMLDetailsElement(const QualifiedName& tagName, Document* d
 
 RenderObject* HTMLDetailsElement::createRenderer(RenderArena* arena, RenderStyle*)
 {
-    return new (arena) RenderDetails(this);
+    return new (arena) RenderBlock(this);
 }
 
 void HTMLDetailsElement::createShadowSubtree()
@@ -123,7 +124,7 @@ Element* HTMLDetailsElement::findMainSummary() const
             return toElement(child);
     }
 
-    return static_cast<DetailsSummaryElement*>(shadowRootList()->oldestShadowRoot()->firstChild())->fallbackSummary();
+    return static_cast<DetailsSummaryElement*>(shadowTree()->oldestShadowRoot()->firstChild())->fallbackSummary();
 }
 
 void HTMLDetailsElement::parseAttribute(Attribute* attr)
@@ -137,15 +138,18 @@ void HTMLDetailsElement::parseAttribute(Attribute* attr)
         HTMLElement::parseAttribute(attr);
 }
 
-bool HTMLDetailsElement::childShouldCreateRenderer(Node* child) const
+bool HTMLDetailsElement::childShouldCreateRenderer(const NodeRenderingContext& childContext) const
 {
-    if (m_isOpen)
-        return true;
-
-    if (!child->hasTagName(summaryTag))
+    if (!childContext.isOnEncapsulationBoundary())
         return false;
 
-    return child == findMainSummary();
+    if (m_isOpen)
+        return HTMLElement::childShouldCreateRenderer(childContext);
+
+    if (!childContext.node()->hasTagName(summaryTag))
+        return false;
+
+    return childContext.node() == findMainSummary() && HTMLElement::childShouldCreateRenderer(childContext);
 }
 
 void HTMLDetailsElement::toggleOpen()

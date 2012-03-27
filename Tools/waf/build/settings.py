@@ -49,6 +49,7 @@ if sys.platform.startswith('win'):
 else:
     wx_root = commands.getoutput('wx-config --prefix')
 
+wtf_dir = os.path.join(wk_root, 'Source', 'WTF')
 jscore_dir = os.path.join(wk_root, 'Source', 'JavaScriptCore')
 webcore_dir = os.path.join(wk_root, 'Source', 'WebCore')
 wklibs_dir = os.path.join(wk_root, 'WebKitLibraries')
@@ -61,15 +62,24 @@ common_libpaths = []
 common_frameworks = []
 
 ports = [
+    'BlackBerry',
     'Chromium',
+    'Efl',
     'Gtk',
     'Mac',
     'None',
     'Qt',
     'Safari',
     'Win',
-    'Wince',
+    'WinCE',
     'wx',
+]
+
+uses = [
+    'CF',
+    'CFNet',
+    'CURL',
+    'WXGC',
 ]
 
 port_uses = {
@@ -86,19 +96,24 @@ jscore_dirs = [
     'heap',
     'interpreter',
     'jit',
+    'llint',
     'parser',
     'profiler',
     'runtime',
     'tools',
+    'yarr',
+]
+
+wtf_dirs = [
     'wtf',
     'wtf/dtoa',
     'wtf/text',
     'wtf/unicode',
     'wtf/unicode/icu',
-    'yarr',
 ]
 
 webcore_dirs_common = [
+    'Source/WebCore/Modules/websockets',
     'Source/WebCore/accessibility',
     'Source/WebCore/bindings',
     'Source/WebCore/bindings/cpp',
@@ -124,9 +139,14 @@ webcore_dirs_common = [
     'Source/WebCore/loader/archive',
     'Source/WebCore/loader/cache',
     'Source/WebCore/loader/icon',
+    'Source/WebCore/Modules/filesystem',
+    'Source/WebCore/Modules/geolocation',
+    'Source/WebCore/Modules/indexeddb',
+    'Source/WebCore/Modules/webdatabase',
     'Source/WebCore/notifications',
     'Source/WebCore/page',
     'Source/WebCore/page/animation',
+    'Source/WebCore/page/scrolling',
     'Source/WebCore/platform',
     'Source/WebCore/platform/animation',
     'Source/WebCore/platform/graphics',
@@ -158,7 +178,7 @@ webcore_dirs_common = [
     'Source/WebCore/svg/properties',
     'Source/WebCore/testing',
     'Source/WebCore/testing/js',
-    'Source/WebCore/websockets',
+    'Source/WebCore/workers',
     'Source/WebCore/xml',
     'Source/WebCore/xml/parser',
 ]
@@ -177,6 +197,26 @@ if building_on_win32:
 
 build_port = default_port
 
+def get_port_excludes(thisport):
+    """
+    This function creates a list of file patterns to exclude
+    based on what port you are using and what USES it has defined.
+    """
+    exclude_patterns = []
+    global ports
+    for port in ports:
+        if not port == thisport:
+            exclude = "*%s.cpp" % port
+            if port == 'Chromium':
+                exclude = "*Chromium*.cpp"
+            exclude_patterns.append(exclude)
+    
+    global uses
+    for use in uses:
+        if thisport not in port_uses or not use in port_uses[thisport]:
+            exclude_patterns.append("*%s.cpp" % use)
+            
+    return exclude_patterns
 
 def get_config():
     waf_configname = config.upper().strip()
@@ -240,7 +280,7 @@ def common_configure(conf):
     build_port = Options.options.port
 
     feature_defines = ['ENABLE_DATABASE', 'ENABLE_SQL_DATABASE', 'ENABLE_XSLT', 'ENABLE_JAVASCRIPT_DEBUGGER',
-                    'ENABLE_SVG', 'ENABLE_FILTERS', 'ENABLE_SVG_FONTS', 'ENABLE_INSPECTOR',
+                    'ENABLE_SVG', 'ENABLE_FILTERS', 'ENABLE_SVG_FONTS', 'ENABLE_INSPECTOR', 'ENABLE_WORKERS',
                     'BUILDING_%s' % build_port.upper()]
 
     conf.env["FEATURE_DEFINES"] = ' '.join(feature_defines)
@@ -267,7 +307,7 @@ def common_configure(conf):
 
     if Options.options.cairo and build_port == 'wx':
         if building_on_win32 and not "CAIRO_ROOT" in os.environ:
-            Log.error("To build with Cairo on Windows, you must set the CAIRO_ROOT environment variable.")
+            Logs.error("To build with Cairo on Windows, you must set the CAIRO_ROOT environment variable.")
             sys.exit(1)
 
     if building_on_win32:
@@ -310,7 +350,7 @@ def common_configure(conf):
     if build_port == "wx":
         update_wx_deps(conf, wk_root, msvc_version)
 
-        conf.env.append_value('CXXDEFINES', ['BUILDING_WX__=1', 'JS_NO_EXPORT'])
+        conf.env.append_value('CXXDEFINES', ['BUILDING_WX__=1'])
 
         if building_on_win32:
             conf.env.append_value('LIBPATH', os.path.join(msvclibs_dir, 'lib'))
@@ -331,7 +371,9 @@ def common_configure(conf):
 
     if sys.platform.startswith('darwin'):
         conf.env['LIB_ICU'] = ['icucore']
-
+        global port_uses
+        port_uses[build_port].append('CF')
+        
         conf.env.append_value('CPPPATH', wklibs_dir)
         conf.env.append_value('LIBPATH', wklibs_dir)
 
@@ -379,6 +421,9 @@ def common_configure(conf):
                 archs = [arch]
 
         sdkroot = '/Developer/SDKs/MacOSX%s.sdk' % sdk_version
+        if not os.path.exists(sdkroot):
+            Logs.error("Cannot find the specified SDK needed to build: %r" % sdkroot)
+            sys.exit(1)
         sdkflags = ['-isysroot', sdkroot]
         for arch in archs:
             sdkflags.extend(['-arch', arch])
@@ -435,13 +480,14 @@ def common_configure(conf):
         #libxslt
         conf.env['LIB_XSLT'] = ['libxslt']
     else:
+        conf.env.append_value('CXXFLAGS', ['-fvisibility=hidden'])
         if build_port == 'wx':
             port_uses['wx'].append('PTHREADS')
             conf.env.append_value('LIB', ['jpeg', 'png', 'pthread'])
             conf.env.append_value('LIBPATH', os.path.join(wklibs_dir, 'unix', 'lib'))
             conf.env.append_value('CPPPATH', os.path.join(wklibs_dir, 'unix', 'include'))
             conf.env.append_value('CXXFLAGS', ['-fPIC', '-DPIC'])
-
+            conf.env.append_value('CXXFLAGS', ['-g'])
         conf.check_cfg(msg='Checking for libxslt', path='xslt-config', args='--cflags --libs', package='', uselib_store='XSLT', mandatory=True)
         conf.check_cfg(path='xml2-config', args='--cflags --libs', package='', uselib_store='XML', mandatory=True)
         if sys.platform.startswith('darwin') and min_version and min_version == '10.4':

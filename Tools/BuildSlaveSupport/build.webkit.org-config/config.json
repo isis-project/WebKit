@@ -8,8 +8,6 @@
                     { "name": "apple-xserve-7", "platform": "mac-snowleopard" },
                     { "name": "apple-xserve-8", "platform": "mac-snowleopard" },	
                     { "name": "apple-xserve-9", "platform": "mac-snowleopard" },	
-                    { "name": "apple-macpro-1", "platform": "mac-snowleopard" },
-                    { "name": "apple-macpro-2", "platform": "mac-snowleopard" },
                     { "name": "apple-macpro-7", "platform": "mac-snowleopard" },
 
                     { "name": "apple-macpro-3", "platform": "mac-lion" },
@@ -31,10 +29,6 @@
                     { "name": "apple-windows-6", "platform": "win"},
                     { "name": "apple-windows-7", "platform": "win"},
                     { "name": "apple-windows-8", "platform": "win"},
-                    { "name": "apple-windows-9", "platform": "win"},
-                    { "name": "apple-windows-10", "platform": "win"},
-                    { "name": "apple-windows-11", "platform": "win"},
-                    { "name": "apple-windows-12", "platform": "win"},
                     { "name": "apple-windows-13", "platform": "win"},
                     { "name": "apple-windows-14", "platform": "win"},
                     { "name": "apple-windows-15", "platform": "win"},
@@ -43,24 +37,28 @@
                     { "name": "gtk-linux-slave-2", "platform": "gtk"},
                     { "name": "gtk-linux-slave-3", "platform": "gtk"},
 
-                    { "name": "szeged-linux-1", "platform": "qt"},
-                    { "name": "szeged-linux-2", "platform": "qt"},
-                    { "name": "szeged-linux-3", "platform": "qt"},
-                    { "name": "szeged-linux-4", "platform": "qt"},
+                    { "name": "szeged-linux-1", "platform": "qt-4.8"},
+                    { "name": "szeged-linux-2", "platform": "qt-4.8"},
+                    { "name": "szeged-linux-3", "platform": "qt-5.0-wk1"},
+                    { "name": "szeged-linux-4", "platform": "qt-arm"},
+                    { "name": "szeged-linux-5", "platform": "qt-5.0-wk2"},
 
-                    { "name": "szeged-windows-1", "platform": "qt"},
-                    { "name": "szeged-windows-2", "platform": "qt"},
+                    { "name": "szeged-windows-1", "platform": "qt-win"},
+                    { "name": "szeged-windows-2", "platform": "qt-win"},
 
-                    { "name": "indt-snowleopard", "platform": "qt"},
+                    { "name": "indt-snowleopard", "platform": "qt-mac"},
 
                     { "name": "google-windows-1", "platform": "chromium-win" },
                     { "name": "google-windows-2", "platform": "chromium-win" },
+                    { "name": "google-windows-perf", "platform": "chromium-win" },
                     { "name": "google-mac-1", "platform": "chromium-mac" },
                     { "name": "google-mac-2", "platform": "chromium-mac" },
                     { "name": "google-mac-3", "platform": "chromium-mac" },
                     { "name": "google-mac-4", "platform": "chromium-mac" },
+                    { "name": "google-mac-perf", "platform": "chromium-mac" },
                     { "name": "google-linux-1", "platform": "chromium-linux" },
                     { "name": "google-linux-2", "platform": "chromium-linux" },
+                    { "name": "google-linux-perf", "platform": "chromium-linux" },
                     { "name": "google-linux-android", "platform": "chromium-android" },
                     { "name": "google-linux-flexbox", "platform": "chromium-linux" },
 
@@ -144,7 +142,7 @@
                     {
                       "name": "Windows 7 Release (Tests)", "type": "Test", "builddir": "win-release-tests",
                       "platform": "win", "configuration": "release", "architectures": ["i386"],
-                      "slavenames": ["apple-windows-5", "apple-windows-6", "apple-windows-11", "apple-windows-12", "test-slave"]
+                      "slavenames": ["apple-windows-5", "apple-windows-6", "test-slave"]
                     },
                     {
                       "name": "Windows Debug (Build)", "type": "Build", "builddir": "win-debug",
@@ -159,7 +157,7 @@
                     },
                     { "name": "Windows 7 Release (WebKit2 Tests)", "type": "TestWebKit2", "builddir": "win-release-tests-wk2",
                       "platform": "win", "configuration": "release", "architectures": ["i386"],
-                      "slavenames": ["apple-windows-7", "apple-windows-8", "apple-windows-9", "apple-windows-10", "test-slave"]
+                      "slavenames": ["apple-windows-7", "apple-windows-8", "test-slave"]
                     },
                     {
                       "name": "GTK Linux 32-bit Release", "type": "BuildAndTest", "builddir": "gtk-linux-32-release",
@@ -178,32 +176,42 @@
                     },
                     {
                       "name": "Qt Linux Release", "type": "BuildAndTest", "builddir": "qt-linux-release",
-                      "platform": "qt", "configuration": "release", "architectures": ["i386"],
+                      "platform": "qt-4.8", "configuration": "release", "architectures": ["i386"],
                       "slavenames": ["szeged-linux-1"]
                     },
                     {
                       "name": "Qt Linux Release minimal", "type": "Build", "builddir": "qt-linux-release-minimal",
-                      "platform": "qt", "configuration": "release", "architectures": ["i386"],
+                      "platform": "qt-4.8", "configuration": "release", "architectures": ["i386"],
                       "slavenames": ["szeged-linux-2"]
                     },
                     {
+                      "name": "Qt Linux 64-bit Release (Perf)", "type": "BuildAndPerfTest", "builddir": "qt-linux-64-release-perf-tests",
+                      "platform": "qt-5.0-wk1", "configuration": "release", "architectures": ["x86_64"],
+                      "slavenames": ["szeged-linux-3"]
+                    },
+                    {
+                      "name": "Qt Linux 64-bit Release (WebKit2 Perf)", "type": "BuildAndPerfTestWebKit2", "builddir": "qt-linux-64-release-wk2-perf-tests",
+                      "platform": "qt-5.0-wk2", "configuration": "release", "architectures": ["x86_64"],
+                      "slavenames": ["szeged-linux-5"]
+                    },
+                    {
                       "name": "Qt Linux ARMv7 Release", "type": "Build", "builddir": "qt-linux-armv7-release",
-                      "platform": "qt", "configuration": "release", "architectures": ["armv7"],
+                      "platform": "qt-arm", "configuration": "release", "architectures": ["armv7"],
                       "slavenames": ["szeged-linux-4"]
                     },
                     {
                       "name": "Qt Windows 32-bit Release", "type": "Build", "builddir": "qt-windows-32bit-release",
-                      "platform": "qt", "configuration": "release", "architectures": ["i386"],
+                      "platform": "qt-win", "configuration": "release", "architectures": ["i386"],
                       "slavenames": ["szeged-windows-1"]
                     },
                     {
                       "name": "Qt Windows 32-bit Debug", "type": "Build", "builddir": "qt-windows-32bit-debug",
-                      "platform": "qt", "configuration": "debug", "architectures": ["i386"],
+                      "platform": "qt-win", "configuration": "debug", "architectures": ["i386"],
                       "slavenames": ["szeged-windows-2"]
                     },
                     {
                       "name": "Qt SnowLeopard Release", "type": "Build", "builddir": "qt-snowleopard-release",
-                      "platform": "qt", "configuration": "release", "architectures": ["x86_64"],
+                      "platform": "qt-mac", "configuration": "release", "architectures": ["x86_64"],
                       "slavenames": ["indt-snowleopard"]
                     },
                     {
@@ -227,6 +235,11 @@
                       "slavenames": ["google-windows-2"]
                     },
                     {
+                      "name": "Chromium Win Release (Perf)", "type": "BuildAndPerfTest", "builddir": "chromium-win-perf-tests",
+                      "platform": "chromium-win", "configuration": "release", "architectures": ["i386"],
+                      "slavenames": ["google-windows-perf"]
+                    },
+                    {
                       "name": "Chromium Mac Release", "type": "Build", "builddir": "chromium-mac-release",
                       "platform": "chromium-mac", "configuration": "release", "architectures": ["i386"],
                       "slavenames": ["google-mac-1", "google-mac-3"]
@@ -234,7 +247,12 @@
                     {
                       "name": "Chromium Mac Release (Tests)", "type": "NewBuildAndTest", "builddir": "chromium-mac-release-tests",
                       "platform": "chromium-mac", "configuration": "release", "architectures": ["i386"],
-                      "slavenames": ["google-mac-2"]
+                      "slavenames": ["google-mac-2", "google-mac-4"]
+                    },
+                    {
+                      "name": "Chromium Mac Release (Perf)", "type": "BuildAndPerfTest", "builddir": "chromium-mac-perf-tests",
+                      "platform": "chromium-mac", "configuration": "release", "architectures": ["i386"],
+                      "slavenames": ["google-mac-perf"]
                     },
                     {
                       "name": "Chromium Linux Release", "type": "Build", "builddir": "chromium-linux-release",
@@ -247,6 +265,11 @@
                       "slavenames": ["google-linux-2"]
                     },
                     {
+                      "name": "Chromium Linux Release (Perf)", "type": "BuildAndPerfTest", "builddir": "chromium-linux-perf-tests",
+                      "platform": "chromium-linux", "configuration": "release", "architectures": ["i386"],
+                      "slavenames": ["google-linux-perf"]
+                    },
+                    {
                       "name": "Chromium Linux Release (Grid Layout)", "type": "NewBuildAndTest", "builddir": "chromium-linux-flexbox",
                       "platform": "chromium-linux", "configuration": "release", "architectures": ["i386"],
                       "slavenames": ["google-linux-flexbox"]
@@ -255,11 +278,6 @@
                       "name": "Chromium Android Release", "type": "Build", "builddir": "chromium-linux-android",
                       "platform": "chromium-android", "configuration": "release", "architectures": ["i386"],
                       "slavenames": ["google-linux-android"]
-                    },
-                    {
-                      "name": "Chromium Mac Release (Perf)", "type": "BuildAndPerfTest", "builddir": "chromium-mac-perf-tests",
-                      "platform": "chromium-mac", "configuration": "release", "architectures": ["i386"],
-                      "slavenames": ["google-mac-4"]
                     },
                     {
                       "name": "WinCairo Release", "type": "BuildAndTest", "builddir": "win-cairo-release",
@@ -272,21 +290,23 @@
                       "slavenames": ["wince-1"]
                     },
                     {
-                      "name": "EFL Linux Release (Build)", "type": "Build", "builddir": "efl-linux-release",
-                      "platform": "efl", "configuration": "release", "architectures": ["i386"],
+                      "name": "EFL Linux Release", "type": "BuildAndTest", "builddir": "efl-linux-release",
+                      "platform": "efl", "configuration": "release", "architectures": ["x86_64"],
                       "slavenames": ["efl-linux-slave-1"]
                     }
                   ],
 
     "schedulers": [ { "type": "AnyBranchScheduler", "name": "trunk", "change_filter": "trunk_filter", "treeStableTimer": 45.0,
                       "builderNames": ["GTK Linux 32-bit Release", "GTK Linux 64-bit Release", "GTK Linux 64-bit Debug",
-                                       "Qt Linux Release", "Qt Linux Release minimal", "Qt Linux ARMv7 Release",
+                                       "Qt Linux Release", "Qt Linux Release minimal", "Qt Linux 64-bit Release (Perf)",
+                                       "Qt Linux 64-bit Release (WebKit2 Perf)", "Qt Linux ARMv7 Release",
                                        "Qt Windows 32-bit Release", "Qt Windows 32-bit Debug", "Qt SnowLeopard Release",
                                        "Qt Linux MIPS Release", "Qt Linux SH4 Release",
-                                       "Chromium Win Release", "Chromium Win Release (Tests)", "Chromium Mac Release", "Chromium Mac Release (Tests)",
-                                       "Chromium Linux Release", "Chromium Linux Release (Tests)", "Chromium Linux Release (Grid Layout)",
-                                       "Chromium Android Release", "Chromium Mac Release (Perf)", "WinCairo Release", "WinCE Release (Build)",
-                                       "EFL Linux Release (Build)"]
+                                       "Chromium Win Release", "Chromium Win Release (Tests)", "Chromium Win Release (Perf)",
+                                       "Chromium Mac Release", "Chromium Mac Release (Tests)", "Chromium Mac Release (Perf)",
+                                       "Chromium Linux Release", "Chromium Linux Release (Tests)", "Chromium Linux Release (Perf)",
+                                       "Chromium Linux Release (Grid Layout)", "Chromium Android Release",
+                                       "WinCairo Release", "WinCE Release (Build)", "EFL Linux Release"]
                     },
                     { "type": "PlatformSpecificScheduler", "platform": "mac-snowleopard", "branch": "trunk", "treeStableTimer": 45.0, 
                       "builderNames": ["SnowLeopard Intel Release (Build)", "SnowLeopard Intel Debug (Build)"] 

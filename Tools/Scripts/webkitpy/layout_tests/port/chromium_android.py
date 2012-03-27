@@ -47,6 +47,21 @@ DEVICE_DRT_STDERR = DEVICE_DRT_DIR + 'DumpRenderTree.stderr'
 DEVICE_FORWARDER_PATH = DEVICE_DRT_DIR + 'forwarder'
 DEVICE_DRT_STAMP_PATH = DEVICE_DRT_DIR + 'DumpRenderTree.stamp'
 
+# This only works for single core devices so far.
+# FIXME: Find a solution for multi-core devices.
+SCALING_GOVERNOR = "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+
+# All the test cases are still served to DumpRenderTree through file protocol,
+# but we use a file-to-http feature to bridge the file request to host's http
+# server to get the real test files and corresponding resources.
+TEST_PATH_PREFIX = '/all-tests'
+
+# All ports the Android forwarder to forward.
+# 8000, 8080 and 8443 are for http/https tests.
+# 8880 and 9323 are for websocket tests
+# (see http_server.py, apache_http_server.py and websocket_server.py).
+FORWARD_PORTS = '8000 8080 8443 8880 9323'
+
 MS_TRUETYPE_FONTS_DIR = '/usr/share/fonts/truetype/msttcorefonts/'
 
 # List of fonts that layout tests expect, copied from DumpRenderTree/gtk/TestShellGtk.cpp.
@@ -93,6 +108,7 @@ DEVICE_FIRST_FALLBACK_FONT = '/system/fonts/DroidNaskh-Regular.ttf'
 # 2. pointing to some files that are pushed to the device for tests that
 # don't work on file-over-http (e.g. blob protocol tests).
 DEVICE_LAYOUT_TESTS_DIR = (DEVICE_SOURCE_ROOT_DIR + 'third_party/WebKit/LayoutTests/')
+FILE_TEST_URI_PREFIX = 'file://' + DEVICE_LAYOUT_TESTS_DIR
 
 # Test resources that need to be accessed as files directly.
 # Each item can be the relative path of a directory or a file.
@@ -125,16 +141,8 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
     def __init__(self, host, port_name, **kwargs):
         chromium.ChromiumPort.__init__(self, host, port_name, **kwargs)
 
-        # The chromium-android port always uses the GPU code path, so we set
-        # these options here, almost as if this was the chromium-gpu-android
-        # port.
-        self._options.accelerated_2d_canvas = True
-        self._options.accelerated_video = True
-
         self._operating_system = 'android'
         self._version = 'icecreamsandwich'
-        # FIXME: we may support other architectures in the future.
-        self._architecture = 'arm'
         self._original_governor = None
         self._android_base_dir = None
 
@@ -144,6 +152,12 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
         adb_args = self.get_option('adb_args')
         if adb_args:
             self._adb_command += shlex.split(adb_args)
+
+    def default_test_timeout_ms(self):
+        # Android platform has less computing power than desktop platforms.
+        # Using 10 seconds allows us to pass most slow tests which are not
+        # marked as slow tests on desktop platforms.
+        return 10 * 1000
 
     def default_child_processes(self):
         # Currently we only use one process, but it might be helpful to use
@@ -191,9 +205,17 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
         # Other directories will be created automatically by adb push.
         self._run_adb_command(['shell', 'mkdir', '-p',
                                DEVICE_SOURCE_ROOT_DIR + 'chrome'])
+
         self._push_executable()
         self._push_fonts()
         self._setup_system_font_for_test()
+        self._synchronize_datetime()
+
+        # Start the HTTP server so that the device can access the test cases.
+        chromium.ChromiumPort.start_http_server(self, additional_dirs={TEST_PATH_PREFIX: self.layout_tests_dir()})
+
+        _log.debug('Starting forwarder')
+        cmd = self._run_adb_command(['shell', '%s %s' % (DEVICE_FORWARDER_PATH, FORWARD_PORTS)])
 
     def stop_helper(self):
         self._restore_system_font()
@@ -236,6 +258,9 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
 
     def _shut_down_http_server(self, pid):
         return self._host_port._shut_down_http_server(pid)
+
+    def _driver_class(self):
+        return ChromiumAndroidDriver
 
     def _push_executable(self):
         drt_host_path = self._path_to_driver()
@@ -288,6 +313,39 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
         for resource in TEST_RESOURCES_TO_PUSH:
             self._push_to_device(self.layout_tests_dir() + '/' + resource, DEVICE_LAYOUT_TESTS_DIR + resource)
 
+    def _synchronize_datetime(self):
+        # The date/time between host and device may not be synchronized.
+        # We need to make them synchronized, otherwise tests might fail.
+        try:
+            # Get seconds since 1970-01-01 00:00:00 UTC.
+            host_datetime = self._executive.run_command(['date', '-u', '+%s'])
+        except:
+            # Reset to 1970-01-01 00:00:00 UTC.
+            host_datetime = 0
+        self._run_adb_command(['shell', 'date -u %s' % (host_datetime)])
+
+    def _check_version(self, dir, version):
+        assert(dir.endswith('/'))
+        try:
+            device_version = int(self._run_adb_command(['shell', 'cat %sVERSION || echo 0' % dir]))
+            return device_version == version
+        except:
+            return False
+
+    def _update_version(self, dir, version):
+        self._run_adb_command(['shell', 'echo %d > %sVERSION' % (version, dir)])
+
+    def _run_adb_command(self, cmd, ignore_error=False):
+        if ignore_error:
+            error_handler = self._executive.ignore_error
+        else:
+            error_handler = None
+        return self._executive.run_command(self._adb_command + cmd, error_handler=error_handler)
+
+    def _copy_device_file(self, from_file, to_file, ignore_error=False):
+        # 'cp' is unavailable on Android, so use 'dd' instead.
+        return self._run_adb_command(['shell', 'dd', 'if=' + from_file, 'of=' + to_file], ignore_error)
+
     def _push_to_device(self, host_path, device_path, ignore_error=False):
         return self._run_adb_command(['push', host_path, device_path], ignore_error)
 
@@ -301,6 +359,31 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
                 pid = line.split()[1]
                 self._run_adb_command(['shell', 'kill', pid])
 
+    def get_stderr(self):
+        return self._run_adb_command(['shell', 'cat', DEVICE_DRT_STDERR], ignore_error=True)
+
+    def get_last_stacktrace(self):
+        tombstones = self._run_adb_command(['shell', 'ls', '-n', '/data/tombstones'])
+        tombstones = tombstones.rstrip().split('\n')
+        if not tombstones:
+            return ''
+        last_tombstone = tombstones[0].split()
+        for tombstone in tombstones[1:]:
+            # Format of fields:
+            # 0          1      2      3     4          5     6
+            # permission uid    gid    size  date       time  filename
+            # -rw------- 1000   1000   45859 2011-04-13 06:00 tombstone_00
+            fields = tombstone.split()
+            if (fields[4] + fields[5] >= last_tombstone[4] + last_tombstone[5]):
+                last_tombstone = fields
+            else:
+                break
+
+        # Use Android tool vendor/google/tools/stack to convert the raw
+        # stack trace into a human readable format, if needed.
+        # It takes a long time, so don't do it here.
+        return self._run_adb_command(['shell', 'cat', '/data/tombstones/' + last_tombstone[6]])
+
     def _setup_performance(self):
         # Disable CPU scaling and drop ram cache to reduce noise in tests
         if not self._original_governor:
@@ -311,3 +394,145 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
         if self._original_governor:
             self._run_adb_command(['shell', 'echo', self._original_governor, SCALING_GOVERNOR])
         self._original_governor = None
+
+
+class ChromiumAndroidDriver(chromium.ChromiumDriver):
+    def __init__(self, port, worker_number, pixel_tests, no_timeout=False):
+        chromium.ChromiumDriver.__init__(self, port, worker_number, pixel_tests, no_timeout)
+        self._device_image_path = None
+
+    def _start(self, pixel_tests, per_test_args):
+        # Convert the original command line into to two parts:
+        # - the 'adb shell' command line to start an interactive adb shell;
+        # - the DumpRenderTree command line to send to the adb shell.
+        original_cmd = self.cmd_line(pixel_tests, per_test_args)
+        shell_cmd = []
+        drt_args = []
+        path_to_driver = self._port._path_to_driver()
+        reading_args_before_driver = True
+        for param in original_cmd:
+            if reading_args_before_driver:
+                if param == path_to_driver:
+                    reading_args_before_driver = False
+                else:
+                    shell_cmd.append(param)
+            else:
+                if param.startswith('--pixel-tests='):
+                    if not self._device_image_path:
+                        self._device_image_path = DEVICE_DRT_DIR + self._port.host.filesystem.basename(self._image_path)
+                    param = '--pixel-tests=' + self._device_image_path
+                drt_args.append(param)
+
+        shell_cmd += self._port._adb_command
+        shell_cmd.append('shell')
+        retries = 0
+        while True:
+            _log.debug('Starting adb shell for DumpRenderTree: ' + ' '.join(shell_cmd))
+            executive = self._port.host.executive
+            self._proc = executive.popen(shell_cmd, stdin=executive.PIPE, stdout=executive.PIPE, stderr=executive.STDOUT,
+                                         close_fds=True, universal_newlines=True)
+            # Read back the shell prompt to ensure adb shell ready.
+            self._read_prompt()
+            # Some tests rely on this to produce proper number format etc.,
+            # e.g. fast/speech/input-appearance-numberandspeech.html.
+            self._write_command_and_read_line("export LC_CTYPE='en_US'\n")
+            self._write_command_and_read_line("export CLASSPATH='/data/drt/DumpRenderTree.jar'\n")
+
+            # When DumpRenderTree crashes, the Android debuggerd will stop the
+            # process before dumping stack to log/tombstone file and terminating
+            # the process. Sleep 1 second (long enough for debuggerd to dump
+            # stack) before exiting the shell to ensure the process has quit,
+            # otherwise the exit will fail because "You have stopped jobs".
+            drt_cmd = '%s %s 2>%s;sleep 1;exit\n' % (DEVICE_DRT_PATH, ' '.join(drt_args), DEVICE_DRT_STDERR)
+            _log.debug('Starting DumpRenderTree: ' + drt_cmd)
+
+            # Wait until DRT echos '#READY'.
+            output = ''
+            (line, crash) = self._write_command_and_read_line(drt_cmd)
+            while not crash and line.rstrip() != '#READY':
+                if line == '':  # EOF or crashed
+                    crash = True
+                else:
+                    output += line
+                    (line, crash) = self._write_command_and_read_line()
+
+            if crash:
+                # Sometimes the device is in unstable state (may be out of
+                # memory?) and kills DumpRenderTree just after it is started.
+                # Try to stop and start it again.
+                _log.error('Failed to start DumpRenderTree: \n%s\n%s\n' % (output, self._port.get_stderr()))
+                self.stop()
+                retries += 1
+                if retries > 2:
+                    raise AssertionError('Failed multiple times to start DumpRenderTree')
+            else:
+                return
+
+    def run_test(self, driver_input):
+        driver_output = chromium.ChromiumDriver.run_test(self, driver_input)
+        # FIXME: Retrieve stderr from the target.
+        if driver_output.crash:
+            # Fetch the stack trace from the tombstone file.
+            # FIXME: sometimes the crash doesn't really happen so that no
+            # tombstone is generated. In that case we fetch the wrong stack
+            # trace.
+            driver_output.error += self._port.get_last_stacktrace()
+        return driver_output
+
+    def stop(self):
+        _log.debug('Stopping DumpRenderTree')
+        if self._proc:
+            # Send an explicit QUIT command because closing the pipe can't let
+            # DumpRenderTree on Android quit immediately.
+            try:
+                self._proc.stdin.write('QUIT\n')
+            except IOError:
+                # The pipe has already been closed, indicating abnormal
+                # situation occurred. Wait a while to allow the device to
+                # recover. *fingers crossed*
+                time.sleep(1)
+        chromium.ChromiumDriver.stop(self)
+
+    def _test_shell_command(self, uri, timeout_ms, checksum):
+        if uri.startswith('file:///'):
+            # Convert the host uri to a device uri. See comment of
+            # DEVICE_LAYOUT_TESTS_DIR for details.
+            # Not overriding Port.filename_to_uri() because we don't want the
+            # links in the html report point to device paths.
+            uri = FILE_TEST_URI_PREFIX + self.uri_to_test(uri)
+        return chromium.ChromiumDriver._test_shell_command(self, uri, timeout_ms, checksum)
+
+    def _write_command_and_read_line(self, input=None):
+        (line, crash) = chromium.ChromiumDriver._write_command_and_read_line(self, input)
+        url_marker = '#URL:'
+        if not crash and line.startswith(url_marker) and line.find(FILE_TEST_URI_PREFIX) == len(url_marker):
+            # Convert the device test uri back to host uri otherwise
+            # chromium.ChromiumDriver.run_test() will complain.
+            line = '#URL:file://%s/%s' % (self._port.layout_tests_dir(), line[len(url_marker) + len(FILE_TEST_URI_PREFIX):])
+        if not crash and self._has_crash_hint(line):
+            crash = True
+        return (line, crash)
+
+    def _output_image(self):
+        if self._image_path:
+            _log.debug('pulling from device: %s to %s' % (self._device_image_path, self._image_path))
+            self._port._pull_from_device(self._device_image_path, self._image_path, ignore_error=True)
+        return chromium.ChromiumDriver._output_image(self)
+
+    def _has_crash_hint(self, line):
+        # When DRT crashes, it sends a signal to Android Debuggerd, like
+        # SIGSEGV, SIGFPE, etc. When Debuggerd receives the signal, it stops DRT
+        # (which causes Shell to output a message), and dumps the stack strace.
+        # We use the Shell output as a crash hint.
+        return line is not None and line.find('[1] + Stopped (signal)') >= 0
+
+    def _read_prompt(self):
+        last_char = ''
+        while True:
+            current_char = self._proc.stdout.read(1)
+            if current_char == ' ':
+                if last_char == '#':
+                    return
+                if last_char == '$':
+                    raise AssertionError('Adbd is not running as root')
+            last_char = current_char

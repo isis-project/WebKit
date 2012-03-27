@@ -188,6 +188,13 @@ WebInspector.HeapSnapshotWorker.prototype = {
     _messageReceived: function(event)
     {
         var data = event.data;
+        if (event.data.error) {
+            if (event.data.errorMethodName)
+                WebInspector.log(WebInspector.UIString("An error happened when a call for method '%s' was requested", event.data.errorMethodName));
+            WebInspector.log(event.data.errorCallStack);
+            delete this._callbacks[data.callId];
+            return;
+        }
         if (!this._callbacks[data.callId])
             return;
         var callback = this._callbacks[data.callId];
@@ -263,18 +270,20 @@ WebInspector.HeapSnapshotLoaderProxy.prototype = {
         delete this._onLoadCallbacks;
         this._loading = false;
         this._loaded = true;
-        function callLoadCallbacks(snapshotProxy)
-        {
-            for (var i = 0; i < loadCallbacks.length; ++i)
-                loadCallbacks[i](snapshotProxy);
-        }
+        var self = this;
         function updateStaticData(snapshotProxy)
         {
             this.dispose();
-            snapshotProxy.updateStaticData(callLoadCallbacks);
+            snapshotProxy.updateStaticData(this._callLoadCallbacks.bind(this, loadCallbacks));
         }
         this.callFactoryMethod(updateStaticData.bind(this), "finishLoading", "WebInspector.HeapSnapshotProxy");
         return true;
+    },
+
+    _callLoadCallbacks: function(loadCallbacks, snapshotProxy)
+    {
+        for (var i = 0; i < loadCallbacks.length; ++i)
+            loadCallbacks[i](snapshotProxy);
     },
 
     get loaded()

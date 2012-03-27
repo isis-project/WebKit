@@ -25,12 +25,12 @@
 
 class QWebNavigationRequestPrivate {
 public:
-    QWebNavigationRequestPrivate(const QUrl& url, const QUrl& originatingUrl, Qt::MouseButton button, Qt::KeyboardModifiers modifiers)
+    QWebNavigationRequestPrivate(const QUrl& url, Qt::MouseButton mouseButton, Qt::KeyboardModifiers keyboardModifiers, QQuickWebView::NavigationType navigationType)
         : url(url)
-        , originatingUrl(originatingUrl)
-        , button(button)
-        , modifiers(modifiers)
+        , mouseButton(mouseButton)
+        , keyboardModifiers(keyboardModifiers)
         , action(QQuickWebView::AcceptRequest)
+        , navigationType(navigationType)
     {
     }
 
@@ -39,15 +39,15 @@ public:
     }
 
     QUrl url;
-    QUrl originatingUrl;
-    Qt::MouseButton button;
-    Qt::KeyboardModifiers modifiers;
-    int action;
+    Qt::MouseButton mouseButton;
+    Qt::KeyboardModifiers keyboardModifiers;
+    QQuickWebView::NavigationRequestAction action;
+    QQuickWebView::NavigationType navigationType;
 };
 
-QWebNavigationRequest::QWebNavigationRequest(const QUrl& url, const QUrl& originatingUrl, Qt::MouseButton button, Qt::KeyboardModifiers modifiers, QObject* parent)
+QWebNavigationRequest::QWebNavigationRequest(const QUrl& url, Qt::MouseButton mouseButton, Qt::KeyboardModifiers keyboardModifiers, QQuickWebView::NavigationType navigationType, QObject* parent)
     : QObject(parent)
-    , d(new QWebNavigationRequestPrivate(url, originatingUrl, button, modifiers))
+    , d(new QWebNavigationRequestPrivate(url, mouseButton, keyboardModifiers, navigationType))
 {
 }
 
@@ -56,7 +56,7 @@ QWebNavigationRequest::~QWebNavigationRequest()
     delete d;
 }
 
-void QWebNavigationRequest::setAction(int action)
+void QWebNavigationRequest::setAction(QQuickWebView::NavigationRequestAction action)
 {
     if (d->action == action)
         return;
@@ -70,23 +70,22 @@ QUrl QWebNavigationRequest::url() const
     return d->url;
 }
 
-QUrl QWebNavigationRequest::originatingUrl() const
+int QWebNavigationRequest::mouseButton() const
 {
-    return d->originatingUrl;
+    return int(d->mouseButton);
 }
 
-int QWebNavigationRequest::button() const
+int QWebNavigationRequest::keyboardModifiers() const
 {
-    return int(d->button);
+    return int(d->keyboardModifiers);
 }
 
-int QWebNavigationRequest::modifiers() const
+QQuickWebView::NavigationRequestAction QWebNavigationRequest::action() const
 {
-    return int(d->modifiers);
+    return d->action;
 }
 
-int QWebNavigationRequest::action() const
+QQuickWebView::NavigationType QWebNavigationRequest::navigationType() const
 {
-    return int(d->action);
+    return d->navigationType;
 }
-

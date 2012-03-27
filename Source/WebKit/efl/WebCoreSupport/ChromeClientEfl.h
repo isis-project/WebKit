@@ -28,8 +28,8 @@
 #include "KURL.h"
 #include "PopupMenu.h"
 
-#if ENABLE(NOTIFICATIONS)
-#include "NotificationPresenter.h"
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+#include "NotificationClient.h"
 #endif
 
 typedef struct _Evas_Object Evas_Object;
@@ -114,16 +114,12 @@ public:
     virtual void exceededDatabaseQuota(Frame*, const String&);
 #endif
 
-#if ENABLE(NOTIFICATIONS)
-    virtual WebCore::NotificationPresenter* notificationPresenter() const;
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+    virtual WebCore::NotificationClient* notificationPresenter() const;
 #endif
 
     virtual void reachedMaxAppCacheSize(int64_t spaceNeeded);
     virtual void reachedApplicationCacheOriginQuota(SecurityOrigin*, int64_t totalSpaceNeeded);
-
-#if ENABLE(CONTEXT_MENUS)
-    virtual void showContextMenu() { }
-#endif
 
 #if ENABLE(TOUCH_EVENTS)
     virtual void needTouchEvents(bool);
@@ -151,8 +147,6 @@ public:
 
     virtual void scrollRectIntoView(const IntRect&) const { }
 
-    virtual void requestGeolocationPermissionForFrame(Frame*, Geolocation*);
-    virtual void cancelGeolocationPermissionRequestForFrame(Frame*, Geolocation*);
     virtual void cancelGeolocationPermissionForFrame(Frame*, Geolocation*);
 
     virtual void invalidateContents(const IntRect&, bool);
@@ -173,6 +167,7 @@ public:
 
     virtual bool shouldRubberBandInDirection(WebCore::ScrollDirection) const { return true; }
     virtual void numWheelEventHandlersChanged(unsigned) { }
+    virtual void numTouchEventHandlersChanged(unsigned) { }
 
     Evas_Object* m_view;
     KURL m_hoveredLinkURL;

@@ -11,15 +11,14 @@ DESTDIR = $$ROOT_BUILD_DIR/bin
 
 load(features)
 
-WEBKIT += wtf webcore
-
-CONFIG += qtwebkit
+WEBKIT += wtf javascriptcore webcore
 
 INCLUDEPATH += \
     $$PWD/.. \
-    $${ROOT_WEBKIT_DIR}/Source/WebKit/qt/WebCoreSupport
+    $${ROOT_WEBKIT_DIR}/Source/WebKit/qt/WebCoreSupport \
+    $${ROOT_WEBKIT_DIR}/Source/WTF
 
-QT = core gui network testlib
+QT = core gui network testlib webkit
 macx: QT += xml
 haveQt(5): QT += widgets printsupport
 
@@ -33,17 +32,15 @@ HEADERS += \
     WorkQueueItemQt.h \
     LayoutTestControllerQt.h \
     GCControllerQt.h \
-    PlainTextControllerQt.h \
     QtInitializeTestFonts.h \
     testplugin.h
 
 SOURCES += \
-    $${ROOT_WEBKIT_DIR}/Source/JavaScriptCore/wtf/Assertions.cpp \
+    $${ROOT_WEBKIT_DIR}/Source/WTF/wtf/Assertions.cpp \
     $$PWD/../WorkQueue.cpp \
     DumpRenderTreeQt.cpp \
     EventSenderQt.cpp \
     TextInputControllerQt.cpp \
-    PlainTextControllerQt.cpp \
     WorkQueueItemQt.cpp \
     LayoutTestControllerQt.cpp \
     GCControllerQt.cpp \

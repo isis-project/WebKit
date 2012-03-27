@@ -68,13 +68,21 @@ UScriptCode localeToScriptCodeForFontSelection(const String& locale)
     if (U_FAILURE(status))
         return USCRIPT_COMMON;
 
-    UScriptCode scriptCode;
+    UScriptCode scriptCode = USCRIPT_COMMON;
     uscript_getCode(script, &scriptCode, 1, &status);
     // Ignore error that multiple scripts could be returned, since we only want one script.
     if (U_FAILURE(status) && status != U_BUFFER_OVERFLOW_ERROR)
         return USCRIPT_COMMON;
 
     return scriptCodeForFontSelection(scriptCode);
+}
+
+UScriptCode scriptNameToCode(const String& name)
+{
+    int32_t code = u_getPropertyValueEnum(UCHAR_SCRIPT, name.utf8().data());
+    if (code >= 0 && code < USCRIPT_CODE_LIMIT)
+        return static_cast<UScriptCode>(code);
+    return USCRIPT_INVALID_CODE;
 }
 
 } // namespace WebCore

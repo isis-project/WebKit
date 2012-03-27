@@ -32,6 +32,7 @@
 #define CalculationValue_h
 
 #include "Length.h"
+#include "LengthFunctions.h"
 #include <wtf/OwnPtr.h>
 #include <wtf/PassOwnPtr.h>
 #include <wtf/RefCounted.h>
@@ -43,7 +44,86 @@ enum CalcOperator {
     CalcAdd = '+',
     CalcSubtract = '-',
     CalcMultiply = '*',
-    CalcDivide = '/',
+    CalcDivide = '/'
+};
+
+enum CalculationPermittedValueRange {
+    CalculationRangeAll,
+    CalculationRangeNonNegative
+};
+        
+class CalcExpressionNode {
+public:
+    virtual ~CalcExpressionNode()
+    {
+    }
+    
+    virtual float evaluate(float maxValue) const = 0;
+};
+    
+class CalculationValue : public RefCounted<CalculationValue> {
+public:
+    static PassRefPtr<CalculationValue> create(PassOwnPtr<CalcExpressionNode> value, CalculationPermittedValueRange);
+    float evaluate(float maxValue) const;
+    
+private:
+    CalculationValue(PassOwnPtr<CalcExpressionNode> value, CalculationPermittedValueRange range)
+        : m_value(value)
+        , m_isNonNegative(range == CalculationRangeNonNegative)
+    {
+    }
+    
+    OwnPtr<CalcExpressionNode> m_value;
+    bool m_isNonNegative;
+};
+
+class CalcExpressionNumber : public CalcExpressionNode {
+public:
+    explicit CalcExpressionNumber(float value)
+        : m_value(value)
+    {
+    }
+
+    virtual float evaluate(float) const 
+    {
+        return m_value;
+    }
+    
+private:
+    float m_value;
+};
+
+class CalcExpressionLength : public CalcExpressionNode {
+public:
+    explicit CalcExpressionLength(Length length)
+        : m_length(length)
+    {
+    }
+
+    virtual float evaluate(float maxValue) const
+    {
+        return floatValueForLength(m_length, maxValue);
+    }
+    
+private:
+    Length m_length;
+};
+
+class CalcExpressionBinaryOperation : public CalcExpressionNode {
+public:
+    CalcExpressionBinaryOperation(PassOwnPtr<CalcExpressionNode> leftSide, PassOwnPtr<CalcExpressionNode> rightSide, CalcOperator op)
+        : m_leftSide(leftSide)
+        , m_rightSide(rightSide)
+        , m_operator(op)
+    {
+    }
+
+    virtual float evaluate(float) const;
+
+private:
+    OwnPtr<CalcExpressionNode> m_leftSide;
+    OwnPtr<CalcExpressionNode> m_rightSide;
+    CalcOperator m_operator;
 };
 
 } // namespace WebCore

@@ -56,6 +56,10 @@ bool RuntimeEnabledFeatures::isDeviceMotionEnabled = true;
 bool RuntimeEnabledFeatures::isDeviceOrientationEnabled = true;
 bool RuntimeEnabledFeatures::isSpeechInputEnabled = true;
 
+#if ENABLE(SCRIPTED_SPEECH)
+bool RuntimeEnabledFeatures::isScriptedSpeechEnabled = false;
+#endif
+
 #if ENABLE(MEDIA_STREAM)
 bool RuntimeEnabledFeatures::isMediaStreamEnabled = true;
 #endif
@@ -184,4 +188,7 @@ bool RuntimeEnabledFeatures::isMediaSourceEnabled = false;
 bool RuntimeEnabledFeatures::isShadowDOMEnabled = false;
 #endif
 
+#if ENABLE(STYLE_SCOPED)
+bool RuntimeEnabledFeatures::isStyleScopedEnabled = false;
+#endif
 } // namespace WebCore

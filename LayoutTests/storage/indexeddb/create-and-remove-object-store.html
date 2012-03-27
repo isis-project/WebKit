@@ -4,17 +4,14 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's create and removeObjectStore");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('create-and-remove-object-store')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('create-and-remove-object-store')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -22,7 +19,7 @@ function test()
 function openSuccess()
 {
     debug("openSuccess():");
-    window.db = evalAndLog("db = event.target.result");
+    self.db = evalAndLog("db = event.target.result");
     testCreateAndRemove();
     request = evalAndLog("result = db.setVersion('version 1')");
     request.onsuccess = cleanDatabase;
@@ -33,9 +30,9 @@ function openSuccess()
 function testCreateAndRemove()
 {
     debug("Trying create");
-    evalAndExpectException('db.createObjectStore("some os")', "webkitIDBDatabaseException.NOT_ALLOWED_ERR");
+    evalAndExpectException('db.createObjectStore("some os")', "IDBDatabaseException.NOT_ALLOWED_ERR");
     debug("Trying remove");
-    evalAndExpectException('db.deleteObjectStore("some os")', "webkitIDBDatabaseException.NOT_ALLOWED_ERR");
+    evalAndExpectException('db.deleteObjectStore("some os")', "IDBDatabaseException.NOT_ALLOWED_ERR");
 }
 
 function cleanDatabase()
@@ -43,8 +40,12 @@ function cleanDatabase()
     deleteAllObjectStores(db);
 
     os = evalAndLog("db.createObjectStore('tmp')");
-    evalAndExpectException("db.createObjectStore('tmp')", "webkitIDBDatabaseException.CONSTRAINT_ERR");
+    evalAndExpectException("db.createObjectStore('tmp')", "IDBDatabaseException.CONSTRAINT_ERR");
+    event.target.result.oncomplete = setVersionComplete;
+}
 
+function setVersionComplete()
+{
     trans = evalAndLog("trans = db.transaction(['tmp'])");
     request = evalAndLog("trans.objectStore('tmp').get(0)");
     request.onsuccess = tryOnceMore;
@@ -58,16 +59,17 @@ function tryOnceMore()
     testCreateAndRemove();
 
     debug("Trying create with store that already exists");
-    evalAndExpectException("db.createObjectStore('tmp')", "webkitIDBDatabaseException.NOT_ALLOWED_ERR");
+    evalAndExpectException("db.createObjectStore('tmp')", "IDBDatabaseException.NOT_ALLOWED_ERR");
     debug("Trying remove with store that already exists");
-    evalAndExpectException("db.deleteObjectStore('tmp')", "webkitIDBDatabaseException.NOT_ALLOWED_ERR");
+    evalAndExpectException("db.deleteObjectStore('tmp')", "IDBDatabaseException.NOT_ALLOWED_ERR");
 
-    done();
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

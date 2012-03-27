@@ -35,6 +35,7 @@
 #include "ChromeClientChromium.h"
 #include "PopupMenu.h"
 #include "SearchPopupMenu.h"
+#include "WebNavigationPolicy.h"
 
 namespace WebCore {
 class AccessibilityObject;
@@ -136,8 +137,6 @@ public:
     virtual void reachedMaxAppCacheSize(int64_t spaceNeeded);
     virtual void reachedApplicationCacheOriginQuota(WebCore::SecurityOrigin*, int64_t totalSpaceNeeded);
     virtual bool paintCustomOverhangArea(WebCore::GraphicsContext*, const WebCore::IntRect&, const WebCore::IntRect&, const WebCore::IntRect&);
-    virtual void requestGeolocationPermissionForFrame(WebCore::Frame*, WebCore::Geolocation*);
-    virtual void cancelGeolocationPermissionRequestForFrame(WebCore::Frame*, WebCore::Geolocation*);
 #if ENABLE(INPUT_COLOR)
     virtual PassOwnPtr<WebCore::ColorChooser> createColorChooser(WebCore::ColorChooserClient*, const WebCore::Color&) OVERRIDE;
 #endif
@@ -189,6 +188,7 @@ public:
 
     // ChromeClientImpl:
     void setCursorForPlugin(const WebCursorInfo&);
+    void setNewWindowNavigationPolicy(WebNavigationPolicy);
 
     virtual bool selectItemWritingDirectionIsNatural();
     virtual bool selectItemAlignmentFollowsMenuWritingDirection();
@@ -196,14 +196,11 @@ public:
     virtual PassRefPtr<WebCore::PopupMenu> createPopupMenu(WebCore::PopupMenuClient*) const;
     virtual PassRefPtr<WebCore::SearchPopupMenu> createSearchPopupMenu(WebCore::PopupMenuClient*) const;
 
-#if ENABLE(CONTEXT_MENUS)
-    virtual void showContextMenu() { }
-#endif
-
     virtual bool shouldRunModalDialogDuringPageDismissal(const DialogType&, const String& dialogMessage, WebCore::FrameLoader::PageDismissalType) const;
 
     virtual bool shouldRubberBandInDirection(WebCore::ScrollDirection) const;
     virtual void numWheelEventHandlersChanged(unsigned);
+    virtual void numTouchEventHandlersChanged(unsigned);
 
 #if ENABLE(POINTER_LOCK)
     virtual bool requestPointerLock();
@@ -212,6 +209,7 @@ public:
 #endif
 
 private:
+    WebNavigationPolicy getNavigationPolicy();
     void getPopupMenuInfo(WebCore::PopupContainer*, WebPopupMenuInfo*);
     void setCursor(const WebCursorInfo&);
 
@@ -221,6 +219,9 @@ private:
     bool m_scrollbarsVisible;
     bool m_menubarVisible;
     bool m_resizable;
+
+    // The policy for how the next webview to be created will be shown.
+    WebNavigationPolicy m_nextNewWindowNavigationPolicy;
 };
 
 } // namespace WebKit

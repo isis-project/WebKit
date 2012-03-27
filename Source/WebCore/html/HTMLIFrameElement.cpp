@@ -48,11 +48,11 @@ PassRefPtr<HTMLIFrameElement> HTMLIFrameElement::create(const QualifiedName& tag
     return adoptRef(new HTMLIFrameElement(tagName, document));
 }
 
-bool HTMLIFrameElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLIFrameElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == widthAttr || attr->name() == heightAttr || attr->name() == alignAttr || attr->name() == frameborderAttr)
+    if (name == widthAttr || name == heightAttr || name == alignAttr || name == frameborderAttr)
         return true;
-    return HTMLFrameElementBase::isPresentationAttribute(attr);
+    return HTMLFrameElementBase::isPresentationAttribute(name);
 }
 
 void HTMLIFrameElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
@@ -68,7 +68,7 @@ void HTMLIFrameElement::collectStyleForAttribute(Attribute* attr, StylePropertyS
         // a presentational hint that the border should be off if set to zero.
         if (!attr->isNull() && !attr->value().toInt()) {
             // Add a rule that nulls out our border width.
-            addHTMLLengthToStyle(style, CSSPropertyBorderWidth, "0"); // FIXME: Pass as integer.
+            addPropertyToAttributeStyle(style, CSSPropertyBorderWidth, 0, CSSPrimitiveValue::CSS_PX);
         }
     } else
         HTMLFrameElementBase::collectStyleForAttribute(attr, style);

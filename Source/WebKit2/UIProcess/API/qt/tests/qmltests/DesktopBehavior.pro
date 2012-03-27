@@ -3,7 +3,7 @@ SOURCES += tst_qmltests.cpp
 TARGET = tst_qmltests_DesktopBehavior
 OBJECTS_DIR = obj_DesktopBehavior/$$activeBuildConfig()
 
-CONFIG += qtwebkit-private
+QT += webkit-private
 CONFIG += warn_on testcase
 
 QT -= testlib
@@ -19,4 +19,5 @@ OTHER_FILES += \
     DesktopBehavior/tst_linkHovered.qml \
     DesktopBehavior/tst_loadHtml.qml \
     DesktopBehavior/tst_messaging.qml \
-    DesktopBehavior/tst_navigationRequested.qml
+    DesktopBehavior/tst_navigationRequested.qml \
+    DesktopBehavior/tst_singlefileupload.qml

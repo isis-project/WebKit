@@ -95,6 +95,7 @@ typedef void (*WKBundlePageDidRunInsecureContentForFrameCallback)(WKBundlePageRe
 typedef void (*WKBundlePageDidDetectXSSForFrameCallback)(WKBundlePageRef page, WKBundleFrameRef frame, WKTypeRef* userData, const void *clientInfo);
 typedef void (*WKBundlePageDidFirstLayoutForFrameCallback)(WKBundlePageRef page, WKBundleFrameRef frame, WKTypeRef* userData, const void *clientInfo);
 typedef void (*WKBundlePageDidFirstVisuallyNonEmptyLayoutForFrameCallback)(WKBundlePageRef page, WKBundleFrameRef frame, WKTypeRef* userData, const void *clientInfo);
+typedef void (*WKBundlePageDidNewFirstVisuallyNonEmptyLayoutCallback)(WKBundlePageRef page, WKTypeRef* userData, const void *clientInfo);
 typedef void (*WKBundlePageDidLayoutForFrameCallback)(WKBundlePageRef page, WKBundleFrameRef frame, const void* clientInfo);
 typedef void (*WKBundlePageDidClearWindowObjectForFrameCallback)(WKBundlePageRef page, WKBundleFrameRef frame, WKBundleScriptWorldRef world, const void *clientInfo);
 typedef void (*WKBundlePageDidCancelClientRedirectForFrameCallback)(WKBundlePageRef page, WKBundleFrameRef frame, const void *clientInfo);
@@ -127,6 +128,7 @@ struct WKBundlePageLoaderClient {
 
     // Version 1.
     WKBundlePageDidLayoutForFrameCallback                               didLayoutForFrame;
+    WKBundlePageDidNewFirstVisuallyNonEmptyLayoutCallback               didNewFirstVisuallyNonEmptyLayout;
     WKBundlePageDidDetectXSSForFrameCallback                            didDetectXSSForFrame;
 };
 typedef struct WKBundlePageLoaderClient WKBundlePageLoaderClient;
@@ -301,17 +303,25 @@ enum { kWKBundlePageContextMenuClientCurrentVersion = 0 };
 typedef bool (*WKBundlePageSupportsFullScreen)(WKBundlePageRef page, WKFullScreenKeyboardRequestType requestType);
 typedef void (*WKBundlePageEnterFullScreenForElement)(WKBundlePageRef page, WKBundleNodeHandleRef element);
 typedef void (*WKBundlePageExitFullScreenForElement)(WKBundlePageRef page, WKBundleNodeHandleRef element);
+typedef void (*WKBundlePageBeganEnterFullScreen)(WKBundlePageRef page, WKRect initialFrame, WKRect finalFrame);
+typedef void (*WKBundlePageBeganExitFullScreen)(WKBundlePageRef page, WKRect initialFrame, WKRect finalFrame);
 
 struct WKBundlePageFullScreenClient {
     int                                                                 version;
     const void *                                                        clientInfo;
+
+    // Version 0:
     WKBundlePageSupportsFullScreen                                      supportsFullScreen;
     WKBundlePageEnterFullScreenForElement                               enterFullScreenForElement;
     WKBundlePageExitFullScreenForElement                                exitFullScreenForElement;
+
+    // Version 1:
+    WKBundlePageBeganEnterFullScreen                                    beganEnterFullScreen;
+    WKBundlePageBeganExitFullScreen                                     beganExitFullScreen;
 };
 typedef struct WKBundlePageFullScreenClient WKBundlePageFullScreenClient;
 
-enum { kWKBundlePageFullScreenClientCurrentVersion = 0 };
+enum { kWKBundlePageFullScreenClientCurrentVersion = 1 };
 
 WK_EXPORT void WKBundlePageWillEnterFullScreen(WKBundlePageRef page);
 WK_EXPORT void WKBundlePageDidEnterFullScreen(WKBundlePageRef page);

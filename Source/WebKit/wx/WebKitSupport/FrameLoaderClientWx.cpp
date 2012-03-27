@@ -58,6 +58,9 @@
 #include <wtf/RefPtr.h>
 
 #include <stdio.h>
+#if OS(UNIX)
+#include <sys/utsname.h>
+#endif
 
 #include "FrameNetworkingContextWx.h"
 #include "WebFrame.h"
@@ -898,14 +901,6 @@ PassRefPtr<Frame> FrameLoaderClientWx::createFrame(const KURL& url, const String
         return 0;
     
     return childFrame.release();
-}
-
-void FrameLoaderClientWx::didTransferChildFrameToNewDocument(Page*)
-{
-}
-
-void FrameLoaderClientWx::transferLoadingResourceFromPage(ResourceLoader*, const ResourceRequest&, Page*)
-{
 }
 
 ObjectContentType FrameLoaderClientWx::objectContentType(const KURL& url, const String& mimeType, bool shouldPreferPlugInsForImages)

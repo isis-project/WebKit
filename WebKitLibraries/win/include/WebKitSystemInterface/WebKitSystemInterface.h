@@ -222,7 +222,13 @@ typedef enum {
     WKMediaUIPartControlsPanel,
     WKMediaUIPartVolumeSliderContainer,
     WKMediaUIPartVolumeSlider,
-    WKMediaUIPartVolumeSliderThumb
+    WKMediaUIPartVolumeSliderThumb,
+    WKMediaUIPartFullScreenVolumeSlider,
+    WKMediaUIPartFullScreenVolumeSliderThumb,
+    WKMediaUIPartVolumeSliderMuteButton,
+    WKMediaUIPartTextTrackDisplayContainer,
+    WKMediaUIPartTextTrackDisplay,
+    WKMediaUIPartExitFullscreenButton,
 } WKMediaUIPart;
 
 typedef enum {

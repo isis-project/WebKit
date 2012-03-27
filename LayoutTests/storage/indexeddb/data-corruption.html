@@ -4,17 +4,14 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test that data inserted into IndexedDB does not get corrupted on disk.");
-if (window.layoutTestController) 
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('data-corruption')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('data-corruption')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -22,7 +19,7 @@ function test()
 function openSuccess()
 {
     debug("openSuccess():");
-    window.db = evalAndLog("db = event.target.result");
+    self.db = evalAndLog("db = event.target.result");
 
     request = evalAndLog("db.setVersion('new version')");
     request.onsuccess = setVersionSuccess;
@@ -32,7 +29,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = addData;
@@ -47,7 +44,7 @@ var testDate = new Date('February 24, 1955 12:00:08');
 function addData()
 {
     debug("addData():");
-    var transaction = evalAndLog("transaction = db.transaction(['storeName'], webkitIDBTransaction.READ_WRITE)");
+    var transaction = evalAndLog("transaction = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
     var request = evalAndLog("request = transaction.objectStore('storeName').add({x: testDate}, 'key')");
     request.onerror = unexpectedErrorCallback;
     transaction.oncomplete = getData;
@@ -56,7 +53,7 @@ function addData()
 function getData()
 {
     debug("addData():");
-    var transaction = evalAndLog("transaction = db.transaction(['storeName'], webkitIDBTransaction.READ_ONLY)");
+    var transaction = evalAndLog("transaction = db.transaction(['storeName'], IDBTransaction.READ_ONLY)");
     var request = evalAndLog("request = transaction.objectStore('storeName').get('key')");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = doCheck;
@@ -65,12 +62,13 @@ function getData()
 function doCheck()
 {
     shouldBeTrue("event.target.result.x.toString() == testDate.toString()");
-    done();
+    finishJSTest();
 }
 
 test();
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>
