@@ -828,6 +828,16 @@ void PluginView::setNPWindowIfNeeded()
         m_npWindow.height = m_windowRect.height();
     }
 
+#if defined(XP_WEBOS)
+    NpPalmWindow palmWindow;
+
+    palmWindow.visible = true;
+    palmWindow.bpp = 32;
+    palmWindow.scaleFactor = 1;
+
+    m_npWindow.window = (void *)&palmWindow;
+#endif
+
     PluginView::setCurrentPluginView(this);
 #if USE(JSC)
     JSC::JSLock::DropAllLocks dropAllLocks(JSC::SilenceAssertionsOnly);
