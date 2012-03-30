@@ -40,10 +40,10 @@
 #include "RenderMediaControls.h"
 #include "RenderSlider.h"
 #include "RenderView.h"
-#include "RetainPtr.h"
 #include "SoftLinking.h"
 #include "cssstyleselector.h"
 #include <CoreGraphics/CoreGraphics.h>
+#include <wtf/RetainPtr.h>
  
 using std::min;
 
@@ -1165,7 +1165,7 @@ bool RenderThemeSafari::paintSearchFieldResultsButton(RenderObject* o, const Pai
 #if ENABLE(VIDEO)
 bool RenderThemeSafari::paintMediaFullscreenButton(RenderObject* o, const PaintInfo& paintInfo, const IntRect& r)
 {
-    return RenderMediaControls::paintMediaControlsPart(MediaFullscreenButton, o, paintInfo, r);
+    return RenderMediaControls::paintMediaControlsPart(MediaEnterFullscreenButton, o, paintInfo, r);
 }
 
 bool RenderThemeSafari::paintMediaMuteButton(RenderObject* o, const PaintInfo& paintInfo, const IntRect& r)

@@ -22,23 +22,32 @@ text.appendChild(animate);
 // Setup animation test
 function sample1() {
     shouldBe("text.x.animVal.numberOfItems", "1");
-    shouldBe("text.x.animVal.getItem(0).value", "50");
+    shouldBeCloseEnough("text.x.animVal.getItem(0).value", "50");
+
+    shouldBe("text.x.baseVal.numberOfItems", "1");
+    shouldBe("text.x.baseVal.getItem(0).value", "50");
 }
 
 function sample2() {
     shouldBe("text.x.animVal.numberOfItems", "4");
-    shouldBeCloseEnough("text.x.animVal.getItem(0).value", "70", 0.01);
-    shouldBeCloseEnough("text.x.animVal.getItem(1).value", "80", 0.01);
-    shouldBeCloseEnough("text.x.animVal.getItem(2).value", "90", 0.01);
-    shouldBeCloseEnough("text.x.animVal.getItem(3).value", "110", 0.01);
+    shouldBeCloseEnough("text.x.animVal.getItem(0).value", "70");
+    shouldBeCloseEnough("text.x.animVal.getItem(1).value", "80");
+    shouldBeCloseEnough("text.x.animVal.getItem(2).value", "90");
+    shouldBeCloseEnough("text.x.animVal.getItem(3).value", "110");
+
+    shouldBe("text.x.baseVal.numberOfItems", "1");
+    shouldBe("text.x.baseVal.getItem(0).value", "50");
 }
 
 function sample3() {
     shouldBe("text.x.animVal.numberOfItems", "4");
-    shouldBeCloseEnough("text.x.animVal.getItem(0).value", "70", 0.01);
-    shouldBeCloseEnough("text.x.animVal.getItem(1).value", "80", 0.01);
-    shouldBeCloseEnough("text.x.animVal.getItem(2).value", "90", 0.01);
-    shouldBeCloseEnough("text.x.animVal.getItem(3).value", "110", 0.01);
+    shouldBeCloseEnough("text.x.animVal.getItem(0).value", "70");
+    shouldBeCloseEnough("text.x.animVal.getItem(1).value", "80");
+    shouldBeCloseEnough("text.x.animVal.getItem(2).value", "90");
+    shouldBeCloseEnough("text.x.animVal.getItem(3).value", "110");
+
+    shouldBe("text.x.baseVal.numberOfItems", "1");
+    shouldBe("text.x.baseVal.getItem(0).value", "50");
 }
 
 function executeTest() {
@@ -47,7 +56,7 @@ function executeTest() {
         ["animation", 0.0,   sample1],
         ["animation", 2.0,   sample2],
         ["animation", 3.999, sample3],
-        ["animation", 4.0,   sample1]
+        ["animation", 4.001, sample1]
     ];
 
     runAnimationTest(expectedValues);

@@ -195,7 +195,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
         printf("UI DELEGATE STATUS CALLBACK: setStatusText:%s\n", [text UTF8String]);
 }
 
-- (void)webView:(WebView *)webView decidePolicyForGeolocationRequestFromOrigin:(WebSecurityOrigin *)origin frame:(WebFrame *)frame listener:(id<WebGeolocationPolicyListener>)listener
+- (void)webView:(WebView *)webView decidePolicyForGeolocationRequestFromOrigin:(WebSecurityOrigin *)origin frame:(WebFrame *)frame listener:(id<WebAllowDenyPolicyListener>)listener
 {
     if (!gLayoutTestController->isGeolocationPermissionSet()) {
         if (!m_pendingGeolocationPermissionListeners)
@@ -230,7 +230,7 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
     ASSERT(gLayoutTestController->isGeolocationPermissionSet());
     m_timer = 0;
     NSEnumerator* enumerator = [m_pendingGeolocationPermissionListeners objectEnumerator];
-    id<WebGeolocationPolicyListener> listener;
+    id<WebAllowDenyPolicyListener> listener;
     while ((listener = [enumerator nextObject])) {
         if (gLayoutTestController->geolocationPermission())
             [listener allow];
@@ -252,16 +252,26 @@ DumpRenderTreeDraggingInfo *draggingInfo = nil;
     return YES;
 }
 
-- (void)webView:(WebView *)webView enterFullScreenForElement:(DOMElement*)element listener:(NSObject<WebKitFullScreenListener>*)listener
+- (void)enterFullScreenWithListener:(NSObject<WebKitFullScreenListener>*)listener
 {
     [listener webkitWillEnterFullScreen];
     [listener webkitDidEnterFullScreen];
 }
 
-- (void)webView:(WebView *)webView exitFullScreenForElement:(DOMElement*)element listener:(NSObject<WebKitFullScreenListener>*)listener
+- (void)webView:(WebView *)webView enterFullScreenForElement:(DOMElement*)element listener:(NSObject<WebKitFullScreenListener>*)listener
+{
+    [self performSelector:@selector(enterFullScreenWithListener:) withObject:listener afterDelay:0];
+}
+
+- (void)exitFullScreenWithListener:(NSObject<WebKitFullScreenListener>*)listener
 {
     [listener webkitWillExitFullScreen];
     [listener webkitDidExitFullScreen];
+}
+
+- (void)webView:(WebView *)webView exitFullScreenForElement:(DOMElement*)element listener:(NSObject<WebKitFullScreenListener>*)listener
+{
+    [self performSelector:@selector(exitFullScreenWithListener:) withObject:listener afterDelay:0];
 }
 
 - (BOOL)webView:(WebView *)webView didPressMissingPluginButton:(DOMElement *)element

@@ -24,14 +24,16 @@
 
 #include "BytecodeGenerator.h"
 #include "Completion.h"
-#include "CurrentTime.h"
+#include <wtf/CurrentTime.h>
 #include "ExceptionHelpers.h"
 #include "InitializeThreading.h"
+#include "Interpreter.h"
 #include "JSArray.h"
+#include "JSCTypedArrayStubs.h"
 #include "JSFunction.h"
 #include "JSLock.h"
 #include "JSString.h"
-#include "MainThread.h"
+#include <wtf/MainThread.h>
 #include "SamplingTool.h"
 #include <math.h>
 #include <stdio.h>
@@ -78,6 +80,7 @@ static bool fillBufferWithContentsOfFile(const UString& fileName, Vector<char>& 
 
 static EncodedJSValue JSC_HOST_CALL functionPrint(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionDebug(ExecState*);
+static EncodedJSValue JSC_HOST_CALL functionJSCStack(ExecState*);
 static EncodedJSValue JSC_HOST_CALL functionGC(ExecState*);
 #ifndef NDEBUG
 static EncodedJSValue JSC_HOST_CALL functionReleaseExecutableMemory(ExecState*);
@@ -184,16 +187,28 @@ protected:
         addFunction(globalData, "run", functionRun, 1);
         addFunction(globalData, "load", functionLoad, 1);
         addFunction(globalData, "checkSyntax", functionCheckSyntax, 1);
+        addFunction(globalData, "jscStack", functionJSCStack, 1);
         addFunction(globalData, "readline", functionReadline, 0);
         addFunction(globalData, "preciseTime", functionPreciseTime, 0);
 #if ENABLE(SAMPLING_FLAGS)
         addFunction(globalData, "setSamplingFlags", functionSetSamplingFlags, 1);
         addFunction(globalData, "clearSamplingFlags", functionClearSamplingFlags, 1);
 #endif
+        
+#if ENABLE(COMMANDLINE_TYPEDARRAYS)
+        addConstructableFunction(globalData, "Uint8Array", constructJSUint8Array, 1);
+        addConstructableFunction(globalData, "Uint16Array", constructJSUint16Array, 1);
+        addConstructableFunction(globalData, "Uint32Array", constructJSUint32Array, 1);
+        addConstructableFunction(globalData, "Int8Array", constructJSInt8Array, 1);
+        addConstructableFunction(globalData, "Int16Array", constructJSInt16Array, 1);
+        addConstructableFunction(globalData, "Int32Array", constructJSInt32Array, 1);
+        addConstructableFunction(globalData, "Float32Array", constructJSFloat32Array, 1);
+        addConstructableFunction(globalData, "Float64Array", constructJSFloat64Array, 1);
+#endif
 
-        JSObject* array = constructEmptyArray(globalExec());
+        JSArray* array = constructEmptyArray(globalExec());
         for (size_t i = 0; i < arguments.size(); ++i)
-            array->methodTable()->putByIndex(array, globalExec(), i, jsString(globalExec(), arguments[i]));
+            array->putDirectIndex(globalExec(), i, jsString(globalExec(), arguments[i]), false);
         putDirect(globalData, Identifier(globalExec(), "arguments"), array);
     }
 
@@ -201,6 +216,12 @@ protected:
     {
         Identifier identifier(globalExec(), name);
         putDirect(globalData, identifier, JSFunction::create(globalExec(), this, arguments, identifier, function));
+    }
+    
+    void addConstructableFunction(JSGlobalData& globalData, const char* name, NativeFunction function, unsigned arguments)
+    {
+        Identifier identifier(globalExec(), name);
+        putDirect(globalData, identifier, JSFunction::create(globalExec(), this, arguments, identifier, function, NoIntrinsic, function));
     }
 };
 COMPILE_ASSERT(!IsInteger<GlobalObject>::value, WTF_IsInteger_GlobalObject_false);
@@ -249,6 +270,22 @@ EncodedJSValue JSC_HOST_CALL functionPrint(ExecState* exec)
 EncodedJSValue JSC_HOST_CALL functionDebug(ExecState* exec)
 {
     fprintf(stderr, "--> %s\n", exec->argument(0).toString(exec)->value(exec).utf8().data());
+    return JSValue::encode(jsUndefined());
+}
+
+EncodedJSValue JSC_HOST_CALL functionJSCStack(ExecState* exec)
+{
+    String trace = "--> Stack trace:\n";
+    Vector<StackFrame> stackTrace;
+    Interpreter::getStackTrace(&exec->globalData(), -1, stackTrace);
+    int i = 0;
+
+    for (Vector<StackFrame>::iterator iter = stackTrace.begin(); iter < stackTrace.end(); iter++) {
+        StackFrame level = *iter;
+        trace += String::format("    %i   %s\n", i, level.toString(exec).utf8().data());
+        i++;
+    }
+    fprintf(stderr, "%s", trace.utf8().data());
     return JSValue::encode(jsUndefined());
 }
 

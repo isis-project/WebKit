@@ -27,6 +27,7 @@
 #include "BooleanPrototype.h"
 #include "Error.h"
 #include "ExceptionHelpers.h"
+#include "GetterSetter.h"
 #include "JSGlobalObject.h"
 #include "JSFunction.h"
 #include "JSNotAnObject.h"
@@ -90,22 +91,13 @@ JSObject* JSValue::toThisObjectSlowCase(ExecState* exec) const
     return exec->globalThisValue();
 }
 
-JSObject* JSValue::synthesizeObject(ExecState* exec) const
-{
-    ASSERT(!isCell());
-    if (isNumber())
-        return constructNumber(exec, exec->lexicalGlobalObject(), asValue());
-    if (isBoolean())
-        return constructBooleanFromImmediateBoolean(exec, exec->lexicalGlobalObject(), asValue());
-
-    ASSERT(isUndefinedOrNull());
-    throwError(exec, createNotAnObjectError(exec, *this));
-    return JSNotAnObject::create(exec);
-}
-
 JSObject* JSValue::synthesizePrototype(ExecState* exec) const
 {
-    ASSERT(!isCell());
+    if (isCell()) {
+        ASSERT(isString());
+        return exec->lexicalGlobalObject()->stringPrototype();
+    }
+
     if (isNumber())
         return exec->lexicalGlobalObject()->numberPrototype();
     if (isBoolean())
@@ -116,9 +108,73 @@ JSObject* JSValue::synthesizePrototype(ExecState* exec) const
     return JSNotAnObject::create(exec);
 }
 
+// ECMA 8.7.2
+void JSValue::putToPrimitive(ExecState* exec, const Identifier& propertyName, JSValue value, PutPropertySlot& slot)
+{
+    JSGlobalData& globalData = exec->globalData();
+
+    // Check if there are any setters or getters in the prototype chain
+    JSObject* obj = synthesizePrototype(exec);
+    JSValue prototype;
+    if (propertyName != exec->propertyNames().underscoreProto) {
+        for (; !obj->structure()->hasReadOnlyOrGetterSetterPropertiesExcludingProto(); obj = asObject(prototype)) {
+            prototype = obj->prototype();
+            if (prototype.isNull()) {
+                if (slot.isStrictMode())
+                    throwTypeError(exec, StrictModeReadonlyPropertyWriteError);
+                return;
+            }
+        }
+    }
+
+    for (; ; obj = asObject(prototype)) {
+        unsigned attributes;
+        JSCell* specificValue;
+        size_t offset = obj->structure()->get(globalData, propertyName, attributes, specificValue);
+        if (offset != WTF::notFound) {
+            if (attributes & ReadOnly) {
+                if (slot.isStrictMode())
+                    throwError(exec, createTypeError(exec, StrictModeReadonlyPropertyWriteError));
+                return;
+            }
+
+            JSValue gs = obj->getDirectOffset(offset);
+            if (gs.isGetterSetter()) {
+                JSObject* setterFunc = asGetterSetter(gs)->setter();        
+                if (!setterFunc) {
+                    if (slot.isStrictMode())
+                        throwError(exec, createTypeError(exec, "setting a property that has only a getter"));
+                    return;
+                }
+                
+                CallData callData;
+                CallType callType = setterFunc->methodTable()->getCallData(setterFunc, callData);
+                MarkedArgumentBuffer args;
+                args.append(value);
+
+                // If this is WebCore's global object then we need to substitute the shell.
+                call(exec, setterFunc, callType, callData, *this, args);
+                return;
+            }
+
+            // If there's an existing property on the object or one of its 
+            // prototypes it should be replaced, so break here.
+            break;
+        }
+
+        prototype = obj->prototype();
+        if (prototype.isNull())
+            break;
+    }
+    
+    if (slot.isStrictMode())
+        throwTypeError(exec, StrictModeReadonlyPropertyWriteError);
+    return;
+}
+
 char* JSValue::description()
 {
-    static const size_t size = 64;
+    static const size_t size = 128;
     static char description[size];
 
     if (!*this)
@@ -127,14 +183,14 @@ char* JSValue::description()
         snprintf(description, size, "Int32: %d", asInt32());
     else if (isDouble()) {
 #if USE(JSVALUE64)
-        snprintf(description, size, "Double: %lf, %lx", asDouble(), reinterpretDoubleToIntptr(asDouble()));
+        snprintf(description, size, "Double: %lx, %lf", reinterpretDoubleToIntptr(asDouble()), asDouble());
 #else
         union {
             double asDouble;
             uint32_t asTwoInt32s[2];
         } u;
         u.asDouble = asDouble();
-        snprintf(description, size, "Double: %lf, %08x:%08x", asDouble(), u.asTwoInt32s[1], u.asTwoInt32s[0]);
+        snprintf(description, size, "Double: %08x:%08x, %lf", u.asTwoInt32s[1], u.asTwoInt32s[0], asDouble());
 #endif
     } else if (isCell())
         snprintf(description, size, "Cell: %p", asCell());
@@ -204,19 +260,20 @@ bool JSValue::isValidCallee()
 
 JSString* JSValue::toStringSlowCase(ExecState* exec) const
 {
+    JSGlobalData& globalData = exec->globalData();
     ASSERT(!isString());
     if (isInt32())
-        return jsString(&exec->globalData(), exec->globalData().numericStrings.add(asInt32()));
+        return jsString(&globalData, globalData.numericStrings.add(asInt32()));
     if (isDouble())
-        return jsString(&exec->globalData(), exec->globalData().numericStrings.add(asDouble()));
+        return jsString(&globalData, globalData.numericStrings.add(asDouble()));
     if (isTrue())
-        return jsNontrivialString(exec, exec->propertyNames().trueKeyword.ustring());
+        return globalData.smallStrings.trueString(&globalData);
     if (isFalse())
-        return jsNontrivialString(exec, exec->propertyNames().falseKeyword.ustring());
+        return globalData.smallStrings.falseString(&globalData);
     if (isNull())
-        return jsNontrivialString(exec, exec->propertyNames().nullKeyword.ustring());
+        return globalData.smallStrings.nullString(&globalData);
     if (isUndefined())
-        return jsNontrivialString(exec, exec->propertyNames().undefined.ustring());
+        return globalData.smallStrings.undefinedString(&globalData);
 
     ASSERT(isCell());
     JSValue value = asCell()->toPrimitive(exec, PreferString);

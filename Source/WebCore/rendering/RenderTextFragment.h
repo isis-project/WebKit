@@ -39,6 +39,8 @@ public:
 
     virtual bool isTextFragment() const { return true; }
 
+    virtual bool canBeSelectionLeaf() const OVERRIDE { return node() && node()->rendererIsEditable(); }
+
     unsigned start() const { return m_start; }
     unsigned end() const { return m_end; }
 
@@ -62,6 +64,7 @@ private:
     unsigned m_end;
     RefPtr<StringImpl> m_contentString;
     RenderObject* m_firstLetter;
+    bool m_allowFragmentReset;
 };
 
 inline RenderTextFragment* toRenderTextFragment(RenderObject* object)

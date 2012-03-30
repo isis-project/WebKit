@@ -33,7 +33,10 @@ class Frame;
 class DOMWindowProperty {
 public:
     explicit DOMWindowProperty(Frame*);
+
     virtual void disconnectFrame();
+    virtual void reconnectFrame(Frame*);
+    virtual void willDetachPage();
 
     Frame* frame() const { return m_frame; }
 

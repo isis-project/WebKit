@@ -32,6 +32,7 @@
 #import "FrameView.h"
 #import "Page.h"
 #import "ScrollingThread.h"
+#import "ScrollingTree.h"
 #import "ScrollingTreeState.h"
 #import <QuartzCore/QuartzCore.h>
 #import <wtf/Functional.h>
@@ -41,6 +42,20 @@
 #import <wtf/Vector.h>
 
 namespace WebCore {
+
+class ScrollingCoordinatorPrivate {
+};
+
+PassRefPtr<ScrollingCoordinator> ScrollingCoordinator::create(Page* page)
+{
+    return adoptRef(new ScrollingCoordinator(page));
+}
+
+ScrollingCoordinator::~ScrollingCoordinator()
+{
+    ASSERT(!m_page);
+    ASSERT(!m_scrollingTree);
+}
 
 void ScrollingCoordinator::frameViewHorizontalScrollbarLayerDidChange(FrameView* frameView, GraphicsLayer*)
 {
@@ -62,18 +77,6 @@ void ScrollingCoordinator::frameViewVerticalScrollbarLayerDidChange(FrameView* f
         return;
 
     // FIXME: Implement.
-}
-
-void ScrollingCoordinator::frameViewScrollLayerDidChange(FrameView* frameView, const GraphicsLayer* scrollLayer)
-{
-    ASSERT(isMainThread());
-    ASSERT(m_page);
-
-    if (frameView->frame() != m_page->mainFrame())
-        return;
-
-    m_scrollingTreeState->setScrollLayer(scrollLayer);
-    scheduleTreeStateCommit();
 }
 
 } // namespace WebCore

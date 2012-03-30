@@ -125,9 +125,6 @@ namespace WebKit {
 #endif
         virtual void reachedMaxAppCacheSize(int64_t spaceNeeded);
         virtual void reachedApplicationCacheOriginQuota(SecurityOrigin*, int64_t totalSpaceNeeded);
-#if ENABLE(CONTEXT_MENUS)
-        virtual void showContextMenu() { }
-#endif
         virtual void runOpenPanel(Frame*, PassRefPtr<FileChooser>);
         virtual void loadIconForFiles(const Vector<WTF::String>&, FileIconLoader*);
 
@@ -137,8 +134,6 @@ namespace WebKit {
         virtual void setCursorHiddenUntilMouseMoves(bool);
 
         virtual void scrollRectIntoView(const IntRect&) const { }
-        virtual void requestGeolocationPermissionForFrame(Frame*, Geolocation*);
-        virtual void cancelGeolocationPermissionRequestForFrame(Frame*, Geolocation*);
 
         virtual bool selectItemWritingDirectionIsNatural();
         virtual bool selectItemAlignmentFollowsMenuWritingDirection();
@@ -155,10 +150,12 @@ namespace WebKit {
         virtual bool supportsFullScreenForElement(const Element*, bool withKeyboard);
         virtual void enterFullScreenForElement(Element*);
         virtual void exitFullScreenForElement(Element*);
+        void cancelFullScreen();
 #endif
 
         virtual bool shouldRubberBandInDirection(ScrollDirection) const { return true; }
         virtual void numWheelEventHandlersChanged(unsigned) { }
+        virtual void numTouchEventHandlersChanged(unsigned) { }
 
 #if USE(ACCELERATED_COMPOSITING) 
         virtual void attachRootGraphicsLayer(Frame*, GraphicsLayer*);
@@ -176,7 +173,6 @@ namespace WebKit {
         GtkAdjustmentWatcher m_adjustmentWatcher;
         KURL m_hoveredLinkURL;
         unsigned int m_closeSoonTimer;
-        GMainLoop* m_modalLoop;
 
         Timer <ChromeClient> m_displayTimer;
         Region m_dirtyRegion;
@@ -186,6 +182,9 @@ namespace WebKit {
         unsigned int m_repaintSoonSourceId;
 
         void invalidateWidgetRect(const IntRect&);
+#if ENABLE(FULLSCREEN_API)
+        RefPtr<Element> m_fullScreenElement;
+#endif
     };
 }
 

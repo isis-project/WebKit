@@ -33,6 +33,8 @@
 #include "Attr.h"
 #include "Attribute.h"
 #include "CDATASection.h"
+#include "CSSParser.h"
+#include "CSSStyleDeclaration.h"
 #include "CSSStyleSelector.h"
 #include "CSSStyleSheet.h"
 #include "CSSValueKeywords.h"
@@ -78,6 +80,7 @@
 #include "GeolocationController.h"
 #include "HashChangeEvent.h"
 #include "HistogramSupport.h"
+#include "History.h"
 #include "HTMLAllCollection.h"
 #include "HTMLAnchorElement.h"
 #include "HTMLBodyElement.h"
@@ -100,6 +103,7 @@
 #include "HitTestRequest.h"
 #include "HitTestResult.h"
 #include "ImageLoader.h"
+#include "InspectorCounters.h"
 #include "InspectorInstrumentation.h"
 #include "Logging.h"
 #include "MediaQueryList.h"
@@ -132,12 +136,13 @@
 #include "ScriptElement.h"
 #include "ScriptEventListener.h"
 #include "ScriptRunner.h"
+#include "ScrollingCoordinator.h"
 #include "SecurityOrigin.h"
 #include "SecurityPolicy.h"
 #include "SegmentedString.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
-#include "ShadowRootList.h"
+#include "ShadowTree.h"
 #include "StaticHashSetNodeList.h"
 #include "StyleSheetList.h"
 #include "TextResourceDecoder.h"
@@ -200,10 +205,6 @@
 #if ENABLE(MICRODATA)
 #include "MicroDataItemList.h"
 #include "NodeRareData.h"
-#endif
-
-#if ENABLE(THREADED_SCROLLING)
-#include "ScrollingCoordinator.h"
 #endif
 
 using namespace std;
@@ -379,7 +380,7 @@ private:
 uint64_t Document::s_globalTreeVersion = 0;
 
 Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
-    : ContainerNode(0)
+    : ContainerNode(0, CreateDocument)
     , TreeScope(this)
     , m_guardRefCount(0)
     , m_compatibilityMode(NoQuirksMode)
@@ -419,7 +420,6 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     , m_isHTML(isHTML)
     , m_isViewSource(false)
     , m_sawElementsInKnownNamespaces(false)
-    , m_usingGeolocation(false)
     , m_eventQueue(DocumentEventQueue::create(this))
     , m_weakReference(DocumentWeakReference::create(this))
     , m_idAttributeName(idAttr)
@@ -437,6 +437,7 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     , m_writeRecursionIsTooDeep(false)
     , m_writeRecursionDepth(0)
     , m_wheelEventHandlerCount(0)
+    , m_touchEventHandlerCount(0)
     , m_pendingTasksTimer(this, &Document::pendingTasksTimerFired)
 {
     m_document = this;
@@ -470,7 +471,6 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
 
     m_textColor = Color::black;
     m_listenerTypes = 0;
-    setInDocument();
     m_inStyleRecalc = false;
     m_closeAfterStyleRecalc = false;
 
@@ -506,9 +506,7 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     static int docID = 0;
     m_docID = docID++;
     
-#ifndef NDEBUG
-    m_updatingStyleSelector = false;
-#endif
+    InspectorCounters::incrementCounter(InspectorCounters::DocumentCounter);
 }
 
 static void histogramMutationEventUsage(const unsigned short& listenerTypes)
@@ -585,6 +583,8 @@ Document::~Document()
     // as well as Node. See a comment on TreeScope.h for the reason.
     if (hasRareData())
         clearRareData();
+
+    InspectorCounters::decrementCounter(InspectorCounters::DocumentCounter);
 }
 
 void Document::removedLastRef()
@@ -607,6 +607,7 @@ void Document::removedLastRef()
         m_documentElement = 0;
 #if ENABLE(FULLSCREEN_API)
         m_fullScreenElement = 0;
+        m_fullScreenElementStack.clear();
 #endif
 
         // removeAllChildren() doesn't always unregister IDs,
@@ -669,7 +670,7 @@ void Document::buildAccessKeyMap(TreeScope* scope)
             m_elementsByAccessKey.set(accessKey.impl(), element);
 
         if (element->hasShadowRoot()) {
-            for (ShadowRoot* root = element->shadowRootList()->youngestShadowRoot(); root; root = root->olderShadowRoot())
+            for (ShadowRoot* root = element->shadowTree()->youngestShadowRoot(); root; root = root->olderShadowRoot())
                 buildAccessKeyMap(root);
         }
     }
@@ -829,11 +830,7 @@ PassRefPtr<Node> Document::importNode(Node* importedNode, bool deep, ExceptionCo
 {
     ec = 0;
     
-    if (!importedNode
-#if ENABLE(SVG) && ENABLE(DASHBOARD_SUPPORT)
-        || (importedNode->isSVGElement() && page() && page()->settings()->usesDashboardBackwardCompatibilityMode())
-#endif
-        ) {
+    if (!importedNode) {
         ec = NOT_SUPPORTED_ERR;
         return 0;
     }
@@ -944,15 +941,14 @@ PassRefPtr<Node> Document::adoptNode(PassRefPtr<Node> source, ExceptionCode& ec)
         break;
     }       
     default:
+        // FIXME: What about <frame> and <object>?
         if (source->hasTagName(iframeTag)) {
             HTMLIFrameElement* iframe = static_cast<HTMLIFrameElement*>(source.get());
             if (frame() && frame()->tree()->isDescendantOf(iframe->contentFrame())) {
                 ec = HIERARCHY_REQUEST_ERR;
                 return 0;
             }
-            iframe->setRemainsAliveOnRemovalFromTree(attached() && source->attached() && iframe->canRemainAliveOnRemovalFromTree());
         }
-
         if (source->parentNode())
             source->parentNode()->removeChild(source.get(), ec);
     }
@@ -1019,10 +1015,37 @@ PassRefPtr<Element> Document::createElement(const QualifiedName& qName, bool cre
     return e.release();
 }
 
+bool Document::regionBasedColumnsEnabled() const
+{
+    return settings() && settings()->regionBasedColumnsEnabled(); 
+}
+
+bool Document::cssRegionsEnabled() const
+{
+    return settings() && settings()->cssRegionsEnabled(); 
+}
+
+static bool validFlowName(const String& flowName)
+{
+    if (equalIgnoringCase(flowName, "auto")
+        || equalIgnoringCase(flowName, "default")
+        || equalIgnoringCase(flowName, "inherit")
+        || equalIgnoringCase(flowName, "initial")
+        || equalIgnoringCase(flowName, "none"))
+        return false;
+    return true;
+}
+
 PassRefPtr<WebKitNamedFlow> Document::webkitGetFlowByName(const String& flowName)
 {
-    if (!renderer())
+    if (!cssRegionsEnabled() || flowName.isEmpty() || !validFlowName(flowName) || !renderer())
         return 0;
+
+    // Make a slower check for invalid flow name
+    CSSParser p(true);
+    if (!p.parseFlowThread(flowName, this))
+        return 0;
+
     if (RenderView* view = renderer()->view())
         return view->ensureRenderFlowThreadWithName(flowName)->ensureNamedFlow();
     return 0;
@@ -1591,7 +1614,7 @@ void Document::recalcStyle(StyleChange change)
         m_hasNodesWithPlaceholderStyle = false;
         
         RefPtr<RenderStyle> documentStyle = CSSStyleSelector::styleForDocument(this, m_styleSelector ? m_styleSelector->fontSelector() : 0);
-        StyleChange ch = diff(documentStyle.get(), renderer()->style());
+        StyleChange ch = Node::diff(documentStyle.get(), renderer()->style(), this);
         if (ch != NoChange)
             renderer()->setStyle(documentStyle.release());
     }
@@ -1778,8 +1801,8 @@ void Document::pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int&
         LengthSize size = style->pageSize();
         ASSERT(size.width().isFixed());
         ASSERT(size.height().isFixed());
-        width = size.width().calcValue(0);
-        height = size.height().calcValue(0);
+        width = valueForLength(size.width(), 0);
+        height = valueForLength(size.height(), 0);
         break;
     }
     default:
@@ -1789,10 +1812,10 @@ void Document::pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int&
 
     // The percentage is calculated with respect to the width even for margin top and bottom.
     // http://www.w3.org/TR/CSS2/box.html#margin-properties
-    marginTop = style->marginTop().isAuto() ? marginTop : style->marginTop().calcValue(width);
-    marginRight = style->marginRight().isAuto() ? marginRight : style->marginRight().calcValue(width);
-    marginBottom = style->marginBottom().isAuto() ? marginBottom : style->marginBottom().calcValue(width);
-    marginLeft = style->marginLeft().isAuto() ? marginLeft : style->marginLeft().calcValue(width);
+    marginTop = style->marginTop().isAuto() ? marginTop : valueForLength(style->marginTop(), width);
+    marginRight = style->marginRight().isAuto() ? marginRight : valueForLength(style->marginRight(), width);
+    marginBottom = style->marginBottom().isAuto() ? marginBottom : valueForLength(style->marginBottom(), width);
+    marginLeft = style->marginLeft().isAuto() ? marginLeft : valueForLength(style->marginLeft(), width);
 }
 
 PassRefPtr<CSSValuePool> Document::cssValuePool() const
@@ -1840,7 +1863,6 @@ void Document::createStyleSelector()
     
 inline void Document::clearStyleSelector()
 {
-    ASSERT(!m_updatingStyleSelector);
     m_styleSelector.clear();
 }
 
@@ -2268,6 +2290,9 @@ void Document::implicitClose()
     ImageLoader::dispatchPendingBeforeLoadEvents();
     ImageLoader::dispatchPendingLoadEvents();
 
+    HTMLLinkElement::dispatchPendingLoadEvents();
+    HTMLStyleElement::dispatchPendingLoadEvents();
+
 #if ENABLE(SVG)
     // To align the HTML load event and the SVGLoad event for the outermost <svg> element, fire it from
     // here, instead of doing it from SVGElement::finishedParsingChildren (if externalResourcesRequired="false",
@@ -2320,7 +2345,7 @@ void Document::implicitClose()
     }
 
     // If painting and compositing layer updates were suppressed pending the load event, do these actions now.
-    if (renderer() && settings() && settings()->suppressIncrementalRendering()) {
+    if (renderer() && settings() && settings()->suppressesIncrementalRendering()) {
 #if USE(ACCELERATED_COMPOSITING)
         view()->updateCompositingLayers();
 #endif
@@ -3031,19 +3056,20 @@ void Document::styleSelectorChanged(StyleSelectorUpdateFlag updateFlag)
 #endif
 
     bool stylesheetChangeRequiresStyleRecalc = updateActiveStylesheets(updateFlag);
-    if (!stylesheetChangeRequiresStyleRecalc)
-        return;
 
     if (updateFlag == DeferRecalcStyle) {
         scheduleForcedStyleRecalc();
         return;
     }
-    
+
     if (didLayoutWithPendingStylesheets() && m_pendingStylesheets <= 0) {
         m_pendingSheetLayout = IgnoreLayoutWithPendingSheets;
         if (renderer())
             renderer()->repaint();
     }
+
+    if (!stylesheetChangeRequiresStyleRecalc)
+        return;
 
     // This recalcStyle initiates a new recalc cycle. We need to bracket it to
     // make sure animations get the correct update time
@@ -3176,6 +3202,7 @@ void Document::collectActiveStylesheets(Vector<RefPtr<StyleSheet> >& sheets)
             // Check to see if this sheet belongs to a styleset
             // (thus making it PREFERRED or ALTERNATE rather than
             // PERSISTENT).
+            AtomicString rel = e->getAttribute(relAttr);
             if (!enabledViaScript && !title.isEmpty()) {
                 // Yes, we have a title.
                 if (m_preferredStylesheetSet.isEmpty()) {
@@ -3183,13 +3210,15 @@ void Document::collectActiveStylesheets(Vector<RefPtr<StyleSheet> >& sheets)
                     // we are NOT an alternate sheet, then establish
                     // us as the preferred set.  Otherwise, just ignore
                     // this sheet.
-                    AtomicString rel = e->getAttribute(relAttr);
                     if (e->hasLocalName(styleTag) || !rel.contains("alternate"))
                         m_preferredStylesheetSet = m_selectedStylesheetSet = title;
                 }
                 if (title != m_preferredStylesheetSet)
                     sheet = 0;
             }
+
+            if (rel.contains("alternate") && title.isEmpty())
+                sheet = 0;
         }
         if (sheet)
             sheets.append(sheet);
@@ -3279,8 +3308,6 @@ void Document::analyzeStylesheetChange(StyleSelectorUpdateFlag updateFlag, const
 
 bool Document::updateActiveStylesheets(StyleSelectorUpdateFlag updateFlag)
 {
-    ASSERT(!m_updatingStyleSelector);
-
     if (m_inStyleRecalc) {
         // SVG <use> element may manage to invalidate style selector in the middle of a style recalc.
         // https://bugs.webkit.org/show_bug.cgi?id=54344
@@ -3302,16 +3329,7 @@ bool Document::updateActiveStylesheets(StyleSelectorUpdateFlag updateFlag)
     if (requiresStyleSelectorReset)
         clearStyleSelector();
     else {
-#ifndef NDEBUG
-        m_updatingStyleSelector = true;
-#endif
-        // Detach the style selector temporarily so it can't get deleted during appendAuthorStylesheets
-        OwnPtr<CSSStyleSelector> detachedStyleSelector = m_styleSelector.release();
-        detachedStyleSelector->appendAuthorStylesheets(m_styleSheets->length(), newStylesheets);
-        m_styleSelector = detachedStyleSelector.release();
-#ifndef NDEBUG
-        m_updatingStyleSelector = false;
-#endif
+        m_styleSelector->appendAuthorStylesheets(m_styleSheets->length(), newStylesheets);
         resetCSSFeatureFlags();
     }
     m_styleSheets->swap(newStylesheets);
@@ -3786,6 +3804,8 @@ void Document::addListenerTypeIfNeeded(const AtomicString& eventType)
 #endif
     else if (eventType == eventNames().scrollEvent)
         addListenerType(SCROLL_LISTENER);
+    else if (eventType == eventNames().webkitRegionLayoutUpdateEvent)
+        addListenerType(REGIONLAYOUTUPDATE_LISTENER);
 }
 
 CSSStyleDeclaration* Document::getOverrideStyle(Element*, const String&)
@@ -4697,19 +4717,20 @@ void Document::initSecurityContext()
 
     if (Settings* settings = this->settings()) {
         if (!settings->isWebSecurityEnabled()) {
-          // Web security is turned off.  We should let this document access every
-          // other document.  This is used primary by testing harnesses for web
-          // sites.
-          securityOrigin()->grantUniversalAccess();
-
+            // Web security is turned off. We should let this document access every
+            // other document. This is used primary by testing harnesses for web
+            // sites.
+            securityOrigin()->grantUniversalAccess();
         } else if (settings->allowUniversalAccessFromFileURLs() && securityOrigin()->isLocal()) {
-          // Some clients want file:// URLs to have universal access, but that
-          // setting is dangerous for other clients.
-          securityOrigin()->grantUniversalAccess();
+            // Some clients want file:// URLs to have universal access, but that
+            // setting is dangerous for other clients.
+            securityOrigin()->grantUniversalAccess();
         } else if (!settings->allowFileAccessFromFileURLs() && securityOrigin()->isLocal()) {
-          // Some clients want file:// URLs to have even tighter restrictions by
-          // default, and not be able to access other local files.
-          securityOrigin()->enforceFilePathSeparation();
+            // Some clients want file:// URLs to have even tighter restrictions by
+            // default, and not be able to access other local files.
+            // FIXME 81578: The naming of this is confusing. Files with restricted access to other local files
+            // still can have other privileges that can be remembered, thereby not making them unique origins.
+            securityOrigin()->enforceFilePathSeparation();
         }
     }
 
@@ -4739,24 +4760,6 @@ void Document::setSecurityOrigin(PassRefPtr<SecurityOrigin> origin)
 {
     SecurityContext::setSecurityOrigin(origin);
 }
-
-#if ENABLE(SQL_DATABASE)
-
-bool Document::allowDatabaseAccess() const
-{
-    if (!page() || (page()->settings()->privateBrowsingEnabled() && !SchemeRegistry::allowsDatabaseAccessInPrivateBrowsing(securityOrigin()->protocol())))
-        return false;
-    return true;
-}
-
-void Document::databaseExceededQuota(const String& name)
-{
-    Page* currentPage = page();
-    if (currentPage)
-        currentPage->chrome()->client()->exceededDatabaseQuota(document()->frame(), name);
-}
-
-#endif
 
 bool Document::isContextThread() const
 {
@@ -5017,7 +5020,7 @@ void Document::enqueueHashchangeEvent(const String& oldURL, const String& newURL
 void Document::enqueuePopstateEvent(PassRefPtr<SerializedScriptValue> stateObject)
 {
     // FIXME: https://bugs.webkit.org/show_bug.cgi?id=36202 Popstate event needs to fire asynchronously
-    dispatchWindowEvent(PopStateEvent::create(stateObject));
+    dispatchWindowEvent(PopStateEvent::create(stateObject, domWindow() ? domWindow()->history() : 0));
 }
 
 void Document::addMediaCanStartListener(MediaCanStartListener* listener)
@@ -5059,43 +5062,231 @@ bool Document::fullScreenIsAllowedForElement(Element* element) const
 
 void Document::requestFullScreenForElement(Element* element, unsigned short flags, FullScreenCheckType checkType)
 {
-    do {
-        if (!page() || !page()->settings()->fullScreenEnabled())
-            break;
+    // The Mozilla Full Screen API <https://wiki.mozilla.org/Gecko:FullScreenAPI> has different requirements
+    // for full screen mode, and do not have the concept of a full screen element stack.
+    bool inLegacyMozillaMode = (flags & Element::LEGACY_MOZILLA_REQUEST);
 
+    do {
         if (!element)
             element = documentElement();
-        
+ 
+        // 1. If any of the following conditions are true, terminate these steps and queue a task to fire
+        // an event named fullscreenerror with its bubbles attribute set to true on the context object's 
+        // node document:
+
+        // The context object is not in a document.
+        if (!element->inDocument())
+            break;
+
+        // The context object's node document, or an ancestor browsing context's document does not have
+        // the fullscreen enabled flag set.
         if (checkType == EnforceIFrameAllowFulScreenRequirement && !fullScreenIsAllowedForElement(element))
             break;
-        
-        if (!ScriptController::processingUserGesture())
+
+        // The context object's node document fullscreen element stack is not empty and its top element
+        // is not an ancestor of the context object. (NOTE: Ignore this requirement if the request was
+        // made via the legacy Mozilla-style API.)
+        if (!m_fullScreenElementStack.isEmpty() && !m_fullScreenElementStack.first()->contains(element) && !inLegacyMozillaMode)
+            break;
+
+        // A descendant browsing context's document has a non-empty fullscreen element stack.
+        bool descendentHasNonEmptyStack = false;
+        for (Frame* descendant = frame() ? frame()->tree()->traverseNext() : 0; descendant; descendant = descendant->tree()->traverseNext()) {
+            if (descendant->document()->webkitFullscreenElement()) {
+                descendentHasNonEmptyStack = true;
+                break;
+            }
+        }
+        if (descendentHasNonEmptyStack && !inLegacyMozillaMode)
+            break;
+
+        // This algorithm is not allowed to show a pop-up.
+        if (!domWindow()->allowPopUp())
+            break;
+
+        // There is a previously-established user preference, security risk, or platform limitation.
+        if (!page() || !page()->settings()->fullScreenEnabled())
             break;
         
         if (!page()->chrome()->client()->supportsFullScreenForElement(element, flags & Element::ALLOW_KEYBOARD_INPUT))
             break;
-        
+
+        // 2. Let doc be element's node document. (i.e. "this")
+        Document* currentDoc = this;
+
+        // 3. Let docs be all doc's ancestor browsing context's documents (if any) and doc.
+        Deque<Document*> docs;
+
+        do {
+            docs.prepend(currentDoc);
+            currentDoc = currentDoc->ownerElement() ? currentDoc->ownerElement()->document() : 0;
+        } while (currentDoc);
+
+        // 4. For each document in docs, run these substeps:
+        Deque<Document*>::iterator current = docs.begin(), following = docs.begin();
+
+        do {
+            ++following;
+
+            // 1. Let following document be the document after document in docs, or null if there is no
+            // such document.
+            Document* currentDoc = *current;
+            Document* followingDoc = following != docs.end() ? *following : 0;
+
+            // 2. If following document is null, push context object on document's fullscreen element
+            // stack, and queue a task to fire an event named fullscreenchange with its bubbles attribute
+            // set to true on the document.
+            if (!followingDoc) {
+                currentDoc->pushFullscreenElementStack(element);
+                addDocumentToFullScreenChangeEventQueue(currentDoc);
+                continue;
+            }
+
+            // 3. Otherwise, if document's fullscreen element stack is either empty or its top element
+            // is not following document's browsing context container,
+            Element* topElement = currentDoc->webkitFullscreenElement();
+            if (!topElement || topElement != followingDoc->ownerElement()) {
+                // ...push following document's browsing context container on document's fullscreen element
+                // stack, and queue a task to fire an event named fullscreenchange with its bubbles attribute
+                // set to true on document.
+                currentDoc->pushFullscreenElementStack(followingDoc->ownerElement());
+                addDocumentToFullScreenChangeEventQueue(currentDoc);
+                continue;
+            }
+
+            // 4. Otherwise, do nothing for this document. It stays the same.
+        } while (++current != docs.end());
+
+        // 5. Return, and run the remaining steps asynchronously.
+        // 6. Optionally, perform some animation.
         m_areKeysEnabledInFullScreen = flags & Element::ALLOW_KEYBOARD_INPUT;
         page()->chrome()->client()->enterFullScreenForElement(element);
+
+        // 7. Optionally, display a message indicating how the user can exit displaying the context object fullscreen.
         return;
     } while (0);
-    
+
     m_fullScreenErrorEventTargetQueue.append(element ? element : documentElement());
     m_fullScreenChangeDelayTimer.startOneShot(0);
 }
 
 void Document::webkitCancelFullScreen()
 {
-    if (!page() || !m_fullScreenElement)
+    // The Mozilla "cancelFullScreen()" API behaves like the W3C "fully exit fullscreen" behavior, which
+    // is defined as: 
+    // "To fully exit fullscreen act as if the exitFullscreen() method was invoked on the top-level browsing
+    // context's document and subsequently empty that document's fullscreen element stack."
+    if (!topDocument()->webkitFullscreenElement())
+        return;
+
+    // To achieve that aim, remove all the elements from the top document's stack except for the first before
+    // calling webkitExitFullscreen():
+    Deque<RefPtr<Element> > replacementFullscreenElementStack;
+    replacementFullscreenElementStack.prepend(topDocument()->webkitFullscreenElement());
+    topDocument()->m_fullScreenElementStack.swap(replacementFullscreenElementStack);
+
+    topDocument()->webkitExitFullscreen();
+}
+
+void Document::webkitExitFullscreen()
+{
+    // The exitFullscreen() method must run these steps:
+    
+    // 1. Let doc be the context object. (i.e. "this")
+    Document* currentDoc = this;
+
+    // 2. If doc's fullscreen element stack is empty, terminate these steps.
+    if (m_fullScreenElementStack.isEmpty())
         return;
     
-    page()->chrome()->client()->exitFullScreenForElement(m_fullScreenElement.get());
+    // 3. Let descendants be all the doc's descendant browsing context's documents with a non-empty fullscreen
+    // element stack (if any), ordered so that the child of the doc is last and the document furthest
+    // away from the doc is first.
+    Deque<RefPtr<Document> > descendants;
+    for (Frame* descendant = frame() ? frame()->tree()->traverseNext() : 0; descendant; descendant = descendant->tree()->traverseNext()) {
+        if (descendant->document()->webkitFullscreenElement())
+            descendants.prepend(descendant->document());
+    }
+        
+    // 4. For each descendant in descendants, empty descendant's fullscreen element stack, and queue a
+    // task to fire an event named fullscreenchange with its bubbles attribute set to true on descendant.
+    for (Deque<RefPtr<Document> >::iterator i = descendants.begin(); i != descendants.end(); ++i) {
+        (*i)->clearFullscreenElementStack();
+        addDocumentToFullScreenChangeEventQueue(i->get());
+    }
+
+    // 5. While doc is not null, run these substeps:
+    Element* newTop = 0;
+    while (currentDoc) {
+        // 1. Pop the top element of doc's fullscreen element stack.
+        currentDoc->popFullscreenElementStack();
+
+        //    If doc's fullscreen element stack is non-empty and the element now at the top is either
+        //    not in a document or its node document is not doc, repeat this substep.
+        newTop = currentDoc->webkitFullscreenElement();
+        if (newTop && (!newTop->inDocument() || newTop->document() != currentDoc))
+            continue;
+
+        // 2. Queue a task to fire an event named fullscreenchange with its bubbles attribute set to true
+        // on doc.
+        Node* target = currentDoc->m_fullScreenElement.get();
+        if (!target)
+            target = currentDoc;
+        addDocumentToFullScreenChangeEventQueue(currentDoc);
+
+        // 3. If doc's fullscreen element stack is empty and doc's browsing context has a browsing context
+        // container, set doc to that browsing context container's node document.
+        if (!newTop && currentDoc->ownerElement())
+            currentDoc = currentDoc->ownerElement()->document();
+
+        // 4. Otherwise, set doc to null.
+        currentDoc = 0;
+    }
+
+    // 6. Return, and run the remaining steps asynchronously.
+    // 7. Optionally, perform some animation.
+
+    // Only exit out of full screen window mode if there are no remaining elements in the 
+    // full screen stack.
+    if (!newTop) {
+        page()->chrome()->client()->exitFullScreenForElement(m_fullScreenElement.get());
+        return;
+    }
+
+    // Otherwise, notify the chrome of the new full screen element.
+    page()->chrome()->client()->enterFullScreenForElement(newTop);      
+}
+
+bool Document::webkitFullscreenEnabled() const
+{
+    // 4. The fullscreenEnabled attribute must return true if the context object and all ancestor
+    // browsing context's documents have their fullscreen enabled flag set, or false otherwise.
+
+    // Top-level browsing contexts are implied to have their allowFullScreen attribute set.
+    HTMLFrameOwnerElement* owner = ownerElement();
+    if (!owner)
+        return true;
+
+    do {
+        if (!owner->isFrameElementBase())
+            continue;
+
+        if (!static_cast<HTMLFrameElementBase*>(owner)->allowFullScreen())
+            return false;
+    } while ((owner = owner->document()->ownerElement()));
+
+    return true;        
 }
 
 void Document::webkitWillEnterFullScreenForElement(Element* element)
 {
     ASSERT(element);
-    ASSERT(page() && page()->settings()->fullScreenEnabled());
+
+    // Protect against being called after the document has been removed from the page.
+    if (!page())
+        return;
+
+    ASSERT(page()->settings()->fullScreenEnabled());
 
     if (m_fullScreenRenderer)
         m_fullScreenRenderer->unwrapRenderer();
@@ -5119,60 +5310,36 @@ void Document::webkitWillEnterFullScreenForElement(Element* element)
     m_fullScreenElement->setContainsFullScreenElementOnAncestorsCrossingFrameBoundaries(true);
     
     recalcStyle(Force);
-    
-    if (m_fullScreenRenderer) {
-        setAnimatingFullScreen(true);
-#if USE(ACCELERATED_COMPOSITING)
-        view()->updateCompositingLayers();
-        if (m_fullScreenRenderer->layer() && m_fullScreenRenderer->layer()->isComposited())
-            page()->chrome()->client()->setRootFullScreenLayer(m_fullScreenRenderer->layer()->backing()->graphicsLayer());
-#endif
-    }
 }
     
 void Document::webkitDidEnterFullScreenForElement(Element*)
 {
+    if (!m_fullScreenElement)
+        return;
+    
     m_fullScreenElement->didBecomeFullscreenElement();
 
-    if (m_fullScreenRenderer) {
-        setAnimatingFullScreen(false);
-#if USE(ACCELERATED_COMPOSITING)
-        view()->updateCompositingLayers();
-        page()->chrome()->client()->setRootFullScreenLayer(0);
-#endif
-    }
-    m_fullScreenChangeEventTargetQueue.append(m_fullScreenElement);
     m_fullScreenChangeDelayTimer.startOneShot(0);
 }
 
 void Document::webkitWillExitFullScreenForElement(Element*)
 {
+    if (!m_fullScreenElement)
+        return;
+
     m_fullScreenElement->setContainsFullScreenElementOnAncestorsCrossingFrameBoundaries(false);
     
     m_fullScreenElement->willStopBeingFullscreenElement();
-
-    if (m_fullScreenRenderer) {
-        setAnimatingFullScreen(true);
-#if USE(ACCELERATED_COMPOSITING)
-        view()->updateCompositingLayers();
-        if (m_fullScreenRenderer->layer() && m_fullScreenRenderer->layer()->isComposited())
-            page()->chrome()->client()->setRootFullScreenLayer(m_fullScreenRenderer->layer()->backing()->graphicsLayer());
-#endif
-    }
 }
 
 void Document::webkitDidExitFullScreenForElement(Element*)
 {
     m_areKeysEnabledInFullScreen = false;
-    setAnimatingFullScreen(false);
     
     if (m_fullScreenRenderer)
         m_fullScreenRenderer->unwrapRenderer();
 
-    m_fullScreenChangeEventTargetQueue.append(m_fullScreenElement.release());
-#if USE(ACCELERATED_COMPOSITING)
-    page()->chrome()->client()->setRootFullScreenLayer(0);
-#endif
+    m_fullScreenElement = 0;
     scheduleForcedStyleRecalc();
     
     m_fullScreenChangeDelayTimer.startOneShot(0);
@@ -5238,28 +5405,34 @@ void Document::setFullScreenRendererBackgroundColor(Color backgroundColor)
     
 void Document::fullScreenChangeDelayTimerFired(Timer<Document>*)
 {
-    while (!m_fullScreenChangeEventTargetQueue.isEmpty()) {
-        RefPtr<Element> element = m_fullScreenChangeEventTargetQueue.takeFirst();
-        if (!element)
-            element = documentElement();
+    Deque<RefPtr<Node> > changeQueue;
+    m_fullScreenChangeEventTargetQueue.swap(changeQueue);
+
+    while (!changeQueue.isEmpty()) {
+        RefPtr<Node> node = changeQueue.takeFirst();
+        if (!node)
+            node = documentElement();
 
         // If the element was removed from our tree, also message the documentElement.
-        if (!contains(element.get()))
-            m_fullScreenChangeEventTargetQueue.append(documentElement());
+        if (!contains(node.get()))
+            changeQueue.append(documentElement());
         
-        element->dispatchEvent(Event::create(eventNames().webkitfullscreenchangeEvent, true, false));
+        node->dispatchEvent(Event::create(eventNames().webkitfullscreenchangeEvent, true, false));
     }
 
-    while (!m_fullScreenErrorEventTargetQueue.isEmpty()) {
-        RefPtr<Element> element = m_fullScreenErrorEventTargetQueue.takeFirst();
-        if (!element)
-            element = documentElement();
+    Deque<RefPtr<Node> > errorQueue;
+    m_fullScreenErrorEventTargetQueue.swap(errorQueue);
+    
+    while (!errorQueue.isEmpty()) {
+        RefPtr<Node> node = errorQueue.takeFirst();
+        if (!node)
+            node = documentElement();
         
-        // If the element was removed from our tree, also message the documentElement.
-        if (!contains(element.get()))
-            m_fullScreenErrorEventTargetQueue.append(documentElement());
+        // If the node was removed from our tree, also message the documentElement.
+        if (!contains(node.get()))
+            errorQueue.append(documentElement());
         
-        element->dispatchEvent(Event::create(eventNames().webkitfullscreenerrorEvent, true, false));
+        node->dispatchEvent(Event::create(eventNames().webkitfullscreenerrorEvent, true, false));
     }
 }
 
@@ -5299,15 +5472,35 @@ void Document::setAnimatingFullScreen(bool flag)
         m_fullScreenElement->setNeedsStyleRecalc();
         scheduleForcedStyleRecalc();
     }
+}
 
-#if USE(ACCELERATED_COMPOSITING)
-    if (m_fullScreenRenderer && m_fullScreenRenderer->layer()) {
-        m_fullScreenRenderer->layer()->contentChanged(RenderLayer::FullScreenChanged);
-        // Clearing the layer's backing will force the compositor to reparent
-        // the layer the next time layers are synchronized.
-        m_fullScreenRenderer->layer()->clearBacking();
-    }
-#endif
+void Document::clearFullscreenElementStack()
+{
+    m_fullScreenElementStack.clear();
+}
+
+void Document::popFullscreenElementStack()
+{
+    if (m_fullScreenElementStack.isEmpty())
+        return;
+
+    m_fullScreenElementStack.removeFirst();
+}
+
+void Document::pushFullscreenElementStack(Element* element)
+{
+    m_fullScreenElementStack.prepend(element);
+}
+
+void Document::addDocumentToFullScreenChangeEventQueue(Document* doc)
+{
+    ASSERT(doc);
+    Node* target = doc->webkitFullscreenElement();
+    if (!target)
+        target = doc->webkitCurrentFullScreenElement();
+    if (!target)
+        target = doc;
+    m_fullScreenChangeEventTargetQueue.append(target);
 }
 #endif
 
@@ -5329,8 +5522,13 @@ void Document::loadEventDelayTimerFired(Timer<Document>*)
 #if ENABLE(REQUEST_ANIMATION_FRAME)
 int Document::webkitRequestAnimationFrame(PassRefPtr<RequestAnimationFrameCallback> callback, Element* animationElement)
 {
-    if (!m_scriptedAnimationController)
+    if (!m_scriptedAnimationController) {
+#if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
         m_scriptedAnimationController = ScriptedAnimationController::create(this, page()->displayID());
+#else
+        m_scriptedAnimationController = ScriptedAnimationController::create(this, 0);
+#endif
+    }
 
     return m_scriptedAnimationController->registerCallback(callback, animationElement);
 }
@@ -5370,7 +5568,6 @@ PassRefPtr<TouchList> Document::createTouchList(ExceptionCode&) const
 
 static void wheelEventHandlerCountChanged(Document* document)
 {
-#if ENABLE(THREADED_SCROLLING)
     Page* page = document->page();
     if (!page)
         return;
@@ -5384,9 +5581,6 @@ static void wheelEventHandlerCountChanged(Document* document)
         return;
 
     scrollingCoordinator->frameViewWheelEventHandlerCountChanged(frameView);
-#else
-    UNUSED_PARAM(document);
-#endif
 }
 
 void Document::didAddWheelEventHandler()
@@ -5410,10 +5604,27 @@ void Document::didRemoveWheelEventHandler()
     wheelEventHandlerCountChanged(this);
 }
 
+void Document::didAddTouchEventHandler()
+{
+    ++m_touchEventHandlerCount;
+    Frame* mainFrame = page() ? page()->mainFrame() : 0;
+    if (mainFrame)
+        mainFrame->notifyChromeClientTouchEventHandlerCountChanged();
+}
+
+void Document::didRemoveTouchEventHandler()
+{
+    ASSERT(m_touchEventHandlerCount > 0);
+    --m_touchEventHandlerCount;
+    Frame* mainFrame = page() ? page()->mainFrame() : 0;
+    if (mainFrame)
+        mainFrame->notifyChromeClientTouchEventHandlerCountChanged();
+}
+
 bool Document::visualUpdatesAllowed() const
 {
     return !settings()
-        || !settings()->suppressIncrementalRendering()
+        || !settings()->suppressesIncrementalRendering()
         || loadEventFinished();
 }
 
@@ -5454,7 +5665,6 @@ void Document::removeCachedMicroDataItemList(MicroDataItemList* list, const Stri
 {
     ASSERT(rareData());
     ASSERT(rareData()->nodeLists());
-    ASSERT_UNUSED(list, list->hasOwnCaches());
 
     NodeListsNodeData* data = rareData()->nodeLists();
 

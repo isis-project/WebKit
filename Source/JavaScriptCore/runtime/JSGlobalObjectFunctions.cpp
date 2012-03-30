@@ -35,7 +35,7 @@
 #include "Nodes.h"
 #include "Parser.h"
 #include "UStringBuilder.h"
-#include "dtoa.h"
+#include <wtf/dtoa.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wtf/ASCIICType.h>
@@ -297,7 +297,7 @@ static double parseInt(const UString& s, const CharType* data, int radix)
     }
     if (number >= mantissaOverflowLowerBound) {
         if (radix == 10)
-            number = WTF::strtod<WTF::AllowTrailingJunk>(s.substringSharingImpl(firstDigitPosition, p - firstDigitPosition).utf8().data(), 0);
+            number = WTF::strtod<WTF::AllowTrailingJunk, WTF::DisallowTrailingSpaces>(s.substringSharingImpl(firstDigitPosition, p - firstDigitPosition).utf8().data(), 0);
         else if (radix == 2 || radix == 4 || radix == 8 || radix == 16 || radix == 32)
             number = parseIntOverflow(s.substringSharingImpl(firstDigitPosition, p - firstDigitPosition).utf8().data(), p - firstDigitPosition, radix);
     }
@@ -356,7 +356,7 @@ static double jsHexIntegerLiteral(const CharType*& data, const CharType* end)
 }
 
 // See ecma-262 9.3.1
-template <typename CharType>
+template <WTF::AllowTrailingJunkTag allowTrailingJunk, typename CharType>
 static double jsStrDecimalLiteral(const CharType*& data, const CharType* end)
 {
     ASSERT(data < end);
@@ -369,7 +369,7 @@ static double jsStrDecimalLiteral(const CharType*& data, const CharType* end)
     }
     byteBuffer.append(0);
     char* endOfNumber;
-    double number = WTF::strtod<WTF::AllowTrailingJunk>(byteBuffer.data(), &endOfNumber);
+    double number = WTF::strtod<allowTrailingJunk, WTF::AllowTrailingSpaces>(byteBuffer.data(), &endOfNumber);
 
     // Check if strtod found a number; if so return it.
     ptrdiff_t consumed = endOfNumber - byteBuffer.data();
@@ -425,7 +425,7 @@ static double toDouble(const CharType* characters, unsigned size)
     if (characters[0] == '0' && characters + 2 < endCharacters && (characters[1] | 0x20) == 'x' && isASCIIHexDigit(characters[2]))
         number = jsHexIntegerLiteral(characters, endCharacters);
     else
-        number = jsStrDecimalLiteral(characters, endCharacters);
+        number = jsStrDecimalLiteral<WTF::DisallowTrailingJunk>(characters, endCharacters);
     
     // Allow trailing white space.
     for (; characters < endCharacters; ++characters) {
@@ -482,7 +482,7 @@ static double parseFloat(const UString& s)
         if (data == end)
             return std::numeric_limits<double>::quiet_NaN();
 
-        return jsStrDecimalLiteral(data, end);
+        return jsStrDecimalLiteral<WTF::AllowTrailingJunk>(data, end);
     }
 
     const UChar* data = s.characters16();
@@ -498,7 +498,7 @@ static double parseFloat(const UString& s)
     if (data == end)
         return std::numeric_limits<double>::quiet_NaN();
 
-    return jsStrDecimalLiteral(data, end);
+    return jsStrDecimalLiteral<WTF::AllowTrailingJunk>(data, end);
 }
 
 EncodedJSValue JSC_HOST_CALL globalFuncEval(ExecState* exec)
@@ -712,6 +712,42 @@ EncodedJSValue JSC_HOST_CALL globalFuncUnescape(ExecState* exec)
 EncodedJSValue JSC_HOST_CALL globalFuncThrowTypeError(ExecState* exec)
 {
     return throwVMTypeError(exec);
+}
+
+EncodedJSValue JSC_HOST_CALL globalFuncProtoGetter(ExecState* exec)
+{
+    if (!exec->thisValue().isObject())
+        return JSValue::encode(exec->thisValue().synthesizePrototype(exec));
+
+    JSObject* thisObject = asObject(exec->thisValue());
+    if (!thisObject->allowsAccessFrom(exec->trueCallerFrame()))
+        return JSValue::encode(jsUndefined());
+
+    return JSValue::encode(thisObject->prototype());
+}
+
+EncodedJSValue JSC_HOST_CALL globalFuncProtoSetter(ExecState* exec)
+{
+    JSValue value = exec->argument(0);
+
+    // Setting __proto__ of a primitive should have no effect.
+    if (!exec->thisValue().isObject())
+        return JSValue::encode(jsUndefined());
+
+    JSObject* thisObject = asObject(exec->thisValue());
+    if (!thisObject->allowsAccessFrom(exec->trueCallerFrame()))
+        return JSValue::encode(jsUndefined());
+
+    // Setting __proto__ to a non-object, non-null value is silently ignored to match Mozilla.
+    if (!value.isObject() && !value.isNull())
+        return JSValue::encode(jsUndefined());
+
+    if (!thisObject->isExtensible())
+        return throwVMError(exec, createTypeError(exec, StrictModeReadonlyPropertyWriteError));
+
+    if (!thisObject->setPrototypeWithCycleCheck(exec->globalData(), value))
+        throwError(exec, createError(exec, "cyclic __proto__ value"));
+    return JSValue::encode(jsUndefined());
 }
 
 } // namespace JSC

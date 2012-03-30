@@ -33,6 +33,8 @@
 #include "WebCookieManager.h"
 #include "WebCoreArgumentCoders.h"
 #include "WebProcess.h"
+#include <WebCore/Color.h>
+#include <WebCore/KURL.h>
 #include <WebCore/Page.h>
 #include <WebCore/PlatformPasteboard.h>
 
@@ -136,56 +138,102 @@ void WebPlatformStrategies::addVisitedLink(Page*, LinkHash linkHash)
 
 void WebPlatformStrategies::getTypes(Vector<String>& types, const String& pasteboardName)
 {
-    PlatformPasteboard pasteboard(pasteboardName);
-    pasteboard.getTypes(types);
+    WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPasteboardTypes(pasteboardName),
+                                                Messages::WebContext::GetPasteboardTypes::Reply(types), 0);
 }
 
 PassRefPtr<WebCore::SharedBuffer> WebPlatformStrategies::bufferForType(const String& pasteboardType, const String& pasteboardName)
 {
-    PlatformPasteboard pasteboard(pasteboardName);
-    return pasteboard.bufferForType(pasteboardType);
+    SharedMemory::Handle handle;
+    uint64_t size = 0;
+    WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPasteboardBufferForType(pasteboardName, pasteboardType),
+                                                Messages::WebContext::GetPasteboardBufferForType::Reply(handle, size), 0);
+    if (handle.isNull())
+        return 0;
+    RefPtr<SharedMemory> sharedMemoryBuffer = SharedMemory::create(handle, SharedMemory::ReadOnly);
+    return SharedBuffer::create(static_cast<unsigned char *>(sharedMemoryBuffer->data()), size);
 }
 
 void WebPlatformStrategies::getPathnamesForType(Vector<String>& pathnames, const String& pasteboardType, const String& pasteboardName)
 {
-    PlatformPasteboard pasteboard(pasteboardName);
-    pasteboard.getPathnamesForType(pathnames, pasteboardType);
+    WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPasteboardPathnamesForType(pasteboardName, pasteboardType),
+                                                Messages::WebContext::GetPasteboardPathnamesForType::Reply(pathnames), 0);
 }
 
 String WebPlatformStrategies::stringForType(const String& pasteboardType, const String& pasteboardName)
 {
-    PlatformPasteboard pasteboard(pasteboardName);
-    return pasteboard.stringForType(pasteboardType);
+    String value;
+    WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPasteboardStringForType(pasteboardName, pasteboardType),
+                                                Messages::WebContext::GetPasteboardStringForType::Reply(value), 0);
+    return value;
 }
 
 void WebPlatformStrategies::copy(const String& fromPasteboard, const String& toPasteboard)
 {
-    PlatformPasteboard pasteboard(toPasteboard);
-    return pasteboard.copy(fromPasteboard);
+    WebProcess::shared().connection()->send(Messages::WebContext::PasteboardCopy(fromPasteboard, toPasteboard), 0);
+}
+
+int WebPlatformStrategies::changeCount(const WTF::String &pasteboardName)
+{
+    uint64_t changeCount;
+    WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPasteboardChangeCount(pasteboardName),
+                                                Messages::WebContext::GetPasteboardChangeCount::Reply(changeCount), 0);
+    return changeCount;
+}
+
+String WebPlatformStrategies::uniqueName()
+{
+    String pasteboardName;
+    WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPasteboardUniqueName(),
+                                                Messages::WebContext::GetPasteboardUniqueName::Reply(pasteboardName), 0);
+    return pasteboardName;
+}
+
+Color WebPlatformStrategies::color(const String& pasteboardName)
+{
+    Color color;
+    WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPasteboardColor(pasteboardName),
+                                                Messages::WebContext::GetPasteboardColor::Reply(color), 0);
+    return color;
+}
+
+KURL WebPlatformStrategies::url(const String& pasteboardName)
+{
+    String urlString;
+    WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPasteboardURL(pasteboardName),
+                                                Messages::WebContext::GetPasteboardURL::Reply(urlString), 0);
+    return KURL(ParsedURLString, urlString);
+}
+
+void WebPlatformStrategies::addTypes(const Vector<String>& pasteboardTypes, const String& pasteboardName)
+{
+    WebProcess::shared().connection()->send(Messages::WebContext::AddPasteboardTypes(pasteboardName, pasteboardTypes), 0);
 }
 
 void WebPlatformStrategies::setTypes(const Vector<String>& pasteboardTypes, const String& pasteboardName)
 {
-    PlatformPasteboard pasteboard(pasteboardName);
-    return pasteboard.setTypes(pasteboardTypes);
+    WebProcess::shared().connection()->send(Messages::WebContext::SetPasteboardTypes(pasteboardName, pasteboardTypes), 0);
 }
 
 void WebPlatformStrategies::setBufferForType(PassRefPtr<SharedBuffer> buffer, const String& pasteboardType, const String& pasteboardName)
 {
-    PlatformPasteboard pasteboard(pasteboardName);
-    return pasteboard.setBufferForType(buffer, pasteboardType);
+    SharedMemory::Handle handle;
+    if (buffer) {
+        RefPtr<SharedMemory> sharedMemoryBuffer = SharedMemory::create(buffer->size());
+        memcpy(sharedMemoryBuffer->data(), buffer->data(), buffer->size());
+        sharedMemoryBuffer->createHandle(handle, SharedMemory::ReadOnly);
+    }
+    WebProcess::shared().connection()->send(Messages::WebContext::SetPasteboardBufferForType(pasteboardName, pasteboardType, handle, buffer ? buffer->size() : 0), 0);
 }
 
 void WebPlatformStrategies::setPathnamesForType(const Vector<String>& pathnames, const String& pasteboardType, const String& pasteboardName)
 {
-    PlatformPasteboard pasteboard(pasteboardName);
-    pasteboard.setPathnamesForType(pathnames, pasteboardType);
+    WebProcess::shared().connection()->send(Messages::WebContext::SetPasteboardPathnamesForType(pasteboardName, pasteboardType, pathnames), 0);
 }
 
 void WebPlatformStrategies::setStringForType(const String& string, const String& pasteboardType, const String& pasteboardName)
 {
-    PlatformPasteboard pasteboard(pasteboardName);
-    return pasteboard.setStringForType(string, pasteboardType);    
+    WebProcess::shared().connection()->send(Messages::WebContext::SetPasteboardStringForType(pasteboardName, pasteboardType, string), 0);
 }
 #endif
 

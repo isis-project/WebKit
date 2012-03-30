@@ -36,9 +36,10 @@
 namespace JSC {
 
     class JSGlobalObject;
-    class Structure;
+    class LLIntOffsetsExtractor;
     class PropertyDescriptor;
     class PropertyNameArray;
+    class Structure;
 
     enum EnumerationMode {
         ExcludeDontEnumProperties,
@@ -106,7 +107,7 @@ namespace JSC {
         const ClassInfo* validatedClassInfo() const;
         const MethodTable* methodTable() const;
         static void put(JSCell*, ExecState*, const Identifier& propertyName, JSValue, PutPropertySlot&);
-        static void putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue);
+        static void putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
         
         static bool deleteProperty(JSCell*, ExecState*, const Identifier& propertyName);
         static bool deletePropertyByIndex(JSCell*, ExecState*, unsigned propertyName);
@@ -163,6 +164,8 @@ namespace JSC {
         static bool getOwnPropertyDescriptor(JSObject*, ExecState*, const Identifier&, PropertyDescriptor&);
 
     private:
+        friend class LLIntOffsetsExtractor;
+        
         const ClassInfo* m_classInfo;
         WriteBarrier<Structure> m_structure;
     };
@@ -175,7 +178,7 @@ namespace JSC {
     {
 #if ENABLE(GC_VALIDATION)
         ASSERT(globalData.isInitializingObject());
-        globalData.setInitializingObject(false);
+        globalData.setInitializingObjectClass(0);
 #else
         UNUSED_PARAM(globalData);
 #endif
@@ -327,7 +330,7 @@ namespace JSC {
 #if ENABLE(GC_VALIDATION)
         ASSERT(sizeof(T) == T::s_info.cellSize);
         ASSERT(!heap.globalData()->isInitializingObject());
-        heap.globalData()->setInitializingObject(true);
+        heap.globalData()->setInitializingObjectClass(&T::s_info);
 #endif
         JSCell* result = 0;
         if (NeedsDestructor<T>::value)
@@ -352,10 +355,23 @@ namespace JSC {
         return static_cast<To>(from);
     }
 
+    template<typename To>
+    inline To jsCast(JSValue from)
+    {
+        ASSERT(from.isCell() && from.asCell()->inherits(&WTF::RemovePointer<To>::Type::s_info));
+        return static_cast<To>(from.asCell());
+    }
+
     template<typename To, typename From>
     inline To jsDynamicCast(From* from)
     {
         return from->inherits(&WTF::RemovePointer<To>::Type::s_info) ? static_cast<To>(from) : 0;
+    }
+
+    template<typename To>
+    inline To jsDynamicCast(JSValue from)
+    {
+        return from.isCell() && from.asCell()->inherits(&WTF::RemovePointer<To>::Type::s_info) ? static_cast<To>(from.asCell()) : 0;
     }
 
 } // namespace JSC

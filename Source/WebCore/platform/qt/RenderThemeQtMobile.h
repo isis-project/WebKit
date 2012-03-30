@@ -53,6 +53,9 @@ public:
 
     virtual bool delegatesMenuListRendering() const { return true; }
 
+    // drawFocusRing() will return early if the color is invalid.
+    virtual Color platformFocusRingColor() const { return Color(); }
+
 protected:
 
     virtual void adjustButtonStyle(CSSStyleSelector*, RenderStyle*, Element*) const;
@@ -135,7 +138,7 @@ public:
     void drawRadioButton(const QRect&, bool checked, bool enabled = true);
     void drawPushButton(const QRect&, bool sunken, bool enabled = true);
     void drawComboBox(const QRect&, bool multiple, bool enabled = true);
-    void drawProgress(const QRect&, double progress, bool leftToRight = true, bool animated = false) const;
+    void drawProgress(const QRect&, double progress, bool leftToRight = true, bool animated = false, bool vertical = false) const;
     void drawSliderThumb(const QRect&, bool pressed) const;
 
 private:

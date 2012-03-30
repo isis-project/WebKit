@@ -1372,6 +1372,16 @@ static NSURL* uniqueURLWithRelativePart(NSString *relativePart)
     return self != [self _topHTMLView];
 }
 
+static BOOL isQuickLookEvent(NSEvent *event)
+{
+#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+    const int kCGSEventSystemSubtypeHotKeyCombinationReleased = 9;
+    return [event type] == NSSystemDefined && [event subtype] == kCGSEventSystemSubtypeHotKeyCombinationReleased && [event data1] == 'lkup';
+#else
+    return NO;
+#endif
+}
+
 - (NSView *)hitTest:(NSPoint)point
 {
     // WebHTMLView objects handle all events for objects inside them.
@@ -1412,7 +1422,8 @@ static NSURL* uniqueURLWithRelativePart(NSString *relativePart)
         captureHitsOnSubviews = !([event type] == NSMouseMoved
             || [event type] == NSRightMouseDown
             || ([event type] == NSLeftMouseDown && ([event modifierFlags] & NSControlKeyMask) != 0)
-            || [event type] == NSFlagsChanged);
+            || [event type] == NSFlagsChanged
+            || isQuickLookEvent(event));
     }
 
     if (!captureHitsOnSubviews) {
@@ -4352,14 +4363,10 @@ static PassRefPtr<KeyboardEvent> currentKeyboardEvent(Frame* coreFrame)
 
 - (void)_applyStyleToSelection:(DOMCSSStyleDeclaration *)style withUndoAction:(EditAction)undoAction
 {
-    if (Frame* coreFrame = core([self _frame]))
-        coreFrame->editor()->applyStyleToSelection(core(style), undoAction);
-}
-
-- (void)_applyParagraphStyleToSelection:(DOMCSSStyleDeclaration *)style withUndoAction:(EditAction)undoAction
-{
-    if (Frame* coreFrame = core([self _frame]))
-        coreFrame->editor()->applyParagraphStyleToSelection(core(style), undoAction);
+    if (Frame* coreFrame = core([self _frame])) {
+        // FIXME: We shouldn't have to make a copy here. We want callers of this function to work directly with StylePropertySet eventually.
+        coreFrame->editor()->applyStyleToSelection(core(style)->copy().get(), undoAction);
+    }
 }
 
 - (BOOL)_handleStyleKeyEquivalent:(NSEvent *)event
@@ -4657,9 +4664,13 @@ static PassRefPtr<KeyboardEvent> currentKeyboardEvent(Frame* coreFrame)
 {
     DOMCSSStyleDeclaration *style = [self _styleFromColorPanelWithSelector:selector];
     WebView *webView = [self _webView];
-    if ([[webView _editingDelegateForwarder] webView:webView shouldApplyStyle:style toElementsInDOMRange:range])
-        if (Frame* coreFrame = core([self _frame]))
-            coreFrame->editor()->applyStyle(core(style), [self _undoActionFromColorPanelWithSelector:selector]);
+    if ([[webView _editingDelegateForwarder] webView:webView shouldApplyStyle:style toElementsInDOMRange:range]) {
+        if (Frame* coreFrame = core([self _frame])) {
+            // FIXME: We shouldn't have to make a copy here.
+            coreFrame->editor()->applyStyle(core(style)->copy().get(), [self _undoActionFromColorPanelWithSelector:selector]);
+        }
+    }
+
 }
 
 - (void)changeDocumentBackgroundColor:(id)sender

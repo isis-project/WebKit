@@ -37,9 +37,8 @@ namespace WebCore {
 class PluginLayerChromium : public LayerChromium {
 public:
     static PassRefPtr<PluginLayerChromium> create();
-    virtual void updateCompositorResources(GraphicsContext3D*, CCTextureUpdater&);
 
-    virtual PassRefPtr<CCLayerImpl> createCCLayerImpl();
+    virtual PassOwnPtr<CCLayerImpl> createCCLayerImpl();
 
     // Code path for plugins which supply their own texture ID.
     void setTextureId(unsigned textureId);
@@ -55,8 +54,6 @@ public:
 
     virtual void pushPropertiesTo(CCLayerImpl*);
 
-    void invalidateRect(const FloatRect& dirtyRect);
-
 protected:
     PluginLayerChromium();
 
@@ -64,10 +61,8 @@ private:
     unsigned m_textureId;
     bool m_flipped;
     FloatRect m_uvRect;
-    int m_ioSurfaceWidth;
-    int m_ioSurfaceHeight;
+    IntSize m_ioSurfaceSize;
     uint32_t m_ioSurfaceId;
-    FloatRect m_dirtyRect;
 };
 
 }

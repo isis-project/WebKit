@@ -30,7 +30,7 @@
 #include "CodeProfiling.h"
 #include "LinkBuffer.h"
 #include "ProfileTreeNode.h"
-#include "Vector.h"
+#include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
 #if PLATFORM(MAC)
@@ -123,10 +123,14 @@ void CodeProfile::sample(void* pc, void** framePointer)
         if (type != EngineFrame)
             return;
 
-        // Walk up the stack.
 #if PLATFORM(MAC) && CPU(X86_64)
+        // Walk up the stack.
         pc = framePointer[1];
         framePointer = reinterpret_cast<void**>(*framePointer);
+#elif OS(LINUX) && CPU(X86)
+        // Don't unwind the stack as some dependent third party libraries
+        // may be compiled with -fomit-frame-pointer.
+        framePointer = 0;
 #else
         // This platform is not yet supported!
         ASSERT_NOT_REACHED();

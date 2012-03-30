@@ -26,7 +26,8 @@
 #ifndef DFGVariableAccessData_h
 #define DFGVariableAccessData_h
 
-#include "DFGOperands.h"
+#include "DFGNodeFlags.h"
+#include "Operands.h"
 #include "PredictedType.h"
 #include "VirtualRegister.h"
 #include <wtf/Platform.h>
@@ -41,6 +42,7 @@ public:
     VariableAccessData()
         : m_local(static_cast<VirtualRegister>(std::numeric_limits<int>::min()))
         , m_prediction(PredictNone)
+        , m_flags(0)
         , m_shouldUseDoubleFormat(false)
     {
         clearVotes();
@@ -49,6 +51,7 @@ public:
     VariableAccessData(VirtualRegister local)
         : m_local(local)
         , m_prediction(PredictNone)
+        , m_flags(0)
         , m_shouldUseDoubleFormat(false)
     {
         clearVotes();
@@ -68,6 +71,11 @@ public:
     bool predict(PredictedType prediction)
     {
         return mergePrediction(find()->m_prediction, prediction);
+    }
+    
+    PredictedType nonUnifiedPrediction()
+    {
+        return m_prediction;
     }
     
     PredictedType prediction()
@@ -96,8 +104,32 @@ public:
     
     bool shouldUseDoubleFormatAccordingToVote()
     {
+        // We don't support this facility for arguments, yet.
         // FIXME: make this work for arguments.
-        return !operandIsArgument(operand()) && ((isNumberPrediction(prediction()) && doubleVoteRatio() >= Options::doubleVoteRatioForDoubleFormat) || isDoublePrediction(prediction()));
+        if (operandIsArgument(operand()))
+            return false;
+        
+        // If the variable is not a number prediction, then this doesn't
+        // make any sense.
+        if (!isNumberPrediction(prediction()))
+            return false;
+        
+        // If the variable is predicted to hold only doubles, then it's a
+        // no-brainer: it should be formatted as a double.
+        if (isDoublePrediction(prediction()))
+            return true;
+        
+        // If the variable is known to be used as an integer, then be safe -
+        // don't force it to be a double.
+        if (flags() & NodeUsedAsInt)
+            return false;
+        
+        // If the variable has been voted to become a double, then make it a
+        // double.
+        if (doubleVoteRatio() >= Options::doubleVoteRatioForDoubleFormat)
+            return true;
+        
+        return false;
     }
     
     bool shouldUseDoubleFormat()
@@ -125,6 +157,17 @@ public:
         return true;
     }
     
+    NodeFlags flags() const { return m_flags; }
+    
+    bool mergeFlags(NodeFlags newFlags)
+    {
+        newFlags |= m_flags;
+        if (newFlags == m_flags)
+            return false;
+        m_flags = newFlags;
+        return true;
+    }
+    
 private:
     // This is slightly space-inefficient, since anything we're unified with
     // will have the same operand and should have the same prediction. But
@@ -133,6 +176,7 @@ private:
 
     VirtualRegister m_local;
     PredictedType m_prediction;
+    NodeFlags m_flags;
     
     float m_votes[2];
     bool m_shouldUseDoubleFormat;

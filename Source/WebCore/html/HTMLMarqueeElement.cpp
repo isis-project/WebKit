@@ -58,11 +58,11 @@ int HTMLMarqueeElement::minimumDelay() const
     return 0;
 }
 
-bool HTMLMarqueeElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLMarqueeElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == widthAttr || attr->name() == heightAttr || attr->name() == bgcolorAttr || attr->name() == vspaceAttr || attr->name() == hspaceAttr || attr->name() == scrollamountAttr || attr->name() == scrolldelayAttr || attr->name() == loopAttr || attr->name() == behaviorAttr || attr->name() == directionAttr)
+    if (name == widthAttr || name == heightAttr || name == bgcolorAttr || name == vspaceAttr || name == hspaceAttr || name == scrollamountAttr || name == scrolldelayAttr || name == loopAttr || name == behaviorAttr || name == directionAttr)
         return true;
-    return HTMLElement::isPresentationAttribute(attr);
+    return HTMLElement::isPresentationAttribute(name);
 }
 
 void HTMLMarqueeElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
@@ -95,16 +95,16 @@ void HTMLMarqueeElement::collectStyleForAttribute(Attribute* attr, StyleProperty
     } else if (attr->name() == loopAttr) {
         if (!attr->value().isEmpty()) {
             if (attr->value() == "-1" || equalIgnoringCase(attr->value(), "infinite"))
-                style->setProperty(CSSPropertyWebkitMarqueeRepetition, CSSValueInfinite);
+                addPropertyToAttributeStyle(style, CSSPropertyWebkitMarqueeRepetition, CSSValueInfinite);
             else
                 addHTMLLengthToStyle(style, CSSPropertyWebkitMarqueeRepetition, attr->value());
         }
     } else if (attr->name() == behaviorAttr) {
         if (!attr->value().isEmpty())
-            style->setProperty(CSSPropertyWebkitMarqueeStyle, attr->value());
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitMarqueeStyle, attr->value());
     } else if (attr->name() == directionAttr) {
         if (!attr->value().isEmpty())
-            style->setProperty(CSSPropertyWebkitMarqueeDirection, attr->value());
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitMarqueeDirection, attr->value());
     } else
         HTMLElement::collectStyleForAttribute(attr, style);
 }

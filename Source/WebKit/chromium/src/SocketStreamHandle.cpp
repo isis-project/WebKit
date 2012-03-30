@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009 Google Inc. All rights reserved.
+ * Copyright (C) 2009, 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -30,6 +30,7 @@
 
 #include "config.h"
 #include "SocketStreamHandle.h"
+#include "SocketStreamHandleInternal.h"
 
 #if ENABLE(WEB_SOCKETS)
 
@@ -40,40 +41,11 @@
 #include "WebKit.h"
 #include "platform/WebKitPlatformSupport.h"
 #include "platform/WebSocketStreamHandle.h"
-#include "platform/WebSocketStreamHandleClient.h"
-#include "platform/WebURL.h"
 #include <wtf/PassOwnPtr.h>
 
 using namespace WebKit;
 
 namespace WebCore {
-
-class SocketStreamHandleInternal : public WebSocketStreamHandleClient {
-public:
-    static PassOwnPtr<SocketStreamHandleInternal> create(SocketStreamHandle* handle)
-    {
-        return adoptPtr(new SocketStreamHandleInternal(handle));
-    }
-    virtual ~SocketStreamHandleInternal();
-
-    void connect(const KURL&);
-    int send(const char*, int);
-    void close();
-
-    virtual void didOpenStream(WebSocketStreamHandle*, int);
-    virtual void didSendData(WebSocketStreamHandle*, int);
-    virtual void didReceiveData(WebSocketStreamHandle*, const WebData&);
-    virtual void didClose(WebSocketStreamHandle*);
-    virtual void didFail(WebSocketStreamHandle*, const WebSocketStreamError&);
-
-private:
-    explicit SocketStreamHandleInternal(SocketStreamHandle*);
-
-    SocketStreamHandle* m_handle;
-    OwnPtr<WebSocketStreamHandle> m_socket;
-    int m_maxPendingSendAllowed;
-    int m_pendingAmountSent;
-};
 
 SocketStreamHandleInternal::SocketStreamHandleInternal(SocketStreamHandle* handle)
     : m_handle(handle)
@@ -92,6 +64,9 @@ void SocketStreamHandleInternal::connect(const KURL& url)
     m_socket = adoptPtr(webKitPlatformSupport()->createSocketStreamHandle());
     LOG(Network, "connect");
     ASSERT(m_socket);
+    ASSERT(m_handle);
+    if (m_handle->m_client)
+        m_handle->m_client->willOpenSocketStream(m_handle);
     m_socket->connect(url, this);
 }
 
@@ -117,7 +92,8 @@ int SocketStreamHandleInternal::send(const char* data, int len)
 void SocketStreamHandleInternal::close()
 {
     LOG(Network, "close");
-    m_socket->close();
+    if (m_socket)
+        m_socket->close();
 }
     
 void SocketStreamHandleInternal::didOpenStream(WebSocketStreamHandle* socketHandle, int maxPendingSendAllowed)

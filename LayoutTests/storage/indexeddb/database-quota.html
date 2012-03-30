@@ -4,24 +4,21 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Tests IndexedDB's quota enforcing mechanism.");
-if (window.layoutTestController) 
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('database-quota')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('database-quota')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
 
 function openSuccess()
 {
-    window.db = evalAndLog("db = event.target.result");
+    self.db = evalAndLog("db = event.target.result");
 
     request = evalAndLog("db.setVersion('new version')");
     request.onsuccess = setVersionSuccess;
@@ -31,7 +28,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = checkQuotaEnforcing;
@@ -59,16 +56,16 @@ function checkObjectStore()
 
 function checkQuotaEnforcing()
 {
-    var trans = evalAndLog("trans = db.transaction(['test123'], webkitIDBTransaction.READ_WRITE)");
+    var trans = evalAndLog("trans = db.transaction(['test123'], IDBTransaction.READ_WRITE)");
     trans.onabort = testComplete;
     trans.oncomplete = unexpectedCompleteCallback;
     debug("Creating 'data' which contains 64K of data");
-    window.data = "X";
+    self.data = "X";
     for (var i = 0; i < 16; i++)
         data += data;
     shouldBe("data.length", "65536");
-    window.dataAdded = 0;
-    window.store = evalAndLog("store = trans.objectStore('test123')");
+    self.dataAdded = 0;
+    self.store = evalAndLog("store = trans.objectStore('test123')");
     addData();
 }
 
@@ -79,7 +76,7 @@ function addData()
             store = event.target.source;
     } else {
         testFailed("added more than quota");
-        done();
+        finishJSTest();
         return;
     }
     dataAdded += 65536;
@@ -97,12 +94,13 @@ function logError()
 function testComplete()
 {
     testPassed("Adding data failed due to quota error. Data added was about " + Math.round(dataAdded / 1024 / 1024) + " MB");
-    done();
+    finishJSTest();
 }
 
 test();
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

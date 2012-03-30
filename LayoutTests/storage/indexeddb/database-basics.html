@@ -4,20 +4,13 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test the basics of IndexedDB's IDBDatabase.");
-if (window.layoutTestController) 
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB");
-    shouldBeTrue("indexedDB != null");
-    evalAndLog("IDBDatabaseException = window.IDBDatabaseException || window.webkitIDBDatabaseException");
-    shouldBeTrue("IDBDatabaseException != null");
+    removeVendorPrefixes();
 
     request = evalAndLog("indexedDB.open('database-basics')");
     request.onsuccess = openSuccess;
@@ -26,7 +19,7 @@ function test()
 
 function openSuccess()
 {
-    window.db = evalAndLog("db = event.target.result");
+    self.db = evalAndLog("db = event.target.result");
 
     request = evalAndLog("db.setVersion('new version')");
     request.onsuccess = setVersionSuccess;
@@ -36,7 +29,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
 
@@ -81,7 +74,7 @@ function checkObjectStore()
 
 function commitAndContinue()
 {
-    window.setTimeout(testSetVersionAbort, 0);
+    self.setTimeout(testSetVersionAbort, 0);
 }
 
 function testSetVersionAbort()
@@ -119,12 +112,13 @@ function testClose()
     evalAndExpectException("db.transaction('test123')", "IDBDatabaseException.NOT_ALLOWED_ERR");
     debug("Call twice, make sure it's harmless");
     evalAndLog("db.close()");
-    done();
+    finishJSTest();
 }
 
 test();
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

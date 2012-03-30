@@ -37,13 +37,6 @@ typedef struct _GdkEventScroll GdkEventScroll;
 typedef struct _Evas_Event_Mouse_Wheel Evas_Event_Mouse_Wheel;
 #endif
 
-#if PLATFORM(QT)
-QT_BEGIN_NAMESPACE
-class QWheelEvent;
-class QGraphicsSceneWheelEvent;
-QT_END_NAMESPACE
-#endif
-
 #if PLATFORM(WIN)
 typedef struct HWND__* HWND;
 typedef unsigned WPARAM;
@@ -71,7 +64,8 @@ namespace WebCore {
     // up and down (you get the same behavior as if the user was clicking in a scrollbar track to page up or page down).
     enum PlatformWheelEventGranularity {
         ScrollByPageWheelEvent,
-        ScrollByPixelWheelEvent
+        ScrollByPixelWheelEvent,
+        ScrollByPixelVelocityWheelEvent
     };
 
 #if PLATFORM(MAC) || (PLATFORM(CHROMIUM) && OS(DARWIN))
@@ -159,12 +153,6 @@ namespace WebCore {
         PlatformWheelEventPhase phase() const { return m_phase; }
         PlatformWheelEventPhase momentumPhase() const { return m_momentumPhase; }
         bool hasPreciseScrollingDeltas() const { return m_hasPreciseScrollingDeltas; }
-#endif
-
-#if PLATFORM(QT)
-        PlatformWheelEvent(QWheelEvent*);
-        PlatformWheelEvent(QGraphicsSceneWheelEvent*);
-        void applyDelta(int delta, Qt::Orientation);
 #endif
 
 #if PLATFORM(WIN)

@@ -29,6 +29,8 @@
 #include "AXObjectCache.h"
 #include "Document.h"
 #include "EditingText.h"
+#include "Editor.h"
+#include "Frame.h"
 #include "HTMLBRElement.h"
 #include "HTMLDivElement.h"
 #include "HTMLElementFactory.h"
@@ -38,6 +40,7 @@
 #include "HTMLNames.h"
 #include "HTMLObjectElement.h"
 #include "HTMLOListElement.h"
+#include "HTMLParagraphElement.h"
 #include "HTMLUListElement.h"
 #include "PositionIterator.h"
 #include "RenderObject.h"
@@ -844,7 +847,15 @@ bool isEmptyTableCell(const Node* node)
 
 PassRefPtr<HTMLElement> createDefaultParagraphElement(Document* document)
 {
-    return HTMLDivElement::create(document);
+    switch (document->frame()->editor()->defaultParagraphSeparator()) {
+    case EditorParagraphSeparatorIsDiv:
+        return HTMLDivElement::create(document);
+    case EditorParagraphSeparatorIsP:
+        return HTMLParagraphElement::create(document);
+    }
+
+    ASSERT_NOT_REACHED();
+    return 0;
 }
 
 PassRefPtr<HTMLElement> createBreakElement(Document* document)
@@ -1072,31 +1083,24 @@ VisibleSelection selectionForParagraphIteration(const VisibleSelection& original
 // opertion is unreliable. TextIterator's TextIteratorEmitsCharactersBetweenAllVisiblePositions mode needs to be fixed, 
 // or these functions need to be changed to iterate using actual VisiblePositions.
 // FIXME: Deploy these functions everywhere that TextIterators are used to convert between VisiblePositions and indices.
-int indexForVisiblePosition(const VisiblePosition& visiblePosition, Element **scope)
+int indexForVisiblePosition(const VisiblePosition& visiblePosition, RefPtr<Element>& scope)
 {
     if (visiblePosition.isNull())
         return 0;
-        
+
     Position p(visiblePosition.deepEquivalent());
     Document* document = p.anchorNode()->document();
-    
-    Element* root;
     Node* shadowRoot = p.anchorNode()->shadowTreeRootNode();
-    
+
     if (shadowRoot) {
         // Use the shadow root for form elements, since TextIterators will not enter shadow content.
         ASSERT(shadowRoot->isElementNode());
-        root = static_cast<Element*>(shadowRoot);
+        scope = static_cast<Element*>(shadowRoot);
     } else
-        root = document->documentElement();
-    
-    if (scope) {
-        ASSERT(!*scope);
-        *scope = root;
-    }
-    
-    RefPtr<Range> range = Range::create(document, firstPositionInNode(root), p.parentAnchoredEquivalent());
-    
+        scope = document->documentElement();
+
+    RefPtr<Range> range = Range::create(document, firstPositionInNode(scope.get()), p.parentAnchoredEquivalent());
+
     return TextIterator::rangeLength(range.get(), true);
 }
 
@@ -1149,22 +1153,15 @@ bool isRenderedAsNonInlineTableImageOrHR(const Node* node)
 
 bool areIdenticalElements(const Node* first, const Node* second)
 {
-    // check that tag name and all attribute names and values are identical
-
     if (!first->isElementNode() || !second->isElementNode())
         return false;
 
-    if (!toElement(first)->tagQName().matches(toElement(second)->tagQName()))
+    const Element* firstElement = toElement(first);
+    const Element* secondElement = toElement(second);
+    if (!firstElement->hasTagName(secondElement->tagQName()))
         return false;
 
-    NamedNodeMap* firstMap = toElement(first)->updatedAttributes();
-    NamedNodeMap* secondMap = toElement(second)->updatedAttributes();
-
-    if (firstMap)
-        return firstMap->mapsEquivalent(secondMap);
-    if (secondMap)
-        return secondMap->mapsEquivalent(firstMap);
-    return true;
+    return firstElement->hasEquivalentAttributes(secondElement);
 }
 
 bool isNonTableCellHTMLBlockElement(const Node* node)

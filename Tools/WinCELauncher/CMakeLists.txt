@@ -6,7 +6,8 @@ SET(WinCELauncher_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/network"
     "${WEBCORE_DIR}/platform/text"
     "${JAVASCRIPTCORE_DIR}"
-    "${JAVASCRIPTCORE_DIR}/wtf"
+    "${WTF_DIR}"
+    "${WTF_DIR}/wtf"
     "${DERIVED_SOURCES_DIR}"
     "${CMAKE_BINARY_DIR}"
 )

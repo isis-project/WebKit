@@ -37,27 +37,20 @@ from webkitpy.common.memoized import memoized
 # * specifiers -- a set of specifiers, representing configurations covered by this builder.
 _exact_matches = {
     # These builders are on build.chromium.org.
-    "Webkit Win": {"port_name": "chromium-win-xp", "specifiers": set(["xp", "release", "cpu"])},
+    "Webkit Win": {"port_name": "chromium-win-xp", "specifiers": set(["xp", "release"])},
     "Webkit Vista": {"port_name": "chromium-win-vista", "specifiers": set(["vista"])},
-    "Webkit Win7": {"port_name": "chromium-win-win7", "specifiers": set(["win7", "cpu"])},
+    "Webkit Win7": {"port_name": "chromium-win-win7", "specifiers": set(["win7"])},
     "Webkit Win (dbg)(1)": {"port_name": "chromium-win-xp", "specifiers": set(["win", "debug"])},
     "Webkit Win (dbg)(2)": {"port_name": "chromium-win-xp", "specifiers": set(["win", "debug"])},
     "Webkit Linux": {"port_name": "chromium-linux-x86_64", "specifiers": set(["linux", "x86_64", "release"])},
     "Webkit Linux 32": {"port_name": "chromium-linux-x86", "specifiers": set(["linux", "x86"])},
-    "Webkit Linux (dbg)(1)": {"port_name": "chromium-linux-x86_64", "specifiers": set(["linux", "debug"])},
-    "Webkit Linux (dbg)(2)": {"port_name": "chromium-linux-x86_64", "specifiers": set(["linux", "debug"])},
+    "Webkit Linux (dbg)": {"port_name": "chromium-linux-x86_64", "specifiers": set(["linux", "debug"])},
     "Webkit Mac10.5": {"port_name": "chromium-mac-leopard", "specifiers": set(["leopard"])},
     "Webkit Mac10.5 (dbg)(1)": {"port_name": "chromium-mac-leopard", "specifiers": set(["leopard", "debug"])},
     "Webkit Mac10.5 (dbg)(2)": {"port_name": "chromium-mac-leopard", "specifiers": set(["leopard", "debug"])},
     "Webkit Mac10.6": {"port_name": "chromium-mac-snowleopard", "specifiers": set(["snowleopard"])},
     "Webkit Mac10.6 (dbg)": {"port_name": "chromium-mac-snowleopard", "specifiers": set(["snowleopard", "debug"])},
-    "Webkit Win - GPU": {"port_name": "chromium-gpu-win-xp", "specifiers": set(["xp", "release", "gpu"])},
-    "Webkit Win7 - GPU": {"port_name": "chromium-gpu-win-win7", "specifiers": set(["win7", "vista", "release", "gpu"])},
-    # FIXME: For some reason, these port names don't work correctly.
-    # "Webkit Linux - GPU": {"port_name": "chromium-gpu-linux-x86_64", "specifiers": set(["linux", "gpu"])},
-    # "Webkit Linux 32 - GPU": {"port_name": "chromium-gpu-linux-x86", "specifiers": set(["linux", "x86", "gpu"])},
-    "Webkit Mac10.6 (dbg) - GPU": {"port_name": "chromium-gpu-mac-snowleopard", "specifiers": set(["snowleopard", "gpu", "debug"])},
-    "Webkit Mac10.6 - GPU": {"port_name": "chromium-gpu-mac-snowleopard", "specifiers": set(["snowleopard", "gpu"])},
+    "Webkit Mac10.7": {"port_name": "chromium-mac-lion", "specifiers": set(["lion"])},
 
     # These builders are on build.webkit.org.
     "GTK Linux 32-bit Debug": {"port_name": "gtk", "specifiers": set(["gtk"])},
@@ -67,6 +60,7 @@ _exact_matches = {
     "Qt Linux Release": {"port_name": "qt-linux", "specifiers": set(["win", "linux", "mac"])},
     "Windows XP Debug (Tests)": {"port_name": "win-xp", "specifiers": set(["win"])},
     "Windows 7 Release (WebKit2 Tests)": {"port_name": "win-future-wk2", "specifiers": set(["wk2"])},
+    "EFL Linux Release": {"port_name": "efl", "specifiers": set(["efl"])},
 }
 
 
@@ -84,9 +78,6 @@ _fuzzy_matches = {
 
 
 _ports_without_builders = [
-    # FIXME: Including chromium-gpu-linux below is a workaround for
-    # chromium-gpu-linux-x86_64 and chromium-gpu-linux-x86 not working properly.
-    "chromium-gpu-linux",
     "google-chrome-linux32",
     "google-chrome-linux64",
     "qt-mac",
@@ -131,3 +122,7 @@ def builder_name_for_port_name(target_port_name):
 
 def builder_path_for_port_name(port_name):
     builder_path_from_name(builder_name_for_port_name(port_name))
+
+
+def fallback_port_names_for_new_port(builder_name):
+    return _exact_matches[builder_name].get("move_overwritten_baselines_to", [])

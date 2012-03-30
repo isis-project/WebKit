@@ -33,7 +33,7 @@
 #include <QObject>
 #include <QStringList>
 #include <QtDeclarative>
-#include <QtWidgets/QApplication>
+#include <QGuiApplication>
 #include <QTouchEvent>
 #include <QUrl>
 #include "qwindowsysteminterface_qpa.h"
@@ -64,6 +64,8 @@ public:
     bool startFullScreen() const { return m_startFullScreen; }
     void setRequestedWindowSize(const QSize& size) { m_windowSize = size; }
     QSize requestedWindowSize() const { return m_windowSize; }
+    void setUserAgent(const QString& userAgent) { m_userAgent = userAgent; }
+    QString userAgent() const { return m_userAgent; }
     bool touchMockingEnabled() const { return m_touchMockingEnabled; }
     void setTouchMockingEnabled(bool enabled)
     {
@@ -82,9 +84,10 @@ private:
     bool m_startFullScreen;
     bool m_touchMockingEnabled;
     QSize m_windowSize;
+    QString m_userAgent;
 };
 
-class MiniBrowserApplication : public QApplication {
+class MiniBrowserApplication : public QGuiApplication {
     Q_OBJECT
 
 public:
@@ -98,7 +101,7 @@ public:
     virtual bool notify(QObject*, QEvent*);
 
 private:
-    void sendTouchEvent(BrowserWindow*);
+    bool sendTouchEvent(BrowserWindow*, QEvent::Type, ulong timestamp);
     void handleUserOptions();
 
 private:
@@ -109,10 +112,15 @@ private:
     int m_robotExtraTimeSeconds;
     QStringList m_urls;
 
-    QHash<int, QWindowSystemInterface::TouchPoint> m_touchPoints;
+    QPointF m_lastPos;
+    QPointF m_lastScreenPos;
+    QPointF m_startScreenPos;
+
+    QHash<int, QTouchEvent::TouchPoint> m_touchPoints;
     QSet<int> m_heldTouchPoints;
 
     WindowOptions m_windowOptions;
+    bool m_holdingControl;
 };
 
 QML_DECLARE_TYPE(WindowOptions);

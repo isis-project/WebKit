@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005, 2006, 2007, 2008, 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2005-2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -39,8 +39,10 @@
 @class WebDeviceOrientation;
 @class WebGeolocationPosition;
 @class WebInspector;
+@class WebNotification;
 @class WebPreferences;
 @class WebScriptWorld;
+@class WebSecurityOrigin;
 @class WebTextIterator;
 
 @protocol WebDeviceOrientationProvider;
@@ -103,6 +105,13 @@ typedef enum {
     WebPaginationModeHorizontal,
     WebPaginationModeVertical,
 } WebPaginationMode;
+
+// This needs to be in sync with WebCore::NotificationClient::Permission
+typedef enum {
+    WebNotificationPermissionAllowed,
+    WebNotificationPermissionNotAllowed,
+    WebNotificationPermissionDenied
+} WebNotificationPermission;
 
 @interface WebController : NSTreeController {
     IBOutlet WebView *webView;
@@ -701,6 +710,21 @@ Could be worth adding to the API.
 - (WebGeolocationPosition *)lastPosition;
 @end
 
+@protocol WebNotificationProvider
+- (void)registerWebView:(WebView *)webView;
+- (void)unregisterWebView:(WebView *)webView;
+
+- (void)showNotification:(WebNotification *)notification fromWebView:(WebView *)webView;
+- (void)cancelNotification:(WebNotification *)notification;
+- (void)notificationDestroyed:(WebNotification *)notification;
+- (void)clearNotifications:(NSArray *)notificationIDs;
+- (WebNotificationPermission)policyForOrigin:(WebSecurityOrigin *)origin;
+
+- (void)webView:(WebView *)webView didShowNotification:(uint64_t)notificationID;
+- (void)webView:(WebView *)webView didClickNotification:(uint64_t)notificationID;
+- (void)webView:(WebView *)webView didCloseNotifications:(NSArray *)notificationIDs;
+@end
+
 @interface WebView (WebViewGeolocation)
 - (void)_setGeolocationProvider:(id<WebGeolocationProvider>)locationProvider;
 - (id<WebGeolocationProvider>)_geolocationProvider;
@@ -709,12 +733,18 @@ Could be worth adding to the API.
 - (void)_geolocationDidFailWithError:(NSError *)error;
 @end
 
-@interface WebView (WebViewPrivateStyleInfo)
-- (JSValueRef)_computedStyleIncludingVisitedInfo:(JSContextRef)context forElement:(JSValueRef)value;
+@interface WebView (WebViewNotification)
+- (void)_setNotificationProvider:(id<WebNotificationProvider>)notificationProvider;
+- (id<WebNotificationProvider>)_notificationProvider;
+- (void)_notificationControllerDestroyed;
+
+- (void)_notificationDidShow:(uint64_t)notificationID;
+- (void)_notificationDidClick:(uint64_t)notificationID;
+- (void)_notificationsDidClose:(NSArray *)notificationIDs;
 @end
 
-@interface WebView (WebViewPrivateNodesFromRect)
-- (JSValueRef)_nodesFromRect:(JSContextRef)context forDocument:(JSValueRef)value x:(int)x  y:(int)y top:(unsigned)top right:(unsigned)right bottom:(unsigned)bottom left:(unsigned)left ignoreClipping:(BOOL)ignoreClipping;
+@interface WebView (WebViewPrivateStyleInfo)
+- (JSValueRef)_computedStyleIncludingVisitedInfo:(JSContextRef)context forElement:(JSValueRef)value;
 @end
 
 @interface NSObject (WebViewFrameLoadDelegatePrivate)

@@ -83,7 +83,7 @@ public:
 
     bool isTextButton() const;
 
-    virtual bool isRadioButton() const;
+    bool isRadioButton() const;
     bool isTextField() const;
     bool isSearchField() const;
     bool isInputTypeHidden() const;
@@ -221,10 +221,9 @@ public:
     HTMLOptionElement* selectedOption() const;
 #endif
 
-    // These functions are public so they can be used in InputType classes.
-    // Otherwise, they would be private.
-    CheckedRadioButtons& checkedRadioButtons() const;
-    void updateCheckedRadioButtons();
+    HTMLInputElement* checkedRadioButtonForGroup() const;
+    bool isInRequiredRadioButtonGroup() const;
+
     void setValueInternal(const String&, TextFieldEventBehavior);
 
     void cacheSelectionInResponseToSetValue(int caretOffset) { cacheSelection(caretOffset, caretOffset, SelectionHasNoDirection); }
@@ -256,6 +255,7 @@ private:
     virtual bool isKeyboardFocusable(KeyboardEvent*) const;
     virtual bool isMouseFocusable() const;
     virtual bool isEnumeratable() const;
+    virtual bool supportLabels() const OVERRIDE;
     virtual void updateFocusAppearance(bool restorePreviousSelection);
     virtual void aboutToUnload();
     virtual bool shouldUseInputMethod();
@@ -276,7 +276,7 @@ private:
     virtual void accessKeyAction(bool sendMouseEvents);
 
     virtual void parseAttribute(Attribute*) OVERRIDE;
-    virtual bool isPresentationAttribute(Attribute*) const OVERRIDE;
+    virtual bool isPresentationAttribute(const QualifiedName&) const OVERRIDE;
     virtual void collectStyleForAttribute(Attribute*, StylePropertySet*) OVERRIDE;
     virtual void finishParsingChildren();
 
@@ -338,6 +338,11 @@ private:
 #endif
     void parseMaxLengthAttribute(Attribute*);
     void updateValueIfNeeded();
+
+    // Returns null if this isn't associated with any radio button group.
+    CheckedRadioButtons* checkedRadioButtons() const;
+    void addToRadioButtonGroup();
+    void removeFromRadioButtonGroup();
 
     AtomicString m_name;
     String m_valueIfDirty;

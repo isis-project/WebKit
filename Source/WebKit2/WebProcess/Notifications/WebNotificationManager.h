@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,7 +27,7 @@
 #define WebNotificationManager_h
 
 #include "MessageID.h"
-#include <WebCore/NotificationPresenter.h>
+#include <WebCore/NotificationClient.h>
 #include <wtf/HashMap.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/RefPtr.h>
@@ -66,7 +66,7 @@ public:
     void didReceiveMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*);
     
     // Looks in local cache for permission. If not found, returns DefaultDenied.
-    WebCore::NotificationPresenter::Permission policyForOrigin(WebCore::SecurityOrigin*) const;
+    WebCore::NotificationClient::Permission policyForOrigin(WebCore::SecurityOrigin*) const;
 
 private:
     // Implemented in generated WebNotificationManagerMessageReceiver.cpp
@@ -77,10 +77,14 @@ private:
     void didCloseNotifications(const Vector<uint64_t>& notificationIDs);
     void didUpdateNotificationDecision(const String& originString, bool allowed);
     void didRemoveNotificationDecisions(const Vector<String>& originStrings);
+    
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+    void removeNotificationFromContextMap(uint64_t notificationID, WebCore::Notification*);
+#endif
 
     WebProcess* m_process;
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     typedef HashMap<RefPtr<WebCore::Notification>, uint64_t> NotificationMap;
     NotificationMap m_notificationMap;
     

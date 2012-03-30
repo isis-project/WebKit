@@ -175,6 +175,9 @@ struct RenderThemeEfl::ThemePartCacheEntry* RenderThemeEfl::cacheThemePartNew(Fo
         return 0;
     }
 
+    // By default EFL creates buffers without alpha.
+    ecore_evas_alpha_set(entry->ee, EINA_TRUE);
+
     entry->o = edje_object_add(ecore_evas_get(entry->ee));
     ASSERT(entry->o);
     if (!themePartCacheEntryReset(entry, type)) {
@@ -1152,7 +1155,7 @@ bool RenderThemeEfl::emitMediaButtonSignal(FormType formType, MediaControlElemen
         edje_object_signal_emit(entry->o, "seekforward", "");
     else if (mediaElementType == MediaSeekBackButton)
         edje_object_signal_emit(entry->o, "seekbackward", "");
-    else if (mediaElementType == MediaFullscreenButton)
+    else if (mediaElementType == MediaEnterFullscreenButton)
         edje_object_signal_emit(entry->o, "fullscreen", "");
     else
         return false;
@@ -1176,7 +1179,7 @@ bool RenderThemeEfl::paintMediaFullscreenButton(RenderObject* object, const Pain
     if (!mediaNode || (!mediaNode->hasTagName(videoTag)))
         return false;
 
-    if (!emitMediaButtonSignal(FullScreenButton, MediaFullscreenButton, rect))
+    if (!emitMediaButtonSignal(FullScreenButton, MediaEnterFullscreenButton, rect))
         return false;
 
     return paintThemePart(object, FullScreenButton, info, rect);

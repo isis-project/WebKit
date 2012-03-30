@@ -28,9 +28,10 @@
  */
 
 #include "config.h"
-#include "InspectorFrontendHost.h"
 
 #if ENABLE(INSPECTOR)
+
+#include "InspectorFrontendHost.h"
 
 #include "ContextMenu.h"
 #include "ContextMenuItem.h"
@@ -179,6 +180,11 @@ void InspectorFrontendHost::bringToFront()
 {
     if (m_client)
         m_client->bringToFront();
+}
+
+void InspectorFrontendHost::setZoomFactor(float zoom)
+{
+    m_frontendPage->mainFrame()->setPageAndTextZoomFactors(zoom, 1);
 }
 
 void InspectorFrontendHost::inspectedURLChanged(const String& newURL)

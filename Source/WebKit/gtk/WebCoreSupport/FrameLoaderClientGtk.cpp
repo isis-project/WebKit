@@ -33,13 +33,12 @@
 #include "DocumentLoader.h"
 #include "DocumentLoaderGtk.h"
 #include "ErrorsGtk.h"
+#include "FileSystem.h"
 #include "FormState.h"
 #include "FrameLoader.h"
 #include "FrameNetworkingContextGtk.h"
 #include "FrameTree.h"
 #include "FrameView.h"
-#include "GOwnPtr.h"
-#include "GRefPtr.h"
 #include "GtkPluginWidget.h"
 #include "HTMLAppletElement.h"
 #include "HTMLFormElement.h"
@@ -64,9 +63,10 @@
 #include "ScriptController.h"
 #include "Settings.h"
 #include "webkiterror.h"
+#include "webkitfavicondatabase.h"
+#include "webkitfavicondatabaseprivate.h"
 #include "webkitglobals.h"
 #include "webkitglobalsprivate.h"
-#include "webkiticondatabase.h"
 #include "webkitnetworkrequest.h"
 #include "webkitnetworkrequestprivate.h"
 #include "webkitnetworkresponse.h"
@@ -90,6 +90,8 @@
 #include <glib.h>
 #include <glib/gi18n-lib.h>
 #include <stdio.h>
+#include <wtf/gobject/GOwnPtr.h>
+#include <wtf/gobject/GRefPtr.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringConcatenate.h>
 
@@ -530,35 +532,6 @@ PassRefPtr<Frame> FrameLoaderClient::createFrame(const KURL& url, const String& 
     return childFrame.release();
 }
 
-void FrameLoaderClient::didTransferChildFrameToNewDocument(WebCore::Page*)
-{
-    ASSERT(m_frame);
-
-    // Update the frame's webview to the new parent's webview.
-    Frame* coreFrame = core(m_frame);
-    WebKitWebView* webView = getViewFromFrame(m_frame);
-
-    Frame* parentCoreFrame = coreFrame->tree()->parent();
-    WebKitWebFrame* parentKitFrame = kit(parentCoreFrame);
-    WebKitWebView* parentWebView = getViewFromFrame(parentKitFrame);
-    if (webView != parentWebView)
-        m_frame->priv->webView = parentWebView;
-
-    ASSERT(core(getViewFromFrame(m_frame)) == coreFrame->page());
-}
-
-void FrameLoaderClient::transferLoadingResourceFromPage(WebCore::ResourceLoader* loader, const WebCore::ResourceRequest& request, WebCore::Page* oldPage)
-{
-    ASSERT(oldPage != core(m_frame)->page());
-
-    GOwnPtr<gchar> identifierString(toString(loader->identifier()));
-    ASSERT(!webkit_web_view_get_resource(getViewFromFrame(m_frame), identifierString.get()));
-
-    assignIdentifierToInitialRequest(loader->identifier(), loader->documentLoader(), request);
-
-    webkit_web_view_remove_resource(kit(oldPage), identifierString.get());
-}
-
 void FrameLoaderClient::redirectDataToPlugin(Widget* pluginWidget)
 {
     ASSERT(!m_pluginView);
@@ -624,7 +597,7 @@ void FrameLoaderClient::didPerformFirstNavigation() const
 
 void FrameLoaderClient::registerForIconNotification(bool shouldRegister)
 {
-    notImplemented();
+    webkitWebViewRegisterForIconNotification(getViewFromFrame(m_frame), shouldRegister);
 }
 
 void FrameLoaderClient::setMainFrameDocumentReady(bool ready)
@@ -801,18 +774,14 @@ void FrameLoaderClient::dispatchDidReceiveIcon()
     if (m_loadingErrorPage)
         return;
 
-    const gchar* frameURI = webkit_web_frame_get_uri(m_frame);
-    WebKitIconDatabase* database = webkit_get_icon_database();
-    g_signal_emit_by_name(database, "icon-loaded", m_frame, frameURI);
-
+    // IconController loads icons only for the main frame.
     WebKitWebView* webView = getViewFromFrame(m_frame);
+    ASSERT(m_frame == webkit_web_view_get_main_frame(webView));
 
-    // Avoid reporting favicons for non-main frames.
-    if (m_frame != webkit_web_view_get_main_frame(webView))
-        return;
-
-    g_object_notify(G_OBJECT(webView), "icon-uri");
-    g_signal_emit_by_name(webView, "icon-loaded", webkit_web_view_get_icon_uri(webView));
+    const char* frameURI = webkit_web_frame_get_uri(m_frame);
+    WebKitFaviconDatabase* database = webkit_get_favicon_database();
+    webkitFaviconDatabaseDispatchDidReceiveIcon(database, frameURI);
+    webkitWebViewIconLoaded(database, frameURI, webView);
 }
 
 void FrameLoaderClient::dispatchDidStartProvisionalLoad()
@@ -1105,7 +1074,9 @@ void FrameLoaderClient::dispatchDidFailLoad(const ResourceError& error)
 
     String content;
     gchar* fileContent = 0;
-    gchar* errorURI = g_filename_to_uri(DATA_DIR"/webkit-1.0/resources/error.html", NULL, NULL);
+    GOwnPtr<gchar> errorPath(g_build_filename(sharedResourcesPath().data(), "resources", "error.html", NULL));
+    gchar* errorURI = g_filename_to_uri(errorPath.get(), 0, 0);
+
     GFile* errorFile = g_file_new_for_uri(errorURI);
     g_free(errorURI);
 

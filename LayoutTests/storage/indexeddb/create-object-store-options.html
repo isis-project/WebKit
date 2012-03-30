@@ -4,20 +4,15 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's createObjectStore's various options");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    shouldBeTrue("'webkitIndexedDB' in window");
-    shouldBeFalse("webkitIndexedDB == null");
+    removeVendorPrefixes();
 
-    request = evalAndLog("webkitIndexedDB.open('create-object-store-options', 'description')");
+    request = evalAndLog("indexedDB.open('create-object-store-options', 'description')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -40,9 +35,13 @@ function cleanDatabase()
 
     debug("db.createObjectStore('c', {autoIncrement: true});");
     db.createObjectStore('c', {autoIncrement: true});
+    event.target.result.oncomplete = setVersionComplete;
+}
 
-    trans = evalAndLog("trans = db.transaction(['a', 'b'], webkitIDBTransaction.READ_WRITE)");
-    shouldBe("trans.mode", "webkitIDBTransaction.READ_WRITE");
+function setVersionComplete()
+{
+    trans = evalAndLog("trans = db.transaction(['a', 'b'], IDBTransaction.READ_WRITE)");
+    shouldBe("trans.mode", "IDBTransaction.READ_WRITE");
 
     req = evalAndLog("trans.objectStore('a').put({'a': 0})");
     req.onsuccess = putB;
@@ -79,12 +78,13 @@ function checkB()
 {
     shouldBe("event.target.result.a", "{a: 0}");
 
-    done();
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

@@ -26,7 +26,10 @@
 
 #include "Attribute.h"
 #include "Document.h"
+#include "Event.h"
+#include "EventSender.h"
 #include "HTMLNames.h"
+#include "RuntimeEnabledFeatures.h"
 #include "ScriptEventListener.h"
 #include "ScriptableDocumentParser.h"
 
@@ -35,9 +38,17 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
+static StyleEventSender& styleLoadEventSender()
+{
+    DEFINE_STATIC_LOCAL(StyleEventSender, sharedLoadEventSender, (eventNames().loadEvent));
+    return sharedLoadEventSender;
+}
+
 inline HTMLStyleElement::HTMLStyleElement(const QualifiedName& tagName, Document* document, bool createdByParser)
     : HTMLElement(tagName, document)
     , StyleElement(document, createdByParser)
+    , m_firedLoad(false)
+    , m_loadedSheet(false)
 #if ENABLE(STYLE_SCOPED)
     , m_isRegisteredWithScopingNode(false)
 #endif
@@ -50,6 +61,8 @@ HTMLStyleElement::~HTMLStyleElement()
     // During tear-down, willRemove isn't called, so m_isRegisteredWithScopingNode may still be set here.
     // Therefore we can't ASSERT(!m_isRegisteredWithScopingNode).
     StyleElement::clearDocumentData(document(), this);
+
+    styleLoadEventSender().cancelEvent(this);
 }
 
 PassRefPtr<HTMLStyleElement> HTMLStyleElement::create(const QualifiedName& tagName, Document* document, bool createdByParser)
@@ -61,6 +74,10 @@ void HTMLStyleElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == titleAttr && m_sheet)
         m_sheet->setTitle(attr->value());
+    else if (attr->name() == onloadAttr)
+        setAttributeEventListener(eventNames().loadEvent, createAttributeEventListener(this, attr));
+    else if (attr->name() == onerrorAttr)
+        setAttributeEventListener(eventNames().errorEvent, createAttributeEventListener(this, attr));
 #if ENABLE(STYLE_SCOPED)
     else if (attr->name() == scopedAttr) {
         if (!attr->isNull() && !m_isRegisteredWithScopingNode && inDocument())
@@ -87,38 +104,50 @@ void HTMLStyleElement::registerWithScopingNode()
     // Therefore we cannot rely on scoped()!
     ASSERT(!m_isRegisteredWithScopingNode);
     ASSERT(inDocument());
-    if (!m_isRegisteredWithScopingNode) {
-        Element* scope = parentElement();
-        if (!scope)
-            return;
+    if (m_isRegisteredWithScopingNode)
+        return;
+    if (!RuntimeEnabledFeatures::styleScopedEnabled())
+        return;
 
-        scope->registerScopedHTMLStyleChild();
-        scope->setNeedsStyleRecalc();
-        if (inDocument() && !document()->parsing() && document()->renderer())
-            document()->styleSelectorChanged(DeferRecalcStyle);
-
-        m_isRegisteredWithScopingNode = true;
+    ContainerNode* scope = parentNode();
+    if (!scope)
+        return;
+    if (!scope->isElementNode() && !scope->isShadowRoot()) {
+        // DocumentFragment nodes should never be inDocument,
+        // <style> should not be a child of Document, PI or some such.
+        ASSERT_NOT_REACHED();
+        return;
     }
+
+    scope->registerScopedHTMLStyleChild();
+    scope->setNeedsStyleRecalc();
+    if (inDocument() && !document()->parsing() && document()->renderer())
+        document()->styleSelectorChanged(DeferRecalcStyle);
+
+    m_isRegisteredWithScopingNode = true;
 }
 
 void HTMLStyleElement::unregisterWithScopingNode()
 {
     // Note: We cannot rely on the 'scoped' element still being present when this method is invoked.
     // Therefore we cannot rely on scoped()!
-    ASSERT(m_isRegisteredWithScopingNode);
-    if (m_isRegisteredWithScopingNode) {
-        Element* scope = parentElement();
-        ASSERT(scope);
-        if (scope) {
-            ASSERT(scope->hasScopedHTMLStyleChild());
-            scope->unregisterScopedHTMLStyleChild();
-            scope->setNeedsStyleRecalc();
-        }
-        if (inDocument() && !document()->parsing() && document()->renderer())
-            document()->styleSelectorChanged(DeferRecalcStyle);
+    ASSERT(m_isRegisteredWithScopingNode || !RuntimeEnabledFeatures::styleScopedEnabled());
+    if (!m_isRegisteredWithScopingNode)
+        return;
+    if (!RuntimeEnabledFeatures::styleScopedEnabled())
+        return;
 
-        m_isRegisteredWithScopingNode = false;
+    ContainerNode* scope = parentNode();
+    ASSERT(scope);
+    if (scope) {
+        ASSERT(scope->hasScopedHTMLStyleChild());
+        scope->unregisterScopedHTMLStyleChild();
+        scope->setNeedsStyleRecalc();
     }
+    if (inDocument() && !document()->parsing() && document()->renderer())
+        document()->styleSelectorChanged(DeferRecalcStyle);
+
+    m_isRegisteredWithScopingNode = false;
 }
 #endif
 
@@ -135,7 +164,10 @@ void HTMLStyleElement::insertedIntoDocument()
 void HTMLStyleElement::removedFromDocument()
 {
 #if ENABLE(STYLE_SCOPED)
-    ASSERT(!m_isRegisteredWithScopingNode);
+    // In come cases on teardown willRemove is not called - test here for unregistering again
+    // FIXME: Do we need to bother?
+    if (m_isRegisteredWithScopingNode)
+        unregisterWithScopingNode();
 #endif
     HTMLElement::removedFromDocument();
     StyleElement::removedFromDocument(document(), this);
@@ -149,7 +181,7 @@ void HTMLStyleElement::willRemove()
     // That is, because willRemove() is also called if an ancestor is removed from the document.
     // Now, if we want to register <style scoped> even if it's not inDocument,
     // we'd need to find a way to discern whether that is the case, or whether <style scoped> itself is about to be removed.
-    ASSERT(!scoped() || !inDocument() || m_isRegisteredWithScopingNode);
+    ASSERT(!scoped() || !inDocument() || m_isRegisteredWithScopingNode || !RuntimeEnabledFeatures::styleScopedEnabled());
     if (m_isRegisteredWithScopingNode)
         unregisterWithScopingNode();
     HTMLElement::willRemove();
@@ -158,8 +190,8 @@ void HTMLStyleElement::willRemove()
 
 void HTMLStyleElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
 {
-    StyleElement::childrenChanged(this);
     HTMLElement::childrenChanged(changedByParser, beforeChange, afterChange, childCountDelta);
+    StyleElement::childrenChanged(this);
 }
 
 const AtomicString& HTMLStyleElement::media() const
@@ -198,6 +230,29 @@ Element* HTMLStyleElement::scopingElement() const
     return toElement(parentOrHost);
 }
 #endif // ENABLE(STYLE_SCOPED)
+
+void HTMLStyleElement::dispatchPendingLoadEvents()
+{
+    styleLoadEventSender().dispatchPendingEvents();
+}
+
+void HTMLStyleElement::dispatchPendingEvent(StyleEventSender* eventSender)
+{
+    ASSERT_UNUSED(eventSender, eventSender == &styleLoadEventSender());
+    if (m_loadedSheet)
+        dispatchEvent(Event::create(eventNames().loadEvent, false, false));
+    else
+        dispatchEvent(Event::create(eventNames().errorEvent, false, false));
+}
+
+void HTMLStyleElement::notifyLoadedSheetAndAllCriticalSubresources(bool errorOccurred)
+{
+    if (m_firedLoad)
+        return;
+    m_loadedSheet = !errorOccurred;
+    styleLoadEventSender().dispatchEventSoon(this);
+    m_firedLoad = true;
+}
 
 void HTMLStyleElement::addSubresourceAttributeURLs(ListHashSet<KURL>& urls) const
 {    

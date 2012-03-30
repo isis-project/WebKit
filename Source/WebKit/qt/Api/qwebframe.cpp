@@ -105,7 +105,7 @@
 #endif
 #if USE(TEXTURE_MAPPER)
 #include "texmap/TextureMapper.h"
-#include "texmap/TextureMapperNode.h"
+#include "texmap/TextureMapperLayer.h"
 #endif
 #include "wtf/HashMap.h"
 #include <QMultiMap>
@@ -332,7 +332,7 @@ void QWebFramePrivate::renderFromTiledBackingStore(GraphicsContext* context, con
 #if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
 void QWebFramePrivate::renderCompositedLayers(GraphicsContext* context, const IntRect& clip)
 {
-    if (!rootTextureMapperNode || !textureMapper)
+    if (!rootTextureMapperLayer || !textureMapper)
         return;
 
     textureMapper->setGraphicsContext(context);
@@ -346,11 +346,11 @@ void QWebFramePrivate::renderCompositedLayers(GraphicsContext* context, const In
                 0, 0, 1, 0,
                 transform.m31(), transform.m32(), 0, transform.m33()
                 );
-    rootTextureMapperNode->setTransform(matrix);
-    rootTextureMapperNode->setOpacity(painter->opacity());
+    rootTextureMapperLayer->setTransform(matrix);
+    rootTextureMapperLayer->setOpacity(painter->opacity());
     textureMapper->beginPainting();
     textureMapper->beginClip(matrix, clip);
-    rootTextureMapperNode->paint();
+    rootTextureMapperLayer->paint();
     textureMapper->endClip();
     textureMapper->endPainting();
 }
@@ -788,12 +788,12 @@ QString QWebFrame::title() const
 
     Given the above HTML code the metaData() function will return a map with two entries:
     \table
-    \header \o Key
-            \o Value
-    \row    \o "description"
-            \o "This document is a tutorial about Qt development"
-    \row    \o "keywords"
-            \o "Qt, WebKit, Programming"
+    \header \li Key
+            \li Value
+    \row    \li "description"
+            \li "This document is a tutorial about Qt development"
+    \row    \li "keywords"
+            \li "Qt, WebKit, Programming"
     \endtable
 
     This function returns a multi map to support multiple meta tags with the same attribute name.
@@ -1759,7 +1759,7 @@ QWebHitTestResultPrivate::QWebHitTestResultPrivate(const WebCore::HitTestResult 
 {
     if (!hitTest.innerNode())
         return;
-    pos = hitTest.point();
+    pos = hitTest.roundedPoint();
     WebCore::TextDirection dir;
     title = hitTest.title(dir);
     linkText = hitTest.textContent();

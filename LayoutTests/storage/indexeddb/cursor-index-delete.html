@@ -4,19 +4,16 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's openCursor.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 test();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('cursor-index-delete')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('cursor-index-delete')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -33,7 +30,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = openCursor;
@@ -52,8 +49,8 @@ function setVersionSuccess()
 function openCursor()
 {
     debug("openCursor1");
-    evalAndLog("trans = db.transaction(['test'], webkitIDBTransaction.READ_WRITE)");
-    keyRange = webkitIDBKeyRange.lowerBound(1);
+    evalAndLog("trans = db.transaction(['test'], IDBTransaction.READ_WRITE)");
+    keyRange = IDBKeyRange.lowerBound(1);
     request = evalAndLog("trans.objectStore('test').index('testIndex').openCursor(keyRange)");
     request.onsuccess = cursorSuccess;
     request.onerror = unexpectedErrorCallback;
@@ -83,7 +80,7 @@ function cursorEmpty()
 
 function addObject()
 {
-    evalAndLog("trans = db.transaction(['test'], webkitIDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['test'], IDBTransaction.READ_WRITE)");
     objectStore = evalAndLog("objectStore = trans.objectStore('test')");
     request = evalAndLog("objectStore.add({x: 1}, 'myKey1')");
     request.onsuccess = openCursor2;
@@ -111,10 +108,11 @@ function deleteObject()
 function verifyObjectDeleted()
 {
     shouldBe("event.target.result", "undefined");
-    done();
+    finishJSTest();
 }
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

@@ -6,15 +6,14 @@ BUGWK67007 DEBUG : fast/ruby/after-block-doesnt-crash.html = CRASH
 BUGWK67007 DEBUG : fast/ruby/after-table-doesnt-crash.html = CRASH
 BUGWK67007 DEBUG : fast/ruby/generated-after-counter-doesnt-crash.html = CRASH
 BUGWK67007 DEBUG : fast/ruby/generated-before-and-after-counter-doesnt-crash.html = CRASH
-// The test hits an ASSERT in Debug.
-BUGWK68859 DEBUG : fast/dynamic/crash-paint-no-documentElement-renderer.html = CRASH
 
 BUGWK76814 DEBUG : fast/xmlhttprequest/xmlhttprequest-get.xhtml = CRASH
+
+BUGWK74297 : http/tests/security/cross-origin-xsl-redirect-BLOCKED.html = CRASH
 
 // Flaky tests
 
 BUGWK68878 : media/video-playing-and-pause.html = PASS TEXT
-BUGWK36165 : media/video-played-collapse.html = PASS TEXT
 BUGWK54637 : media/video-display-toggle.html = PASS TEXT
 BUGWK54637 : media/video-controls-in-media-document.html = PASS TEXT
 BUGWK54637 : media/controls-after-reload.html = PASS TEXT
@@ -66,13 +65,13 @@ BUGWK71776 : fast/forms/password-placeholder-text-security.html = PASS TEXT
 BUGWK71777 : fast/lists/inlineBoxWrapperNullCheck.html = PASS TEXT
 
 BUGWK71655 : fast/frames/flattening/frameset-flattening-simple.html = PASS TEXT
+BUGWK80129 : fast/frames/flattening/frameset-flattening-advanced.html = PASS TEXT
+BUGWK80129 : fast/frames/flattening/frameset-flattening-subframesets.html = PASS TEXT
 
-BUGWK72698 : media/audio-garbage-collect.html = PASS TEXT
+BUGWK79760 : media/video-poster-blocked-by-willsendrequest.html = PASS TEXT
 
 BUGWK72694 : fast/canvas/canvas-lineWidth.html = PASS TIMEOUT TEXT
 BUGWK73772 : fast/table/multiple-captions-display.xhtml = PASS TEXT
-
-BUGWK74279 : fullscreen/full-screen-iframe-legacy.html = PASS TEXT
 
 BUGWK74288 : fast/events/overflow-events.html = PASS TEXT
 
@@ -93,6 +92,10 @@ BUGWK77636 : fast/forms/radio/radio-group.html = PASS TEXT
 
 BUGWK78344 : fast/text/international/inline-plaintext-relayout-with-leading-neutrals.html = PASS IMAGE
 
+BUGWK80246 DEBUG : fast/css/hover-update.html = PASS TEXT
+
+BUGWK72434 : inspector/styles/svg-style.xhtml = PASS TEXT
+
 // End of Flaky tests
 
 BUGWK73766 : css3/unicode-bidi-isolate-aharon-failing.html = FAIL
@@ -101,7 +104,29 @@ BUGWK74270 : fast/forms/basic-selects.html = FAIL
 
 BUGWK76639 : fast/table/multiple-captions-crash3.html = IMAGE FAIL
 
-// These tests need to be rebaselined after 77067
-BUGWK77067 : svg/custom/glyph-selection-arabic-forms.svg = TEXT
-BUGWK77067 : svg/custom/glyph-selection-bidi-mirror.svg = TEXT
-BUGWK77067 : svg/custom/glyph-selection-non-bmp.svg = TEXT
+BUGWK79756 : css3/flexbox/inline-flexbox.html = IMAGE FAIL
+BUGWK79757 : fast/selectors/selection-window-inactive.html = IMAGE FAIL
+
+// Rebaseline after https://bugs.webkit.org/show_bug.cgi?id=78412
+BUGWK78412 : tables/mozilla/bugs/bug2123.html = TEXT
+BUGWK78412 : tables/mozilla/bugs/bug2509.html = TEXT
+BUGWK78412 : tables/mozilla/bugs/bug34176.html = TEXT
+BUGWK78412 : tables/mozilla/bugs/bug44505.html = TEXT
+BUGWK78412 : tables/mozilla_expected_failures/bugs/bug59252.html = TEXT
+BUGWK78412 : tables/mozilla_expected_failures/bugs/bug7243.html = TEXT
+BUGWK78412 : fast/table/cell-pref-width-invalidation.html = TEXT
+
+
+// Temporary: generate platform specific IETestCenter results, then
+// remove when bots produce reference.
+BUGWK81936 : ietestcenter/css3/text/textshadow-001.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-002.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-003.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-004.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-005.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-006.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-007.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-008.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-009.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-010.htm = FAIL MISSING
+

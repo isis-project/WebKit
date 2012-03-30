@@ -56,7 +56,7 @@
 #include "ResetInputType.h"
 #include "SearchInputType.h"
 #include "ShadowRoot.h"
-#include "ShadowRootList.h"
+#include "ShadowTree.h"
 #include "SubmitInputType.h"
 #include "TelephoneInputType.h"
 #include "TextInputType.h"
@@ -160,7 +160,7 @@ bool InputType::saveFormControlState(String& result) const
     return true;
 }
 
-void InputType::restoreFormControlState(const String& state) const
+void InputType::restoreFormControlState(const String& state)
 {
     element()->setValue(state);
 }
@@ -382,7 +382,7 @@ void InputType::destroyShadowSubtree()
     if (!element()->hasShadowRoot())
         return;
 
-    if (ShadowRoot* root = element()->shadowRootList()->oldestShadowRoot())
+    if (ShadowRoot* root = element()->shadowTree()->oldestShadowRoot())
         root->removeAllChildren();
 }
 
@@ -540,15 +540,12 @@ bool InputType::storesValueSeparateFromAttribute()
     return true;
 }
 
-void InputType::setValue(const String& sanitizedValue, bool, TextFieldEventBehavior eventBehavior)
+void InputType::setValue(const String& sanitizedValue, bool valueChanged, TextFieldEventBehavior eventBehavior)
 {
     element()->setValueInternal(sanitizedValue, eventBehavior);
     element()->setNeedsStyleRecalc();
-}
-
-void InputType::dispatchChangeEventInResponseToSetValue()
-{
-    element()->dispatchFormControlChangeEvent();
+    if (valueChanged && eventBehavior != DispatchNoEvent)
+        element()->dispatchFormControlChangeEvent();
 }
 
 bool InputType::canSetValue(const String&)
@@ -659,6 +656,11 @@ bool InputType::isFileUpload() const
 bool InputType::isImageButton() const
 {
     return false;
+}
+
+bool InputType::supportLabels() const
+{
+    return true;
 }
 
 bool InputType::isNumberField() const

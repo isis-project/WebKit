@@ -27,13 +27,18 @@
 #include "Canvas2DLayerChromium.h"
 
 #include "CCSchedulerTestCommon.h"
+#include "FakeCCLayerTreeHostClient.h"
 #include "FakeWebGraphicsContext3D.h"
 #include "GraphicsContext3DPrivate.h"
 #include "Region.h"
 #include "TextureManager.h"
-#include "cc/CCCanvasLayerImpl.h"
+#include "WebCompositor.h"
+#include "WebKit.h"
 #include "cc/CCSingleThreadProxy.h"
+#include "cc/CCTextureLayerImpl.h"
 #include "cc/CCTextureUpdater.h"
+#include "platform/WebKitPlatformSupport.h"
+#include "platform/WebThread.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
@@ -47,6 +52,24 @@ using testing::Return;
 using testing::Test;
 
 namespace {
+
+class FakeCCLayerTreeHost : public CCLayerTreeHost {
+public:
+    static PassRefPtr<FakeCCLayerTreeHost> create()
+    {
+        RefPtr<FakeCCLayerTreeHost> host = adoptRef(new FakeCCLayerTreeHost);
+        host->initialize();
+        return host.release();
+    }
+
+private:
+    FakeCCLayerTreeHost()
+        : CCLayerTreeHost(&m_client, CCSettings())
+    {
+    }
+
+    FakeCCLayerTreeHostClient m_client;
+};
 
 class MockCanvasContext : public FakeWebGraphicsContext3D {
 public:
@@ -69,18 +92,14 @@ public:
     MOCK_METHOD3(deleteTexture, void(unsigned, const IntSize&, GC3Denum));
 };
 
-} // namespace
-
-namespace WebCore {
-
 class Canvas2DLayerChromiumTest : public Test {
 protected:
     void fullLifecycleTest(bool threaded)
     {
         GraphicsContext3D::Attributes attrs;
 
-        RefPtr<GraphicsContext3D> mainContext = GraphicsContext3DPrivate::createGraphicsContextFromWebContext(adoptPtr(new MockCanvasContext()), attrs, 0, GraphicsContext3D::RenderDirectlyToHostWindow, GraphicsContext3DPrivate::ForUseOnThisThread);
-        RefPtr<GraphicsContext3D> implContext = GraphicsContext3DPrivate::createGraphicsContextFromWebContext(adoptPtr(new MockCanvasContext()), attrs, 0, GraphicsContext3D::RenderDirectlyToHostWindow, GraphicsContext3DPrivate::ForUseOnThisThread);
+        RefPtr<GraphicsContext3D> mainContext = GraphicsContext3DPrivate::createGraphicsContextFromWebContext(adoptPtr(new MockCanvasContext()), GraphicsContext3D::RenderDirectlyToHostWindow);
+        RefPtr<GraphicsContext3D> implContext = GraphicsContext3DPrivate::createGraphicsContextFromWebContext(adoptPtr(new MockCanvasContext()), GraphicsContext3D::RenderDirectlyToHostWindow);
 
         MockCanvasContext& mainMock = *static_cast<MockCanvasContext*>(GraphicsContext3DPrivate::extractWebGraphicsContext3D(mainContext.get()));
         MockCanvasContext& implMock = *static_cast<MockCanvasContext*>(GraphicsContext3DPrivate::extractWebGraphicsContext3D(implContext.get()));
@@ -89,11 +108,15 @@ protected:
         CCTextureUpdater updater(&allocatorMock);
 
         const IntSize size(300, 150);
-        const size_t maxTextureSize = size.width() * size.height() * 4;
-        OwnPtr<TextureManager> textureManager = TextureManager::create(maxTextureSize, maxTextureSize, maxTextureSize);
 
+        OwnPtr<WebThread> thread;
         if (threaded)
-            CCProxy::setImplThread(new FakeCCThread);
+           thread = adoptPtr(webKitPlatformSupport()->createThread("Canvas2DLayerChromiumTest"));
+        WebCompositor::initialize(thread.get());
+
+        RefPtr<FakeCCLayerTreeHost> layerTreeHost = FakeCCLayerTreeHost::create();
+        // Force an update, so that we get a valid TextureManager.
+        layerTreeHost->updateLayers();
 
         const WebGLId backTextureId = 1;
         const WebGLId frontTextureId = 2;
@@ -127,32 +150,33 @@ protected:
 
         RefPtr<Canvas2DLayerChromium> canvas = Canvas2DLayerChromium::create(mainContext.get(), size);
         canvas->setIsDrawable(true);
-        canvas->setTextureManager(textureManager.get());
+        canvas->setLayerTreeHost(layerTreeHost.get());
         canvas->setBounds(IntSize(600, 300));
         canvas->setTextureId(backTextureId);
 
-        canvas->contentChanged();
+        canvas->setNeedsDisplay();
         EXPECT_TRUE(canvas->needsDisplay());
-        Region occludedScreenSpace;
-        canvas->paintContentsIfDirty(occludedScreenSpace);
+        canvas->paintContentsIfDirty(0);
         EXPECT_FALSE(canvas->needsDisplay());
         {
             DebugScopedSetImplThread scopedImplThread;
 
-            RefPtr<CCLayerImpl> layerImpl = canvas->createCCLayerImpl();
-            EXPECT_EQ(0u, static_cast<CCCanvasLayerImpl*>(layerImpl.get())->textureId());
+            OwnPtr<CCLayerImpl> layerImpl = canvas->createCCLayerImpl();
+            EXPECT_EQ(0u, static_cast<CCTextureLayerImpl*>(layerImpl.get())->textureId());
 
             canvas->updateCompositorResources(implContext.get(), updater);
             canvas->pushPropertiesTo(layerImpl.get());
 
             if (threaded)
-                EXPECT_EQ(frontTextureId, static_cast<CCCanvasLayerImpl*>(layerImpl.get())->textureId());
+                EXPECT_EQ(frontTextureId, static_cast<CCTextureLayerImpl*>(layerImpl.get())->textureId());
             else
-                EXPECT_EQ(backTextureId, static_cast<CCCanvasLayerImpl*>(layerImpl.get())->textureId());
+                EXPECT_EQ(backTextureId, static_cast<CCTextureLayerImpl*>(layerImpl.get())->textureId());
         }
         canvas.clear();
-        textureManager->reduceMemoryToLimit(0);
-        textureManager->deleteEvictedTextures(&allocatorMock);
+        layerTreeHost->contentsTextureManager()->reduceMemoryToLimit(0);
+        layerTreeHost->contentsTextureManager()->deleteEvictedTextures(&allocatorMock);
+        layerTreeHost.clear();
+        WebCompositor::shutdown();
     }
 };
 
@@ -166,4 +190,4 @@ TEST_F(Canvas2DLayerChromiumTest, testFullLifecycleThreaded)
     fullLifecycleTest(true);
 }
 
-} // namespace webcore
+} // namespace

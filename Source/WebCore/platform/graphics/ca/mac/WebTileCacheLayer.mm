@@ -28,6 +28,7 @@
 
 #import "IntRect.h"
 #import "TileCache.h"
+#import <wtf/MainThread.h>
 
 using namespace WebCore;
 
@@ -43,6 +44,34 @@ using namespace WebCore;
     _tileCache = TileCache::create(self, IntSize(512, 512));
 
     return self;
+}
+
+- (void)dealloc
+{
+    if (!isMainThread()) {
+        TileCache* tileCache = _tileCache.leakPtr();
+        dispatch_async(dispatch_get_main_queue(), ^{
+            delete tileCache;
+        });
+    }
+
+    [super dealloc];
+}
+
+- (id)initWithLayer:(id)layer
+{
+    UNUSED_PARAM(layer);
+
+    ASSERT_NOT_REACHED();
+    return nil;
+}
+
+- (id<CAAction>)actionForKey:(NSString *)key
+{
+    UNUSED_PARAM(key);
+    
+    // Disable all animations.
+    return nil;
 }
 
 - (void)setBounds:(CGRect)bounds
@@ -72,29 +101,24 @@ using namespace WebCore;
     return _tileCache->acceleratesDrawing();
 }
 
+- (void)setContentsScale:(CGFloat)contentsScale
+{
+    _tileCache->setScale(contentsScale);
+}
+
 - (CALayer *)tileContainerLayer
 {
     return _tileCache->tileContainerLayer();
 }
 
-- (void)visibleRectChanged
+- (WebCore::TiledBacking*)tiledBacking
 {
-    _tileCache->visibleRectChanged();
-}
-
-- (CGColorRef)borderColor
-{
-    return _tileCache->tileDebugBorderColor();
+    return _tileCache.get();
 }
 
 - (void)setBorderColor:(CGColorRef)borderColor
 {
     _tileCache->setTileDebugBorderColor(borderColor);
-}
-
-- (CGFloat)borderWidth
-{
-    return _tileCache->tileDebugBorderWidth();
 }
 
 - (void)setBorderWidth:(CGFloat)borderWidth

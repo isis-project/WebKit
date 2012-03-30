@@ -818,7 +818,7 @@ static inline NSShadow *_shadowForShadowStyle(NSString *shadowStyle)
         NSUInteger textLength = [_attrStr length];
         NSTextAttachment *attachment = [[NSTextAttachment alloc] initWithFileWrapper:fileWrapper];
         NSTextAttachmentCell *cell;
-        NSString *string = [[NSString alloc] initWithFormat:(needsParagraph ? @"%C\n" : @"%C"), NSAttachmentCharacter];
+        NSString *string = [[NSString alloc] initWithFormat:(needsParagraph ? @"%C\n" : @"%C"), static_cast<unichar>(NSAttachmentCharacter)];
         NSRange rangeToReplace = NSMakeRange(textLength, 0);
         NSDictionary *attrs;
         if (fileWrapper) {
@@ -1695,8 +1695,8 @@ static NSInteger _colCompare(id block1, id block2, void *)
         RenderStyle* style = renderer->style();
         if (style->textDecorationsInEffect() & UNDERLINE)
             [attrs.get() setObject:[NSNumber numberWithInteger:NSUnderlineStyleSingle] forKey:NSUnderlineStyleAttributeName];
-        NSFont *font = style->font().primaryFont()->getNSFont();
-        [attrs.get() setObject:font forKey:NSFontAttributeName];
+        if (NSFont *font = style->font().primaryFont()->getNSFont())
+            [attrs.get() setObject:font forKey:NSFontAttributeName];
         if (style->visitedDependentColor(CSSPropertyColor).alpha())
             [attrs.get() setObject:nsColor(style->visitedDependentColor(CSSPropertyColor)) forKey:NSForegroundColorAttributeName];
         else

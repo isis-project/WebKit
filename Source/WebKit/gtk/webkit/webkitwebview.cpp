@@ -11,6 +11,7 @@
  *  Copyright (C) 2009 Movial Creative Technologies Inc.
  *  Copyright (C) 2009 Bobby Powers
  *  Copyright (C) 2010 Joone Hur <joone@kldp.org>
+ *  Copyright (C) 2012 Igalia S.L.
  *
  *  This library is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU Lesser General Public
@@ -67,7 +68,6 @@
 #include "HTMLNames.h"
 #include "HitTestRequest.h"
 #include "HitTestResult.h"
-#include "IconDatabase.h"
 #include "InspectorClientGtk.h"
 #include "MemoryCache.h"
 #include "MouseEventWithHitTestResults.h"
@@ -86,6 +86,7 @@
 #include "webkitdownload.h"
 #include "webkitdownloadprivate.h"
 #include "webkitenumtypes.h"
+#include "webkitfavicondatabase.h"
 #include "webkitgeolocationpolicydecision.h"
 #include "webkitglobalsprivate.h"
 #include "webkithittestresultprivate.h"
@@ -115,6 +116,10 @@
 #if ENABLE(DEVICE_ORIENTATION)
 #include "DeviceMotionClientGtk.h"
 #include "DeviceOrientationClientGtk.h"
+#endif
+
+#if ENABLE(MEDIA_STREAM)
+#include "UserMediaClientGtk.h"
 #endif
 
 /**
@@ -212,7 +217,9 @@ enum {
     RESOURCE_LOAD_FINISHED,
     RESOURCE_CONTENT_LENGTH_RECEIVED,
     RESOURCE_LOAD_FAILED,
-    RUN_MODAL_DIALOG,
+    ENTERING_FULLSCREEN,
+    LEAVING_FULLSCREEN,
+    CONTEXT_MENU,
 
     LAST_SIGNAL
 };
@@ -317,23 +324,36 @@ static void contextMenuConnectActivate(GtkMenuItem* item, ContextMenuController*
     g_signal_connect(item, "activate", G_CALLBACK(contextMenuItemActivated), controller);
 }
 
-static gboolean webkit_web_view_forward_context_menu_event(WebKitWebView* webView, const PlatformMouseEvent& event)
+static MouseEventWithHitTestResults prepareMouseEventForFrame(Frame* frame, const PlatformMouseEvent& event)
+{
+    HitTestRequest request(HitTestRequest::Active);
+    IntPoint point = frame->view()->windowToContents(event.position());
+    return frame->document()->prepareMouseEvent(request, point, event);
+}
+
+// Check enable-default-context-menu setting for compatibility.
+static bool defaultContextMenuEnabled(WebKitWebView* webView)
+{
+    gboolean enableDefaultContextMenu;
+    g_object_get(webkit_web_view_get_settings(webView), "enable-default-context-menu", &enableDefaultContextMenu, NULL);
+    return enableDefaultContextMenu;
+}
+
+static gboolean webkit_web_view_forward_context_menu_event(WebKitWebView* webView, const PlatformMouseEvent& event, bool triggeredWithKeyboard)
 {
     Page* page = core(webView);
     page->contextMenuController()->clearContextMenu();
     Frame* focusedFrame;
     Frame* mainFrame = page->mainFrame();
     gboolean mousePressEventResult = FALSE;
+    GRefPtr<WebKitHitTestResult> hitTestResult;
 
     if (!mainFrame->view())
         return FALSE;
 
     mainFrame->view()->setCursor(pointerCursor());
     if (page->frameCount()) {
-        HitTestRequest request(HitTestRequest::Active);
-        IntPoint point = mainFrame->view()->windowToContents(event.position());
-        MouseEventWithHitTestResults mev = mainFrame->document()->prepareMouseEvent(request, point, event);
-
+        MouseEventWithHitTestResults mev = prepareMouseEventForFrame(mainFrame, event);
         Frame* targetFrame = EventHandler::subframeForHitTestResult(mev);
         if (!targetFrame)
             targetFrame = mainFrame;
@@ -343,12 +363,13 @@ static gboolean webkit_web_view_forward_context_menu_event(WebKitWebView* webVie
             page->focusController()->setFocusedFrame(targetFrame);
             focusedFrame = targetFrame;
         }
+        if (focusedFrame == mainFrame)
+            hitTestResult = adoptGRef(kit(mev.hitTestResult()));
     } else
         focusedFrame = mainFrame;
 
     if (focusedFrame->view() && focusedFrame->eventHandler()->handleMousePressEvent(event))
         mousePressEventResult = TRUE;
-
 
     bool handledEvent = focusedFrame->eventHandler()->sendContextMenuEvent(event);
     if (!handledEvent)
@@ -362,37 +383,42 @@ static gboolean webkit_web_view_forward_context_menu_event(WebKitWebView* webVie
     if (!coreMenu)
         return mousePressEventResult;
 
-    // If we reach here, it's because WebCore is going to show the
-    // default context menu. We check our setting to figure out
-    // whether we want it or not.
-    WebKitWebSettings* settings = webkit_web_view_get_settings(webView);
-    gboolean enableDefaultContextMenu;
-    g_object_get(settings, "enable-default-context-menu", &enableDefaultContextMenu, NULL);
-
-    if (!enableDefaultContextMenu)
-        return FALSE;
-
-    GtkMenu* menu = GTK_MENU(coreMenu->platformDescription());
-    if (!menu)
-        return FALSE;
+    GtkMenu* defaultMenu = coreMenu->platformDescription();
+    ASSERT(defaultMenu);
 
     // We connect the "activate" signal here rather than in ContextMenuGtk to avoid
     // a layering violation. ContextMenuGtk should not know about the ContextMenuController.
-    gtk_container_foreach(GTK_CONTAINER(menu), (GtkCallback)contextMenuConnectActivate, controller);
+    gtk_container_foreach(GTK_CONTAINER(defaultMenu), reinterpret_cast<GtkCallback>(contextMenuConnectActivate), controller);
 
-    g_signal_emit(webView, webkit_web_view_signals[POPULATE_POPUP], 0, menu);
+    if (!hitTestResult) {
+        MouseEventWithHitTestResults mev = prepareMouseEventForFrame(focusedFrame, event);
+        hitTestResult = adoptGRef(kit(mev.hitTestResult()));
+    }
+
+    gboolean handled;
+    g_signal_emit(webView, webkit_web_view_signals[CONTEXT_MENU], 0, defaultMenu, hitTestResult.get(), triggeredWithKeyboard, &handled);
+    if (handled)
+        return TRUE;
+
+    // Return now if default context menu is disabled by enable-default-context-menu setting.
+    // Check enable-default-context-menu setting for compatibility.
+    if (!defaultContextMenuEnabled(webView))
+        return FALSE;
+
+    // Emit populate-popup signal for compatibility.
+    g_signal_emit(webView, webkit_web_view_signals[POPULATE_POPUP], 0, defaultMenu);
 
     // If the context menu is now empty, don't show it.
-    GOwnPtr<GList> items(gtk_container_get_children(GTK_CONTAINER(menu)));
+    GOwnPtr<GList> items(gtk_container_get_children(GTK_CONTAINER(defaultMenu)));
     if (!items)
         return FALSE;
 
     WebKitWebViewPrivate* priv = webView->priv;
-    priv->currentMenu = menu;
+    priv->currentMenu = defaultMenu;
     priv->lastPopupXPosition = event.globalPosition().x();
     priv->lastPopupYPosition = event.globalPosition().y();
 
-    gtk_menu_popup(menu, 0, 0, &PopupMenuPositionFunc, webView, event.button() + 1, gtk_get_current_event_time());
+    gtk_menu_popup(defaultMenu, 0, 0, &PopupMenuPositionFunc, webView, event.button() + 1, gtk_get_current_event_time());
     return TRUE;
 }
 
@@ -433,7 +459,7 @@ static gboolean webkit_web_view_popup_menu_handler(GtkWidget* widget)
 
     IntPoint globalPoint(convertWidgetPointToScreenPoint(widget, location));
     PlatformMouseEvent event(location, globalPoint, RightButton, PlatformEvent::MousePressed, 0, false, false, false, false, gtk_get_current_event_time());
-    return webkit_web_view_forward_context_menu_event(WEBKIT_WEB_VIEW(widget), event);
+    return webkit_web_view_forward_context_menu_event(WEBKIT_WEB_VIEW(widget), event, true);
 }
 
 static void setHorizontalAdjustment(WebKitWebView* webView, GtkAdjustment* adjustment)
@@ -734,7 +760,7 @@ static gboolean webkit_web_view_button_press_event(GtkWidget* widget, GdkEventBu
     platformEvent.setClickCount(count);
 
     if (event->button == 3)
-        return webkit_web_view_forward_context_menu_event(webView, PlatformMouseEvent(event));
+        return webkit_web_view_forward_context_menu_event(webView, PlatformMouseEvent(event), false);
 
     Frame* frame = core(webView)->mainFrame();
     if (!frame->view())
@@ -1301,6 +1327,16 @@ static gboolean webkit_web_view_real_should_allow_editing_action(WebKitWebView*)
     return TRUE;
 }
 
+static gboolean webkit_web_view_real_entering_fullscreen(WebKitWebView* webView)
+{
+    return FALSE;
+}
+
+static gboolean webkit_web_view_real_leaving_fullscreen(WebKitWebView* webView)
+{
+    return FALSE;
+}
+
 static void webkit_web_view_dispose(GObject* object)
 {
     WebKitWebView* webView = WEBKIT_WEB_VIEW(object);
@@ -1405,6 +1441,19 @@ static AtkObject* webkit_web_view_get_accessible(GtkWidget* widget)
     return axRoot;
 }
 
+static double screenDPI(GdkScreen* screen)
+{
+    // gdk_screen_get_resolution() returns -1 when no DPI is set.
+    double dpi = gdk_screen_get_resolution(screen);
+    if (dpi != -1)
+        return dpi;
+
+    static const double kMillimetresPerInch = 25.4;
+    double diagonalSizeInPixels = hypot(gdk_screen_get_width(screen), gdk_screen_get_height(screen));
+    double diagonalSizeInInches = hypot(gdk_screen_get_width_mm(screen), gdk_screen_get_height_mm(screen)) / kMillimetresPerInch;
+    return diagonalSizeInPixels / diagonalSizeInInches;
+}
+
 static gdouble webViewGetDPI(WebKitWebView* webView)
 {
     if (webView->priv->webSettings->priv->enforce96DPI)
@@ -1412,12 +1461,12 @@ static gdouble webViewGetDPI(WebKitWebView* webView)
 
     static const double defaultDPI = 96;
     GdkScreen* screen = gtk_widget_has_screen(GTK_WIDGET(webView)) ? gtk_widget_get_screen(GTK_WIDGET(webView)) : gdk_screen_get_default();
-    if (!screen) 
-        return defaultDPI;
+    return screen ? screenDPI(screen) : defaultDPI;
+}
 
-    // gdk_screen_get_resolution() returns -1 when no DPI is set.
-    gdouble DPI = gdk_screen_get_resolution(screen);
-    return DPI != -1 ? DPI : defaultDPI;
+static inline gint webViewConvertFontSizeToPixels(WebKitWebView* webView, double fontSize)
+{
+    return fontSize / 72.0 * webViewGetDPI(webView);
 }
 
 static void webkit_web_view_screen_changed(GtkWidget* widget, GdkScreen* previousScreen)
@@ -1430,8 +1479,6 @@ static void webkit_web_view_screen_changed(GtkWidget* widget, GdkScreen* previou
 
     WebKitWebSettings* webSettings = priv->webSettings.get();
     Settings* settings = core(webView)->settings();
-    gdouble DPI = webViewGetDPI(webView);
-
     guint defaultFontSize, defaultMonospaceFontSize, minimumFontSize, minimumLogicalFontSize;
 
     g_object_get(webSettings,
@@ -1441,10 +1488,10 @@ static void webkit_web_view_screen_changed(GtkWidget* widget, GdkScreen* previou
                  "minimum-logical-font-size", &minimumLogicalFontSize,
                  NULL);
 
-    settings->setDefaultFontSize(defaultFontSize / 72.0 * DPI);
-    settings->setDefaultFixedFontSize(defaultMonospaceFontSize / 72.0 * DPI);
-    settings->setMinimumFontSize(minimumFontSize / 72.0 * DPI);
-    settings->setMinimumLogicalFontSize(minimumLogicalFontSize / 72.0 * DPI);
+    settings->setDefaultFontSize(webViewConvertFontSizeToPixels(webView, defaultFontSize));
+    settings->setDefaultFixedFontSize(webViewConvertFontSizeToPixels(webView, defaultMonospaceFontSize));
+    settings->setMinimumFontSize(webViewConvertFontSizeToPixels(webView, minimumFontSize));
+    settings->setMinimumLogicalFontSize(webViewConvertFontSizeToPixels(webView, minimumLogicalFontSize));
 }
 
 static void webkit_web_view_drag_end(GtkWidget* widget, GdkDragContext* context)
@@ -1990,11 +2037,11 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
             0,
             g_signal_accumulator_true_handled,
             NULL,
-            webkit_marshal_BOOLEAN__OBJECT_STRING_POINTER,
+            webkit_marshal_BOOLEAN__OBJECT_STRING_BOXED,
             G_TYPE_BOOLEAN, 3,
             WEBKIT_TYPE_WEB_FRAME,
             G_TYPE_STRING,
-            G_TYPE_POINTER);
+            G_TYPE_ERROR);
 
     /**
      * WebKitWebView::load-finished:
@@ -2078,6 +2125,8 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
      * When a context menu is about to be displayed this signal is emitted.
      *
      * Add menu items to #menu to extend the context menu.
+     *
+     * Deprecated: 1.10: Use #WebKitWebView::context-menu signal instead.
      */
     webkit_web_view_signals[POPULATE_POPUP] = g_signal_new("populate-popup",
             G_TYPE_FROM_CLASS(webViewClass),
@@ -2509,8 +2558,8 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
      * purpose, to make them not be catched by gtk-doc.
      */
 
-    /*
-     * WebKitWebView::document-load-finished
+    /**
+     * WebKitWebView::document-load-finished:
      * @web_view: the object which received the signal
      * @web_frame: the #WebKitWebFrame whose load dispatched this request
      *
@@ -2526,8 +2575,8 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
             G_TYPE_NONE, 1,
             WEBKIT_TYPE_WEB_FRAME);
 
-    /*
-     * WebKitWebView::frame-created
+    /**
+     * WebKitWebView::frame-created:
      * @web_view: the object which received the signal
      * @web_frame: the #WebKitWebFrame which was just created.
      *
@@ -2656,11 +2705,64 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
             G_TYPE_NONE, 1,
             WEBKIT_TYPE_VIEWPORT_ATTRIBUTES);
 
-    /*
-     * WebKitWebView::resource-response-received
-     * @webView: the object which received the signal
-     * @webFrame: the #WebKitWebFrame the response was received for
-     * @webResource: the #WebKitWebResource being loaded
+    /**
+     * WebKitWebView::entering-fullscreen:
+     * @web_view: the #WebKitWebView on which the signal is emitted.
+     * @element: the #WebKitDOMHTMLElement which has requested full screen display.
+     *
+     * Emitted when JavaScript code calls
+     * <function>element.webkitRequestFullScreen</function>. If the
+     * signal is not handled the WebView will proceed to full screen
+     * its top level window. This signal can be used by client code to
+     * request permission to the user prior doing the full screen
+     * transition and eventually prepare the top-level window
+     * (e.g. hide some widgets that would otherwise be part of the
+     * full screen window).
+     *
+     * Returns: %TRUE to stop other handlers from being invoked for the event.
+     *    %FALSE to continue emission of the event.
+     *
+     * Since: 1.9.0
+     */
+    webkit_web_view_signals[ENTERING_FULLSCREEN] =
+            g_signal_new("entering-fullscreen",
+                         G_TYPE_FROM_CLASS(webViewClass),
+                         G_SIGNAL_RUN_LAST,
+                         G_STRUCT_OFFSET(WebKitWebViewClass, entering_fullscreen),
+                         g_signal_accumulator_true_handled, 0,
+                         webkit_marshal_BOOLEAN__OBJECT,
+                         G_TYPE_BOOLEAN, 1, WEBKIT_TYPE_DOM_HTML_ELEMENT);
+
+
+    /**
+     * WebKitWebView::leaving-fullscreen:
+     * @web_view: the #WebKitWebView on which the signal is emitted.
+     * @element: the #WebKitDOMHTMLElement which is currently displayed full screen.
+     *
+     * Emitted when the WebView is about to restore its top level
+     * window out of its full screen state. This signal can be used by
+     * client code to restore widgets hidden during the
+     * entering-fullscreen stage for instance.
+     *
+     * Returns: %TRUE to stop other handlers from being invoked for the event.
+     *    %FALSE to continue emission of the event.
+     *
+     * Since: 1.9.0
+     */
+    webkit_web_view_signals[LEAVING_FULLSCREEN] =
+            g_signal_new("leaving-fullscreen",
+                         G_TYPE_FROM_CLASS(webViewClass),
+                         G_SIGNAL_RUN_LAST,
+                         G_STRUCT_OFFSET(WebKitWebViewClass, leaving_fullscreen),
+                         g_signal_accumulator_true_handled, 0,
+                         webkit_marshal_BOOLEAN__OBJECT,
+                         G_TYPE_BOOLEAN, 1, WEBKIT_TYPE_DOM_HTML_ELEMENT);
+
+    /**
+     * WebKitWebView::resource-response-received:
+     * @web_view: the object which received the signal
+     * @web_frame: the #WebKitWebFrame the response was received for
+     * @web_resource: the #WebKitWebResource being loaded
      * @response: the #WebKitNetworkResponse that was received
      *
      * Emitted when the first byte of data arrives
@@ -2678,11 +2780,11 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
             WEBKIT_TYPE_WEB_RESOURCE,
             WEBKIT_TYPE_NETWORK_RESPONSE);
 
-    /*
-     * WebKitWebView::resource-load-finished
-     * @webView: the object which received the signal
-     * @webFrame: the #WebKitWebFrame the response was received for
-     * @webResource: the #WebKitWebResource that was loaded
+    /**
+     * WebKitWebView::resource-load-finished:
+     * @web_view: the object which received the signal
+     * @web_frame: the #WebKitWebFrame the response was received for
+     * @web_resource: the #WebKitWebResource that was loaded
      *
      * Emitted when all the data for the resource was loaded
      *
@@ -2698,15 +2800,17 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
             WEBKIT_TYPE_WEB_FRAME,
             WEBKIT_TYPE_WEB_RESOURCE);
 
-    /*
-     * WebKitWebView::resource-content-length-received
-     * @webView: the object which received the signal
-     * @webFrame: the #WebKitWebFrame the response was received for
-     * @webResource: the #WebKitWebResource that was loaded
-     * @lengthReceived: the resource data length in bytes
+    /**
+     * WebKitWebView::resource-content-length-received:
+     * @web_view: the object which received the signal
+     * @web_frame: the #WebKitWebFrame the response was received for
+     * @web_resource: the #WebKitWebResource that was loaded
+     * @length_received: the amount of data received since the last signal emission
      *
-     * Emitted when the HTTP Content-Length response header has been
-     * received and parsed successfully.
+     * Emitted when new resource data has been received. The
+     * @length_received variable stores the amount of bytes received
+     * since the last time this signal was emitted. This is useful to
+     * provide progress information about the resource load operation.
      *
      * Since: 1.7.5
      */
@@ -2721,12 +2825,12 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
             WEBKIT_TYPE_WEB_RESOURCE,
             G_TYPE_INT);
 
-    /*
-     * WebKitWebView::resource-load-failed
-     * @webView: the object which received the signal
-     * @webFrame: the #WebKitWebFrame the response was received for
-     * @webResource: the #WebKitWebResource that was loaded
-     * @webError: the #GError that was triggered
+    /**
+     * WebKitWebView::resource-load-failed:
+     * @web_view: the object which received the signal
+     * @web_frame: the #WebKitWebFrame the response was received for
+     * @web_resource: the #WebKitWebResource that was loaded
+     * @error: the #GError that was triggered
      *
      * Invoked when a resource failed to load
      *
@@ -2737,32 +2841,46 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
             G_SIGNAL_RUN_LAST,
             0,
             0, 0,
-            webkit_marshal_VOID__OBJECT_OBJECT_POINTER,
+            webkit_marshal_VOID__OBJECT_OBJECT_BOXED,
             G_TYPE_NONE, 3,
             WEBKIT_TYPE_WEB_FRAME,
             WEBKIT_TYPE_WEB_RESOURCE,
-            G_TYPE_POINTER);
+            G_TYPE_ERROR);
 
-    /*
-     * WebKitWebView::run-modal-dialog
-     * @webView: the object which received the signal
+    /**
+     * WebKitWebView::context-menu:
+     * @web_view: the object which received the signal
+     * @default_menu: the default context menu
+     * @hit_test_result: a #WebKitHitTestResult with the context of the current position.
+     * @triggered_with_keyboard: %TRUE if the context menu was triggered using the keyboard
      *
-     * Invoked when the @webView should be run in the modal mode. This can be
-     * avoided if FALSE is returned in the signal handler. Otherwise, the
-     * @webView (or its toplevel window) should be made transient for its parent,
-     * set as a modal window, and TRUE should be returned in the signal handler.
-     * After that, a loop will be created and run until the @webView is closed
-     * (i.e. its chrome is destroyed).
+     * Emmited when a context menu is about to be displayed to give the application
+     * a chance to create and handle its own context menu. If you only want to add custom
+     * options to the default context menu you can simply modify the given @default_menu.
      *
-     * Since: 1.7.6
+     * When @triggered_with_keyboard is %TRUE the coordinates of the given @hit_test_result should be
+     * used to position the popup menu. When the context menu has been triggered by a
+     * mouse event you could either use the @hit_test_result coordinates or pass %NULL
+     * to the #GtkMenuPositionFunc parameter of gtk_menu_popup() function.
+     * Note that coordinates of @hit_test_result are relative to @web_view window.
+     *
+     * If your application will create and display its own popup menu, %TRUE should be returned.
+     * Note that when the context menu is handled by the application, the #WebKitWebSettings:enable-default-context-menu
+     * setting will be ignored and the #WebKitWebView::populate-popup signal won't be emitted.
+     * If you don't want any context menu to be shown, you can simply connect to this signal
+     * and return %TRUE without doing anything else.
+     *
+     * Since: 1.10
      */
-    webkit_web_view_signals[RESOURCE_LOAD_FAILED] = g_signal_new("run-modal-dialog",
+    webkit_web_view_signals[CONTEXT_MENU] = g_signal_new("context-menu",
             G_TYPE_FROM_CLASS(webViewClass),
             G_SIGNAL_RUN_LAST,
-            0,
-            g_signal_accumulator_true_handled, NULL,
-            webkit_marshal_BOOLEAN__VOID,
-            G_TYPE_BOOLEAN, 0);
+            0, 0, 0,
+            webkit_marshal_BOOLEAN__OBJECT_OBJECT_BOOLEAN,
+            G_TYPE_BOOLEAN, 3,
+            GTK_TYPE_WIDGET,
+            WEBKIT_TYPE_HIT_TEST_RESULT,
+            G_TYPE_BOOLEAN);
 
     /*
      * implementations of virtual methods
@@ -2785,6 +2903,8 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
     webViewClass->redo = webkit_web_view_real_redo;
     webViewClass->move_cursor = webkit_web_view_real_move_cursor;
     webViewClass->should_allow_editing_action = webkit_web_view_real_should_allow_editing_action;
+    webViewClass->entering_fullscreen = webkit_web_view_real_entering_fullscreen;
+    webViewClass->leaving_fullscreen = webkit_web_view_real_leaving_fullscreen;
 
     GObjectClass* objectClass = G_OBJECT_CLASS(webViewClass);
     objectClass->dispose = webkit_web_view_dispose;
@@ -3285,15 +3405,14 @@ static void webkit_web_view_update_settings(WebKitWebView* webView)
     coreSettings->setUseHixie76WebSocketProtocol(false);
 #endif
 
+#if ENABLE(SMOOTH_SCROLLING)
+    coreSettings->setEnableScrollAnimator(settingsPrivate->enableSmoothScrolling);
+#endif
+
     if (Page* page = core(webView))
         page->setTabKeyCyclesThroughElements(settingsPrivate->tabKeyCyclesThroughElements);
 
     webkit_web_view_screen_changed(GTK_WIDGET(webView), NULL);
-}
-
-static inline gint pixelsFromSize(WebKitWebView* webView, gint size)
-{
-    return size / 72.0 * webViewGetDPI(webView);
 }
 
 static void webkit_web_view_settings_notify(WebKitWebSettings* webSettings, GParamSpec* pspec, WebKitWebView* webView)
@@ -3320,13 +3439,13 @@ static void webkit_web_view_settings_notify(WebKitWebSettings* webSettings, GPar
     else if (name == g_intern_string("serif-font-family"))
         settings->setSerifFontFamily(g_value_get_string(&value));
     else if (name == g_intern_string("default-font-size"))
-        settings->setDefaultFontSize(pixelsFromSize(webView, g_value_get_int(&value)));
+        settings->setDefaultFontSize(webViewConvertFontSizeToPixels(webView, g_value_get_int(&value)));
     else if (name == g_intern_string("default-monospace-font-size"))
-        settings->setDefaultFixedFontSize(pixelsFromSize(webView, g_value_get_int(&value)));
+        settings->setDefaultFixedFontSize(webViewConvertFontSizeToPixels(webView, g_value_get_int(&value)));
     else if (name == g_intern_string("minimum-font-size"))
-        settings->setMinimumFontSize(pixelsFromSize(webView, g_value_get_int(&value)));
+        settings->setMinimumFontSize(webViewConvertFontSizeToPixels(webView, g_value_get_int(&value)));
     else if (name == g_intern_string("minimum-logical-font-size"))
-        settings->setMinimumLogicalFontSize(pixelsFromSize(webView, g_value_get_int(&value)));
+        settings->setMinimumLogicalFontSize(webViewConvertFontSizeToPixels(webView, g_value_get_int(&value)));
     else if (name == g_intern_string("enforce-96-dpi"))
         webkit_web_view_screen_changed(GTK_WIDGET(webView), NULL);
     else if (name == g_intern_string("auto-load-images"))
@@ -3419,6 +3538,11 @@ static void webkit_web_view_settings_notify(WebKitWebSettings* webSettings, GPar
         settings->setWebAudioEnabled(g_value_get_boolean(&value));
 #endif
 
+#if ENABLE(SMOOTH_SCROLLING)
+    else if (name == g_intern_string("enable-smooth-scrolling"))
+        settings->setEnableScrollAnimator(g_value_get_boolean(&value));
+#endif
+
     else if (!g_object_class_find_property(G_OBJECT_GET_CLASS(webSettings), name))
         g_warning("Unexpected setting '%s'", name);
     g_value_unset(&value);
@@ -3443,13 +3567,7 @@ static void webkit_web_view_init(WebKitWebView* webView)
     pageClients.editorClient = new WebKit::EditorClient(webView);
     pageClients.dragClient = new WebKit::DragClient(webView);
     pageClients.inspectorClient = new WebKit::InspectorClient(webView);
-
-#if ENABLE(DEVICE_ORIENTATION)
-    pageClients.deviceMotionClient = static_cast<WebCore::DeviceMotionClient*>(new DeviceMotionClientGtk);
-    pageClients.deviceOrientationClient = static_cast<WebCore::DeviceOrientationClient*>(new DeviceOrientationClientGtk);
-#endif
-
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
     if (DumpRenderTreeSupportGtk::dumpRenderTreeModeEnabled())
         pageClients.geolocationClient = new GeolocationClientMock;
     else
@@ -3458,10 +3576,23 @@ static void webkit_web_view_init(WebKitWebView* webView)
 
     priv->corePage = new Page(pageClients);
 
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
-    if (DumpRenderTreeSupportGtk::dumpRenderTreeModeEnabled())
+#if ENABLE(DEVICE_ORIENTATION)
+    WebCore::provideDeviceMotionTo(priv->corePage, new DeviceMotionClientGtk);
+    WebCore::provideDeviceOrientationTo(priv->corePage, new DeviceOrientationClientGtk);
+#endif
+
+#if ENABLE(MEDIA_STREAM)
+    WebCore::provideUserMediaTo(priv->corePage, new UserMediaClientGtk);
+#endif
+
+    if (DumpRenderTreeSupportGtk::dumpRenderTreeModeEnabled()) {
+#if ENABLE(GEOLOCATION)
         static_cast<GeolocationClientMock*>(pageClients.geolocationClient)->setController(priv->corePage->geolocationController());
 #endif
+        // Set some testing-specific settings
+        priv->corePage->settings()->setInteractiveFormValidationEnabled(true);
+        priv->corePage->settings()->setValidationMessageTimerMagnification(-1);
+    }
 
     // Pages within a same session need to be linked together otherwise some functionalities such
     // as visited link coloration (across pages) and changing popup window location will not work.
@@ -4999,6 +5130,8 @@ const gchar* webkit_web_view_get_icon_uri(WebKitWebView* webView)
  * Returns: (transfer full): a new reference to a #GdkPixbuf, or %NULL
  *
  * Since: 1.3.13
+ *
+ * Deprecated: 1.8: Use webkit_web_view_try_get_favicon_pixbuf() instead.
  */
 GdkPixbuf* webkit_web_view_get_icon_pixbuf(WebKitWebView* webView)
 {
@@ -5009,7 +5142,36 @@ GdkPixbuf* webkit_web_view_get_icon_pixbuf(WebKitWebView* webView)
     return webkit_icon_database_get_icon_pixbuf(database, pageURI);
 }
 
+/**
+ * webkit_web_view_try_get_favicon_pixbuf:
+ * @web_view: the #WebKitWebView object
+ * @width: the desired width for the icon
+ * @height: the desired height for the icon
+ *
+ * Obtains a #GdkPixbuf of the favicon for the given
+ * #WebKitWebView. This will return %NULL is there is no icon for the
+ * current #WebKitWebView or if the icon is in the database but not
+ * available at the moment of this call. Use
+ * webkit_web_view_get_icon_uri() if you need to distinguish these
+ * cases.  Usually you want to connect to WebKitWebView::icon-loaded
+ * and call this method in the callback.
+ *
+ * See also webkit_favicon_database_try_get_favicon_pixbuf(). Contrary
+ * to this function the icon database one returns the URL of the page
+ * containing the icon.
+ *
+ * Returns: (transfer full): a new reference to a #GdkPixbuf, or %NULL
+ *
+ * Since: 1.8
+ */
+GdkPixbuf* webkit_web_view_try_get_favicon_pixbuf(WebKitWebView* webView, guint width, guint height)
+{
+    g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(webView), 0);
 
+    const gchar* pageURI = webkit_web_view_get_uri(webView);
+    WebKitFaviconDatabase* database = webkit_get_favicon_database();
+    return webkit_favicon_database_try_get_favicon_pixbuf(database, pageURI, width, height);
+}
 
 /**
  * webkit_web_view_get_dom_document:
@@ -5054,7 +5216,7 @@ void webViewEnterFullscreen(WebKitWebView* webView, Node* node)
     if (!node->hasTagName(HTMLNames::videoTag))
         return;
 
-#if ENABLE(VIDEO)
+#if ENABLE(VIDEO) && !defined(GST_API_VERSION_1)
     HTMLMediaElement* videoElement = static_cast<HTMLMediaElement*>(node);
     WebKitWebViewPrivate* priv = webView->priv;
 
@@ -5070,12 +5232,37 @@ void webViewEnterFullscreen(WebKitWebView* webView, Node* node)
 
 void webViewExitFullscreen(WebKitWebView* webView)
 {
-#if ENABLE(VIDEO)
+#if ENABLE(VIDEO) && !defined(GST_API_VERSION_1)
     WebKitWebViewPrivate* priv = webView->priv;
     if (priv->fullscreenVideoController)
         priv->fullscreenVideoController->exitFullscreen();
 #endif
 }
+
+#if ENABLE(ICONDATABASE)
+void webkitWebViewIconLoaded(WebKitFaviconDatabase* database, const char* frameURI, WebKitWebView* webView)
+{
+    // Since we definitely have an icon the WebView doesn't need to
+    // listen for notifications any longer.
+    webkitWebViewRegisterForIconNotification(webView, false);
+
+    // webkit_web_view_get_icon_uri() properly updates the "icon-uri" property.
+    g_object_notify(G_OBJECT(webView), "icon-uri");
+    g_signal_emit(webView, webkit_web_view_signals[ICON_LOADED], 0, webkit_web_view_get_icon_uri(webView));
+}
+
+void webkitWebViewRegisterForIconNotification(WebKitWebView* webView, bool shouldRegister)
+{
+    WebKitFaviconDatabase* database = webkit_get_favicon_database();
+    if (shouldRegister) {
+        if (!g_signal_handler_is_connected(database, webView->priv->iconLoadedHandler))
+            webView->priv->iconLoadedHandler = g_signal_connect(database, "icon-loaded",
+                                                                G_CALLBACK(webkitWebViewIconLoaded), webView);
+    } else
+        if (g_signal_handler_is_connected(database, webView->priv->iconLoadedHandler))
+            g_signal_handler_disconnect(database, webView->priv->iconLoadedHandler);
+}
+#endif
 
 namespace WebKit {
 

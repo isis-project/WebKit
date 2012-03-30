@@ -32,8 +32,10 @@ import sys
 import time
 
 from webkitpy.layout_tests.port import Port, Driver, DriverOutput
+from webkitpy.layout_tests.port.base import VirtualTestSuite
 from webkitpy.layout_tests.models.test_configuration import TestConfiguration
 from webkitpy.common.system.filesystem_mock import MockFileSystem
+from webkitpy.common.system.crashlogs import CrashLogs
 
 
 # This sets basic expectations for a test. Each individual expectation
@@ -100,8 +102,6 @@ class TestList(object):
 
 def unit_test_list():
     tests = TestList()
-    tests.add('failures/expected/checksum.html',
-              actual_checksum='checksum_fail-checksum')
     tests.add('failures/expected/crash.html', crash=True)
     tests.add('failures/expected/exception.html', exception=True)
     tests.add('failures/expected/timeout.html', timeout=True)
@@ -135,6 +135,7 @@ def unit_test_list():
     tests.add('failures/expected/newlines_with_excess_CR.html',
               expected_text="foo\r\r\r\n", actual_text="foo\n")
     tests.add('failures/expected/text.html', actual_text='text_fail-png')
+    tests.add('failures/expected/skip_text.html', actual_text='text diff')
     tests.add('failures/unexpected/missing_text.html', expected_text=None)
     tests.add('failures/unexpected/missing_image.html', expected_image=None)
     tests.add('failures/unexpected/missing_render_tree_dump.html', actual_text="""layer at (0,0) size 800x600
@@ -155,10 +156,12 @@ layer at (0,0) size 800x34
               actual_checksum='text-image-checksum_fail-checksum')
     tests.add('failures/unexpected/checksum-with-matching-image.html',
               actual_checksum='text-image-checksum_fail-checksum')
+    tests.add('failures/unexpected/skip_pass.html')
     tests.add('failures/unexpected/timeout.html', timeout=True)
     tests.add('http/tests/passes/text.html')
     tests.add('http/tests/passes/image.html')
     tests.add('http/tests/ssl/text.html')
+    tests.add('passes/args.html')
     tests.add('passes/error.html', error='stuff going to stderr')
     tests.add('passes/image.html')
     tests.add('passes/audio.html',
@@ -170,6 +173,10 @@ layer at (0,0) size 800x34
     tests.add('passes/checksum_in_image.html',
               expected_checksum=None,
               expected_image='tEXtchecksum\x00checksum_in_image-checksum')
+
+    # Note that here the checksums don't match but the images do, so this test passes "unexpectedly".
+    # See https://bugs.webkit.org/show_bug.cgi?id=69444 .
+    tests.add('failures/unexpected/checksum.html', actual_checksum='checksum_fail-checksum')
 
     # Text output files contain "\r\n" on Windows.  This may be
     # helpfully filtered to "\r\r\n" by our Python/Cygwin tooling.
@@ -237,7 +244,6 @@ def add_unit_tests_to_mock_filesystem(filesystem):
     filesystem.maybe_make_directory(LAYOUT_TEST_DIR + '/platform/test')
     if not filesystem.exists(LAYOUT_TEST_DIR + '/platform/test/test_expectations.txt'):
         filesystem.write_text_file(LAYOUT_TEST_DIR + '/platform/test/test_expectations.txt', """
-WONTFIX : failures/expected/checksum.html = IMAGE
 WONTFIX : failures/expected/crash.html = CRASH
 WONTFIX : failures/expected/image.html = IMAGE
 WONTFIX : failures/expected/audio.html = AUDIO
@@ -301,6 +307,7 @@ WONTFIX SKIP : failures/expected/exception.html = CRASH
         add_file(test, '-expected.txt', test.expected_text)
         add_file(test, '-expected.png', test.expected_image)
 
+    filesystem.write_text_file(filesystem.join(LAYOUT_TEST_DIR, 'virtual', 'passes', 'args-expected.txt'), 'args-txt --virtual-arg')
     # Clear the list of written files so that we can watch what happens during testing.
     filesystem.clear_written_files()
 
@@ -349,7 +356,7 @@ class TestPort(Port):
     def _path_to_driver(self):
         # This routine shouldn't normally be called, but it is called by
         # the mock_drt Driver. We return something, but make sure it's useless.
-        return 'junk'
+        return 'MOCK _path_to_driver'
 
     def baseline_search_path(self):
         search_paths = {
@@ -367,6 +374,9 @@ class TestPort(Port):
 
     def default_worker_model(self):
         return 'inline'
+
+    def worker_startup_delay_secs(self):
+        return 0
 
     def check_build(self, needs_http):
         return True
@@ -391,6 +401,12 @@ class TestPort(Port):
 
     def webkit_base(self):
         return '/test.checkout'
+
+    def skipped_tests(self, test_list):
+        # This allows us to test the handling Skipped files, both with a test
+        # that actually passes, and a test that does fail.
+        return set(['failures/expected/skip_text.html',
+                    'failures/unexpected/skip_pass.html'])
 
     def name(self):
         return self._name
@@ -447,12 +463,10 @@ class TestPort(Port):
         test_configurations = []
         for version, architecture in self._all_systems():
             for build_type in self._all_build_types():
-                for graphics_type in self._all_graphics_types():
-                    test_configurations.append(TestConfiguration(
-                        version=version,
-                        architecture=architecture,
-                        build_type=build_type,
-                        graphics_type=graphics_type))
+                test_configurations.append(TestConfiguration(
+                    version=version,
+                    architecture=architecture,
+                    build_type=build_type))
         return test_configurations
 
     def _all_systems(self):
@@ -467,9 +481,6 @@ class TestPort(Port):
     def _all_build_types(self):
         return ('debug', 'release')
 
-    def _all_graphics_types(self):
-        return ('cpu', 'gpu')
-
     def configuration_specifier_macros(self):
         """To avoid surprises when introducing new macros, these are intentionally fixed in time."""
         return {'mac': ['leopard', 'snowleopard'], 'win': ['xp', 'vista', 'win7'], 'linux': ['lucid']}
@@ -477,16 +488,22 @@ class TestPort(Port):
     def all_baseline_variants(self):
         return self.ALL_BASELINE_VARIANTS
 
+    def virtual_test_suites(self):
+        return [
+            VirtualTestSuite('virtual/passes', 'passes', ['--virtual-arg']),
+        ]
 
 class TestDriver(Driver):
     """Test/Dummy implementation of the DumpRenderTree interface."""
 
-    def cmd_line(self):
-        return [self._port._path_to_driver()] + self._port.get_option('additional_drt_flag', [])
+    def cmd_line(self, pixel_tests, per_test_args):
+        pixel_tests_flag = '-p' if pixel_tests else ''
+        return [self._port._path_to_driver()] + [pixel_tests_flag] + self._port.get_option('additional_drt_flag', []) + per_test_args
 
     def run_test(self, test_input):
         start_time = time.time()
         test_name = test_input.test_name
+        test_args = test_input.args or []
         test = self._port._tests[test_name]
         if test.keyboard:
             raise KeyboardInterrupt
@@ -496,19 +513,32 @@ class TestDriver(Driver):
             time.sleep((float(test_input.timeout) * 4) / 1000.0)
 
         audio = None
+        actual_text = test.actual_text
+        if actual_text and test_args and test_name == 'passes/args.html':
+            actual_text = actual_text + ' ' + ' '.join(test_args)
+
         if test.actual_audio:
             audio = base64.b64decode(test.actual_audio)
         crashed_process_name = None
+        crashed_pid = None
         if test.crash:
             crashed_process_name = self._port.driver_name()
+            crashed_pid = 1
         elif test.web_process_crash:
             crashed_process_name = 'WebProcess'
-        return DriverOutput(test.actual_text, test.actual_image,
-            test.actual_checksum, audio, crash=test.crash or test.web_process_crash,
-            crashed_process_name=crashed_process_name,
+            crashed_pid = 2
+
+        crash_log = ''
+        if crashed_process_name:
+            crash_logs = CrashLogs(self._port._filesystem)
+            crash_log = crash_logs.find_newest_log(crashed_process_name, None) or ''
+
+        return DriverOutput(actual_text, test.actual_image, test.actual_checksum, audio,
+            crash=test.crash or test.web_process_crash, crashed_process_name=crashed_process_name,
+            crashed_pid=crashed_pid, crash_log=crash_log,
             test_time=time.time() - start_time, timeout=test.timeout, error=test.error)
 
-    def start(self):
+    def start(self, pixel_tests, per_test_args):
         pass
 
     def stop(self):

@@ -26,13 +26,17 @@
 
 #include "ConstructData.h"
 #include "ErrorConstructor.h"
+#include "ExceptionHelpers.h"
 #include "FunctionPrototype.h"
+#include "JSArray.h"
 #include "JSFunction.h"
 #include "JSGlobalObject.h"
 #include "JSObject.h"
 #include "JSString.h"
 #include "NativeErrorConstructor.h"
 #include "SourceCode.h"
+
+#include <wtf/text/StringBuilder.h>
 
 namespace JSC {
 
@@ -116,7 +120,7 @@ JSObject* createURIError(ExecState* exec, const UString& message)
     return createURIError(exec->lexicalGlobalObject(), message);
 }
 
-JSObject* addErrorInfo(JSGlobalData* globalData, JSObject* error, int line, const SourceCode& source)
+JSObject* addErrorInfo(JSGlobalData* globalData, JSObject* error, int line, const SourceCode& source, const Vector<StackFrame>& stackTrace)
 {
     const UString& sourceURL = source.provider()->url();
 
@@ -124,13 +128,28 @@ JSObject* addErrorInfo(JSGlobalData* globalData, JSObject* error, int line, cons
         error->putDirect(*globalData, Identifier(globalData, linePropertyName), jsNumber(line), ReadOnly | DontDelete);
     if (!sourceURL.isNull())
         error->putDirect(*globalData, Identifier(globalData, sourceURLPropertyName), jsString(globalData, sourceURL), ReadOnly | DontDelete);
+    if (!stackTrace.isEmpty()) {
+        JSGlobalObject* globalObject = 0;
+        if (isTerminatedExecutionException(error) || isInterruptedExecutionException(error))
+            globalObject = globalData->dynamicGlobalObject;
+        else
+            globalObject = error->globalObject();
+        StringBuilder builder;
+        for (unsigned i = 0; i < stackTrace.size(); i++) {
+            builder.append(String(stackTrace[i].toString(globalObject->globalExec()).impl()));
+            if (i != stackTrace.size() - 1)
+                builder.append('\n');
+        }
+
+        error->putDirect(*globalData, globalData->propertyNames->stack, jsString(globalData, UString(builder.toString().impl())), ReadOnly | DontDelete);
+    }
 
     return error;
 }
 
-JSObject* addErrorInfo(ExecState* exec, JSObject* error, int line, const SourceCode& source)
+JSObject* addErrorInfo(ExecState* exec, JSObject* error, int line, const SourceCode& source, const Vector<StackFrame>& stackTrace)
 {
-    return addErrorInfo(&exec->globalData(), error, line, source);
+    return addErrorInfo(&exec->globalData(), error, line, source, stackTrace);
 }
 
 bool hasErrorInfo(ExecState* exec, JSObject* error)

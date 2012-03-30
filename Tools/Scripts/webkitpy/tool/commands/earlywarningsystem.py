@@ -32,10 +32,11 @@ from webkitpy.common.config.committers import CommitterList
 from webkitpy.common.config.ports import DeprecatedPort
 from webkitpy.common.system.deprecated_logging import error, log
 from webkitpy.common.system.executive import ScriptError
+from webkitpy.tool.bot.earlywarningsystemtask import EarlyWarningSystemTask, EarlyWarningSystemTaskDelegate
 from webkitpy.tool.bot.expectedfailures import ExpectedFailures
 from webkitpy.tool.bot.layouttestresultsreader import LayoutTestResultsReader
+from webkitpy.tool.bot.patchanalysistask import UnableToApplyPatch
 from webkitpy.tool.bot.queueengine import QueueEngine
-from webkitpy.tool.bot.earlywarningsystemtask import EarlyWarningSystemTask, EarlyWarningSystemTaskDelegate, UnableToApplyPatch
 from webkitpy.tool.commands.queues import AbstractReviewQueue
 
 
@@ -48,9 +49,6 @@ class AbstractEarlyWarningSystem(AbstractReviewQueue, EarlyWarningSystemTaskDele
         options = [make_option("--run-tests", action="store_true", dest="run_tests", default=self._default_run_tests, help="Run the Layout tests for each patch")]
         AbstractReviewQueue.__init__(self, options=options)
         self.port = DeprecatedPort.port(self.port_name)
-
-    def should_proceed_with_work_item(self, patch):
-        return True
 
     def begin_work_queue(self):
         # FIXME: This violates abstraction
@@ -159,6 +157,11 @@ class EflEWS(AbstractEarlyWarningSystem):
 
 class QtEWS(AbstractEarlyWarningSystem):
     name = "qt-ews"
+    port_name = "qt"
+
+
+class QtWK2EWS(AbstractEarlyWarningSystem):
+    name = "qt-wk2-ews"
     port_name = "qt"
 
 

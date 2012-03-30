@@ -39,6 +39,7 @@
 #include <locale.h>
 #include <stdio.h>
 #include <wtf/Assertions.h>
+#include <wtf/CurrentTime.h>
 #include <wtf/MathExtras.h>
 #include <wtf/OwnArrayPtr.h>
 #include <wtf/RefPtr.h>
@@ -744,24 +745,6 @@ static JSValueRef computedStyleIncludingVisitedInfoCallback(JSContextRef context
     // Has mac implementation
     LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
     return controller->computedStyleIncludingVisitedInfo(context, arguments[0]);
-}
-
-static JSValueRef nodesFromRectCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
-{
-    if (argumentCount != 8)
-        return JSValueMakeUndefined(context);
-
-    int x = JSValueToNumber(context, arguments[1], NULL);
-    int y = JSValueToNumber(context, arguments[2], NULL);
-    int top = static_cast<unsigned>(JSValueToNumber(context, arguments[3], NULL));
-    int right = static_cast<unsigned>(JSValueToNumber(context, arguments[4], NULL));
-    int bottom = static_cast<unsigned>(JSValueToNumber(context, arguments[5], NULL));
-    int left = static_cast<unsigned>(JSValueToNumber(context, arguments[6], NULL));
-    bool ignoreClipping = JSValueToBoolean(context, arguments[7]);
-
-    // Has mac implementation.
-    LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
-    return controller->nodesFromRect(context, arguments[0], x, y, top, right, bottom, left, ignoreClipping);
 }
 
 static JSValueRef layerTreeAsTextCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
@@ -2051,32 +2034,6 @@ static JSValueRef abortModalCallback(JSContextRef context, JSObjectRef function,
     return JSValueMakeUndefined(context);
 }
 
-static JSValueRef hasSpellingMarkerCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
-{
-    if (argumentCount != 2)
-        return JSValueMakeUndefined(context);
-
-    int from = JSValueToNumber(context, arguments[0], 0);
-    int length = JSValueToNumber(context, arguments[1], 0);
-    LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
-    bool ok = controller->hasSpellingMarker(from, length);
-
-    return JSValueMakeBoolean(context, ok);
-}
-
-static JSValueRef hasGrammarMarkerCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
-{
-    if (argumentCount != 2)
-        return JSValueMakeUndefined(context);
-    
-    int from = JSValueToNumber(context, arguments[0], 0);
-    int length = JSValueToNumber(context, arguments[1], 0);
-    LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
-    bool ok = controller->hasGrammarMarker(from, length);
-    
-    return JSValueMakeBoolean(context, ok);
-}
-
 static JSValueRef markerTextForListItemCallback(JSContextRef context, JSObjectRef, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
 {
     LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
@@ -2202,6 +2159,11 @@ static JSValueRef setBackingScaleFactorCallback(JSContextRef context, JSObjectRe
     // The second argument is a callback that is called once the backing scale factor has been set.
     JSObjectCallAsFunction(context, JSValueToObject(context, arguments[1], 0), thisObject, 0, 0, 0);
     return JSValueMakeUndefined(context);
+}
+
+static JSValueRef preciseTimeCallback(JSContextRef context, JSObjectRef, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    return JSValueMakeNumber(context, WTF::currentTime());
 }
 
 // Static Values
@@ -2347,7 +2309,6 @@ JSStaticFunction* LayoutTestController::staticFunctions()
         { "clearPersistentUserStyleSheet", clearPersistentUserStyleSheetCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "closeWebInspector", closeWebInspectorCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "computedStyleIncludingVisitedInfo", computedStyleIncludingVisitedInfoCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "nodesFromRect", nodesFromRectCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "decodeHostName", decodeHostNameCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "disableImageLoading", disableImageLoadingCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "disallowIncreaseForApplicationCacheQuota", disallowIncreaseForApplicationCacheQuotaCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
@@ -2384,8 +2345,6 @@ JSStaticFunction* LayoutTestController::staticFunctions()
         { "originsWithApplicationCache", originsWithApplicationCacheCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "goBack", goBackCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete }, 
         { "grantDesktopNotificationPermission", grantDesktopNotificationPermissionCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete }, 
-        { "hasSpellingMarker", hasSpellingMarkerCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "hasGrammarMarker", hasGrammarMarkerCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "ignoreDesktopNotificationPermissionRequests", ignoreDesktopNotificationPermissionRequestsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isCommandEnabled", isCommandEnabledCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isPageBoxVisible", isPageBoxVisibleCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
@@ -2501,6 +2460,7 @@ JSStaticFunction* LayoutTestController::staticFunctions()
         { "removeChromeInputField", removeChromeInputFieldCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "focusWebView", focusWebViewCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "setBackingScaleFactor", setBackingScaleFactorCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+        { "preciseTime", preciseTimeCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { 0, 0, 0 }
     };
 

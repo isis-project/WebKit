@@ -29,9 +29,10 @@
  */
 
 #include "config.h"
-#include "InspectorFrontendClientLocal.h"
 
 #if ENABLE(INSPECTOR)
+
+#include "InspectorFrontendClientLocal.h"
 
 #include "Chrome.h"
 #include "FloatRect.h"
@@ -138,6 +139,7 @@ void InspectorFrontendClientLocal::windowObjectCleared()
 void InspectorFrontendClientLocal::frontendLoaded()
 {
     bringToFront();
+    setDockingUnavailable(!canAttachWindow());
     m_frontendLoaded = true;
     for (Vector<String>::iterator it = m_evaluateOnLoad.begin(); it != m_evaluateOnLoad.end(); ++it)
         evaluateOnLoad(*it);
@@ -166,6 +168,11 @@ bool InspectorFrontendClientLocal::canAttachWindow()
     unsigned inspectedPageHeight = m_inspectorController->inspectedPage()->mainFrame()->view()->visibleHeight();
     unsigned maximumAttachedHeight = inspectedPageHeight * maximumAttachedHeightRatio;
     return minimumAttachedHeight <= maximumAttachedHeight && !isInspectorPage;
+}
+
+void InspectorFrontendClientLocal::setDockingUnavailable(bool unavailable)
+{
+    evaluateOnLoad(String::format("[\"setDockingUnavailable\", %s]", unavailable ? "true" : "false"));
 }
 
 void InspectorFrontendClientLocal::changeAttachedWindowHeight(unsigned height)
@@ -205,7 +212,7 @@ void InspectorFrontendClientLocal::moveWindowBy(float x, float y)
 
 void InspectorFrontendClientLocal::setAttachedWindow(bool attached)
 {
-    evaluateAsBoolean(String::format("InspectorFrontendAPI.setAttachedWindow(%s)", attached ? "true" : "false"));
+    evaluateOnLoad(String::format("[\"setAttachedWindow\", %s]", attached ? "true" : "false"));
 }
 
 void InspectorFrontendClientLocal::restoreAttachedWindowHeight()
@@ -264,6 +271,11 @@ void InspectorFrontendClientLocal::stopProfilingJavaScript()
 void InspectorFrontendClientLocal::showConsole()
 {
     evaluateOnLoad("[\"showConsole\"]");
+}
+
+void InspectorFrontendClientLocal::showResources()
+{
+    evaluateOnLoad("[\"showResources\"]");
 }
 
 void InspectorFrontendClientLocal::showMainResourceForFrame(Frame* frame)

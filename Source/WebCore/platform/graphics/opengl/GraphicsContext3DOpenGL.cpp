@@ -36,11 +36,8 @@
 
 #if PLATFORM(MAC)
 #include <OpenGL/gl.h>
-#elif PLATFORM(GTK) || PLATFORM(EFL)
+#elif PLATFORM(GTK) || PLATFORM(EFL) || PLATFORM(QT)
 #include "OpenGLShims.h"
-#elif PLATFORM(QT)
-#include <QtGlobal>
-#include <cairo/OpenGLShims.h>
 #endif
 
 namespace WebCore {
@@ -138,7 +135,12 @@ void GraphicsContext3D::resolveMultisamplingIfNecessary(const IntRect& rect)
 {
     ::glBindFramebufferEXT(GL_READ_FRAMEBUFFER_EXT, m_multisampleFBO);
     ::glBindFramebufferEXT(GL_DRAW_FRAMEBUFFER_EXT, m_fbo);
-    ::glBlitFramebufferEXT(rect.x(), rect.y(), rect.maxX(), rect.maxY(), rect.x(), rect.y(), rect.maxX(), rect.maxY(), GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+    IntRect resolveRect = rect;
+    if (rect.isEmpty())
+        resolveRect = IntRect(0, 0, m_currentWidth, m_currentHeight);
+
+    ::glBlitFramebufferEXT(resolveRect.x(), resolveRect.y(), resolveRect.maxX(), resolveRect.maxY(), resolveRect.x(), resolveRect.y(), resolveRect.maxX(), resolveRect.maxY(), GL_COLOR_BUFFER_BIT, GL_LINEAR);
 }
 
 void GraphicsContext3D::renderbufferStorage(GC3Denum target, GC3Denum internalformat, GC3Dsizei width, GC3Dsizei height)

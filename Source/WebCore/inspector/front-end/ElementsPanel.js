@@ -154,6 +154,11 @@ WebInspector.ElementsPanel.prototype = {
         // Detach heavy component on hide
         this.contentElement.removeChild(this.treeOutline.element);
 
+        for (var pane in this.sidebarPanes) {
+            if (this.sidebarPanes[pane].willHide)
+                this.sidebarPanes[pane].willHide();
+        }
+
         WebInspector.Panel.prototype.willHide.call(this);
     },
 
@@ -376,7 +381,7 @@ WebInspector.ElementsPanel.prototype = {
                 return;
             }
 
-            object.callFunctionJSON(dimensions, callback);
+            object.callFunctionJSON(dimensions, undefined, callback);
             object.release();
 
             function dimensions()
@@ -386,6 +391,10 @@ WebInspector.ElementsPanel.prototype = {
         }
     },
 
+    /**
+     * @param {Element} anchor
+     * @param {WebInspector.Popover} popover
+     */
     _showPopover: function(anchor, popover)
     {
         var listItem = anchor.enclosingNodeOrSelfWithNodeNameInArray(["li"]);
@@ -394,6 +403,9 @@ WebInspector.ElementsPanel.prototype = {
         else
             dimensionsCallback();
 
+        /**
+         * @param {Object=} dimensions
+         */
         function dimensionsCallback(dimensions)
         {
             var imageElement = document.createElement("img");
@@ -405,12 +417,19 @@ WebInspector.ElementsPanel.prototype = {
             resource.populateImageSource(imageElement);
         }
 
+        /**
+         * @param {Object=} dimensions
+         */
         function showPopover(imageElement, dimensions)
         {
             var contents = buildPopoverContents(imageElement, dimensions);
+            popover.setCanShrink(false);
             popover.show(contents, anchor);
         }
 
+        /**
+         * @param {Object=} nodeDimensions
+         */
         function buildPopoverContents(imageElement, nodeDimensions)
         {
             const maxImageWidth = 100;
@@ -1039,8 +1058,17 @@ WebInspector.ElementsPanel.prototype = {
             return;
         }
 
-        if (WebInspector.KeyboardShortcut.eventHasCtrlOrMeta(event) && event.keyIdentifier === "U+005A") { // Z key
+        if (WebInspector.KeyboardShortcut.eventHasCtrlOrMeta(event) && !event.shiftKey && event.keyIdentifier === "U+005A") { // Z key
             WebInspector.domAgent.undo(this._updateSidebars.bind(this));
+            event.handled = true;
+            return;
+        }
+
+        var isRedoKey = WebInspector.isMac() ? event.metaKey && event.shiftKey && event.keyIdentifier === "U+005A" : // Z key
+                                               event.ctrlKey && event.keyIdentifier === "U+0059"; // Y key
+        if (isRedoKey) {
+            DOMAgent.redo(this._updateSidebars.bind(this));
+            event.handled = true;
             return;
         }
 

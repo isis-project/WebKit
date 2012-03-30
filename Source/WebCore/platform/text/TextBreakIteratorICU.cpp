@@ -71,6 +71,8 @@ TextBreakIterator* wordBreakIterator(const UChar* string, int length)
 TextBreakIterator* acquireLineBreakIterator(const UChar* string, int length, const AtomicString& locale)
 {
     UBreakIterator* iterator = LineBreakIteratorPool::sharedPool().take(locale);
+    if (!iterator)
+        return 0;
 
     UErrorCode setTextStatus = U_ZERO_ERROR;
     ubrk_setText(iterator, string, length, &setTextStatus);
@@ -135,6 +137,12 @@ int textBreakCurrent(TextBreakIterator* iterator)
 bool isTextBreak(TextBreakIterator* iterator, int position)
 {
     return ubrk_isBoundary(reinterpret_cast<UBreakIterator*>(iterator), position);
+}
+
+bool isWordTextBreak(TextBreakIterator* iterator)
+{
+    int ruleStatus = ubrk_getRuleStatus(reinterpret_cast<UBreakIterator*>(iterator));
+    return ruleStatus != UBRK_WORD_NONE;
 }
 
 static TextBreakIterator* setUpIteratorWithRules(bool& createdIterator, TextBreakIterator*& iterator,

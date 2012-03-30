@@ -1,40 +1,75 @@
 var jsTestIsAsync = true;
+if (self.importScripts && !self.postMessage) {
+    // Shared worker.  Make postMessage send to the newest client, which in
+    // our tests is the only client.
 
-function done()
+    // Store messages for sending until we have somewhere to send them.
+    self.postMessage = function(message)
+    {
+        if (typeof self.pendingMessages === "undefined")
+            self.pendingMessages = [];
+        self.pendingMessages.push(message);
+    };
+    self.onconnect = function(event)
+    {
+        self.postMessage = function(message)
+        {
+            event.ports[0].postMessage(message);
+        };
+        // Offload any stored messages now that someone has connected to us.
+        if (typeof self.pendingMessages === "undefined")
+            return;
+        while (self.pendingMessages.length)
+            event.ports[0].postMessage(self.pendingMessages.shift());
+    };
+}
+
+function removeVendorPrefixes()
 {
-    isSuccessfullyParsed();
-    if (window.layoutTestController)
-        layoutTestController.notifyDone()
+    IDBCursor = self.IDBCursor || self.webkitIDBCursor;
+    IDBDatabase = self.IDBDatabase || self.webkitIDBDatabase;
+    IDBDatabaseError = self.IDBDatabaseError || self.webkitIDBDatabaseError;
+    IDBDatabaseException = self.IDBDatabaseException || self.webkitIDBDatabaseException;
+    IDBFactory = self.IDBFactory || self.webkitIDBFactory;
+    IDBIndex = self.IDBIndex || self.webkitIDBIndex;
+    IDBKeyRange = self.IDBKeyRange || self.webkitIDBKeyRange;
+    IDBObjectStore = self.IDBObjectStore || self.webkitIDBObjectStore;
+    IDBRequest = self.IDBRequest || self.webkitIDBRequest;
+    IDBTransaction = self.IDBTransaction || self.webkitIDBTransaction;
+
+    indexedDB = evalAndLog("indexedDB = self.indexedDB || self.webkitIndexedDB || self.mozIndexedDB || self.msIndexedDB || self.OIndexedDB;");
+    shouldBeTrue("Boolean(indexedDB && IDBCursor && IDBDatabase && IDBDatabaseError && IDBDatabaseException && IDBFactory && IDBIndex && IDBKeyRange && IDBObjectStore && IDBRequest && IDBTransaction)");
+    debug("");
 }
 
 function unexpectedSuccessCallback()
 {
     testFailed("Success function called unexpectedly.");
-    done();
+    finishJSTest();
 }
 
-function unexpectedErrorCallback()
+function unexpectedErrorCallback(event)
 {
     testFailed("Error function called unexpectedly: (" + event.target.errorCode + ") " + event.target.webkitErrorMessage);
-    done();
+    finishJSTest();
 }
 
 function unexpectedAbortCallback()
 {
     testFailed("Abort function called unexpectedly!");
-    done();
+    finishJSTest();
 }
 
 function unexpectedCompleteCallback()
 {
     testFailed("oncomplete function called unexpectedly!");
-    done();
+    finishJSTest();
 }
 
 function unexpectedBlockedCallback()
 {
     testFailed("onblocked called unexpectedly");
-    done();
+    finishJSTest();
 }
 
 function evalAndExpectException(cmd, expected)

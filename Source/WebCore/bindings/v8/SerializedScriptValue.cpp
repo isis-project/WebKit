@@ -31,27 +31,27 @@
 #include "config.h"
 #include "SerializedScriptValue.h"
 
-#include "ArrayBuffer.h"
-#include "ArrayBufferView.h"
+#include <wtf/ArrayBuffer.h>
+#include <wtf/ArrayBufferView.h>
 #include "Blob.h"
-#include "ByteArray.h"
+#include <wtf/ByteArray.h>
 #include "CanvasPixelArray.h"
 #include "DataView.h"
 #include "ExceptionCode.h"
 #include "File.h"
 #include "FileList.h"
-#include "Float32Array.h"
-#include "Float64Array.h"
+#include <wtf/Float32Array.h>
+#include <wtf/Float64Array.h>
 #include "ImageData.h"
-#include "Int16Array.h"
-#include "Int32Array.h"
-#include "Int8Array.h"
+#include <wtf/Int16Array.h>
+#include <wtf/Int32Array.h>
+#include <wtf/Int8Array.h>
 #include "MessagePort.h"
 #include "SharedBuffer.h"
-#include "Uint16Array.h"
-#include "Uint32Array.h"
-#include "Uint8Array.h"
-#include "Uint8ClampedArray.h"
+#include <wtf/Uint16Array.h>
+#include <wtf/Uint32Array.h>
+#include <wtf/Uint8Array.h>
+#include <wtf/Uint8ClampedArray.h>
 #include "V8ArrayBuffer.h"
 #include "V8ArrayBufferView.h"
 #include "V8Binding.h"
@@ -397,10 +397,10 @@ public:
 #endif
         if (arrayBufferView.isByteArray())
             append(ByteArrayTag);
-        else if (arrayBufferView.isUnsignedByteArray())
-            append(UnsignedByteArrayTag);
         else if (arrayBufferView.isUnsignedByteClampedArray())
             append(UnsignedByteClampedArrayTag);
+        else if (arrayBufferView.isUnsignedByteArray())
+            append(UnsignedByteArrayTag);
         else if (arrayBufferView.isShortArray())
             append(ShortArrayTag);
         else if (arrayBufferView.isUnsignedShortArray())
@@ -606,13 +606,14 @@ public:
         JSFailure
     };
 
-    Serializer(Writer& writer, MessagePortArray* messagePorts, ArrayBufferArray* arrayBuffers, v8::TryCatch& tryCatch)
+    Serializer(Writer& writer, MessagePortArray* messagePorts, ArrayBufferArray* arrayBuffers, Vector<String>& blobURLs, v8::TryCatch& tryCatch)
         : m_writer(writer)
         , m_tryCatch(tryCatch)
         , m_depth(0)
         , m_execDepth(0)
         , m_status(Success)
         , m_nextObjectReference(0)
+        , m_blobURLs(blobURLs)
     {
         ASSERT(!tryCatch.HasCaught());
         if (messagePorts) {
@@ -977,6 +978,7 @@ private:
         if (!blob)
             return;
         m_writer.writeBlob(blob->url().string(), blob->type(), blob->size());
+        m_blobURLs.append(blob->url().string());
     }
 
     void writeFile(v8::Handle<v8::Value> value)
@@ -985,6 +987,7 @@ private:
         if (!file)
             return;
         m_writer.writeFile(file->path(), file->url().string(), file->type());
+        m_blobURLs.append(file->url().string());
     }
 
     void writeFileList(v8::Handle<v8::Value> value)
@@ -993,6 +996,9 @@ private:
         if (!fileList)
             return;
         m_writer.writeFileList(*fileList);
+        unsigned length = fileList->length();
+        for (unsigned i = 0; i < length; ++i)
+            m_blobURLs.append(fileList->item(i)->url().string());
     }
 
     void writeImageData(v8::Handle<v8::Value> value)
@@ -1111,6 +1117,7 @@ private:
     ObjectPool m_transferredMessagePorts;
     ObjectPool m_transferredArrayBuffers;
     uint32_t m_nextObjectReference;
+    Vector<String>& m_blobURLs;
 };
 
 Serializer::StateBase* Serializer::doSerialize(v8::Handle<v8::Value> value, StateBase* next)
@@ -2204,7 +2211,7 @@ SerializedScriptValue::SerializedScriptValue(v8::Handle<v8::Value> value,
     Serializer::Status status;
     {
         v8::TryCatch tryCatch;
-        Serializer serializer(writer, messagePorts, arrayBuffers, tryCatch);
+        Serializer serializer(writer, messagePorts, arrayBuffers, m_blobURLs, tryCatch);
         status = serializer.serialize(value);
         if (status == Serializer::JSException) {
             // If there was a JS exception thrown, re-throw it.
@@ -2257,5 +2264,15 @@ v8::Handle<v8::Value> SerializedScriptValue::deserialize(MessagePortArray* messa
     Deserializer deserializer(reader, messagePorts, m_arrayBufferContentsArray.get());
     return deserializer.deserialize();
 }
+
+#if ENABLE(INSPECTOR)
+ScriptValue SerializedScriptValue::deserializeForInspector(ScriptState* scriptState)
+{
+    v8::HandleScope handleScope;
+    v8::Context::Scope contextScope(scriptState->context());
+
+    return ScriptValue(deserialize());
+}
+#endif
 
 } // namespace WebCore

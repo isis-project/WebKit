@@ -36,6 +36,7 @@
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "Color.h"
+#include "FileList.h"
 #include "Font.h"
 #include "FontSelector.h"
 #include "GraphicsContext.h"
@@ -55,6 +56,7 @@
 #include "RenderProgress.h"
 #endif
 #include "RenderTheme.h"
+#include "RenderThemeQtMobile.h"
 #include "ScrollbarTheme.h"
 #include "TimeRanges.h"
 #include "UserAgentStyleSheets.h"
@@ -83,6 +85,9 @@ static const float minSearchFieldResultsDecorationSize = 9;
 static const float maxSearchFieldResultsDecorationSize = 30;
 static const float defaultSearchFieldResultsButtonWidth = 18;
 
+static QtThemeFactoryFunction themeFactory;
+static ScrollbarTheme* scrollbarTheme;
+
 RenderThemeQt::RenderThemeQt(Page* page)
     : RenderTheme()
     , m_page(page)
@@ -90,13 +95,30 @@ RenderThemeQt::RenderThemeQt(Page* page)
     m_buttonFontFamily = QGuiApplication::font().family();
 }
 
-bool RenderThemeQt::useMobileTheme()
+void RenderThemeQt::setCustomTheme(QtThemeFactoryFunction factory, ScrollbarTheme* customScrollbarTheme)
 {
-#if HAVE(QSTYLE)
-    return !qgetenv("QT_WEBKIT_USE_MOBILE_THEME").isNull();
-#else
-    return true;
-#endif
+    themeFactory = factory;
+    scrollbarTheme = customScrollbarTheme;
+}
+
+ScrollbarTheme* RenderThemeQt::customScrollbarTheme()
+{
+    return scrollbarTheme;
+}
+
+static PassRefPtr<RenderTheme> createTheme(Page* page)
+{
+    if (themeFactory)
+        return themeFactory(page);
+    return RenderThemeQtMobile::create(page);
+}
+
+PassRefPtr<RenderTheme> RenderTheme::themeForPage(Page* page)
+{
+    if (page)
+        return createTheme(page);
+    static RenderTheme* fallback = createTheme(0).leakRef();
+    return fallback;
 }
 
 // Remove this when SearchFieldPart is style-able in RenderTheme::isControlStyled()
@@ -121,7 +143,9 @@ String RenderThemeQt::extraDefaultStyleSheet()
 {
     StringBuilder result;
     result.append(RenderTheme::extraDefaultStyleSheet());
-    if (useMobileTheme()) {
+    // When no theme factory is provided we default to using our platform independent "Mobile Qt" theme,
+    // which requires the following stylesheets.
+    if (!themeFactory) {
         result.append(String(themeQtNoListboxesUserAgentStyleSheet, sizeof(themeQtNoListboxesUserAgentStyleSheet)));
         result.append(String(mobileThemeQtUserAgentStyleSheet, sizeof(mobileThemeQtUserAgentStyleSheet)));
     }
@@ -852,23 +876,24 @@ double RenderThemeQt::caretBlinkInterval() const
     return static_cast<QGuiApplication*>(qApp)->styleHints()->cursorFlashTime() / 1000.0 / 2.0;
 }
 
-String RenderThemeQt::fileListNameForWidth(const Vector<String>& filenames, const Font& font, int width)
+String RenderThemeQt::fileListNameForWidth(const FileList* fileList, const Font& font, int width, bool multipleFilesAllowed) const
 {
+    UNUSED_PARAM(multipleFilesAllowed);
     if (width <= 0)
         return String();
 
     String string;
-    if (filenames.isEmpty())
+    if (fileList->isEmpty())
         string = fileButtonNoFileSelectedLabel();
-    else if (filenames.size() == 1) {
-        String fname = filenames[0];
+    else if (fileList->length() == 1) {
+        String fname = fileList->item(0)->path();
         QFontMetrics fm(font.font());
         string = fm.elidedText(fname, Qt::ElideLeft, width);
     } else {
-        int n = filenames.size();
+        int n = fileList->length();
         string = QCoreApplication::translate("QWebPage", "%n file(s)",
                                              "number of chosen file",
-                                             QCoreApplication::CodecForTr, n);
+                                             QCoreApplication::DefaultCodec, n);
     }
 
     return string;

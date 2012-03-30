@@ -32,6 +32,7 @@
 #include "FontCache.h"
 #include "FontDescription.h"
 #include "GraphicsContext3D.h"
+#include "InspectorController.h"
 #include "LayerChromium.h"
 #include "LayerRendererChromium.h"
 #include "ManagedTexture.h"
@@ -119,6 +120,7 @@ void CCHeadsUpDisplay::draw()
     canvas.resize(hudSize);
     {
         PlatformCanvas::Painter painter(&canvas, PlatformCanvas::Painter::GrayscaleText);
+        painter.context()->clearRect(FloatRect(0, 0, hudSize.width(), hudSize.height()));
         drawHudContents(painter.context(), hudSize);
     }
 

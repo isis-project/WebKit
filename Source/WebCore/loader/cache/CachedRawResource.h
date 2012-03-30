@@ -42,10 +42,7 @@ public:
     // FIXME: This is exposed for the InpsectorInstrumentation for preflights in DocumentThreadableLoader. It's also really lame.
     unsigned long identifier() const { return m_identifier; }
 
-    bool canReuse() const;
-    void sendCallbacks(CachedRawResourceClient*);
-
-    virtual void removeClient(CachedResourceClient*);
+    bool canReuse(const ResourceRequest&) const;
 
 private:
     virtual void didAddClient(CachedResourceClient*);
@@ -62,7 +59,6 @@ private:
 #endif
 
     unsigned long m_identifier;
-    HashMap<CachedRawResourceClient*, OwnPtr<CachedRawResourceCallback> > m_clientsAwaitingCallback;
 };
 
 

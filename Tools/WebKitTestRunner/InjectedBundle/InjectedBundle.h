@@ -39,6 +39,10 @@
 
 #include <sstream>
 
+namespace WTF {
+class StringBuilder;
+}
+
 namespace WTR {
 
 class InjectedBundlePage;
@@ -66,7 +70,7 @@ public:
     void dumpBackForwardListsForAllPages();
 
     void done();
-    std::ostringstream& os() { return m_outputStream; }
+    WTF::StringBuilder* stringBuilder() { return m_stringBuilder.get(); }
     void setPixelResult(WKImageRef image) { m_pixelResult = image; }
     void setRepaintRects(WKArrayRef rects) { m_repaintRects = rects; }
 
@@ -76,6 +80,7 @@ public:
     void setTopLoadingFrame(WKBundleFrameRef frame) { m_topLoadingFrame = frame; }
 
     bool shouldDumpPixels() const { return m_dumpPixels; }
+    bool useWaitToDumpWatchdogTimer() const { return m_useWaitToDumpWatchdogTimer; }
     
     void postNewBeforeUnloadReturnValue(bool);
     void postAddChromeInputField();
@@ -115,7 +120,7 @@ private:
 
     WKBundleFrameRef m_topLoadingFrame;
 
-    std::ostringstream m_outputStream;
+    OwnPtr<WTF::StringBuilder> m_stringBuilder;
     
     enum State {
         Idle,
@@ -125,6 +130,7 @@ private:
     State m_state;
 
     bool m_dumpPixels;
+    bool m_useWaitToDumpWatchdogTimer;
 
     WKRetainPtr<WKImageRef> m_pixelResult;
     WKRetainPtr<WKArrayRef> m_repaintRects;

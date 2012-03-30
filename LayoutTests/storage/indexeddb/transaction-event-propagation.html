@@ -4,17 +4,14 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test event propogation on IDBTransaction.");
-if (window.layoutTestController) 
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('transaction-event-propagation')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('transaction-event-propagation')");
     request.onsuccess = setVersion;
     request.onerror = unexpectedErrorCallback;
 }
@@ -30,7 +27,7 @@ function setVersion()
 
 function deleteExisting()
 {
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     evalAndLog("trans.oncomplete = startTest");
@@ -45,7 +42,7 @@ function deleteExisting()
 function startTest()
 {
     debug("Verifing abort");
-    trans = evalAndLog("trans = db.transaction(['storeName'], webkitIDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
     evalAndLog("trans.onabort = abortFiredCallback");
     evalAndLog("trans.oncomplete = unexpectedAbortCallback");
     evalAndLog("db.addEventListener('abort', dbAbortCaptureCallback, true)");
@@ -95,7 +92,7 @@ function dbAbortBubbleCallback()
     dbBubbleFired1 = true;
     debug("");
     debug("Verifing success.");
-    trans = evalAndLog("trans = db.transaction(['storeName'], webkitIDBTransaction.READ_WRITE)");
+    trans = evalAndLog("trans = db.transaction(['storeName'], IDBTransaction.READ_WRITE)");
     evalAndLog("trans.oncomplete = completeFiredCallback");
     evalAndLog("trans.onabort = unexpectedAbortCallback");
     evalAndLog("db.removeEventListener('abort', dbAbortCaptureCallback, true)");
@@ -136,7 +133,7 @@ function completeFiredCallback()
     shouldBe("event.currentTarget", "trans");
     completeFired = true;
     debug("");
-    done();
+    finishJSTest();
 }
 
 function dbCompleteBubbleCallback()
@@ -151,5 +148,6 @@ test();
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

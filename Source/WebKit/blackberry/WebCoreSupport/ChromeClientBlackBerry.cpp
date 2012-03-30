@@ -24,6 +24,7 @@
 #include "BackingStoreClient.h"
 #include "BackingStore_p.h"
 #include "CString.h"
+#include "ColorChooser.h"
 #include "DatabaseTracker.h"
 #include "Document.h"
 #include "DumpRenderTreeClient.h"
@@ -43,7 +44,6 @@
 #include "KURL.h"
 #include "Node.h"
 #include "NotImplemented.h"
-#include "NotificationPresenterImpl.h"
 #include "Page.h"
 #include "PageGroup.h"
 #include "PageGroupLoadDeferrer.h"
@@ -61,12 +61,16 @@
 #include "WebSettings.h"
 #include "WebString.h"
 #include "WindowFeatures.h"
+
 #include <BlackBerryPlatformLog.h>
 #include <BlackBerryPlatformSettings.h>
+#include <BlackBerryPlatformWindow.h>
 
 #define DEBUG_OVERFLOW_DETECTION 0
 
 using namespace BlackBerry::WebKit;
+
+using BlackBerry::Platform::Graphics::Window;
 
 namespace WebCore {
 
@@ -150,7 +154,11 @@ void ChromeClientBlackBerry::setWindowRect(const FloatRect&)
 
 FloatRect ChromeClientBlackBerry::windowRect()
 {
-    const IntSize windowSize = m_webPagePrivate->m_client->window()->windowSize();
+    IntSize windowSize;
+
+    if (Window* window = m_webPagePrivate->m_client->window())
+        windowSize = window->windowSize();
+
     return FloatRect(0, 0, windowSize.width(), windowSize.height());
 }
 
@@ -186,85 +194,9 @@ void ChromeClientBlackBerry::takeFocus(FocusDirection)
     notImplemented();
 }
 
-void ChromeClientBlackBerry::focusedNodeChanged(Node* node)
+void ChromeClientBlackBerry::focusedNodeChanged(Node*)
 {
-    WebPageClient::FocusType type = WebPageClient::FocusUnknown;
-
-    if (!node)
-        type = WebPageClient::FocusNone;
-    else if (node->isSVGElement())
-        type = WebPageClient::FocusSVGElement;
-    else if (node->isHTMLElement()) {
-        if (node->hasTagName(HTMLNames::aTag)) {
-            type = WebPageClient::FocusLink;
-        } else if (node->hasTagName(HTMLNames::inputTag)) {
-            HTMLInputElement* inputElement = static_cast<HTMLInputElement*>(node);
-            if (inputElement->hasTagName(HTMLNames::isindexTag) || inputElement->isInputTypeHidden())
-                type = WebPageClient::FocusInputUnknown;
-            else if (inputElement->isTextButton())
-                type = WebPageClient::FocusInputButton;
-            else if (inputElement->isCheckbox())
-                type = WebPageClient::FocusInputCheckBox;
-#if ENABLE(INPUT_COLOR)
-            else if (inputElement->isColorControl())
-                type = WebPageClient::FocusInputColor;
-#endif
-            else if (inputElement->isDateControl())
-                type = WebPageClient::FocusInputDate;
-            else if (inputElement->isDateTimeControl())
-                type = WebPageClient::FocusInputDateTime;
-            else if (inputElement->isDateTimeLocalControl())
-                type = WebPageClient::FocusInputDateTimeLocal;
-            else if (inputElement->isEmailField())
-                type = WebPageClient::FocusInputEmail;
-            else if (inputElement->isFileUpload())
-                type = WebPageClient::FocusInputFile;
-            else if (inputElement->isImageButton())
-                type = WebPageClient::FocusInputImage;
-            else if (inputElement->isMonthControl())
-                type = WebPageClient::FocusInputMonth;
-            else if (inputElement->isNumberField())
-                type = WebPageClient::FocusInputNumber;
-            else if (inputElement->isPasswordField())
-                type = WebPageClient::FocusInputPassword;
-            else if (inputElement->isRadioButton())
-                type = WebPageClient::FocusInputRadio;
-            else if (inputElement->isRangeControl())
-                type = WebPageClient::FocusInputRange;
-            else if (inputElement->isResetButton())
-                type = WebPageClient::FocusInputReset;
-            else if (inputElement->isSearchField())
-                type = WebPageClient::FocusInputSearch;
-            else if (inputElement->isSubmitButton())
-                type = WebPageClient::FocusInputSubmit;
-            else if (inputElement->isTelephoneField())
-                type = WebPageClient::FocusInputTelephone;
-            else if (inputElement->isURLField())
-                type = WebPageClient::FocusInputURL;
-            else if (inputElement->isTextField())
-                type = WebPageClient::FocusInputText;
-            else if (inputElement->isTimeControl())
-                type = WebPageClient::FocusInputTime;
-            // FIXME: missing WEEK popup selector
-            else
-                type = WebPageClient::FocusInputUnknown;
-        } else if (node->hasTagName(HTMLNames::imgTag))
-            type = WebPageClient::FocusImage;
-        else if (node->hasTagName(HTMLNames::objectTag))
-            type = WebPageClient::FocusObject;
-        else if (node->hasTagName(HTMLNames::videoTag))
-            type = WebPageClient::FocusVideo;
-        else if (node->hasTagName(HTMLNames::selectTag))
-            type = WebPageClient::FocusSelect;
-        else if (node->hasTagName(HTMLNames::textareaTag))
-            type = WebPageClient::FocusTextArea;
-        else if (node->hasTagName(HTMLNames::canvasTag))
-            type = WebPageClient::FocusCanvas;
-    }
-
-    m_webPagePrivate->m_inputHandler->nodeFocused(node);
-
-    m_webPagePrivate->m_client->focusChanged(type, reinterpret_cast<int>(node));
+    m_webPagePrivate->m_inputHandler->focusedNodeChanged();
 }
 
 void ChromeClientBlackBerry::focusedFrameChanged(Frame*)
@@ -346,6 +278,12 @@ bool ChromeClientBlackBerry::selectItemWritingDirectionIsNatural()
 bool ChromeClientBlackBerry::selectItemAlignmentFollowsMenuWritingDirection()
 {
     return true;
+}
+
+bool ChromeClientBlackBerry::hasOpenedPopup() const
+{
+    notImplemented();
+    return false;
 }
 
 PassRefPtr<PopupMenu> ChromeClientBlackBerry::createPopupMenu(PopupMenuClient* client) const
@@ -446,17 +384,23 @@ IntRect ChromeClientBlackBerry::windowResizerRect() const
     return IntRect();
 }
 
-IntPoint ChromeClientBlackBerry::screenToWindow(const IntPoint& screenPos) const
+IntPoint ChromeClientBlackBerry::screenToRootView(const IntPoint& screenPos) const
 {
-    IntPoint windowPoint = m_webPagePrivate->m_client->window()->windowLocation();
+    IntPoint windowPoint;
+    if (Window* window = m_webPagePrivate->m_client->window())
+        windowPoint = window->windowLocation();
+
     windowPoint.move(-screenPos.x(), -screenPos.y());
     return windowPoint;
 }
 
-IntRect ChromeClientBlackBerry::windowToScreen(const IntRect& windowRect) const
+IntRect ChromeClientBlackBerry::rootViewToScreen(const IntRect& windowRect) const
 {
     IntRect windowPoint(windowRect);
-    IntPoint location(m_webPagePrivate->m_client->window()->windowLocation());
+    IntPoint location;
+    if (Window* window = m_webPagePrivate->m_client->window())
+        location = window->windowLocation();
+
     windowPoint.move(location.x(), location.y());
     return windowPoint;
 }
@@ -533,26 +477,6 @@ void ChromeClientBlackBerry::exceededDatabaseQuota(Frame* frame, const String& n
 #endif
 }
 
-void ChromeClientBlackBerry::requestGeolocationPermissionForFrame(Frame* frame, Geolocation* geolocation)
-{
-    if (!m_webPagePrivate->m_webSettings->isGeolocationEnabled()) {
-        geolocation->setIsAllowed(false);
-        return;
-    }
-    DOMWindow* window = frame->domWindow();
-    if (!window)
-        return;
-
-    CString latinOrigin = frameOrigin(frame);
-
-    m_webPagePrivate->m_client->requestGeolocationPermission(m_webPagePrivate->m_geolocationClient, geolocation, latinOrigin.data(), latinOrigin.length());
-}
-
-void ChromeClientBlackBerry::cancelGeolocationPermissionRequestForFrame(Frame*, Geolocation* geolocation)
-{
-    m_webPagePrivate->m_client->cancelGeolocationPermission(m_webPagePrivate->m_geolocationClient, geolocation);
-}
-
 void ChromeClientBlackBerry::runOpenPanel(Frame*, PassRefPtr<FileChooser> chooser)
 {
     SharedArray<WebString> initialFiles;
@@ -608,12 +532,12 @@ void ChromeClientBlackBerry::contentsSizeChanged(Frame* frame, const IntSize& si
     m_webPagePrivate->contentsSizeChanged(size);
 }
 
-void ChromeClientBlackBerry::invalidateWindow(const IntRect& updateRect, bool immediate)
+void ChromeClientBlackBerry::invalidateRootView(const IntRect& updateRect, bool immediate)
 {
     m_webPagePrivate->m_backingStore->d->repaint(updateRect, false /*contentChanged*/, immediate);
 }
 
-void ChromeClientBlackBerry::invalidateContentsAndWindow(const IntRect& updateRect, bool immediate)
+void ChromeClientBlackBerry::invalidateContentsAndRootView(const IntRect& updateRect, bool immediate)
 {
     m_webPagePrivate->m_backingStore->d->repaint(updateRect, true /*contentChanged*/, immediate);
 }
@@ -621,7 +545,7 @@ void ChromeClientBlackBerry::invalidateContentsAndWindow(const IntRect& updateRe
 void ChromeClientBlackBerry::invalidateContentsForSlowScroll(const IntSize& delta, const IntRect& updateRect, bool immediate, const ScrollView* scrollView)
 {
     if (scrollView != m_webPagePrivate->m_mainFrame->view())
-        invalidateContentsAndWindow(updateRect, true /*immediate*/);
+        invalidateContentsAndRootView(updateRect, true /*immediate*/);
     else {
         BackingStoreClient* backingStoreClientForFrame = m_webPagePrivate->backingStoreClientForFrame(m_webPagePrivate->m_mainFrame);
         ASSERT(backingStoreClientForFrame);
@@ -649,7 +573,7 @@ void ChromeClientBlackBerry::scroll(const IntSize& delta, const IntRect& scrollV
 void ChromeClientBlackBerry::scrollableAreasDidChange()
 {
     typedef HashSet<ScrollableArea*> ScrollableAreaSet;
-    const ScrollableAreaSet* scrollableAreas = m_webPagePrivate->m_page->scrollableAreaSet();
+    const ScrollableAreaSet* scrollableAreas = m_webPagePrivate->m_mainFrame->view()->scrollableAreas();
 
     bool hasAtLeastOneInRegionScrollableArea = false;
     ScrollableAreaSet::iterator end = scrollableAreas->end();
@@ -799,13 +723,6 @@ void ChromeClientBlackBerry::didSetSVGZoomAndPan(Frame* frame, unsigned short zo
 }
 #endif
 
-#if ENABLE(NOTIFICATIONS)
-NotificationPresenter* ChromeClientBlackBerry::notificationPresenter() const
-{
-    return WebKit::NotificationPresenterImpl::instance();
-}
-#endif
-
 #if USE(ACCELERATED_COMPOSITING)
 void ChromeClientBlackBerry::attachRootGraphicsLayer(Frame* frame, GraphicsLayer* graphicsLayer)
 {
@@ -830,14 +747,10 @@ bool ChromeClientBlackBerry::allowsAcceleratedCompositing() const
 }
 #endif
 
-void* ChromeClientBlackBerry::platformWindow() const
+PassOwnPtr<ColorChooser> ChromeClientBlackBerry::createColorChooser(ColorChooserClient*, const Color&)
 {
-    return m_webPagePrivate->m_client->window();
+    return nullptr;
 }
 
-void* ChromeClientBlackBerry::platformCompositingWindow() const
-{
-    return m_webPagePrivate->m_client->compositingWindow();
-}
 
 } // namespace WebCore

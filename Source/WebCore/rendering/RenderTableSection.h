@@ -37,6 +37,23 @@ enum CollapsedBorderSide {
     CBSEnd
 };
 
+// Helper class for paintObject.
+class CellSpan {
+public:
+    CellSpan(unsigned start, unsigned end)
+        : m_start(start)
+        , m_end(end)
+    {
+    }
+
+    unsigned start() const { return m_start; }
+    unsigned end() const { return m_end; }
+
+private:
+    unsigned m_start;
+    unsigned m_end;
+};
+
 class RenderTableCell;
 class RenderTableRow;
 
@@ -56,7 +73,7 @@ public:
 
     void setCellLogicalWidths();
     int calcRowLogicalHeight();
-    int layoutRows(int logicalHeight);
+    void layoutRows();
 
     RenderTable* table() const { return toRenderTable(parent()); }
 
@@ -141,6 +158,10 @@ public:
     void setCachedCollapsedBorder(const RenderTableCell*, CollapsedBorderSide, CollapsedBorderValue);
     CollapsedBorderValue& cachedCollapsedBorder(const RenderTableCell*, CollapsedBorderSide);
 
+    // distributeExtraLogicalHeightToRows methods return the *consumed* extra logical height.
+    // FIXME: We may want to introduce a structure holding the in-flux layout information.
+    int distributeExtraLogicalHeightToRows(int extraLogicalHeight);
+
 protected:
     virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle);
 
@@ -168,7 +189,17 @@ private:
 
     void ensureRows(unsigned);
 
+    void distributeExtraLogicalHeightToPercentRows(int& extraLogicalHeight, int totalPercent);
+    void distributeExtraLogicalHeightToAutoRows(int& extraLogicalHeight, unsigned autoRowsCount);
+    void distributeRemainingExtraLogicalHeight(int& extraLogicalHeight);
+
     bool hasOverflowingCell() const { return m_overflowingCells.size() || m_forceSlowPaintPathWithOverflowingCell; }
+
+    CellSpan fullTableRowSpan() const { return CellSpan(0, m_grid.size()); }
+    CellSpan fullTableColumnSpan() const { return CellSpan(0, table()->columns().size()); }
+
+    CellSpan dirtiedRows(const LayoutRect& repaintRect) const;
+    CellSpan dirtiedColumns(const LayoutRect& repaintRect) const;
 
     RenderObjectChildList m_children;
 

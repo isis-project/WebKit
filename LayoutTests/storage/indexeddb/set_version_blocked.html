@@ -4,28 +4,20 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("An open connection blocks a separate connection's setVersion call");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 connections = []
 function test()
 {
-    if ('webkitIndexedDB' in window)
-        IndexedDB = webkitIndexedDB;
-    else if ('mozIndexedDB' in window)
-        IndexedDB = mozIndexedDB;
-    shouldBeFalse("IndexedDB == null");
+    removeVendorPrefixes();
     openDBConnection();
 }
 
 function openDBConnection()
 {
-    request = evalAndLog("IndexedDB.open('set-version-blocked')");
+    request = evalAndLog("indexedDB.open('set-version-blocked')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -60,12 +52,13 @@ function inSetVersion()
     debug("in setVersion.onsuccess");
     shouldBeTrue("seen_blocked_event");
     deleteAllObjectStores(connections[0]);
-    done();
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

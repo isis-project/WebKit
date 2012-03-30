@@ -17,7 +17,7 @@
     <file>CallStackSidebarPane.js</file>
     <file>Checkbox.js</file>
     <file>Color.js</file>
-    <file>CompilerSourceMapping.js</file>
+    <file>CompilerScriptMapping.js</file>
     <file>ConsoleMessage.js</file>
     <file>ConsoleModel.js</file>
     <file>ConsolePanel.js</file>
@@ -68,6 +68,7 @@
     <file>HelpScreen.js</file>
     <file>ImageView.js</file>
     <file>IndexedDBModel.js</file>
+    <file>IndexedDBViews.js</file>
     <file>InjectedFakeWorker.js</file>
     <file>inspector.js</file>
     <file>InspectorBackend.js</file>
@@ -108,6 +109,7 @@
     <file>ResourceHeadersView.js</file>
     <file>ResourcePreviewView.js</file>
     <file>ResourceResponseView.js</file>
+    <file>ResourceScriptMapping.js</file>
     <file>ResourceTimingView.js</file>
     <file>ResourceTreeModel.js</file>
     <file>ResourceUtils.js</file>
@@ -117,6 +119,7 @@
     <file>Script.js</file>
     <file>ScriptFormatter.js</file>
     <file>ScriptFormatterWorker.js</file>
+    <file>ScriptMapping.js</file>
     <file>ScriptsPanel.js</file>
     <file>ScriptsNavigator.js</file>
     <file>ScriptsSearchScope.js</file>
@@ -129,12 +132,14 @@
     <file>SidebarOverlay.js</file>
     <file>SidebarPane.js</file>
     <file>SidebarTreeElement.js</file>
+    <file>SnippetsModel.js</file>
     <file>SoftContextMenu.js</file>
     <file>SourceCSSTokenizer.js</file>
     <file>SourceFrame.js</file>
     <file>SourceHTMLTokenizer.js</file>
     <file>SourceJavaScriptTokenizer.js</file>
     <file>SourceTokenizer.js</file>
+    <file>Spectrum.js</file>
     <file>SplitView.js</file>
     <file>StatusBarButton.js</file>
     <file>StylesSidebarPane.js</file>
@@ -145,8 +150,9 @@
     <file>TextEditorModel.js</file>
     <file>TextPrompt.js</file>
     <file>TextViewer.js</file>
-    <file>TimelineAgent.js</file>
     <file>TimelineManager.js</file>
+    <file>TimelineModel.js</file>
+    <file>TimelinePresentationModel.js</file>
     <file>TimelineGrid.js</file>
     <file>TimelineOverviewPane.js</file>
     <file>TimelinePanel.js</file>
@@ -169,6 +175,7 @@
     <file>filteredItemSelectionDialog.css</file>
     <file>heapProfiler.css</file>
     <file>helpScreen.css</file>
+    <file>indexedDBViews.css</file>
     <file>inspector.css</file>
     <file>inspectorCommon.css</file>
     <file>inspectorSyntaxHighlight.css</file>
@@ -224,6 +231,9 @@
     <file>Images/goArrow.png</file>
     <file>Images/graphLabelCalloutLeft.png</file>
     <file>Images/graphLabelCalloutRight.png</file>
+    <file>Images/indexedDB.png</file>
+    <file>Images/indexedDBObjectStore.png</file>
+    <file>Images/indexedDBIndex.png</file>
     <file>Images/localStorage.png</file>
     <file>Images/navigatorShowHideButton.png</file>
     <file>Images/navigatorPinButton.png</file>

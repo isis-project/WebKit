@@ -30,18 +30,22 @@
 
 #include "config.h"
 
-#include "InspectorPageAgent.h"
-
 #if ENABLE(INSPECTOR)
+
+#include "InspectorPageAgent.h"
 
 #include "Base64.h"
 #include "CachedCSSStyleSheet.h"
+#include "CachedFont.h"
+#include "CachedImage.h"
 #include "CachedResource.h"
 #include "CachedResourceLoader.h"
 #include "CachedScript.h"
 #include "ContentSearchUtils.h"
 #include "Cookie.h"
 #include "CookieJar.h"
+#include "DOMImplementation.h"
+#include "DOMNodeHighlighter.h"
 #include "DOMPatchSupport.h"
 #include "Document.h"
 #include "DocumentLoader.h"
@@ -51,6 +55,7 @@
 #include "HTMLNames.h"
 #include "IdentifiersFactory.h"
 #include "InjectedScriptManager.h"
+#include "InspectorClient.h"
 #include "InspectorFrontend.h"
 #include "InspectorInstrumentation.h"
 #include "InspectorState.h"
@@ -63,6 +68,7 @@
 #include "SecurityOrigin.h"
 #include "SharedBuffer.h"
 #include "TextEncoding.h"
+#include "TextResourceDecoder.h"
 #include "UserGestureIndicator.h"
 
 #include <wtf/CurrentTime.h>
@@ -78,6 +84,7 @@ static const char pageAgentEnabled[] = "pageAgentEnabled";
 static const char pageAgentScriptsToEvaluateOnLoad[] = "pageAgentScriptsToEvaluateOnLoad";
 static const char pageAgentScreenWidthOverride[] = "pageAgentScreenWidthOverride";
 static const char pageAgentScreenHeightOverride[] = "pageAgentScreenHeightOverride";
+static const char showPaintRects[] = "showPaintRects";
 }
 
 static bool decodeSharedBuffer(PassRefPtr<SharedBuffer> buffer, const String& textEncodingName, String* result)
@@ -124,6 +131,21 @@ static bool hasTextContent(CachedResource* cachedResource)
     return type == InspectorPageAgent::StylesheetResource || type == InspectorPageAgent::ScriptResource || type == InspectorPageAgent::XHRResource;
 }
 
+static PassRefPtr<TextResourceDecoder> createXHRTextDecoder(const String& mimeType, const String& textEncodingName)
+{
+    RefPtr<TextResourceDecoder> decoder;
+    if (!textEncodingName.isEmpty())
+        decoder = TextResourceDecoder::create("text/plain", textEncodingName);
+    else if (DOMImplementation::isXMLMIMEType(mimeType.lower())) {
+        decoder = TextResourceDecoder::create("application/xml");
+        decoder->useLenientXMLDecoding();
+    } else if (equalIgnoringCase(mimeType, "text/html"))
+        decoder = TextResourceDecoder::create("text/html", "UTF-8");
+    else
+        decoder = TextResourceDecoder::create("text/plain", "UTF-8");
+    return decoder;
+}
+
 bool InspectorPageAgent::cachedResourceContent(CachedResource* cachedResource, String* result, bool* base64Encoded)
 {
     bool hasZeroSize;
@@ -142,23 +164,33 @@ bool InspectorPageAgent::cachedResourceContent(CachedResource* cachedResource, S
         return true;
     }
 
+    if (hasZeroSize) {
+        *result = "";
+        return true;
+    }
+
     if (cachedResource) {
-        SharedBuffer* buffer = cachedResource->data();
         switch (cachedResource->type()) {
         case CachedResource::CSSStyleSheet:
-            *result = static_cast<CachedCSSStyleSheet*>(cachedResource)->sheetText();
+            *result = static_cast<CachedCSSStyleSheet*>(cachedResource)->sheetText(false);
             return true;
         case CachedResource::Script:
             *result = static_cast<CachedScript*>(cachedResource)->script();
             return true;
-        case CachedResource::RawResource:
-            *result = String(buffer->data(), buffer->size());
+        case CachedResource::RawResource: {
+            SharedBuffer* buffer = cachedResource->data();
+            if (!buffer)
+                return false;
+            RefPtr<TextResourceDecoder> decoder = createXHRTextDecoder(cachedResource->response().mimeType(), cachedResource->response().textEncodingName());
+            // We show content for raw resources only for certain mime types (text, html and xml). Otherwise decoder will be null.
+            if (!decoder)
+                return false;
+            String content = decoder->decode(buffer->data(), buffer->size());
+            content += decoder->flush();
+            *result = content;
             return true;
+        }
         default:
-            if (hasZeroSize) {
-                *result = "";
-                return true;
-            }
             return decodeSharedBuffer(cachedResource->data(), cachedResource->encoding(), result);
         }
     }
@@ -186,9 +218,9 @@ bool InspectorPageAgent::sharedBufferContent(PassRefPtr<SharedBuffer> buffer, co
     return decodeSharedBuffer(buffer, textEncodingName, result);
 }
 
-PassOwnPtr<InspectorPageAgent> InspectorPageAgent::create(InstrumentingAgents* instrumentingAgents, Page* page, InspectorState* state, InjectedScriptManager* injectedScriptManager)
+PassOwnPtr<InspectorPageAgent> InspectorPageAgent::create(InstrumentingAgents* instrumentingAgents, Page* page, InspectorState* state, InjectedScriptManager* injectedScriptManager, InspectorClient* client)
 {
-    return adoptPtr(new InspectorPageAgent(instrumentingAgents, page, state, injectedScriptManager));
+    return adoptPtr(new InspectorPageAgent(instrumentingAgents, page, state, injectedScriptManager, client));
 }
 
 // static
@@ -271,13 +303,15 @@ String InspectorPageAgent::cachedResourceTypeString(const CachedResource& cached
     return resourceTypeString(cachedResourceType(cachedResource));
 }
 
-InspectorPageAgent::InspectorPageAgent(InstrumentingAgents* instrumentingAgents, Page* page, InspectorState* inspectorState, InjectedScriptManager* injectedScriptManager)
+InspectorPageAgent::InspectorPageAgent(InstrumentingAgents* instrumentingAgents, Page* page, InspectorState* inspectorState, InjectedScriptManager* injectedScriptManager, InspectorClient* client)
     : InspectorBaseAgent<InspectorPageAgent>("Page", instrumentingAgents, inspectorState)
     , m_page(page)
     , m_injectedScriptManager(injectedScriptManager)
+    , m_client(client)
     , m_frontend(0)
     , m_lastScriptIdentifier(0)
     , m_originalUseFixedLayout(false)
+    , m_lastPaintContext(0)
 {
 }
 
@@ -361,29 +395,28 @@ void InspectorPageAgent::navigate(ErrorString*, const String& url)
     frame->loader()->changeLocation(frame->document()->securityOrigin(), frame->document()->completeURL(url), "", false, false);
 }
 
-static PassRefPtr<InspectorObject> buildObjectForCookie(const Cookie& cookie)
+static PassRefPtr<TypeBuilder::Page::Cookie> buildObjectForCookie(const Cookie& cookie)
 {
-    RefPtr<InspectorObject> value = InspectorObject::create();
-    value->setString("name", cookie.name);
-    value->setString("value", cookie.value);
-    value->setString("domain", cookie.domain);
-    value->setString("path", cookie.path);
-    value->setNumber("expires", cookie.expires);
-    value->setNumber("size", (cookie.name.length() + cookie.value.length()));
-    value->setBoolean("httpOnly", cookie.httpOnly);
-    value->setBoolean("secure", cookie.secure);
-    value->setBoolean("session", cookie.session);
-    return value;
+    return TypeBuilder::Page::Cookie::create()
+        .setName(cookie.name)
+        .setValue(cookie.value)
+        .setDomain(cookie.domain)
+        .setPath(cookie.path)
+        .setExpires(cookie.expires)
+        .setSize((cookie.name.length() + cookie.value.length()))
+        .setHttpOnly(cookie.httpOnly)
+        .setSecure(cookie.secure)
+        .setSession(cookie.session);
 }
 
-static PassRefPtr<InspectorArray> buildArrayForCookies(ListHashSet<Cookie>& cookiesList)
+static PassRefPtr<TypeBuilder::Array<TypeBuilder::Page::Cookie> > buildArrayForCookies(ListHashSet<Cookie>& cookiesList)
 {
-    RefPtr<InspectorArray> cookies = InspectorArray::create();
+    RefPtr<TypeBuilder::Array<TypeBuilder::Page::Cookie> > cookies = TypeBuilder::Array<TypeBuilder::Page::Cookie>::create();
 
     ListHashSet<Cookie>::iterator end = cookiesList.end();
     ListHashSet<Cookie>::iterator it = cookiesList.begin();
     for (int i = 0; it != end; ++it, i++)
-        cookies->pushObject(buildObjectForCookie(*it));
+        cookies->addItem(buildObjectForCookie(*it));
 
     return cookies;
 }
@@ -394,8 +427,27 @@ static Vector<CachedResource*> cachedResourcesForFrame(Frame* frame)
 
     const CachedResourceLoader::DocumentResourceMap& allResources = frame->document()->cachedResourceLoader()->allCachedResources();
     CachedResourceLoader::DocumentResourceMap::const_iterator end = allResources.end();
-    for (CachedResourceLoader::DocumentResourceMap::const_iterator it = allResources.begin(); it != end; ++it)
-        result.append(it->second.get());
+    for (CachedResourceLoader::DocumentResourceMap::const_iterator it = allResources.begin(); it != end; ++it) {
+        CachedResource* cachedResource = it->second.get();
+
+        switch (cachedResource->type()) {
+        case CachedResource::ImageResource:
+            // Skip images that were not auto loaded (images disabled in the user agent).
+            if (static_cast<CachedImage*>(cachedResource)->stillNeedsLoad())
+                continue;
+            break;
+        case CachedResource::FontResource:
+            // Skip fonts that were referenced in CSS but never used/downloaded.
+            if (static_cast<CachedFont*>(cachedResource)->stillNeedsLoad())
+                continue;
+            break;
+        default:
+            // All other CachedResource types download immediately.
+            break;
+        }
+
+        result.append(cachedResource);
+    }
 
     return result;
 }
@@ -413,7 +465,7 @@ static Vector<KURL> allResourcesURLsForFrame(Frame* frame)
     return result;
 }
 
-void InspectorPageAgent::getCookies(ErrorString*, RefPtr<InspectorArray>& cookies, WTF::String* cookiesString)
+void InspectorPageAgent::getCookies(ErrorString*, RefPtr<TypeBuilder::Array<TypeBuilder::Page::Cookie> >& cookies, WTF::String* cookiesString)
 {
     // If we can get raw cookies.
     ListHashSet<Cookie> rawCookiesList;
@@ -449,10 +501,14 @@ void InspectorPageAgent::getCookies(ErrorString*, RefPtr<InspectorArray>& cookie
         }
     }
 
-    if (rawCookiesImplemented)
+    // FIXME: Do not return empty string/empty array. Make returns optional instead. https://bugs.webkit.org/show_bug.cgi?id=80855
+    if (rawCookiesImplemented) {
         cookies = buildArrayForCookies(rawCookiesList);
-    else
+        *cookiesString = "";
+    } else {
+        cookies = TypeBuilder::Array<TypeBuilder::Page::Cookie>::create();
         *cookiesString = stringCookiesList;
+    }
 }
 
 void InspectorPageAgent::deleteCookie(ErrorString*, const String& cookieName, const String& domain)
@@ -468,7 +524,7 @@ void InspectorPageAgent::deleteCookie(ErrorString*, const String& cookieName, co
     }
 }
 
-void InspectorPageAgent::getResourceTree(ErrorString*, RefPtr<InspectorObject>& object)
+void InspectorPageAgent::getResourceTree(ErrorString*, RefPtr<TypeBuilder::Page::FrameResourceTree>& object)
 {
     object = buildObjectForFrameTree(m_page->mainFrame());
 }
@@ -495,9 +551,9 @@ static bool textContentForCachedResource(CachedResource* cachedResource, String*
     return false;
 }
 
-void InspectorPageAgent::searchInResource(ErrorString*, const String& frameId, const String& url, const String& query, const bool* const optionalCaseSensitive, const bool* const optionalIsRegex, RefPtr<InspectorArray>& results)
+void InspectorPageAgent::searchInResource(ErrorString*, const String& frameId, const String& url, const String& query, const bool* const optionalCaseSensitive, const bool* const optionalIsRegex, RefPtr<TypeBuilder::Array<TypeBuilder::Page::SearchMatch> >& results)
 {
-    results = InspectorArray::create();
+    results = TypeBuilder::Array<TypeBuilder::Page::SearchMatch>::create();
 
     bool isRegex = optionalIsRegex ? *optionalIsRegex : false;
     bool caseSensitive = optionalCaseSensitive ? *optionalCaseSensitive : false;
@@ -537,9 +593,9 @@ static PassRefPtr<InspectorObject> buildObjectForSearchResult(const String& fram
     return result;
 }
 
-void InspectorPageAgent::searchInResources(ErrorString*, const String& text, const bool* const optionalCaseSensitive, const bool* const optionalIsRegex, RefPtr<InspectorArray>& results)
+void InspectorPageAgent::searchInResources(ErrorString*, const String& text, const bool* const optionalCaseSensitive, const bool* const optionalIsRegex, RefPtr<TypeBuilder::Array<TypeBuilder::Page::SearchResult> >& results)
 {
-    RefPtr<InspectorArray> searchResults = InspectorArray::create();
+    RefPtr<TypeBuilder::Array<TypeBuilder::Page::SearchResult> > searchResults = TypeBuilder::Array<TypeBuilder::Page::SearchResult>::create();
 
     bool isRegex = optionalIsRegex ? *optionalIsRegex : false;
     bool caseSensitive = optionalCaseSensitive ? *optionalCaseSensitive : false;
@@ -600,6 +656,13 @@ void InspectorPageAgent::setScreenSizeOverride(ErrorString* errorString, const i
     m_state->setLong(PageAgentState::pageAgentScreenHeightOverride, height);
 
     updateFrameViewFixedLayout(width, height);
+}
+
+void InspectorPageAgent::setShowPaintRects(ErrorString*, bool show)
+{
+    m_state->setBoolean(PageAgentState::showPaintRects, show);
+    if (!show)
+        m_page->mainFrame()->view()->invalidate();
 }
 
 void InspectorPageAgent::didClearWindowObjectInWorld(Frame* frame, DOMWrapperWorld* world)
@@ -731,42 +794,73 @@ void InspectorPageAgent::applyScreenHeightOverride(long* height)
         *height = heightOverride;
 }
 
-PassRefPtr<InspectorObject> InspectorPageAgent::buildObjectForFrame(Frame* frame)
+void InspectorPageAgent::willPaint(GraphicsContext* context, const LayoutRect& rect)
 {
-    RefPtr<InspectorObject> frameObject = InspectorObject::create();
-    frameObject->setString("id", frameId(frame));
+    if (m_state->getBoolean(PageAgentState::showPaintRects)) {
+        m_lastPaintContext = context;
+        m_lastPaintRect = rect;
+        m_lastPaintRect.inflate(-1);
+    }
+}
+
+void InspectorPageAgent::didPaint()
+{
+    if (!m_lastPaintContext || !m_state->getBoolean(PageAgentState::showPaintRects))
+        return;
+
+    static int colorSelector = 0;
+    const Color colors[] = {
+        Color(0xFF, 0, 0, 0x3F),
+        Color(0xFF, 0, 0xFF, 0x3F),
+        Color(0, 0, 0xFF, 0x3F),
+    };
+
+    DOMNodeHighlighter::drawOutline(*m_lastPaintContext, m_lastPaintRect, colors[colorSelector++ % WTF_ARRAY_LENGTH(colors)]);
+
+    m_lastPaintContext = 0;
+}
+
+PassRefPtr<TypeBuilder::Page::Frame> InspectorPageAgent::buildObjectForFrame(Frame* frame)
+{
+    RefPtr<TypeBuilder::Page::Frame> frameObject = TypeBuilder::Page::Frame::create()
+         .setId(frameId(frame))
+         .setLoaderId(loaderId(frame->loader()->documentLoader()))
+         .setUrl(frame->document()->url().string())
+         .setMimeType(frame->loader()->documentLoader()->responseMIMEType());
     if (frame->tree()->parent())
-        frameObject->setString("parentId", frameId(frame->tree()->parent()));
+        frameObject->setParentId(frameId(frame->tree()->parent()));
     if (frame->ownerElement()) {
         String name = frame->ownerElement()->getNameAttribute();
         if (name.isEmpty())
             name = frame->ownerElement()->getAttribute(HTMLNames::idAttr);
-        frameObject->setString("name", name);
+        frameObject->setName(name);
     }
-    frameObject->setString("url", frame->document()->url().string());
-    frameObject->setString("loaderId", loaderId(frame->loader()->documentLoader()));
-    frameObject->setString("securityOrigin", frame->document()->securityOrigin()->toString());
-    frameObject->setString("mimeType", frame->loader()->documentLoader()->responseMIMEType());
+    // FIXME: Make this field non-optional. https://bugs.webkit.org/show_bug.cgi?id=80857
+    frameObject->setSecurityOrigin(frame->document()->securityOrigin()->toString());
 
     return frameObject;
 }
 
-PassRefPtr<InspectorObject> InspectorPageAgent::buildObjectForFrameTree(Frame* frame)
+PassRefPtr<TypeBuilder::Page::FrameResourceTree> InspectorPageAgent::buildObjectForFrameTree(Frame* frame)
 {
-    RefPtr<InspectorObject> result = InspectorObject::create();
     RefPtr<InspectorObject> frameObject = buildObjectForFrame(frame);
-    result->setObject("frame", frameObject);
-
     RefPtr<InspectorArray> subresources = InspectorArray::create();
-    result->setArray("resources", subresources);
+    RefPtr<TypeBuilder::Page::FrameResourceTree> result = TypeBuilder::Page::FrameResourceTree::create()
+         .setFrame(frameObject)
+         .setResources(subresources);
 
     Vector<CachedResource*> allResources = cachedResourcesForFrame(frame);
     for (Vector<CachedResource*>::const_iterator it = allResources.begin(); it != allResources.end(); ++it) {
         CachedResource* cachedResource = *it;
+
         RefPtr<InspectorObject> resourceObject = InspectorObject::create();
         resourceObject->setString("url", cachedResource->url());
         resourceObject->setString("type", cachedResourceTypeString(*cachedResource));
         resourceObject->setString("mimeType", cachedResource->response().mimeType());
+        if (cachedResource->status() == CachedResource::LoadError)
+            resourceObject->setBoolean("failed", true);
+        if (cachedResource->status() == CachedResource::Canceled)
+            resourceObject->setBoolean("canceled", true);
         subresources->pushValue(resourceObject);
     }
 

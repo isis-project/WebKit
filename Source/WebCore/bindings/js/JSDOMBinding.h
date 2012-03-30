@@ -23,6 +23,7 @@
 #define JSDOMBinding_h
 
 #include "CSSImportRule.h"
+#include "CSSStyleDeclaration.h"
 #include "CSSStyleSheet.h"
 #include "JSDOMGlobalObject.h"
 #include "JSDOMWrapper.h"
@@ -34,10 +35,12 @@
 #include "StyledElement.h"
 #include <heap/Weak.h>
 #include <runtime/FunctionPrototype.h>
+#include <runtime/JSArray.h>
 #include <runtime/Lookup.h>
 #include <runtime/ObjectPrototype.h>
 #include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
+#include <wtf/Vector.h>
 
 namespace WebCore {
 
@@ -131,17 +134,16 @@ enum ParameterDefaultPolicy {
     {
         if (JSDOMWrapper* wrapper = getInlineCachedWrapper(world, domObject))
             return wrapper;
-        return world->m_wrappers.get(domObject).get();
+        return world->m_wrappers.get(domObject);
     }
 
     template <typename DOMClass> inline void cacheWrapper(DOMWrapperWorld* world, DOMClass* domObject, JSDOMWrapper* wrapper)
     {
         if (setInlineCachedWrapper(world, domObject, wrapper))
             return;
-        pair<DOMObjectWrapperMap::iterator, bool> entry = world->m_wrappers.add(domObject, JSC::Weak<JSDOMWrapper>());
-        ASSERT(entry.second);
-        JSC::Weak<JSDOMWrapper> handle(*world->globalData(), wrapper, wrapperOwner(world, domObject), wrapperContext(world, domObject));
-        entry.first->second.swap(handle);
+        JSC::PassWeak<JSDOMWrapper> passWeak(*world->globalData(), wrapper, wrapperOwner(world, domObject), wrapperContext(world, domObject));
+        pair<DOMObjectWrapperMap::iterator, bool> result = world->m_wrappers.add(domObject, passWeak);
+        ASSERT_UNUSED(result, result.second);
     }
 
     template <typename DOMClass> inline void uncacheWrapper(DOMWrapperWorld* world, DOMClass* domObject, JSDOMWrapper* wrapper)
@@ -277,6 +279,34 @@ enum ParameterDefaultPolicy {
         return toJS(exec, globalObject, ptr.get());
     }
 
+    template <typename Iterable>
+    JSC::JSValue jsArray(JSC::ExecState* exec, JSDOMGlobalObject* globalObject, const Iterable& iterator)
+    {
+        JSC::MarkedArgumentBuffer list;
+        typename Iterable::const_iterator end = iterator.end();
+
+        for (typename Iterable::const_iterator iter = iterator.begin(); iter != end; ++iter)
+            list.append(toJS(exec, globalObject, WTF::getPtr(*iter)));
+
+        return JSC::constructArray(exec, globalObject, list);
+    }
+
+    template <class T>
+    Vector<T> toNativeArray(JSC::ExecState* exec, JSC::JSValue value)
+    {
+        if (!isJSArray(value))
+            return Vector<T>();
+
+        Vector<T> result;
+        JSC::JSArray* array = asArray(value);
+
+        for (unsigned i = 0; i < array->length(); ++i) {
+            String indexedValue = ustringToString(array->getIndex(i).toString(exec)->value(exec));
+            result.append(indexedValue);
+        }
+        return result;
+    }
+
     // Validates that the passed object is a sequence type per section 4.1.13 of the WebIDL spec.
     JSC::JSObject* toJSSequence(JSC::ExecState*, JSC::JSValue, unsigned&);
 
@@ -342,6 +372,23 @@ enum ParameterDefaultPolicy {
         return AtomicString(identifier.impl());
     }
 
+    inline Vector<unsigned long> jsUnsignedLongArrayToVector(JSC::ExecState* exec, JSC::JSValue value)
+    {
+        unsigned length;
+        JSC::JSObject* object = toJSSequence(exec, value, length);
+        if (exec->hadException())
+            return Vector<unsigned long>();
+
+        Vector<unsigned long> result;
+        for (unsigned i = 0; i < length; i++) {
+            JSC::JSValue indexedValue;
+            indexedValue = object->get(exec, i);
+            if (exec->hadException() || indexedValue.isUndefinedOrNull() || !indexedValue.isNumber())
+                return Vector<unsigned long>();
+            result.append(indexedValue.toUInt32(exec));
+        }
+        return result;
+    }
 } // namespace WebCore
 
 #endif // JSDOMBinding_h

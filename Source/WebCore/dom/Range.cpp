@@ -1037,11 +1037,15 @@ void Range::insertNode(PassRefPtr<Node> prpNewNode, ExceptionCode& ec)
     }
 
     bool collapsed = m_start == m_end;
+    RefPtr<Node> container;
     if (startIsText) {
-        RefPtr<Text> newText = toText(m_start.container())->splitText(m_start.offset(), ec);
+        container = m_start.container();
+        RefPtr<Text> newText = toText(container.get())->splitText(m_start.offset(), ec);
         if (ec)
             return;
-        m_start.container()->parentNode()->insertBefore(newNode.release(), newText.get(), ec);
+        
+        container = m_start.container();
+        container->parentNode()->insertBefore(newNode.release(), newText.get(), ec);
         if (ec)
             return;
 
@@ -1055,7 +1059,8 @@ void Range::insertNode(PassRefPtr<Node> prpNewNode, ExceptionCode& ec)
             lastChild = (newNodeType == Node::DOCUMENT_FRAGMENT_NODE) ? newNode->lastChild() : newNode;
 
         int startOffset = m_start.offset();
-        m_start.container()->insertBefore(newNode.release(), m_start.container()->childNode(startOffset), ec);
+        container = m_start.container();
+        container->insertBefore(newNode.release(), container->childNode(startOffset), ec);
         if (ec)
             return;
 
@@ -1275,8 +1280,6 @@ void Range::checkNodeBA(Node* n, ExceptionCode& ec) const
         case Node::PROCESSING_INSTRUCTION_NODE:
         case Node::TEXT_NODE:
         case Node::XPATH_NAMESPACE_NODE:
-            if (root->isSVGShadowRoot())
-                break;
             ec = RangeException::INVALID_NODE_TYPE_ERR;
             return;
     }
@@ -1672,7 +1675,7 @@ IntRect Range::boundingBox()
     const size_t n = rects.size();
     for (size_t i = 0; i < n; ++i)
         result.unite(rects[i]);
-    return pixelSnappedIntRect(result);
+    return result;
 }
 
 void Range::textRects(Vector<IntRect>& rects, bool useSelectionHeight, RangeInFixedPosition* inFixed)

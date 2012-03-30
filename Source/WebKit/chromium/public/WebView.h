@@ -260,10 +260,11 @@ public:
     // In auto-resize mode, the view is automatically adjusted to fit the html
     // content within the given bounds.
     virtual void enableAutoResizeMode(
-        bool enable,
         const WebSize& minSize,
         const WebSize& maxSize) = 0;
 
+    // Turn off auto-resize.
+    virtual void disableAutoResizeMode() = 0;
 
     // Media ---------------------------------------------------------------
 
@@ -422,6 +423,10 @@ public:
     // that used by the compositor) and contexts for WebGL and other
     // APIs.
     virtual WebGraphicsContext3D* graphicsContext3D() = 0;
+
+    // Context that's in the compositor's share group, but is not the compositor context itself.
+    // Can be used for allocating resources that the compositor will later access.
+    virtual WebGraphicsContext3D* sharedGraphicsContext3D() = 0;
 
     // Visibility -----------------------------------------------------------
 

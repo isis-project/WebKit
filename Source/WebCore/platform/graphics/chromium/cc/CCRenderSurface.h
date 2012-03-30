@@ -43,6 +43,7 @@
 namespace WebCore {
 
 class CCDamageTracker;
+class CCSharedQuadState;
 class CCLayerImpl;
 class LayerRendererChromium;
 class ManagedTexture;
@@ -55,7 +56,7 @@ public:
 
     bool prepareContentsTexture(LayerRendererChromium*);
     void releaseContentsTexture();
-    void cleanupResources();
+
     void draw(LayerRendererChromium*, const FloatRect& surfaceDamageRect);
 
     String name() const;
@@ -69,18 +70,38 @@ public:
     float drawOpacity() const { return m_drawOpacity; }
     void setDrawOpacity(float opacity) { m_drawOpacity = opacity; }
 
-    void setDrawTransform(const TransformationMatrix& drawTransform) { m_drawTransform = drawTransform; }
-    const TransformationMatrix& drawTransform() const { return m_drawTransform; }
-
     void setFilters(const FilterOperations& filters) { m_filters = filters; }
     const FilterOperations& filters() const { return m_filters; }
     SkBitmap applyFilters(LayerRendererChromium*);
 
-    void setReplicaDrawTransform(const TransformationMatrix& replicaDrawTransform) { m_replicaDrawTransform = replicaDrawTransform; }
-    const TransformationMatrix& replicaDrawTransform() const { return m_replicaDrawTransform; }
+    void setNearestAncestorThatMovesPixels(CCRenderSurface* surface) { m_nearestAncestorThatMovesPixels = surface; }
+    const CCRenderSurface* nearestAncestorThatMovesPixels() const { return m_nearestAncestorThatMovesPixels; }
+
+    bool drawOpacityIsAnimating() const { return m_drawOpacityIsAnimating; }
+    void setDrawOpacityIsAnimating(bool drawOpacityIsAnimating) { m_drawOpacityIsAnimating = drawOpacityIsAnimating; }
+
+    void setDrawTransform(const TransformationMatrix& drawTransform) { m_drawTransform = drawTransform; }
+    const TransformationMatrix& drawTransform() const { return m_drawTransform; }
 
     void setOriginTransform(const TransformationMatrix& originTransform) { m_originTransform = originTransform; }
     const TransformationMatrix& originTransform() const { return m_originTransform; }
+
+    void setScreenSpaceTransform(const TransformationMatrix& screenSpaceTransform) { m_screenSpaceTransform = screenSpaceTransform; }
+    const TransformationMatrix& screenSpaceTransform() const { return m_screenSpaceTransform; }
+
+    void setReplicaDrawTransform(const TransformationMatrix& replicaDrawTransform) { m_replicaDrawTransform = replicaDrawTransform; }
+    const TransformationMatrix& replicaDrawTransform() const { return m_replicaDrawTransform; }
+
+    void setReplicaOriginTransform(const TransformationMatrix& replicaOriginTransform) { m_replicaOriginTransform = replicaOriginTransform; }
+    const TransformationMatrix& replicaOriginTransform() const { return m_replicaOriginTransform; }
+
+    void setReplicaScreenSpaceTransform(const TransformationMatrix& replicaScreenSpaceTransform) { m_replicaScreenSpaceTransform = replicaScreenSpaceTransform; }
+    const TransformationMatrix& replicaScreenSpaceTransform() const { return m_replicaScreenSpaceTransform; }
+
+    bool targetSurfaceTransformsAreAnimating() const { return m_targetSurfaceTransformsAreAnimating; }
+    void setTargetSurfaceTransformsAreAnimating(bool animating) { m_targetSurfaceTransformsAreAnimating = animating; }
+    bool screenSpaceTransformsAreAnimating() const { return m_screenSpaceTransformsAreAnimating; }
+    void setScreenSpaceTransformsAreAnimating(bool animating) { m_screenSpaceTransformsAreAnimating = animating; }
 
     void setClipRect(const IntRect&);
     const IntRect& clipRect() const { return m_clipRect; }
@@ -92,7 +113,7 @@ public:
     bool skipsDraw() const { return m_skipsDraw; }
 
     void clearLayerList() { m_layerList.clear(); }
-    Vector<RefPtr<CCLayerImpl> >& layerList() { return m_layerList; }
+    Vector<CCLayerImpl*>& layerList() { return m_layerList; }
 
     void setMaskLayer(CCLayerImpl* maskLayer) { m_maskLayer = maskLayer; }
 
@@ -105,11 +126,16 @@ public:
 
     int owningLayerId() const;
 
+    bool hasReplica();
+
     void resetPropertyChangedFlag() { m_surfacePropertyChanged = false; }
     bool surfacePropertyChanged() const;
     bool surfacePropertyChangedOnlyFromDescendant() const;
 
     CCDamageTracker* damageTracker() const { return m_damageTracker.get(); }
+
+    PassOwnPtr<CCSharedQuadState> createSharedQuadState() const;
+    PassOwnPtr<CCSharedQuadState> createReplicaSharedQuadState() const;
 
 private:
     void drawLayer(LayerRendererChromium*, CCLayerImpl*, const TransformationMatrix&, const SkBitmap& filterBitmap);
@@ -125,12 +151,22 @@ private:
 
     OwnPtr<ManagedTexture> m_contentsTexture;
     float m_drawOpacity;
+    bool m_drawOpacityIsAnimating;
     TransformationMatrix m_drawTransform;
-    TransformationMatrix m_replicaDrawTransform;
     TransformationMatrix m_originTransform;
+    TransformationMatrix m_screenSpaceTransform;
+    TransformationMatrix m_replicaDrawTransform;
+    TransformationMatrix m_replicaOriginTransform;
+    TransformationMatrix m_replicaScreenSpaceTransform;
+    bool m_targetSurfaceTransformsAreAnimating;
+    bool m_screenSpaceTransformsAreAnimating;
     FilterOperations m_filters;
     IntRect m_clipRect;
-    Vector<RefPtr<CCLayerImpl> > m_layerList;
+    Vector<CCLayerImpl*> m_layerList;
+
+    // The nearest ancestor target surface that will contain the contents of this surface, and that is going
+    // to move pixels within the surface (such as with a blur). This can point to itself.
+    CCRenderSurface* m_nearestAncestorThatMovesPixels;
 
     OwnPtr<CCDamageTracker> m_damageTracker;
 

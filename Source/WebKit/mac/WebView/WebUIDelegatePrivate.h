@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -117,9 +117,11 @@ extern NSString *WebConsoleMessageWarningMessageLevel;
 extern NSString *WebConsoleMessageErrorMessageLevel;
 extern NSString *WebConsoleMessageDebugMessageLevel;
 
+@class DOMElement;
+@class DOMNode;
 @class WebSecurityOrigin;
 
-@protocol WebGeolocationPolicyListener <NSObject>
+@protocol WebAllowDenyPolicyListener <NSObject>
 - (void)allow;
 - (void)deny;
 @end
@@ -185,7 +187,6 @@ extern NSString *WebConsoleMessageDebugMessageLevel;
 - (void)webView:(WebView *)sender willPopupMenu:(NSMenu *)menu;
 - (void)webView:(WebView *)sender contextMenuItemSelected:(NSMenuItem *)item forElement:(NSDictionary *)element;
 - (void)webView:(WebView *)sender saveFrameView:(WebFrameView *)frameView showingPanel:(BOOL)showingPanel;
-- (BOOL)webView:(WebView *)sender shouldHaltPlugin:(DOMNode *)pluginNode isWindowed:(BOOL)isWindowed pluginName:(NSString *)pluginName;
 - (BOOL)webView:(WebView *)sender didPressMissingPluginButton:(DOMElement *)element;
 /*!
     @method webView:frame:exceededDatabaseQuotaForSecurityOrigin:database:
@@ -223,7 +224,8 @@ extern NSString *WebConsoleMessageDebugMessageLevel;
 */
 - (void)webView:(WebView *)webView decidePolicyForGeolocationRequestFromOrigin:(WebSecurityOrigin *)origin
                                                                          frame:(WebFrame *)frame
-                                                                      listener:(id<WebGeolocationPolicyListener>)listener;
+                                                                      listener:(id<WebAllowDenyPolicyListener>)listener;
+- (void)webView:(WebView *)webView decidePolicyForNotificationRequestFromOrigin:(WebSecurityOrigin *)origin listener:(id<WebAllowDenyPolicyListener>)listener;
 
 - (void)webView:(WebView *)sender elementDidFocusNode:(DOMNode *)node;
 - (void)webView:(WebView *)sender elementDidBlurNode:(DOMNode *)node;

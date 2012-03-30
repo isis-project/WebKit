@@ -51,6 +51,7 @@ class SingleTestRunner:
     def __init__(self, options, port, driver, test_input, worker_name):
         self._options = options
         self._port = port
+        self._filesystem = port.host.filesystem
         self._driver = driver
         self._timeout = test_input.timeout
         self._worker_name = worker_name
@@ -67,7 +68,7 @@ class SingleTestRunner:
             # in either layout tests or reftests, but not in both.
             for suffix in ('.txt', '.png', '.wav'):
                 expected_filename = self._port.expected_filename(self._test_name, suffix)
-                if port.host.filesystem.exists(expected_filename):
+                if self._filesystem.exists(expected_filename):
                     _log.error('%s is both a reftest and has an expected output file %s.',
                         self._test_name, expected_filename)
 
@@ -115,13 +116,13 @@ class SingleTestRunner:
         test_result = self._compare_output(driver_output, expected_driver_output)
         if self._options.new_test_results:
             self._add_missing_baselines(test_result, driver_output)
-        test_result_writer.write_test_result(self._port, self._test_name, driver_output, expected_driver_output, test_result.failures)
+        test_result_writer.write_test_result(self._filesystem, self._port, self._test_name, driver_output, expected_driver_output, test_result.failures)
         return test_result
 
     def _run_rebaseline(self):
         driver_output = self._driver.run_test(self._driver_input())
         failures = self._handle_error(driver_output)
-        test_result_writer.write_test_result(self._port, self._test_name, driver_output, None, failures)
+        test_result_writer.write_test_result(self._filesystem, self._port, self._test_name, driver_output, None, failures)
         # FIXME: It the test crashed or timed out, it might be bettter to avoid
         # to write new baselines.
         self._overwrite_baselines(driver_output)
@@ -162,7 +163,7 @@ class SingleTestRunner:
         if data is None:
             return
         port = self._port
-        fs = port._filesystem
+        fs = self._filesystem
         if generate_new_baseline:
             relative_dir = fs.dirname(self._test_name)
             baseline_path = port.baseline_path()
@@ -187,7 +188,7 @@ class SingleTestRunner:
               which html file is used for producing the driver_output.
         """
         failures = []
-        fs = self._port._filesystem
+        fs = self._filesystem
         if driver_output.timeout:
             failures.append(test_failures.FailureTimeout(bool(reference_filename)))
 
@@ -197,12 +198,17 @@ class SingleTestRunner:
             testname = self._test_name
 
         if driver_output.crash:
-            failures.append(test_failures.FailureCrash(bool(reference_filename)))
-            _log.debug("%s Stacktrace for %s:\n%s" % (self._worker_name, testname,
-                                                      driver_output.error))
+            failures.append(test_failures.FailureCrash(bool(reference_filename),
+                                                       driver_output.crashed_process_name,
+                                                       driver_output.crashed_pid))
+            if driver_output.error:
+                _log.debug("%s %s crashed, stack trace:" % (self._worker_name, testname))
+            else:
+                _log.debug("%s %s crashed, no stack trace" % (self._worker_name, testname))
         elif driver_output.error:
-            _log.debug("%s %s output stderr lines:\n%s" % (self._worker_name, testname,
-                                                           driver_output.error))
+            _log.debug("%s %s output stderr lines:" % (self._worker_name, testname))
+        for line in driver_output.error.splitlines():
+            _log.debug("  %s" % line)
         return failures
 
     def _compare_output(self, driver_output, expected_driver_output):
@@ -264,6 +270,9 @@ class SingleTestRunner:
             driver_output.image_diff = diff_result[0]
             if driver_output.image_diff:
                 failures.append(test_failures.FailureImageHashMismatch(diff_result[1]))
+            else:
+                # See https://bugs.webkit.org/show_bug.cgi?id=69444 for why this isn't a full failure.
+                _log.warning('  %s -> pixel hash failed (but pixel test still passes)' % self._test_name)
         return failures
 
     def _run_reftest(self):
@@ -272,8 +281,8 @@ class SingleTestRunner:
         reference_output = None
         test_result = None
 
-        # A reftest can have multiple match references and multiple mismatch references; 
-        # the test fails if any mismatch matches and all of the matches don't match. 
+        # A reftest can have multiple match references and multiple mismatch references;
+        # the test fails if any mismatch matches and all of the matches don't match.
         # To minimize the number of references we have to check, we run all of the mismatches first,
         # then the matches, and short-circuit out as soon as we can.
         # Note that sorting by the expectation sorts "!=" before "==" so this is easy to do.
@@ -289,7 +298,7 @@ class SingleTestRunner:
             total_test_time += test_result.test_run_time
 
         assert(reference_output)
-        test_result_writer.write_test_result(self._port, self._test_name, test_output, reference_output, test_result.failures)
+        test_result_writer.write_test_result(self._filesystem, self._port, self._test_name, test_output, reference_output, test_result.failures)
         return TestResult(self._test_name, test_result.failures, total_test_time + test_result.test_run_time, test_result.has_stderr)
 
     def _compare_output_with_reference(self, driver_output1, driver_output2, reference_filename, mismatch):

@@ -13,6 +13,7 @@
 			buildPhases = (
 			);
 			dependencies = (
+				2D403F211508736C005358D2 /* PBXTargetDependency */,
 				A84F609108B1370E00E9745F /* PBXTargetDependency */,
 				A84F608F08B1370E00E9745F /* PBXTargetDependency */,
 				141BF238096A451E00E0753C /* PBXTargetDependency */,
@@ -55,6 +56,10 @@
 		29CFBA10122736E600BC30C0 /* AccessibilityTextMarker.h in Headers */ = {isa = PBXBuildFile; fileRef = 29CFBA0E122736E600BC30C0 /* AccessibilityTextMarker.h */; };
 		29CFBA11122736E600BC30C0 /* AccessibilityTextMarker.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 29CFBA0F122736E600BC30C0 /* AccessibilityTextMarker.cpp */; };
 		29CFBA2E12273A1000BC30C0 /* AccessibilityTextMarkerMac.mm in Sources */ = {isa = PBXBuildFile; fileRef = 29CFBA2D12273A1000BC30C0 /* AccessibilityTextMarkerMac.mm */; };
+		2D403F05150871F9005358D2 /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = AE8257EF08D22389000507AB /* Carbon.framework */; };
+		2D403F06150871F9005358D2 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A84F608908B136DA00E9745F /* Cocoa.framework */; };
+		2D403F08150871F9005358D2 /* OpenGL.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 23BCB88F0EA57623003C6289 /* OpenGL.framework */; };
+		2D403F1B15087209005358D2 /* LayoutTestHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 2D403EA215087142005358D2 /* LayoutTestHelper.m */; };
 		3A5626CB131CA02A002BE6D9 /* StorageTrackerDelegate.mm in Sources */ = {isa = PBXBuildFile; fileRef = 3A5626C1131C8B17002BE6D9 /* StorageTrackerDelegate.mm */; };
 		3A5626CC131CA036002BE6D9 /* StorageTrackerDelegate.h in Headers */ = {isa = PBXBuildFile; fileRef = 3A5626C0131C8B17002BE6D9 /* StorageTrackerDelegate.h */; };
 		417DAA1D137B3E24007C57FB /* WebCoreTestSupport.h in Headers */ = {isa = PBXBuildFile; fileRef = 417DAA1C137B3E24007C57FB /* WebCoreTestSupport.h */; };
@@ -80,8 +85,6 @@
 		80045AED147718E7008290A8 /* AccessibilityNotificationHandler.h in Headers */ = {isa = PBXBuildFile; fileRef = 80045AEB147718E7008290A8 /* AccessibilityNotificationHandler.h */; };
 		80045AEE147718E7008290A8 /* AccessibilityNotificationHandler.mm in Sources */ = {isa = PBXBuildFile; fileRef = 80045AEC147718E7008290A8 /* AccessibilityNotificationHandler.mm */; };
 		8465E2C70FFA8DF2003B8342 /* PixelDumpSupport.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 8465E2C60FFA8DF2003B8342 /* PixelDumpSupport.cpp */; };
-		933BF5AB0F93FA5C000F0441 /* PlainTextController.h in Headers */ = {isa = PBXBuildFile; fileRef = 933BF5A90F93FA5C000F0441 /* PlainTextController.h */; };
-		933BF5AC0F93FA5C000F0441 /* PlainTextController.mm in Sources */ = {isa = PBXBuildFile; fileRef = 933BF5AA0F93FA5C000F0441 /* PlainTextController.mm */; };
 		9340994C08540CAE007F3BC8 /* DumpRenderTreePrefix.h in Headers */ = {isa = PBXBuildFile; fileRef = 32A70AAB03705E1F00C91783 /* DumpRenderTreePrefix.h */; };
 		9340995108540CAE007F3BC8 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 9335435F03D75502008635CE /* WebKit.framework */; };
 		A817090008B163EF00CCB9FB /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A84F608908B136DA00E9745F /* Cocoa.framework */; };
@@ -163,6 +166,13 @@
 			remoteGlobalIDString = 141BF21E096A441D00E0753C;
 			remoteInfo = TestNetscapePlugIn;
 		};
+		2D403F201508736C005358D2 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 2D403EB2150871F9005358D2;
+			remoteInfo = LayoutTestHelper;
+		};
 		5DC82A6F1023C93D00FD1D3B /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 08FB7793FE84155DC02AAC07 /* Project object */;
@@ -238,6 +248,8 @@
 		29CFBA0E122736E600BC30C0 /* AccessibilityTextMarker.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AccessibilityTextMarker.h; sourceTree = "<group>"; };
 		29CFBA0F122736E600BC30C0 /* AccessibilityTextMarker.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = AccessibilityTextMarker.cpp; sourceTree = "<group>"; };
 		29CFBA2D12273A1000BC30C0 /* AccessibilityTextMarkerMac.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AccessibilityTextMarkerMac.mm; path = mac/AccessibilityTextMarkerMac.mm; sourceTree = "<group>"; };
+		2D403EA215087142005358D2 /* LayoutTestHelper.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = LayoutTestHelper.m; path = mac/LayoutTestHelper.m; sourceTree = "<group>"; };
+		2D403F19150871F9005358D2 /* LayoutTestHelper */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = LayoutTestHelper; sourceTree = BUILT_PRODUCTS_DIR; };
 		32A70AAB03705E1F00C91783 /* DumpRenderTreePrefix.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DumpRenderTreePrefix.h; sourceTree = "<group>"; };
 		375F09710DAC3CB600C8B4E5 /* WebKitWeightWatcher100.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = WebKitWeightWatcher100.ttf; path = fonts/WebKitWeightWatcher100.ttf; sourceTree = "<group>"; };
 		375F09720DAC3CB600C8B4E5 /* WebKitWeightWatcher200.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = WebKitWeightWatcher200.ttf; path = fonts/WebKitWeightWatcher200.ttf; sourceTree = "<group>"; };
@@ -264,8 +276,6 @@
 		80045AEC147718E7008290A8 /* AccessibilityNotificationHandler.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = AccessibilityNotificationHandler.mm; path = mac/AccessibilityNotificationHandler.mm; sourceTree = "<group>"; };
 		8465E2C60FFA8DF2003B8342 /* PixelDumpSupport.cpp */ = {isa = PBXFileReference; fileEncoding = 30; lastKnownFileType = sourcecode.cpp.cpp; path = PixelDumpSupport.cpp; sourceTree = "<group>"; };
 		9335435F03D75502008635CE /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = WebKit.framework; sourceTree = BUILT_PRODUCTS_DIR; };
-		933BF5A90F93FA5C000F0441 /* PlainTextController.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = PlainTextController.h; path = mac/PlainTextController.h; sourceTree = "<group>"; };
-		933BF5AA0F93FA5C000F0441 /* PlainTextController.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = PlainTextController.mm; path = mac/PlainTextController.mm; sourceTree = "<group>"; };
 		9340995408540CAF007F3BC8 /* DumpRenderTree */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = DumpRenderTree; sourceTree = BUILT_PRODUCTS_DIR; };
 		A803FF7409CAAD08009B2A37 /* DumpRenderTree.h */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.h; fileEncoding = 4; path = DumpRenderTree.h; sourceTree = "<group>"; };
 		A817090308B164D300CCB9FB /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; path = JavaScriptCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -360,6 +370,16 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2D403F03150871F9005358D2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D403F05150871F9005358D2 /* Carbon.framework in Frameworks */,
+				2D403F06150871F9005358D2 /* Cocoa.framework in Frameworks */,
+				2D403F08150871F9005358D2 /* OpenGL.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9340994F08540CAE007F3BC8 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -413,6 +433,7 @@
 				A8B91AD20CF3B305008F91FF /* AppKit Overrides */,
 				A8B91AC40CF3B170008F91FF /* ObjCPlugin */,
 				141BF1F5096A439800E0753C /* TestNetscapePlugIn */,
+				2D403EA015087135005358D2 /* LayoutTestHelper */,
 				9345229B0BD12B2C0086EDA0 /* Resources */,
 				417DA9181373674D007C57FB /* WebCoreTestSupport */,
 				A803FF6409CAACC1009B2A37 /* Frameworks */,
@@ -469,8 +490,6 @@
 				BCA18B6E0C9B08DB00114369 /* NavigationController.m */,
 				BCA18B2F0C9B01B400114369 /* ObjCController.h */,
 				BCA18B300C9B01B400114369 /* ObjCController.m */,
-				933BF5A90F93FA5C000F0441 /* PlainTextController.h */,
-				933BF5AA0F93FA5C000F0441 /* PlainTextController.mm */,
 				BCA18B3A0C9B024900114369 /* TextInputController.h */,
 				BCA18B480C9B02C400114369 /* TextInputController.m */,
 			);
@@ -532,6 +551,14 @@
 			path = mac;
 			sourceTree = "<group>";
 		};
+		2D403EA015087135005358D2 /* LayoutTestHelper */ = {
+			isa = PBXGroup;
+			children = (
+				2D403EA215087142005358D2 /* LayoutTestHelper.m */,
+			);
+			name = LayoutTestHelper;
+			sourceTree = "<group>";
+		};
 		417DA9181373674D007C57FB /* WebCoreTestSupport */ = {
 			isa = PBXGroup;
 			children = (
@@ -546,6 +573,7 @@
 				9340995408540CAF007F3BC8 /* DumpRenderTree */,
 				B5A7526708AF4A4A00138E45 /* ImageDiff */,
 				141BF233096A44CF00E0753C /* TestNetscapePlugIn.plugin */,
+				2D403F19150871F9005358D2 /* LayoutTestHelper */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -672,7 +700,6 @@
 				BCA18B7F0C9B08F100114369 /* ObjCPluginFunction.h in Headers */,
 				BCB284C70CFA83C4007E533E /* PixelDumpSupport.h in Headers */,
 				BCB284D00CFA83CC007E533E /* PixelDumpSupportCG.h in Headers */,
-				933BF5AB0F93FA5C000F0441 /* PlainTextController.h in Headers */,
 				BCA18B650C9B08C200114369 /* PolicyDelegate.h in Headers */,
 				BCA18B670C9B08C200114369 /* ResourceLoadDelegate.h in Headers */,
 				BCA18B3C0C9B024900114369 /* TextInputController.h in Headers */,
@@ -733,6 +760,23 @@
 			productName = TestNetscapePlugIn.plugin;
 			productReference = 141BF233096A44CF00E0753C /* TestNetscapePlugIn.plugin */;
 			productType = "com.apple.product-type.bundle";
+		};
+		2D403EB2150871F9005358D2 /* LayoutTestHelper */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2D403F15150871F9005358D2 /* Build configuration list for PBXNativeTarget "LayoutTestHelper" */;
+			buildPhases = (
+				2D403ED8150871F9005358D2 /* Sources */,
+				2D403F03150871F9005358D2 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = LayoutTestHelper;
+			productInstallPath = "$(HOME)/bin";
+			productName = DumpRenderTree;
+			productReference = 2D403F19150871F9005358D2 /* LayoutTestHelper */;
+			productType = "com.apple.product-type.tool";
 		};
 		9340994A08540CAE007F3BC8 /* DumpRenderTree */ = {
 			isa = PBXNativeTarget;
@@ -796,6 +840,7 @@
 				B5A7525A08AF4A4A00138E45 /* ImageDiff */,
 				141BF21E096A441D00E0753C /* TestNetscapePlugIn */,
 				5DC82A661023C8DE00FD1D3B /* DumpRenderTree Perl Support */,
+				2D403EB2150871F9005358D2 /* LayoutTestHelper */,
 			);
 		};
 /* End PBXProject section */
@@ -841,6 +886,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		2D403ED8150871F9005358D2 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2D403F1B15087209005358D2 /* LayoutTestHelper.m in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		9340994D08540CAE007F3BC8 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -872,7 +925,6 @@
 				8465E2C70FFA8DF2003B8342 /* PixelDumpSupport.cpp in Sources */,
 				BCB284CD0CFA83C8007E533E /* PixelDumpSupportCG.cpp in Sources */,
 				BCB284D60CFA83D1007E533E /* PixelDumpSupportMac.mm in Sources */,
-				933BF5AC0F93FA5C000F0441 /* PlainTextController.mm in Sources */,
 				BCA18B660C9B08C200114369 /* PolicyDelegate.mm in Sources */,
 				BCA18B680C9B08C200114369 /* ResourceLoadDelegate.mm in Sources */,
 				BCA18B490C9B02C400114369 /* TextInputController.m in Sources */,
@@ -905,6 +957,11 @@
 			isa = PBXTargetDependency;
 			target = 141BF21E096A441D00E0753C /* TestNetscapePlugIn */;
 			targetProxy = 141BF237096A451E00E0753C /* PBXContainerItemProxy */;
+		};
+		2D403F211508736C005358D2 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 2D403EB2150871F9005358D2 /* LayoutTestHelper */;
+			targetProxy = 2D403F201508736C005358D2 /* PBXContainerItemProxy */;
 		};
 		5DC82A701023C93D00FD1D3B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
@@ -968,6 +1025,32 @@
 			buildSettings = {
 			};
 			name = Release;
+		};
+		2D403F16150871F9005358D2 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BCB281F00CFA713D007E533E /* DumpRenderTree.xcconfig */;
+			buildSettings = {
+				PRODUCT_NAME = LayoutTestHelper;
+			};
+			name = Debug;
+		};
+		2D403F17150871F9005358D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BCB281F00CFA713D007E533E /* DumpRenderTree.xcconfig */;
+			buildSettings = {
+				PRODUCT_NAME = LayoutTestHelper;
+			};
+			name = Release;
+		};
+		2D403F18150871F9005358D2 /* Production */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = BCB281F00CFA713D007E533E /* DumpRenderTree.xcconfig */;
+			buildSettings = {
+				INSTALL_PATH = "$(SYSTEM_LIBRARY_DIR)/Frameworks/$(WEBKIT_FRAMEWORK_RESOURCES_PATH)";
+				PRODUCT_NAME = LayoutTestHelper;
+				SKIP_INSTALL = NO;
+			};
+			name = Production;
 		};
 		5DC82A671023C8DE00FD1D3B /* Debug */ = {
 			isa = XCBuildConfiguration;
@@ -1113,6 +1196,16 @@
 				149C29C408902C6D008A9EFC /* Debug */,
 				149C29C508902C6D008A9EFC /* Release */,
 				90CBC3500F748B1300A712B7 /* Production */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Production;
+		};
+		2D403F15150871F9005358D2 /* Build configuration list for PBXNativeTarget "LayoutTestHelper" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2D403F16150871F9005358D2 /* Debug */,
+				2D403F17150871F9005358D2 /* Release */,
+				2D403F18150871F9005358D2 /* Production */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Production;

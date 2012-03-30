@@ -80,9 +80,8 @@ public:
     virtual void resumeRendering() { }
 
 #if USE(TILED_BACKING_STORE)
-    virtual void setVisibleContentRectAndScale(const WebCore::IntRect&, float scale) { }
-    virtual void setVisibleContentRectTrajectoryVector(const WebCore::FloatPoint&) { }
-    virtual void setVisibleContentRectForLayer(int layerID, const WebCore::IntRect&) { }
+    virtual void setVisibleContentsRect(const WebCore::IntRect&, float scale, const WebCore::FloatPoint&) { }
+    virtual void setVisibleContentsRectForLayer(int layerID, const WebCore::IntRect&) { }
     virtual void renderNextFrame() { }
     virtual void purgeBackingStores() { }
     virtual void didReceiveLayerTreeHostMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*);

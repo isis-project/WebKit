@@ -100,7 +100,8 @@ static void sleep(unsigned seconds)
 }
 #endif
 
-static void* randomCrashThread(void*)
+static void randomCrashThread(void*) NO_RETURN_DUE_TO_CRASH;
+void randomCrashThread(void*)
 {
     // This delay was chosen semi-arbitrarily. We want the crash to happen somewhat quickly to
     // enable useful stress testing, but not so quickly that the web process will always crash soon
@@ -109,7 +110,6 @@ static void* randomCrashThread(void*)
 
     sleep(randomNumber() * maximumRandomCrashDelay);
     CRASH();
-    return 0;
 }
 
 static void startRandomCrashThreadIfRequested()
@@ -141,7 +141,7 @@ WebProcess::WebProcess()
 #endif
     , m_textCheckerState()
     , m_geolocationManager(this)
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     , m_notificationManager(this)
 #endif
     , m_iconDatabaseProxy(this)
@@ -638,7 +638,7 @@ void WebProcess::didReceiveMessage(CoreIPC::Connection* connection, CoreIPC::Mes
         return;
     }
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     if (messageID.is<CoreIPC::MessageClassWebNotificationManager>()) {
         m_notificationManager.didReceiveMessage(connection, messageID, arguments);
         return;

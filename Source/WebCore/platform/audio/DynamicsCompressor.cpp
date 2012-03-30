@@ -40,17 +40,25 @@ namespace WebCore {
 
 using namespace AudioUtilities;
     
-DynamicsCompressor::DynamicsCompressor(bool isStereo, float sampleRate)
-    : m_isStereo(isStereo)
+DynamicsCompressor::DynamicsCompressor(float sampleRate, unsigned numberOfChannels)
+    : m_numberOfChannels(numberOfChannels)
     , m_sampleRate(sampleRate)
-    , m_compressor(sampleRate)
+    , m_compressor(sampleRate, numberOfChannels)
 {
     // Uninitialized state - for parameter recalculation.
     m_lastFilterStageRatio = -1;
     m_lastAnchor = -1;
     m_lastFilterStageGain = -1;
 
+    setNumberOfChannels(numberOfChannels);
     initializeParameters();
+}
+
+void DynamicsCompressor::setParameterValue(unsigned parameterID, float value)
+{
+    ASSERT(parameterID < ParamLast);
+    if (parameterID < ParamLast)
+        m_parameters[parameterID] = value;
 }
 
 void DynamicsCompressor::initializeParameters()
@@ -58,7 +66,8 @@ void DynamicsCompressor::initializeParameters()
     // Initializes compressor to default values.
     
     m_parameters[ParamThreshold] = -24; // dB
-    m_parameters[ParamHeadroom] = 21; // dB
+    m_parameters[ParamKnee] = 30; // dB
+    m_parameters[ParamRatio] = 12; // unit-less
     m_parameters[ParamAttack] = 0.003f; // seconds
     m_parameters[ParamRelease] = 0.250f; // seconds
     m_parameters[ParamPreDelay] = 0.006f; // seconds
@@ -74,6 +83,7 @@ void DynamicsCompressor::initializeParameters()
     m_parameters[ParamFilterAnchor] = 15000 / nyquist();
     
     m_parameters[ParamPostGain] = 0; // dB
+    m_parameters[ParamReduction] = 0; // dB
 
     // Linear crossfade (0 -> 1).
     m_parameters[ParamEffectBlend] = 1;
@@ -93,18 +103,20 @@ void DynamicsCompressor::setEmphasisStageParameters(unsigned stageIndex, float g
     float r1 = expf(-f1 * piFloat);
     float r2 = expf(-f2 * piFloat);
 
-    // Set pre-filter zero and pole to create an emphasis filter.
-    m_preFilter[stageIndex].setZero(r1);
-    m_preFilter[stageIndex].setPole(r2);
-    m_preFilterR[stageIndex].setZero(r1);
-    m_preFilterR[stageIndex].setPole(r2);
+    ASSERT(m_numberOfChannels == m_preFilterPacks.size());
 
-    // Set post-filter with zero and pole reversed to create the de-emphasis filter.
-    // If there were no compressor kernel in between, they would cancel each other out (allpass filter).
-    m_postFilter[stageIndex].setZero(r2);
-    m_postFilter[stageIndex].setPole(r1);
-    m_postFilterR[stageIndex].setZero(r2);
-    m_postFilterR[stageIndex].setPole(r1);
+    for (unsigned i = 0; i < m_numberOfChannels; ++i) {
+        // Set pre-filter zero and pole to create an emphasis filter.
+        ZeroPole& preFilter = m_preFilterPacks[i]->filters[stageIndex];
+        preFilter.setZero(r1);
+        preFilter.setPole(r2);
+
+        // Set post-filter with zero and pole reversed to create the de-emphasis filter.
+        // If there were no compressor kernel in between, they would cancel each other out (allpass filter).
+        ZeroPole& postFilter = m_postFilterPacks[i]->filters[stageIndex];
+        postFilter.setZero(r2);
+        postFilter.setPole(r1);
+    }
 }
 
 void DynamicsCompressor::setEmphasisParameters(float gain, float anchorFreq, float filterStageRatio)
@@ -117,18 +129,40 @@ void DynamicsCompressor::setEmphasisParameters(float gain, float anchorFreq, flo
 
 void DynamicsCompressor::process(const AudioBus* sourceBus, AudioBus* destinationBus, unsigned framesToProcess)
 {
-    const float* sourceL = sourceBus->channel(0)->data();
-    const float* sourceR;
+    // Though numberOfChannels is retrived from destinationBus, we still name it numberOfChannels instead of numberOfDestinationChannels.
+    // It's because we internally match sourceChannels's size to destinationBus by channel up/down mix. Thus we need numberOfChannels
+    // to do the loop work for both m_sourceChannels and m_destinationChannels.
 
-    if (sourceBus->numberOfChannels() > 1)
-        sourceR = sourceBus->channel(1)->data();
-    else
-        sourceR = sourceL;
+    unsigned numberOfChannels = destinationBus->numberOfChannels();
+    unsigned numberOfSourceChannels = sourceBus->numberOfChannels();
 
-    ASSERT(destinationBus->numberOfChannels() == 2);
+    ASSERT(numberOfChannels == m_numberOfChannels && numberOfSourceChannels);
 
-    float* destinationL = destinationBus->channel(0)->mutableData();
-    float* destinationR = destinationBus->channel(1)->mutableData();
+    if (numberOfChannels != m_numberOfChannels || !numberOfSourceChannels) {
+        destinationBus->zero();
+        return;
+    }
+
+    switch (numberOfChannels) {
+    case 2: // stereo
+        m_sourceChannels[0] = sourceBus->channel(0)->data();
+
+        if (numberOfSourceChannels > 1)
+            m_sourceChannels[1] = sourceBus->channel(1)->data();
+        else
+            // Simply duplicate mono channel input data to right channel for stereo processing.
+            m_sourceChannels[1] = m_sourceChannels[0];
+
+        break;
+    default:
+        // FIXME : support other number of channels.
+        ASSERT_NOT_REACHED();
+        destinationBus->zero();
+        return;
+    }
+
+    for (unsigned i = 0; i < numberOfChannels; ++i)
+        m_destinationChannels[i] = destinationBus->channel(i)->mutableData();
 
     float filterStageGain = parameterValue(ParamFilterStageGain);
     float filterStageRatio = parameterValue(ParamFilterStageRatio);
@@ -144,20 +178,20 @@ void DynamicsCompressor::process(const AudioBus* sourceBus, AudioBus* destinatio
 
     // Apply pre-emphasis filter.
     // Note that the final three stages are computed in-place in the destination buffer.
-    m_preFilter[0].process(sourceL, destinationL, framesToProcess);
-    m_preFilter[1].process(destinationL, destinationL, framesToProcess);
-    m_preFilter[2].process(destinationL, destinationL, framesToProcess);
-    m_preFilter[3].process(destinationL, destinationL, framesToProcess);
+    for (unsigned i = 0; i < numberOfChannels; ++i) {
+        const float* sourceData = m_sourceChannels[i];
+        float* destinationData = m_destinationChannels[i];
+        ZeroPole* preFilters = m_preFilterPacks[i]->filters;
 
-    if (isStereo()) {
-        m_preFilterR[0].process(sourceR, destinationR, framesToProcess);
-        m_preFilterR[1].process(destinationR, destinationR, framesToProcess);
-        m_preFilterR[2].process(destinationR, destinationR, framesToProcess);
-        m_preFilterR[3].process(destinationR, destinationR, framesToProcess);
+        preFilters[0].process(sourceData, destinationData, framesToProcess);
+        preFilters[1].process(destinationData, destinationData, framesToProcess);
+        preFilters[2].process(destinationData, destinationData, framesToProcess);
+        preFilters[3].process(destinationData, destinationData, framesToProcess);
     }
 
     float dbThreshold = parameterValue(ParamThreshold);
-    float dbHeadroom = parameterValue(ParamHeadroom);
+    float dbKnee = parameterValue(ParamKnee);
+    float ratio = parameterValue(ParamRatio);
     float attackTime = parameterValue(ParamAttack);
     float releaseTime = parameterValue(ParamRelease);
     float preDelayTime = parameterValue(ParamPreDelay);
@@ -177,14 +211,14 @@ void DynamicsCompressor::process(const AudioBus* sourceBus, AudioBus* destinatio
 
     // Apply compression to the pre-filtered signal.
     // The processing is performed in place.
-    m_compressor.process(destinationL,
-                         destinationL,
-                         destinationR,
-                         destinationR,
+    m_compressor.process(m_destinationChannels.get(),
+                         m_destinationChannels.get(),
+                         numberOfChannels,
                          framesToProcess,
 
                          dbThreshold,
-                         dbHeadroom,
+                         dbKnee,
+                         ratio,
                          attackTime,
                          releaseTime,
                          preDelayTime,
@@ -196,18 +230,19 @@ void DynamicsCompressor::process(const AudioBus* sourceBus, AudioBus* destinatio
                          releaseZone3,
                          releaseZone4
                          );
+                         
+    // Update the compression amount.                     
+    setParameterValue(ParamReduction, m_compressor.meteringGain());
 
     // Apply de-emphasis filter.
-    m_postFilter[0].process(destinationL, destinationL, framesToProcess);
-    m_postFilter[1].process(destinationL, destinationL, framesToProcess);
-    m_postFilter[2].process(destinationL, destinationL, framesToProcess);
-    m_postFilter[3].process(destinationL, destinationL, framesToProcess);
+    for (unsigned i = 0; i < numberOfChannels; ++i) {
+        float* destinationData = m_destinationChannels[i];
+        ZeroPole* postFilters = m_postFilterPacks[i]->filters;
 
-    if (isStereo()) {
-        m_postFilterR[0].process(destinationR, destinationR, framesToProcess);
-        m_postFilterR[1].process(destinationR, destinationR, framesToProcess);
-        m_postFilterR[2].process(destinationR, destinationR, framesToProcess);
-        m_postFilterR[3].process(destinationR, destinationR, framesToProcess);
+        postFilters[0].process(destinationData, destinationData, framesToProcess);
+        postFilters[1].process(destinationData, destinationData, framesToProcess);
+        postFilters[2].process(destinationData, destinationData, framesToProcess);
+        postFilters[3].process(destinationData, destinationData, framesToProcess);
     }
 }
 
@@ -217,14 +252,33 @@ void DynamicsCompressor::reset()
     m_lastAnchor = -1;
     m_lastFilterStageGain = -1;
 
-    for (unsigned i = 0; i < 4; ++i) {
-        m_preFilter[i].reset();
-        m_preFilterR[i].reset();
-        m_postFilter[i].reset();
-        m_postFilterR[i].reset();
+    for (unsigned channel = 0; channel < m_numberOfChannels; ++channel) {
+        for (unsigned stageIndex = 0; stageIndex < 4; ++stageIndex) {
+            m_preFilterPacks[channel]->filters[stageIndex].reset();
+            m_postFilterPacks[channel]->filters[stageIndex].reset();
+        }
     }
 
     m_compressor.reset();
+}
+
+void DynamicsCompressor::setNumberOfChannels(unsigned numberOfChannels)
+{
+    if (m_preFilterPacks.size() == numberOfChannels)
+        return;
+
+    m_preFilterPacks.clear();
+    m_postFilterPacks.clear();
+    for (unsigned i = 0; i < numberOfChannels; ++i) {
+        m_preFilterPacks.append(adoptPtr(new ZeroPoleFilterPack4()));
+        m_postFilterPacks.append(adoptPtr(new ZeroPoleFilterPack4()));
+    }
+
+    m_sourceChannels = adoptArrayPtr(new const float* [numberOfChannels]);
+    m_destinationChannels = adoptArrayPtr(new float* [numberOfChannels]);
+
+    m_compressor.setNumberOfChannels(numberOfChannels);
+    m_numberOfChannels = numberOfChannels;
 }
 
 } // namespace WebCore

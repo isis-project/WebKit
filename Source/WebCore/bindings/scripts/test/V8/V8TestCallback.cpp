@@ -87,7 +87,8 @@ bool V8TestCallback::callbackWithClass1Param(Class1* class1Param)
 
     v8::Handle<v8::Value> class1ParamHandle = toV8(class1Param);
     if (class1ParamHandle.IsEmpty()) {
-        CRASH();
+        if (!isScriptControllerTerminating())
+            CRASH();
         return true;
     }
 
@@ -114,12 +115,14 @@ bool V8TestCallback::callbackWithClass2Param(Class2* class2Param, const String& 
 
     v8::Handle<v8::Value> class2ParamHandle = toV8(class2Param);
     if (class2ParamHandle.IsEmpty()) {
-        CRASH();
+        if (!isScriptControllerTerminating())
+            CRASH();
         return true;
     }
     v8::Handle<v8::Value> strArgHandle = v8String(strArg);
     if (strArgHandle.IsEmpty()) {
-        CRASH();
+        if (!isScriptControllerTerminating())
+            CRASH();
         return true;
     }
 
@@ -147,12 +150,41 @@ bool V8TestCallback::callbackWithStringList(RefPtr<DOMStringList> listParam)
 
     v8::Handle<v8::Value> listParamHandle = toV8(listParam);
     if (listParamHandle.IsEmpty()) {
-        CRASH();
+        if (!isScriptControllerTerminating())
+            CRASH();
         return true;
     }
 
     v8::Handle<v8::Value> argv[] = {
         listParamHandle
+    };
+
+    bool callbackReturnValue = false;
+    return !invokeCallback(m_callback, 1, argv, callbackReturnValue, scriptExecutionContext());
+}
+
+bool V8TestCallback::callbackWithBoolean(bool boolParam)
+{
+    if (!canInvokeCallback())
+        return true;
+
+    v8::HandleScope handleScope;
+
+    v8::Handle<v8::Context> v8Context = toV8Context(scriptExecutionContext(), m_worldContext);
+    if (v8Context.IsEmpty())
+        return true;
+
+    v8::Context::Scope scope(v8Context);
+
+    v8::Handle<v8::Value> boolParamHandle = v8Boolean(boolParam);
+    if (boolParamHandle.IsEmpty()) {
+        if (!isScriptControllerTerminating())
+            CRASH();
+        return true;
+    }
+
+    v8::Handle<v8::Value> argv[] = {
+        boolParamHandle
     };
 
     bool callbackReturnValue = false;

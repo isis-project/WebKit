@@ -29,7 +29,6 @@
 
 #include "RenderMathMLUnderOver.h"
 
-#include "FontSelector.h"
 #include "MathMLNames.h"
 
 namespace WebCore {
@@ -52,12 +51,22 @@ RenderMathMLUnderOver::RenderMathMLUnderOver(Element* element)
     }
 }
 
+RenderBoxModelObject* RenderMathMLUnderOver::base() const
+{
+    RenderObject* baseWrapper = firstChild();
+    if ((m_kind == Over || m_kind == UnderOver) && baseWrapper)
+        baseWrapper = baseWrapper->nextSibling();
+    if (!baseWrapper)
+        return 0;
+    RenderObject* base = baseWrapper->firstChild();
+    if (!base || !base->isBoxModelObject())
+        return 0;
+    return toRenderBoxModelObject(base);
+}
+
 void RenderMathMLUnderOver::addChild(RenderObject* child, RenderObject* beforeChild)
 {    
-    RenderMathMLBlock* row = new (renderArena()) RenderMathMLBlock(node());
-    RefPtr<RenderStyle> rowStyle = createBlockStyle();
-    row->setStyle(rowStyle.release());
-    row->setIsAnonymous(true);
+    RenderBlock* row = createAnonymousBlock();
     
     // look through the children for rendered elements counting the blocks so we know what child
     // we are adding
@@ -106,11 +115,19 @@ void RenderMathMLUnderOver::addChild(RenderObject* child, RenderObject* beforeCh
     row->addChild(child);    
 }
 
+RenderMathMLOperator* RenderMathMLUnderOver::unembellishedOperator()
+{
+    RenderBoxModelObject* base = this->base();
+    if (!base || !base->isRenderMathMLBlock())
+        return 0;
+    return toRenderMathMLBlock(base)->unembellishedOperator();
+}
+
 inline int getOffsetHeight(RenderObject* obj) 
 {
     if (obj->isBoxModelObject()) {
         RenderBoxModelObject* box = toRenderBoxModelObject(obj);
-        return box->offsetHeight();
+        return box->pixelSnappedOffsetHeight();
     }
    
     return 0;
@@ -118,21 +135,7 @@ inline int getOffsetHeight(RenderObject* obj)
 
 void RenderMathMLUnderOver::stretchToHeight(int height)
 {
-
-    RenderObject* base = firstChild();
-    if (!base)
-        return;
-        
-    // For over or underover, the base is the sibling of the first child
-    if (m_kind != Under) 
-        base = base->nextSibling();
-        
-    if (!base)
-        return;
-        
-    // use the child of the row which is the actual base
-    base = base->firstChild();
-    
+    RenderBoxModelObject* base = this->base();
     if (base && base->isRenderMathMLBlock()) {
         RenderMathMLBlock* block = toRenderMathMLBlock(base);
         block->stretchToHeight(height);
@@ -178,7 +181,7 @@ void RenderMathMLUnderOver::layout()
         // base row wrapper
         base = firstChild();
         if (base) {
-            LayoutUnit baseHeight = getOffsetHeight(base);
+            int baseHeight = getOffsetHeight(base);
             // actual base
             base = base->firstChild();
             if (!base || !base->isBoxModelObject())
@@ -219,7 +222,7 @@ void RenderMathMLUnderOver::layout()
                 // We need to calculate the baseline of the base versus the start of the under block and
                 // adjust the placement of the under block.
                 
-                LayoutUnit baseHeight = getOffsetHeight(base);
+                int baseHeight = getOffsetHeight(base);
                 // actual base
                 base = base->firstChild();
                 if (!base || !base->isBoxModelObject())
@@ -270,21 +273,6 @@ LayoutUnit RenderMathMLUnderOver::baselinePosition(FontBaseline, bool firstLine,
     }
 
     return baseline;
-}
-
-
-int RenderMathMLUnderOver::nonOperatorHeight() const 
-{
-    int nonOperators = 0;
-    for (RenderObject* current = firstChild(); current; current = current->nextSibling()) {
-        if (current->firstChild() && current->firstChild()->isRenderMathMLBlock()) {
-            RenderMathMLBlock* block = toRenderMathMLBlock(current->firstChild());
-            if (!block->isRenderMathMLOperator()) 
-                nonOperators += getOffsetHeight(current);
-        } else
-            nonOperators += getOffsetHeight(current);
-    }
-    return nonOperators;
 }
 
 }

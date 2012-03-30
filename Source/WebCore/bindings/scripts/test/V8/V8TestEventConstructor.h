@@ -30,7 +30,7 @@
 
 namespace WebCore {
 
-class OptionsObject;
+class Dictionary;
 class V8TestEventConstructor {
 public:
     static const bool hasDependentLifetime = false;
@@ -46,20 +46,13 @@ public:
     static WrapperTypeInfo info;
     static v8::Handle<v8::Value> constructorCallback(const v8::Arguments&);
     static const int internalFieldCount = v8DefaultWrapperInternalFieldCount + 0;
-    static v8::Handle<v8::Object> existingWrapper(TestEventConstructor*);
-
 private:
-    static v8::Handle<v8::Object> wrapSlow(TestEventConstructor*);
+    static v8::Handle<v8::Object> wrapSlow(PassRefPtr<TestEventConstructor>);
 };
-
-ALWAYS_INLINE v8::Handle<v8::Object> V8TestEventConstructor::existingWrapper(TestEventConstructor* impl)
-{
-    return getDOMObjectMap().get(impl);
-}
 
 v8::Handle<v8::Object> V8TestEventConstructor::wrap(TestEventConstructor* impl)
 {
-        v8::Handle<v8::Object> wrapper = existingWrapper(impl);
+        v8::Handle<v8::Object> wrapper = getDOMObjectMap().get(impl);
         if (!wrapper.IsEmpty())
             return wrapper;
     return V8TestEventConstructor::wrapSlow(impl);
@@ -76,7 +69,7 @@ inline v8::Handle<v8::Value> toV8(PassRefPtr< TestEventConstructor > impl)
     return toV8(impl.get());
 }
 
-bool fillTestEventConstructorInit(TestEventConstructorInit&, const OptionsObject&);
+bool fillTestEventConstructorInit(TestEventConstructorInit&, const Dictionary&);
 
 }
 

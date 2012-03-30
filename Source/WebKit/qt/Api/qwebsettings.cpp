@@ -173,6 +173,10 @@ void QWebSettingsPrivate::apply()
 #endif
 #endif
 
+        value = attributes.value(QWebSettings::CSSRegionsEnabled,
+                                 global->attributes.value(QWebSettings::CSSRegionsEnabled));
+        settings->setCSSRegionsEnabled(value);
+
         value = attributes.value(QWebSettings::HyperlinkAuditingEnabled,
                                  global->attributes.value(QWebSettings::HyperlinkAuditingEnabled));
 
@@ -444,11 +448,13 @@ QWebSettings* QWebSettings::globalSettings()
         web application cache feature is enabled or not. This is disabled by default.
     \value LocalStorageEnabled Specifies whether support for the HTML 5
         local storage feature is enabled or not. This is disabled by default.
+        (This value was introduced in 4.6.)
     \value LocalStorageDatabaseEnabled \e{This enum value is deprecated.} Use
         QWebSettings::LocalStorageEnabled instead.
     \value LocalContentCanAccessRemoteUrls Specifies whether locally loaded documents are
         allowed to access remote urls. This is disabled by default. For more information
         about security origins and local vs. remote content see QWebSecurityOrigin.
+        (This value was introduced in 4.6.)
     \value LocalContentCanAccessFileUrls Specifies whether locally loaded documents are
         allowed to access other local urls. This is enabled by default. For more information
         about security origins and local vs. remote content see QWebSecurityOrigin.
@@ -521,6 +527,7 @@ QWebSettings::QWebSettings()
     d->attributes.insert(QWebSettings::LocalContentCanAccessFileUrls, true);
     d->attributes.insert(QWebSettings::AcceleratedCompositingEnabled, true);
     d->attributes.insert(QWebSettings::WebGLEnabled, false);
+    d->attributes.insert(QWebSettings::CSSRegionsEnabled, false);
     d->attributes.insert(QWebSettings::HyperlinkAuditingEnabled, false);
     d->attributes.insert(QWebSettings::TiledBackingStoreEnabled, false);
     d->attributes.insert(QWebSettings::FrameFlatteningEnabled, false);
@@ -733,7 +740,7 @@ void QWebSettings::clearIconDatabase()
 /*!
     Returns the web site's icon for \a url.
 
-    If the web site does not specify an icon \bold OR if the icon is not in the
+    If the web site does not specify an icon \b OR if the icon is not in the
     database, a null QIcon is returned.
 
     \note The returned icon's size is arbitrary.
@@ -880,10 +887,10 @@ int QWebSettings::maximumPagesInCache()
    dead objects should consume when the cache is under pressure.
 
    \a cacheMaxDead is the \e maximum number of bytes that dead objects should
-   consume when the cache is \bold not under pressure.
+   consume when the cache is \b not under pressure.
 
    \a totalCapacity specifies the \e maximum number of bytes that the cache
-   should consume \bold overall.
+   should consume \b overall.
 
    The cache is enabled by default. Calling setObjectCacheCapacities(0, 0, 0)
    will disable the cache. Calling it with one non-zero enables it again.

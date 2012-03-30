@@ -56,16 +56,18 @@ public:
     String cssText() const;
     void setCssText(const String&, ExceptionCode&) { } // FIXME: Not implemented.
 
-    bool isPrimitiveValue() const { return m_classType <= PrimitiveClass; }
+    bool isPrimitiveValue() const { return m_classType == PrimitiveClass; }
     bool isValueList() const { return m_classType >= ValueListClass; }
 
     bool isAspectRatioValue() const { return m_classType == AspectRatioClass; }
     bool isBorderImageSliceValue() const { return m_classType == BorderImageSliceClass; }
     bool isCursorImageValue() const { return m_classType == CursorImageClass; }
-    bool isFontFamilyValue() const { return m_classType == FontFamilyClass; }
     bool isFontFeatureValue() const { return m_classType == FontFeatureClass; }
     bool isFontValue() const { return m_classType == FontClass; }
     bool isImageGeneratorValue() const { return m_classType >= CanvasClass && m_classType <= RadialGradientClass; }
+#if ENABLE(CSS_IMAGE_SET)
+    bool isImageSetValue() const { return m_classType == ImageSetClass; }
+#endif
     bool isImageValue() const { return m_classType == ImageClass || m_classType == CursorImageClass; }
     bool isImplicitInitialValue() const;
     bool isInheritedValue() const { return m_classType == InheritedClass; }
@@ -94,11 +96,11 @@ protected:
 
     static const size_t ClassTypeBits = 5;
     enum ClassType {
-        // Primitive class types must appear before PrimitiveClass.
+        PrimitiveClass,
+
+        // Image classes.
         ImageClass,
         CursorImageClass,
-        FontFamilyClass,
-        PrimitiveClass,
 
         // Image generator classes.
         CanvasClass,
@@ -138,6 +140,9 @@ protected:
 
         // List class types must appear after ValueListClass.
         ValueListClass,
+#if ENABLE(CSS_IMAGE_SET)
+        ImageSetClass,
+#endif
 #if ENABLE(CSS_FILTERS)
         WebKitCSSFilterClass,
 #endif

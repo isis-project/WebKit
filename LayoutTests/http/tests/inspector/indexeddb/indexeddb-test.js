@@ -1,22 +1,46 @@
 var initialize_IndexedDBTest = function() {
 
-var snifferInstalled = false;
+InspectorTest.dumpIndexedDBTree = function()
+{
+    InspectorTest.addResult("Dumping IndexedDB tree:");
+    var indexedDBTreeElement = WebInspector.panels.resources.indexedDBListTreeElement;
+    if (!indexedDBTreeElement.children.length) {
+        InspectorTest.addResult("    (empty)");
+        return;
+    }
+    for (var i = 0; i < indexedDBTreeElement.children.length; ++i) {
+        var databaseTreeElement = indexedDBTreeElement.children[i];
+        InspectorTest.addResult("    database: " + databaseTreeElement.titleText);
+        if (!databaseTreeElement.children.length) {
+            InspectorTest.addResult("        (no object stores)");
+            continue;
+        }
+        for (var j = 0; j < databaseTreeElement.children.length; ++j) {
+            var objectStoreTreeElement = databaseTreeElement.children[j];
+            InspectorTest.addResult("        Object store: " + objectStoreTreeElement.titleText);
+            if (!objectStoreTreeElement.children.length) {
+                InspectorTest.addResult("            (no indexes)");
+                continue;
+            }
+            for (var j = 0; j < objectStoreTreeElement.children.length; ++j) {
+                var indexTreeElement = objectStoreTreeElement.children[j];
+                InspectorTest.addResult("            Index: " + indexTreeElement.titleText);
+            }
+        }
+    }
+}
+
 var lastCallbackId = 0;
 var callbacks = {};
 var callbackIdPrefix = "InspectorTest.IndexedDB_callback";
 InspectorTest.evaluateWithCallback = function(frameId, methodName, parameters, callback)
 {
-    if (!snifferInstalled)
-        InspectorTest._installIndexedDBSniffer();
+    InspectorTest._installIndexedDBSniffer();
     var callbackId = ++lastCallbackId;
     callbacks[callbackId] = callback;
-    var parametersString = "\"" + callbackIdPrefix + callbackId + "\"";
-    for (var i = 0; i < parameters.length; ++i) {
-        if (typeof(parameters[i]) === "string")
-            parametersString += ", \"" + parameters[i] + "\"";
-        else if ((typeof(parameters[i]) === "number") || (typeof(parameters[i]) === "boolean"))
-            parametersString += ", " + parameters[i];
-    }
+    var parametersString = "dispatchCallback.bind(this, \"" + callbackIdPrefix + callbackId + "\")";
+    for (var i = 0; i < parameters.length; ++i)
+        parametersString += ", " + JSON.stringify(parameters[i]);
 
     var requestString = methodName + "(" + parametersString + ")";
     InspectorTest.evaluateInPage(requestString);
@@ -24,14 +48,15 @@ InspectorTest.evaluateWithCallback = function(frameId, methodName, parameters, c
 
 InspectorTest._installIndexedDBSniffer = function()
 {
-    snifferInstalled = true;
-    InspectorTest.addConsoleSniffer(consoleMessageOverride, true);
+    InspectorTest.addConsoleSniffer(consoleMessageOverride, false);
 
     function consoleMessageOverride(msg)
     {
         var text = msg._messageText;
-        if (text.indexOf(callbackIdPrefix) !== 0)
+        if (text.indexOf(callbackIdPrefix) !== 0) {
+            InspectorTest.addConsoleSniffer(consoleMessageOverride, false);
             return;
+        }
         var callbackId = text.substring(callbackIdPrefix.length);
         callbacks[callbackId].call();
         delete callbacks[callbackId];
@@ -68,9 +93,15 @@ InspectorTest.deleteObjectStoreIndex = function(frameId, databaseName, objectSto
     InspectorTest.evaluateWithCallback(frameId, "deleteObjectStoreIndex", [databaseName, objectStoreName, objectStoreIndexName], callback)
 };
 
+InspectorTest.addIDBValue = function(frameId, databaseName, objectStoreName, value, key, callback)
+{
+    InspectorTest.evaluateWithCallback(frameId, "addIDBValue", [databaseName, objectStoreName, value, key], callback)
+};
+
 };
 
 var indexedDB = window.indexeddb || window.webkitIndexedDB;
+var IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction;
 
 function dispatchCallback(callbackId)
 {
@@ -116,7 +147,25 @@ function doWithVersionTransaction(databaseName, callback, commitCallback)
     }
 }
 
-function createDatabase(callbackId, databaseName)
+function doWithReadWriteTransaction(databaseName, objectStoreName, callback, commitCallback)
+{
+    doWithDatabase(databaseName, step2);
+
+    function step2(db)
+    {
+        var transaction = db.transaction([objectStoreName], IDBTransaction.READ_WRITE);
+        var objectStore = transaction.objectStore(objectStoreName);
+        callback(objectStore, innerCommitCallback);
+
+        function innerCommitCallback()
+        {
+            db.close();
+            commitCallback();
+        }
+    }
+}
+
+function createDatabase(callback, databaseName)
 {
     var request = indexedDB.open(databaseName, 0);
     request.onerror = onIndexedDBError;
@@ -125,20 +174,20 @@ function createDatabase(callbackId, databaseName)
     function closeDatabase()
     {
         request.result.close();
-        dispatchCallback(callbackId);
+        callback();
     }
 }
 
-function deleteDatabase(callbackId, databaseName)
+function deleteDatabase(callback, databaseName)
 {
     var request = indexedDB.deleteDatabase(databaseName);
     request.onerror = onIndexedDBError;
-    request.onsuccess = dispatchCallback.bind(this, callbackId);
+    request.onsuccess = callback;
 }
 
-function createObjectStore(callbackId, databaseName, objectStoreName, keyPath, autoIncrement)
+function createObjectStore(callback, databaseName, objectStoreName, keyPath, autoIncrement)
 {
-    doWithVersionTransaction(databaseName, withTransactionCallback, dispatchCallback.bind(this, callbackId));
+    doWithVersionTransaction(databaseName, withTransactionCallback, callback);
 
     function withTransactionCallback(db, transaction)
     {
@@ -146,9 +195,9 @@ function createObjectStore(callbackId, databaseName, objectStoreName, keyPath, a
     }
 }
 
-function deleteObjectStore(callbackId, databaseName, objectStoreName)
+function deleteObjectStore(callback, databaseName, objectStoreName)
 {
-    doWithVersionTransaction(databaseName, withTransactionCallback, dispatchCallback.bind(this, callbackId));
+    doWithVersionTransaction(databaseName, withTransactionCallback, callback);
 
     function withTransactionCallback(db, transaction)
     {
@@ -156,9 +205,9 @@ function deleteObjectStore(callbackId, databaseName, objectStoreName)
     }
 }
 
-function createObjectStoreIndex(callbackId, databaseName, objectStoreName, objectStoreIndexName, keyPath, unique, multiEntry)
+function createObjectStoreIndex(callback, databaseName, objectStoreName, objectStoreIndexName, keyPath, unique, multiEntry)
 {
-    doWithVersionTransaction(databaseName, withTransactionCallback, dispatchCallback.bind(this, callbackId));
+    doWithVersionTransaction(databaseName, withTransactionCallback, callback);
 
     function withTransactionCallback(db, transaction)
     {
@@ -167,14 +216,30 @@ function createObjectStoreIndex(callbackId, databaseName, objectStoreName, objec
     }
 }
 
-function deleteObjectStoreIndex(callbackId, databaseName, objectStoreName, objectStoreIndexName)
+function deleteObjectStoreIndex(callback, databaseName, objectStoreName, objectStoreIndexName)
 {
-    doWithVersionTransaction(databaseName, withTransactionCallback, dispatchCallback.bind(this, callbackId));
+    doWithVersionTransaction(databaseName, withTransactionCallback, callback);
 
     function withTransactionCallback(db, transaction)
     {
         var objectStore = transaction.objectStore(objectStoreName);
         objectStore.deleteIndex(objectStoreIndexName);
+    }
+}
+
+function addIDBValue(callback, databaseName, objectStoreName, value, key)
+{
+    doWithReadWriteTransaction(databaseName, objectStoreName, withTransactionCallback, callback)
+
+    function withTransactionCallback(objectStore, commitCallback)
+    {
+        var request;
+        if (key)
+            request = objectStore.add(value, key);
+        else
+            request = objectStore.add(value);
+        request.onerror = onIndexedDBError;
+        request.onsuccess = commitCallback;
     }
 }
 

@@ -34,12 +34,13 @@ Rectangle {
     // Do not define anchors or an initial size here! This would mess up with QSGView::SizeRootObjectToView.
 
     property alias webview: webView
+    color: "#333"
 
     signal pageTitleChanged(string title)
     signal newWindow(string url)
 
     function load(address) {
-        webView.load(address)
+        webView.url = address
     }
 
     function reload() {
@@ -283,7 +284,7 @@ Rectangle {
 
                 Keys.onReturnPressed:{
                     console.log("going to: ", addressLine.text)
-                    webView.load(utils.urlFromUserInput(addressLine.text))
+                    webView.url = utils.urlFromUserInput(addressLine.text)
                 }
             }
         }
@@ -302,7 +303,7 @@ Rectangle {
         onUrlChanged: {
             addressLine.text = url
             if (options.printLoadedUrls)
-                console.log("Loaded:", webView.url);
+                console.log("Loaded:", webView.url.toString());
             forceActiveFocus();
         }
 
@@ -310,6 +311,24 @@ Rectangle {
         experimental.alertDialog: AlertDialog { }
         experimental.confirmDialog: ConfirmDialog { }
         experimental.promptDialog: PromptDialog { }
+        experimental.authenticationDialog: AuthenticationDialog { }
+        experimental.proxyAuthenticationDialog: ProxyAuthenticationDialog { }
+        experimental.filePicker: FilePicker { }
+        experimental.databaseQuotaDialog: Item {
+            Timer {
+                interval: 1
+                running: true
+                onTriggered: {
+                    var size = model.expectedUsage / 1024 / 1024
+                    console.log("Creating database '" + model.displayName + "' of size " + size.toFixed(2) + " MB for " + model.origin.scheme + "://" + model.origin.host + ":" + model.origin.port)
+                    model.accept(model.expectedUsage)
+                }
+            }
+        }
+
+        ScrollIndicator {
+            flickableItem: webView.experimental.flickable
+        }
     }
 
     ViewportInfoItem {

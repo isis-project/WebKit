@@ -715,20 +715,6 @@ void LayoutTestController::resumeAnimations() const
         mainFrame->animation()->resumeAnimations();
 }
 
-bool LayoutTestController::hasSpellingMarker(int from, int length)
-{
-    if (!mainFrame)
-        return false;
-
-    return mainFrame->editor()->selectionStartHasMarkerFor(WebCore::DocumentMarker::Spelling, from, length);
-}
-
-JSValueRef LayoutTestController::nodesFromRect(JSContextRef context, JSValueRef value, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping)
-{
-    notImplemented();
-    return JSValueMakeUndefined(context);
-}
-
 void LayoutTestController::setSerializeHTTPLoads(bool)
 {
     // FIXME: Implement if needed for https://bugs.webkit.org/show_bug.cgi?id=50758.
@@ -806,14 +792,6 @@ int LayoutTestController::numberOfPendingGeolocationPermissionRequests()
     return DumpRenderTreeSupport::numberOfPendingGeolocationPermissionRequests(BlackBerry::WebKit::DumpRenderTree::currentInstance()->page());
 }
 
-bool LayoutTestController::hasGrammarMarker(int from, int length)
-{
-    if (!mainFrame)
-        return false;
-
-    return mainFrame->editor()->selectionStartHasMarkerFor(WebCore::DocumentMarker::Grammar, from, length);
-}
-
 void LayoutTestController::dumpConfigurationForViewport(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight)
 {
     if (!mainFrame)
@@ -854,7 +832,7 @@ bool LayoutTestController::findString(JSContextRef context, JSStringRef target, 
         else if (JSStringIsEqualToUTF8CString(optionName.get(), "StartInSelection"))
             options |= WebCore::StartInSelection;
     }
-    return BlackBerry::WebKit::DumpRenderTree::currentInstance()->findString(nameStr, options);
+    return BlackBerry::WebKit::DumpRenderTree::currentInstance()->page()->findNextString(nameStr.utf8().data(), !(options | WebCore::Backwards));
 }
 
 void LayoutTestController::deleteLocalStorageForOrigin(JSStringRef URL)
@@ -894,6 +872,14 @@ void LayoutTestController::focusWebView()
 }
 
 void LayoutTestController::setBackingScaleFactor(double)
+{
+}
+
+void LayoutTestController::setMockSpeechInputDumpRect(bool)
+{
+}
+
+void LayoutTestController::simulateDesktopNotificationClick(JSStringRef title)
 {
 }
 

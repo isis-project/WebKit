@@ -29,9 +29,10 @@
  */
 
 #include "config.h"
-#include "InjectedScriptHost.h"
 
 #if ENABLE(INSPECTOR)
+
+#include "InjectedScriptHost.h"
 
 #include "Element.h"
 #include "Frame.h"
@@ -41,6 +42,7 @@
 #include "InspectorAgent.h"
 #include "InspectorClient.h"
 #include "InspectorConsoleAgent.h"
+#include "InspectorDOMAgent.h"
 #include "InspectorDOMStorageAgent.h"
 #include "InspectorDatabaseAgent.h"
 #include "InspectorFrontend.h"
@@ -73,8 +75,10 @@ InjectedScriptHost::InjectedScriptHost()
     , m_databaseAgent(0)
 #endif
     , m_domStorageAgent(0)
+    , m_domAgent(0)
     , m_lastWorkerId(1 << 31) // Distinguish ids of fake workers from real ones, to minimize the chances they overlap.
 {
+    m_defaultInspectableObject = adoptPtr(new InspectableObject());
 }
 
 InjectedScriptHost::~InjectedScriptHost()
@@ -89,24 +93,19 @@ void InjectedScriptHost::disconnect()
     m_databaseAgent = 0;
 #endif
     m_domStorageAgent = 0;
-}
-
-void InjectedScriptHost::addInspectedNode(Node* node)
-{
-    m_inspectedNodes.prepend(node);
-    while (m_inspectedNodes.size() > 5)
-        m_inspectedNodes.removeLast();
-}
-
-void InjectedScriptHost::clearInspectedNodes()
-{
-    m_inspectedNodes.clear();
+    m_domAgent = 0;
 }
 
 void InjectedScriptHost::inspectImpl(PassRefPtr<InspectorValue> object, PassRefPtr<InspectorValue> hints)
 {
     if (m_inspectorAgent)
         m_inspectorAgent->inspect(object->asObject(), hints->asObject());
+}
+
+void InjectedScriptHost::getEventListenersImpl(Node* node, Vector<EventListenerInfo>& listenersArray)
+{
+    if (m_domAgent)
+        m_domAgent->getEventListeners(node, listenersArray, false);
 }
 
 void InjectedScriptHost::clearConsoleMessages()
@@ -122,11 +121,28 @@ void InjectedScriptHost::copyText(const String& text)
     Pasteboard::generalPasteboard()->writePlainText(text);
 }
 
-Node* InjectedScriptHost::inspectedNode(unsigned int num)
+ScriptValue InjectedScriptHost::InspectableObject::get(ScriptState*)
 {
-    if (num < m_inspectedNodes.size())
-        return m_inspectedNodes[num].get();
-    return 0;
+    return ScriptValue();
+};
+
+void InjectedScriptHost::addInspectedObject(PassOwnPtr<InjectedScriptHost::InspectableObject> object)
+{
+    m_inspectedObjects.prepend(object);
+    while (m_inspectedObjects.size() > 5)
+        m_inspectedObjects.removeLast();
+}
+
+void InjectedScriptHost::clearInspectedObjects()
+{
+    m_inspectedObjects.clear();
+}
+
+InjectedScriptHost::InspectableObject* InjectedScriptHost::inspectedObject(unsigned int num)
+{
+    if (num >= m_inspectedObjects.size())
+        return m_defaultInspectableObject.get();
+    return m_inspectedObjects[num].get();
 }
 
 #if ENABLE(SQL_DATABASE)

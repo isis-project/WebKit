@@ -36,10 +36,8 @@
 #include "EditingCallbacks.h"
 #include "EventSender.h"
 #include "GCController.h"
-#include "GOwnPtr.h"
 #include "LayoutTestController.h"
 #include "PixelDumpSupport.h"
-#include "PlainTextController.h"
 #include "SelfScrollingWebKitWebView.h"
 #include "TextInputController.h"
 #include "WebCoreSupport/DumpRenderTreeSupportGtk.h"
@@ -54,6 +52,7 @@
 #include <gtk/gtk.h>
 #include <webkit/webkit.h>
 #include <wtf/Assertions.h>
+#include <wtf/gobject/GOwnPtr.h>
 #include <wtf/gobject/GlibUtilities.h>
 
 #if PLATFORM(X11)
@@ -518,6 +517,10 @@ void dump()
 {
     invalidateAnyPreviousWaitToDumpWatchdog();
 
+    // Grab widget focus before dumping the contents of a widget, in
+    // case it was lost in the course of the test.
+    gtk_widget_grab_focus(GTK_WIDGET(webView));
+
     if (dumpTree) {
         char* result = 0;
         gchar* responseMimeType = webkit_web_frame_get_response_mime_type(mainFrame);
@@ -831,7 +834,6 @@ static void webViewWindowObjectCleared(WebKitWebView* view, WebKitWebFrame* fram
     ASSERT(!exception);
 
     addControllerToWindow(context, windowObject, "eventSender", makeEventSender(context, !webkit_web_frame_get_parent(frame)));
-    addControllerToWindow(context, windowObject, "plainText", makePlainTextController(context));
     addControllerToWindow(context, windowObject, "textInputController", makeTextInputController(context));
     WebCoreTestSupport::injectInternalsObject(context);
 }
@@ -957,15 +959,6 @@ static gboolean webViewClose(WebKitWebView* view)
     return TRUE;
 }
 
-static gboolean webViewRunModalDialog(WebKitWebView* view)
-{
-    GtkWindow* viewTopLevel = GTK_WINDOW(gtk_widget_get_toplevel(GTK_WIDGET(view)));
-    gtk_window_set_transient_for(GTK_WINDOW(viewTopLevel), GTK_WINDOW(window));
-    gtk_window_set_modal(GTK_WINDOW(viewTopLevel), TRUE);
-
-    return TRUE;
-}
-
 static void databaseQuotaExceeded(WebKitWebView* view, WebKitWebFrame* frame, WebKitWebDatabase *database)
 {
     ASSERT(view);
@@ -1078,7 +1071,7 @@ static CString pathFromSoupURI(SoupURI* uri)
     if (!uri)
         return CString();
 
-    if (g_str_equal(uri->scheme, "http")) {
+    if (g_str_equal(uri->scheme, "http") || g_str_equal(uri->scheme, "ftp")) {
         GOwnPtr<char> uriString(soup_uri_to_string(uri, FALSE));
         return CString(uriString.get());
     }
@@ -1152,8 +1145,11 @@ static CString descriptionSuitableForTestResult(GError* error, WebKitWebResource
     const gchar* errorDomain = g_quark_to_string(error->domain);
     CString resourceURIString(urlSuitableForTestResult(webkit_web_resource_get_uri(webResource)));
 
-    if (g_str_equal(errorDomain, "webkit-network-error-quark"))
+    if (g_str_equal(errorDomain, "webkit-network-error-quark") || g_str_equal(errorDomain, "soup_http_error_quark"))
         errorDomain = "NSURLErrorDomain";
+
+    if (g_str_equal(errorDomain, "WebKitPolicyError"))
+        errorDomain = "WebKitErrorDomain";
 
     // TODO: the other ports get the failingURL from the ResourceError
     GOwnPtr<char> errorString(g_strdup_printf("<NSError domain %s, code %d, failing URL \"%s\">",
@@ -1165,10 +1161,8 @@ static CString descriptionSuitableForTestResult(WebKitNetworkRequest* request)
 {
     SoupMessage* soupMessage = webkit_network_request_get_message(request);
 
-    if (!soupMessage) {
-        g_printerr("GRR\n");
+    if (!soupMessage)
         return CString("");
-    }
 
     SoupURI* requestURI = soup_message_get_uri(soupMessage);
     SoupURI* mainDocumentURI = soup_message_get_first_party(soupMessage);
@@ -1291,7 +1285,6 @@ static WebKitWebView* createWebView()
                      "signal::status-bar-text-changed", webViewStatusBarTextChanged, 0,
                      "signal::create-web-view", webViewCreate, 0,
                      "signal::close-web-view", webViewClose, 0,
-                     "signal::run-modal-dialog", webViewRunModalDialog, 0,
                      "signal::database-quota-exceeded", databaseQuotaExceeded, 0,
                      "signal::document-load-finished", webViewDocumentLoadFinished, 0,
                      "signal::geolocation-policy-decision-requested", geolocationPolicyDecisionRequested, 0,

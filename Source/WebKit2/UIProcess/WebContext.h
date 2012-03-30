@@ -174,14 +174,6 @@ public:
     String iconDatabasePath() const;
     void setLocalStorageDirectory(const String& dir) { m_overrideLocalStorageDirectory = dir; }
 
-    String overrideWebInspectorBaseDirectory() const { return m_overrideWebInspectorBaseDirectory; }
-    void setOverrideWebInspectorBaseDirectory(const String& path) { m_overrideWebInspectorBaseDirectory = path; }
-
-    String overrideWebInspectorPagePath() const { return m_overrideWebInspectorPagePath; }
-    void setOverrideWebInspectorPagePath(const String& path) { m_overrideWebInspectorPagePath = path; }
-
-    void setOverrideWebInspectorLocalizedStringsPath(const String& path) { m_overrideWebInspectorLocalizedStringsPath = path; }
-
     void ensureWebProcess();
     void warmInitialProcess();
 
@@ -224,7 +216,24 @@ private:
     void didGetSitesWithPluginData(const Vector<String>& sites, uint64_t callbackID);
     void didClearPluginSiteData(uint64_t callbackID);
 #endif
-    
+
+#if PLATFORM(MAC)
+    void getPasteboardTypes(const String& pasteboardName, Vector<String>& pasteboardTypes);
+    void getPasteboardPathnamesForType(const String& pasteboardName, const String& pasteboardType, Vector<String>& pathnames);
+    void getPasteboardStringForType(const String& pasteboardName, const String& pasteboardType, String&);
+    void getPasteboardBufferForType(const String& pasteboardName, const String& pasteboardType, SharedMemory::Handle&, uint64_t& size);
+    void pasteboardCopy(const String& fromPasteboard, const String& toPasteboard);
+    void getPasteboardChangeCount(const String& pasteboardName, uint64_t& changeCount);
+    void getPasteboardUniqueName(String& pasteboardName);
+    void getPasteboardColor(const String& pasteboardName, WebCore::Color&);
+    void getPasteboardURL(const String& pasteboardName, WTF::String&);
+    void addPasteboardTypes(const String& pasteboardName, const Vector<String>& pasteboardTypes);
+    void setPasteboardTypes(const String& pasteboardName, const Vector<String>& pasteboardTypes);
+    void setPasteboardPathnamesForType(const String& pasteboardName, const String& pasteboardType, const Vector<String>& pathnames);
+    void setPasteboardStringForType(const String& pasteboardName, const String& pasteboardType, const String&);
+    void setPasteboardBufferForType(const String& pasteboardName, const String& pasteboardType, const SharedMemory::Handle&, uint64_t size);
+#endif
+
     void didGetWebCoreStatistics(const StatisticsData&, uint64_t callbackID);
         
     // Implemented in generated WebContextMessageReceiver.cpp
@@ -300,9 +309,6 @@ private:
     String m_overrideDatabaseDirectory;
     String m_overrideIconDatabasePath;
     String m_overrideLocalStorageDirectory;
-    String m_overrideWebInspectorBaseDirectory;
-    String m_overrideWebInspectorPagePath;
-    String m_overrideWebInspectorLocalizedStringsPath;
 
     bool m_processTerminationEnabled;
     

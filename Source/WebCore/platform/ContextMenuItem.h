@@ -39,8 +39,6 @@ typedef struct tagMENUITEMINFOW MENUITEMINFO;
 #elif PLATFORM(GTK)
 typedef struct _GtkMenuItem GtkMenuItem;
 typedef struct _GtkAction GtkAction;
-#elif PLATFORM(QT)
-#include <QAction>
 #elif PLATFORM(WX)
 class wxMenuItem;
 #endif
@@ -79,6 +77,16 @@ namespace WebCore {
 #if PLATFORM(GTK)
         ContextMenuItemTagInputMethods,
         ContextMenuItemTagUnicode,
+        ContextMenuItemTagUnicodeInsertLRMMark,
+        ContextMenuItemTagUnicodeInsertRLMMark,
+        ContextMenuItemTagUnicodeInsertLREMark,
+        ContextMenuItemTagUnicodeInsertRLEMark,
+        ContextMenuItemTagUnicodeInsertLROMark,
+        ContextMenuItemTagUnicodeInsertRLOMark,
+        ContextMenuItemTagUnicodeInsertPDFMark,
+        ContextMenuItemTagUnicodeInsertZWSMark,
+        ContextMenuItemTagUnicodeInsertZWJMark,
+        ContextMenuItemTagUnicodeInsertZWNJMark,
 #endif
         ContextMenuItemTagSpellingGuess,
         ContextMenuItemTagNoGuessesFound,

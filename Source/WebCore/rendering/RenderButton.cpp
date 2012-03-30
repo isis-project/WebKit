@@ -118,14 +118,6 @@ void RenderButton::updateFromElement()
     }
 }
 
-bool RenderButton::canHaveChildren() const
-{
-    // Input elements can't have children, but button elements can.  We'll
-    // write the code assuming any other button types that might emerge in the future
-    // can also have children.
-    return !node()->hasTagName(inputTag);
-}
-
 void RenderButton::setText(const String& str)
 {
     if (str.isEmpty()) {
@@ -147,6 +139,14 @@ void RenderButton::setText(const String& str)
 String RenderButton::text() const
 {
     return m_buttonText ? m_buttonText->text() : 0;
+}
+
+bool RenderButton::canHaveGeneratedChildren() const
+{
+    // Input elements can't have generated children, but button elements can. We'll
+    // write the code assuming any other button types that might emerge in the future
+    // can also have children.
+    return !node()->hasTagName(inputTag);
 }
 
 void RenderButton::updateBeforeAfterContent(PseudoId type)

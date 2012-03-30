@@ -34,6 +34,7 @@ class SVGNumberList;
 class SVGPathByteStream;
 class SVGPointList;
 class SVGPreserveAspectRatio;
+class SVGTransformList;
 
 class SVGAnimatedType {
     WTF_MAKE_FAST_ALLOCATED;
@@ -54,6 +55,8 @@ public:
     static PassOwnPtr<SVGAnimatedType> createPreserveAspectRatio(SVGPreserveAspectRatio*);
     static PassOwnPtr<SVGAnimatedType> createRect(FloatRect*);
     static PassOwnPtr<SVGAnimatedType> createString(String*);
+    static PassOwnPtr<SVGAnimatedType> createTransformList(SVGTransformList*);
+    static bool supportsAnimVal(AnimatedPropertyType);
 
     AnimatedPropertyType type() const { return m_type; }
 
@@ -71,6 +74,7 @@ public:
     SVGPreserveAspectRatio& preserveAspectRatio();
     FloatRect& rect();
     String& string();
+    SVGTransformList& transformList();
 
     String valueAsString();
     bool setValueAsString(const QualifiedName&, const String&);
@@ -103,6 +107,7 @@ private:
         SVGPointList* pointList;
         FloatRect* rect;
         String* string;
+        SVGTransformList* transformList;
     } m_data;
 };
     

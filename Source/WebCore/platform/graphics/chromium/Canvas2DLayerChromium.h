@@ -47,17 +47,16 @@ class Region;
 // A layer containing an accelerated 2d canvas
 class Canvas2DLayerChromium : public CanvasLayerChromium {
 public:
-    static PassRefPtr<Canvas2DLayerChromium> create(GraphicsContext3D*, const IntSize&);
+    static PassRefPtr<Canvas2DLayerChromium> create(PassRefPtr<GraphicsContext3D>, const IntSize&);
     virtual ~Canvas2DLayerChromium();
 
     void setTextureId(unsigned);
 
-    virtual void contentChanged();
+    virtual void setNeedsDisplayRect(const FloatRect&);
 
     virtual bool drawsContent() const;
-    virtual void paintContentsIfDirty(const Region& occludedScreenSpace);
+    virtual void paintContentsIfDirty(const CCOcclusionTracker*);
 
-    virtual void setLayerTreeHost(CCLayerTreeHost*);
     virtual void updateCompositorResources(GraphicsContext3D*, CCTextureUpdater&);
     virtual void pushPropertiesTo(CCLayerImpl*);
     virtual void unreserveContentsTexture();
@@ -65,12 +64,12 @@ public:
     void setCanvas(SkCanvas*);
 
 private:
-    Canvas2DLayerChromium(GraphicsContext3D*, const IntSize&);
+    Canvas2DLayerChromium(PassRefPtr<GraphicsContext3D>, const IntSize&);
 
     friend class Canvas2DLayerChromiumTest;
-    void setTextureManager(TextureManager*);
 
-    GraphicsContext3D* m_context;
+    RefPtr<GraphicsContext3D> m_context;
+    bool m_contextLost;
     IntSize m_size;
     unsigned m_backTextureId;
     Platform3DObject m_fbo;

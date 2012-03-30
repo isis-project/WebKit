@@ -121,6 +121,7 @@ enum AccessibilityRole {
     DocumentRegionRole,            
     DrawerRole,
     EditableTextRole,
+    FooterRole,
     FormRole,
     GridRole,
     GroupRole,
@@ -460,9 +461,9 @@ public:
     virtual void determineARIADropEffects(Vector<String>&) { }
     
     // Called on the root AX object to return the deepest available element.
-    virtual AccessibilityObject* accessibilityHitTest(const LayoutPoint&) const { return 0; }
+    virtual AccessibilityObject* accessibilityHitTest(const IntPoint&) const { return 0; }
     // Called on the AX object after the render tree determines which is the right AccessibilityRenderObject.
-    virtual AccessibilityObject* elementAccessibilityHitTest(const LayoutPoint&) const;
+    virtual AccessibilityObject* elementAccessibilityHitTest(const IntPoint&) const;
 
     virtual AccessibilityObject* focusedUIElement() const;
 
@@ -502,10 +503,11 @@ public:
     virtual Element* anchorElement() const { return 0; }
     virtual Element* actionElement() const { return 0; }
     virtual LayoutRect boundingBoxRect() const { return LayoutRect(); }
+    IntRect pixelSnappedBoundingBoxRect() const { return pixelSnappedIntRect(boundingBoxRect()); }
     virtual LayoutRect elementRect() const = 0;
     virtual LayoutSize size() const { return elementRect().size(); }
-    virtual LayoutPoint clickPoint();
-    static LayoutRect boundingBoxForQuads(RenderObject*, const Vector<FloatQuad>&);
+    virtual IntPoint clickPoint();
+    static IntRect boundingBoxForQuads(RenderObject*, const Vector<FloatQuad>&);
     
     virtual PlainTextRange selectedTextRange() const { return PlainTextRange(); }
     unsigned selectionStart() const { return selectedTextRange().start; }
@@ -557,7 +559,7 @@ public:
     virtual void updateChildrenIfNecessary();
     virtual void setNeedsToUpdateChildren() { }
     virtual void clearChildren();
-    virtual void detachFromParent() { }
+    virtual void detachFromParent();
 
     virtual void selectedChildren(AccessibilityChildrenVector&) { }
     virtual void visibleChildren(AccessibilityChildrenVector&) { }
@@ -667,7 +669,13 @@ public:
     }
 #endif
 #endif
-
+    
+#if PLATFORM(MAC)
+    void overrideAttachmentParent(AccessibilityObject* parent);
+#else
+    void overrideAttachmentParent(AccessibilityObject*) { }
+#endif
+    
 #if HAVE(ACCESSIBILITY)
     // a platform-specific method for determining if an attachment is ignored
     bool accessibilityIgnoreAttachment() const;

@@ -113,7 +113,7 @@ WebInspector.MetricsSidebarPane.prototype = {
 
     _highlightDOMNode: function(showHighlight, mode, event)
     {
-        event.stopPropagation();
+        event.consume();
         var nodeId = showHighlight && this.node ? this.node.id : 0;
         if (nodeId) {
             if (this._highlightMode === mode)
@@ -443,7 +443,7 @@ WebInspector.MetricsSidebarPane.prototype = {
                 continue;
 
             this.previousPropertyDataCandidate = property;
-            property.setValue(userInput, commitEditor, callback);
+            property.setValue(userInput, commitEditor, true, callback);
             return;
         }
 

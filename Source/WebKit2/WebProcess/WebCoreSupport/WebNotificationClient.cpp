@@ -26,7 +26,7 @@
 #include "config.h"
 #include "WebNotificationClient.h"
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
 
 #include "NotificationPermissionRequestManager.h"
 #include "WebNotificationManager.h"
@@ -82,13 +82,13 @@ void WebNotificationClient::cancelRequestsForPermission(ScriptExecutionContext* 
     m_page->notificationPermissionRequestManager()->cancelRequest(context->securityOrigin());
 }
 
-NotificationPresenter::Permission WebNotificationClient::checkPermission(ScriptExecutionContext* context)
+NotificationClient::Permission WebNotificationClient::checkPermission(ScriptExecutionContext* context)
 {
     if (!context || !context->isDocument())
-        return NotificationPresenter::PermissionDenied;
+        return NotificationClient::PermissionDenied;
     return m_page->notificationPermissionRequestManager()->permissionLevel(context->securityOrigin());
 }
 
 } // namespace WebKit
 
-#endif // ENABLE(NOTIFICATIONS)
+#endif // ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)

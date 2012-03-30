@@ -32,6 +32,7 @@
 #include "SVGPathParserFactory.h"
 #include "SVGPointList.h"
 #include "SVGPreserveAspectRatio.h"
+#include "SVGTransformList.h"
 
 using namespace std;
 
@@ -86,6 +87,9 @@ SVGAnimatedType::~SVGAnimatedType()
         break;
     case AnimatedString:
         delete m_data.string;
+        break;
+    case AnimatedTransformList:
+        delete m_data.transformList;
         break;
     default:
         ASSERT_NOT_REACHED();
@@ -205,6 +209,14 @@ PassOwnPtr<SVGAnimatedType> SVGAnimatedType::createString(String* string)
     return animatedType.release();
 }
 
+PassOwnPtr<SVGAnimatedType> SVGAnimatedType::createTransformList(SVGTransformList* transformList)
+{
+    ASSERT(transformList);
+    OwnPtr<SVGAnimatedType> animatedType = adoptPtr(new SVGAnimatedType(AnimatedTransformList));
+    animatedType->m_data.transformList = transformList;
+    return animatedType.release();
+}
+
 SVGAngle& SVGAnimatedType::angle()
 {
     ASSERT(m_type == AnimatedAngle);
@@ -289,6 +301,12 @@ String& SVGAnimatedType::string()
     return *m_data.string;
 }
 
+SVGTransformList& SVGAnimatedType::transformList()
+{
+    ASSERT(m_type == AnimatedTransformList);
+    return *m_data.transformList;
+}
+
 String SVGAnimatedType::valueAsString()
 {
     switch (m_type) {
@@ -338,6 +356,9 @@ String SVGAnimatedType::valueAsString()
     case AnimatedString:
         ASSERT(m_data.string);
         return *m_data.string;
+     case AnimatedTransformList:
+        ASSERT(m_data.transformList);
+        return m_data.transformList->valueAsString();
     default:
         break;
     }
@@ -414,6 +435,7 @@ bool SVGAnimatedType::setValueAsString(const QualifiedName& attrName, const Stri
         ASSERT(m_data.string);
         *m_data.string = value;
         break;
+    case AnimatedTransformList:
     default:
         ASSERT_NOT_REACHED();
         break;
@@ -427,7 +449,35 @@ void SVGAnimatedType::setPreserveAspectRatioBaseValue(const SVGPreserveAspectRat
     *m_data.preserveAspectRatio = preserveAspectRatio;
 }
 
-    
+bool SVGAnimatedType::supportsAnimVal(AnimatedPropertyType type)
+{
+    // FIXME: This lists the current state of our animVal support.
+    switch (type) {
+    case AnimatedLength:
+    case AnimatedLengthList:
+    case AnimatedNumber:
+    case AnimatedNumberList:
+    case AnimatedNumberOptionalNumber:
+    case AnimatedTransformList:
+        return true;
+    case AnimatedAngle:
+    case AnimatedBoolean:
+    case AnimatedColor:
+    case AnimatedEnumeration:
+    case AnimatedInteger:
+    case AnimatedPath:
+    case AnimatedPoints:
+    case AnimatedPreserveAspectRatio:
+    case AnimatedRect:
+    case AnimatedString:
+    case AnimatedUnknown:
+        return false;
+    }
+
+    ASSERT_NOT_REACHED();
+    return false;
+}
+
 } // namespace WebCore
 
 #endif // ENABLE(SVG)

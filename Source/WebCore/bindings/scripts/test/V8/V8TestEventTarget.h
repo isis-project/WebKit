@@ -47,20 +47,13 @@ public:
     static v8::Handle<v8::Value> namedPropertyGetter(v8::Local<v8::String>, const v8::AccessorInfo&);
     static const int eventListenerCacheIndex = v8DefaultWrapperInternalFieldCount + 0;
     static const int internalFieldCount = v8DefaultWrapperInternalFieldCount + 1;
-    static v8::Handle<v8::Object> existingWrapper(TestEventTarget*);
-
 private:
-    static v8::Handle<v8::Object> wrapSlow(TestEventTarget*);
+    static v8::Handle<v8::Object> wrapSlow(PassRefPtr<TestEventTarget>);
 };
-
-ALWAYS_INLINE v8::Handle<v8::Object> V8TestEventTarget::existingWrapper(TestEventTarget* impl)
-{
-    return getDOMObjectMap().get(impl);
-}
 
 v8::Handle<v8::Object> V8TestEventTarget::wrap(TestEventTarget* impl)
 {
-        v8::Handle<v8::Object> wrapper = existingWrapper(impl);
+        v8::Handle<v8::Object> wrapper = getDOMObjectMap().get(impl);
         if (!wrapper.IsEmpty())
             return wrapper;
     return V8TestEventTarget::wrapSlow(impl);

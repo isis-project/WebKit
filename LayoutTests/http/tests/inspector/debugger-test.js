@@ -153,14 +153,13 @@ InspectorTest._resumedScript = function()
     }
 };
 
-InspectorTest.showScriptSource = function(scriptName, callback)
+InspectorTest.showScriptSourceOnScriptsPanel = function(panel, scriptName, callback)
 {
-    var filesSelect = document.getElementById("scripts-files");
-    for (var i = 0; i < filesSelect.length; ++i) {
-        if (filesSelect[i]._uiSourceCode && filesSelect[i]._uiSourceCode.fileName === scriptName) {
-            filesSelect.selectedIndex = i;
-            WebInspector.panels.scripts._fileSelector._filesSelectChanged();
-            var sourceFrame = WebInspector.panels.scripts.visibleView;
+    var uiSourceCodes = panel._presentationModel.uiSourceCodes();
+    for (var i = 0; i < uiSourceCodes.length; ++i) {
+        if (uiSourceCodes[i].fileName === scriptName) {
+            panel.showUISourceCode(uiSourceCodes[i]);
+            var sourceFrame = panel.visibleView;
             if (sourceFrame.loaded)
                 callback(sourceFrame);
             else
@@ -168,7 +167,47 @@ InspectorTest.showScriptSource = function(scriptName, callback)
             return;
         }
     }
-    InspectorTest.addSniffer(WebInspector.panels.scripts._fileSelector, "_addOptionToFilesSelect", InspectorTest.showScriptSource.bind(InspectorTest, scriptName, callback));
+    InspectorTest.addSniffer(panel, "_addUISourceCode", InspectorTest.showScriptSource.bind(InspectorTest, scriptName, callback));
+};
+
+InspectorTest.showScriptSource = function(scriptName, callback)
+{
+    InspectorTest.showScriptSourceOnScriptsPanel(WebInspector.panels.scripts, scriptName, callback)
+};
+
+InspectorTest.dumpScriptsNavigator = function(navigator)
+{
+    InspectorTest.addResult("Dumping ScriptsNavigator 'Scripts' tab:");
+    dumpNavigatorTreeOutline(navigator._scriptsTree);
+    InspectorTest.addResult("Dumping ScriptsNavigator 'Content scripts' tab:");
+    dumpNavigatorTreeOutline(navigator._contentScriptsTree);
+
+    function dumpNavigatorTreeElement(prefix, treeElement)
+    {
+        InspectorTest.addResult(prefix + treeElement.titleText);
+        for (var i = 0; i < treeElement.children.length; ++i)
+            dumpNavigatorTreeElement(prefix + "  ", treeElement.children[i]);
+    }
+
+    function dumpNavigatorTreeOutline(treeOutline)
+    {
+        for (var i = 0; i < treeOutline.children.length; ++i)
+            dumpNavigatorTreeElement("  ", treeOutline.children[i]);
+    }
+};
+
+InspectorTest.dumpComboBoxFileSelector = function(comboBoxFileSelector)
+{
+    var rootURL = "http://localhost:8080/LayoutTests/inspector/debugger/";
+    InspectorTest.addResult("Dumping ComboBoxFileSelector:");
+    var select = comboBoxFileSelector._filesSelectElement;
+    for (var i = 0; i < select.length; ++i) {
+        var option = select[i];
+        var text = option.text.replace(/.*LayoutTests/, "LayoutTests");
+        text = text.replace(/\u00a0/g, " ").replace(/\u2026/g, "...");
+        var tooltip = option.title.replace(rootURL, "<root>/");
+        InspectorTest.addResult(text + (tooltip ? "(" + tooltip + ")" : ""));
+    }
 };
 
 InspectorTest.setBreakpoint = function(sourceFrame, lineNumber, condition, enabled)
@@ -230,6 +269,45 @@ InspectorTest._findChildPropertyTreeElement = function(parent, childName)
 InspectorTest.setQuiet = function(quiet)
 {
     InspectorTest._quiet = quiet;
+};
+
+InspectorTest.queryScripts = function(filter)
+{
+    var scripts = [];
+    for (var scriptId in WebInspector.debuggerModel._scripts) {
+        var script = WebInspector.debuggerModel._scripts[scriptId];
+        if (filter(script))
+            scripts.push(script);
+    }
+    return scripts;
+};
+
+InspectorTest.createScriptMock = function(url, startLine, startColumn, isContentScript, source)
+{
+    var scriptId = ++InspectorTest._lastScriptId;
+    var lineCount = source.lineEndings().length;
+    var endLine = startLine + lineCount - 1;
+    var endColumn = lineCount === 1 ? startColumn + source.length : source.length - source.lineEndings()[lineCount - 2];
+    var script = new WebInspector.Script(scriptId, url, startLine, startColumn, endLine, endColumn, isContentScript);
+    script.requestSource = function(callback) { callback(source); };
+    WebInspector.debuggerModel._scripts[scriptId] = script;
+    return script;
+}
+
+InspectorTest._lastScriptId = 0;
+
+InspectorTest.checkRawLocation = function(script, lineNumber, columnNumber, location)
+{
+    InspectorTest.assertEquals(script.scriptId, location.scriptId);
+    InspectorTest.assertEquals(lineNumber, location.lineNumber);
+    InspectorTest.assertEquals(columnNumber, location.columnNumber);
+};
+
+InspectorTest.checkUILocation = function(uiSourceCode, lineNumber, columnNumber, location)
+{
+    InspectorTest.assertEquals(uiSourceCode, location.uiSourceCode);
+    InspectorTest.assertEquals(lineNumber, location.lineNumber);
+    InspectorTest.assertEquals(columnNumber, location.columnNumber);
 };
 
 };

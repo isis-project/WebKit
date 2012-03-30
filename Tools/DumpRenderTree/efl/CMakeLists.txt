@@ -23,8 +23,8 @@ SET(ImageDiff_SOURCES
 )
 
 SET(DumpRenderTree_LIBRARIES
-    ${WTF_LIBRARY_NAME}
     ${JavaScriptCore_LIBRARY_NAME}
+    ${WebCoreTestSupport_LIBRARY_NAME}
     ${WebCore_LIBRARY_NAME}
     ${WebKit_LIBRARY_NAME}
     ${Cairo_LIBRARIES}
@@ -32,6 +32,7 @@ SET(DumpRenderTree_LIBRARIES
     ${EDJE_LIBRARIES}
     ${EFLDEPS_LIBRARIES}
     ${EVAS_LIBRARIES}
+    ${FONTCONFIG_LIBRARIES}
     ${LIBXML2_LIBRARIES}
     ${LIBXSLT_LIBRARIES}
     ${SQLITE_LIBRARIES}
@@ -70,26 +71,31 @@ SET(DumpRenderTree_INCLUDE_DIRECTORIES
     ${JAVASCRIPTCORE_DIR}
     ${JAVASCRIPTCORE_DIR}/API
     ${JAVASCRIPTCORE_DIR}/assembler
+    ${JAVASCRIPTCORE_DIR}/bytecode
     ${JAVASCRIPTCORE_DIR}/dfg
     ${JAVASCRIPTCORE_DIR}/heap
     ${JAVASCRIPTCORE_DIR}/interpreter
     ${JAVASCRIPTCORE_DIR}/jit
+    ${JAVASCRIPTCORE_DIR}/llint
     ${JAVASCRIPTCORE_DIR}/runtime
     ${JAVASCRIPTCORE_DIR}/ForwardingHeaders
-    ${JAVASCRIPTCORE_DIR}/wtf
-    ${JAVASCRIPTCORE_DIR}/wtf/gobject
-    ${JAVASCRIPTCORE_DIR}/wtf/efl
     ${TOOLS_DIR}/DumpRenderTree
     ${TOOLS_DIR}/DumpRenderTree/cairo
     ${TOOLS_DIR}/DumpRenderTree/efl
+    ${WTF_DIR}
+    ${WTF_DIR}/wtf
+    ${WTF_DIR}/wtf/efl
+    ${WTF_DIR}/wtf/gobject
     ${CMAKE_SOURCE_DIR}/Source
     ${CMAKE_BINARY_DIR}
     ${DERIVED_SOURCES_WEBCORE_DIR}
     ${WEBCORE_DIR}/bindings/js
+    ${WEBCORE_DIR}/testing/js
     ${Cairo_INCLUDE_DIRS}
     ${EDJE_INCLUDE_DIRS}
     ${EFLDEPS_INCLUDE_DIRS}
     ${EVAS_INCLUDE_DIRS}
+    ${FONTCONFIG_INCLUDE_DIR}
     ${Glib_INCLUDE_DIRS}
     ${LIBSOUP24_INCLUDE_DIRS}
 )
@@ -102,7 +108,10 @@ SET(DumpRenderTree_LINK_FLAGS
     ${LIBSOUP24_LDFLAGS}
 )
 
+# FIXME: DOWNLOADED_FONTS_DIR should not hardcode the directory
+# structure. See <https://bugs.webkit.org/show_bug.cgi?id=81475>.
 ADD_DEFINITIONS(-DFONTS_CONF_DIR="${TOOLS_DIR}/DumpRenderTree/gtk/fonts"
+                -DDOWNLOADED_FONTS_DIR="${CMAKE_SOURCE_DIR}/WebKitBuild/Dependencies/Source/webkitgtk-test-fonts-0.0.1"
                 -DDATA_DIR="${THEME_BINARY_DIR}")
 
 INCLUDE_DIRECTORIES(${DumpRenderTree_INCLUDE_DIRECTORIES})

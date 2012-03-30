@@ -26,10 +26,21 @@
 #include "config.h"
 #include "ElementAttributeData.h"
 
-#include "Attr.h"
 #include "StyledElement.h"
 
 namespace WebCore {
+
+void AttributeVector::removeAttribute(const QualifiedName& name)
+{
+    size_t index = getAttributeItemIndex(name);
+    if (index == notFound)
+        return;
+
+    RefPtr<Attribute> attribute = at(index);
+    if (Attr* attr = attribute->attr())
+        attr->m_element = 0;
+    remove(index);
+}
 
 ElementAttributeData::~ElementAttributeData()
 {
@@ -40,55 +51,107 @@ void ElementAttributeData::setClass(const String& className, bool shouldFoldCase
 {
     m_classNames.set(className, shouldFoldCase);
 }
-
-StylePropertySet* ElementAttributeData::ensureInlineStyleDecl(StyledElement* element)
+    
+StylePropertySet* ElementAttributeData::ensureInlineStyle(StyledElement* element)
 {
     if (!m_inlineStyleDecl) {
         ASSERT(element->isStyledElement());
-        m_inlineStyleDecl = StylePropertySet::createInline(static_cast<StyledElement*>(element));
+        m_inlineStyleDecl = StylePropertySet::create();
         m_inlineStyleDecl->setStrictParsing(element->isHTMLElement() && !element->document()->inQuirksMode());
     }
     return m_inlineStyleDecl.get();
 }
 
-void ElementAttributeData::destroyInlineStyleDecl()
+StylePropertySet* ElementAttributeData::ensureMutableInlineStyle(StyledElement* element)
+{
+    if (m_inlineStyleDecl && !m_inlineStyleDecl->hasCSSOMWrapper()) {
+        m_inlineStyleDecl = m_inlineStyleDecl->copy();
+        m_inlineStyleDecl->setStrictParsing(element->isHTMLElement() && !element->document()->inQuirksMode());
+        return m_inlineStyleDecl.get();
+    }
+    return ensureInlineStyle(element);
+}
+    
+void ElementAttributeData::updateInlineStyleAvoidingMutation(StyledElement* element, const String& text)
+{
+    // We reconstruct the property set instead of mutating if there is no CSSOM wrapper.
+    // This makes wrapperless property sets immutable and so cacheable.
+    if (m_inlineStyleDecl && !m_inlineStyleDecl->hasCSSOMWrapper())
+        m_inlineStyleDecl.clear();
+    if (!m_inlineStyleDecl) {
+        m_inlineStyleDecl = StylePropertySet::create();
+        m_inlineStyleDecl->setStrictParsing(element->isHTMLElement() && !element->document()->inQuirksMode());
+    }
+    m_inlineStyleDecl->parseDeclaration(text, element->document()->elementSheet());
+}
+
+void ElementAttributeData::destroyInlineStyle(StyledElement* element)
 {
     if (!m_inlineStyleDecl)
         return;
-    m_inlineStyleDecl->clearParentElement();
+    m_inlineStyleDecl->clearParentElement(element);
     m_inlineStyleDecl = 0;
 }
 
-void ElementAttributeData::addAttribute(PassRefPtr<Attribute> prpAttribute, Element* element)
+void ElementAttributeData::addAttribute(PassRefPtr<Attribute> prpAttribute, Element* element, EInUpdateStyleAttribute inUpdateStyleAttribute)
 {
     RefPtr<Attribute> attribute = prpAttribute;
 
-    if (element)
+    if (element && inUpdateStyleAttribute == NotInUpdateStyleAttribute)
         element->willModifyAttribute(attribute->name(), nullAtom, attribute->value());
 
     m_attributes.append(attribute);
     if (Attr* attr = attribute->attr())
         attr->m_element = element;
 
-    if (element)
-        element->didModifyAttribute(attribute.get());
+    if (element && inUpdateStyleAttribute == NotInUpdateStyleAttribute)
+        element->didAddAttribute(attribute.get());
 }
 
-void ElementAttributeData::removeAttribute(size_t index, Element* element)
+void ElementAttributeData::removeAttribute(size_t index, Element* element, EInUpdateStyleAttribute inUpdateStyleAttribute)
 {
     ASSERT(index < length());
 
     RefPtr<Attribute> attribute = m_attributes[index];
 
-    if (element)
+    if (element && inUpdateStyleAttribute == NotInUpdateStyleAttribute)
         element->willRemoveAttribute(attribute->name(), attribute->value());
 
     if (Attr* attr = attribute->attr())
         attr->m_element = 0;
     m_attributes.remove(index);
 
-    if (element)
+    if (element && inUpdateStyleAttribute == NotInUpdateStyleAttribute)
         element->didRemoveAttribute(attribute.get());
+}
+
+PassRefPtr<Attr> ElementAttributeData::takeAttribute(size_t index, Element* element)
+{
+    ASSERT(index < length());
+    ASSERT(element);
+
+    RefPtr<Attr> attr = m_attributes[index]->createAttrIfNeeded(element);
+    removeAttribute(index, element);
+    return attr.release();
+}
+
+bool ElementAttributeData::isEquivalent(const ElementAttributeData* other) const
+{
+    if (!other)
+        return isEmpty();
+
+    unsigned len = length();
+    if (len != other->length())
+        return false;
+
+    for (unsigned i = 0; i < len; i++) {
+        Attribute* attr = attributeItem(i);
+        Attribute* otherAttr = other->getAttributeItem(attr->name());
+        if (!otherAttr || attr->value() != otherAttr->value())
+            return false;
+    }
+
+    return true;
 }
 
 void ElementAttributeData::detachAttributesFromElement()

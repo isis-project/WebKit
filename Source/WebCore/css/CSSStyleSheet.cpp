@@ -27,16 +27,35 @@
 #include "CSSParser.h"
 #include "CSSRuleList.h"
 #include "CSSStyleRule.h"
+#include "CachedCSSStyleSheet.h"
 #include "Document.h"
 #include "ExceptionCode.h"
 #include "HTMLNames.h"
+#include "MediaList.h"
 #include "Node.h"
 #include "SVGNames.h"
 #include "SecurityOrigin.h"
+#include "StyleRule.h"
 #include "TextEncoding.h"
 #include <wtf/Deque.h>
 
 namespace WebCore {
+
+class StyleSheetCSSRuleList : public CSSRuleList {
+public:
+    StyleSheetCSSRuleList(CSSStyleSheet* sheet) : m_styleSheet(sheet) { }
+    
+private:
+    virtual void ref() { m_styleSheet->ref(); }
+    virtual void deref() { m_styleSheet->deref(); }
+    
+    virtual unsigned length() const { return m_styleSheet->length(); }
+    virtual CSSRule* item(unsigned index) const { return m_styleSheet->item(index); }
+    
+    virtual CSSStyleSheet* styleSheet() const { return m_styleSheet; }
+    
+    CSSStyleSheet* m_styleSheet;
+};
 
 #if !ASSERT_DISABLED
 static bool isAcceptableCSSStyleSheetParent(Node* parentNode)
@@ -60,6 +79,7 @@ CSSStyleSheet::CSSStyleSheet(Node* parentNode, const String& href, const KURL& b
     , m_strictParsing(false)
     , m_isUserStyleSheet(false)
     , m_hasSyntacticallyValidCSSHeader(true)
+    , m_didLoadErrorOccur(false)
 {
     ASSERT(isAcceptableCSSStyleSheetParent(parentNode));
 }
@@ -70,6 +90,7 @@ CSSStyleSheet::CSSStyleSheet(CSSImportRule* ownerRule, const String& href, const
     , m_loadCompleted(false)
     , m_strictParsing(!ownerRule || ownerRule->useStrictParsing())
     , m_hasSyntacticallyValidCSSHeader(true)
+    , m_didLoadErrorOccur(false)
 {
     CSSStyleSheet* parentSheet = ownerRule ? ownerRule->parentStyleSheet() : 0;
     m_isUserStyleSheet = parentSheet ? parentSheet->isUserStyleSheet() : false;
@@ -97,6 +118,22 @@ void CSSStyleSheet::append(PassRefPtr<CSSRule> child)
 void CSSStyleSheet::remove(unsigned index)
 {
     m_children.remove(index);
+}
+    
+PassRefPtr<CSSRuleList> CSSStyleSheet::rules()
+{
+    KURL url = finalURL();
+    Document* document = findDocument();
+    if (!url.isEmpty() && document && !document->securityOrigin()->canRequest(url))
+        return 0;
+    // IE behavior.
+    RefPtr<StaticCSSRuleList> nonCharsetRules = StaticCSSRuleList::create();
+    for (unsigned i = 0; i < m_children.size(); ++i) {
+        if (m_children[i]->isCharsetRule())
+            continue;
+        nonCharsetRules->rules().append(m_children[i]);
+    }
+    return nonCharsetRules.release();
 }
 
 unsigned CSSStyleSheet::insertRule(const String& rule, unsigned index, ExceptionCode& ec)
@@ -155,13 +192,15 @@ int CSSStyleSheet::addRule(const String& selector, const String& style, Exceptio
     return addRule(selector, style, m_children.size(), ec);
 }
 
-PassRefPtr<CSSRuleList> CSSStyleSheet::cssRules(bool omitCharsetRules)
+PassRefPtr<CSSRuleList> CSSStyleSheet::cssRules()
 {
     KURL url = finalURL();
     Document* document = findDocument();
     if (!url.isEmpty() && document && !document->securityOrigin()->canRequest(url))
         return 0;
-    return CSSRuleList::create(this, omitCharsetRules);
+    if (!m_ruleListCSSOMWrapper)
+        m_ruleListCSSOMWrapper = adoptPtr(new StyleSheetCSSRuleList(this));
+    return m_ruleListCSSOMWrapper.get();
 }
 
 void CSSStyleSheet::deleteRule(unsigned index, ExceptionCode& ec)
@@ -237,7 +276,21 @@ void CSSStyleSheet::checkLoaded()
     RefPtr<CSSStyleSheet> protector(this);
     if (CSSStyleSheet* styleSheet = parentStyleSheet())
         styleSheet->checkLoaded();
-    m_loadCompleted = ownerNode() ? ownerNode()->sheetLoaded() : true;
+
+    RefPtr<Node> owner = ownerNode();
+    if (!owner)
+        m_loadCompleted = true;
+    else {
+        m_loadCompleted = owner->sheetLoaded();
+        if (m_loadCompleted)
+            owner->notifyLoadedSheetAndAllCriticalSubresources(m_didLoadErrorOccur);
+    }
+}
+
+void CSSStyleSheet::notifyLoadedSheet(const CachedCSSStyleSheet* sheet)
+{
+    ASSERT(sheet);
+    m_didLoadErrorOccur |= sheet->errorOccurred();
 }
 
 void CSSStyleSheet::startLoadingDynamicSheet()
@@ -260,6 +313,18 @@ Document* CSSStyleSheet::findDocument()
     Node* ownerNode = findStyleSheetOwnerNode();
 
     return ownerNode ? ownerNode->document() : 0;
+}
+    
+MediaList* CSSStyleSheet::media() const 
+{ 
+    if (!m_mediaQueries)
+        return 0;
+    return m_mediaQueries->ensureMediaList(const_cast<CSSStyleSheet*>(this));
+}
+
+void CSSStyleSheet::setMediaQueries(PassRefPtr<MediaQuerySet> mediaQueries)
+{
+    m_mediaQueries = mediaQueries;
 }
 
 void CSSStyleSheet::styleSheetChanged()
@@ -306,7 +371,7 @@ void CSSStyleSheet::addSubresourceStyleURLs(ListHashSet<KURL>& urls)
             } else if (rule->isFontFaceRule())
                 static_cast<CSSFontFaceRule*>(rule)->addSubresourceStyleURLs(urls);
             else if (rule->isStyleRule() || rule->isPageRule())
-                static_cast<CSSStyleRule*>(rule)->addSubresourceStyleURLs(urls);
+                static_cast<CSSStyleRule*>(rule)->styleRule()->addSubresourceStyleURLs(urls, this);
         }
     }
 }

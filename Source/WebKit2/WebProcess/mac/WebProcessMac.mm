@@ -179,6 +179,18 @@ static void initializeSandbox(const WebProcessCreationParameters& parameters)
         return;
     }
 
+#if !defined(BUILDING_ON_LION)
+    // Use private temporary and cache directories.
+    String systemDirectorySuffix = "com.apple.WebProcess+" + parameters.uiProcessBundleIdentifier;
+    setenv("DIRHELPER_USER_DIR_SUFFIX", fileSystemRepresentation(systemDirectorySuffix).data(), 0);
+    char temporaryDirectory[PATH_MAX];
+    if (!confstr(_CS_DARWIN_USER_TEMP_DIR, temporaryDirectory, sizeof(temporaryDirectory))) {
+        fprintf(stderr, "WebProcess: couldn't retrieve private temporary directory path: %d\n", errno);
+        exit(EX_NOPERM);
+    }
+    setenv("TMPDIR", temporaryDirectory, 1);
+#endif
+
     Vector<const char*> sandboxParameters;
 
     // These are read-only.
@@ -249,11 +261,9 @@ void WebProcess::platformInitializeWebProcess(const WebProcessCreationParameters
         [NSURLCache setSharedURLCache:parentProcessURLCache.get()];
     }
 
-    WebInspector::setLocalizedStringsPath(parameters.webInspectorLocalizedStringsPath);
-
     m_compositingRenderServerPort = parameters.acceleratedCompositingPort.port();
-    
-#if ENABLE(NOTIFICATIONS)
+
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     m_notificationManager.initialize(parameters.notificationPermissions);
 #endif
 

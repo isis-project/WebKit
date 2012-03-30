@@ -135,8 +135,6 @@ Programs_DumpRenderTree_SOURCES = \
 	Tools/DumpRenderTree/gtk/GCControllerGtk.cpp \
 	Tools/DumpRenderTree/gtk/LayoutTestControllerGtk.cpp \
 	Tools/DumpRenderTree/gtk/PixelDumpSupportGtk.cpp \
-	Tools/DumpRenderTree/gtk/PlainTextController.cpp \
-	Tools/DumpRenderTree/gtk/PlainTextController.h \
 	Tools/DumpRenderTree/gtk/SelfScrollingWebKitWebView.cpp \
 	Tools/DumpRenderTree/gtk/SelfScrollingWebKitWebView.h \
 	Tools/DumpRenderTree/gtk/TextInputController.h \
@@ -159,6 +157,7 @@ Programs_DumpRenderTree_CFLAGS = \
 Programs_DumpRenderTree_LDADD = \
 	libjavascriptcoregtk-@WEBKITGTK_API_MAJOR_VERSION@.@WEBKITGTK_API_MINOR_VERSION@.la \
 	libwebkitgtk-@WEBKITGTK_API_MAJOR_VERSION@.@WEBKITGTK_API_MINOR_VERSION@.la \
+	libWebCoreModules.la \
 	libWebCoreInternals.la \
 	$(GLOBALDEPS_LIBS) \
 	$(CAIRO_LIBS) \
@@ -188,11 +187,11 @@ noinst_LTLIBRARIES += \
 
 TestNetscapePlugin_libtestnetscapeplugin_la_CPPFLAGS = \
 	-I$(srcdir)/Tools/DumpRenderTree \
-	-I$(srcdir)/Tools/DumpRenderTree/unix/TestNetscapePlugin/ForwardingHeaders \
 	-I$(srcdir)/Source/WebCore \
 	-I$(srcdir)/Source/WebCore/bridge \
 	-I$(srcdir)/Source/WebCore/plugins \
 	-I$(srcdir)/Tools/DumpRenderTree/TestNetscapePlugIn \
+	-I$(srcdir)/Tools/DumpRenderTree/TestNetscapePlugIn/unix/ForwardingHeaders \
 	$(global_cppflags) \
 	$(javascriptcore_cppflags)
 
@@ -202,9 +201,6 @@ TestNetscapePlugin_libtestnetscapeplugin_la_CPPFLAGS += -DXP_UNIX
 endif
 
 TestNetscapePlugin_libtestnetscapeplugin_la_SOURCES = \
-	Tools/DumpRenderTree/unix/TestNetscapePlugin/ForwardingHeaders/WebKit/npapi.h \
-	Tools/DumpRenderTree/unix/TestNetscapePlugin/ForwardingHeaders/WebKit/npfunctions.h \
-	Tools/DumpRenderTree/unix/TestNetscapePlugin/ForwardingHeaders/WebKit/npruntime.h \
 	Tools/DumpRenderTree/TestNetscapePlugIn/Tests/DocumentOpenInDestroyStream.cpp \
 	Tools/DumpRenderTree/TestNetscapePlugIn/Tests/EvaluateJSAfterRemovingPluginElement.cpp \
 	Tools/DumpRenderTree/TestNetscapePlugIn/Tests/FormValue.cpp \
@@ -227,7 +223,10 @@ TestNetscapePlugin_libtestnetscapeplugin_la_SOURCES = \
 	Tools/DumpRenderTree/TestNetscapePlugIn/PluginObject.h \
 	Tools/DumpRenderTree/TestNetscapePlugIn/TestObject.cpp \
 	Tools/DumpRenderTree/TestNetscapePlugIn/TestObject.h \
-	Tools/DumpRenderTree/TestNetscapePlugIn/main.cpp
+	Tools/DumpRenderTree/TestNetscapePlugIn/main.cpp \
+	Tools/DumpRenderTree/TestNetscapePlugIn/unix/ForwardingHeaders/WebKit/npapi.h \
+	Tools/DumpRenderTree/TestNetscapePlugIn/unix/ForwardingHeaders/WebKit/npfunctions.h \
+	Tools/DumpRenderTree/TestNetscapePlugIn/unix/ForwardingHeaders/WebKit/npruntime.h
 
 TestNetscapePlugin_libtestnetscapeplugin_la_LDFLAGS = \
 	-rpath ${shell pwd}/$(top_builddir)/../unix/TestNetscapePlugin/.libs \
@@ -238,11 +237,15 @@ TestNetscapePlugin_libtestnetscapeplugin_la_LDFLAGS = \
 CLEANFILES += TestNetscapePlugin/libtestnetscapeplugin.la
 endif
 
+check-local:
+	$(top_srcdir)/Tools/Scripts/run-gtk-tests
+
 EXTRA_DIST += \
 	Tools/gtk/common.py \
 	Tools/gtk/generate-gtkdoc \
 	Tools/gtk/gtkdoc.py \
 	Tools/Scripts/VCSUtils.pm \
+	Tools/Scripts/run-gtk-tests \
 	Tools/Scripts/webkit-build-directory \
 	Tools/Scripts/webkitdirs.pm
 
@@ -326,7 +329,7 @@ if ENABLE_WEBKIT2
 	  fi; \
 	fi
 endif
-	$(srcdir)/Tools/gtk/generate-gtkdoc --rebase --virtual-root=$${DESTDIR}
+	@$(AM_V_GEN)$(PYTHON) $(srcdir)/Tools/gtk/generate-gtkdoc --rebase --virtual-root=$${DESTDIR}
 
 uninstall-local:
 	@DOC_MODULE_VERSION=`cat ./Documentation/webkitgtk/version.xml`; \

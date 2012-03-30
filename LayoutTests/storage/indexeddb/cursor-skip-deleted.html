@@ -4,13 +4,9 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's cursor skips deleted entries.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 var names = ['Alpha', 'Bravo', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf',
              'Hotel', 'India', 'Juliet', 'Kilo', 'Lima', 'Mike', 'November',
@@ -21,7 +17,8 @@ test();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('cursor-skip-deleted')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('cursor-skip-deleted')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -38,7 +35,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = basicCursorTest;
@@ -144,7 +141,7 @@ function basicCursorTest()
 {
     debug("basicCursorTest()");
 
-    evalAndLog("trans = db.transaction(['store'], webkitIDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['store'], IDBTransaction.READ_WRITE)");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = transactionComplete;
 
@@ -157,7 +154,7 @@ function basicCursorTest()
                    {id: 20, targets: [17,18]}
                    ];
 
-    testCursor(deletes, "trans.objectStore('store').openCursor(webkitIDBKeyRange.lowerBound(0))", function() { resetObjectStore(reverseCursorTest); });
+    testCursor(deletes, "trans.objectStore('store').openCursor(IDBKeyRange.lowerBound(0))", function() { resetObjectStore(reverseCursorTest); });
 }
 
 function reverseCursorTest()
@@ -174,7 +171,7 @@ function reverseCursorTest()
                    ];
 
 
-    testCursor(deletes, "trans.objectStore('store').openCursor(webkitIDBKeyRange.lowerBound(0), webkitIDBCursor.PREV)", function() { resetObjectStore(indexCursorTest); });
+    testCursor(deletes, "trans.objectStore('store').openCursor(IDBKeyRange.lowerBound(0), IDBCursor.PREV)", function() { resetObjectStore(indexCursorTest); });
 }
 
 function indexCursorTest()
@@ -190,16 +187,17 @@ function indexCursorTest()
                    {id: 20, targets: [17,18]}
                    ];
 
-    testCursor(deletes, "trans.objectStore('store').index('nameIndex').openCursor(webkitIDBKeyRange.lowerBound('Alpha'))", function() { });
+    testCursor(deletes, "trans.objectStore('store').index('nameIndex').openCursor(IDBKeyRange.lowerBound('Alpha'))", function() { });
 }
 
 function transactionComplete()
 {
     debug("transactionComplete():");
-    done();
+    finishJSTest();
 }
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

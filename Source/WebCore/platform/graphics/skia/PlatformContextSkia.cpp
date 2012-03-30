@@ -52,6 +52,10 @@
 #include <wtf/MathExtras.h>
 #include <wtf/Vector.h>
 
+#if PLATFORM(CHROMIUM)
+#include "TraceEvent.h"
+#endif
+
 namespace WebCore {
 
 // State -----------------------------------------------------------------------
@@ -177,9 +181,9 @@ PlatformContextSkia::PlatformContextSkia(SkCanvas* canvas)
     : m_canvas(canvas)
     , m_trackOpaqueRegion(false)
     , m_printing(false)
+    , m_accelerated(false)
     , m_deferred(false)
     , m_drawingToImageBuffer(false)
-    , m_gpuContext(0)
 {
     m_stateStack.append(State());
     m_state = &m_stateStack.last();
@@ -237,7 +241,7 @@ void PlatformContextSkia::beginLayerClippedToImage(const FloatRect& rect,
 
     canvas()->clipRect(bounds);
 
-    if (imageBuffer->size().isEmpty())
+    if (imageBuffer->internalSize().isEmpty())
         return;
 
     canvas()->saveLayerAlpha(&bounds, 255,
@@ -261,11 +265,6 @@ void PlatformContextSkia::beginLayerClippedToImage(const FloatRect& rect,
 void PlatformContextSkia::clipPathAntiAliased(const SkPath& clipPath)
 {
     canvas()->clipPath(clipPath, SkRegion::kIntersect_Op, true);
-}
-
-const SkBitmap& PlatformContextSkia::clippedToImage() const
-{
-    return m_state->m_imageBufferClip;
 }
 
 void PlatformContextSkia::restore()
@@ -551,6 +550,9 @@ void PlatformContextSkia::paintSkPaint(const SkRect& rect,
 
 const SkBitmap* PlatformContextSkia::bitmap() const
 {
+#if PLATFORM(CHROMIUM)
+    TRACE_EVENT("PlatformContextSkia::bitmap", this, 0);
+#endif
     return &m_canvas->getDevice()->accessBitmap(false);
 }
 
@@ -598,11 +600,6 @@ void PlatformContextSkia::applyClipFromImage(const SkRect& rect, const SkBitmap&
     m_canvas->resetMatrix();
     m_canvas->drawBitmapRect(imageBuffer, 0, rect, &paint);
     m_canvas->restore();
-}
-
-void PlatformContextSkia::setGraphicsContext3D(GraphicsContext3D* context)
-{
-    m_gpuContext = context;
 }
 
 void PlatformContextSkia::didDrawRect(const SkRect& rect, const SkPaint& paint, const SkBitmap* bitmap)

@@ -74,7 +74,7 @@ class QtPort(WebKitPort):
         configurations = []
         for version in self.ALL_VERSIONS:
             for build_type in self.ALL_BUILD_TYPES:
-                configurations.append(TestConfiguration(version=version, architecture='x86', build_type=build_type, graphics_type='cpu'))
+                configurations.append(TestConfiguration(version=version, architecture='x86', build_type=build_type))
         return configurations
 
     def _build_driver(self):
@@ -131,9 +131,6 @@ class QtPort(WebKitPort):
             else:
                 search_paths.add('qt-5.0-wk1')
         return search_paths
-
-    def _runtime_feature_list(self):
-        return None
 
     def setup_environ_for_server(self, server_name=None):
         clean_env = WebKitPort.setup_environ_for_server(self, server_name)

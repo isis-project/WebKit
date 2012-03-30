@@ -37,15 +37,10 @@
 #include "ContentLayerChromium.h"
 #include "PlatformImage.h"
 
-#if USE(CG)
-#include <wtf/RetainPtr.h>
-#endif
-
 namespace WebCore {
 
 class Image;
 class ImageLayerTextureUpdater;
-class Region;
 
 // A Layer that contains only an Image element.
 class ImageLayerChromium : public TiledLayerChromium {
@@ -54,7 +49,7 @@ public:
     virtual ~ImageLayerChromium();
 
     virtual bool drawsContent() const;
-    virtual void paintContentsIfDirty(const Region& occludedScreenSpace);
+    virtual void paintContentsIfDirty(const CCOcclusionTracker*);
     virtual bool needsContentsScale() const;
 
     void setContents(Image* image);

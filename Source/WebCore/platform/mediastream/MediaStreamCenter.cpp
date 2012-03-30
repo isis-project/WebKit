@@ -34,8 +34,11 @@
 
 #include "MediaStreamCenter.h"
 
-#include "MainThread.h"
+#include "IceCandidateDescriptor.h"
 #include "MediaStreamDescriptor.h"
+#include "SessionDescriptionDescriptor.h"
+
+#include <wtf/MainThread.h>
 
 namespace WebCore {
 
@@ -83,6 +86,16 @@ void MediaStreamCenter::didStopLocalMediaStream(MediaStreamDescriptor*)
 
 void MediaStreamCenter::didConstructMediaStream(MediaStreamDescriptor*)
 {
+}
+
+String MediaStreamCenter::constructSDP(IceCandidateDescriptor*)
+{
+    return "";
+}
+
+String MediaStreamCenter::constructSDP(SessionDescriptionDescriptor*)
+{
+    return "";
 }
 
 #endif // !PLATFORM(CHROMIUM)

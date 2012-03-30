@@ -2,7 +2,7 @@
 <html>
 <head>
 <script src="../../js/resources/js-test-pre.js"></script>
-<script src="resources/create-dom.js"></script>
+<script src="resources/shadow-dom.js"></script>
 </head>
 <body>
 <p id="description"></p>
@@ -64,39 +64,32 @@ function recordEvent(event)
     eventRecords[eventType].push(eventString);
 }
 
-function getElementInShadow(path)
-{
-    var ids = path.split('/');
-    var element = document.getElementById(ids[0]);
-    for (var i = 1; element != null && i < ids.length; ++i) {
-        var shadowRoot = internals.shadowRoot(element);
-        element = internals.getElementByIdInShadowRoot(shadowRoot, ids[i]);
-    }
-    return element;
-}
-
-function prepareDomTree(parent)
+function prepareDOMTree(parent)
 {
     parent.appendChild(
-        createDom('div', {'id': 'divA', 'style': 'padding-top: 40px'},
-                  createDom('div', {'id': 'divB', 'style': 'width: 40px; height: 40px', 'tabindex': 0}),
-                  createDom('div', {'id': 'divC', 'style': 'width: 40px; height: 40px', 'tabindex': 0}),
-                  createShadow('div', {'id': 'shadowD', 'style': 'padding-top: 40px'},
-                               createDom('div', {'id': 'divE', 'style': 'padding-top: 40px'},
-                                         createShadow('div', {'id': 'shadowF', 'style': 'padding-top: 40px'},
-                                                      createShadow('div', {'id': 'shadowG', 'style': 'padding-top: 40px'},
-                                                                   createDom('div', {'id': 'divH', 'style': 'width: 40px; height: 40px', 'tabindex': 0}),
-                                                                   createDom('div', {'id': 'divI', 'style': 'width: 40px; height: 40px', 'tabindex': 0})))),
-                               createDom('div', {'id': 'divJ', 'style': 'padding-top: 40px'},
-                                         createShadow('div', {'id': 'shadowK', 'style': 'padding-top: 40px'},
-                                                      createDom('div', {'id': 'divL', 'style': 'width: 40px; height: 40px', 'tabindex': 0}))))));
+        createDOM('div', {'id': 'divA', 'style': 'padding-top: 40px'},
+                  createDOM('div', {'id': 'divB', 'style': 'width: 40px; height: 40px', 'tabindex': 0}),
+                  createDOM('div', {'id': 'divC', 'style': 'width: 40px; height: 40px', 'tabindex': 0}),
+                  createDOM('div', {'id': 'shadowD', 'style': 'padding-top: 40px'},
+                            createShadowRoot(
+                                createDOM('div', {'id': 'divE', 'style': 'padding-top: 40px'},
+                                          createDOM('div', {'id': 'shadowF', 'style': 'padding-top: 40px'},
+                                                    createShadowRoot(
+                                                        createDOM('div', {'id': 'shadowG', 'style': 'padding-top: 40px'},
+                                                                  createShadowRoot(
+                                                                      createDOM('div', {'id': 'divH', 'style': 'width: 40px; height: 40px', 'tabindex': 0}),
+                                                                      createDOM('div', {'id': 'divI', 'style': 'width: 40px; height: 40px', 'tabindex': 0})))))),
+                                createDOM('div', {'id': 'divJ', 'style': 'padding-top: 40px'},
+                                          createDOM('div', {'id': 'shadowK', 'style': 'padding-top: 40px'},
+                                                    createShadowRoot(
+                                                        createDOM('div', {'id': 'divL', 'style': 'width: 40px; height: 40px', 'tabindex': 0}))))))));
 
     var ids = ['divA', 'divB', 'divC',
                'shadowD', 'shadowD/divE', 'shadowD/shadowF', 'shadowD/shadowF/shadowG',
                'shadowD/shadowF/shadowG/divH', 'shadowD/shadowF/shadowG/divI',
                'shadowD/divJ', 'shadowD/shadowK', 'shadowD/shadowK/divL'];
     for (var i = 0; i < ids.length; ++i) {
-        var element = getElementInShadow(ids[i]);
+        var element = getNodeInShadowTreeStack(ids[i]);
         element.addEventListener('mouseover', recordEvent, false);
         element.addEventListener('mouseout', recordEvent, false);
         element.addEventListener('focusin', recordEvent, false);
@@ -109,24 +102,24 @@ function prepareDomTree(parent)
 function moveMouse(oldElementId, newElementId, message)
 {
     debug('\n' + message + '\n' + 'Moving mouse from ' + oldElementId + ' to ' + newElementId);
-    moveMouseOver(getElementInShadow(oldElementId));
+    moveMouseOver(getNodeInShadowTreeStack(oldElementId));
     clearEventRecords();
-    moveMouseOver(getElementInShadow(newElementId));
+    moveMouseOver(getNodeInShadowTreeStack(newElementId));
 }
 
 function moveFocus(oldElementId, newElementId, message)
 {
     debug('\n' + message + '\n' + 'Moving focus from ' + oldElementId + ' to ' + newElementId);
-    getElementInShadow(oldElementId).focus();
+    getNodeInShadowTreeStack(oldElementId).focus();
     clearEventRecords();
-    getElementInShadow(newElementId).focus();
+    getNodeInShadowTreeStack(newElementId).focus();
 }
 
 function test()
 {
     if (window.layoutTestController)
         layoutTestController.dumpAsText();
-    prepareDomTree(document.getElementById('sandbox'));
+    prepareDOMTree(document.getElementById('sandbox'));
 
     // Test for mouseover/mouseout events.
     moveMouse('divB', 'divC',

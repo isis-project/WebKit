@@ -294,10 +294,11 @@ void SpinButtonElement::defaultEventHandler(Event* event)
             input->focus();
             input->select();
             if (renderer()) {
-                ASSERT(m_upDownState != Indeterminate);
-                input->stepUpFromRenderer(m_upDownState == Up ? 1 : -1);
-                if (renderer())
-                    startRepeatingTimer();
+                if (m_upDownState != Indeterminate) {
+                    input->stepUpFromRenderer(m_upDownState == Up ? 1 : -1);
+                    if (renderer())
+                        startRepeatingTimer();
+                }
             }
             event->setDefaultHandled();
         }
@@ -365,7 +366,8 @@ void SpinButtonElement::step(int amount)
     
 void SpinButtonElement::repeatingTimerFired(Timer<SpinButtonElement>*)
 {
-    step(m_upDownState == Up ? 1 : -1);
+    if (m_upDownState != Indeterminate)
+        step(m_upDownState == Up ? 1 : -1);
 }
 
 void SpinButtonElement::setHovered(bool flag)
@@ -474,7 +476,7 @@ void InputFieldSpeechButtonElement::setState(SpeechInputState state)
 
 SpeechInput* InputFieldSpeechButtonElement::speechInput()
 {
-    return document()->page() ? document()->page()->speechInput() : 0;
+    return SpeechInput::from(document()->page());
 }
 
 void InputFieldSpeechButtonElement::didCompleteRecording(int)
@@ -520,7 +522,8 @@ void InputFieldSpeechButtonElement::setRecognitionResult(int, const SpeechInputR
 void InputFieldSpeechButtonElement::attach()
 {
     ASSERT(!m_listenerId);
-    m_listenerId = document()->page()->speechInput()->registerListener(this);
+    if (SpeechInput* input = SpeechInput::from(document()->page()))
+        m_listenerId = input->registerListener(this);
     HTMLDivElement::attach();
 }
 

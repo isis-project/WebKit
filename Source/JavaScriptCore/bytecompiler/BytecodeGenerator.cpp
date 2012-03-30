@@ -35,6 +35,7 @@
 #include "JSActivation.h"
 #include "JSFunction.h"
 #include "Interpreter.h"
+#include "LowLevelInterpreter.h"
 #include "ScopeChain.h"
 #include "StrongInlines.h"
 #include "UString.h"
@@ -118,6 +119,15 @@ namespace JSC {
     expected by the callee.
 */
 
+void Label::setLocation(unsigned location)
+{
+    m_location = location;
+    
+    unsigned size = m_unresolvedJumps.size();
+    for (unsigned i = 0; i < size; ++i)
+        m_generator->m_instructions[m_unresolvedJumps[i].second].u.operand = m_location - m_unresolvedJumps[i].first;
+}
+
 #ifndef NDEBUG
 void ResolveResult::checkValidity()
 {
@@ -170,8 +180,8 @@ JSObject* BytecodeGenerator::generate()
     m_codeBlock->setThisRegister(m_thisRegister.index());
 
     m_scopeNode->emitBytecode(*this);
-
-    m_codeBlock->setInstructionCount(m_codeBlock->instructions().size());
+    
+    m_codeBlock->instructions() = RefCountedArray<Instruction>(m_instructions);
 
     if (s_dumpsGeneratedCode)
         m_codeBlock->dump(m_scopeChain->globalObject->globalExec());
@@ -606,7 +616,7 @@ PassRefPtr<Label> BytecodeGenerator::newLabel()
         m_labels.removeLast();
 
     // Allocate new label ID.
-    m_labels.append(m_codeBlock);
+    m_labels.append(this);
     return &m_labels.last();
 }
 
@@ -1278,9 +1288,7 @@ RegisterID* BytecodeGenerator::emitResolve(RegisterID* dst, const ResolveResult&
 #if ENABLE(JIT)
         m_codeBlock->addGlobalResolveInfo(instructions().size());
 #endif
-#if ENABLE(INTERPRETER)
         m_codeBlock->addGlobalResolveInstruction(instructions().size());
-#endif
         bool dynamic = resolveResult.isDynamic() && resolveResult.depth();
         ValueProfile* profile = emitProfiledOpcode(dynamic ? op_resolve_global_dynamic : op_resolve_global);
         instructions().append(dst->index());
@@ -1372,7 +1380,7 @@ RegisterID* BytecodeGenerator::emitResolveWithBase(RegisterID* baseDst, Register
 #if ENABLE(JIT)
         m_codeBlock->addGlobalResolveInfo(instructions().size());
 #endif
-#if ENABLE(INTERPRETER)
+#if ENABLE(CLASSIC_INTERPRETER)
         m_codeBlock->addGlobalResolveInstruction(instructions().size());
 #endif
         ValueProfile* profile = emitProfiledOpcode(op_resolve_global);
@@ -1383,9 +1391,6 @@ RegisterID* BytecodeGenerator::emitResolveWithBase(RegisterID* baseDst, Register
         instructions().append(profile);
         return baseDst;
     }
-
-
-
 
     ValueProfile* profile = emitProfiledOpcode(op_resolve_with_base);
     instructions().append(baseDst->index());
@@ -1494,9 +1499,7 @@ void BytecodeGenerator::emitMethodCheck()
 
 RegisterID* BytecodeGenerator::emitGetById(RegisterID* dst, RegisterID* base, const Identifier& property)
 {
-#if ENABLE(INTERPRETER)
     m_codeBlock->addPropertyAccessInstruction(instructions().size());
-#endif
 
     ValueProfile* profile = emitProfiledOpcode(op_get_by_id);
     instructions().append(dst->index());
@@ -1522,9 +1525,7 @@ RegisterID* BytecodeGenerator::emitGetArgumentsLength(RegisterID* dst, RegisterI
 
 RegisterID* BytecodeGenerator::emitPutById(RegisterID* base, const Identifier& property, RegisterID* value)
 {
-#if ENABLE(INTERPRETER)
     m_codeBlock->addPropertyAccessInstruction(instructions().size());
-#endif
 
     emitOpcode(op_put_by_id);
     instructions().append(base->index());
@@ -1540,9 +1541,7 @@ RegisterID* BytecodeGenerator::emitPutById(RegisterID* base, const Identifier& p
 
 RegisterID* BytecodeGenerator::emitDirectPutById(RegisterID* base, const Identifier& property, RegisterID* value)
 {
-#if ENABLE(INTERPRETER)
     m_codeBlock->addPropertyAccessInstruction(instructions().size());
-#endif
     
     emitOpcode(op_put_by_id);
     instructions().append(base->index());
@@ -1823,7 +1822,11 @@ RegisterID* BytecodeGenerator::emitCall(OpcodeID opcodeID, RegisterID* dst, Regi
     instructions().append(func->index()); // func
     instructions().append(callArguments.argumentCountIncludingThis()); // argCount
     instructions().append(callArguments.registerOffset()); // registerOffset
+#if ENABLE(LLINT)
+    instructions().append(m_codeBlock->addLLIntCallLinkInfo());
+#else
     instructions().append(0);
+#endif
     instructions().append(0);
     if (dst != ignoredResult()) {
         ValueProfile* profile = emitProfiledOpcode(op_call_put_result);
@@ -1927,7 +1930,11 @@ RegisterID* BytecodeGenerator::emitConstruct(RegisterID* dst, RegisterID* func, 
     instructions().append(func->index()); // func
     instructions().append(callArguments.argumentCountIncludingThis()); // argCount
     instructions().append(callArguments.registerOffset()); // registerOffset
+#if ENABLE(LLINT)
+    instructions().append(m_codeBlock->addLLIntCallLinkInfo());
+#else
     instructions().append(0);
+#endif
     instructions().append(0);
     if (dst != ignoredResult()) {
         ValueProfile* profile = emitProfiledOpcode(op_call_put_result);
@@ -2188,7 +2195,11 @@ RegisterID* BytecodeGenerator::emitCatch(RegisterID* targetRegister, Label* star
 {
     m_usesExceptions = true;
 #if ENABLE(JIT)
+#if ENABLE(LLINT)
+    HandlerInfo info = { start->bind(0, 0), end->bind(0, 0), instructions().size(), m_dynamicScopeDepth + m_baseScopeDepth, CodeLocationLabel(MacroAssemblerCodePtr::createFromExecutableAddress(bitwise_cast<void*>(&llint_op_catch))) };
+#else
     HandlerInfo info = { start->bind(0, 0), end->bind(0, 0), instructions().size(), m_dynamicScopeDepth + m_baseScopeDepth, CodeLocationLabel() };
+#endif
 #else
     HandlerInfo info = { start->bind(0, 0), end->bind(0, 0), instructions().size(), m_dynamicScopeDepth + m_baseScopeDepth };
 #endif

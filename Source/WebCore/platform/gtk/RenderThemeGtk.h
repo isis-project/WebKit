@@ -28,7 +28,7 @@
 #ifndef RenderThemeGtk_h
 #define RenderThemeGtk_h
 
-#include "GRefPtr.h"
+#include <wtf/gobject/GRefPtr.h>
 #include "RenderTheme.h"
 
 typedef struct _GdkColormap GdkColormap;
@@ -181,7 +181,7 @@ protected:
     virtual bool paintInnerSpinButton(RenderObject*, const PaintInfo&, const IntRect&);
 
 private:
-    virtual String fileListNameForWidth(const Vector<String>& filenames, const Font&, int width, bool multipleFilesAllowed);
+    virtual String fileListNameForWidth(const FileList*, const Font&, int width, bool multipleFilesAllowed) const OVERRIDE;
 
     void platformInit();
     static void setTextInputBorders(RenderStyle*);

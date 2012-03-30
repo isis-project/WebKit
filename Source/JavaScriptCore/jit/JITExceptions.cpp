@@ -48,8 +48,7 @@ ExceptionHandler genericThrow(JSGlobalData* globalData, ExecState* callFrame, JS
     Instruction* catchPCForInterpreter = 0;
     if (handler) {
         catchRoutine = handler->nativeCode.executableAddress();
-        if (callFrame->codeBlock()->hasInstructions())
-            catchPCForInterpreter = &callFrame->codeBlock()->instructions()[handler->target];
+        catchPCForInterpreter = &callFrame->codeBlock()->instructions()[handler->target];
     } else
         catchRoutine = FunctionPtr(ctiOpThrowNotCaught).value();
     
@@ -64,7 +63,7 @@ ExceptionHandler genericThrow(JSGlobalData* globalData, ExecState* callFrame, JS
 
 ExceptionHandler jitThrow(JSGlobalData* globalData, ExecState* callFrame, JSValue exceptionValue, ReturnAddressPtr faultLocation)
 {
-    return genericThrow(globalData, callFrame, exceptionValue, callFrame->codeBlock()->bytecodeOffset(faultLocation));
+    return genericThrow(globalData, callFrame, exceptionValue, callFrame->codeBlock()->bytecodeOffset(callFrame, faultLocation));
 }
 
 }

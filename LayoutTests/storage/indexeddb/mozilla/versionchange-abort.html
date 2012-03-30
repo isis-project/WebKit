@@ -8,24 +8,18 @@
 <html>
 <head>
 <script src="../../../fast/js/resources/js-test-pre.js"></script>
-<script src="../../../fast/js/resources/js-test-post-function.js"></script>
 <script src="../resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's aborting setVersion");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
+    removeVendorPrefixes();
 
-    name = window.location.pathname;
+    name = self.location.pathname;
     description = "My Test Database";
     request = evalAndLog("indexedDB.open(name, description)");
     request.onsuccess = openSuccess;
@@ -61,12 +55,13 @@ function postAbort()
     shouldBe("db.version", "initialVersion");
     shouldBe("db.objectStoreNames.length", "0");
 
-    done();
+    finishJSTest();
 }
 
 test();
 
 </script>
+<script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>
 

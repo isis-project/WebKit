@@ -219,6 +219,7 @@ WebInspector.HeapSnapshotConstructorsDataGrid = function()
 {
     var columns = {
         object: { title: WebInspector.UIString("Constructor"), disclosure: true, sortable: true },
+        distanceToWindow: { title: WebInspector.UIString("Distance"), width: "90px", sortable: true },
         count: { title: WebInspector.UIString("Objects Count"), width: "90px", sortable: true },
         shallowSize: { title: WebInspector.UIString("Shallow Size"), width: "120px", sortable: true },
         retainedSize: { title: WebInspector.UIString("Retained Size"), width: "120px", sort: "descending", sortable: true }
@@ -234,6 +235,7 @@ WebInspector.HeapSnapshotConstructorsDataGrid.prototype = {
     {
         return {
             object: ["_name", sortAscending, "_count", false],
+            distanceToWindow: ["_distanceToWindow", sortAscending, "_retainedSize", true],
             count: ["_count", sortAscending, "_name", true],
             shallowSize: ["_shallowSize", sortAscending, "_name", true],
             retainedSize: ["_retainedSize", sortAscending, "_name", true]
@@ -299,15 +301,6 @@ WebInspector.HeapSnapshotConstructorsDataGrid.prototype = {
         loader(profileIndex, firstSnapshotLoaded.bind(this));
     },
 
-    _nameFilterChanged: function(filterString)
-    {
-        var filter = filterString.toLowerCase();
-        for (var i = 0, l = this.children.length; i < l; ++i) {
-            var node = this.children[i];
-            if (node.depth === 0)
-                node.revealed = node._name.toLowerCase().indexOf(filter) !== -1;
-        }
-    }
 };
 
 WebInspector.HeapSnapshotConstructorsDataGrid.prototype.__proto__ = WebInspector.HeapSnapshotSortableDataGrid.prototype;
@@ -455,25 +448,20 @@ WebInspector.DetailedHeapshotView = function(parent, profile)
 
     this.constructorsView = new WebInspector.View();
     this.constructorsView.element.addStyleClass("view");
-
-    this.constructorsViewToolbar = document.createElement("div");
-    this.constructorsViewToolbar.addStyleClass("constructors-view-toolbar");
-    this.constructorsViewFilter = document.createElement("input");
-    this.constructorsViewFilter.addStyleClass("constructors-view-filter");
-    this.constructorsViewFilter.setAttribute("placeholder", WebInspector.UIString("Class filter"));
-    this.constructorsViewFilter.addEventListener("keyup", this._changeNameFilter.bind(this), false);
-    this.constructorsViewToolbar.appendChild(this.constructorsViewFilter);
-    this.constructorsView.element.appendChild(this.constructorsViewToolbar);
+    this.constructorsView.element.appendChild(this._createToolbarWithClassNameFilter());
 
     this.constructorsDataGrid = new WebInspector.HeapSnapshotConstructorsDataGrid();
-    this.constructorsDataGrid.element.addStyleClass("constructors-view-grid");
+    this.constructorsDataGrid.element.addStyleClass("class-view-grid");
     this.constructorsDataGrid.element.addEventListener("mousedown", this._mouseDownInContentsGrid.bind(this), true);
     this.constructorsDataGrid.show(this.constructorsView.element);
     this.constructorsDataGrid.addEventListener(WebInspector.DataGrid.Events.SelectedNode, this._selectionChanged, this);
 
     this.diffView = new WebInspector.View();
     this.diffView.element.addStyleClass("view");
+    this.diffView.element.appendChild(this._createToolbarWithClassNameFilter());
+
     this.diffDataGrid = new WebInspector.HeapSnapshotDiffDataGrid();
+    this.diffDataGrid.element.addStyleClass("class-view-grid");
     this.diffDataGrid.show(this.diffView.element);
     this.diffDataGrid.addEventListener(WebInspector.DataGrid.Events.SelectedNode, this._selectionChanged, this);
 
@@ -501,6 +489,7 @@ WebInspector.DetailedHeapshotView = function(parent, profile)
     this.retainmentDataGrid = new WebInspector.HeapSnapshotRetainmentDataGrid();
     this.retainmentDataGrid.element.addEventListener("click", this._mouseClickInRetainmentGrid.bind(this), true);
     this.retainmentDataGrid.show(this.retainmentView.element);
+    this.retainmentDataGrid.addEventListener(WebInspector.DataGrid.Events.SelectedNode, this._inspectedObjectChanged, this);
     this.retainmentView.show(this.element);
     this.retainmentDataGrid.reset();
 
@@ -538,7 +527,7 @@ WebInspector.DetailedHeapshotView = function(parent, profile)
     this.helpButton = new WebInspector.StatusBarButton("", "heapshot-help-status-bar-item status-bar-item");
     this.helpButton.addEventListener("click", this._helpClicked.bind(this), false);
 
-    this._popoverHelper = new WebInspector.ObjectPopoverHelper(this.element, this._getHoverAnchor.bind(this), this._resolveObjectForPopover.bind(this), null, true);
+    this._popoverHelper = new WebInspector.ObjectPopoverHelper(this.element, this._getHoverAnchor.bind(this), this._resolveObjectForPopover.bind(this), undefined, true);
 
     this._loadProfile(this._profileUid, profileCallback.bind(this));
 
@@ -622,6 +611,8 @@ WebInspector.DetailedHeapshotView.prototype = {
     {
         this._currentSearchResultIndex = -1;
         this._popoverHelper.hidePopover();
+        if (this.helpPopover && this.helpPopover.visible)
+            this.helpPopover.hide();
     },
 
     onResize: function()
@@ -799,9 +790,27 @@ WebInspector.DetailedHeapshotView.prototype = {
         this.performSearch(this.currentQuery, this._searchFinishedCallback);
     },
 
-    _changeNameFilter: function()
+    _createToolbarWithClassNameFilter: function()
     {
-        this.dataGrid._nameFilterChanged(this.constructorsViewFilter.value);
+        var toolbar = document.createElement("div");
+        toolbar.addStyleClass("class-view-toolbar");
+        var classNameFilter = document.createElement("input");
+        classNameFilter.addStyleClass("class-name-filter");
+        classNameFilter.setAttribute("placeholder", WebInspector.UIString("Class filter"));
+        classNameFilter.addEventListener("keyup", this._changeNameFilter.bind(this, classNameFilter), false);
+        toolbar.appendChild(classNameFilter);
+        return toolbar;
+    },
+
+    _changeNameFilter: function(classNameInputElement)
+    {
+        var filter = classNameInputElement.value.toLowerCase();
+        var children = this.dataGrid.children;
+        for (var i = 0, l = children.length; i < l; ++i) {
+            var node = children[i];
+            if (node.depth === 0)
+                node.revealed = node._name.toLowerCase().indexOf(filter) !== -1;
+        }
     },
 
     _profiles: function()
@@ -841,6 +850,14 @@ WebInspector.DetailedHeapshotView.prototype = {
     {
         var selectedNode = event.target.selectedNode;
         this._setRetainmentDataGridSource(selectedNode);
+        this._inspectedObjectChanged(event);
+    },
+
+    _inspectedObjectChanged: function(event)
+    {
+        var selectedNode = event.target.selectedNode;
+        if (selectedNode instanceof WebInspector.HeapSnapshotGenericObjectNode)
+            ConsoleAgent.addInspectedHeapObject(selectedNode.snapshotNodeId);
     },
 
     _setRetainmentDataGridSource: function(nodeItem)
@@ -860,8 +877,7 @@ WebInspector.DetailedHeapshotView.prototype = {
         if (!cell || (!cell.hasStyleClass("count-column") && !cell.hasStyleClass("shallowSize-column") && !cell.hasStyleClass("retainedSize-column")))
             return;
 
-        event.preventDefault();
-        event.stopPropagation();
+        event.consume();
     },
 
     _mouseClickInRetainmentGrid: function(event)
@@ -1034,7 +1050,7 @@ WebInspector.DetailedHeapshotView.prototype = {
 
         WebInspector.elementDragStart(this.retainmentViewHeader, this._retainersHeaderDragging.bind(this), this._endRetainersHeaderDragging.bind(this), event, "row-resize");
         this._previousDragPosition = event.pageY;
-        event.stopPropagation();
+        event.consume();
     },
 
     _retainersHeaderDragging: function(event)
@@ -1043,15 +1059,14 @@ WebInspector.DetailedHeapshotView.prototype = {
         height += this._previousDragPosition - event.pageY;
         this._previousDragPosition = event.pageY;
         this._updateRetainmentViewHeight(height);
-        event.preventDefault();
-        event.stopPropagation();
+        event.consume();
     },
 
     _endRetainersHeaderDragging: function(event)
     {
         WebInspector.elementDragEnd(event);
         delete this._previousDragPosition;
-        event.stopPropagation();
+        event.consume();
     },
 
     _updateRetainmentViewHeight: function(height)

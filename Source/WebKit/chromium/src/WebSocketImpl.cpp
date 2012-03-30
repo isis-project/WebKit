@@ -31,7 +31,7 @@
 #include "config.h"
 #include "WebSocketImpl.h"
 
-#include "ArrayBuffer.h"
+#include <wtf/ArrayBuffer.h>
 #include "Document.h"
 #include "KURL.h"
 #if ENABLE(WEB_SOCKETS)
@@ -105,10 +105,19 @@ WebString WebSocketImpl::subprotocol()
 #endif
 }
 
+WebString WebSocketImpl::extensions()
+{
+#if ENABLE(WEB_SOCKETS)
+    return m_private->extensions();
+#else
+    ASSERT_NOT_REACHED();
+#endif
+}
+
 bool WebSocketImpl::sendText(const WebString& message)
 {
 #if ENABLE(WEB_SOCKETS)
-    return m_private->send(message);
+    return m_private->send(message) == ThreadableWebSocketChannel::SendSuccess;
 #else
     ASSERT_NOT_REACHED();
 #endif
@@ -117,7 +126,7 @@ bool WebSocketImpl::sendText(const WebString& message)
 bool WebSocketImpl::sendArrayBuffer(const WebArrayBuffer& webArrayBuffer)
 {
 #if ENABLE(WEB_SOCKETS)
-    return m_private->send(*PassRefPtr<ArrayBuffer>(webArrayBuffer));
+    return m_private->send(*PassRefPtr<ArrayBuffer>(webArrayBuffer)) == ThreadableWebSocketChannel::SendSuccess;
 #else
     ASSERT_NOT_REACHED();
 #endif

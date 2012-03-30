@@ -56,6 +56,7 @@
 #import <wtf/StdLibExtras.h>
 #import <wtf/RetainPtr.h>
 #import <wtf/UnusedParam.h>
+#import <wtf/text/StringBuilder.h>
 #import <wtf/unicode/CharacterNames.h>
 
 #if USE(PLATFORM_STRATEGIES)
@@ -224,7 +225,7 @@ static void writeURLForTypes(const Vector<String>& types, const String& pasteboa
     }
     if (types.contains(WebURLsWithTitlesPboardType)) {
         Vector<String> paths;
-        paths.append(userVisibleString);
+        paths.append([cocoaURL absoluteString]);
         paths.append(titleStr.stripWhiteSpace());
         platformStrategies()->pasteboardStrategy()->setPathnamesForType(paths, WebURLsWithTitlesPboardType, pasteboardName);
     }
@@ -287,7 +288,7 @@ void Pasteboard::writeImage(Node* node, const KURL& url, const String& title)
     Image* image = cachedImage->imageForRenderer(renderer);
     ASSERT(image);
     
-    platformStrategies()->pasteboardStrategy()->setBufferForType(SharedBuffer::wrapNSData((NSData *)image->getNSImage()), NSTIFFPboardType, m_pasteboardName);
+    platformStrategies()->pasteboardStrategy()->setBufferForType(SharedBuffer::wrapNSData((NSData *)[image->getNSImage() TIFFRepresentation]), NSTIFFPboardType, m_pasteboardName);
 
     String MIMEType = cachedImage->response().mimeType();
     ASSERT(MIMETypeRegistry::isSupportedImageResourceMIMEType(MIMEType));
@@ -297,10 +298,7 @@ void Pasteboard::writeImage(Node* node, const KURL& url, const String& title)
 
 void Pasteboard::writeClipboard(Clipboard* clipboard)
 {
-    // FIXME: this is the last access to NSPasteboard. It will removed when the ClipboardMac
-    // class is refactored.
-    NSPasteboard* pasteboard = static_cast<ClipboardMac*>(clipboard)->pasteboard();
-    platformStrategies()->pasteboardStrategy()->copy([pasteboard name], m_pasteboardName);
+    platformStrategies()->pasteboardStrategy()->copy(static_cast<ClipboardMac*>(clipboard)->pasteboardName(), m_pasteboardName);
 }
 
 bool Pasteboard::canSmartReplace()
@@ -338,11 +336,11 @@ String Pasteboard::plainText(Frame* frame)
     if (types.contains(String(NSFilenamesPboardType))) {
         Vector<String> pathnames;
         platformStrategies()->pasteboardStrategy()->getPathnamesForType(pathnames, NSFilenamesPboardType, m_pasteboardName);
+        StringBuilder builder;
         for (size_t i = 0; i < pathnames.size(); i++)
-            string = [string length] ? @"\n" + pathnames[i] : pathnames[i];
-        string = [string precomposedStringWithCanonicalMapping];
-        if (string != nil)
-            return string;
+            builder.append(i ? "\n" + pathnames[i] : pathnames[i]);
+        string = builder.toString();
+        return [string precomposedStringWithCanonicalMapping];
     }
     
     string = platformStrategies()->pasteboardStrategy()->stringForType(NSURLPboardType, m_pasteboardName);
@@ -515,7 +513,7 @@ PassRefPtr<DocumentFragment> Pasteboard::documentFragment(Frame* frame, PassRefP
         return fragment.release();
 
     if (types.contains(String(NSURLPboardType))) {
-        NSURL *URL = [NSURL URLWithString:platformStrategies()->pasteboardStrategy()->stringForType(NSURLPboardType, m_pasteboardName)];
+        NSURL *URL = platformStrategies()->pasteboardStrategy()->url(m_pasteboardName);
         Document* document = frame->document();
         ASSERT(document);
         if (!document)

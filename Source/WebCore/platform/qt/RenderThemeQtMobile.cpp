@@ -35,15 +35,13 @@
 #include "NotImplemented.h"
 #include "Page.h"
 #include "PaintInfo.h"
-#include "PassRefPtr.h"
 #include "QWebPageClient.h"
 #include "RenderBox.h"
 #if ENABLE(PROGRESS_TAG)
 #include "RenderProgress.h"
 #endif
-#if HAVE(QSTYLE)
-#include "RenderThemeQStyle.h"
-#endif
+
+#include <wtf/PassRefPtr.h>
 
 #include <QColor>
 #include <QFile>
@@ -60,7 +58,7 @@ static const int arrowBoxWidth = 26;
 static const int frameWidth = 2;
 static const int checkBoxWidth = 21;
 static const int radioWidth = 21;
-static const int sliderSize = 19;
+static const int sliderSize = 20;
 static const int buttonHeightRatio = 1.5;
 
 static const float multipleComboDotsOffsetFactor = 1.8;
@@ -469,13 +467,16 @@ void StylePainterMobile::drawComboBox(const QRect& rect, bool multiple, bool ena
     painter->drawPixmap(targetRect.toRect(), pic);
 }
 
-void StylePainterMobile::drawProgress(const QRect& rect, double progress, bool leftToRight, bool animated) const
+void StylePainterMobile::drawProgress(const QRect& rect, double progress, bool leftToRight, bool animated, bool vertical) const
 {
-    const int border = rect.height() / 4;
-    const QRect targetRect = rect.adjusted(0, border, 0, -border);
+    const int horizontalBorder = (vertical ? rect.width() / 4 : 0);
+    const int verticalBorder = (vertical ? 0 : rect.height() / 4);
+    const QRect targetRect = rect.adjusted(horizontalBorder, verticalBorder, -horizontalBorder, -verticalBorder);
 
     QPixmap result;
-    const QSize imageSize = sizeForPainterScale(targetRect);
+    QSize imageSize = sizeForPainterScale(targetRect);
+    if (vertical)
+        qSwap(imageSize.rheight(), imageSize.rwidth());
     KeyIdentifier id;
     id.type = KeyIdentifier::Progress;
     id.width = imageSize.width();
@@ -520,7 +521,9 @@ void StylePainterMobile::drawProgress(const QRect& rect, double progress, bool l
         }
         insertIntoCache(id, result);
     }
-    painter->drawPixmap(targetRect, result);
+    QTransform transform;
+    transform.rotate(-90);
+    painter->drawPixmap(targetRect, vertical ? result.transformed(transform) : result);
 }
 
 void StylePainterMobile::drawSliderThumb(const QRect & rect, bool pressed) const
@@ -548,23 +551,6 @@ void StylePainterMobile::drawSliderThumb(const QRect & rect, bool pressed) const
 PassRefPtr<RenderTheme> RenderThemeQtMobile::create(Page* page)
 {
     return adoptRef(new RenderThemeQtMobile(page));
-}
-
-static PassRefPtr<RenderTheme> createTheme(Page* page)
-{
-#if HAVE(QSTYLE)
-    if (!RenderThemeQt::useMobileTheme())
-        return RenderThemeQStyle::create(page);
-#endif
-    return RenderThemeQtMobile::create(page);
-}
-
-PassRefPtr<RenderTheme> RenderTheme::themeForPage(Page* page)
-{
-    if (page)
-        return createTheme(page);
-    static RenderTheme* fallback = createTheme(0).leakRef();
-    return fallback;
 }
 
 RenderThemeQtMobile::RenderThemeQtMobile(Page* page)
@@ -822,10 +808,14 @@ bool RenderThemeQtMobile::paintSliderTrack(RenderObject* o, const PaintInfo& pi,
     const double max = slider->maximum();
     const double progress = (max - min > 0) ? (slider->valueAsNumber() - min) / (max - min) : 0;
 
-    // Render the spin buttons for LTR or RTL accordingly.
-    const int groovePadding = r.height() * sliderGrooveBorderRatio;
-    const QRect rect(r);
-    p.drawProgress(rect.adjusted(0, groovePadding, 0, -groovePadding), progress, o->style()->isLeftToRightDirection());
+    QRect rect(r);
+    const bool vertical = (o->style()->appearance() == SliderVerticalPart);
+    const int groovePadding = vertical ? r.width() * sliderGrooveBorderRatio : r.height() * sliderGrooveBorderRatio;
+    if (vertical)
+        rect.adjust(groovePadding, 0, -groovePadding, 0);
+    else
+        rect.adjust(0, groovePadding, 0, -groovePadding);
+    p.drawProgress(rect, progress, o->style()->isLeftToRightDirection(), /*animated = */ false, vertical);
 
     return false;
 }

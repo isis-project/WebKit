@@ -42,13 +42,13 @@ class CSSWrapShape;
 
 struct Length;
 
-template<typename T, T max, T min> inline T roundForImpreciseConversion(double value)
+template<typename T> inline T roundForImpreciseConversion(double value)
 {
     // Dimension calculations are imprecise, often resulting in values of e.g.
     // 44.99998.  We need to go ahead and round if we're really close to the
     // next integer value.
     value += (value < 0) ? -0.01 : +0.01;
-    return ((value > max) || (value < min)) ? 0 : static_cast<T>(value);
+    return ((value > std::numeric_limits<T>::max()) || (value < std::numeric_limits<T>::min())) ? 0 : static_cast<T>(value);
 }
 
 class CSSPrimitiveValue : public CSSValue {
@@ -268,12 +268,7 @@ public:
 
     void addSubresourceStyleURLs(ListHashSet<KURL>&, const CSSStyleSheet*);
 
-protected:
-    CSSPrimitiveValue(ClassType, int ident);
-    CSSPrimitiveValue(ClassType, const String&, UnitTypes);
-
 private:
-    CSSPrimitiveValue();
     // FIXME: int vs. unsigned overloading is too subtle to distinguish the color and identifier cases.
     CSSPrimitiveValue(int ident);
     CSSPrimitiveValue(unsigned color); // RGB value
@@ -297,10 +292,6 @@ private:
     static void create(int); // compile-time guard
     static void create(unsigned); // compile-time guard
     template<typename T> operator T*(); // compile-time guard
-
-    static PassRefPtr<CSSPrimitiveValue> createUncachedIdentifier(int identifier);
-    static PassRefPtr<CSSPrimitiveValue> createUncachedColor(unsigned rgbValue);
-    static PassRefPtr<CSSPrimitiveValue> createUncached(double value, UnitTypes type);
 
     static UnitTypes canonicalUnitTypeForCategory(UnitCategory category);
 

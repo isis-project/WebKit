@@ -37,6 +37,7 @@
 #include "WebAccessibilityNotification.h"
 #include "WebCursorInfo.h"
 #include "WebFrameClient.h"
+#include "WebIntentRequest.h"
 #include "WebSpellCheckClient.h"
 #include "WebViewClient.h"
 #include <wtf/HashMap.h>
@@ -125,11 +126,11 @@ class WebViewHost : public WebKit::WebSpellCheckClient, public WebKit::WebViewCl
     virtual WebKit::WebString autoCorrectWord(const WebKit::WebString&);
 
     // WebKit::WebViewClient
-    virtual WebKit::WebView* createView(WebKit::WebFrame*, const WebKit::WebURLRequest&, const WebKit::WebWindowFeatures&, const WebKit::WebString&);
+    virtual WebKit::WebView* createView(WebKit::WebFrame*, const WebKit::WebURLRequest&, const WebKit::WebWindowFeatures&, const WebKit::WebString&, WebKit::WebNavigationPolicy);
     virtual WebKit::WebWidget* createPopupMenu(WebKit::WebPopupType);
     virtual WebKit::WebWidget* createPopupMenu(const WebKit::WebPopupMenuInfo&);
     virtual WebKit::WebStorageNamespace* createSessionStorageNamespace(unsigned quota);
-    virtual WebKit::WebGraphicsContext3D* createGraphicsContext3D(const WebKit::WebGraphicsContext3D::Attributes&, bool direct);
+    virtual WebKit::WebGraphicsContext3D* createGraphicsContext3D(const WebKit::WebGraphicsContext3D::Attributes&);
     virtual void didAddMessageToConsole(const WebKit::WebConsoleMessage&, const WebKit::WebString& sourceName, unsigned sourceLine);
     virtual void didStartLoading();
     virtual void didStopLoading();
@@ -163,7 +164,9 @@ class WebViewHost : public WebKit::WebSpellCheckClient, public WebKit::WebViewCl
     virtual WebKit::WebGeolocationClient* geolocationClient();
     virtual WebKit::WebSpeechInputController* speechInputController(WebKit::WebSpeechInputListener*);
     virtual WebKit::WebDeviceOrientationClient* deviceOrientationClient();
+#if ENABLE(MEDIA_STREAM)
     virtual WebKit::WebUserMediaClient* userMediaClient();
+#endif
     virtual void printPage(WebKit::WebFrame*);
 
     // WebKit::WebWidgetClient
@@ -235,6 +238,7 @@ class WebViewHost : public WebKit::WebSpellCheckClient, public WebKit::WebViewCl
     virtual void didDetectXSS(WebKit::WebFrame*, const WebKit::WebURL&, bool didBlockEntirePage);
     virtual void openFileSystem(WebKit::WebFrame*, WebKit::WebFileSystem::Type, long long size, bool create, WebKit::WebFileSystemCallbacks*);
     virtual bool willCheckAndDispatchMessageEvent(WebKit::WebFrame* source, WebKit::WebSecurityOrigin target, WebKit::WebDOMMessageEvent);
+    virtual void dispatchIntent(WebKit::WebFrame* source, const WebKit::WebIntentRequest&);
 
     WebKit::WebDeviceOrientationClientMock* deviceOrientationClientMock();
     
@@ -247,6 +251,9 @@ class WebViewHost : public WebKit::WebSpellCheckClient, public WebKit::WebViewCl
 
     // Pending task list, Note taht the method is referred from MethodTask class.
     TaskList* taskList() { return &m_taskList; }
+
+    // The current web intents request.
+    WebKit::WebIntentRequest* currentIntentRequest() { return &m_currentRequest; }
 
 private:
 
@@ -305,9 +312,11 @@ private:
     void didNotAcquirePointerLock();
 #endif
 
+#if ENABLE(MEDIA_STREAM)
     WebKit::WebUserMediaClientMock* userMediaClientMock();
     webkit_support::MediaStreamUtil* mediaStreamUtil();
     webkit_support::TestMediaStreamClient* testMediaStreamClient();
+#endif
 
     // Causes navigation actions just printout the intended navigation instead
     // of taking you to the page. This is used for cases like mailto, where you
@@ -385,8 +394,10 @@ private:
     OwnPtr<WebKit::WebDeviceOrientationClientMock> m_deviceOrientationClientMock;
     OwnPtr<MockWebSpeechInputController> m_speechInputControllerMock;
 
+#if ENABLE(MEDIA_STREAM)
     OwnPtr<WebKit::WebUserMediaClientMock> m_userMediaClientMock;
     OwnPtr<webkit_support::TestMediaStreamClient> m_testMediaStreamClient;
+#endif
 
     OwnPtr<TestNavigationController> m_navigationController;
 
@@ -404,6 +415,9 @@ private:
         PointerLockWillFailSync
     } m_pointerLockPlannedResult;
 #endif
+
+    // For web intents: holds the current request, if any.
+    WebKit::WebIntentRequest m_currentRequest;
 };
 
 #endif // WebViewHost_h

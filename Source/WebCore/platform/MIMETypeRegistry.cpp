@@ -39,7 +39,7 @@
 #include <ApplicationServices/ApplicationServices.h>
 #include <wtf/RetainPtr.h>
 #endif
-#if PLATFORM(QT)
+#if PLATFORM(QT) && USE(QT_IMAGE_DECODER)
 #include <qimagereader.h>
 #include <qimagewriter.h>
 #endif
@@ -139,7 +139,6 @@ static const TypeExtensionPair commonMediaTypes[] = {
     { "audio/x-wav", "wav" }
 };
 
-#if ENABLE(FILE_SYSTEM)
 static const char textPlain[] = "text/plain";
 static const char textHtml[] = "text/html";
 static const char imageJpeg[] = "image/jpeg";
@@ -181,7 +180,6 @@ static const TypeExtensionPair wellKnownMimeTypes[] = {
     { "application/rdf+xml", "rdf" },
     { "application/x-shockwave-flash", "swf" },
 };
-#endif
 
 static HashSet<String>* supportedImageResourceMIMETypes;
 static HashSet<String>* supportedImageMIMETypes;
@@ -229,7 +227,7 @@ static void initializeSupportedImageMIMETypes()
     supportedImageMIMETypes->remove("application/pdf");
     supportedImageMIMETypes->remove("application/postscript");
 
-#elif PLATFORM(QT)
+#elif PLATFORM(QT) && USE(QT_IMAGE_DECODER)
     QList<QByteArray> formats = QImageReader::supportedImageFormats();
     for (size_t i = 0; i < static_cast<size_t>(formats.size()); ++i) {
 #if ENABLE(SVG)
@@ -289,7 +287,7 @@ static void initializeSupportedImageMIMETypesForEncoding()
     supportedImageMIMETypesForEncoding->add("image/jpeg");
     supportedImageMIMETypesForEncoding->add("image/gif");
 #endif
-#elif PLATFORM(QT)
+#elif PLATFORM(QT) && USE(QT_IMAGE_DECODER)
     QList<QByteArray> formats = QImageWriter::supportedImageFormats();
     for (int i = 0; i < formats.size(); ++i) {
         String mimeType = MIMETypeRegistry::getMIMETypeForExtension(formats.at(i).constData());
@@ -304,6 +302,9 @@ static void initializeSupportedImageMIMETypesForEncoding()
     supportedImageMIMETypesForEncoding->add("image/ico");
 #elif USE(CAIRO)
     supportedImageMIMETypesForEncoding->add("image/png");
+#elif PLATFORM(BLACKBERRY)
+    supportedImageMIMETypesForEncoding->add("image/png");
+    supportedImageMIMETypesForEncoding->add("image/jpeg");
 #endif
 }
 
@@ -474,7 +475,6 @@ static void initializeMIMETypeRegistry()
     initializeUnsupportedTextMIMETypes();
 }
 
-#if ENABLE(FILE_SYSTEM)
 static String findMimeType(const TypeExtensionPair* pairs, unsigned numPairs, const String& extension)
 {
     if (!extension.isEmpty()) {
@@ -494,7 +494,6 @@ String MIMETypeRegistry::getWellKnownMIMETypeForExtension(const String& extensio
         return found;
     return findMimeType(commonMediaTypes, sizeof(commonMediaTypes) / sizeof(commonMediaTypes[0]), extension);
 }
-#endif
 
 String MIMETypeRegistry::getMIMETypeForPath(const String& path)
 {

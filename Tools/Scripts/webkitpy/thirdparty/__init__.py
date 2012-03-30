@@ -74,6 +74,8 @@ class AutoinstallImportHook(object):
             self._install_mechanize()
         elif '.pep8' in fullname:
             self._install_pep8()
+        elif '.coverage' in fullname:
+            self._install_coverage()
         elif '.eliza' in fullname:
             self._install_eliza()
         elif '.irc' in fullname:
@@ -108,6 +110,10 @@ class AutoinstallImportHook(object):
 
         self._install("http://pypi.python.org/packages/source/b/buildbot/buildbot-0.8.4p2.tar.gz#md5=7597d945724c80c0ab476e833a1026cb", "buildbot-0.8.4p2/buildbot")
 
+    def _install_coverage(self):
+        installer = AutoInstaller(target_dir=_AUTOINSTALLED_DIR)
+        installer.install(url="http://pypi.python.org/packages/source/c/coverage/coverage-3.5.1.tar.gz#md5=410d4c8155a4dab222f2bc51212d4a24", url_subpath="coverage-3.5.1/coverage")
+
     def _install_eliza(self):
         installer = AutoInstaller(target_dir=_AUTOINSTALLED_DIR)
         installer.install(url="http://www.adambarth.com/webkit/eliza",
@@ -127,8 +133,8 @@ class AutoinstallImportHook(object):
     def _install_pywebsocket(self):
         pywebsocket_dir = self._fs.join(_AUTOINSTALLED_DIR, "pywebsocket")
         installer = AutoInstaller(target_dir=pywebsocket_dir)
-        installer.install(url="http://pywebsocket.googlecode.com/files/mod_pywebsocket-0.7.1.tar.gz",
-                          url_subpath="pywebsocket-0.7.1/src/mod_pywebsocket")
+        installer.install(url="http://pywebsocket.googlecode.com/files/mod_pywebsocket-0.7.2.tar.gz",
+                          url_subpath="pywebsocket-0.7.2/src/mod_pywebsocket")
 
     def _install_xmlrunner(self):
         self._install("http://pypi.python.org/packages/source/u/unittest-xml-reporting/unittest-xml-reporting-1.0.3.tar.gz#md5=cebf83281b0753b5d42bad38c91fd4d6",

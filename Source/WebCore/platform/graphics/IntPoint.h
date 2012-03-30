@@ -55,6 +55,12 @@ class QPoint;
 QT_END_NAMESPACE
 #elif PLATFORM(GTK)
 typedef struct _GdkPoint GdkPoint;
+#elif PLATFORM(BLACKBERRY)
+namespace BlackBerry {
+namespace Platform {
+class IntPoint;
+}
+}
 #elif PLATFORM(EFL)
 typedef struct _Evas_Point Evas_Point;
 #endif
@@ -105,6 +111,8 @@ public:
             m_y < other.m_y ? m_y : other.m_y);
     }
 
+    int distanceSquaredToPoint(const IntPoint&) const;
+
     void clampNegativeToZero()
     {
         *this = expandedTo(zero());
@@ -136,6 +144,9 @@ public:
 #elif PLATFORM(GTK)
     IntPoint(const GdkPoint&);
     operator GdkPoint() const;
+#elif PLATFORM(BLACKBERRY)
+    IntPoint(const BlackBerry::Platform::IntPoint&);
+    operator BlackBerry::Platform::IntPoint() const;
 #elif PLATFORM(EFL)
     explicit IntPoint(const Evas_Point&);
     operator Evas_Point() const;
@@ -211,6 +222,11 @@ inline IntPoint toPoint(const IntSize& size)
 inline IntSize toSize(const IntPoint& a)
 {
     return IntSize(a.x(), a.y());
+}
+
+inline int IntPoint::distanceSquaredToPoint(const IntPoint& point) const
+{
+    return ((*this) - point).diagonalLengthSquared();
 }
 
 #if PLATFORM(QT)

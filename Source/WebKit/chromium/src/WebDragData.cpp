@@ -33,6 +33,7 @@
 
 #include "ChromiumDataObject.h"
 #include "ClipboardMimeTypes.h"
+#include "DataTransferItem.h"
 #include "platform/WebData.h"
 #include "platform/WebString.h"
 #include "platform/WebURL.h"
@@ -66,166 +67,65 @@ void WebDragData::assign(const WebDragData& other)
     assign(p);
 }
 
-WebString WebDragData::url() const
+WebVector<WebDragData::Item> WebDragData::items() const
 {
-    ASSERT(!isNull());
-    bool ignoredSuccess;
-    return m_private->getData(mimeTypeURL, ignoredSuccess);
-}
-
-void WebDragData::setURL(const WebURL& url)
-{
-    ensureMutable();
-    m_private->setData(mimeTypeURL, KURL(url).string());
-}
-
-WebString WebDragData::urlTitle() const
-{
-    ASSERT(!isNull());
-    return m_private->urlTitle();
-}
-
-void WebDragData::setURLTitle(const WebString& urlTitle)
-{
-    ensureMutable();
-    m_private->setUrlTitle(urlTitle);
-}
-
-WebString WebDragData::downloadMetadata() const
-{
-    ASSERT(!isNull());
-    bool ignoredSuccess;
-    return m_private->getData(mimeTypeDownloadURL, ignoredSuccess);
-}
-
-void WebDragData::setDownloadMetadata(const WebString& downloadMetadata)
-{
-    ensureMutable();
-    m_private->setData(mimeTypeDownloadURL, downloadMetadata);
-}
-
-WebString WebDragData::fileExtension() const
-{
-    ASSERT(!isNull());
-    return m_private->fileExtension();
-}
-
-void WebDragData::setFileExtension(const WebString& fileExtension)
-{
-    ensureMutable();
-    m_private->setFileExtension(fileExtension);
-}
-
-bool WebDragData::containsFilenames() const
-{
-    ASSERT(!isNull());
-    return m_private->containsFilenames();
-}
-
-void WebDragData::filenames(WebVector<WebString>& filenames) const
-{
-    ASSERT(!isNull());
-    filenames = m_private->filenames();
-}
-
-void WebDragData::setFilenames(const WebVector<WebString>& filenames)
-{
-    ensureMutable();
-    Vector<String> filenamesCopy;
-    filenamesCopy.append(filenames.data(), filenames.size());
-    m_private->setFilenames(filenamesCopy);
-}
-
-void WebDragData::appendToFilenames(const WebString& filename)
-{
-    ensureMutable();
-    Vector<String> filenames = m_private->filenames();
-    filenames.append(filename);
-    m_private->setFilenames(filenames);
-}
-
-WebString WebDragData::plainText() const
-{
-    ASSERT(!isNull());
-    bool ignoredSuccess;
-    return m_private->getData(mimeTypeTextPlain, ignoredSuccess);
-}
-
-void WebDragData::setPlainText(const WebString& plainText)
-{
-    ensureMutable();
-    m_private->setData(mimeTypeTextPlain, plainText);
-}
-
-WebString WebDragData::htmlText() const
-{
-    ASSERT(!isNull());
-    bool ignoredSuccess;
-    return m_private->getData(mimeTypeTextHTML, ignoredSuccess);
-}
-
-void WebDragData::setHTMLText(const WebString& htmlText)
-{
-    ensureMutable();
-    m_private->setData(mimeTypeTextHTML, htmlText);
-}
-
-WebURL WebDragData::htmlBaseURL() const
-{
-    ASSERT(!isNull());
-    return m_private->htmlBaseUrl();
-}
-
-void WebDragData::setHTMLBaseURL(const WebURL& htmlBaseURL)
-{
-    ensureMutable();
-    m_private->setHtmlBaseUrl(htmlBaseURL);
-}
-
-WebString WebDragData::fileContentFilename() const
-{
-    ASSERT(!isNull());
-    return m_private->fileContentFilename();
-}
-
-void WebDragData::setFileContentFilename(const WebString& filename)
-{
-    ensureMutable();
-    m_private->setFileContentFilename(filename);
-}
-
-WebData WebDragData::fileContent() const
-{
-    ASSERT(!isNull());
-    return WebData(m_private->fileContent());
-}
-
-void WebDragData::setFileContent(const WebData& fileContent)
-{
-    ensureMutable();
-    m_private->setFileContent(fileContent);
-}
-
-WebVector<WebDragData::CustomData> WebDragData::customData() const
-{
-    ASSERT(!isNull());
-    WebVector<CustomData> customData(static_cast<size_t>(m_private->customData().size()));
-    HashMap<String, String>::const_iterator begin = m_private->customData().begin();
-    HashMap<String, String>::const_iterator end = m_private->customData().end();
-    size_t i = 0;
-    for (HashMap<String, String>::const_iterator it = begin; it != end; ++it) {
-        CustomData data = {it->first, it->second};
-        customData[i++] = data;
+    Vector<Item> itemList;
+    for (size_t i = 0; i < m_private->items()->length(); ++i) {
+        DataTransferItemChromium* originalItem = m_private->items()->item(i).get();
+        WebDragData::Item item;
+        if (originalItem->kind() == DataTransferItem::kindString) {
+            item.storageType = Item::StorageTypeString;
+            item.stringType = originalItem->type();
+            item.stringData = originalItem->internalGetAsString();
+        } else if (originalItem->kind() == DataTransferItem::kindFile) {
+            if (originalItem->sharedBuffer()) {
+                item.storageType = Item::StorageTypeBinaryData;
+                item.binaryData = originalItem->sharedBuffer();
+            } else if (originalItem->isFilename()) {
+                item.storageType = Item::StorageTypeFilename;
+                RefPtr<WebCore::Blob> blob = originalItem->getAsFile();
+                if (blob->isFile()) {
+                    File* file = static_cast<File*>(blob.get());
+                    item.filenameData = file->path();
+                } else
+                    ASSERT_NOT_REACHED();
+            } else
+                ASSERT_NOT_REACHED();
+        } else
+            ASSERT_NOT_REACHED();
+        item.title = originalItem->title();
+        item.baseURL = originalItem->baseURL();
+        itemList.append(item);
     }
-    return customData;
+    return itemList;
 }
 
-void WebDragData::setCustomData(const WebVector<WebDragData::CustomData>& customData)
+void WebDragData::setItems(const WebVector<Item>& itemList)
+{
+    m_private->clearAll();
+    for (size_t i = 0; i < itemList.size(); ++i)
+        addItem(itemList[i]);
+}
+
+void WebDragData::addItem(const Item& item)
 {
     ensureMutable();
-    HashMap<String, String>& customDataMap = m_private->customData();
-    for (size_t i = 0; i < customData.size(); ++i)
-        customDataMap.set(customData[i].type, customData[i].data);
+    switch (item.storageType) {
+    case Item::StorageTypeString:
+        if (String(item.stringType) == mimeTypeTextURIList)
+            m_private->setURLAndTitle(item.stringData, item.title);
+        else if (String(item.stringType) == mimeTypeTextHTML)
+            m_private->setHTMLAndBaseURL(item.stringData, item.baseURL);
+        else
+            m_private->setData(item.stringType, item.stringData);
+        return;
+    case Item::StorageTypeFilename:
+        m_private->addFilename(item.filenameData);
+        return;
+    case Item::StorageTypeBinaryData:
+        // This should never happen when dragging in.
+        ASSERT_NOT_REACHED();
+    }
 }
 
 WebDragData::WebDragData(const WTF::PassRefPtr<WebCore::ChromiumDataObject>& data)
@@ -246,7 +146,6 @@ WebDragData::operator WTF::PassRefPtr<WebCore::ChromiumDataObject>() const
 
 void WebDragData::assign(WebDragDataPrivate* p)
 {
-    ASSERT(!p || p->storageMode() == ChromiumDataObject::Buffered);
     // p is already ref'd for us by the caller
     if (m_private)
         m_private->deref();

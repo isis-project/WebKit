@@ -26,6 +26,8 @@
 #include "Attribute.h"
 #include "CSSPropertyNames.h"
 #include "CSSValueKeywords.h"
+#include "CSSValueList.h"
+#include "CSSValuePool.h"
 #include "HTMLNames.h"
 #include "HTMLParserIdioms.h"
 #include <wtf/text/StringBuilder.h>
@@ -158,11 +160,11 @@ bool HTMLFontElement::cssValueFromFontSizeNumber(const String& s, int& size)
     return true;
 }
 
-bool HTMLFontElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLFontElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == sizeAttr || attr->name() == colorAttr || attr->name() == faceAttr)
+    if (name == sizeAttr || name == colorAttr || name == faceAttr)
         return true;
-    return HTMLElement::isPresentationAttribute(attr);
+    return HTMLElement::isPresentationAttribute(name);
 }
 
 void HTMLFontElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
@@ -170,12 +172,13 @@ void HTMLFontElement::collectStyleForAttribute(Attribute* attr, StylePropertySet
     if (attr->name() == sizeAttr) {
         int size = 0;
         if (cssValueFromFontSizeNumber(attr->value(), size))
-            style->setProperty(CSSPropertyFontSize, size);
+            addPropertyToAttributeStyle(style, CSSPropertyFontSize, size);
     } else if (attr->name() == colorAttr)
         addHTMLColorToStyle(style, CSSPropertyColor, attr->value());
-    else if (attr->name() == faceAttr)
-        style->setProperty(CSSPropertyFontFamily, attr->value());
-    else
+    else if (attr->name() == faceAttr) {
+        if (RefPtr<CSSValueList> fontFaceValue = document()->cssValuePool()->createFontFaceValue(attr->value(), document()->elementSheet()))
+            style->setProperty(CSSProperty(CSSPropertyFontFamily, fontFaceValue.release()));
+    } else
         HTMLElement::collectStyleForAttribute(attr, style);
 }
 

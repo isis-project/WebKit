@@ -1,6 +1,6 @@
 /*
     Copyright (C) 2009-2010 ProFUSION embedded systems
-    Copyright (C) 2009-2011 Samsung Electronics
+    Copyright (C) 2009-2012 Samsung Electronics
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -45,11 +45,13 @@
 #include "JSDOMWindow.h"
 #include "JSLock.h"
 #include "LayoutTypes.h"
+#include "PageClientEfl.h"
 #include "PlatformMouseEvent.h"
 #include "PopupMenuClient.h"
 #include "ProgressTracker.h"
 #include "RefPtrCairo.h"
 #include "RenderTheme.h"
+#include "ResourceHandle.h"
 #include "Settings.h"
 #include "c_instance.h"
 #include "ewk_logging.h"
@@ -59,6 +61,7 @@
 #include <Evas.h>
 #include <eina_safety_checks.h>
 #include <inttypes.h>
+#include <libsoup/soup-session.h>
 #include <limits>
 #include <math.h>
 #include <sys/time.h>
@@ -66,6 +69,18 @@
 #if ENABLE(DEVICE_ORIENTATION)
 #include "DeviceMotionClientEfl.h"
 #include "DeviceOrientationClientEfl.h"
+#endif
+
+#if ENABLE(VIBRATION)
+#include "VibrationClientEfl.h"
+#endif
+
+#if ENABLE(BATTERY_STATUS)
+#include "BatteryClientEfl.h"
+#endif
+
+#if USE(ACCELERATED_COMPOSITING)
+#include "NotImplemented.h"
 #endif
 
 static const float zoomMinimum = 0.05;
@@ -127,11 +142,12 @@ static const Evas_Smart_Cb_Description _ewk_view_callback_names[] = {
  * @internal
  */
 struct _Ewk_View_Private_Data {
-    WebCore::Page* page;
+    OwnPtr<WebCore::Page> page;
     WebCore::Settings* pageSettings;
     WebCore::Frame* mainFrame;
     WebCore::ViewportArguments viewportArguments;
     Ewk_History* history;
+    OwnPtr<WebCore::PageClientEfl> pageClient;
     struct {
         Ewk_Menu menu;
         WebCore::PopupMenuClient* menuClient;
@@ -211,6 +227,7 @@ struct _Ewk_View_Private_Data {
         } center;
         Ecore_Animator* animator;
     } animatedZoom;
+    SoupSession* soupSession;
 };
 
 #ifndef EWK_TYPE_CHECK
@@ -582,43 +599,40 @@ static WTF::PassRefPtr<WebCore::Frame> _ewk_view_core_frame_new(Ewk_View_Smart_D
     }
     frameLoaderClient->setCustomUserAgent(String::fromUTF8(priv->settings.userAgent));
 
-    return WebCore::Frame::create(priv->page, owner, frameLoaderClient);
+    return WebCore::Frame::create(priv->page.get(), owner, frameLoaderClient);
 }
 
 static Evas_Smart_Class _parent_sc = EVAS_SMART_CLASS_INIT_NULL;
 
 static Ewk_View_Private_Data* _ewk_view_priv_new(Ewk_View_Smart_Data* smartData)
 {
-    Ewk_View_Private_Data* priv =
-        static_cast<Ewk_View_Private_Data*>(calloc(1, sizeof(Ewk_View_Private_Data)));
+    Ewk_View_Private_Data* priv = new Ewk_View_Private_Data;
+    memset(priv, 0, sizeof(Ewk_View_Private_Data));
     AtomicString string;
     WebCore::KURL url;
-
-    if (!priv) {
-        CRITICAL("could not allocate Ewk_View_Private_Data");
-        return 0;
-    }
 
     WebCore::Page::PageClients pageClients;
     pageClients.chromeClient = new WebCore::ChromeClientEfl(smartData->self);
     pageClients.editorClient = new WebCore::EditorClientEfl(smartData->self);
     pageClients.dragClient = new WebCore::DragClientEfl;
     pageClients.inspectorClient = new WebCore::InspectorClientEfl;
+
+    priv->page = adoptPtr(new WebCore::Page(pageClients));
+
 #if ENABLE(DEVICE_ORIENTATION)
-    pageClients.deviceMotionClient = new WebCore::DeviceMotionClientEfl;
-    pageClients.deviceOrientationClient = new WebCore::DeviceOrientationClientEfl;
+    WebCore::provideDeviceMotionTo(priv->page.get(), new WebCore::DeviceMotionClientEfl);
+    WebCore::provideDeviceOrientationTo(priv->page.get(), new WebCore::DeviceOrientationClientEfl);
 #endif
-    priv->page = new WebCore::Page(pageClients);
-    if (!priv->page) {
-        CRITICAL("Could not create WebKit Page");
-        goto error_page;
-    }
+
+#if ENABLE(VIBRATION)
+    WebCore::provideVibrationTo(priv->page.get(), new WebCore::VibrationClientEfl(smartData->self));
+#endif
+
+#if ENABLE(BATTERY_STATUS)
+    WebCore::provideBatteryTo(priv->page.get(), new WebCore::BatteryClientEfl);
+#endif
 
     priv->pageSettings = priv->page->settings();
-    if (!priv->pageSettings) {
-        CRITICAL("Could not get page settings.");
-        goto error_settings;
-    }
 
     priv->viewportArguments.width = WebCore::ViewportArguments::ValueAuto;
     priv->viewportArguments.height = WebCore::ViewportArguments::ValueAuto;
@@ -703,27 +717,14 @@ static Ewk_View_Private_Data* _ewk_view_priv_new(Ewk_View_Smart_Data* smartData)
     priv->settings.domTimerInterval = priv->pageSettings->defaultMinDOMTimerInterval();
 
     priv->mainFrame = _ewk_view_core_frame_new(smartData, priv, 0).get();
-    if (!priv->mainFrame) {
-        CRITICAL("Could not create main frame.");
-        goto error_main_frame;
-    }
 
     priv->history = ewk_history_new(static_cast<WebCore::BackForwardListImpl*>(priv->page->backForwardList()));
-    if (!priv->history) {
-        CRITICAL("Could not create history instance for view.");
-        goto error_history;
-    }
+
+    priv->soupSession = WebCore::ResourceHandle::defaultSession();
+
+    priv->pageClient = adoptPtr(new WebCore::PageClientEfl(smartData->self));
 
     return priv;
-
-error_history:
-    // delete priv->main_frame; /* do not delete priv->main_frame */
-error_main_frame:
-error_settings:
-    delete priv->page;
-error_page:
-    free(priv);
-    return 0;
 }
 
 static void _ewk_view_priv_del(Ewk_View_Private_Data* priv)
@@ -753,8 +754,7 @@ static void _ewk_view_priv_del(Ewk_View_Private_Data* priv)
 
     ewk_history_free(priv->history);
 
-    delete priv->page;
-    free(priv);
+    delete priv;
 }
 
 static void _ewk_view_smart_add(Evas_Object* ewkView)
@@ -3382,7 +3382,7 @@ WebCore::Page* ewk_view_core_page_get(const Evas_Object* ewkView)
 {
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
     EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
-    return priv->page;
+    return priv->page.get();
 }
 
 /**
@@ -3461,7 +3461,7 @@ void ewk_view_popup_new(Evas_Object* ewkView, WebCore::PopupMenuClient* client, 
     // populate items
     const int size = client->listSize();
     for (int i = 0; i < size; ++i) {
-        Ewk_Menu_Item* item = static_cast<Ewk_Menu_Item*>(malloc(sizeof(*item)));
+        Ewk_Menu_Item* item = new Ewk_Menu_Item;
         if (client->itemIsSeparator(i))
             item->type = EWK_MENU_SEPARATOR;
         else if (client->itemIsLabel(i))
@@ -3495,7 +3495,7 @@ Eina_Bool ewk_view_popup_destroy(Evas_Object* ewkView)
     EINA_LIST_FREE(priv->popup.menu.items, itemv) {
         Ewk_Menu_Item* item = static_cast<Ewk_Menu_Item*>(itemv);
         eina_stringshare_del(item->text);
-        free(item);
+        delete item;
     }
     priv->popup.menuClient->popupDidHide();
     priv->popup.menuClient = 0;
@@ -3793,8 +3793,8 @@ Eina_Bool ewk_view_mode_set(Evas_Object* ewkView, Ewk_View_Mode viewMode)
 
 Ewk_View_Mode ewk_view_mode_get(const Evas_Object* ewkView)
 {
-    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, EWK_VIEW_MODE_WINDOWED);
-    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, EWK_VIEW_MODE_WINDOWED);
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, EWK_VIEW_MODE_INVALID);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, EWK_VIEW_MODE_INVALID);
 
     return static_cast<Ewk_View_Mode>(priv->page->viewMode());
 }
@@ -3913,13 +3913,53 @@ Ewk_Page_Visibility_State ewk_view_visibility_state_get(const Evas_Object* ewkVi
 #endif
 }
 
+SoupSession* ewk_view_soup_session_get(const Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
+    return priv->soupSession;
+}
+
+void ewk_view_soup_session_set(Evas_Object* ewkView, SoupSession* session)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv);
+    if (!SOUP_IS_SESSION_ASYNC(session)) {
+        ERR("WebKit requires an SoupSessionAsync to work properly, but "
+            "a SoupSessionSync was provided.");
+        return;
+    }
+    priv->soupSession = session;
+}
+
+#if USE(ACCELERATED_COMPOSITING)
+bool ewk_view_accelerated_compositing_object_create(Evas_Object* ewkView, Evas_Native_Surface* nativeSurface, const WebCore::IntRect& rect)
+{
+    notImplemented();
+    return false;
+}
+
+WebCore::GraphicsContext3D* ewk_view_accelerated_compositing_context_get(Evas_Object* ewkView)
+{
+    notImplemented();
+    return 0;
+}
+#endif
+
 namespace EWKPrivate {
 
 WebCore::Page *corePage(const Evas_Object *ewkView)
 {
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
     EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
-    return priv->page;
+    return priv->page.get();
+}
+
+WebCore::PlatformPageClient corePageClient(Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
+    return priv->pageClient.get();
 }
 
 } // namespace EWKPrivate

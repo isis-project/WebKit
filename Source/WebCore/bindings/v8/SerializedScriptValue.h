@@ -31,9 +31,9 @@
 #ifndef SerializedScriptValue_h
 #define SerializedScriptValue_h
 
-#include "ArrayBuffer.h"
 #include "ScriptValue.h"
 #include <v8.h>
+#include <wtf/ArrayBuffer.h>
 #include <wtf/Threading.h>
 
 namespace WebCore {
@@ -76,6 +76,12 @@ public:
     // case of failure.
     v8::Handle<v8::Value> deserialize(MessagePortArray* = 0);
 
+#if ENABLE(INSPECTOR)
+    ScriptValue deserializeForInspector(ScriptState*);
+#endif
+
+    const Vector<String>& blobURLs() const { return m_blobURLs; }
+
 private:
     enum StringDataMode {
         StringValue,
@@ -91,6 +97,7 @@ private:
 
     String m_data;
     OwnPtr<ArrayBufferContentsArray> m_arrayBufferContentsArray;
+    Vector<String> m_blobURLs;
 };
 
 } // namespace WebCore

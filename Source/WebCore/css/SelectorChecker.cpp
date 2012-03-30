@@ -52,15 +52,11 @@
 #include "ScrollbarTheme.h"
 #include "StyledElement.h"
 #include "Text.h"
+#include "XLinkNames.h"
 
 #if USE(PLATFORM_STRATEGIES)
 #include "PlatformStrategies.h"
 #include "VisitedLinkStrategy.h"
-#endif
-
-#if ENABLE(SVG)
-#include "SVGNames.h"
-#include "XLinkNames.h"
 #endif
 
 namespace WebCore {
@@ -218,11 +214,8 @@ static inline const AtomicString* linkAttribute(Node* node)
     Element* element = static_cast<Element*>(node);
     if (element->isHTMLElement())
         return &element->fastGetAttribute(hrefAttr);
-
-#if ENABLE(SVG)
     if (element->isSVGElement())
         return &element->getAttribute(XLinkNames::hrefAttr);
-#endif
 
     return 0;
 }
@@ -445,13 +438,6 @@ bool SelectorChecker::isFastCheckableSelector(const CSSSelector* selector)
 // * SelectorFailsCompletely  - the selector fails for e and any sibling or ancestor of e
 SelectorChecker::SelectorMatch SelectorChecker::checkSelector(const SelectorCheckingContext& context, PseudoId& dynamicPseudo) const
 {
-#if ENABLE(SVG)
-    // Spec: CSS2 selectors cannot be applied to the (conceptually) cloned DOM tree
-    // because its contents are not part of the formal document structure.
-    if (context.element->isSVGShadowRoot())
-        return SelectorFailsCompletely;
-#endif
-
     // first selector has to match
     if (!checkOneSelector(context, dynamicPseudo))
         return SelectorFailsLocally;
@@ -468,6 +454,10 @@ SelectorChecker::SelectorMatch SelectorChecker::checkSelector(const SelectorChec
     nextContext.selector = historySelector;
 
     if (relation != CSSSelector::SubSelector) {
+        // Abort if the next selector would exceed the scope.
+        if (context.element == context.scope)
+            return SelectorFailsCompletely;
+
         // Bail-out if this selector is irrelevant for the pseudoStyle
         if (m_pseudoStyle != NOPSEUDO && m_pseudoStyle != dynamicPseudo)
             return SelectorFailsCompletely;
@@ -487,6 +477,8 @@ SelectorChecker::SelectorMatch SelectorChecker::checkSelector(const SelectorChec
             SelectorMatch match = checkSelector(nextContext, dynamicPseudo);
             if (match == SelectorMatches || match == SelectorFailsCompletely)
                 return match;
+            if (nextContext.element == nextContext.scope)
+                return SelectorFailsCompletely;
         }
         return SelectorFailsCompletely;
 
@@ -542,6 +534,9 @@ SelectorChecker::SelectorMatch SelectorChecker::checkSelector(const SelectorChec
 
     case CSSSelector::ShadowDescendant:
         {
+            // If we're in the same tree-scope as the scoping element, then following a shadow descendant combinator would escape that and thus the scope.
+            if (context.scope && context.scope->treeScope() == context.element->treeScope())
+                return SelectorFailsCompletely;
             Node* shadowHostNode = context.element->shadowAncestorNode();
             if (shadowHostNode == context.element || !shadowHostNode->isElementNode())
                 return SelectorFailsCompletely;
@@ -1057,7 +1052,7 @@ bool SelectorChecker::checkOneSelector(const SelectorCheckingContext& context, P
         case CSSSelector::PseudoDefault:
             return element && element->isDefaultButtonForForm();
         case CSSSelector::PseudoDisabled:
-            if (element && element->isFormControlElement())
+            if (element && (element->isFormControlElement() || element->hasTagName(optionTag)))
                 return !element->isEnabledFormControl();
             break;
         case CSSSelector::PseudoReadOnly:
@@ -1084,7 +1079,7 @@ bool SelectorChecker::checkOneSelector(const SelectorCheckingContext& context, P
             return (element->willValidate() && !element->isValidFormControlElement()) || element->hasUnacceptableValue();
         case CSSSelector::PseudoChecked:
             {
-                if (!element || !element->isFormControlElement())
+                if (!element)
                     break;
                 // Even though WinIE allows checked and indeterminate to co-exist, the CSS selector spec says that
                 // you can't be both checked and indeterminate. We will behave like WinIE behind the scenes and just
@@ -1098,7 +1093,7 @@ bool SelectorChecker::checkOneSelector(const SelectorCheckingContext& context, P
             }
         case CSSSelector::PseudoIndeterminate:
             {
-                if (!element || !element->isFormControlElement())
+                if (!element)
                     break;
 #if ENABLE(PROGRESS_TAG)
                 if (element->hasTagName(progressTag)) {
@@ -1113,6 +1108,10 @@ bool SelectorChecker::checkOneSelector(const SelectorCheckingContext& context, P
                     return true;
                 break;
             }
+        case CSSSelector::PseudoScope:
+            if (context.scope)
+                return element == context.scope;
+            // If there is no scope, :scope should behave as :root -> fall through
         case CSSSelector::PseudoRoot:
             if (element == element->document()->documentElement())
                 return true;

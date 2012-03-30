@@ -165,6 +165,21 @@ ui.results.ResultsDetails = base.extends('div', {
     },
 });
 
+// jQuery's builtin accordion overrides mousedown, which means you can't select the header text
+// or click on the link to the flakiness dashboard.
+$('.ui-accordion-header').live('click', function() {
+    $(this).trigger('customaccordionclick');
+})
+
+function isAnyReftest(testName, resultsByTest)
+{
+    return Object.keys(resultsByTest[testName]).map(function(builder) {
+        return resultsByTest[testName][builder];
+    }).some(function(resultNode) {
+        return resultNode.is_reftest || resultNode.is_mismatch_reftest
+    });
+}
+
 ui.results.TestSelector = base.extends('div', {
     init: function(delegate, resultsByTest)
     {
@@ -173,13 +188,21 @@ ui.results.TestSelector = base.extends('div', {
         this._length = 0;
 
         Object.keys(resultsByTest).sort().forEach(function(testName) {
-            var link = document.createElement('a');
-            $(link).attr('href', '#').text(testName);
+            var nonLinkTitle = document.createElement('a');
+            $(nonLinkTitle).addClass('non-link-title');
+            $(nonLinkTitle).attr('href', "#").text(testName);
+
+            var linkTitle = document.createElement('a');
+            $(linkTitle).addClass('link-title');
+            $(linkTitle).attr('href', ui.urlForFlakinessDashboard([testName])).text(testName);
 
             var header = document.createElement('h3');
-            $(header).append(new ui.actions.List([
-                new ui.actions.Rebaseline().makeDefault(),
-            ])).append(link);
+            if (isAnyReftest(testName, resultsByTest))
+                $(header).append('<div class="non-action-button">Reftests cannot be rebaselined. Email webkit-gardening@chromium.org if unsure how to fix this.</div>');
+            else
+                $(header).append(new ui.actions.List([new ui.actions.Rebaseline().makeDefault()]));
+
+            $(header).append(nonLinkTitle).append(linkTitle);
             this.appendChild(header);
             this.appendChild(this._delegate.contentForTest(testName));
             ++this._length; // There doesn't seem to be any good way to get this information from accordion.
@@ -188,8 +211,22 @@ ui.results.TestSelector = base.extends('div', {
         $(this).accordion({
             collapsible: true,
             autoHeight: false,
+            event: 'customaccordionclick',
         });
         $(this).accordion('activate', false);
+        $(this).bind('accordionchange', function(event, ui) {
+            // jQuery accordion has a bug where it scrolls to the top of the page if you click on
+            // any item. Scroll offscreen content into view. This isn't pretty after the animation,
+            // but it's better than having to manually scroll all the time.
+            var header = $('.ui-state-active.ui-accordion-header')[0];
+            var results = $('.ui-accordion-content-active')[0];
+            // Since the results load async, we need to guess what the height will be.
+            var estimatedResultsHeight = 1000;
+            if (header.offsetTop < document.body.scrollTop || results.offsetTop + estimatedResultsHeight > document.body.scrollTop + document.documentElement.clientHeight) {
+                var offsetFromWindowTop = header.offsetHeight;
+                document.body.scrollTop = header.offsetTop - offsetFromWindowTop;
+            }
+        });
     },
     nextResult: function()
     {
@@ -236,7 +273,7 @@ ui.results.TestSelector = base.extends('div', {
     currentTestName: function()
     {
         var currentIndex = $(this).accordion('option', 'active');
-        return $('h3 a', this)[currentIndex].textContent;
+        return $('h3 .non-link-title', this)[currentIndex].textContent;
     }
 });
 
@@ -338,6 +375,14 @@ ui.results.View = base.extends('div', {
     previousResult: function()
     {
         return this._testSelector.previousResult();
+    },
+    nextTest: function()
+    {
+        return this._testSelector.nextTest();
+    },
+    previousTest: function()
+    {
+        return this._testSelector.previousTest();
     },
     firstResult: function()
     {

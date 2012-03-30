@@ -55,7 +55,7 @@
 #include <Evas.h>
 #include <wtf/text/CString.h>
 
-#if ENABLE(NOTIFICATIONS)
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
 #include "NotificationPresenterClientEfl.h"
 #endif
 
@@ -339,7 +339,7 @@ IntPoint ChromeClientEfl::screenToRootView(const IntPoint& point) const
 
 PlatformPageClient ChromeClientEfl::platformPageClient() const
 {
-    return m_view;
+    return EWKPrivate::corePageClient(m_view);
 }
 
 void ChromeClientEfl::scrollbarsModeDidChange() const
@@ -417,8 +417,8 @@ void ChromeClientEfl::exceededDatabaseQuota(Frame* frame, const String& database
 }
 #endif
 
-#if ENABLE(NOTIFICATIONS)
-NotificationPresenter* ChromeClientEfl::notificationPresenter() const
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+NotificationClient* ChromeClientEfl::notificationPresenter() const
 {
     notImplemented();
     return 0;
@@ -460,17 +460,6 @@ void ChromeClientEfl::setCursor(const Cursor&)
 }
 
 void ChromeClientEfl::setCursorHiddenUntilMouseMoves(bool)
-{
-    notImplemented();
-}
-
-void ChromeClientEfl::requestGeolocationPermissionForFrame(Frame*, Geolocation*)
-{
-    // See the comment in WebCore/page/ChromeClient.h
-    notImplemented();
-}
-
-void ChromeClientEfl::cancelGeolocationPermissionRequestForFrame(Frame*, Geolocation*)
 {
     notImplemented();
 }

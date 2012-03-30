@@ -71,23 +71,20 @@ void ScrollingThread::createThreadIfNeeded()
     // Wait for the thread to initialize the run loop.
     {
         MutexLocker locker(m_initializeRunLoopConditionMutex);
-
+#if PLATFORM(MAC)
         while (!m_threadRunLoop)
             m_initializeRunLoopCondition.wait(m_initializeRunLoopConditionMutex);
+#endif
     }
 }
 
-void* ScrollingThread::threadCallback(void* scrollingThread)
+void ScrollingThread::threadCallback(void* scrollingThread)
 {
     static_cast<ScrollingThread*>(scrollingThread)->threadBody();
-
-    return 0;
 }
 
 void ScrollingThread::threadBody()
 {
-    ASSERT(isCurrentThread());
-
     initializeRunLoop();
 }
 

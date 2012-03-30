@@ -33,15 +33,14 @@
 #include "GraphicsContext.h"
 #include "Page.h"
 #include "PlatformMouseEvent.h"
-#include "Scrollbar.h"
-#include "ScrollableArea.h"
+#include "ScrollbarThemeClient.h"
 #include "Settings.h"
 
 using namespace std;
 
 namespace WebCore {
 
-bool ScrollbarThemeComposite::paint(Scrollbar* scrollbar, GraphicsContext* graphicsContext, const IntRect& damageRect)
+bool ScrollbarThemeComposite::paint(ScrollbarThemeClient* scrollbar, GraphicsContext* graphicsContext, const IntRect& damageRect)
 {
     // Create the ScrollbarControlPartMask based on the damageRect
     ScrollbarControlPartMask scrollMask = NoPart;
@@ -116,7 +115,7 @@ bool ScrollbarThemeComposite::paint(Scrollbar* scrollbar, GraphicsContext* graph
     return true;
 }
 
-ScrollbarPart ScrollbarThemeComposite::hitTest(Scrollbar* scrollbar, const PlatformMouseEvent& evt)
+ScrollbarPart ScrollbarThemeComposite::hitTest(ScrollbarThemeClient* scrollbar, const PlatformMouseEvent& evt)
 {
     ScrollbarPart result = NoPart;
     if (!scrollbar->enabled())
@@ -155,7 +154,7 @@ ScrollbarPart ScrollbarThemeComposite::hitTest(Scrollbar* scrollbar, const Platf
     return result;
 }
 
-void ScrollbarThemeComposite::invalidatePart(Scrollbar* scrollbar, ScrollbarPart part)
+void ScrollbarThemeComposite::invalidatePart(ScrollbarThemeClient* scrollbar, ScrollbarPart part)
 {
     if (part == NoPart)
         return;
@@ -195,7 +194,7 @@ void ScrollbarThemeComposite::invalidatePart(Scrollbar* scrollbar, ScrollbarPart
     scrollbar->invalidateRect(result);
 }
 
-void ScrollbarThemeComposite::splitTrack(Scrollbar* scrollbar, const IntRect& unconstrainedTrackRect, IntRect& beforeThumbRect, IntRect& thumbRect, IntRect& afterThumbRect)
+void ScrollbarThemeComposite::splitTrack(ScrollbarThemeClient* scrollbar, const IntRect& unconstrainedTrackRect, IntRect& beforeThumbRect, IntRect& thumbRect, IntRect& afterThumbRect)
 {
     // This function won't even get called unless we're big enough to have some combination of these three rects where at least
     // one of them is non-empty.
@@ -215,7 +214,7 @@ void ScrollbarThemeComposite::splitTrack(Scrollbar* scrollbar, const IntRect& un
 
 // Returns the size represented by track taking into account scrolling past
 // the end of the document.
-static float usedTotalSize(Scrollbar* scrollbar)
+static float usedTotalSize(ScrollbarThemeClient* scrollbar)
 {
     float overhangAtStart = -scrollbar->currentPos();
     float overhangAtEnd = scrollbar->currentPos() + scrollbar->visibleSize() - scrollbar->totalSize();
@@ -223,16 +222,20 @@ static float usedTotalSize(Scrollbar* scrollbar)
     return scrollbar->totalSize() + overhang;
 }
 
-int ScrollbarThemeComposite::thumbPosition(Scrollbar* scrollbar)
+int ScrollbarThemeComposite::thumbPosition(ScrollbarThemeClient* scrollbar)
 {
     if (scrollbar->enabled()) {
-        float pos = max(0.0f, scrollbar->currentPos()) * (trackLength(scrollbar) - thumbLength(scrollbar)) / (usedTotalSize(scrollbar) - scrollbar->visibleSize());
+        float size = usedTotalSize(scrollbar) - scrollbar->visibleSize();
+        // Avoid doing a floating point divide by zero and return 1 when usedTotalSize == visibleSize.
+        if (!size)
+            return 1;
+        float pos = max(0.0f, scrollbar->currentPos()) * (trackLength(scrollbar) - thumbLength(scrollbar)) / size;
         return (pos < 1 && pos > 0) ? 1 : pos;
     }
     return 0;
 }
 
-int ScrollbarThemeComposite::thumbLength(Scrollbar* scrollbar)
+int ScrollbarThemeComposite::thumbLength(ScrollbarThemeClient* scrollbar)
 {
     if (!scrollbar->enabled())
         return 0;
@@ -246,18 +249,18 @@ int ScrollbarThemeComposite::thumbLength(Scrollbar* scrollbar)
     return length;
 }
 
-int ScrollbarThemeComposite::minimumThumbLength(Scrollbar* scrollbar)
+int ScrollbarThemeComposite::minimumThumbLength(ScrollbarThemeClient* scrollbar)
 {
     return scrollbarThickness(scrollbar->controlSize());
 }
 
-int ScrollbarThemeComposite::trackPosition(Scrollbar* scrollbar)
+int ScrollbarThemeComposite::trackPosition(ScrollbarThemeClient* scrollbar)
 {
     IntRect constrainedTrackRect = constrainTrackRectToTrackPieces(scrollbar, trackRect(scrollbar));
     return (scrollbar->orientation() == HorizontalScrollbar) ? constrainedTrackRect.x() - scrollbar->x() : constrainedTrackRect.y() - scrollbar->y();
 }
 
-int ScrollbarThemeComposite::trackLength(Scrollbar* scrollbar)
+int ScrollbarThemeComposite::trackLength(ScrollbarThemeClient* scrollbar)
 {
     IntRect constrainedTrackRect = constrainTrackRectToTrackPieces(scrollbar, trackRect(scrollbar));
     return (scrollbar->orientation() == HorizontalScrollbar) ? constrainedTrackRect.width() : constrainedTrackRect.height();

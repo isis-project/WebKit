@@ -22,7 +22,7 @@
 
 #include "DOMWindowProperty.h"
 #include "NavigatorBase.h"
-#include "NavigatorSupplement.h"
+#include "Supplementable.h"
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
 #include <wtf/PassRefPtr.h>
@@ -34,18 +34,15 @@ namespace WebCore {
 class DOMMimeTypeArray;
 class DOMPluginArray;
 class Frame;
-class Geolocation;
 class PointerLock;
 class PluginData;
 
 typedef int ExceptionCode;
 
-class Navigator : public NavigatorBase, public RefCounted<Navigator>, public DOMWindowProperty {
+class Navigator : public NavigatorBase, public RefCounted<Navigator>, public DOMWindowProperty, public Supplementable<Navigator> {
 public:
     static PassRefPtr<Navigator> create(Frame* frame) { return adoptRef(new Navigator(frame)); }
     virtual ~Navigator();
-
-    void resetGeolocation();
 
     String appVersion() const;
     String language() const;
@@ -56,8 +53,6 @@ public:
 
     virtual String userAgent() const;
 
-    Geolocation* geolocation() const;
-
 #if ENABLE(POINTER_LOCK)
     PointerLock* webkitPointer() const;
 #endif
@@ -65,22 +60,11 @@ public:
     // Relinquishes the storage lock, if one exists.
     void getStorageUpdates();
 
-#if ENABLE(REGISTER_PROTOCOL_HANDLER)
-    void registerProtocolHandler(const String& scheme, const String& url, const String& title, ExceptionCode&);
-#endif
-
-    void provideSupplement(const AtomicString&, PassOwnPtr<NavigatorSupplement>);
-    NavigatorSupplement* requireSupplement(const AtomicString&);
-
 private:
     explicit Navigator(Frame*);
 
-    typedef HashMap<AtomicStringImpl*, OwnPtr<NavigatorSupplement> > NavigatorSupplementMap;
-    NavigatorSupplementMap m_suppliments;
-
     mutable RefPtr<DOMPluginArray> m_plugins;
     mutable RefPtr<DOMMimeTypeArray> m_mimeTypes;
-    mutable RefPtr<Geolocation> m_geolocation;
 #if ENABLE(POINTER_LOCK)
     mutable RefPtr<PointerLock> m_pointer;
 #endif

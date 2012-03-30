@@ -23,7 +23,7 @@
  */
 
 // FIXME: This is temporary until all ports switch to using this file.
-#if PLATFORM(CHROMIUM) && !OS(DARWIN)
+#if (PLATFORM(CHROMIUM) && !OS(DARWIN)) || PLATFORM(BLACKBERRY)
 #include "chromium/FontPlatformData.h"
 #elif PLATFORM(QT)
 #include "qt/FontPlatformData.h"
@@ -50,7 +50,7 @@
 #endif
 
 #if USE(CAIRO)
-#include "HashFunctions.h"
+#include <wtf/HashFunctions.h>
 #include <cairo.h>
 #endif
 

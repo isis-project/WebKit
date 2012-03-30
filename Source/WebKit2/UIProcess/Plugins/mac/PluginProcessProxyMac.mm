@@ -35,6 +35,10 @@
 #import <spawn.h>
 #import <wtf/text/CString.h>
 
+#if !defined(BUILDING_ON_SNOW_LEOPARD)
+#import <QuartzCore/CARemoteLayerServer.h>
+#endif
+
 @interface WKPlaceholderModalWindow : NSWindow 
 @end
 
@@ -116,7 +120,12 @@ void PluginProcessProxy::platformInitializePluginProcess(PluginProcessCreationPa
 {
 #if USE(ACCELERATED_COMPOSITING) && HAVE(HOSTED_CORE_ANIMATION)
     parameters.parentProcessName = [[NSProcessInfo processInfo] processName];
+#if !defined(BUILDING_ON_SNOW_LEOPARD)
+    mach_port_t renderServerPort = [[CARemoteLayerServer sharedServer] serverPort];
+#else
     mach_port_t renderServerPort = WKInitializeRenderServer();
+#endif
+
     if (renderServerPort != MACH_PORT_NULL)
         parameters.acceleratedCompositingPort = CoreIPC::MachPort(renderServerPort, MACH_MSG_TYPE_COPY_SEND);
 #endif
@@ -193,7 +202,7 @@ void PluginProcessProxy::exitFullscreen()
 
 void PluginProcessProxy::setModalWindowIsShowing(bool modalWindowIsShowing)
 {
-    if (modalWindowIsShowing == m_modalWindowIsShowing) 
+    if (modalWindowIsShowing == m_modalWindowIsShowing)
         return;
     
     m_modalWindowIsShowing = modalWindowIsShowing;
@@ -214,7 +223,11 @@ void PluginProcessProxy::beginModal()
     
     m_activationObserver = [[NSNotificationCenter defaultCenter] addObserverForName:NSApplicationWillBecomeActiveNotification object:NSApp queue:nil
                                                                          usingBlock:^(NSNotification *){ applicationDidBecomeActive(); }];
-    
+
+    // The call to -[NSApp runModalForWindow:] below will run a nested run loop, and if the plug-in process
+    // crashes the PluginProcessProxy object can be destroyed. Protect against this here.
+    RefPtr<PluginProcessProxy> protect(this);
+
     [NSApp runModalForWindow:m_placeholderWindow.get()];
     
     [m_placeholderWindow.get() orderOut:nil];

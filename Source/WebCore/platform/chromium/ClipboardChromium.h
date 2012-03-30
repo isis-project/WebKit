@@ -37,9 +37,6 @@
 namespace WebCore {
 
     class CachedImage;
-    class ChromiumDataObject;
-    class DataTransferItem;
-    class DataTransferItemListChromium;
     class Frame;
     class IntPoint;
 
@@ -58,7 +55,7 @@ namespace WebCore {
 
         virtual void clearData(const String& type);
         void clearAllData();
-        String getData(const String& type, bool& success) const;
+        String getData(const String& type) const;
         bool setData(const String& type, const String& data);
         bool platformClipboardChanged() const;
 
@@ -84,11 +81,8 @@ namespace WebCore {
 
 #if ENABLE(DATA_TRANSFER_ITEMS)
         virtual PassRefPtr<DataTransferItemList> items();
-
-        // Internal routines to keep the list returned by items() (i.e. m_itemList) synchronized with the content of the clipboard data.
-        void mayUpdateItems(Vector<RefPtr<DataTransferItem> >& items);
-        bool storageHasUpdated() const;
 #endif
+        Frame* frame() const { return m_frame; }
 
     private:
         ClipboardChromium(ClipboardType, PassRefPtr<ChromiumDataObject>, ClipboardAccessPolicy, Frame*);
@@ -97,13 +91,6 @@ namespace WebCore {
         void setDragImage(CachedImage*, Node*, const IntPoint&);
         RefPtr<ChromiumDataObject> m_dataObject;
         Frame* m_frame;
-
-#if ENABLE(DATA_TRANSFER_ITEMS)
-        RefPtr<DataTransferItemListChromium> m_itemList;
-#endif
-
-        uint64_t m_originalSequenceNumber;
-        bool m_dragStorageUpdated;
     };
 
 } // namespace WebCore

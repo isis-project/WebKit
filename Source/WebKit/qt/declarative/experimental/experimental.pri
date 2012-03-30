@@ -24,9 +24,7 @@ contains(QT_CONFIG, reduce_exports):CONFIG += hide_symbols
 
 wince*:LIBS += $$QMAKE_LIBS_GUI
 
-CONFIG += qtwebkit qtwebkit-private
-
-QT += declarative widgets network quick
+QT += declarative widgets network quick webkit webkit-private
 
 DESTDIR = $${ROOT_BUILD_DIR}/imports/$${TARGET.module_name}
 
@@ -37,15 +35,16 @@ SOURCES += plugin.cpp
 
 DEFINES += HAVE_WEBKIT2
 
+# FIXME: Why are these needed, and why can't we use WEBKIT += ... ?
 INCLUDEPATH += \
-    ../../../../WebKit2/UIProcess/API/qt \
     ../../../../WebKit2/Shared/qt \
     ../../../../JavaScriptCore \
     ../../../../JavaScriptCore/wtf \
     ../../../../JavaScriptCore/wtf/unicode \
     ../../../../JavaScriptCore/runtime \
     ../../../../WebKit2/Platform \
-    ../../../../WebKit2/Platform/CoreIPC
+    ../../../../WebKit2/Platform/CoreIPC \
+    ../../../../WTF
 
 target.path = $$[QT_INSTALL_IMPORTS]/$${TARGET.module_name}
 

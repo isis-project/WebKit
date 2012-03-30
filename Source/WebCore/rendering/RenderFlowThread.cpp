@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 Adobe Systems Incorporated. All Rights Reserved.
+ * Copyright (C) 2011 Adobe Systems Incorporated. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -13,7 +13,7 @@
  *    disclaimer in the documentation and/or other materials
  *    provided with the distribution.
  * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER “AS IS” AND ANY
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDER "AS IS" AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
  * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE
@@ -51,7 +51,10 @@ RenderFlowThread::RenderFlowThread(Node* node, const AtomicString& flowThread)
     , m_regionsInvalidated(false)
     , m_regionsHaveUniformLogicalWidth(true)
     , m_regionsHaveUniformLogicalHeight(true)
+    , m_overflow(false)
+    , m_regionLayoutUpdateEventTimer(this, &RenderFlowThread::regionLayoutUpdateEventTimerFired)
 {
+    ASSERT(node->document()->cssRegionsEnabled());
     setIsAnonymous(false);
     setInRenderFlowThread();
 }
@@ -382,10 +385,10 @@ void RenderFlowThread::layout()
                     continue;
                 LayoutRect regionRect;
                 if (isHorizontalWritingMode()) {
-                    regionRect = LayoutRect(style()->direction() == LTR ? 0 : logicalWidth() - region->contentWidth(), logicalHeight, region->contentWidth(), region->contentHeight());
+                    regionRect = LayoutRect(style()->direction() == LTR ? zeroLayoutUnit : logicalWidth() - region->contentWidth(), logicalHeight, region->contentWidth(), region->contentHeight());
                     logicalHeight += regionRect.height();
                 } else {
-                    regionRect = LayoutRect(logicalHeight, style()->direction() == LTR ? 0 : logicalWidth() - region->contentHeight(), region->contentWidth(), region->contentHeight());
+                    regionRect = LayoutRect(logicalHeight, style()->direction() == LTR ? zeroLayoutUnit : logicalWidth() - region->contentHeight(), region->contentWidth(), region->contentHeight());
                     logicalHeight += regionRect.width();
                 }
                 region->setRegionRect(regionRect);
@@ -397,6 +400,15 @@ void RenderFlowThread::layout()
     LayoutStateMaintainer statePusher(view(), this, regionsChanged);
     RenderBlock::layout();
     statePusher.pop();
+    if (document()->hasListenerType(Document::REGIONLAYOUTUPDATE_LISTENER) && !m_regionLayoutUpdateEventTimer.isActive())
+        for (RenderRegionList::iterator iter = m_regionList.begin(); iter != m_regionList.end(); ++iter) {
+            RenderRegion* region = *iter;
+            if (region->shouldDispatchRegionLayoutUpdateEvent()) {
+                // at least one region needs to dispatch the event
+                m_regionLayoutUpdateEventTimer.startOneShot(0);
+                break;
+            }
+        }
 }
 
 void RenderFlowThread::computeLogicalWidth()
@@ -419,7 +431,7 @@ void RenderFlowThread::computeLogicalWidth()
         
         LayoutUnit regionLogicalWidth = isHorizontalWritingMode() ? region->contentWidth() : region->contentHeight();
         if (regionLogicalWidth != logicalWidth) {
-            LayoutUnit logicalLeft = style()->direction() == LTR ? 0 : logicalWidth - regionLogicalWidth;
+            LayoutUnit logicalLeft = style()->direction() == LTR ? zeroLayoutUnit : logicalWidth - regionLogicalWidth;
             region->setRenderBoxRegionInfo(this, logicalLeft, regionLogicalWidth, false);
         }
     }
@@ -540,14 +552,14 @@ void RenderFlowThread::repaintRectangleInRegions(const LayoutRect& repaintRect, 
         flipForWritingMode(flippedRegionRect); // Put the region rects into physical coordinates.
         flipForWritingMode(flippedRegionOverflowRect);
 
-        LayoutRect clippedRect(flippedRegionOverflowRect);
-        clippedRect.intersect(repaintRect);
+        LayoutRect clippedRect(repaintRect);
+        clippedRect.intersect(flippedRegionOverflowRect);
         if (clippedRect.isEmpty())
             continue;
-        
+
         // Put the region rect into the region's physical coordinate space.
-        clippedRect.setLocation(region->contentBoxRect().location() + (repaintRect.location() - flippedRegionRect.location()));
-        
+        clippedRect.setLocation(region->contentBoxRect().location() + (clippedRect.location() - flippedRegionRect.location()));
+
         // Now switch to the region's writing mode coordinate space and let it repaint itself.
         region->flipForWritingMode(clippedRect);
         LayoutStateDisabler layoutStateDisabler(view()); // We can't use layout state to repaint, since the region is somewhere else.
@@ -867,7 +879,7 @@ void RenderFlowThread::getRegionRangeForBox(const RenderBox* box, RenderRegion*&
 WebKitNamedFlow* RenderFlowThread::ensureNamedFlow()
 {
     if (!m_namedFlow)
-        m_namedFlow = WebKitNamedFlow::create();
+        m_namedFlow = WebKitNamedFlow::create(this);
 
     return m_namedFlow.get();
 }
@@ -890,13 +902,119 @@ void RenderFlowThread::computeOverflowStateForRegions(LayoutUnit oldClientAfterE
         }
         LayoutUnit flowMin = height - (isHorizontalWritingMode() ? region->regionRect().y() : region->regionRect().x());
         LayoutUnit flowMax = height - (isHorizontalWritingMode() ? region->regionRect().maxY() : region->regionRect().maxX());
+        RenderRegion::RegionState previousState = region->regionState();
         RenderRegion::RegionState state = RenderRegion::RegionFit;
         if (flowMin <= 0)
             state = RenderRegion::RegionEmpty;
         if (flowMax > 0)
             state = RenderRegion::RegionOverflow;
         region->setRegionState(state);
+        // determine whether this region should dispatch a regionLayoutUpdate event
+        // FIXME: currently it cannot determine whether a region whose regionOverflow state remained either "fit" or "overflow" has actually
+        // changed, so it just assumes that those region should dispatch the event
+        if (previousState != state
+            || state == RenderRegion::RegionFit
+            || state == RenderRegion::RegionOverflow)
+            region->setDispatchRegionLayoutUpdateEvent(true);
     }
+
+    // With the regions overflow state computed we can also set the overflow for the named flow.
+    RenderRegion* lastReg = lastRegion();
+    m_overflow = lastReg && (lastReg->regionState() == RenderRegion::RegionOverflow);
+}
+
+void RenderFlowThread::regionLayoutUpdateEventTimerFired(Timer<RenderFlowThread>*)
+{
+    // Create a copy of region nodes, to protect them for being destroyed in the event listener
+    Vector<RefPtr<Node> > regionNodes;
+    regionNodes.reserveCapacity(m_regionList.size());
+    for (RenderRegionList::iterator iter = m_regionList.begin(); iter != m_regionList.end(); ++iter) {
+        RenderRegion* region = *iter;
+        ASSERT(region->node() && region->node()->isElementNode());
+        // dispatch the event only for marked regions and only for those who have a listener
+        if (region->shouldDispatchRegionLayoutUpdateEvent()) {
+            regionNodes.append(region->node());
+            // clear the dispatch flag here, as it is possible to be set again due to event listeners
+            region->setDispatchRegionLayoutUpdateEvent(false);
+        }
+    }
+    for (Vector<RefPtr<Node> >::const_iterator it = regionNodes.begin(); it != regionNodes.end(); ++it) {
+        RefPtr<Node> node = *it;
+        RefPtr<Document> document = node->document();
+        if (!document)
+            continue;
+        RenderObject* renderer = node->renderer();
+        if (renderer && renderer->isRenderRegion()) {
+            node->dispatchRegionLayoutUpdateEvent();
+            // Layout needs to be uptodate after each event listener
+            document->updateLayoutIgnorePendingStylesheets();
+        }
+    }
+}
+
+bool RenderFlowThread::regionInRange(const RenderRegion* targetRegion, const RenderRegion* startRegion, const RenderRegion* endRegion) const
+{
+    ASSERT(targetRegion);
+
+    for (RenderRegionList::const_iterator it = m_regionList.find(const_cast<RenderRegion*>(startRegion)); it != m_regionList.end(); ++it) {
+        const RenderRegion* currRegion = *it;
+        if (!currRegion->isValid())
+            continue;
+        if (targetRegion == currRegion)
+            return true;
+        if (currRegion == endRegion)
+            break;
+    }
+
+    return false;
+}
+
+bool RenderFlowThread::objectInFlowRegion(const RenderObject* object, const RenderRegion* region) const
+{
+    ASSERT(object);
+    ASSERT(region);
+
+    if (!object->inRenderFlowThread())
+        return false;
+    if (object->enclosingRenderFlowThread() != this)
+        return false;
+    if (!m_regionList.contains(const_cast<RenderRegion*>(region)))
+        return false;
+
+    RenderBox* enclosingBox = object->enclosingBox();
+    RenderRegion* enclosingBoxStartRegion = 0;
+    RenderRegion* enclosingBoxEndRegion = 0;
+    getRegionRangeForBox(enclosingBox, enclosingBoxStartRegion, enclosingBoxEndRegion);
+    if (!regionInRange(region, enclosingBoxStartRegion, enclosingBoxEndRegion))
+       return false;
+
+    if (object->isBox())
+        return true;
+
+    LayoutRect objectABBRect = object->absoluteBoundingBoxRect(true);
+    if (!objectABBRect.width())
+        objectABBRect.setWidth(1);
+    if (!objectABBRect.height())
+        objectABBRect.setHeight(1); 
+    if (objectABBRect.intersects(region->absoluteBoundingBoxRect(true)))
+        return true;
+
+    if (region == lastRegion()) {
+        // If the object does not intersect any of the enclosing box regions
+        // then the object is in last region.
+        for (RenderRegionList::const_iterator it = m_regionList.find(enclosingBoxStartRegion); it != m_regionList.end(); ++it) {
+            const RenderRegion* currRegion = *it;
+            if (!region->isValid())
+                continue;
+            if (currRegion == region)
+                break;
+            if (objectABBRect.intersects(currRegion->absoluteBoundingBoxRect(true)))
+                return false;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 } // namespace WebCore

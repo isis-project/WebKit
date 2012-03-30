@@ -60,6 +60,7 @@
 #import <WebCore/Chrome.h>
 #import <WebCore/ColorMac.h>
 #import <WebCore/DOMImplementation.h>
+#import <WebCore/DatabaseContext.h>
 #import <WebCore/DocumentFragment.h>
 #import <WebCore/DocumentLoader.h>
 #import <WebCore/DocumentMarkerController.h>
@@ -582,7 +583,7 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     if (RenderPart* ownerRenderer = _private->coreFrame->ownerRenderer()) {
         if (ownerRenderer->needsLayout())
             return NO;
-        *rect = ownerRenderer->absoluteClippedOverflowRect();
+        *rect = ownerRenderer->pixelSnappedAbsoluteClippedOverflowRect();
         return YES;
     }
 
@@ -797,9 +798,10 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
 
 - (void)_setTypingStyle:(DOMCSSStyleDeclaration *)style withUndoAction:(EditAction)undoAction
 {
-    if (!_private->coreFrame)
+    if (!_private->coreFrame || !style)
         return;
-    _private->coreFrame->editor()->computeAndSetTypingStyle(core(style), undoAction);
+    // FIXME: We shouldn't have to create a copy here.
+    _private->coreFrame->editor()->computeAndSetTypingStyle(core(style)->copy().get(), undoAction);
 }
 
 - (void)_dragSourceEndedAt:(NSPoint)windowLoc operation:(NSDragOperation)operation
@@ -1119,13 +1121,9 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     
     if (Document* document = _private->coreFrame->document()) {
 #if ENABLE(SQL_DATABASE)
-        if (document->hasOpenDatabases())
+        if (DatabaseContext::hasOpenDatabases(document))
             [result setObject:[NSNumber numberWithBool:YES] forKey:WebFrameUsesDatabases];
 #endif
-            
-        if (document->usingGeolocation())
-            [result setObject:[NSNumber numberWithBool:YES] forKey:WebFrameUsesGeolocation];
-            
         if (!document->canSuspendActiveDOMObjects())
             [result setObject:[NSNumber numberWithBool:YES] forKey:WebFrameCanSuspendActiveDOMObjects];
     }
@@ -1225,22 +1223,6 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     return coreFrame->layerTreeAsText();
 }
 
-- (BOOL)hasSpellingMarker:(int)from length:(int)length
-{
-    Frame* coreFrame = core(self);
-    if (!coreFrame)
-        return NO;
-    return coreFrame->editor()->selectionStartHasMarkerFor(DocumentMarker::Spelling, from, length);
-}
-
-- (BOOL)hasGrammarMarker:(int)from length:(int)length
-{
-    Frame* coreFrame = core(self);
-    if (!coreFrame)
-        return NO;
-    return coreFrame->editor()->selectionStartHasMarkerFor(DocumentMarker::Grammar, from, length);
-}
-
 - (id)accessibilityRoot
 {
 #if HAVE(ACCESSIBILITY)
@@ -1295,9 +1277,9 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     if (!root)
         return [NSArray array];
 
-    const IntRect& documentRect = root->documentRect();
-    float printWidth = root->style()->isHorizontalWritingMode() ? documentRect.width() / printScaleFactor : pageSize.width;
-    float printHeight = root->style()->isHorizontalWritingMode() ? pageSize.height : documentRect.height() / printScaleFactor;
+    const LayoutRect& documentRect = root->documentRect();
+    float printWidth = root->style()->isHorizontalWritingMode() ? static_cast<float>(documentRect.width()) / printScaleFactor : pageSize.width;
+    float printHeight = root->style()->isHorizontalWritingMode() ? pageSize.height : static_cast<float>(documentRect.height()) / printScaleFactor;
 
     PrintContext printContext(_private->coreFrame);
     printContext.computePageRectsWithPageSize(FloatSize(printWidth, printHeight), true);

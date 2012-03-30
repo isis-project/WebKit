@@ -57,6 +57,7 @@ public:
         , m_mustHandleInternally(false)
         , m_isRequestedByPlugin(false)
         , m_forceDownload(false)
+        , m_targetType(TargetIsUnspecified)
     {
     }
 
@@ -66,6 +67,7 @@ public:
         , m_mustHandleInternally(false)
         , m_isRequestedByPlugin(false)
         , m_forceDownload(false)
+        , m_targetType(TargetIsUnspecified)
     {
     }
 
@@ -75,6 +77,7 @@ public:
         , m_mustHandleInternally(false)
         , m_isRequestedByPlugin(false)
         , m_forceDownload(false)
+        , m_targetType(TargetIsUnspecified)
     {
         setHTTPReferrer(referrer);
     }
@@ -85,6 +88,7 @@ public:
         , m_mustHandleInternally(false)
         , m_isRequestedByPlugin(false)
         , m_forceDownload(false)
+        , m_targetType(TargetIsUnspecified)
     {
     }
 
@@ -110,7 +114,7 @@ public:
     void setMustHandleInternally(bool mustHandleInternally) { m_mustHandleInternally = mustHandleInternally; }
     bool mustHandleInternally() const { return m_mustHandleInternally; }
 
-    void initializePlatformRequest(BlackBerry::Platform::NetworkRequest&, bool isInitial = false) const;
+    void initializePlatformRequest(BlackBerry::Platform::NetworkRequest&, bool cookiesEnabled, bool isInitial = false, bool isRedirect = false) const;
     void setForceDownload(bool forceDownload) { m_forceDownload = true; }
     bool forceDownload() const { return m_forceDownload; }
 

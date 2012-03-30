@@ -27,9 +27,9 @@
 
 #include "CollectionType.h"
 #include "Document.h"
+#include "ElementAttributeData.h"
 #include "FragmentScriptingPermission.h"
 #include "HTMLNames.h"
-#include "NamedNodeMap.h"
 #include "ScrollTypes.h"
 
 namespace WebCore {
@@ -42,7 +42,7 @@ class DOMTokenList;
 class ElementRareData;
 class IntSize;
 class ShadowRoot;
-class ShadowRootList;
+class ShadowTree;
 class WebKitAnimationList;
 
 enum SpellcheckAttributeState {
@@ -113,7 +113,7 @@ public:
 
     bool hasAttribute(const QualifiedName&) const;
     const AtomicString& getAttribute(const QualifiedName&) const;
-    void setAttribute(const QualifiedName&, const AtomicString& value);
+    void setAttribute(const QualifiedName&, const AtomicString& value, EInUpdateStyleAttribute = NotInUpdateStyleAttribute);
     void removeAttribute(const QualifiedName&);
 
     // Typed getters and setters for language bindings.
@@ -130,6 +130,9 @@ public:
     bool fastAttributeLookupAllowed(const QualifiedName&) const;
 #endif
 
+#ifdef DUMP_NODE_STATISTICS
+    bool hasNamedNodeMap() const;
+#endif
     bool hasAttributes() const;
     // This variant will not update the potentially invalid attributes. To be used when not interested
     // in style attribute or one of the SVG animation attributes.
@@ -160,7 +163,6 @@ public:
     size_t attributeCount() const;
     Attribute* attributeItem(unsigned index) const;
     Attribute* getAttributeItem(const QualifiedName&) const;
-    void removeAttribute(unsigned index);
 
     void scrollIntoView(bool alignToTop = true);
     void scrollIntoViewIfNeeded(bool centerIfNeeded = true);
@@ -228,23 +230,21 @@ public:
     void setBooleanAttribute(const QualifiedName& name, bool);
 
     // For exposing to DOM only.
-    NamedNodeMap* attributes() const { return ensureUpdatedAttributes(); }
-
-    NamedNodeMap* ensureUpdatedAttributes() const;
-    NamedNodeMap* updatedAttributes() const;
+    NamedNodeMap* attributes() const;
 
     // This method is called whenever an attribute is added, changed or removed.
     virtual void attributeChanged(Attribute*);
 
     // Only called by the parser immediately after element construction.
-    void parserSetAttributeMap(PassOwnPtr<NamedNodeMap>, FragmentScriptingPermission);
+    void parserSetAttributes(PassOwnPtr<AttributeVector>, FragmentScriptingPermission);
 
-    ElementAttributeData* attributeData() const { return m_attributeMap ? m_attributeMap->attributeData() : 0; }
+    ElementAttributeData* attributeData() const { return m_attributeData.get(); }
     ElementAttributeData* ensureAttributeData() const;
     ElementAttributeData* updatedAttributeData() const;
     ElementAttributeData* ensureUpdatedAttributeData() const;
 
     void setAttributesFromElement(const Element&);
+    bool hasEquivalentAttributes(const Element* other) const;
 
     virtual void copyNonAttributeProperties(const Element* source);
 
@@ -254,13 +254,12 @@ public:
     void recalcStyle(StyleChange = NoChange);
 
     bool hasShadowRoot() const;
-    ShadowRootList* shadowRootList() const;
+    ShadowTree* shadowTree() const;
+    ShadowTree* ensureShadowTree();
 
-    // FIXME: These API will be moved to ShadowRootList.
-    // https://bugs.webkit.org/show_bug.cgi?id=78313
-    void setShadowRoot(PassRefPtr<ShadowRoot>, ExceptionCode&);
+    // FIXME: Remove Element::ensureShadowRoot
+    // https://bugs.webkit.org/show_bug.cgi?id=77608
     ShadowRoot* ensureShadowRoot();
-    void removeShadowRoot();
 
     virtual const AtomicString& shadowPseudoId() const;
     void setShadowPseudoId(const AtomicString&, ExceptionCode& = ASSERT_NO_EXCEPTION);
@@ -296,6 +295,7 @@ public:
 
     void willModifyAttribute(const QualifiedName&, const AtomicString& oldValue, const AtomicString& newValue);
     void willRemoveAttribute(const QualifiedName&, const AtomicString& value);
+    void didAddAttribute(Attribute*);
     void didModifyAttribute(Attribute*);
     void didRemoveAttribute(Attribute*);
 
@@ -325,13 +325,6 @@ public:
     Element* previousElementSibling() const;
     Element* nextElementSibling() const;
     unsigned childElementCount() const;
-
-#if ENABLE(STYLE_SCOPED)
-    void registerScopedHTMLStyleChild();
-    void unregisterScopedHTMLStyleChild();
-    bool hasScopedHTMLStyleChild() const;
-    size_t numberOfScopedHTMLStyleChildren() const;
-#endif
 
     bool webkitMatchesSelector(const String& selectors, ExceptionCode&);
 
@@ -368,6 +361,7 @@ public:
     virtual bool isInRange() const { return false; }
     virtual bool isOutOfRange() const { return false; }
     virtual bool isFrameElementBase() const { return false; }
+    virtual bool isTextFieldDecoration() const { return false; }
 
     virtual bool canContainRangeEndPoint() const { return true; }
 
@@ -379,18 +373,22 @@ public:
     virtual void dispatchFormControlChangeEvent() { }
 
 #if ENABLE(SVG)
-    virtual bool childShouldCreateRenderer(Node*) const; 
+    virtual bool childShouldCreateRenderer(const NodeRenderingContext&) const;
 #endif
     
 #if ENABLE(FULLSCREEN_API)
     enum {
-        ALLOW_KEYBOARD_INPUT = 1
+        ALLOW_KEYBOARD_INPUT = 1 << 0,
+        LEGACY_MOZILLA_REQUEST = 1 << 1,
     };
     
     void webkitRequestFullScreen(unsigned short flags);
     virtual bool containsFullScreenElement() const;
     virtual void setContainsFullScreenElement(bool);
     virtual void setContainsFullScreenElementOnAncestorsCrossingFrameBoundaries(bool);
+
+    // W3C API
+    void webkitRequestFullscreen();
 #endif
 
     virtual bool isSpellCheckingEnabled() const;
@@ -399,9 +397,10 @@ public:
     
     PassRefPtr<RenderStyle> styleForRenderer();
 
-    PassRefPtr<Attribute> createAttribute(const QualifiedName&, const AtomicString& value);
-
     const AtomicString& webkitRegionOverflow() const;
+
+    bool hasID() const;
+    bool hasClass() const;
 
 protected:
     Element(const QualifiedName& tagName, Document* document, ConstructionType type)
@@ -423,11 +422,6 @@ protected:
     virtual bool shouldRegisterAsNamedItem() const { return false; }
     virtual bool shouldRegisterAsExtraNamedItem() const { return false; }
 
-    // The implementation of Element::attributeChanged() calls the following two functions.
-    // They are separated to allow a different flow of control in StyledElement::attributeChanged().
-    void recalcStyleIfNeededAfterAttributeChanged(Attribute*);
-    void updateAfterAttributeChanged(Attribute*);
-    
     void idAttributeChanged(Attribute*);
 
     HTMLCollection* ensureCachedHTMLCollection(CollectionType);
@@ -441,7 +435,7 @@ private:
     virtual NodeType nodeType() const;
     virtual bool childTypeAllowed(NodeType) const;
 
-    void setAttributeInternal(size_t index, const QualifiedName&, const AtomicString& value);
+    void setAttributeInternal(size_t index, const QualifiedName&, const AtomicString& value, EInUpdateStyleAttribute);
 
 #ifndef NDEBUG
     virtual void formatForDebugger(char* buffer, unsigned length) const;
@@ -449,7 +443,7 @@ private:
 
     bool pseudoStyleCacheIsInvalid(const RenderStyle* currentStyle, RenderStyle* newStyle);
 
-    void createAttributeMap() const;
+    void createAttributeData() const;
 
     virtual void updateStyleAttribute() const { }
 
@@ -481,7 +475,7 @@ private:
     void updateExtraNamedItemRegistration(const AtomicString& oldName, const AtomicString& newName);
 
 private:
-    mutable OwnPtr<NamedNodeMap> m_attributeMap;
+    mutable OwnPtr<ElementAttributeData> m_attributeData;
 };
     
 inline Element* toElement(Node* node)
@@ -541,25 +535,11 @@ inline Element* Element::nextElementSibling() const
     return static_cast<Element*>(n);
 }
 
-inline NamedNodeMap* Element::ensureUpdatedAttributes() const
-{
-    updateInvalidAttributes();
-    if (!m_attributeMap)
-        createAttributeMap();
-    return m_attributeMap.get();
-}
-
-inline NamedNodeMap* Element::updatedAttributes() const
-{
-    updateInvalidAttributes();
-    return m_attributeMap.get();
-}
-
 inline ElementAttributeData* Element::ensureAttributeData() const
 {
-    if (!m_attributeMap)
-        createAttributeMap();
-    return m_attributeMap->attributeData();
+    if (!m_attributeData)
+        createAttributeData();
+    return m_attributeData.get();
 }
 
 inline ElementAttributeData* Element::updatedAttributeData() const
@@ -619,14 +599,14 @@ inline void Element::willRemoveAttribute(const QualifiedName& name, const Atomic
 inline bool Element::fastHasAttribute(const QualifiedName& name) const
 {
     ASSERT(fastAttributeLookupAllowed(name));
-    return m_attributeMap && m_attributeMap->getAttributeItem(name);
+    return m_attributeData && getAttributeItem(name);
 }
 
 inline const AtomicString& Element::fastGetAttribute(const QualifiedName& name) const
 {
     ASSERT(fastAttributeLookupAllowed(name));
-    if (m_attributeMap) {
-        if (Attribute* attribute = m_attributeMap->getAttributeItem(name))
+    if (m_attributeData) {
+        if (Attribute* attribute = getAttributeItem(name))
             return attribute->value();
     }
     return nullAtom;
@@ -634,13 +614,13 @@ inline const AtomicString& Element::fastGetAttribute(const QualifiedName& name) 
 
 inline bool Element::hasAttributesWithoutUpdate() const
 {
-    return m_attributeMap && !m_attributeMap->isEmpty();
+    return m_attributeData && !m_attributeData->isEmpty();
 }
 
 inline const AtomicString& Element::idForStyleResolution() const
 {
     ASSERT(hasID());
-    return attributeData()->idForStyleResolution();
+    return m_attributeData->idForStyleResolution();
 }
 
 inline bool Element::isIdAttributeName(const QualifiedName& attributeName) const
@@ -669,26 +649,20 @@ inline void Element::setIdAttribute(const AtomicString& value)
 
 inline size_t Element::attributeCount() const
 {
-    ASSERT(m_attributeMap);
-    return m_attributeMap->length();
+    ASSERT(m_attributeData);
+    return m_attributeData->length();
 }
 
 inline Attribute* Element::attributeItem(unsigned index) const
 {
-    ASSERT(m_attributeMap);
-    return m_attributeMap->attributeItem(index);
+    ASSERT(m_attributeData);
+    return m_attributeData->attributeItem(index);
 }
 
 inline Attribute* Element::getAttributeItem(const QualifiedName& name) const
 {
-    ASSERT(m_attributeMap);
-    return m_attributeMap->getAttributeItem(name);
-}
-
-inline void Element::removeAttribute(unsigned index)
-{
-    ASSERT(m_attributeMap);
-    m_attributeMap->removeAttribute(index);
+    ASSERT(m_attributeData);
+    return m_attributeData->getAttributeItem(name);
 }
 
 inline void Element::updateInvalidAttributes() const
@@ -709,6 +683,27 @@ inline Element* firstElementChild(const ContainerNode* container)
     while (child && !child->isElementNode())
         child = child->nextSibling();
     return static_cast<Element*>(child);
+}
+
+inline bool Element::hasID() const
+{
+    return attributeData() && attributeData()->hasID();
+}
+
+inline bool Element::hasClass() const
+{
+    return attributeData() && attributeData()->hasClass();
+}
+
+// Put here to make them inline.
+inline bool Node::hasID() const
+{
+    return isElementNode() && toElement(this)->hasID();
+}
+
+inline bool Node::hasClass() const
+{
+    return isElementNode() && toElement(this)->hasClass();
 }
 
 } // namespace

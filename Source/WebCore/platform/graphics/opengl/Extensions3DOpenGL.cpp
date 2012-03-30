@@ -35,10 +35,8 @@
 #if PLATFORM(MAC)
 #include "ANGLE/ShaderLang.h"
 #include <OpenGL/gl.h>
-#elif PLATFORM(GTK) || PLATFORM(EFL)
+#elif PLATFORM(GTK) || PLATFORM(EFL) || PLATFORM(QT)
 #include "OpenGLShims.h"
-#elif PLATFORM(QT)
-#include <cairo/OpenGLShims.h>
 #endif
 
 namespace WebCore {
@@ -99,6 +97,9 @@ bool Extensions3DOpenGL::supports(const String& name)
     // Desktop GL always supports the standard derivative functions
     if (name == "GL_OES_standard_derivatives")
         return true;
+
+    if (name == "GL_EXT_texture_filter_anisotropic")
+        return m_availableExtensions.contains("GL_EXT_texture_filter_anisotropic");
 
     return m_availableExtensions.contains(name);
 }

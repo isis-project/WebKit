@@ -31,58 +31,30 @@
 #ifndef HTMLContentElement_h
 #define HTMLContentElement_h
 
-#include "HTMLContentSelector.h"
-#include "HTMLElement.h"
+#include "InsertionPoint.h"
 #include <wtf/Forward.h>
 
 namespace WebCore {
 
-class ContentSelectorQuery;
-class HTMLContentSelectionList;
-
-// NOTE: Current implementation doesn't support dynamic insertion/deletion of HTMLContentElement.
-// You should create HTMLContentElement during the host construction.
-class HTMLContentElement : public HTMLElement {
+class HTMLContentElement : public InsertionPoint {
 public:
     static PassRefPtr<HTMLContentElement> create(const QualifiedName&, Document*);
     static PassRefPtr<HTMLContentElement> create(Document*);
 
     virtual ~HTMLContentElement();
-    virtual void attach();
-    virtual void detach();
 
     const AtomicString& select() const;
-
-    // FIXME: Currently this constructor accepts wider query than shadow dom spec.
-    // For example, a selector query should not include contextual selectors.
-    // See https://bugs.webkit.org/show_bug.cgi?id=75946
-    // FIXME: Currently we don't support setting select value dynamically.
-    // See https://bugs.webkit.org/show_bug.cgi?id=76261
     void setSelect(const AtomicString&);
-
-    const HTMLContentSelectionList* selections() const { return m_selections.get(); }
-    bool hasSelection() const { return selections()->first(); }
-
     virtual bool isSelectValid() const;
+
+    bool doesSelectFromHostChildren() const { return true; }
 
 protected:
     HTMLContentElement(const QualifiedName&, Document*);
 
 private:
-    virtual bool isContentElement() const { return true; }
-    virtual bool rendererIsNeeded(const NodeRenderingContext&) { return false; }
-    virtual RenderObject* createRenderer(RenderArena*, RenderStyle*) { return 0; }
-
     virtual void parseAttribute(Attribute*) OVERRIDE;
-
-    OwnPtr<HTMLContentSelectionList> m_selections;
 };
-
-inline HTMLContentElement* toHTMLContentElement(Node* node)
-{
-    ASSERT(!node || node->isContentElement());
-    return static_cast<HTMLContentElement*>(node);
-}
 
 }
 

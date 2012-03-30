@@ -167,6 +167,7 @@ Structure::Structure(JSGlobalData& globalData, JSGlobalObject* globalObject, JSV
     , m_dictionaryKind(NoneDictionaryKind)
     , m_isPinnedPropertyTable(false)
     , m_hasGetterSetterProperties(false)
+    , m_hasReadOnlyOrGetterSetterPropertiesExcludingProto(false)
     , m_hasNonEnumerableProperties(false)
     , m_attributesInPrevious(0)
     , m_specificFunctionThrashCount(0)
@@ -188,6 +189,7 @@ Structure::Structure(JSGlobalData& globalData)
     , m_dictionaryKind(NoneDictionaryKind)
     , m_isPinnedPropertyTable(false)
     , m_hasGetterSetterProperties(false)
+    , m_hasReadOnlyOrGetterSetterPropertiesExcludingProto(false)
     , m_hasNonEnumerableProperties(false)
     , m_attributesInPrevious(0)
     , m_specificFunctionThrashCount(0)
@@ -207,6 +209,7 @@ Structure::Structure(JSGlobalData& globalData, const Structure* previous)
     , m_dictionaryKind(previous->m_dictionaryKind)
     , m_isPinnedPropertyTable(false)
     , m_hasGetterSetterProperties(previous->m_hasGetterSetterProperties)
+    , m_hasReadOnlyOrGetterSetterPropertiesExcludingProto(previous->m_hasReadOnlyOrGetterSetterPropertiesExcludingProto)
     , m_hasNonEnumerableProperties(previous->m_hasNonEnumerableProperties)
     , m_attributesInPrevious(0)
     , m_specificFunctionThrashCount(previous->m_specificFunctionThrashCount)
@@ -322,7 +325,7 @@ Structure* Structure::addPropertyTransition(JSGlobalData& globalData, Structure*
             transition->growPropertyStorageCapacity();
         return transition;
     }
-
+    
     Structure* transition = create(globalData, structure);
 
     transition->m_cachedPrototypeChain.setMayBeNull(globalData, transition, structure->m_cachedPrototypeChain.get());
@@ -467,9 +470,12 @@ Structure* Structure::freezeTransition(JSGlobalData& globalData, Structure* stru
     Structure* transition = preventExtensionsTransition(globalData, structure);
 
     if (transition->m_propertyTable) {
+        PropertyTable::iterator iter = transition->m_propertyTable->begin();
         PropertyTable::iterator end = transition->m_propertyTable->end();
-        for (PropertyTable::iterator iter = transition->m_propertyTable->begin(); iter != end; ++iter)
-            iter->attributes |= (DontDelete | ReadOnly);
+        if (iter != end)
+            transition->m_hasReadOnlyOrGetterSetterPropertiesExcludingProto = true;
+        for (; iter != end; ++iter)
+            iter->attributes |= iter->attributes & Accessor ? DontDelete : (DontDelete | ReadOnly);
     }
 
     return transition;
@@ -520,7 +526,9 @@ bool Structure::isFrozen(JSGlobalData& globalData)
 
     PropertyTable::iterator end = m_propertyTable->end();
     for (PropertyTable::iterator iter = m_propertyTable->begin(); iter != end; ++iter) {
-        if ((iter->attributes & (DontDelete | ReadOnly)) != (DontDelete | ReadOnly))
+        if (!(iter->attributes & DontDelete))
+            return false;
+        if (!(iter->attributes & (ReadOnly | Accessor)))
             return false;
     }
     return true;

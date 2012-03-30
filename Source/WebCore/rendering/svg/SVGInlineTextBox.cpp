@@ -35,7 +35,7 @@
 #include "RenderSVGInlineText.h"
 #include "RenderSVGResource.h"
 #include "RenderSVGResourceSolidColor.h"
-#include "SVGImageBufferTools.h"
+#include "SVGRenderingContext.h"
 #include "SVGResourcesCache.h"
 #include "SVGRootInlineBox.h"
 #include "SVGTextRunRenderingContext.h"
@@ -51,6 +51,14 @@ SVGInlineTextBox::SVGInlineTextBox(RenderObject* object)
     , m_startsNewTextChunk(false)
     , m_paintingResource(0)
 {
+}
+
+void SVGInlineTextBox::dirtyLineBoxes()
+{
+    InlineTextBox::dirtyLineBoxes();
+
+    // Clear the now stale text fragments
+    clearTextFragments();
 }
 
 int SVGInlineTextBox::offsetForPosition(float, bool) const

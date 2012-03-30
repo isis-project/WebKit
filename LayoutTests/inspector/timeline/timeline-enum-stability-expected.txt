@@ -3,7 +3,9 @@ Check to see that TimelineAgent record types are stable.
 Applications outside of WebKit depend on the stability of the mapping of these types to these specific values.
 
 {
+    Root : "Root"
     EventDispatch : "EventDispatch"
+    BeginFrame : "BeginFrame"
     Layout : "Layout"
     RecalculateStyles : "RecalculateStyles"
     Paint : "Paint"
@@ -24,8 +26,8 @@ Applications outside of WebKit depend on the stability of the mapping of these t
     ResourceFinish : "ResourceFinish"
     FunctionCall : "FunctionCall"
     GCEvent : "GCEvent"
-    RegisterAnimationFrameCallback : "RegisterAnimationFrameCallback"
-    CancelAnimationFrameCallback : "CancelAnimationFrameCallback"
-    FireAnimationFrameEvent : "FireAnimationFrameEvent"
+    RequestAnimationFrame : "RequestAnimationFrame"
+    CancelAnimationFrame : "CancelAnimationFrame"
+    FireAnimationFrame : "FireAnimationFrame"
 }
 

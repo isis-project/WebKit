@@ -645,6 +645,15 @@ void ScrollAnimatorMac::immediateScrollTo(const FloatPoint& newPosition)
     notifyPositionChanged();
 }
 
+bool ScrollAnimatorMac::isRubberBandInProgress() const
+{
+#if !ENABLE(RUBBER_BANDING)
+    return false;
+#else
+    return m_scrollElasticityController.isRubberBandInProgress();
+#endif
+}
+
 void ScrollAnimatorMac::immediateScrollToPointForScrollAnimation(const FloatPoint& newPosition)
 {
     ASSERT(m_scrollAnimationHelper);
@@ -779,6 +788,17 @@ void ScrollAnimatorMac::didEndScrollGesture() const
         [m_scrollbarPainterController.get() endScrollGesture];
 }
 
+void ScrollAnimatorMac::mayBeginScrollGesture() const
+{
+    if (!scrollableArea()->isOnActivePage())
+        return;
+    if (!isScrollbarOverlayAPIAvailable())
+        return;
+
+    [m_scrollbarPainterController.get() beginScrollGesture];
+    [m_scrollbarPainterController.get() contentAreaScrolled];
+}
+
 void ScrollAnimatorMac::didAddVerticalScrollbar(Scrollbar* scrollbar)
 {
     if (!isScrollbarOverlayAPIAvailable())
@@ -889,6 +909,16 @@ void ScrollAnimatorMac::cancelAnimations()
     }
 }
 
+void ScrollAnimatorMac::handleWheelEventPhase(PlatformWheelEventPhase phase)
+{
+    if (phase == PlatformWheelEventPhaseBegan)
+        didBeginScrollGesture();
+    else if (phase == PlatformWheelEventPhaseEnded || phase == PlatformWheelEventPhaseCancelled)
+        didEndScrollGesture();
+    else if (phase == PlatformWheelEventPhaseMayBegin)
+        mayBeginScrollGesture();
+}
+
 #if ENABLE(RUBBER_BANDING)
 bool ScrollAnimatorMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
@@ -911,12 +941,8 @@ bool ScrollAnimatorMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 
     bool didHandleEvent = m_scrollElasticityController.handleWheelEvent(wheelEvent);
 
-    if (didHandleEvent) {
-        if (wheelEvent.phase() == PlatformWheelEventPhaseBegan)
-            didBeginScrollGesture();
-        else if (wheelEvent.phase() == PlatformWheelEventPhaseEnded)
-            didEndScrollGesture();
-    }
+    if (didHandleEvent)
+        handleWheelEventPhase(wheelEvent.phase());
 
     return didHandleEvent;
 }

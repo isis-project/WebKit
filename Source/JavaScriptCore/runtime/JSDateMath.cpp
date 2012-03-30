@@ -72,20 +72,20 @@
 #include "config.h"
 #include "JSDateMath.h"
 
-#include "Assertions.h"
-#include "ASCIICType.h"
-#include "CurrentTime.h"
 #include "JSObject.h"
-#include "MathExtras.h"
 #include "ScopeChain.h"
-#include "StdLibExtras.h"
-#include "StringExtras.h"
 
 #include <algorithm>
 #include <limits.h>
 #include <limits>
 #include <stdint.h>
 #include <time.h>
+#include <wtf/ASCIICType.h>
+#include <wtf/Assertions.h>
+#include <wtf/CurrentTime.h>
+#include <wtf/MathExtras.h>
+#include <wtf/StdLibExtras.h>
+#include <wtf/StringExtras.h>
 #include <wtf/text/StringBuilder.h>
 
 #if HAVE(ERRNO_H)

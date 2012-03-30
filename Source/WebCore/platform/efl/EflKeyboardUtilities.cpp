@@ -76,6 +76,7 @@ static void createKeyMap()
     keyMap().set("Delete", "U+007F");
     keyMap().set("Tab", "U+0009");
     keyMap().set("ISO_Left_Tab", "U+0009");
+    keyMap().set("BackSpace", "U+0008");
 }
 
 static void createWindowsKeyMap()
@@ -166,7 +167,7 @@ static void createWindowsKeyMap()
     }
 }
 
-String keyIdentifierForEvasKeyName(String& keyName)
+String keyIdentifierForEvasKeyName(const String& keyName)
 {
     if (keyMap().isEmpty())
         createKeyMap();
@@ -177,7 +178,18 @@ String keyIdentifierForEvasKeyName(String& keyName)
     return keyName;
 }
 
-int windowsKeyCodeForEvasKeyName(String& keyName)
+String singleCharacterString(const String& keyName)
+{
+    if (keyName == "Return")
+        return String("\r");
+    if (keyName == "BackSpace")
+        return String("\x8");
+    if (keyName == "Tab")
+        return String("\t");
+    return keyName;
+}
+
+int windowsKeyCodeForEvasKeyName(const String& keyName)
 {
     if (windowsKeyMap().isEmpty())
         createWindowsKeyMap();

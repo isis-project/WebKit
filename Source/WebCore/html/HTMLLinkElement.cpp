@@ -31,6 +31,7 @@
 #include "CachedResourceLoader.h"
 #include "CSSStyleSelector.h"
 #include "Document.h"
+#include "EventSender.h"
 #include "Frame.h"
 #include "FrameLoader.h"
 #include "FrameLoaderClient.h"
@@ -41,7 +42,6 @@
 #include "MediaList.h"
 #include "MediaQueryEvaluator.h"
 #include "Page.h"
-#include "ResourceHandle.h"
 #include "ScriptEventListener.h"
 #include "SecurityOrigin.h"
 #include "Settings.h"
@@ -51,6 +51,12 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
+static LinkEventSender& linkLoadEventSender()
+{
+    DEFINE_STATIC_LOCAL(LinkEventSender, sharedLoadEventSender, (eventNames().loadEvent));
+    return sharedLoadEventSender;
+}
+
 inline HTMLLinkElement::HTMLLinkElement(const QualifiedName& tagName, Document* document, bool createdByParser)
     : HTMLElement(tagName, document)
     , m_linkLoader(this)
@@ -59,6 +65,8 @@ inline HTMLLinkElement::HTMLLinkElement(const QualifiedName& tagName, Document* 
     , m_loading(false)
     , m_createdByParser(createdByParser)
     , m_isInShadowTree(false)
+    , m_firedLoad(false)
+    , m_loadedSheet(false)
     , m_pendingSheetType(None)
 {
     ASSERT(hasTagName(linkTag));
@@ -81,6 +89,8 @@ HTMLLinkElement::~HTMLLinkElement()
 
     if (inDocument())
         document()->removeStyleSheetCandidateNode(this);
+
+    linkLoadEventSender().cancelEvent(this);
 }
 
 void HTMLLinkElement::setDisabledState(bool disabled)
@@ -141,12 +151,10 @@ void HTMLLinkElement::parseAttribute(Attribute* attr)
         setDisabledState(!attr->isNull());
     else if (attr->name() == onbeforeloadAttr)
         setAttributeEventListener(eventNames().beforeloadEvent, createAttributeEventListener(this, attr));
-#if ENABLE(LINK_PREFETCH)
     else if (attr->name() == onloadAttr)
         setAttributeEventListener(eventNames().loadEvent, createAttributeEventListener(this, attr));
     else if (attr->name() == onerrorAttr)
         setAttributeEventListener(eventNames().errorEvent, createAttributeEventListener(this, attr));
-#endif
     else {
         if (attr->name() == titleAttr && m_sheet)
             m_sheet->setTitle(attr->value());
@@ -200,7 +208,7 @@ void HTMLLinkElement::process()
         bool mediaQueryMatches = true;
         if (!m_media.isEmpty()) {
             RefPtr<RenderStyle> documentStyle = CSSStyleSelector::styleForDocument(document());
-            RefPtr<MediaList> media = MediaList::createAllowingDescriptionSyntax(m_media);
+            RefPtr<MediaQuerySet> media = MediaQuerySet::createAllowingDescriptionSyntax(m_media);
             MediaQueryEvaluator evaluator(document()->frame()->view()->mediaType(), document()->frame(), documentStyle.get());
             mediaQueryMatches = evaluator.eval(media.get());
         }
@@ -326,10 +334,11 @@ void HTMLLinkElement::setCSSStyleSheet(const String& href, const KURL& baseURL, 
 
     m_sheet->setTitle(title());
 
-    RefPtr<MediaList> media = MediaList::createAllowingDescriptionSyntax(m_media);
-    m_sheet->setMedia(media.get());
+    RefPtr<MediaQuerySet> media = MediaQuerySet::createAllowingDescriptionSyntax(m_media);
+    m_sheet->setMediaQueries(media.release());
 
     m_loading = false;
+    m_sheet->notifyLoadedSheet(sheet);
     m_sheet->checkLoaded();
 }
 
@@ -359,6 +368,29 @@ bool HTMLLinkElement::sheetLoaded()
         return true;
     }
     return false;
+}
+
+void HTMLLinkElement::dispatchPendingLoadEvents()
+{
+    linkLoadEventSender().dispatchPendingEvents();
+}
+
+void HTMLLinkElement::dispatchPendingEvent(LinkEventSender* eventSender)
+{
+    ASSERT_UNUSED(eventSender, eventSender == &linkLoadEventSender());
+    if (m_loadedSheet)
+        linkLoaded();
+    else
+        linkLoadingErrored();
+}
+
+void HTMLLinkElement::notifyLoadedSheetAndAllCriticalSubresources(bool errorOccurred)
+{
+    if (m_firedLoad)
+        return;
+    m_loadedSheet = !errorOccurred;
+    linkLoadEventSender().dispatchEventSoon(this);
+    m_firedLoad = true;
 }
 
 void HTMLLinkElement::startLoadingDynamicSheet()

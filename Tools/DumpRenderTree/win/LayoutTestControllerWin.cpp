@@ -35,7 +35,6 @@
 #include "WorkQueue.h"
 #include "WorkQueueItem.h"
 #include <CoreFoundation/CoreFoundation.h>
-#include <JavaScriptCore/Assertions.h>
 #include <JavaScriptCore/JSRetainPtr.h>
 #include <JavaScriptCore/JSStringRefBSTR.h>
 #include <JavaScriptCore/JavaScriptCore.h>
@@ -47,6 +46,7 @@
 #include <shlguid.h>
 #include <shobjidl.h>
 #include <string>
+#include <wtf/Assertions.h>
 #include <wtf/Platform.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/Vector.h>
@@ -174,12 +174,6 @@ void LayoutTestController::keepWebHistory()
 }
 
 JSValueRef LayoutTestController::computedStyleIncludingVisitedInfo(JSContextRef context, JSValueRef value)
-{
-    // FIXME: Implement this.
-    return JSValueMakeUndefined(context);
-}
-
-JSValueRef LayoutTestController::nodesFromRect(JSContextRef context, JSValueRef value, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping)
 {
     // FIXME: Implement this.
     return JSValueMakeUndefined(context);
@@ -785,7 +779,25 @@ void LayoutTestController::setUserStyleSheetLocation(JSStringRef jsURL)
 
 void LayoutTestController::setValueForUser(JSContextRef context, JSValueRef element, JSStringRef value)
 {
-    // FIXME: implement
+    COMPtr<IWebView> webView;
+    if (FAILED(frame->webView(&webView)))
+        return;
+
+    COMPtr<IWebViewPrivate> webViewPrivate(Query, webView);
+    if (!webViewPrivate)
+        return;
+
+    COMPtr<IDOMElement> domElement;
+    if (FAILED(webViewPrivate->elementFromJS(context, element, &domElement)))
+        return;
+
+    COMPtr<IDOMHTMLInputElement> domInputElement;
+    if (FAILED(domElement->QueryInterface(IID_IDOMHTMLInputElement, reinterpret_cast<void**>(&domInputElement))))
+        return;
+
+    _bstr_t valueBSTR(JSStringCopyBSTR(value), false);
+
+    domInputElement->setValueForUser(valueBSTR);
 }
 
 void LayoutTestController::setViewModeMediaFeature(JSStringRef mode)
@@ -1435,23 +1447,6 @@ void LayoutTestController::setEditingBehavior(const char* editingBehavior)
 
 void LayoutTestController::abortModal()
 {
-}
-
-bool LayoutTestController::hasSpellingMarker(int from, int length)
-{
-    COMPtr<IWebFramePrivate> framePrivate(Query, frame);
-    if (!framePrivate)
-        return false;
-    BOOL ret = FALSE;
-    if (FAILED(framePrivate->hasSpellingMarker(from, length, &ret)))
-        return false;
-    return ret;
-}
-
-bool LayoutTestController::hasGrammarMarker(int from, int length)
-{
-    // FIXME: Implement this.
-    return false;
 }
 
 void LayoutTestController::dumpConfigurationForViewport(int /*deviceDPI*/, int /*deviceWidth*/, int /*deviceHeight*/, int /*availableWidth*/, int /*availableHeight*/)

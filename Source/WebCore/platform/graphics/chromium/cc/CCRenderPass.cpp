@@ -27,12 +27,23 @@
 
 #include "cc/CCRenderPass.h"
 
+#include "cc/CCDamageTracker.h"
+#include "cc/CCDebugBorderDrawQuad.h"
 #include "cc/CCLayerImpl.h"
 #include "cc/CCQuadCuller.h"
 #include "cc/CCRenderSurfaceDrawQuad.h"
 #include "cc/CCSharedQuadState.h"
 
 namespace WebCore {
+
+static const int debugSurfaceBorderWidth = 2;
+static const int debugSurfaceBorderAlpha = 100;
+static const int debugSurfaceBorderColorRed = 0;
+static const int debugSurfaceBorderColorGreen = 0;
+static const int debugSurfaceBorderColorBlue = 255;
+static const int debugReplicaBorderColorRed = 160;
+static const int debugReplicaBorderColorGreen = 0;
+static const int debugReplicaBorderColorBlue = 255;
 
 PassOwnPtr<CCRenderPass> CCRenderPass::create(CCRenderSurface* targetSurface)
 {
@@ -45,11 +56,13 @@ CCRenderPass::CCRenderPass(CCRenderSurface* targetSurface)
     ASSERT(m_targetSurface);
 }
 
-void CCRenderPass::appendQuadsForLayer(CCLayerImpl* layer)
+void CCRenderPass::appendQuadsForLayer(CCLayerImpl* layer, CCOcclusionTrackerImpl* occlusionTracker, bool& usedCheckerboard)
 {
+    CCQuadCuller quadCuller(m_quadList, layer, occlusionTracker);
+
     OwnPtr<CCSharedQuadState> sharedQuadState = layer->createSharedQuadState();
-    layer->appendQuads(m_quadList, sharedQuadState.get());
-    layer->appendDebugBorderQuad(m_quadList, sharedQuadState.get());
+    layer->appendDebugBorderQuad(quadCuller, sharedQuadState.get());
+    layer->appendQuads(quadCuller, sharedQuadState.get(), usedCheckerboard);
     m_sharedQuadStateList.append(sharedQuadState.release());
 }
 
@@ -58,15 +71,21 @@ void CCRenderPass::appendQuadsForRenderSurfaceLayer(CCLayerImpl* layer)
     // FIXME: render surface layers should be a CCLayerImpl-derived class and
     // not be handled specially here.
     CCRenderSurface* surface = layer->renderSurface();
-    bool isOpaque = false;
-    OwnPtr<CCSharedQuadState> sharedQuadState = CCSharedQuadState::create(surface->drawTransform(), surface->drawTransform(), surface->contentRect(), surface->clipRect(), surface->drawOpacity(), isOpaque);
+    OwnPtr<CCSharedQuadState> sharedQuadState = surface->createSharedQuadState();
+
+    if (layer->hasDebugBorders()) {
+        Color color(debugSurfaceBorderColorRed, debugSurfaceBorderColorGreen, debugSurfaceBorderColorBlue, debugSurfaceBorderAlpha);
+        m_quadList.append(CCDebugBorderDrawQuad::create(sharedQuadState.get(), surface->contentRect(), color, debugSurfaceBorderWidth));
+        if (surface->hasReplica()) {
+            OwnPtr<CCSharedQuadState> sharedQuadState = surface->createReplicaSharedQuadState();
+            Color color(debugReplicaBorderColorRed, debugReplicaBorderColorGreen, debugReplicaBorderColorBlue, debugSurfaceBorderAlpha);
+            m_quadList.append(CCDebugBorderDrawQuad::create(sharedQuadState.get(), surface->contentRect(), color, debugSurfaceBorderWidth));
+            m_sharedQuadStateList.append(sharedQuadState.release());
+        }
+    }
+
     m_quadList.append(CCRenderSurfaceDrawQuad::create(sharedQuadState.get(), surface->contentRect(), layer, surfaceDamageRect()));
     m_sharedQuadStateList.append(sharedQuadState.release());
-}
-
-void CCRenderPass::optimizeQuads()
-{
-    CCQuadCuller::cullOccludedQuads(m_quadList);
 }
 
 }

@@ -117,7 +117,7 @@ static v8::Persistent<v8::FunctionTemplate> ConfigureV8TestActiveDOMObjectTempla
     v8::Handle<v8::Signature> excitingFunctionSignature = v8::Signature::New(desc, excitingFunctionArgc, excitingFunctionArgv);
     proto->Set(v8::String::New("excitingFunction"), v8::FunctionTemplate::New(TestActiveDOMObjectInternal::excitingFunctionCallback, v8::Handle<v8::Value>(), excitingFunctionSignature));
 
-    // Function 'postMessage' (ExtAttr: 'DoNotCheckDomainSecurity')
+    // Function 'postMessage' (ExtAttr: 'DoNotCheckSecurity')
     proto->SetAccessor(v8::String::New("postMessage"), TestActiveDOMObjectInternal::postMessageAttrGetter, 0, v8::Handle<v8::Value>(), v8::ALL_CAN_READ, static_cast<v8::PropertyAttribute>(v8::DontDelete | v8::ReadOnly));
 
     // Custom toString template
@@ -158,7 +158,7 @@ bool V8TestActiveDOMObject::HasInstance(v8::Handle<v8::Value> value)
 }
 
 
-v8::Handle<v8::Object> V8TestActiveDOMObject::wrapSlow(TestActiveDOMObject* impl)
+v8::Handle<v8::Object> V8TestActiveDOMObject::wrapSlow(PassRefPtr<TestActiveDOMObject> impl)
 {
     v8::Handle<v8::Object> wrapper;
     V8Proxy* proxy = 0;
@@ -175,19 +175,18 @@ v8::Handle<v8::Object> V8TestActiveDOMObject::wrapSlow(TestActiveDOMObject* impl
     // Enter the node's context and create the wrapper in that context.
     if (!context.IsEmpty())
         context->Enter();
-    wrapper = V8DOMWrapper::instantiateV8Object(proxy, &info, impl);
+    wrapper = V8DOMWrapper::instantiateV8Object(proxy, &info, impl.get());
     // Exit the node's context if it was entered.
     if (!context.IsEmpty())
         context->Exit();
-    if (wrapper.IsEmpty())
+    if (UNLIKELY(wrapper.IsEmpty()))
         return wrapper;
 
-    impl->ref();
     v8::Persistent<v8::Object> wrapperHandle = v8::Persistent<v8::Object>::New(wrapper);
 
     if (!hasDependentLifetime)
         wrapperHandle.MarkIndependent();
-    getDOMObjectMap().set(impl, wrapperHandle);
+    getDOMObjectMap().set(impl.leakRef(), wrapperHandle);
     return wrapper;
 }
 

@@ -39,7 +39,7 @@
 namespace WebCore {
 
     class KURL;
-    class NotificationPresenter;
+    class NotificationClient;
     class WorkerContext;
     class WorkerLoaderProxy;
     class WorkerReportingProxy;
@@ -62,9 +62,9 @@ namespace WebCore {
         // Number of active worker threads.
         static unsigned workerThreadCount();
 
-#if ENABLE(NOTIFICATIONS)
-        NotificationPresenter* getNotificationPresenter() { return m_notificationPresenter; }
-        void setNotificationPresenter(NotificationPresenter* presenter) { m_notificationPresenter = presenter; }
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+        NotificationClient* getNotificationClient() { return m_notificationClient; }
+        void setNotificationClient(NotificationClient* client) { m_notificationClient = client; }
 #endif
 
     protected:
@@ -80,8 +80,8 @@ namespace WebCore {
 
     private:
         // Static function executed as the core routine on the new thread. Passed a pointer to a WorkerThread object.
-        static void* workerThreadStart(void*);
-        void* workerThread();
+        static void workerThreadStart(void*);
+        void workerThread();
 
         ThreadIdentifier m_threadID;
         WorkerRunLoop m_runLoop;
@@ -93,8 +93,8 @@ namespace WebCore {
 
         OwnPtr<WorkerThreadStartupData> m_startupData;
 
-#if ENABLE(NOTIFICATIONS)
-        NotificationPresenter* m_notificationPresenter;
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+        NotificationClient* m_notificationClient;
 #endif
 
         // Track the number of WorkerThread instances for use in layout tests.

@@ -57,6 +57,7 @@ enum CalcMode {
 
 class ConditionEventListener;
 class TimeContainer;
+class SVGAnimatedType;
 
 class SVGAnimationElement : public SVGSMILElement,
                             public SVGTests,
@@ -81,11 +82,20 @@ public:
     AnimationMode animationMode() const;
     CalcMode calcMode() const;
 
+    enum ShouldApplyAnimation {
+        DontApplyAnimation,
+        ApplyCSSAnimation,
+        ApplyXMLAnimation
+    };
+
+    ShouldApplyAnimation shouldApplyAnimation(SVGElement* targetElement, const QualifiedName& attributeName);
+
 protected:
     SVGAnimationElement(const QualifiedName&, Document*);
 
     bool isSupportedAttribute(const QualifiedName&);
     virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual void svgAttributeChanged(const QualifiedName&) OVERRIDE;
 
     enum AttributeType {
         AttributeTypeCSS,
@@ -98,15 +108,15 @@ protected:
     String byValue() const;
     String fromValue() const;
 
-    String targetAttributeBaseValue() const;
-    void setTargetAttributeAnimatedValue(const String&);
+    String targetAttributeBaseValue();
+    void setTargetAttributeAnimatedValue(SVGAnimatedType*);
 
     // from SVGSMILElement
     virtual void startedActiveInterval();
     virtual void updateAnimation(float percent, unsigned repeat, SVGSMILElement* resultElement);
 
 private:
-    virtual void attributeChanged(Attribute*) OVERRIDE;
+    virtual void animationAttributeChanged() OVERRIDE;
 
     virtual bool calculateFromAndToValues(const String& fromString, const String& toString) = 0;
     virtual bool calculateFromAndByValues(const String& fromString, const String& byString) = 0;
@@ -121,6 +131,8 @@ private:
     float calculatePercentForSpline(float percent, unsigned splineIndex) const;
     float calculatePercentForFromTo(float percent) const;
     unsigned calculateKeyTimesIndex(float percent) const;
+
+    void applyAnimatedValue(ShouldApplyAnimation, SVGElement* targetElement, const QualifiedName& attributeName, SVGAnimatedType*);
 
     BEGIN_DECLARE_ANIMATED_PROPERTIES(SVGAnimationElement)
         DECLARE_ANIMATED_BOOLEAN(ExternalResourcesRequired, externalResourcesRequired)

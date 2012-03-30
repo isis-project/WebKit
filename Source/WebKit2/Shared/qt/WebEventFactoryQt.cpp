@@ -26,8 +26,6 @@
 
 #include "config.h"
 #include "WebEventFactoryQt.h"
-#include <qgraphicssceneevent.h>
-#include <QApplication>
 #include <QKeyEvent>
 #include <QTransform>
 #include <WebCore/IntPoint.h>
@@ -86,6 +84,8 @@ static WebEvent::Type webEventTypeForEvent(const QEvent* event)
         return WebEvent::TouchMove;
     case QEvent::TouchEnd:
         return WebEvent::TouchEnd;
+    case QEvent::TouchCancel:
+        return WebEvent::TouchCancel;
 #endif
     default:
         // assert
@@ -149,8 +149,10 @@ WebWheelEvent WebEventFactory::createWebWheelEvent(QWheelEvent* e, const QTransf
     // Use the same single scroll step as QTextEdit
     // (in QTextEditPrivate::init [h,v]bar->setSingleStep)
     static const float cDefaultQtScrollStep = 20.f;
-    deltaX *= (fullTick) ? QApplication::wheelScrollLines() * cDefaultQtScrollStep : 1;
-    deltaY *= (fullTick) ? QApplication::wheelScrollLines() * cDefaultQtScrollStep : 1;
+    // ### FIXME: Default from QtGui. Should use Qt platform theme API once configurable.
+    const int wheelScrollLines = 3;
+    deltaX *= (fullTick) ? wheelScrollLines * cDefaultQtScrollStep : 1;
+    deltaY *= (fullTick) ? wheelScrollLines * cDefaultQtScrollStep : 1;
 
     return WebWheelEvent(WebEvent::Wheel, fromItemTransform.map(e->posF()).toPoint(), e->globalPosF().toPoint(), FloatSize(deltaX, deltaY), FloatSize(wheelTicksX, wheelTicksY), granularity, modifiers, timestamp);
 }
@@ -206,6 +208,11 @@ WebTouchEvent WebEventFactory::createWebTouchEvent(const QTouchEvent* event, con
             ASSERT_NOT_REACHED();
             break;
         }
+
+        // Qt does not have a Qt::TouchPointCancelled point state, so if we receive a touch cancel event,
+        // simply cancel all touch points here.
+        if (type == WebEvent::TouchCancel)
+            state = WebPlatformTouchPoint::TouchCancelled;
 
         m_touchPoints.append(WebPlatformTouchPoint(id, state, touchPoint.screenPos().toPoint(), fromItemTransform.map(touchPoint.pos()).toPoint()));
     }

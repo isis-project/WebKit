@@ -26,7 +26,7 @@
 #ifndef SlotVisitor_h
 #define SlotVisitor_h
 
-#include "BumpSpace.h"
+#include "CopiedSpace.h"
 #include "MarkStack.h"
 
 namespace JSC {
@@ -62,7 +62,6 @@ public:
     void finalizeUnconditionalFinalizers();
 
     void startCopying();
-    void copy(void**, size_t);
     void copyAndAppend(void**, size_t, JSValue*, unsigned);
     void doneCopying(); 
         
@@ -78,7 +77,7 @@ private:
         donateSlow();
     }
     
-    BumpBlock* m_copyBlock;
+    CopiedBlock* m_copyBlock;
 };
 
 inline SlotVisitor::SlotVisitor(MarkStackThreadSharedData& shared)

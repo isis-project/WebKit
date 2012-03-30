@@ -168,7 +168,6 @@ public:
 
     static QString markerTextForListItem(const QWebElement& listItem);
     static QVariantMap computedStyleIncludingVisitedInfo(const QWebElement& element);
-    static QString plainText(const QVariant& rng);
 
     static void dumpFrameLoader(bool b);
     static void dumpProgressFinishedCallback(bool);
@@ -213,7 +212,6 @@ public:
     static void iosGestureChange(QWebPage*, const QPoint& pt, float rotation, float scale);
     static void iosGestureEnd(QWebPage*, const QPoint& pt, float rotation, float scale);
 
-    static QVariantList nodesFromRect(const QWebElement& document, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping);
     static QString responseMimeType(QWebFrame*);
     static void clearOpener(QWebFrame*);
     static void addURLToRedirect(const QString& origin, const QString& destination);

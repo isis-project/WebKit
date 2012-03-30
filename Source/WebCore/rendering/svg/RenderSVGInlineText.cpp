@@ -34,8 +34,8 @@
 #include "RenderSVGRoot.h"
 #include "RenderSVGText.h"
 #include "Settings.h"
-#include "SVGImageBufferTools.h"
 #include "SVGInlineTextBox.h"
+#include "SVGRenderingContext.h"
 #include "SVGRootInlineBox.h"
 #include "VisiblePosition.h"
 
@@ -99,7 +99,7 @@ void RenderSVGInlineText::setTextInternal(PassRefPtr<StringImpl> text)
     // the RenderSVGInlineText objects, and thus needs to be rebuild. The latter will assure that the
     // SVGTextLayoutAttributes associated with the RenderSVGInlineText will be updated.
     if (RenderSVGText* textRenderer = RenderSVGText::locateRenderSVGTextAncestor(this)) {
-        textRenderer->textDOMChanged();
+        textRenderer->invalidateTextPositioningElements();
         textRenderer->layoutAttributesChanged(this);
     }
 }
@@ -258,7 +258,7 @@ void RenderSVGInlineText::computeNewScaledFontForStyle(RenderObject* renderer, c
 
     // Alter font-size to the right on-screen value to avoid scaling the glyphs themselves, except when GeometricPrecision is specified
     AffineTransform ctm;
-    SVGImageBufferTools::calculateTransformationToOutermostSVGCoordinateSystem(renderer, ctm);
+    SVGRenderingContext::calculateTransformationToOutermostSVGCoordinateSystem(renderer, ctm);
     scalingFactor = narrowPrecisionToFloat(sqrt((pow(ctm.xScale(), 2) + pow(ctm.yScale(), 2)) / 2));
     if (scalingFactor == 1 || !scalingFactor || style->fontDescription().textRenderingMode() == GeometricPrecision) {
         scalingFactor = 1;
@@ -267,6 +267,8 @@ void RenderSVGInlineText::computeNewScaledFontForStyle(RenderObject* renderer, c
     }
 
     FontDescription fontDescription(style->fontDescription());
+
+    // FIXME: We need to better handle the case when we compute very small fonts below (below 1pt).
     fontDescription.setComputedSize(CSSStyleSelector::getComputedSizeFromSpecifiedSize(document, scalingFactor, fontDescription.isAbsoluteSize(), fontDescription.computedSize(), DoNotUseSmartMinimumForFontSize));
 
     scaledFont = Font(fontDescription, 0, 0);

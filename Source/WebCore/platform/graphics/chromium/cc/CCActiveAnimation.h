@@ -25,25 +25,20 @@
 #ifndef CCActiveAnimation_h
 #define CCActiveAnimation_h
 
+#include "cc/CCAnimationCurve.h"
+
+#include <wtf/Noncopyable.h>
 #include <wtf/OwnPtr.h>
 #include <wtf/PassOwnPtr.h>
 
 namespace WebCore {
 
-class CCAnimationCurve;
-
 // A CCActiveAnimation, contains all the state required to play a CCAnimationCurve.
 // Specifically, the affected property, the run state (paused, finished, etc.),
 // loop count, last pause time, and the total time spent paused.
 class CCActiveAnimation {
+    WTF_MAKE_NONCOPYABLE(CCActiveAnimation);
 public:
-    // Animations that must be run together are called 'grouped' and have the same GroupID
-    // Grouped animations are guaranteed to start at the same time and no other animations
-    // may animate any of the group's target properties until all animations in the
-    // group have finished animating. Note: an active animation's group id and target
-    // property uniquely identify that animation.
-    typedef int GroupID;
-
     // Animations begin in one of the 'waiting' states. Animations waiting for the next tick
     // will start the next time the controller animates. Animations waiting for target
     // availibility will run as soon as their target property is free (and all the animations
@@ -68,14 +63,12 @@ public:
         Opacity
     };
 
-    static PassOwnPtr<CCActiveAnimation> create(PassOwnPtr<CCAnimationCurve> curve, GroupID group, TargetProperty targetProperty)
-    {
-        return adoptPtr(new CCActiveAnimation(curve, group, targetProperty));
-    }
+    static PassOwnPtr<CCActiveAnimation> create(PassOwnPtr<CCAnimationCurve>, int animationId, int groupId, TargetProperty);
 
-    virtual ~CCActiveAnimation() { }
+    virtual ~CCActiveAnimation();
 
-    GroupID group() const { return m_group; }
+    int id() const { return m_id; }
+    int group() const { return m_group; }
     TargetProperty targetProperty() const { return m_targetProperty; }
 
     RunState runState() const { return m_runState; }
@@ -93,22 +86,46 @@ public:
     bool isFinishedAt(double time) const;
     bool isFinished() const { return m_runState == Finished || m_runState == Aborted; }
 
-    CCAnimationCurve* animationCurve() { return m_animationCurve.get(); }
-    const CCAnimationCurve* animationCurve() const { return m_animationCurve.get(); }
+    bool isWaiting() const;
+    bool isRunningOrHasRun() const;
+
+    CCAnimationCurve* curve() { return m_curve.get(); }
+    const CCAnimationCurve* curve() const { return m_curve.get(); }
+
+    // If this is true, even if the animation is running, it will not be tickable until
+    // it is given a start time. This is true for animations running on the main thread.
+    bool needsSynchronizedStartTime() const { return m_needsSynchronizedStartTime; }
+    void setNeedsSynchronizedStartTime(bool needsSynchronizedStartTime) { m_needsSynchronizedStartTime = needsSynchronizedStartTime; }
 
     // Takes the given absolute time, and using the start time and the number
     // of iterations, returns the relative time in the current iteration.
     double trimTimeToCurrentIteration(double now) const;
 
-private:
-    CCActiveAnimation(PassOwnPtr<CCAnimationCurve>, GroupID, TargetProperty);
+    PassOwnPtr<CCActiveAnimation> cloneForImplThread() const;
 
-    OwnPtr<CCAnimationCurve> m_animationCurve;
-    GroupID m_group;
+    void synchronizeProperties(CCActiveAnimation*);
+
+private:
+    CCActiveAnimation(PassOwnPtr<CCAnimationCurve>, int animationId, int groupId, TargetProperty);
+
+    OwnPtr<CCAnimationCurve> m_curve;
+
+    // IDs are not necessarily unique.
+    int m_id;
+
+    // Animations that must be run together are called 'grouped' and have the same group id
+    // Grouped animations are guaranteed to start at the same time and no other animations
+    // may animate any of the group's target properties until all animations in the
+    // group have finished animating. Note: an active animation's group id and target
+    // property uniquely identify that animation.
+    int m_group;
+
     TargetProperty m_targetProperty;
     RunState m_runState;
     int m_iterations;
     double m_startTime;
+
+    bool m_needsSynchronizedStartTime;
 
     // These are used in trimTimeToCurrentIteration to account for time
     // spent while paused. This is not included in AnimationState since it

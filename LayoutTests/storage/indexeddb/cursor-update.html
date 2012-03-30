@@ -4,19 +4,16 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's cursor update.");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 test();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('cursor-update')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('cursor-update')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -33,7 +30,7 @@ function openSuccess()
 function setVersionSuccess()
 {
     debug("setVersionSuccess():");
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = openBasicCursor;
@@ -63,12 +60,12 @@ function setVersionSuccess()
 function openBasicCursor()
 {
     debug("openBasicCursor()");
-    evalAndLog("trans = db.transaction(['basicStore', 'autoIncrementStore', 'keyPathStore'], webkitIDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['basicStore', 'autoIncrementStore', 'keyPathStore'], IDBTransaction.READ_WRITE)");
     trans.onabort = unexpectedAbortCallback;
     trans.oncomplete = transactionComplete;
 
-    keyRange = webkitIDBKeyRange.lowerBound("myKey1");
-    window.objectStore = evalAndLog("trans.objectStore('basicStore')");
+    keyRange = IDBKeyRange.lowerBound("myKey1");
+    self.objectStore = evalAndLog("trans.objectStore('basicStore')");
     request = evalAndLog("objectStore.openCursor(keyRange)");
     request.onsuccess = basicUpdateCursor;
     request.onerror = unexpectedErrorCallback;
@@ -101,7 +98,7 @@ function basicCheckCursor()
         shouldBe("counter", "5");
         counter = 1;
 
-        keyRange = webkitIDBKeyRange.lowerBound(1);
+        keyRange = IDBKeyRange.lowerBound(1);
         request = evalAndLog("trans.objectStore('autoIncrementStore').openCursor(keyRange)");
         request.onsuccess = autoIncrementUpdateCursor;
         request.onerror = unexpectedErrorCallback;
@@ -138,7 +135,7 @@ function autoIncrementCheckCursor()
         shouldBe("counter", "5");
         counter = 1;
 
-        keyRange = webkitIDBKeyRange.lowerBound(1);
+        keyRange = IDBKeyRange.lowerBound(1);
         request = evalAndLog("trans.objectStore('keyPathStore').openCursor(keyRange)");
         request.onsuccess = keyPathUpdateCursor;
         request.onerror = unexpectedErrorCallback;
@@ -163,7 +160,7 @@ function keyPathUpdateCursor()
         return;
     }
 
-    evalAndExpectException("event.target.result.update({id: 100 + counter, number: 100 + counter})", "webkitIDBDatabaseException.DATA_ERR");
+    evalAndExpectException("event.target.result.update({id: 100 + counter, number: 100 + counter})", "IDBDatabaseException.DATA_ERR");
 
     request = evalAndLog("event.target.result.update({id: counter, number: 100 + counter++})");
     request.onsuccess = function() { evalAndLog("event.target.source.continue()") };
@@ -177,7 +174,7 @@ function keyPathCheckCursor()
         shouldBe("counter", "5");
         counter = 1;
 
-        keyRange = webkitIDBKeyRange.lowerBound(101);
+        keyRange = IDBKeyRange.lowerBound(101);
         request = evalAndLog("trans.objectStore('keyPathStore').index('numberIndex').openKeyCursor(keyRange)");
         request.onsuccess = keyCursor;
         request.onerror = unexpectedErrorCallback;
@@ -208,7 +205,7 @@ function keyCursor()
         testFailed("Expected exception.");
     } catch (e) {
         code = e.code;
-        shouldBe("code", "webkitIDBDatabaseException.NOT_ALLOWED_ERR");
+        shouldBe("code", "IDBDatabaseException.NOT_ALLOWED_ERR");
     }
 
     counter++;
@@ -218,10 +215,11 @@ function keyCursor()
 function transactionComplete()
 {
     debug("transactionComplete()");
-    done();
+    finishJSTest();
 }
 
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

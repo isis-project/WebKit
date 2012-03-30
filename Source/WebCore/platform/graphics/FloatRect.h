@@ -52,6 +52,14 @@ QT_END_NAMESPACE
 class wxRect2DDouble;
 #endif
 
+#if PLATFORM(BLACKBERRY)
+namespace BlackBerry {
+namespace Platform {
+class FloatRect;
+}
+}
+#endif
+
 #if USE(SKIA)
 struct SkRect;
 #endif
@@ -66,6 +74,7 @@ namespace WebCore {
 class VGRect;
 #endif
 
+class FractionalLayoutRect;
 class IntRect;
 class IntPoint;
 
@@ -82,6 +91,7 @@ public:
     FloatRect(float x, float y, float width, float height)
         : m_location(FloatPoint(x, y)), m_size(FloatSize(width, height)) { }
     FloatRect(const IntRect&);
+    FloatRect(const FractionalLayoutRect&);
 
     static FloatRect narrowPrecision(double x, double y, double width, double height);
 
@@ -178,6 +188,11 @@ public:
     void fitToPoints(const FloatPoint& p0, const FloatPoint& p1);
     void fitToPoints(const FloatPoint& p0, const FloatPoint& p1, const FloatPoint& p2);
     void fitToPoints(const FloatPoint& p0, const FloatPoint& p1, const FloatPoint& p2, const FloatPoint& p3);
+
+#if PLATFORM(BLACKBERRY)
+    FloatRect(const BlackBerry::Platform::FloatRect&);
+    operator BlackBerry::Platform::FloatRect() const;
+#endif
 
 #if USE(CG) || USE(SKIA_ON_MAC_CHROMIUM)
     FloatRect(const CGRect&);

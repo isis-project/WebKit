@@ -47,7 +47,7 @@ class MediaControls;
 
 // Must match WebKitSystemInterface.h
 enum MediaControlElementType {
-    MediaFullscreenButton = 0,
+    MediaEnterFullscreenButton = 0,
     MediaMuteButton,
     MediaPlayButton,
     MediaSeekBackButton,
@@ -68,9 +68,12 @@ enum MediaControlElementType {
     MediaVolumeSliderContainer,
     MediaVolumeSlider,
     MediaVolumeSliderThumb,
+    MediaFullScreenVolumeSlider,
+    MediaFullScreenVolumeSliderThumb,
     MediaVolumeSliderMuteButton,
     MediaTextTrackDisplayContainer,
     MediaTextTrackDisplay,
+    MediaExitFullscreenButton,
 };
 
 HTMLMediaElement* toParentMediaElement(Node*);
@@ -120,6 +123,10 @@ private:
     void continueDrag(const LayoutPoint& eventLocation);
     void endDrag();
 
+    void startTimer();
+    void stopTimer();
+    void transitionTimerFired(Timer<MediaControlPanelElement>*);
+
     void setPosition(const LayoutPoint&);
 
     bool m_canBeDragged;
@@ -127,6 +134,8 @@ private:
     bool m_opaque;
     LayoutPoint m_dragStartPosition;
     LayoutPoint m_dragStartEventLocation;
+
+    Timer<MediaControlPanelElement> m_transitionTimer;
 };
 
 // ----------------------------
@@ -393,6 +402,7 @@ public:
     static PassRefPtr<MediaControlFullscreenButtonElement> create(Document*, MediaControls*);
 
     virtual void defaultEventHandler(Event*);
+    void setIsFullscreen(bool);
 
 private:
     MediaControlFullscreenButtonElement(Document*, MediaControls*);
@@ -489,9 +499,9 @@ private:
 #if ENABLE(VIDEO_TRACK)
 class MediaControlTextTrackContainerElement : public MediaControlElement {
 public:
-    
     static PassRefPtr<MediaControlTextTrackContainerElement> create(Document*);
-    
+
+    void updateDisplay();
     void updateSizes();
 
 private:
@@ -503,23 +513,9 @@ private:
 
     IntRect m_videoDisplaySize;
     float m_fontSize;
-    LayoutUnit m_bottom;
 };
 
-// ----------------------------
-
-class MediaControlTextTrackDisplayElement : public MediaControlElement {
-public:
-    static PassRefPtr<MediaControlTextTrackDisplayElement> create(Document*);
-
-private:
-    MediaControlTextTrackDisplayElement(Document*);
-
-    virtual MediaControlElementType displayType() const { return MediaTextTrackDisplay; }
-    virtual const AtomicString& shadowPseudoId() const;
-};
 #endif
-
 // ----------------------------
 
 } // namespace WebCore

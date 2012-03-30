@@ -44,20 +44,13 @@ public:
     static void derefObject(void*);
     static WrapperTypeInfo info;
     static const int internalFieldCount = v8DefaultWrapperInternalFieldCount + 0;
-    static v8::Handle<v8::Object> existingWrapper(TestMediaQueryListListener*);
-
 private:
-    static v8::Handle<v8::Object> wrapSlow(TestMediaQueryListListener*);
+    static v8::Handle<v8::Object> wrapSlow(PassRefPtr<TestMediaQueryListListener>);
 };
-
-ALWAYS_INLINE v8::Handle<v8::Object> V8TestMediaQueryListListener::existingWrapper(TestMediaQueryListListener* impl)
-{
-    return getDOMObjectMap().get(impl);
-}
 
 v8::Handle<v8::Object> V8TestMediaQueryListListener::wrap(TestMediaQueryListListener* impl)
 {
-        v8::Handle<v8::Object> wrapper = existingWrapper(impl);
+        v8::Handle<v8::Object> wrapper = getDOMObjectMap().get(impl);
         if (!wrapper.IsEmpty())
             return wrapper;
     return V8TestMediaQueryListListener::wrapSlow(impl);

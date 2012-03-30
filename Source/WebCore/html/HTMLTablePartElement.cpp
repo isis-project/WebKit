@@ -38,11 +38,11 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-bool HTMLTablePartElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLTablePartElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == bgcolorAttr || attr->name() == backgroundAttr || attr->name() == bordercolorAttr || attr->name() == valignAttr || attr->name() == alignAttr || attr->name() == heightAttr)
+    if (name == bgcolorAttr || name == backgroundAttr || name == bordercolorAttr || name == valignAttr || name == alignAttr || name == heightAttr)
         return true;
-    return HTMLElement::isPresentationAttribute(attr);
+    return HTMLElement::isPresentationAttribute(name);
 }
 
 void HTMLTablePartElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
@@ -56,25 +56,30 @@ void HTMLTablePartElement::collectStyleForAttribute(Attribute* attr, StyleProper
     } else if (attr->name() == bordercolorAttr) {
         if (!attr->value().isEmpty()) {
             addHTMLColorToStyle(style, CSSPropertyBorderColor, attr->value());
-            style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
-            style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
-            style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
-            style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
+            addPropertyToAttributeStyle(style, CSSPropertyBorderStyle, CSSValueSolid);
         }
     } else if (attr->name() == valignAttr) {
-        if (!attr->value().isEmpty())
-            style->setProperty(CSSPropertyVerticalAlign, attr->value());
+        if (equalIgnoringCase(attr->value(), "top"))
+            addPropertyToAttributeStyle(style, CSSPropertyVerticalAlign, CSSValueTop);
+        else if (equalIgnoringCase(attr->value(), "middle"))
+            addPropertyToAttributeStyle(style, CSSPropertyVerticalAlign, CSSValueMiddle);
+        else if (equalIgnoringCase(attr->value(), "bottom"))
+            addPropertyToAttributeStyle(style, CSSPropertyVerticalAlign, CSSValueBottom);
+        else if (equalIgnoringCase(attr->value(), "baseline"))
+            addPropertyToAttributeStyle(style, CSSPropertyVerticalAlign, CSSValueBaseline);
+        else
+            addPropertyToAttributeStyle(style, CSSPropertyVerticalAlign, attr->value());
     } else if (attr->name() == alignAttr) {
         if (equalIgnoringCase(attr->value(), "middle") || equalIgnoringCase(attr->value(), "center"))
-            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitCenter);
+            addPropertyToAttributeStyle(style, CSSPropertyTextAlign, CSSValueWebkitCenter);
         else if (equalIgnoringCase(attr->value(), "absmiddle"))
-            style->setProperty(CSSPropertyTextAlign, CSSValueCenter);
+            addPropertyToAttributeStyle(style, CSSPropertyTextAlign, CSSValueCenter);
         else if (equalIgnoringCase(attr->value(), "left"))
-            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitLeft);
+            addPropertyToAttributeStyle(style, CSSPropertyTextAlign, CSSValueWebkitLeft);
         else if (equalIgnoringCase(attr->value(), "right"))
-            style->setProperty(CSSPropertyTextAlign, CSSValueWebkitRight);
+            addPropertyToAttributeStyle(style, CSSPropertyTextAlign, CSSValueWebkitRight);
         else
-            style->setProperty(CSSPropertyTextAlign, attr->value());
+            addPropertyToAttributeStyle(style, CSSPropertyTextAlign, attr->value());
     } else if (attr->name() == heightAttr) {
         if (!attr->value().isEmpty())
             addHTMLLengthToStyle(style, CSSPropertyHeight, attr->value());

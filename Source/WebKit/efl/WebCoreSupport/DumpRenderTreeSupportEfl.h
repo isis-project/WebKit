@@ -24,6 +24,8 @@
 #include <Eina.h>
 #include <FindOptions.h>
 #include <IntRect.h>
+#include <JavaScriptCore/APICast.h>
+#include <JavaScriptCore/JSStringRef.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
@@ -60,8 +62,12 @@ public:
     static WebCore::IntRect selectionRectangle(const Evas_Object* ewkFrame);
     static String suitableDRTFrameName(const Evas_Object* ewkFrame);
     static void suspendAnimations(Evas_Object* ewkFrame);
+    static void setValueForUser(JSContextRef, JSValueRef nodeObject, JSStringRef value);
+    static void setAutofilled(JSContextRef, JSValueRef nodeObject, bool autofilled);
 
     static bool findString(const Evas_Object* ewkView, const char* text, WebCore::FindOptions);
+    static void setSmartInsertDeleteEnabled(Evas_Object* ewkView, bool enabled);
+    static void setSelectTrailingWhitespaceEnabled(Evas_Object* ewkView, bool enabled);
 
     static void garbageCollectorCollect();
     static void garbageCollectorCollectOnAlternateThread(bool waitUntilDone);
@@ -75,6 +81,10 @@ public:
     static void setMockScrollbarsEnabled(bool);
 
     static void dumpConfigurationForViewport(Evas_Object* ewkView, int deviceDPI, const WebCore::IntSize& deviceSize, const WebCore::IntSize& availableSize);
+
+    static void deliverAllMutationsIfNecessary();
+    static void setEditingBehavior(Evas_Object* ewkView, const char* editingBehavior);
+    static String markerTextForListItem(JSContextRef, JSValueRef nodeObject);
 };
 
 #endif // DumpRenderTreeSupportEfl_h

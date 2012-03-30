@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var USE_GENERATED_IMAGES_IN_DASHBOARD = false;
+var USE_GENERATED_IMAGES_IN_DASHBOARD = true;
 var MAX_GRAPHS = 6;
 var MAX_CSETS = 100;
 var DAY = 86400000;
@@ -54,16 +54,29 @@ var OVERVIEW_OPTIONS = {
     }
 };
 
-function urlForChangeset(branch, changeset)
+var REPOSITORIES = ['WebKit', 'Chromium'];
+var DEFAULT_REPOSITORY = 'WebKit';
+
+function urlForChangeset(branch, changeset, repository)
 {
-    return 'http://trac.webkit.org/changeset/' + changeset;
+    if (repository == 'Chromium')
+        return 'http://src.chromium.org/viewvc/chrome?view=rev&revision=' +
+               changeset;
+    else
+        return 'http://trac.webkit.org/changeset/' + changeset;
 }
 
-function urlForChangesetList(branch, changesetList)
+function urlForChangesetList(branch, changesetList, repository)
 {
     var min = Math.min.apply(Math, changesetList);
     var max = Math.max.apply(Math, changesetList);
-    return 'http://trac.webkit.org/log/?rev=' + max + '&stop_rev=' + min + '&verbose=on';
+    if (repository == 'Chromium')
+        return 'http://build.chromium.org/f/chromium/perf/dashboard/ui/' +
+               'changelog.html?url=/trunk/src&mode=html&range=' + min + ':' +
+               max;
+    else
+        return 'http://trac.webkit.org/log/?rev=' + max + '&stop_rev=' + min +
+               '&verbose=on';
 }
 
 // FIXME move this back to dashboard.js once the bug 718925 is fixed
@@ -86,3 +99,21 @@ function fetchDashboardManifest(callback)
         callback(dashboardManifest);
     });
 }
+
+(function() {
+    $.ajaxSetup({
+        'error': function(xhr, e, message) {
+            error('Could not determine the the login status', e);
+        },
+        cache: true,
+    });
+
+    $.getJSON('/api/user/is-admin', function (isAdmin) {
+        if (isAdmin) {
+            $('#header nav').append('<a href="/admin/">Admin</a>');
+            if (!$('#header nav .selected').length) {
+                $('#header nav a').last().addClass('selected')
+            }
+        }
+    })
+})();

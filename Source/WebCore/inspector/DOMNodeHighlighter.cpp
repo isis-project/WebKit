@@ -27,9 +27,10 @@
  */
 
 #include "config.h"
-#include "DOMNodeHighlighter.h"
 
 #if ENABLE(INSPECTOR)
+
+#include "DOMNodeHighlighter.h"
 
 #include "Element.h"
 #include "FontCache.h"
@@ -414,7 +415,7 @@ static void getOrDrawNodeHighlight(GraphicsContext* context, HighlightData* high
             borderBox = LayoutRect(paddingBox.x() - renderBox->borderLeft(), paddingBox.y() - renderBox->borderTop(),
                     paddingBox.width() + renderBox->borderLeft() + renderBox->borderRight(), paddingBox.height() + renderBox->borderTop() + renderBox->borderBottom());
             marginBox = LayoutRect(borderBox.x() - renderBox->marginLeft(), borderBox.y() - renderBox->marginTop(),
-                    borderBox.width() + renderBox->marginLeft() + renderBox->marginRight(), borderBox.height() + renderBox->marginTop() + renderBox->marginBottom());
+                    borderBox.width() + renderBox->marginWidth(), borderBox.height() + renderBox->marginHeight());
         } else {
             RenderInline* renderInline = toRenderInline(renderer);
 
@@ -426,7 +427,7 @@ static void getOrDrawNodeHighlight(GraphicsContext* context, HighlightData* high
                     paddingBox.width() - renderInline->paddingLeft() - renderInline->paddingRight(), paddingBox.height() - renderInline->paddingTop() - renderInline->paddingBottom());
             // Ignore marginTop and marginBottom for inlines.
             marginBox = LayoutRect(borderBox.x() - renderInline->marginLeft(), borderBox.y(),
-                    borderBox.width() + renderInline->marginLeft() + renderInline->marginRight(), borderBox.height());
+                    borderBox.width() + renderInline->marginWidth(), borderBox.height());
         }
 
         FloatQuad absContentQuad = renderer->localToAbsoluteQuad(FloatRect(contentBox));
@@ -512,6 +513,12 @@ void getHighlight(Document* document, HighlightData* highlightData, Highlight* h
         getOrDrawNodeHighlight(0, highlightData, highlight);
     else if (highlightData->rect)
         getOrDrawRectHighlight(0, document, highlightData, highlight);
+}
+
+void drawOutline(GraphicsContext& context, const LayoutRect& rect, const Color& color)
+{
+    FloatRect outlineRect = rect;
+    drawOutlinedQuad(context, outlineRect, Color(), color);
 }
 
 } // namespace DOMNodeHighlighter

@@ -53,12 +53,18 @@ static void setLoadsImagesAutomaticallyInAllFrames(Page* page)
         frame->document()->cachedResourceLoader()->setAutoLoadImages(page->settings()->loadsImagesAutomatically());
 }
 
+// Sets the entry in the font map for the given script. If family is the empty string, removes the entry instead.
 static inline void setGenericFontFamilyMap(ScriptFontFamilyMap& fontMap, const AtomicString& family, UScriptCode script, Page* page)
 {
     ScriptFontFamilyMap::iterator it = fontMap.find(static_cast<int>(script));
-    if (it != fontMap.end() && it->second == family)
+    if (family.isEmpty()) {
+        if (it == fontMap.end())
+            return;
+        fontMap.remove(it);
+    } else if (it != fontMap.end() && it->second == family)
         return;
-    fontMap.set(static_cast<int>(script), family);
+    else
+        fontMap.set(static_cast<int>(script), family);
     page->setNeedsRecalcStyleInAllFrames();
 }
 
@@ -116,8 +122,9 @@ Settings::Settings(Page* page)
     , m_minimumLogicalFontSize(0)
     , m_defaultFontSize(0)
     , m_defaultFixedFontSize(0)
+    , m_defaultDeviceScaleFactor(1)
     , m_validationMessageTimerMagnification(50)
-    , m_minimumAccelerated2dCanvasSize(128 * 128)
+    , m_minimumAccelerated2dCanvasSize(257 * 256)
     , m_layoutFallbackWidth(980)
     , m_deviceDPI(240)
     , m_maximumDecodedImageSize(numeric_limits<size_t>::max())
@@ -174,6 +181,8 @@ Settings::Settings(Page* page)
     , m_acceleratedDrawingEnabled(false)
     , m_acceleratedFiltersEnabled(false)
     , m_isCSSCustomFilterEnabled(false)
+    , m_cssRegionsEnabled(false)
+    , m_regionBasedColumnsEnabled(false)
     // FIXME: This should really be disabled by default as it makes platforms that don't support the feature download files
     // they can't use by. Leaving enabled for now to not change existing behavior.
     , m_downloadableBinaryFontsEnabled(true)
@@ -223,12 +232,12 @@ Settings::Settings(Page* page)
     , m_scrollAnimatorEnabled(true)
 #endif
 #if ENABLE(WEB_SOCKETS)
-    , m_useHixie76WebSocketProtocol(true)
+    , m_useHixie76WebSocketProtocol(false)
 #endif
     , m_mediaPlaybackRequiresUserGesture(false)
     , m_mediaPlaybackAllowsInline(true)
     , m_passwordEchoEnabled(false)
-    , m_suppressIncrementalRendering(false)
+    , m_suppressesIncrementalRendering(false)
     , m_backspaceKeyNavigationEnabled(true)
     , m_visualWordMovementEnabled(false)
 #if ENABLE(VIDEO_TRACK)
@@ -238,13 +247,13 @@ Settings::Settings(Page* page)
 #endif
     , m_perTileDrawingEnabled(false)
     , m_partialSwapEnabled(false)
-#if ENABLE(THREADED_SCROLLING)
     , m_scrollingCoordinatorEnabled(false)
-#endif
     , m_notificationsEnabled(true)
+    , m_needsIsLoadingInAPISenseQuirk(false)
 #if ENABLE(TOUCH_EVENTS)
     , m_touchEventEmulationEnabled(false)
 #endif
+    , m_threadedAnimationEnabled(false)
     , m_loadsImagesAutomaticallyTimer(this, &Settings::loadsImagesAutomaticallyTimerFired)
 {
     // A Frame may not have been created yet, so we initialize the AtomicString 
@@ -361,6 +370,11 @@ void Settings::setDefaultFixedFontSize(int defaultFontSize)
 
     m_defaultFixedFontSize = defaultFontSize;
     m_page->setNeedsRecalcStyleInAllFrames();
+}
+
+void Settings::setDefaultDeviceScaleFactor(int defaultDeviceScaleFactor)
+{
+    m_defaultDeviceScaleFactor = defaultDeviceScaleFactor;
 }
 
 void Settings::setLoadsImagesAutomatically(bool loadsImagesAutomatically)

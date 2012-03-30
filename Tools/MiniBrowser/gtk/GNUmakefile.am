@@ -1,5 +1,7 @@
+if ENABLE_WEBKIT2
 noinst_PROGRAMS += \
 	Programs/MiniBrowser
+endif
 
 Programs_MiniBrowser_CPPFLAGS = \
 	-I$(srcdir)/Source \
@@ -8,6 +10,7 @@ Programs_MiniBrowser_CPPFLAGS = \
 	-I$(top_builddir)/DerivedSources/WebKit2/webkit2gtk/include \
 	-DWEBKIT_EXEC_PATH=\"${shell pwd}/$(top_builddir)/Programs/\" \
 	$(global_cppflags) \
+	$(javascriptcore_cppflags) \
 	$(GLIB_CFLAGS) \
 	$(GTK_CFLAGS)
 

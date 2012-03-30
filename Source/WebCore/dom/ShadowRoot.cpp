@@ -27,14 +27,18 @@
 #include "config.h"
 #include "ShadowRoot.h"
 
+#include "CSSStyleSelector.h"
 #include "Document.h"
+#include "DocumentFragment.h"
 #include "Element.h"
 #include "HTMLContentElement.h"
 #include "HTMLContentSelector.h"
 #include "HTMLNames.h"
+#include "InsertionPoint.h"
 #include "NodeRareData.h"
+#include "ShadowTree.h"
 #include "SVGNames.h"
-#include "Text.h"
+#include "markup.h"
 
 namespace WebCore {
 
@@ -44,7 +48,7 @@ ShadowRoot::ShadowRoot(Document* document)
     , m_prev(0)
     , m_next(0)
     , m_applyAuthorSheets(false)
-    , m_needsRecalculateContent(false)
+    , m_insertionPointAssignedTo(0)
 {
     ASSERT(document);
     
@@ -97,7 +101,7 @@ PassRefPtr<ShadowRoot> ShadowRoot::create(Element* element, ExceptionCode& ec)
 
 PassRefPtr<ShadowRoot> ShadowRoot::create(Element* element, ShadowRootCreationPurpose purpose, ExceptionCode& ec)
 {
-    if (!element || element->hasShadowRoot()) {
+    if (!element) {
         ec = HIERARCHY_REQUEST_ERR;
         return 0;
     }
@@ -110,13 +114,14 @@ PassRefPtr<ShadowRoot> ShadowRoot::create(Element* element, ShadowRootCreationPu
     }
 
     ASSERT(purpose != CreatingUserAgentShadowRoot || !element->hasShadowRoot());
-    RefPtr<ShadowRoot> shadowRoot = create(element->document());
+    RefPtr<ShadowRoot> shadowRoot = adoptRef(new ShadowRoot(element->document()));
 
     ec = 0;
-    element->setShadowRoot(shadowRoot, ec);
+    element->ensureShadowTree()->addShadowRoot(element, shadowRoot, ec);
     if (ec)
         return 0;
-
+    ASSERT(element == shadowRoot->host());
+    ASSERT(element->hasShadowRoot());
     return shadowRoot.release();
 }
 
@@ -129,6 +134,18 @@ PassRefPtr<Node> ShadowRoot::cloneNode(bool)
 {
     // ShadowRoot should not be arbitrarily cloned.
     return 0;
+}
+
+String ShadowRoot::innerHTML() const
+{
+    return createMarkup(this, ChildrenOnly);
+}
+
+void ShadowRoot::setInnerHTML(const String& markup, ExceptionCode& ec)
+{
+    RefPtr<DocumentFragment> fragment = createFragmentFromSource(markup, host(), ec);
+    if (fragment)
+        replaceChildrenWithFragment(this, fragment.release(), ec);
 }
 
 bool ShadowRoot::childTypeAllowed(NodeType type) const
@@ -146,59 +163,17 @@ bool ShadowRoot::childTypeAllowed(NodeType type) const
     }
 }
 
-void ShadowRoot::recalcShadowTreeStyle(StyleChange change)
+ShadowTree* ShadowRoot::tree() const
 {
-    if (needsReattachHostChildrenAndShadow())
-        reattachHostChildrenAndShadow();
-    else {
-        for (Node* n = firstChild(); n; n = n->nextSibling()) {
-            if (n->isElementNode())
-                static_cast<Element*>(n)->recalcStyle(change);
-            else if (n->isTextNode())
-                toText(n)->recalcTextStyle(change);
-        }
-    }
-
-    clearNeedsReattachHostChildrenAndShadow();
-    clearNeedsStyleRecalc();
-    clearChildNeedsStyleRecalc();
+    if (host())
+        return host()->shadowTree();
+    return 0;
 }
 
-void ShadowRoot::setNeedsReattachHostChildrenAndShadow()
-{
-    m_needsRecalculateContent = true;
-    if (shadowHost())
-        shadowHost()->setNeedsStyleRecalc();
-}
-
-HTMLContentElement* ShadowRoot::insertionPointFor(Node* node) const
-{
-    if (!m_selector)
-        return 0;
-    HTMLContentSelection* found = m_selector->findFor(node);
-    if (!found)
-        return 0;
-    return found->insertionPoint();
-}
-
-void ShadowRoot::hostChildrenChanged()
-{
-    if (!hasContentElement())
-        return;
-
-    // This results in forced detaching/attaching of the shadow render tree. See ShadowRoot::recalcStyle().
-    setNeedsReattachHostChildrenAndShadow();
-}
-
-bool ShadowRoot::isSelectorActive() const
-{
-    return m_selector && m_selector->hasCandidates();
-}
-
-bool ShadowRoot::hasContentElement() const
+bool ShadowRoot::hasInsertionPoint() const
 {
     for (Node* n = firstChild(); n; n = n->traverseNextNode(this)) {
-        if (n->isContentElement())
+        if (isInsertionPoint(n))
             return true;
     }
 
@@ -217,46 +192,10 @@ void ShadowRoot::setApplyAuthorSheets(bool value)
 
 void ShadowRoot::attach()
 {
-    // Children of m_selector is populated lazily in
-    // ensureSelector(), and here we just ensure that
-    // it is in clean state.
-    ASSERT(!m_selector || !m_selector->hasCandidates());
+    CSSStyleSelector* styleSelector = document()->styleSelector();
+    styleSelector->pushParentShadowRoot(this);
     DocumentFragment::attach();
-    if (m_selector)
-        m_selector->didSelect();
+    styleSelector->popParentShadowRoot(this);
 }
-
-void ShadowRoot::reattachHostChildrenAndShadow()
-{
-    Node* hostNode = host();
-    if (!hostNode)
-        return;
-
-    for (Node* child = hostNode->firstChild(); child; child = child->nextSibling()) {
-        if (child->attached())
-            child->detach();
-    }
-
-    reattach();
-
-    for (Node* child = hostNode->firstChild(); child; child = child->nextSibling()) {
-        if (!child->attached())
-            child->attach();
-    }
-}
-
-HTMLContentSelector* ShadowRoot::selector() const
-{
-    return m_selector.get();
-}
-
-HTMLContentSelector* ShadowRoot::ensureSelector()
-{
-    if (!m_selector)
-        m_selector = adoptPtr(new HTMLContentSelector());
-    m_selector->willSelectOver(this);
-    return m_selector.get();
-}
-
 
 }

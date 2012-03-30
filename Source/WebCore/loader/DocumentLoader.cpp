@@ -90,7 +90,6 @@ DocumentLoader::DocumentLoader(const ResourceRequest& req, const SubstituteData&
     , m_request(req)
     , m_committed(false)
     , m_isStopping(false)
-    , m_loading(false)
     , m_gotFirstByte(false)
     , m_primaryLoadComplete(false)
     , m_isClientRedirect(false)
@@ -213,10 +212,10 @@ void DocumentLoader::mainReceivedError(const ResourceError& error, bool isComple
 // but not loads initiated by child frames' data sources -- that's the WebFrame's job.
 void DocumentLoader::stopLoading()
 {
-    // In some rare cases, calling FrameLoader::stopLoading could set m_loading to false.
+    // In some rare cases, calling FrameLoader::stopLoading could cause isLoading() to return false.
     // (This can happen when there's a single XMLHttpRequest currently loading and stopLoading causes it
     // to stop loading. Because of this, we need to save it so we don't return early.
-    bool loading = m_loading;
+    bool loading = isLoading();
     
     if (m_committed) {
         // Attempt to stop the frame if the document loader is loading, or if it is done loading but
@@ -236,7 +235,7 @@ void DocumentLoader::stopLoading()
     if (!loading) {
         // If something above restarted loading we might run into mysterious crashes like 
         // https://bugs.webkit.org/show_bug.cgi?id=62764 and <rdar://problem/9328684>
-        ASSERT(!m_loading);
+        ASSERT(!isLoading());
         return;
     }
 
@@ -371,20 +370,14 @@ void DocumentLoader::setupForReplaceByMIMEType(const String& newMIMEType)
 #endif
 }
 
-void DocumentLoader::updateLoading()
+void DocumentLoader::checkLoadComplete()
 {
-    if (!m_frame) {
-        setLoading(false);
+    if (!m_frame || isLoading())
         return;
-    }
     ASSERT(this == frameLoader()->activeDocumentLoader());
-    bool wasLoading = m_loading;
-    setLoading(frameLoader()->isLoading());
 
-    if (wasLoading && !m_loading) {
-        if (DOMWindow* window = m_frame->existingDOMWindow())
-            window->finishedLoading();
-    }
+    if (DOMWindow* window = m_frame->existingDOMWindow())
+        window->finishedLoading();
 }
 
 void DocumentLoader::setFrame(Frame* frame)
@@ -423,9 +416,6 @@ void DocumentLoader::prepareForLoadStart()
     setPrimaryLoadComplete(false);
     ASSERT(frameLoader());
     clearErrors();
-    
-    setLoading(true);
-    
     frameLoader()->prepareForLoadStart();
 }
 
@@ -439,7 +429,7 @@ void DocumentLoader::setPrimaryLoadComplete(bool flag)
         }
 
         if (this == frameLoader()->activeDocumentLoader())
-            updateLoading();
+            checkLoadComplete();
     }
 }
 
@@ -448,6 +438,9 @@ bool DocumentLoader::isLoadingInAPISense() const
     // Once a frame has loaded, we no longer need to consider subresources,
     // but we still need to consider subframes.
     if (frameLoader()->state() != FrameStateComplete) {
+        if (m_frame->settings()->needsIsLoadingInAPISenseQuirk() && !m_subresourceLoaders.isEmpty())
+            return true;
+    
         Document* doc = m_frame->document();
         if ((!m_primaryLoadComplete || !m_frame->document()->loadEventFinished()) && isLoading())
             return true;
@@ -767,13 +760,12 @@ void DocumentLoader::stopLoadingSubresources()
 void DocumentLoader::addSubresourceLoader(ResourceLoader* loader)
 {
     m_subresourceLoaders.add(loader);
-    setLoading(true);
 }
 
 void DocumentLoader::removeSubresourceLoader(ResourceLoader* loader)
 {
     m_subresourceLoaders.remove(loader);
-    updateLoading();
+    checkLoadComplete();
     if (Frame* frame = m_frame)
         frame->loader()->checkLoadComplete();
 }
@@ -781,13 +773,12 @@ void DocumentLoader::removeSubresourceLoader(ResourceLoader* loader)
 void DocumentLoader::addPlugInStreamLoader(ResourceLoader* loader)
 {
     m_plugInStreamLoaders.add(loader);
-    setLoading(true);
 }
 
 void DocumentLoader::removePlugInStreamLoader(ResourceLoader* loader)
 {
     m_plugInStreamLoaders.remove(loader);
-    updateLoading();
+    checkLoadComplete();
 }
 
 bool DocumentLoader::isLoadingMainResource() const
@@ -795,22 +786,12 @@ bool DocumentLoader::isLoadingMainResource() const
     return !!m_mainResourceLoader;
 }
 
-bool DocumentLoader::isLoadingSubresources() const
-{
-    return !m_subresourceLoaders.isEmpty();
-}
-
-bool DocumentLoader::isLoadingPlugIns() const
-{
-    return !m_plugInStreamLoaders.isEmpty();
-}
-
 bool DocumentLoader::isLoadingMultipartContent() const
 {
     return m_mainResourceLoader && m_mainResourceLoader->isLoadingMultipartContent();
 }
 
-bool DocumentLoader::startLoadingMainResource(unsigned long identifier)
+void DocumentLoader::startLoadingMainResource(unsigned long identifier)
 {
     ASSERT(!m_mainResourceLoader);
     m_mainResourceLoader = MainResourceLoader::create(m_frame);
@@ -827,10 +808,9 @@ bool DocumentLoader::startLoadingMainResource(unsigned long identifier)
         // should it be caught by other parts of WebKit or other parts of the app?
         LOG_ERROR("could not create WebResourceHandle for URL %s -- should be caught by policy handler level", m_request.url().string().ascii().data());
         m_mainResourceLoader = 0;
-        return false;
+        ASSERT(!isLoading());
+        checkLoadComplete();
     }
-
-    return true;
 }
 
 void DocumentLoader::cancelMainResourceLoad(const ResourceError& error)
@@ -842,27 +822,9 @@ void DocumentLoader::subresourceLoaderFinishedLoadingOnePart(ResourceLoader* loa
 {
     m_multipartSubresourceLoaders.add(loader);
     m_subresourceLoaders.remove(loader);
-    updateLoading();
+    checkLoadComplete();
     if (Frame* frame = m_frame)
         frame->loader()->checkLoadComplete();    
-}
-
-void DocumentLoader::transferLoadingResourcesFromPage(Page* oldPage)
-{
-    ASSERT(oldPage != m_frame->page());
-
-    FrameLoader* loader = frameLoader();
-    ASSERT(loader);
-
-    if (isLoadingMainResource())
-        loader->dispatchTransferLoadingResourceFromPage(m_mainResourceLoader.get(), originalRequest(), oldPage);
-
-    if (isLoadingSubresources()) {
-        ResourceLoaderSet::const_iterator it = m_subresourceLoaders.begin();
-        ResourceLoaderSet::const_iterator end = m_subresourceLoaders.end();
-        for (; it != end; ++it)
-            loader->dispatchTransferLoadingResourceFromPage((*it).get(), (*it)->originalRequest(), oldPage);
-    }
 }
 
 void DocumentLoader::maybeFinishLoadingMultipartContent()

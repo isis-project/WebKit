@@ -22,18 +22,22 @@
 #if ENABLE(VIDEO) && USE(GSTREAMER)
 
 #include "Document.h"
-#include "GOwnPtr.h"
-#include "GRefPtr.h"
+#include "Frame.h"
 #include "GRefPtrGStreamer.h"
+#include "MediaPlayer.h"
 #include "NetworkingContext.h"
-#include "Noncopyable.h"
 #include "NotImplemented.h"
 #include "ResourceHandleClient.h"
 #include "ResourceHandleInternal.h"
 #include "ResourceRequest.h"
 #include "ResourceResponse.h"
+ 
 #include <gst/app/gstappsrc.h>
 #include <gst/pbutils/missing-plugins.h>
+
+#include <wtf/Noncopyable.h>
+#include <wtf/gobject/GOwnPtr.h>
+#include <wtf/gobject/GRefPtr.h>
 #include <wtf/text/CString.h>
 
 using namespace WebCore;
@@ -63,6 +67,7 @@ struct _WebKitWebSrcPrivate {
     gchar* uri;
 
     RefPtr<WebCore::Frame> frame;
+    WebCore::MediaPlayer* player;
 
     StreamingClient* client;
     RefPtr<ResourceHandle> resourceHandle;
@@ -352,7 +357,9 @@ static void webKitWebSrcStop(WebKitWebSrc* src, bool seeking)
     priv->resourceHandle = 0;
 
     if (priv->frame && !seeking)
-        priv->frame.release();
+        priv->frame.clear();
+
+    priv->player = 0;
 
     GST_OBJECT_LOCK(src);
     if (priv->needDataID)
@@ -414,17 +421,14 @@ static bool webKitWebSrcStart(WebKitWebSrc* src)
     request.setAllowCookies(true);
 
     NetworkingContext* context = 0;
-    if (priv->frame) {
-        Document* document = priv->frame->document();
-        if (document)
-            request.setHTTPReferrer(document->documentURI());
-
-        FrameLoader* loader = priv->frame->loader();
-        if (loader) {
-            loader->addExtraFieldsToSubresourceRequest(request);
-            context = loader->networkingContext();
-        }
+    FrameLoader* loader = priv->frame ? priv->frame->loader() : 0;
+    if (loader) {
+        loader->addExtraFieldsToSubresourceRequest(request);
+        context = loader->networkingContext();
     }
+
+    if (priv->player)
+        request.setHTTPReferrer(priv->player->referrer());
 
     // Let Apple web servers know we want to access their nice movie trailers.
     if (!g_ascii_strcasecmp("movies.apple.com", url.host().utf8().data())
@@ -578,7 +582,7 @@ static gboolean webKitWebSrcSetUri(GstURIHandler* handler, const gchar* uri, GEr
 
     KURL url(KURL(), uri);
 
-    if (!url.isValid() || !url.protocolInHTTPFamily()) {
+    if (!url.isValid() || !url.protocolIsInHTTPFamily()) {
         g_set_error(error, GST_URI_ERROR, GST_URI_ERROR_BAD_URI, "Invalid URI '%s'", uri);
         return FALSE;
     }
@@ -622,7 +626,7 @@ static gboolean webKitWebSrcSetUri(GstURIHandler* handler, const gchar* uri)
 
     KURL url(KURL(), uri);
 
-    if (!url.isValid() || !url.protocolInHTTPFamily()) {
+    if (!url.isValid() || !url.protocolIsInHTTPFamily()) {
         GST_ERROR_OBJECT(src, "Invalid URI '%s'", uri);
         return FALSE;
     }
@@ -739,11 +743,17 @@ static gboolean webKitWebSrcSeekDataCb(GstAppSrc* appsrc, guint64 offset, gpoint
     return TRUE;
 }
 
-void webKitWebSrcSetFrame(WebKitWebSrc* src, WebCore::Frame* frame)
+void webKitWebSrcSetMediaPlayer(WebKitWebSrc* src, WebCore::MediaPlayer* player)
 {
     WebKitWebSrcPrivate* priv = src->priv;
+    WebCore::Frame* frame = 0;
+
+    WebCore::Document* document = player->mediaPlayerClient()->mediaPlayerOwningDocument();
+    if (document)
+        frame = document->frame();
 
     priv->frame = frame;
+    priv->player = player;
 }
 
 StreamingClient::StreamingClient(WebKitWebSrc* src) : m_src(src)

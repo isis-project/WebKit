@@ -117,7 +117,10 @@ void RenderView::layout()
     if (relayoutChildren) {
         setChildNeedsLayout(true, false);
         for (RenderObject* child = firstChild(); child; child = child->nextSibling()) {
-            if (child->style()->logicalHeight().isPercent() || child->style()->logicalMinHeight().isPercent() || child->style()->logicalMaxHeight().isPercent())
+            if ((child->isBox() && toRenderBox(child)->hasRelativeLogicalHeight())
+                    || child->style()->logicalHeight().isPercent()
+                    || child->style()->logicalMinHeight().isPercent()
+                    || child->style()->logicalMaxHeight().isPercent())
                 child->setChildNeedsLayout(true, false);
         }
     }
@@ -298,7 +301,10 @@ bool RenderView::shouldRepaint(const IntRect& r) const
 
     if (!m_frameView)
         return false;
-    
+
+    if (m_frameView->repaintsDisabled())
+        return false;
+
     return true;
 }
 
@@ -366,9 +372,9 @@ void RenderView::computeRectForRepaint(RenderBoxModelObject* repaintContainer, I
         rect = m_layer->transform()->mapRect(rect);
 }
 
-void RenderView::absoluteRects(Vector<LayoutRect>& rects, const LayoutPoint& accumulatedOffset) const
+void RenderView::absoluteRects(Vector<IntRect>& rects, const LayoutPoint& accumulatedOffset) const
 {
-    rects.append(LayoutRect(accumulatedOffset, m_layer->size()));
+    rects.append(pixelSnappedIntRect(accumulatedOffset, m_layer->size()));
 }
 
 void RenderView::absoluteQuads(Vector<FloatQuad>& quads, bool* wasFixed) const
@@ -498,7 +504,7 @@ void RenderView::setSelection(RenderObject* start, int startPos, RenderObject* e
     // Now clear the selection.
     SelectedObjectMap::iterator oldObjectsEnd = oldSelectedObjects.end();
     for (SelectedObjectMap::iterator i = oldSelectedObjects.begin(); i != oldObjectsEnd; ++i)
-        i->first->setSelectionState(SelectionNone);
+        i->first->setSelectionStateIfNeeded(SelectionNone);
 
     // set selection start and end
     m_selectionStart = start;
@@ -508,12 +514,12 @@ void RenderView::setSelection(RenderObject* start, int startPos, RenderObject* e
 
     // Update the selection status of all objects between m_selectionStart and m_selectionEnd
     if (start && start == end)
-        start->setSelectionState(SelectionBoth);
+        start->setSelectionStateIfNeeded(SelectionBoth);
     else {
         if (start)
-            start->setSelectionState(SelectionStart);
+            start->setSelectionStateIfNeeded(SelectionStart);
         if (end)
-            end->setSelectionState(SelectionEnd);
+            end->setSelectionStateIfNeeded(SelectionEnd);
     }
 
     RenderObject* o = start;
@@ -521,7 +527,7 @@ void RenderView::setSelection(RenderObject* start, int startPos, RenderObject* e
 
     while (o && o != stop) {
         if (o != start && o != end && o->canBeSelectionLeaf())
-            o->setSelectionState(SelectionInside);
+            o->setSelectionStateIfNeeded(SelectionInside);
         o = o->nextInPreOrder();
     }
 
@@ -703,7 +709,7 @@ void RenderView::notifyWidgets(WidgetNotification notification)
 IntRect RenderView::viewRect() const
 {
     if (printing())
-        return IntRect(0, 0, width(), height());
+        return IntRect(IntPoint(), size());
     if (m_frameView)
         return m_frameView->visibleContentRect();
     return IntRect();

@@ -43,7 +43,7 @@ namespace WebCore {
 class CSSParserValueList;
 class CSSValueList;
 class RenderStyle;
-class CalcValue;
+class CalculationValue;
 class CalcExpressionNode;
 
 enum CalculationCategory {
@@ -58,13 +58,14 @@ enum CalculationCategory {
 class CSSCalcExpressionNode : public RefCounted<CSSCalcExpressionNode> {
 public:
     
-    virtual ~CSSCalcExpressionNode() = 0;  
-    virtual double doubleValue() const = 0;  
+    virtual ~CSSCalcExpressionNode() = 0;
+    virtual bool isZero() const = 0;
+    virtual PassOwnPtr<CalcExpressionNode> toCalcValue(RenderStyle*, RenderStyle* rootStyle, double zoom = 1.0) const = 0;    
+    virtual double doubleValue() const = 0;
     virtual double computeLengthPx(RenderStyle* currentStyle, RenderStyle* rootStyle, double multiplier = 1.0, bool computingFontSize = false) const = 0;
     
     CalculationCategory category() const { return m_category; }    
     bool isInteger() const { return m_isInteger; }
-    bool isZero() const { return false; }
     
 protected:
     CSSCalcExpressionNode(CalculationCategory category, bool isInteger)
@@ -79,23 +80,33 @@ protected:
         
 class CSSCalcValue : public CSSValue {
 public:
-    static PassRefPtr<CSSCalcValue> create(CSSParserString name, CSSParserValueList*);
+    static PassRefPtr<CSSCalcValue> create(CSSParserString name, CSSParserValueList*, CalculationPermittedValueRange);
+    static PassRefPtr<CSSCalcValue> create(CalculationValue*);
 
+    PassRefPtr<CalculationValue> toCalcValue(RenderStyle* style, RenderStyle* rootStyle, double zoom = 1.0) const
+    {
+        return CalculationValue::create(m_expression->toCalcValue(style, rootStyle, zoom), m_nonNegative ? CalculationRangeNonNegative : CalculationRangeAll);
+    }
     CalculationCategory category() const { return m_expression->category(); }
     bool isInt() const { return m_expression->isInteger(); }    
     double doubleValue() const;
+    bool isNegative() const { return m_expression->doubleValue() < 0; }
     double computeLengthPx(RenderStyle* currentStyle, RenderStyle* rootStyle, double multiplier = 1.0, bool computingFontSize = false) const;
         
     String customCssText() const;
     
 private:    
-    CSSCalcValue(PassRefPtr<CSSCalcExpressionNode> expression)
+    CSSCalcValue(PassRefPtr<CSSCalcExpressionNode> expression, CalculationPermittedValueRange range)
         : CSSValue(CalculationClass)
         , m_expression(expression)
+        , m_nonNegative(range == CalculationRangeNonNegative)
     {
     }
     
+    double clampToPermittedRange(double) const;
+
     const RefPtr<CSSCalcExpressionNode> m_expression;
+    const bool m_nonNegative;
 };
     
 } // namespace WebCore

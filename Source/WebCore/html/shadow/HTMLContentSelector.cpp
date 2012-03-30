@@ -100,6 +100,7 @@ void HTMLContentSelectionList::append(PassRefPtr<HTMLContentSelection> child)
 }
 
 HTMLContentSelector::HTMLContentSelector()
+    : m_phase(SelectionPrevented)
 {
 }
 
@@ -108,11 +109,13 @@ HTMLContentSelector::~HTMLContentSelector()
     ASSERT(m_candidates.isEmpty());
 }
 
-void HTMLContentSelector::select(HTMLContentElement* contentElement, HTMLContentSelectionList* selections)
+void HTMLContentSelector::select(InsertionPoint* insertionPoint, HTMLContentSelectionList* selections)
 {
+    ASSERT(m_phase == HostChildrenPopulated);
     ASSERT(selections->isEmpty());
 
-    ContentSelectorQuery query(contentElement);
+    ContentSelectorQuery query(insertionPoint);
+
     for (size_t i = 0; i < m_candidates.size(); ++i) {
         Node* child = m_candidates[i].get();
         if (!child)
@@ -120,7 +123,8 @@ void HTMLContentSelector::select(HTMLContentElement* contentElement, HTMLContent
         if (!query.matches(child))
             continue;
 
-        RefPtr<HTMLContentSelection> selection = HTMLContentSelection::create(contentElement, child);
+        RefPtr<HTMLContentSelection> selection = HTMLContentSelection::create(insertionPoint, child);
+
         selections->append(selection);
         m_selectionSet.add(selection.get());
         m_candidates[i] = 0;
@@ -134,21 +138,34 @@ void HTMLContentSelector::unselect(HTMLContentSelectionList* list)
     list->clear();
 }
 
-HTMLContentSelection* HTMLContentSelector::findFor(Node* key) const
+HTMLContentSelection* HTMLContentSelector::findFor(const Node* key) const
 {
     return m_selectionSet.find(key);
 }
 
+void HTMLContentSelector::willSelect()
+{
+    m_phase = SelectionStarted;
+}
+
 void HTMLContentSelector::didSelect()
 {
+    ASSERT(m_phase != SelectionPrevented);
+    m_phase = SelectionPrevented;
     m_candidates.clear();
 }
 
-void HTMLContentSelector::willSelectOver(ShadowRoot* scope)
+void HTMLContentSelector::populateIfNecessary(Element* shadowHost)
 {
-    if (!m_candidates.isEmpty())
+    if (hasPopulated())
         return;
-    for (Node* node = scope->shadowHost()->firstChild(); node; node = node->nextSibling())
+
+    ASSERT(m_candidates.isEmpty());
+    ASSERT(shadowHost);
+    ASSERT(m_phase == SelectionStarted);
+
+    m_phase = HostChildrenPopulated;
+    for (Node* node = shadowHost->firstChild(); node; node = node->nextSibling())
         m_candidates.append(node);
 }
 

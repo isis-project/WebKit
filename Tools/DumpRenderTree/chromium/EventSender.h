@@ -97,8 +97,11 @@ public:
     void touchStart(const CppArgumentList&, CppVariant*);
     void updateTouchPoint(const CppArgumentList&, CppVariant*);
 
+    void gestureFlingCancel(const CppArgumentList&, CppVariant*);
+    void gestureFlingStart(const CppArgumentList&, CppVariant*);
     void gestureScrollBegin(const CppArgumentList&, CppVariant*);
     void gestureScrollEnd(const CppArgumentList&, CppVariant*);
+    void gestureScrollFirstPoint(const CppArgumentList&, CppVariant*);
     void gestureScrollUpdate(const CppArgumentList&, CppVariant*);
     void gestureTap(const CppArgumentList&, CppVariant*);
     void gestureEvent(WebKit::WebInputEvent::Type, const CppArgumentList&);
@@ -162,7 +165,7 @@ private:
     TestShell* m_shell;
 
     // Location of the touch point that initiated a gesture.
-    WebKit::WebPoint m_gestureStartLocation;
+    WebKit::WebPoint m_currentGestureLocation;
 
     // Location of last mouseMoveTo event.
     static WebKit::WebPoint lastMousePos;

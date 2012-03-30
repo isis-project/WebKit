@@ -45,24 +45,18 @@ public:
     static WrapperTypeInfo info;
     static v8::Handle<v8::Value> customMethodCallback(const v8::Arguments&);
     static v8::Handle<v8::Value> customMethodWithArgsCallback(const v8::Arguments&);
+    static v8::Handle<v8::Value> classMethod2Callback(const v8::Arguments&);
     static v8::Handle<v8::Value> constructorCallback(const v8::Arguments&);
     static v8::Handle<v8::Value> customAttrAccessorGetter(v8::Local<v8::String> name, const v8::AccessorInfo&);
     static void customAttrAccessorSetter(v8::Local<v8::String> name, v8::Local<v8::Value>, const v8::AccessorInfo&);
     static const int internalFieldCount = v8DefaultWrapperInternalFieldCount + 0;
-    static v8::Handle<v8::Object> existingWrapper(TestObj*);
-
 private:
-    static v8::Handle<v8::Object> wrapSlow(TestObj*);
+    static v8::Handle<v8::Object> wrapSlow(PassRefPtr<TestObj>);
 };
-
-ALWAYS_INLINE v8::Handle<v8::Object> V8TestObj::existingWrapper(TestObj* impl)
-{
-    return getDOMObjectMap().get(impl);
-}
 
 v8::Handle<v8::Object> V8TestObj::wrap(TestObj* impl)
 {
-        v8::Handle<v8::Object> wrapper = existingWrapper(impl);
+        v8::Handle<v8::Object> wrapper = getDOMObjectMap().get(impl);
         if (!wrapper.IsEmpty())
             return wrapper;
     return V8TestObj::wrapSlow(impl);

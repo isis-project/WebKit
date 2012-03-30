@@ -27,7 +27,8 @@
 #define TileCache_h
 
 #include "IntPointHash.h"
-#include "IntSize.h"
+#include "IntRect.h"
+#include "TiledBacking.h"
 #include "Timer.h"
 #include <wtf/HashMap.h>
 #include <wtf/Noncopyable.h>
@@ -44,11 +45,12 @@ class FloatRect;
 class IntPoint;
 class IntRect;
 
-class TileCache {
+class TileCache : public TiledBacking {
     WTF_MAKE_NONCOPYABLE(TileCache);
 
 public:
     static PassOwnPtr<TileCache> create(WebTileCacheLayer*, const IntSize& tileSize);
+    ~TileCache();
 
     void tileCacheLayerBoundsChanged();
 
@@ -56,46 +58,54 @@ public:
     void setNeedsDisplayInRect(const IntRect&);
     void drawLayer(WebTileLayer*, CGContextRef);
 
+    void setScale(CGFloat);
+
     bool acceleratesDrawing() const { return m_acceleratesDrawing; }
     void setAcceleratesDrawing(bool);
 
     CALayer *tileContainerLayer() const { return m_tileContainerLayer.get(); }
-    void visibleRectChanged();
 
-    float tileDebugBorderWidth() const { return m_tileDebugBorderWidth; }
     void setTileDebugBorderWidth(float);
-
-    CGColorRef tileDebugBorderColor() const { return m_tileDebugBorderColor.get(); }
     void setTileDebugBorderColor(CGColorRef);
 
 private:
-    typedef IntPoint TileIndex;
-
     TileCache(WebTileCacheLayer*, const IntSize& tileSize);
 
-    FloatRect visibleRect() const;
+    // TiledBacking member functions.
+    virtual void visibleRectChanged(const IntRect&) OVERRIDE;
+    virtual void setIsInWindow(bool) OVERRIDE;
+
     IntRect bounds() const;
 
+    typedef IntPoint TileIndex;
     IntRect rectForTileIndex(const TileIndex&) const;
     void getTileIndexRangeForRect(const IntRect&, TileIndex& topLeft, TileIndex& bottomRight);
 
-    void scheduleTileRevalidation();
+    IntRect tileCoverageRect() const;
+
+    void scheduleTileRevalidation(double interval);
     void tileRevalidationTimerFired(Timer<TileCache>*);
     void revalidateTiles();
 
     WebTileLayer* tileLayerAtIndex(const TileIndex&) const;
-    RetainPtr<WebTileLayer> createTileLayer();
+    RetainPtr<WebTileLayer> createTileLayer(const IntRect&);
 
     bool shouldShowRepaintCounters() const;
 
     WebTileCacheLayer* m_tileCacheLayer;
     RetainPtr<CALayer> m_tileContainerLayer;
     const IntSize m_tileSize;
+    IntRect m_visibleRect;
 
     typedef HashMap<TileIndex, RetainPtr<WebTileLayer> > TileMap;
     TileMap m_tiles;
     Timer<TileCache> m_tileRevalidationTimer;
+    IntRect m_tileCoverageRect;
 
+    CGFloat m_scale;
+    CGFloat m_deviceScaleFactor;
+
+    bool m_isInWindow;
     bool m_acceleratesDrawing;
 
     RetainPtr<CGColorRef> m_tileDebugBorderColor;

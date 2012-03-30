@@ -22,7 +22,6 @@ var shadowHost = document.createElement('div');
 document.body.appendChild(shadowHost);
 var shadowRoot = new WebKitShadowRoot(shadowHost);
 shouldBe("shadowHost", "shadowRoot.host");
-shouldThrow("new WebKitShadowRoot(shadowHost)");
 debug('The previous test should not have side effects.');
 shouldBe("shadowHost", "shadowRoot.host");
 
@@ -57,6 +56,11 @@ shouldBe("shadowRoot.querySelector('.class2')", "div2");
 shouldBeNull("shadowRoot.querySelector('.foo')");
 shouldBe("shadowRoot.querySelectorAll('div')", "[div1, div2]");
 shouldBe("shadowRoot.querySelectorAll('foo')", "[]");
+
+var youngerShadowRoot = new WebKitShadowRoot(shadowHost);
+shouldNotBe("youngerShadowRoot", "shadowRoot");
+
+
 </script>
 <script src="../../js/resources/js-test-post.js"></script>
 </body>

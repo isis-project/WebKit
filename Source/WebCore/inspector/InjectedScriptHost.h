@@ -42,6 +42,7 @@ class Database;
 class InjectedScript;
 class InspectorAgent;
 class InspectorConsoleAgent;
+class InspectorDOMAgent;
 class InspectorDOMStorageAgent;
 class InspectorDatabaseAgent;
 class InspectorFrontend;
@@ -51,6 +52,8 @@ class Node;
 class ScriptObject;
 class ScriptValue;
 class Storage;
+
+struct EventListenerInfo;
 
 class InjectedScriptHost : public RefCounted<InjectedScriptHost> {
 public:
@@ -63,6 +66,7 @@ public:
             , InspectorDatabaseAgent* databaseAgent
 #endif
             , InspectorDOMStorageAgent* domStorageAgent
+            , InspectorDOMAgent* domAgent
         )
     {
         m_inspectorAgent = inspectorAgent;
@@ -71,6 +75,7 @@ public:
         m_databaseAgent = databaseAgent;
 #endif
         m_domStorageAgent = domStorageAgent;
+        m_domAgent = domAgent;
     }
 
     static Node* scriptValueAsNode(ScriptValue);
@@ -78,13 +83,20 @@ public:
 
     void disconnect();
 
-    void addInspectedNode(Node*);
-    void clearInspectedNodes();
+    class InspectableObject {
+    public:
+        virtual ScriptValue get(ScriptState*);
+        virtual ~InspectableObject() { }
+    };
+    void addInspectedObject(PassOwnPtr<InspectableObject>);
+    void clearInspectedObjects();
+    InspectableObject* inspectedObject(unsigned int num);
 
     void inspectImpl(PassRefPtr<InspectorValue> objectToInspect, PassRefPtr<InspectorValue> hints);
+    void getEventListenersImpl(Node*, Vector<EventListenerInfo>& listenersArray);
+
     void clearConsoleMessages();
     void copyText(const String& text);
-    Node* inspectedNode(unsigned int num);
 #if ENABLE(SQL_DATABASE)
     int databaseIdImpl(Database*);
 #endif
@@ -104,8 +116,10 @@ private:
     InspectorDatabaseAgent* m_databaseAgent;
 #endif
     InspectorDOMStorageAgent* m_domStorageAgent;
+    InspectorDOMAgent* m_domAgent;
     long m_lastWorkerId;
-    Vector<RefPtr<Node> > m_inspectedNodes;
+    Vector<OwnPtr<InspectableObject> > m_inspectedObjects;
+    OwnPtr<InspectableObject> m_defaultInspectableObject;
 };
 
 } // namespace WebCore

@@ -41,9 +41,11 @@ public:
     virtual bool hasMoreResourceUpdates() const = 0;
 
     virtual void scheduledActionBeginFrame() = 0;
-    virtual void scheduledActionDrawAndSwap() = 0;
+    virtual bool scheduledActionDrawAndSwapIfPossible() = 0;
+    virtual void scheduledActionDrawAndSwapForced() = 0;
     virtual void scheduledActionUpdateMoreResources() = 0;
     virtual void scheduledActionCommit() = 0;
+    virtual void scheduledActionBeginContextRecreation() = 0;
 
 protected:
     virtual ~CCSchedulerClient() { }
@@ -62,22 +64,28 @@ public:
     void setVisible(bool);
 
     void setNeedsCommit();
+
+    // Like setNeedsCommit(), but ensures a commit will definitely happen even if we are not visible.
+    void setNeedsForcedCommit();
+
     void setNeedsRedraw();
 
-    // As setNeedsRedraw(), but ensures the draw will definitely happen even if we are not visible.
+    // Like setNeedsRedraw(), but ensures the draw will definitely happen even if we are not visible.
     void setNeedsForcedRedraw();
 
     void beginFrameComplete();
 
     void setMaxFramesPending(int);
     void didSwapBuffersComplete();
-    void didSwapBuffersAbort();
+
+    void didLoseContext();
+    void didRecreateContext();
 
     bool commitPending() const { return m_stateMachine.commitPending(); }
     bool redrawPending() const { return m_stateMachine.redrawPending(); }
 
     // CCFrameRateControllerClient implementation
-    virtual void beginFrame();
+    virtual void vsyncTick();
 
 private:
     CCScheduler(CCSchedulerClient*, PassOwnPtr<CCFrameRateController>);

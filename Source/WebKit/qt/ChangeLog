@@ -1,3 +1,841 @@
+2012-03-20  Eric Seidel  <eric@webkit.org>
+
+        Move wtf/Platform.h from JavaScriptCore to Source/WTF/wtf
+        https://bugs.webkit.org/show_bug.cgi?id=80911
+
+        Reviewed by Adam Barth.
+
+        Fix WTF header include paths since although
+        Source/WTF is included, no longer are all the
+        subdirectories (thus "RefPtr.h" can't work).
+
+        * Api/qwebdatabase_p.h:
+        * Api/qwebscriptworld_p.h:
+        * Api/qwebsecurityorigin_p.h:
+        * WebCoreSupport/InspectorClientQt.h:
+        * WebCoreSupport/QtFallbackWebPopup.h:
+        * WebCoreSupport/QtWebComboBox.h:
+        * declarative/experimental/experimental.pri:
+        * declarative/public.pri:
+        * tests/MIMESniffing/MIMESniffing.pro:
+
+2012-03-19  Adam Barth  <abarth@webkit.org>
+
+        Remove support for "magic" iframe
+        https://bugs.webkit.org/show_bug.cgi?id=81590
+
+        Reviewed by Eric Seidel.
+
+        Remove FrameLoaderClient methods that no longer exist.
+
+        * WebCoreSupport/FrameLoaderClientQt.cpp:
+        (WebCore):
+        * WebCoreSupport/FrameLoaderClientQt.h:
+        (FrameLoaderClientQt):
+
+2012-03-19  Emil A Eklund  <eae@chromium.org>
+
+        [mac/qt/chromium] Change platform code to use pixelSnappedRect methods
+        https://bugs.webkit.org/show_bug.cgi?id=81016
+
+        Reviewed by Eric Seidel.
+
+        * Api/qwebelement.cpp:
+        (QWebElement::geometry):
+        (QWebElement::render):
+
+2012-03-16  Teemu Katajisto  <teemu.katajisto@digia.com>
+
+        [Qt] QtWebKit documentation missing a few since 4.6 information
+        https://bugs.webkit.org/show_bug.cgi?id=81328
+
+        Reviewed by Simon Hausmann.
+
+        * Api/qwebpage.cpp:
+        * Api/qwebsettings.cpp:
+
+2012-03-15  Yuta Kitamura  <yutak@chromium.org>
+
+        [Qt] Change default WebSocket protocol to the latest one
+        https://bugs.webkit.org/show_bug.cgi?id=73630
+
+        Reviewed by Simon Hausmann.
+
+        * Api/qwebpage.cpp:
+        (QWebPagePrivate::QWebPagePrivate):
+        Use RFC6455 WebSocket protocol by default.
+
+2012-03-07  Jon Lee  <jonlee@apple.com>
+
+        Move NotificationContents into Notification
+        https://bugs.webkit.org/show_bug.cgi?id=80487
+        <rdar://problem/10965519>
+
+        Reviewed by Jian Li.
+
+        Refactor to use accessor methods on Notification.
+        * WebCoreSupport/NotificationPresenterClientQt.cpp:
+        (WebCore::NotificationWrapper::title):
+        (WebCore::NotificationWrapper::message):
+        (WebCore::NotificationPresenterClientQt::displayNotification):
+        (WebCore::NotificationPresenterClientQt::cancel):
+        (WebCore::NotificationPresenterClientQt::notificationClicked):
+        (WebCore::NotificationPresenterClientQt::dumpReplacedIdText):
+        (WebCore::NotificationPresenterClientQt::dumpShowText):
+
+2012-03-13  Jon Lee  <jonlee@apple.com>
+
+        Separate NOTIFICATIONS and LEGACY_NOTIFICATIONS
+        https://bugs.webkit.org/show_bug.cgi?id=80922
+        <rdar://problem/11035082>
+
+        Reviewed by Jian Li.
+
+        You can include either NOTIFICATIONS or LEGACY_NOTIFICATIONS and have a complete API.
+        LEGACY_NOTIFICATIONS should cover all of the previous functionality, and NOTIFICATIONS will cover the
+        new API. Therefore, APIs that are common between the two will have:
+        #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+
+        This patch initially sets both to be exactly the same. As other bugs with patches begin to migrate to
+        the new API, the defines will begin to split. This allows ports to decide which set of APIs to include.
+
+        Update everything to be #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+        * Api/qwebpage.cpp:
+        (QWebPagePrivate::QWebPagePrivate):
+        (QWebPagePrivate::~QWebPagePrivate):
+        (QWebPage::setFeaturePermission):
+        * WebCoreSupport/DumpRenderTreeSupportQt.cpp:
+        (DumpRenderTreeSupportQt::dumpNotification):
+        (DumpRenderTreeSupportQt::simulateDesktopNotificationClick):
+        * WebCoreSupport/NotificationPresenterClientQt.cpp:
+        (WebCore):
+        (WebCore::NotificationWrapper::NotificationWrapper):
+        (WebCore::NotificationWrapper::close):
+        (WebCore::NotificationWrapper::title):
+        (WebCore::NotificationWrapper::message):
+        (WebCore::NotificationWrapper::iconData):
+        (WebCore::NotificationWrapper::openerPageUrl):
+        (WebCore::NotificationWrapper::notificationClicked):
+        (WebCore::NotificationWrapper::notificationClosed):
+        * WebCoreSupport/NotificationPresenterClientQt.h:
+        (WebCore):
+
+2012-03-14  Csaba Osztrogonác  <ossy@webkit.org>
+
+        Last buildfix for Qt after r110595. :)
+
+        Reviewed by Benjamin Poulain.
+
+        * Api/qwebpage.cpp:
+        * WebCoreSupport/GeolocationClientQt.h:
+
+2012-03-13  Benjamin Poulain  <bpoulain@apple.com>
+
+        Attempt to fix QtMinimal bot after r110595
+
+        * Api/qwebpage.cpp:
+        (QWebPagePrivate::QWebPagePrivate):
+
+2012-03-13  Benjamin Poulain  <bpoulain@apple.com>
+
+        Another attempt at fixing QtMinimal bot after r110595
+
+        Blind fix, unreviewed.
+
+        * WebCoreSupport/GeolocationClientQt.h:
+
+2012-03-13  Benjamin Poulain  <bpoulain@apple.com>
+
+        Attempt to fix QtMinimal bot after r110595
+
+        Blind fix, unreviewed.
+
+        * Api/qwebpage.cpp:
+        (QWebPagePrivate::QWebPagePrivate):
+        * WebCoreSupport/DumpRenderTreeSupportQt.cpp:
+        (DumpRenderTreeSupportQt::resetGeolocationMock):
+        (DumpRenderTreeSupportQt::setMockGeolocationPermission):
+        (DumpRenderTreeSupportQt::setMockGeolocationPosition):
+        (DumpRenderTreeSupportQt::setMockGeolocationError):
+        (DumpRenderTreeSupportQt::numberOfPendingGeolocationPermissionRequests):
+        * WebCoreSupport/GeolocationPermissionClientQt.h:
+
+2012-03-13  Adam Barth  <abarth@webkit.org> && Benjamin Poulain  <bpoulain@apple.com>
+
+        Always enable ENABLE(CLIENT_BASED_GEOLOCATION)
+        https://bugs.webkit.org/show_bug.cgi?id=78853
+
+        Reviewed by Adam Barth.
+
+        * Api/qwebpage.cpp:
+        (QWebPagePrivate::QWebPagePrivate):
+        * WebCoreSupport/ChromeClientQt.h:
+        * WebCoreSupport/DumpRenderTreeSupportQt.cpp:
+        (toGeolocationClientMock):
+        (DumpRenderTreeSupportQt::resetGeolocationMock):
+        (DumpRenderTreeSupportQt::setMockGeolocationPermission):
+        (DumpRenderTreeSupportQt::setMockGeolocationPosition):
+        (DumpRenderTreeSupportQt::setMockGeolocationError):
+        (DumpRenderTreeSupportQt::numberOfPendingGeolocationPermissionRequests):
+        * WebCoreSupport/GeolocationClientQt.h:
+        (WebCore):
+
+2012-03-12  Antonio Gomes  <agomes@rim.com>
+
+        Convert nodesFromRect tests to use Internals interface
+        https://bugs.webkit.org/show_bug.cgi?id=80886
+
+        Reviewed by Ryosuke Niwa.
+
+        Removed DRTSupportQt::nodesFromRect support, since
+        it can work in the cross-port way through the
+        Internals interface.
+
+        * WebCoreSupport/DumpRenderTreeSupportQt.cpp:
+        * WebCoreSupport/DumpRenderTreeSupportQt.h:
+
+2012-03-09  Jon Lee  <jonlee@apple.com>
+
+        Rename NotificationPresenter to NotificationClient
+        https://bugs.webkit.org/show_bug.cgi?id=80488
+        <rdar://problem/10965558>
+
+        Reviewed by Kentaro Hara.
+
+        Refactor to use renamed WebCore::NotificationClient.
+        * WebCoreSupport/NotificationPresenterClientQt.cpp:
+        (WebCore::NotificationPresenterClientQt::checkPermission):
+        (WebCore::NotificationPresenterClientQt::allowNotificationForFrame):
+        * WebCoreSupport/NotificationPresenterClientQt.h:
+        (NotificationPresenterClientQt):
+
+2012-03-09  Emil A Eklund  <eae@chromium.org>
+
+        Add roundedPoint to HitTestResult and change platform code to use it
+        https://bugs.webkit.org/show_bug.cgi?id=80715
+
+        Reviewed by James Robinson.
+
+        Change ports to use roundedPoint to avoid exposing subpixel types to
+        platform code.
+
+        * Api/qwebframe.cpp:
+        (QWebHitTestResultPrivate::QWebHitTestResultPrivate):
+
+2012-03-09  Jon Lee  <jonlee@apple.com>
+
+        Add support for ENABLE(LEGACY_NOTIFICATIONS)
+        https://bugs.webkit.org/show_bug.cgi?id=80497
+
+        Reviewed by Adam Barth.
+
+        Prep for b80472: Update API for Web Notifications
+        * examples/platformplugin/platformplugin.pro:
+
+2012-03-09  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [Qt] Fix compilation without QtQuick1
+        https://bugs.webkit.org/show_bug.cgi?id=80503
+
+        Qt 4.8 API test fix after r110050.
+
+        Reviewed by Zoltan Herczeg.
+
+        * declarative/public.pri: Add load(features) to ensure HAVE_QQUICK1=1 is set.
+
+2012-03-08  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Use Qt's module system for install rules and depending on QtWebKit
+
+        Instead of rolling our own install rules we now use the same approach as
+        every other Qt module, by loading qt_module.prf and qt_module_config.prf.
+
+        This ensures that we follow the same semantics as the rest of Qt on
+        what sort of config options are enabled by default (create_cmake eg.).
+        It also allows us to use QT += webkit instead of the workaround we had
+        with CONFIG += qtwebkit.
+
+        We do however force Qt to always treat our build as a non-developer build,
+        so the libraries will end up in the WebKit lib directory instead of the
+        qtbase directory (as with a normal developer-build). This allows us to
+        keep the webkit-build self-contained. If Qt is a developer build we still
+        copy the module file manually to Qt, so that you don't have to install
+        WebKit to make it available.
+
+        For non-developer builds of Qt, it is still possible to use the built
+        WebKit libraries without having to install them, by having the variable
+        QMAKE_EXTRA_MODULE_FORWARDS set in the project's .qmake.cache file,
+        pointing to $WEBKITOUTUTDIR/$CONFIGURATION/modules.
+
+        https://bugs.webkit.org/show_bug.cgi?id=80590
+
+        Reviewed by Simon Hausmann.
+
+        * declarative/experimental/experimental.pri:
+        * declarative/experimental/plugin.cpp:
+        * declarative/plugin.cpp:
+        * declarative/public.pri:
+        * tests/tests.pri:
+
+2012-03-08  Antti Koivisto  <antti@apple.com>
+
+        https://bugs.webkit.org/show_bug.cgi?id=80370
+        Enable matched declaration caching for elements with a style attribute
+
+        Reviewed by Andreas Kling
+
+        * Api/qwebelement.cpp:
+        (QWebElement::styleProperty):
+        (QWebElement::setStyleProperty):
+
+2012-03-07  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Fix compilation without QtQuick1
+        https://bugs.webkit.org/show_bug.cgi?id=80503
+
+        Reviewed by Tor Arne Vestbø.
+
+        Compile and enable the QtQuick1/QML1 plugin and webview
+        only if we're using Qt 4 at the moment. QQuick1 clashes
+        with QQuick2 right now because both declare QDeclarativeEngine
+        and friends as classes.
+
+        * declarative/plugin.cpp:
+        (WebKitQmlPlugin::registerTypes):
+        * declarative/public.pri:
+        * tests/tests.pri:
+
+2012-03-07  Kangil Han  <kangil.han@samsung.com>
+
+        [DRT] Remove PlainTextController implementations.
+        https://bugs.webkit.org/show_bug.cgi?id=79959
+
+        Reviewed by Hajime Morita.
+
+        PlainTextController usages in existing tests have been
+        replaced by internals API by bug 78570.
+        So this patch will remove PlainTextController implementations
+        to avoid further usage in new tests.
+
+        * WebCoreSupport/DumpRenderTreeSupportQt.cpp:
+        * WebCoreSupport/DumpRenderTreeSupportQt.h:
+
+2012-03-06  Philippe Normand  <pnormand@igalia.com>
+
+        [GStreamer] disable GStreamerGWorld when building against 0.11
+        https://bugs.webkit.org/show_bug.cgi?id=77088
+
+        Reviewed by Martin Robinson.
+
+        * WebCoreSupport/ChromeClientQt.cpp:
+        (WebCore::ChromeClientQt::ChromeClientQt):
+        (WebCore::ChromeClientQt::~ChromeClientQt):
+        (WebCore):
+        * WebCoreSupport/FullScreenVideoQt.cpp:
+        (WebCore):
+        (WebCore::FullScreenVideoQt::FullScreenVideoQt):
+        (WebCore::FullScreenVideoQt::~FullScreenVideoQt):
+        (WebCore::FullScreenVideoQt::enterFullScreenForNode):
+        (WebCore::FullScreenVideoQt::exitFullScreenForNode):
+        (WebCore::FullScreenVideoQt::isValid):
+        * WebCoreSupport/FullScreenVideoQt.h:
+        (WebCore):
+
+2012-03-03  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Fix static_libs_as_shared build
+        https://bugs.webkit.org/show_bug.cgi?id=80214
+
+        Reviewed by Tor Arne Vestbø.
+
+        Add helper function to be called by WebProcess main
+        to potentially initialize the QStyle theme.
+
+        * WebCoreSupport/InitWebCoreQt.cpp:
+        (WebKit):
+        (WebKit::initializeWebKit2Theme):
+
+2012-03-02  Casper van Donderen  <casper.vandonderen@nokia.com>
+
+        [Qt] Documentation cleanup
+        https://bugs.webkit.org/show_bug.cgi?id=80131
+
+        Reviewed by Simon Hausmann.
+
+        QDoc uses different commands to do bold, lists, and italics.
+        This change updates the documentation accordingly.
+        QTBUG-24578
+
+        * Api/qwebframe.cpp:
+        * Api/qwebhistory.cpp:
+        * Api/qwebinspector.cpp:
+        * Api/qwebpage.cpp:
+        * Api/qwebpluginfactory.cpp:
+        * Api/qwebsettings.cpp:
+        * declarative/qdeclarativewebview.cpp:
+        * docs/qtwebkit-bridge.qdoc:
+        * docs/qtwebkit.qdoc:
+        * docs/qtwebkit.qdocconf:
+
+2012-03-02  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Build system cleanup
+
+        Rubber-stamped by Antti Koivisto.
+
+        * tests/MIMESniffing/MIMESniffing.pro: Don't link in WTFAssertions.cpp for ASSERT, now
+        that the symbols are properly exported with export macros from the DLL.
+
+2012-03-02  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Move QStyle theming code out of WebCore into WebKit1
+        https://bugs.webkit.org/show_bug.cgi?id=80128
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Moved the bulk of the QStyle dependant code here, where it's okay to depend on QtWidgets/QStyle.
+        Install the QStyle factory functions in initWebCoreQt.cpp.
+
+        * Api/qwebpage.cpp:
+        (QWebPage::swallowContextMenuEvent):
+        * WebCoreSupport/InitWebCoreQt.cpp:
+        (WebCore::initializeWebCoreQt):
+        * WebCoreSupport/RenderThemeQStyle.cpp: Renamed from Source/WebCore/platform/qt/RenderThemeQStyle.cpp.
+        (WebCore):
+        (WebCore::initStyleOption):
+        (WebCore::RenderThemeQStyle::getStylePainter):
+        (WebCore::StylePainterQStyle::StylePainterQStyle):
+        (WebCore::StylePainterQStyle::init):
+        (WebCore::RenderThemeQStyle::create):
+        (WebCore::RenderThemeQStyle::RenderThemeQStyle):
+        (WebCore::RenderThemeQStyle::~RenderThemeQStyle):
+        (WebCore::RenderThemeQStyle::fallbackStyle):
+        (WebCore::RenderThemeQStyle::qStyle):
+        (WebCore::RenderThemeQStyle::findFrameLineWidth):
+        (WebCore::RenderThemeQStyle::inflateButtonRect):
+        (WebCore::RenderThemeQStyle::computeSizeBasedOnStyle):
+        (WebCore::RenderThemeQStyle::adjustButtonStyle):
+        (WebCore::RenderThemeQStyle::setButtonPadding):
+        (WebCore::RenderThemeQStyle::paintButton):
+        (WebCore::RenderThemeQStyle::paintTextField):
+        (WebCore::RenderThemeQStyle::adjustTextAreaStyle):
+        (WebCore::RenderThemeQStyle::paintTextArea):
+        (WebCore::RenderThemeQStyle::setPopupPadding):
+        (WebCore::RenderThemeQStyle::paintMenuList):
+        (WebCore::RenderThemeQStyle::adjustMenuListButtonStyle):
+        (WebCore::RenderThemeQStyle::paintMenuListButton):
+        (WebCore::RenderThemeQStyle::animationDurationForProgressBar):
+        (WebCore::RenderThemeQStyle::paintProgressBar):
+        (WebCore::RenderThemeQStyle::paintSliderTrack):
+        (WebCore::RenderThemeQStyle::adjustSliderTrackStyle):
+        (WebCore::RenderThemeQStyle::paintSliderThumb):
+        (WebCore::RenderThemeQStyle::adjustSliderThumbStyle):
+        (WebCore::RenderThemeQStyle::paintSearchField):
+        (WebCore::RenderThemeQStyle::adjustSearchFieldDecorationStyle):
+        (WebCore::RenderThemeQStyle::paintSearchFieldDecoration):
+        (WebCore::RenderThemeQStyle::adjustSearchFieldResultsDecorationStyle):
+        (WebCore::RenderThemeQStyle::paintSearchFieldResultsDecoration):
+        (WebCore::RenderThemeQStyle::paintInnerSpinButton):
+        (WebCore::RenderThemeQStyle::initializeCommonQStyleOptions):
+        (WebCore::RenderThemeQStyle::adjustSliderThumbSize):
+        * WebCoreSupport/RenderThemeQStyle.h: Renamed from Source/WebCore/platform/qt/RenderThemeQStyle.h.
+        (WebCore):
+        (RenderThemeQStyle):
+        (StylePainterQStyle):
+        (WebCore::StylePainterQStyle::isValid):
+        (WebCore::StylePainterQStyle::drawPrimitive):
+        (WebCore::StylePainterQStyle::drawControl):
+        (WebCore::StylePainterQStyle::drawComplexControl):
+        * WebCoreSupport/ScrollbarThemeQStyle.cpp: Copied from Source/WebCore/platform/qt/ScrollbarThemeQt.cpp.
+        (WebCore):
+        (WebCore::ScrollbarThemeQStyle::~ScrollbarThemeQStyle):
+        (WebCore::scPart):
+        (WebCore::scrollbarPart):
+        (WebCore::styleOptionSlider):
+        (WebCore::ScrollbarThemeQStyle::paint):
+        (WebCore::ScrollbarThemeQStyle::hitTest):
+        (WebCore::ScrollbarThemeQStyle::shouldCenterOnThumb):
+        (WebCore::ScrollbarThemeQStyle::invalidatePart):
+        (WebCore::ScrollbarThemeQStyle::scrollbarThickness):
+        (WebCore::ScrollbarThemeQStyle::thumbPosition):
+        (WebCore::ScrollbarThemeQStyle::thumbLength):
+        (WebCore::ScrollbarThemeQStyle::trackPosition):
+        (WebCore::ScrollbarThemeQStyle::trackLength):
+        (WebCore::ScrollbarThemeQStyle::paintScrollCorner):
+        (WebCore::ScrollbarThemeQStyle::style):
+        * WebCoreSupport/ScrollbarThemeQStyle.h: Renamed from Source/WebCore/platform/qt/ScrollbarThemeQt.h.
+        (WebCore):
+        (ScrollbarThemeQStyle):
+
+2012-02-27  Caio Marcelo de Oliveira Filho  <caio.oliveira@openbossa.org>
+
+        [Qt] Move registration of experimental types to the proper plugin
+        https://bugs.webkit.org/show_bug.cgi?id=79706
+
+        Reviewed by Tor Arne Vestbø.
+
+        * declarative/experimental/plugin.cpp:
+        * declarative/plugin.cpp:
+        (WebKitQmlPlugin::registerTypes):
+
+2012-02-28  Antti Koivisto  <antti@apple.com>
+
+        Try to fix build.
+
+        Not reviewed.
+
+        * Api/qwebelement.cpp:
+        (QWebElement::styleProperty):
+
+2012-02-26  Hajime Morrita  <morrita@chromium.org>
+
+        Move ChromeClient::showContextMenu() to ContextMenuClient
+        https://bugs.webkit.org/show_bug.cgi?id=79427
+
+        Reviewed by Adam Barth.
+
+        * WebCoreSupport/ChromeClientQt.h:
+        (ChromeClientQt):
+
+2012-02-24  Jocelyn Turcotte  <jocelyn.turcotte@nokia.com>
+
+        [Qt] API: Unify the loading properties and signals.
+        https://bugs.webkit.org/show_bug.cgi?id=79486
+
+        Reviewed by Simon Hausmann.
+
+        * declarative/plugin.cpp:
+        (WebKitQmlPlugin::registerTypes):
+
+2012-02-24  Holger Hans Peter Freyther  <holger@moiji-mobile.com>
+
+        [Qt] Build fix. macro "QSKIP" now only takes 1 argument on Qt5
+        https://bugs.webkit.org/show_bug.cgi?id=79328
+
+        Reviewed by Csaba Osztrogonác.
+
+        Introduce an alternative QSKIP that can work with both Qt4
+        and Qt5 without adding #ifdef to each usage site.
+
+        * tests/benchmarks/loading/tst_loading.cpp:
+        (tst_Loading::load):
+        * tests/benchmarks/painting/tst_painting.cpp:
+        (tst_Painting::paint):
+        * tests/qdeclarativewebview/tst_qdeclarativewebview.cpp:
+        (tst_QDeclarativeWebView::elementAreaAt):
+        * tests/qwebframe/tst_qwebframe.cpp:
+        (tst_QWebFrame::setHtmlWithBaseURL):
+        * tests/qwebpage/tst_qwebpage.cpp:
+        (tst_QWebPage::geolocationRequestJS):
+        (tst_QWebPage::loadHtml5Video):
+        (tst_QWebPage::screenshot):
+        * tests/qwebview/tst_qwebview.cpp:
+        (tst_QWebView::reusePage):
+
+2012-02-24  Shinya Kawanaka  <shinyak@chromium.org>
+
+        SpellCheckRequest needs to know the context where the spellcheck happened.
+        https://bugs.webkit.org/show_bug.cgi?id=79320
+
+        Reviewed by Hajime Morita.
+
+        * WebCoreSupport/TextCheckerClientQt.h:
+        (WebCore::TextCheckerClientQt::requestCheckingOfString):
+
+2012-02-23  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Add support for touch cancellation
+        https://bugs.webkit.org/show_bug.cgi?id=79348
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Forward incoming touch cancellation events to the WebCore
+        event handler.
+
+        * Api/qgraphicswebview.cpp:
+        (QGraphicsWebView::sceneEvent):
+        * Api/qwebpage.cpp:
+        (QWebPage::event):
+        * Api/qwebview.cpp:
+        (QWebView::event):
+
+2012-02-22  Hajime Morrita  <morrita@chromium.org>
+
+        NOTIFICATIONS should be implemented as PageSupplement
+        https://bugs.webkit.org/show_bug.cgi?id=79052
+
+        Reviewed by Adam Barth.
+
+        * Api/qwebpage.cpp:
+        (QWebPagePrivate::QWebPagePrivate):
+
+2012-02-21  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Remove the remaining uses of CSSStyleDeclaration in Editor
+        https://bugs.webkit.org/show_bug.cgi?id=78939
+
+        Reviewed by Enrica Casucci.
+
+        * WebCoreSupport/EditorClientQt.cpp:
+        (WebCore::EditorClientQt::shouldApplyStyle):
+        * WebCoreSupport/EditorClientQt.h:
+        (EditorClientQt):
+
+2012-02-22  Mihnea Ovidenie  <mihnea@adobe.com>
+
+        [Qt] REGRESSION(r108108): It made 3 fast/repaint tests fail
+        https://bugs.webkit.org/show_bug.cgi?id=78960
+
+        Reviewed by Csaba Osztrogonác.
+
+        * Api/qwebsettings.cpp:
+        (QWebSettingsPrivate::apply):
+        (QWebSettings::QWebSettings):
+        * Api/qwebsettings.h:
+
+2012-02-22  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Move QMenu dependant scrollbar context menu handling out of WebCore
+        https://bugs.webkit.org/show_bug.cgi?id=79233
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Move scrollbar context menu handling here, it's the only place where it is
+        used.
+
+        * Api/qwebpage.cpp:
+        (handleScrollbarContextMenuEvent):
+        (QWebPage::swallowContextMenuEvent):
+
+2012-02-22  Kenneth Rohde Christiansen  <kenneth@webkit.org>
+
+        Merge setVisibleRectTrajectoryVector and adjustVisibleRect to
+        the more descriptive coverWithTilesIfNeeded
+        https://bugs.webkit.org/show_bug.cgi?id=79230
+
+        Reviewed by Simon Hausmann.
+
+        * Api/qgraphicswebview.cpp:
+        (QGraphicsWebView::paint):
+
+            Use coverWithTilesIfNeeded().
+
+2012-02-22  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Remove the remaining uses of CSSStyleDeclaration in Editor
+        https://bugs.webkit.org/show_bug.cgi?id=78939
+
+        Reviewed by Enrica Casucci.
+
+        * WebCoreSupport/EditorClientQt.cpp:
+        (WebCore::EditorClientQt::shouldApplyStyle):
+        * WebCoreSupport/EditorClientQt.h:
+        (EditorClientQt):
+
+2012-02-21  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [Qt] tst_QWebPage::infiniteLoopJS() timeouts with DFG JIT
+        https://bugs.webkit.org/show_bug.cgi?id=79040
+
+        Reviewed by Simon Hausmann.
+
+        * tests/qwebpage/tst_qwebpage.cpp:
+        (tst_QWebPage): Disable tst_QWebPage::infiniteLoopJS() until proper fix.
+
+2012-02-21  Andras Becsi  <andras.becsi@nokia.com>
+
+        [Qt] Print warning when importing experimental WK2 APIs in QML
+        https://bugs.webkit.org/show_bug.cgi?id=78817
+
+        Reviewed by Simon Hausmann.
+
+        * declarative/experimental/plugin.cpp:
+
+2012-02-20  Benjamin Poulain  <benjamin@webkit.org>
+
+        Get rid of the LocalizationStrategy
+        https://bugs.webkit.org/show_bug.cgi?id=78324
+
+        Reviewed by Sam Weinig.
+
+        Move the localization code from PlatformStrategiesQt.cpp
+        to LocalizedStringsQt.cpp.
+
+        Get rid of LocalizationStrategy from PlatformStrategiesQt
+
+        * WebCoreSupport/PlatformStrategiesQt.cpp:
+        * WebCoreSupport/PlatformStrategiesQt.h:
+        (PlatformStrategiesQt):
+
+2012-02-16  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        Unreviewed brown-paper bag build fix.
+
+        * WebCoreSupport/WebEventConversion.cpp:
+        (WebCore::WebKitPlatformWheelEvent::WebKitPlatformWheelEvent):
+
+2012-02-16  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Move event conversion functions from WebCore to WebKit
+        https://bugs.webkit.org/show_bug.cgi?id=78788
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Move QtWidgets dependent mouse event constructors out of WebCore
+        into WebKit, similar to the web event conversions of WebKit2.
+
+        * Api/qwebpage.cpp:
+        (QWebPagePrivate::mouseMoveEvent):
+        (QWebPagePrivate::mousePressEvent):
+        (QWebPagePrivate::mouseDoubleClickEvent):
+        (QWebPagePrivate::mouseTripleClickEvent):
+        (QWebPagePrivate::mouseReleaseEvent):
+        (QWebPagePrivate::wheelEvent):
+        (QWebPage::swallowContextMenuEvent):
+        * WebCoreSupport/FrameLoaderClientQt.cpp:
+        (WebCore::FrameLoaderClientQt::postProgressFinishedNotification):
+        * WebCoreSupport/WebEventConversion.cpp: Added.
+        (WebCore):
+        (WebCore::mouseEventModifiersFromQtKeyboardModifiers):
+        (WebCore::mouseEventTypeAndMouseButtonFromQEvent):
+        (WebKitPlatformMouseEvent):
+        (WebCore::WebKitPlatformMouseEvent::WebKitPlatformMouseEvent):
+        (WebCore::convertMouseEvent):
+        (WebKitPlatformWheelEvent):
+        (WebCore::WebKitPlatformWheelEvent::applyDelta):
+        (WebCore::WebKitPlatformWheelEvent::WebKitPlatformWheelEvent):
+        (WebCore::convertWheelEvent):
+        * WebCoreSupport/WebEventConversion.h: Added.
+        (WebCore):
+
+2012-02-16  Adenilson Cavalcanti  <cavalcantii@gmail.com>
+
+        [Qt][WK2] Split QWebPermissionRequest into QWebSecurityOrigin
+        https://bugs.webkit.org/show_bug.cgi?id=73215
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Adding a class to access security information data
+        (e.g. port/scheme/etc),
+        while allowing it to be handled in QML side.
+
+        * declarative/plugin.cpp:
+        (WebKitQmlPlugin::registerTypes):
+
+2012-02-15  Sadrul Habib Chowdhury  <sadrul@chromium.org>
+
+        Notify ChromeClient when touch-event handlers are installed/removed.
+        https://bugs.webkit.org/show_bug.cgi?id=77440
+
+        Reviewed by Darin Fisher and Ryosuke Niwa.
+
+        * WebCoreSupport/ChromeClientQt.h:
+        (WebCore::ChromeClientQt::numTouchEventHandlersChanged):
+
+2012-02-15  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        Unreviewed Qt 4.x build fix.
+
+        * WebCoreSupport/PageClientQt.cpp: Fix the QT_VERSION_CHECK pre-processor foo.
+
+2012-02-15  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Replace use of QGLWidget/QGLContext with QOpenGLContext and QSurface for Qt 5
+        https://bugs.webkit.org/show_bug.cgi?id=78694
+
+        Reviewed by Noam Rosenthal.
+
+        * WebCoreSupport/PageClientQt.cpp:
+        (createPlatformGraphicsContext3DFromWidget): Return the QOpenGLContext and QSurface
+        from the QGLWidget when compiling with Qt 5, as that's what WebCore expects.
+
+2012-02-15  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Move Qt platform specific GL Context/Surface creation out of WebCore into WebKit
+        https://bugs.webkit.org/show_bug.cgi?id=78692
+
+        Reviewed by Noam Rosenthal.
+
+        Implement GLWidget and GLContext creation from the page client interface.
+
+        * WebCoreSupport/PageClientQt.cpp:
+        (createPlatformGraphicsContext3DFromWidget):
+        (WebCore):
+        (WebCore::PageClientQWidget::createPlatformGraphicsContext3D):
+        (WebCore::PageClientQGraphicsWidget::createPlatformGraphicsContext3D):
+        * WebCoreSupport/PageClientQt.h:
+        (PageClientQWidget):
+        (PageClientQGraphicsWidget):
+
+2012-02-14  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Eliminate first set of QtWidgets dependencies from WebCore
+        https://bugs.webkit.org/show_bug.cgi?id=78611
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * Api/qwebpage.cpp: Add missing includes.
+        * WebCoreSupport/DumpRenderTreeSupportQt.cpp: Ditto.
+        * WebCoreSupport/FrameLoaderClientQt.cpp: Make it compile by casting
+        the QObject based PlatformWidget back to QWidget before doing QWidget
+        specific function calls.
+        * WebCoreSupport/InitWebCoreQt.cpp:
+        (WebCore::initializeWebCoreQt): Moved QStyle specific web-graphic initialization
+        here from WebCore.
+        * WebCoreSupport/PageClientQt.cpp:
+        (WebCore::PageClientQWidget::setWidgetVisible): Implement show/hiding of widgets
+        through delegation to QWidget.
+        (WebCore):
+        (WebCore::PageClientQGraphicsWidget::setWidgetVisible): Provide empty widget
+        show/hide implementation, as it doesn't seem to make sense for graphicsviews.
+        * WebCoreSupport/PageClientQt.h:
+        (PageClientQWidget):
+        (PageClientQGraphicsWidget):
+
+2012-02-15  Kenneth Rohde Christiansen  <kenneth@webkit.org>
+
+        [Qt] Be smarted with tile usages during tiling
+        https://bugs.webkit.org/show_bug.cgi?id=78243
+
+        Reviewed by Simon Hausmann.
+
+        Remove internal API used by Symbian.
+
+        * Api/qwebpage.cpp:
+        (QWebPagePrivate::dynamicPropertyChangeEvent):
+
+2012-02-15  No'am Rosenthal  <noam.rosenthal@nokia.com>
+
+        [Texmap] Divide TextureMapperNode.cpp to 3 files.
+        https://bugs.webkit.org/show_bug.cgi?id=76660
+
+        Rename TextureMapperNode to TextureMapperLayer.
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * Api/qwebframe.cpp:
+        (QWebFramePrivate::renderCompositedLayers):
+        * Api/qwebframe.h:
+        (WebCore):
+        * Api/qwebframe_p.h:
+        (WebCore):
+        (QWebFramePrivate::QWebFramePrivate):
+        (QWebFramePrivate):
+        * WebCoreSupport/PageClientQt.cpp:
+        (WebCore::TextureMapperLayerClientQt::TextureMapperLayerClientQt):
+        (WebCore::TextureMapperLayerClientQt::setTextureMapper):
+        (WebCore::TextureMapperLayerClientQt::~TextureMapperLayerClientQt):
+        (WebCore::TextureMapperLayerClientQt::syncRootLayer):
+        (WebCore::TextureMapperLayerClientQt::rootLayer):
+        (WebCore::PageClientQWidget::setRootGraphicsLayer):
+        (WebCore::PageClientQWidget::syncLayers):
+        (WebCore::PageClientQGraphicsWidget::syncLayers):
+        (WebCore::PageClientQGraphicsWidget::setRootGraphicsLayer):
+        * WebCoreSupport/PageClientQt.h:
+        (TextureMapperLayerClientQt):
+        (PageClientQWidget):
+        (PageClientQGraphicsWidget):
+
 2012-02-11  Nikolas Zimmermann  <nzimmermann@rim.com>
 
         Convert svg/animations to use SMIL methods for driving the timeline

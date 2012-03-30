@@ -51,6 +51,12 @@ public:
         COMMIT_STATE_WAITING_FOR_FIRST_DRAW,
     };
 
+    enum ContextState {
+        CONTEXT_ACTIVE,
+        CONTEXT_LOST,
+        CONTEXT_RECREATING,
+    };
+
     bool commitPending() const
     {
         return m_commitState != COMMIT_STATE_IDLE;
@@ -63,7 +69,9 @@ public:
         ACTION_BEGIN_FRAME,
         ACTION_BEGIN_UPDATE_MORE_RESOURCES,
         ACTION_COMMIT,
-        ACTION_DRAW,
+        ACTION_DRAW_IF_POSSIBLE,
+        ACTION_DRAW_FORCED,
+        ACTION_BEGIN_CONTEXT_RECREATION
     };
     Action nextAction() const;
     void updateState(Action);
@@ -88,10 +96,17 @@ public:
     // we are not visible.
     void setNeedsForcedRedraw();
 
+    // Indicates whether ACTION_DRAW_IF_POSSIBLE drew to the screen or not.
+    void didDrawIfPossibleCompleted(bool success);
+
     // Indicates that a new commit flow needs to be performed, either to pull
     // updates from the main thread to the impl, or to push deltas from the impl
     // thread to main.
     void setNeedsCommit();
+
+    // As setNeedsCommit(), but ensures the beginFrame will definitely happen even if
+    // we are not visible.
+    void setNeedsForcedCommit();
 
     // Call this only in response to receiving an ACTION_BEGIN_FRAME
     // from nextState. Indicates that all painting is complete and that
@@ -107,7 +122,14 @@ public:
     // when such behavior would be undesirable.
     void setCanDraw(bool can) { m_canDraw = can; }
 
+    void didLoseContext();
+    void didRecreateContext();
+
 protected:
+    bool shouldDrawForced() const;
+    bool shouldDraw() const;
+    bool hasDrawnThisFrame() const;
+
     CommitState m_commitState;
 
     int m_currentFrameNumber;
@@ -115,10 +137,13 @@ protected:
     bool m_needsRedraw;
     bool m_needsForcedRedraw;
     bool m_needsCommit;
+    bool m_needsForcedCommit;
     bool m_updateMoreResourcesPending;
     bool m_insideVSync;
     bool m_visible;
     bool m_canDraw;
+    bool m_drawIfPossibleFailed;
+    ContextState m_contextState;
 };
 
 }

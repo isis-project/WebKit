@@ -537,12 +537,6 @@ JSValueRef LayoutTestController::computedStyleIncludingVisitedInfo(JSContextRef,
     return 0;
 }
 
-JSValueRef LayoutTestController::nodesFromRect(JSContextRef context, JSValueRef value, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping)
-{
-    // FIXME: Implement this.
-    return 0;
-}
-
 void LayoutTestController::authenticateSession(JSStringRef, JSStringRef, JSStringRef)
 {
 }
@@ -554,18 +548,6 @@ void LayoutTestController::setEditingBehavior(const char* editingBehavior)
 
 void LayoutTestController::abortModal()
 {
-}
-
-bool LayoutTestController::hasSpellingMarker(int, int)
-{
-    // FIXME: Implement
-    return false;
-}
-
-bool LayoutTestController::hasGrammarMarker(int, int)
-{
-    // FIXME: Implement
-    return false;
 }
 
 void LayoutTestController::dumpConfigurationForViewport(int /*deviceDPI*/, int /*deviceWidth*/, int /*deviceHeight*/, int /*availableWidth*/, int /*availableHeight*/)

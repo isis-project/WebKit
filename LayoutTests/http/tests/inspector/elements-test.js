@@ -69,13 +69,13 @@ InspectorTest.selectNodeWithId = function(idValue, callback)
     InspectorTest.nodeWithId(idValue, onNodeFound);
 }
 
-InspectorTest.waitForStyles = function(idValue, callback)
+InspectorTest.waitForStyles = function(idValue, callback, requireRebuild)
 {
     callback = InspectorTest.safeWrap(callback);
 
-    (function sniff(node)
+    (function sniff(node, rebuild)
     {
-        if (node && node.getAttribute("id") === idValue) {
+        if ((rebuild || !requireRebuild) && node && node.getAttribute("id") === idValue) {
             callback();
             return;
         }
@@ -91,7 +91,7 @@ InspectorTest.selectNodeAndWaitForStyles = function(idValue, callback)
 
     var targetNode;
 
-    InspectorTest.waitForStyles(idValue, stylesUpdated);
+    InspectorTest.waitForStyles(idValue, stylesUpdated, true);
     InspectorTest.selectNodeWithId(idValue, nodeSelected);
 
     function nodeSelected(node)
@@ -192,7 +192,7 @@ InspectorTest.expandSelectedElementEventListenersEventBars = function(callback)
 {
     var eventListenerSections = WebInspector.panels.elements.sidebarPanes.eventListeners.sections;
     for (var i = 0; i < eventListenerSections.length; ++i) {
-        var eventBarChildren = eventListenerSections[i].eventBars.children;
+        var eventBarChildren = eventListenerSections[i]._eventBars.children;
         for (var j = 0; j < eventBarChildren.length; ++j)
             eventBarChildren[j]._section.expand();
     }
@@ -214,7 +214,7 @@ InspectorTest.dumpSelectedElementEventListeners = function(callback)
         var eventType = section._title;
         InspectorTest.addResult("");
         InspectorTest.addResult("======== " + eventType + " ========");
-        var eventBarChildren = section.eventBars.children;
+        var eventBarChildren = section._eventBars.children;
         for (var j = 0; j < eventBarChildren.length; ++j) {
             var objectPropertiesSection = eventBarChildren[j]._section;
             InspectorTest.dumpObjectPropertySection(objectPropertiesSection, {
@@ -404,18 +404,25 @@ InspectorTest.generateUndoTest = function(testBody)
         InspectorTest.addResult("Initial:");
         InspectorTest.dumpElementsTree(testNode);
 
-        testBody(step1);
+        testBody(undo);
 
-        function step1()
+        function undo()
         {
             InspectorTest.addResult("Post-action:");
             InspectorTest.dumpElementsTree(testNode);
-            WebInspector.domAgent.undo(step2);
+            WebInspector.domAgent.undo(redo);
         }
 
-        function step2()
+        function redo()
         {
             InspectorTest.addResult("Post-undo (initial):");
+            InspectorTest.dumpElementsTree(testNode);
+            WebInspector.domAgent.redo(done);
+        }
+
+        function done()
+        {
+            InspectorTest.addResult("Post-redo (action):");
             InspectorTest.dumpElementsTree(testNode);
             next();
         }

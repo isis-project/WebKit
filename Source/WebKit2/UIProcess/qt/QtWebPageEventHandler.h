@@ -43,7 +43,22 @@ public:
     QtWebPageEventHandler(WKPageRef, QQuickWebPage*, QQuickWebView*);
     ~QtWebPageEventHandler();
 
-    bool handleEvent(QEvent*);
+    void handleKeyPressEvent(QKeyEvent*);
+    void handleKeyReleaseEvent(QKeyEvent*);
+    void handleFocusInEvent(QFocusEvent*);
+    void handleFocusOutEvent(QFocusEvent*);
+    void handleMouseMoveEvent(QMouseEvent*);
+    void handleMousePressEvent(QMouseEvent*);
+    void handleMouseReleaseEvent(QMouseEvent*);
+    void handleWheelEvent(QWheelEvent*);
+    void handleHoverLeaveEvent(QHoverEvent*);
+    void handleHoverMoveEvent(QHoverEvent*);
+    void handleDragEnterEvent(QDragEnterEvent*);
+    void handleDragLeaveEvent(QDragLeaveEvent*);
+    void handleDragMoveEvent(QDragMoveEvent*);
+    void handleDropEvent(QDropEvent*);
+    void handleInputMethodEvent(QInputMethodEvent*);
+    void handleTouchEvent(QTouchEvent*);
 
     void setViewportInteractionEngine(QtViewportInteractionEngine*);
 
@@ -54,7 +69,9 @@ public:
     void didFindZoomableArea(const WebCore::IntPoint& target, const WebCore::IntRect& area);
     void updateTextInputState();
     void doneWithGestureEvent(const WebGestureEvent& event, bool wasEventHandled);
+#if ENABLE(TOUCH_EVENTS)
     void doneWithTouchEvent(const NativeWebTouchEvent&, bool wasEventHandled);
+#endif
     void resetGestureRecognizers();
 
     QtViewportInteractionEngine* interactionEngine() { return m_interactionEngine; }
@@ -74,25 +91,7 @@ private slots:
     void inputPanelVisibleChanged();
 
 private:
-    bool handleKeyPressEvent(QKeyEvent*);
-    bool handleKeyReleaseEvent(QKeyEvent*);
-    bool handleFocusInEvent(QFocusEvent*);
-    bool handleFocusOutEvent(QFocusEvent*);
-    bool handleMouseMoveEvent(QMouseEvent*);
-    bool handleMousePressEvent(QMouseEvent*);
-    bool handleMouseReleaseEvent(QMouseEvent*);
-    bool handleWheelEvent(QWheelEvent*);
-    bool handleHoverLeaveEvent(QHoverEvent*);
-    bool handleHoverMoveEvent(QHoverEvent*);
-    bool handleDragEnterEvent(QDragEnterEvent*);
-    bool handleDragLeaveEvent(QDragLeaveEvent*);
-    bool handleDragMoveEvent(QDragMoveEvent*);
-    bool handleDropEvent(QDropEvent*);
-
     void timerEvent(QTimerEvent*);
-
-    void touchEvent(QTouchEvent*);
-    void inputMethodEvent(QInputMethodEvent*);
 
     QPointF m_lastClick;
     QBasicTimer m_clickTimer;

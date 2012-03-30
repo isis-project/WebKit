@@ -29,9 +29,13 @@
 #include "ContainerNode.h"
 #include "Document.h"
 #include "Element.h"
+#include "FocusController.h"
+#include "Frame.h"
 #include "HTMLAnchorElement.h"
+#include "HTMLFrameOwnerElement.h"
 #include "HTMLMapElement.h"
 #include "HTMLNames.h"
+#include "Page.h"
 #include "TreeScopeAdopter.h"
 #include <wtf/text/AtomicString.h>
 #include <wtf/text/CString.h>
@@ -149,6 +153,36 @@ void TreeScope::adoptIfNeeded(Node* node)
     TreeScopeAdopter adopter(node, this);
     if (adopter.needsScopeChange())
         adopter.execute();
+}
+
+static Node* focusedFrameOwnerElement(Frame* focusedFrame, Frame* currentFrame)
+{
+    for (; focusedFrame; focusedFrame = focusedFrame->tree()->parent()) {
+        if (focusedFrame->tree()->parent() == currentFrame)
+            return focusedFrame->ownerElement();
+    }
+    return 0;
+}
+
+Node* TreeScope::focusedNode()
+{
+    Document* document = rootNode()->document();
+    Node* node = document->focusedNode();
+    if (!node && document->page())
+        node = focusedFrameOwnerElement(document->page()->focusController()->focusedFrame(), document->frame());
+    if (!node)
+        return 0;
+
+    TreeScope* treeScope = node->treeScope();
+
+    while (treeScope != this && treeScope != document) {
+        node = treeScope->rootNode()->shadowHost();
+        treeScope = node->treeScope();
+    }
+    if (this != treeScope)
+        return 0;
+
+    return node;
 }
 
 } // namespace WebCore

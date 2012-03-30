@@ -175,7 +175,7 @@ void RenderImage::imageChanged(WrappedImagePtr newImage, const IntRect* rect)
     imageDimensionsChanged(imageSizeChanged, rect);
 }
 
-bool RenderImage::updateIntrinsicSizeIfNeeded(const LayoutSize& newSize, bool imageSizeChanged)
+bool RenderImage::updateIntrinsicSizeIfNeeded(const IntSize& newSize, bool imageSizeChanged)
 {
     if (newSize == intrinsicSize() && !imageSizeChanged)
         return false;
@@ -264,9 +264,16 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
 
     GraphicsContext* context = paintInfo.context;
 
+    Page* page = 0;
+    if (Frame* frame = this->frame())
+        page = frame->page();
+
     if (!m_imageResource->hasImage() || m_imageResource->errorOccurred()) {
         if (paintInfo.phase == PaintPhaseSelection)
             return;
+
+        if (page && paintInfo.phase == PaintPhaseForeground)
+            page->addRelevantUnpaintedObject(this, visualOverflowRect());
 
         if (cWidth > 2 && cHeight > 2) {
             // Draw an outline rect where the image should be.
@@ -325,13 +332,11 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
         }
     } else if (m_imageResource->hasImage() && cWidth > 0 && cHeight > 0) {
         RefPtr<Image> img = m_imageResource->image(cWidth, cHeight);
-        if (!img || img->isNull())
+        if (!img || img->isNull()) {
+            if (page && paintInfo.phase == PaintPhaseForeground)
+                page->addRelevantUnpaintedObject(this, visualOverflowRect());
             return;
-
-    if (Frame* frame = this->frame()) {
-        if (Page* page = frame->page())
-            page->addRelevantRepaintedObject(this, paintInfo.rect);
-    }
+        }
 
 #if PLATFORM(MAC)
         if (style()->highlight() != nullAtom && !paintInfo.context->paintingDisabled())
@@ -342,6 +347,15 @@ void RenderImage::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
         LayoutPoint contentLocation = paintOffset;
         contentLocation.move(leftBorder + leftPad, topBorder + topPad);
         paintIntoRect(context, LayoutRect(contentLocation, contentSize));
+        
+        if (cachedImage() && page && paintInfo.phase == PaintPhaseForeground) {
+            // For now, count images as unpainted if they are still progressively loading. We may want 
+            // to refine this in the future to account for the portion of the image that has painted.
+            if (cachedImage()->isLoading())
+                page->addRelevantUnpaintedObject(this, LayoutRect(contentLocation, contentSize));
+            else
+                page->addRelevantRepaintedObject(this, LayoutRect(contentLocation, contentSize));
+        }
     }
 }
 
@@ -402,18 +416,19 @@ void RenderImage::areaElementFocusChanged(HTMLAreaElement* element)
 
 void RenderImage::paintIntoRect(GraphicsContext* context, const LayoutRect& rect)
 {
-    if (!m_imageResource->hasImage() || m_imageResource->errorOccurred() || rect.width() <= 0 || rect.height() <= 0)
+    IntRect alignedRect = pixelSnappedIntRect(rect);
+    if (!m_imageResource->hasImage() || m_imageResource->errorOccurred() || alignedRect.width() <= 0 || alignedRect.height() <= 0)
         return;
 
-    RefPtr<Image> img = m_imageResource->image(rect.width(), rect.height());
+    RefPtr<Image> img = m_imageResource->image(alignedRect.width(), alignedRect.height());
     if (!img || img->isNull())
         return;
 
     HTMLImageElement* imageElt = (node() && node()->hasTagName(imgTag)) ? static_cast<HTMLImageElement*>(node()) : 0;
     CompositeOperator compositeOperator = imageElt ? imageElt->compositeOperator() : CompositeSourceOver;
     Image* image = m_imageResource->image().get();
-    bool useLowQualityScaling = shouldPaintAtLowQuality(context, image, image, rect.size());
-    context->drawImage(m_imageResource->image(rect.width(), rect.height()).get(), style()->colorSpace(), rect, compositeOperator, useLowQualityScaling);
+    bool useLowQualityScaling = shouldPaintAtLowQuality(context, image, image, alignedRect.size());
+    context->drawImage(m_imageResource->image(alignedRect.width(), alignedRect.height()).get(), style()->colorSpace(), alignedRect, compositeOperator, useLowQualityScaling);
 }
 
 bool RenderImage::backgroundIsObscured() const
@@ -490,8 +505,8 @@ void RenderImage::updateAltText()
 
 LayoutUnit RenderImage::computeReplacedLogicalWidth(bool includeMaxWidth) const
 {
-    // If we've got an explicit width/height assigned, propagate it to the image resource.    
-    if (style()->logicalWidth().isFixed() && style()->logicalHeight().isFixed()) {
+    // If we've got an explicit width/height assigned, propagate it to the image resource.
+    if (style()->logicalWidth().isSpecified() && style()->logicalHeight().isSpecified()) {
         LayoutUnit width = RenderReplaced::computeReplacedLogicalWidth(includeMaxWidth);
         m_imageResource->setContainerSizeForRenderer(IntSize(width, computeReplacedLogicalHeight()));
         return width;
@@ -511,8 +526,8 @@ LayoutUnit RenderImage::computeReplacedLogicalWidth(bool includeMaxWidth) const
         if (cachedImage && cachedImage->image()) {
             containerSize = cachedImage->image()->size();
             // FIXME: Remove unnecessary rounding when layout is off ints: webkit.org/b/63656
-            containerSize.setWidth(static_cast<LayoutUnit>(containerSize.width() * style()->effectiveZoom()));
-            containerSize.setHeight(static_cast<LayoutUnit>(containerSize.height() * style()->effectiveZoom()));
+            containerSize.setWidth(roundToInt(containerSize.width() * style()->effectiveZoom()));
+            containerSize.setHeight(roundToInt(containerSize.height() * style()->effectiveZoom()));
         }
     }
 

@@ -29,9 +29,10 @@
  */
 
 #include "config.h"
-#include "TimelineRecordFactory.h"
 
 #if ENABLE(INSPECTOR)
+
+#include "TimelineRecordFactory.h"
 
 #include "Event.h"
 #include "InspectorValues.h"
@@ -185,7 +186,7 @@ PassRefPtr<InspectorObject> TimelineRecordFactory::createParseHTMLData(unsigned 
     return data.release();
 }
 
-PassRefPtr<InspectorObject> TimelineRecordFactory::createAnimationFrameCallbackData(int callbackId)
+PassRefPtr<InspectorObject> TimelineRecordFactory::createAnimationFrameData(int callbackId)
 {
     RefPtr<InspectorObject> data = InspectorObject::create();
     data->setNumber("id", callbackId);

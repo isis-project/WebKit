@@ -37,11 +37,14 @@
 #include <WebKit2/WKRetainPtr.h>
 #include <wtf/OwnArrayPtr.h>
 #include <wtf/PassOwnArrayPtr.h>
+#include <wtf/text/CString.h>
 
 #if OS(WINDOWS)
 #include <direct.h> // For _getcwd.
 #define getcwd _getcwd // MSDN says getcwd is deprecated.
 #define PATH_MAX _MAX_PATH
+#else
+#include <unistd.h> // For getcwd.
 #endif
 
 using namespace WebKit;
@@ -138,8 +141,17 @@ void TestInvocation::invoke()
     sizeWebViewForCurrentTest(m_pathOrURL.c_str());
 
     WKRetainPtr<WKStringRef> messageName = adoptWK(WKStringCreateWithUTF8CString("BeginTest"));
-    WKRetainPtr<WKBooleanRef> dumpPixels = adoptWK(WKBooleanCreate(m_dumpPixels));
-    WKContextPostMessageToInjectedBundle(TestController::shared().context(), messageName.get(), dumpPixels.get());
+    WKRetainPtr<WKMutableDictionaryRef> beginTestMessageBody = adoptWK(WKMutableDictionaryCreate());
+
+    WKRetainPtr<WKStringRef> dumpPixelsKey = adoptWK(WKStringCreateWithUTF8CString("DumpPixels"));
+    WKRetainPtr<WKBooleanRef> dumpPixelsValue = adoptWK(WKBooleanCreate(m_dumpPixels));
+    WKDictionaryAddItem(beginTestMessageBody.get(), dumpPixelsKey.get(), dumpPixelsValue.get());
+
+    WKRetainPtr<WKStringRef> useWaitToDumpWatchdogTimerKey = adoptWK(WKStringCreateWithUTF8CString("UseWaitToDumpWatchdogTimer"));
+    WKRetainPtr<WKBooleanRef> useWaitToDumpWatchdogTimerValue = adoptWK(WKBooleanCreate(TestController::shared().useWaitToDumpWatchdogTimer()));
+    WKDictionaryAddItem(beginTestMessageBody.get(), useWaitToDumpWatchdogTimerKey.get(), useWaitToDumpWatchdogTimerValue.get());
+
+    WKContextPostMessageToInjectedBundle(TestController::shared().context(), messageName.get(), beginTestMessageBody.get());
 
     TestController::shared().runUntil(m_gotInitialResponse, TestController::ShortTimeout);
     if (!m_gotInitialResponse) {
@@ -156,7 +168,7 @@ void TestInvocation::invoke()
 
     WKPageLoadURL(TestController::shared().mainWebView()->page(), m_url.get());
 
-    TestController::shared().runUntil(m_gotFinalMessage, TestController::LongTimeout);
+    TestController::shared().runUntil(m_gotFinalMessage, TestController::shared().useWaitToDumpWatchdogTimer() ? TestController::LongTimeout : TestController::NoTimeout);
     if (!m_gotFinalMessage)
         dump("Timed out waiting for final message from web process\n");
     else if (m_error)
@@ -231,7 +243,7 @@ void TestInvocation::didReceiveMessageFromInjectedBundle(WKStringRef messageName
         WKArrayRef repaintRects = static_cast<WKArrayRef>(WKDictionaryGetItemForKey(messageBodyDictionary, repaintRectsKey.get()));        
 
         // Dump text.
-        dump(toSTD(textOutput).c_str(), true);
+        dump(toWTFString(textOutput).utf8().data(), true);
 
         // Dump pixels (if necessary).
         if (m_dumpPixels && pixelResult)

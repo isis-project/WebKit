@@ -74,6 +74,8 @@ public:
 
     // FIXME: These should be pure virtual.
     virtual void visibilityDidChange() { }
+    virtual void layerHostingModeDidChange() { }
+
     virtual void setBackingStoreIsDiscardable(bool) { }
 
     virtual void waitForBackingStoreUpdateOnNextPaint() { }
@@ -83,7 +85,7 @@ public:
 
     virtual void pageCustomRepresentationChanged() { }
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(UI_SIDE_COMPOSITING)
     virtual void updateViewport();
     virtual WebCore::IntRect viewportVisibleRect() const { return contentsRect(); }
     virtual WebCore::IntRect contentsRect() const;
@@ -91,17 +93,13 @@ public:
     virtual void paintToCurrentGLContext(const WebCore::TransformationMatrix&, float, const WebCore::FloatRect&) { }
     virtual void paintLayerTree(BackingStore::PlatformGraphicsContext) { }
     LayerTreeHostProxy* layerTreeHostProxy() const { return m_layerTreeHostProxy.get(); }
-
-#if USE(TILED_BACKING_STORE)
-    virtual void setVisibleContentsRectAndScale(const WebCore::IntRect& visibleContentsRect, float scale) { }
-    virtual void setVisibleContentRectTrajectoryVector(const WebCore::FloatPoint&) { }
+    virtual void setVisibleContentsRect(const WebCore::IntRect& visibleContentsRect, float scale, const WebCore::FloatPoint& trajectoryVector) { }
     virtual void createTileForLayer(int layerID, int tileID, const WebKit::UpdateInfo&) { }
     virtual void updateTileForLayer(int layerID, int tileID, const WebKit::UpdateInfo&) { }
     virtual void removeTileForLayer(int layerID, int tileID) { }
     virtual void didReceiveLayerTreeHostProxyMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*);
 
     WebPageProxy* page() { return m_webPageProxy; }
-#endif
 #endif
 protected:
     explicit DrawingAreaProxy(DrawingAreaType, WebPageProxy*);
@@ -112,7 +110,7 @@ protected:
     WebCore::IntSize m_size;
     WebCore::IntSize m_scrollOffset;
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(UI_SIDE_COMPOSITING)
     OwnPtr<LayerTreeHostProxy> m_layerTreeHostProxy;
 #endif
 
@@ -126,6 +124,7 @@ private:
 #if USE(ACCELERATED_COMPOSITING)
     virtual void enterAcceleratedCompositingMode(uint64_t backingStoreStateID, const LayerTreeContext&) { }
     virtual void exitAcceleratedCompositingMode(uint64_t backingStoreStateID, const UpdateInfo&) { }
+    virtual void updateAcceleratedCompositingMode(uint64_t backingStoreStateID, const LayerTreeContext&) { }
 #endif
 #if PLATFORM(MAC)
     virtual void didUpdateGeometry() { }

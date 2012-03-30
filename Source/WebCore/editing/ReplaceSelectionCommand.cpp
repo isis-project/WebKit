@@ -30,8 +30,8 @@
 #include "ApplyStyleCommand.h"
 #include "BeforeTextInsertedEvent.h"
 #include "BreakBlockquoteCommand.h"
-#include "CSSComputedStyleDeclaration.h"
 #include "CSSPropertyNames.h"
+#include "CSSStyleDeclaration.h"
 #include "CSSValueKeywords.h"
 #include "Document.h"
 #include "DocumentFragment.h"
@@ -59,8 +59,6 @@
 #include <wtf/Vector.h>
 
 namespace WebCore {
-
-typedef Vector<RefPtr<Node> > NodeVector;
 
 using namespace HTMLNames;
 
@@ -293,6 +291,9 @@ void ReplacementFragment::removeUnrenderedNodes(Node* holder)
 
 void ReplacementFragment::removeInterchangeNodes(Node* container)
 {
+    m_hasInterchangeNewlineAtStart = false;
+    m_hasInterchangeNewlineAtEnd = false;
+
     // Interchange newlines at the "start" of the incoming fragment must be
     // either the first node in the fragment or the first leaf in the fragment.
     Node* node = container->firstChild();
@@ -481,7 +482,7 @@ void ReplaceSelectionCommand::removeRedundantStylesAndKeepStyleSpanInline(Insert
 
         StyledElement* element = static_cast<StyledElement*>(node.get());
 
-        StylePropertySet* inlineStyle = element->inlineStyleDecl();
+        const StylePropertySet* inlineStyle = element->inlineStyle();
         RefPtr<EditingStyle> newInlineStyle = EditingStyle::create(inlineStyle);
         if (inlineStyle) {
             ContainerNode* context = element->parentNode();
@@ -531,10 +532,13 @@ void ReplaceSelectionCommand::removeRedundantStylesAndKeepStyleSpanInline(Insert
             // FIXME: Hyatt is concerned that selectively using display:inline will give inconsistent
             // results. We already know one issue because td elements ignore their display property
             // in quirks mode (which Mail.app is always in). We should look for an alternative.
+            
+            // Mutate using the CSSOM wrapper so we get the same event behavior as a script.
+            ExceptionCode ec;
             if (isBlock(element))
-                element->ensureInlineStyleDecl()->setProperty(CSSPropertyDisplay, CSSValueInline);
+                element->style()->setPropertyInternal(CSSPropertyDisplay, "inline", false, ec);
             if (element->renderer() && element->renderer()->style()->isFloating())
-                element->ensureInlineStyleDecl()->setProperty(CSSPropertyFloat, CSSValueNone);
+                element->style()->setPropertyInternal(CSSPropertyFloat, "none", false, ec);
         }
     }
 }
@@ -697,7 +701,7 @@ void ReplaceSelectionCommand::handleStyleSpans(InsertedNodes& insertedNodes)
     if (!wrappingStyleSpan)
         return;
 
-    RefPtr<EditingStyle> style = EditingStyle::create(wrappingStyleSpan->ensureInlineStyleDecl());
+    RefPtr<EditingStyle> style = EditingStyle::create(wrappingStyleSpan->ensureInlineStyle());
     ContainerNode* context = wrappingStyleSpan->parentNode();
 
     // If Mail wraps the fragment with a Paste as Quotation blockquote, or if you're pasting into a quoted region,

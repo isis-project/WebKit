@@ -27,6 +27,7 @@
 
 #include "BrowserWindow.h"
 #include "BrowserSettingsDialog.h"
+#include <string.h>
 
 enum {
     PROP_0,
@@ -42,6 +43,8 @@ struct _BrowserWindow {
     GtkWidget *uriEntry;
     GtkWidget *backItem;
     GtkWidget *forwardItem;
+    GtkWidget *zoomInItem;
+    GtkWidget *zoomOutItem;
     GtkWidget *statusLabel;
     GtkWidget *settingsDialog;
     WebKitWebView *webView;
@@ -53,6 +56,9 @@ struct _BrowserWindowClass {
 };
 
 static const char *defaultWindowTitle = "WebKitGTK+ MiniBrwoser";
+static const gdouble minimumZoomLevel = 0.5;
+static const gdouble maximumZoomLevel = 3;
+static const gdouble zoomStep = 1.2;
 static gint windowCount = 0;
 
 G_DEFINE_TYPE(BrowserWindow, browser_window, GTK_TYPE_WINDOW)
@@ -72,7 +78,12 @@ static void resetStatusText(GtkWidget *widget, BrowserWindow *window)
 
 static void activateUriEntryCallback(BrowserWindow *window)
 {
-    webkit_web_view_load_uri(window->webView, gtk_entry_get_text(GTK_ENTRY(window->uriEntry)));
+    browser_window_load_uri(window, gtk_entry_get_text(GTK_ENTRY(window->uriEntry)));
+}
+
+static void reloadCallback(BrowserWindow *window)
+{
+    webkit_web_view_reload(window->webView);
 }
 
 static void goBackCallback(BrowserWindow *window)
@@ -261,6 +272,41 @@ static void webViewMouseTargetChanged(WebKitWebView *webView, WebKitHitTestResul
     browserWindowSetStatusText(window, webkit_hit_test_result_get_link_uri(hitTestResult));
 }
 
+static gboolean browserWindowCanZoomIn(BrowserWindow *window)
+{
+    gdouble zoomLevel = webkit_web_view_get_zoom_level(window->webView) * zoomStep;
+    return zoomLevel < maximumZoomLevel;
+}
+
+static gboolean browserWindowCanZoomOut(BrowserWindow *window)
+{
+    gdouble zoomLevel = webkit_web_view_get_zoom_level(window->webView) / zoomStep;
+    return zoomLevel > minimumZoomLevel;
+}
+
+static void browserWindowUpdateZoomActions(BrowserWindow *window)
+{
+    gtk_widget_set_sensitive(window->zoomInItem, browserWindowCanZoomIn(window));
+    gtk_widget_set_sensitive(window->zoomOutItem, browserWindowCanZoomOut(window));
+}
+
+static void webViewZoomLevelChanged(GObject *object, GParamSpec *paramSpec, BrowserWindow *window)
+{
+    browserWindowUpdateZoomActions(window);
+}
+
+static void zoomInCallback(BrowserWindow *window)
+{
+    gdouble zoomLevel = webkit_web_view_get_zoom_level(window->webView) * zoomStep;
+    webkit_web_view_set_zoom_level(window->webView, zoomLevel);
+}
+
+static void zoomOutCallback(BrowserWindow *window)
+{
+    gdouble zoomLevel = webkit_web_view_get_zoom_level(window->webView) / zoomStep;
+    webkit_web_view_set_zoom_level(window->webView, zoomLevel);
+}
+
 static void browserWindowFinalize(GObject *gObject)
 {
     G_OBJECT_CLASS(browser_window_parent_class)->finalize(gObject);
@@ -329,6 +375,18 @@ static void browser_window_init(BrowserWindow *window)
     gtk_toolbar_insert(GTK_TOOLBAR(toolbar), item, -1);
     gtk_widget_show(GTK_WIDGET(item));
 
+    item = gtk_tool_button_new_from_stock(GTK_STOCK_ZOOM_OUT);
+    window->zoomOutItem = GTK_WIDGET(item);
+    g_signal_connect_swapped(item, "clicked", G_CALLBACK(zoomOutCallback), window);
+    gtk_toolbar_insert(GTK_TOOLBAR(toolbar), item, -1);
+    gtk_widget_show(GTK_WIDGET(item));
+
+    item = gtk_tool_button_new_from_stock(GTK_STOCK_ZOOM_IN);
+    window->zoomInItem = GTK_WIDGET(item);
+    g_signal_connect_swapped(item, "clicked", G_CALLBACK(zoomInCallback), window);
+    gtk_toolbar_insert(GTK_TOOLBAR(toolbar), item, -1);
+    gtk_widget_show(GTK_WIDGET(item));
+
     item = gtk_tool_item_new();
     gtk_tool_item_set_expand(item, TRUE);
     gtk_container_add(GTK_CONTAINER(item), window->uriEntry);
@@ -337,7 +395,7 @@ static void browser_window_init(BrowserWindow *window)
     gtk_widget_show(GTK_WIDGET(item));
 
     item = gtk_tool_button_new_from_stock(GTK_STOCK_OK);
-    g_signal_connect_swapped(item, "clicked", G_CALLBACK(activateUriEntryCallback), (gpointer)window);
+    g_signal_connect_swapped(item, "clicked", G_CALLBACK(reloadCallback), window);
     gtk_toolbar_insert(GTK_TOOLBAR(toolbar), item, -1);
     gtk_widget_show(GTK_WIDGET(item));
 
@@ -354,6 +412,8 @@ static void browserWindowConstructed(GObject *gObject)
 {
     BrowserWindow *window = BROWSER_WINDOW(gObject);
 
+    browserWindowUpdateZoomActions(window);
+
     g_signal_connect(window->webView, "notify::uri", G_CALLBACK(webViewURIChanged), window);
     g_signal_connect(window->webView, "notify::estimated-load-progress", G_CALLBACK(webViewLoadProgressChanged), window);
     g_signal_connect(window->webView, "notify::title", G_CALLBACK(webViewTitleChanged), window);
@@ -361,6 +421,7 @@ static void browserWindowConstructed(GObject *gObject)
     g_signal_connect(window->webView, "load-failed", G_CALLBACK(webViewLoadFailed), window);
     g_signal_connect(window->webView, "decide-policy", G_CALLBACK(webViewDecidePolicy), window);
     g_signal_connect(window->webView, "mouse-target-changed", G_CALLBACK(webViewMouseTargetChanged), window);
+    g_signal_connect(window->webView, "notify::zoom-level", G_CALLBACK(webViewZoomLevelChanged), window);
 
     WebKitBackForwardList *backForwadlist = webkit_web_view_get_back_forward_list(window->webView);
     g_signal_connect(backForwadlist, "changed", G_CALLBACK(backForwadlistChanged), window);
@@ -419,4 +480,17 @@ WebKitWebView *browser_window_get_view(BrowserWindow *window)
     g_return_val_if_fail(BROWSER_IS_WINDOW(window), 0);
 
     return window->webView;
+}
+
+void browser_window_load_uri(BrowserWindow *window, const char *uri)
+{
+    g_return_if_fail(BROWSER_IS_WINDOW(window));
+    g_return_if_fail(uri);
+
+    if (!g_str_has_prefix(uri, "javascript:")) {
+        webkit_web_view_load_uri(window->webView, uri);
+        return;
+    }
+
+    webkit_web_view_run_javascript(window->webView, strstr(uri, "javascript:"), NULL, NULL);
 }

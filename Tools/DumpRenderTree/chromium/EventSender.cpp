@@ -279,8 +279,11 @@ EventSender::EventSender(TestShell* shell)
     bindMethod("touchMove", &EventSender::touchMove);
     bindMethod("touchStart", &EventSender::touchStart);
     bindMethod("updateTouchPoint", &EventSender::updateTouchPoint);
+    bindMethod("gestureFlingCancel", &EventSender::gestureFlingCancel);
+    bindMethod("gestureFlingStart", &EventSender::gestureFlingStart);
     bindMethod("gestureScrollBegin", &EventSender::gestureScrollBegin);
     bindMethod("gestureScrollEnd", &EventSender::gestureScrollEnd);
+    bindMethod("gestureScrollFirstPoint", &EventSender::gestureScrollFirstPoint);
     bindMethod("gestureScrollUpdate", &EventSender::gestureScrollUpdate);
     bindMethod("gestureTap", &EventSender::gestureTap);
     bindMethod("zoomPageIn", &EventSender::zoomPageIn);
@@ -330,7 +333,7 @@ void EventSender::reset()
     touchModifiers = 0;
     touchPoints.clear();
     m_taskList.revokeAll();
-    m_gestureStartLocation = WebPoint(0, 0);
+    m_currentGestureLocation = WebPoint(0, 0);
 }
 
 WebView* EventSender::webview()
@@ -354,7 +357,15 @@ void EventSender::doDragDrop(const WebDragData& dragData, WebDragOperationsMask 
 
 void EventSender::dumpFilenameBeingDragged(const CppArgumentList&, CppVariant*)
 {
-    printf("Filename being dragged: %s\n", currentDragData.fileContentFilename().utf8().data());
+    WebString filename;
+    WebVector<WebDragData::Item> items = currentDragData.items();
+    for (size_t i = 0; i < items.size(); ++i) {
+        if (items[i].storageType == WebDragData::Item::StorageTypeBinaryData) {
+            filename = items[i].title;
+            break;
+        }
+    }
+    printf("Filename being dragged: %s\n", filename.utf8().data());
 }
 
 WebMouseEvent::Button EventSender::getButtonTypeFromButtonNumber(int buttonCode)
@@ -869,8 +880,12 @@ void EventSender::beginDragWithFiles(const CppArgumentList& arguments, CppVarian
 {
     currentDragData.initialize();
     Vector<string> files = arguments[0].toStringVector();
-    for (size_t i = 0; i < files.size(); ++i)
-        currentDragData.appendToFilenames(webkit_support::GetAbsoluteWebStringFromUTF8Path(files[i]));
+    for (size_t i = 0; i < files.size(); ++i) {
+        WebDragData::Item item;
+        item.storageType = WebDragData::Item::StorageTypeFilename;
+        item.filenameData = webkit_support::GetAbsoluteWebStringFromUTF8Path(files[i]);
+        currentDragData.addItem(item);
+    }
     currentDragEffectsAllowed = WebKit::WebDragOperationCopy;
 
     // Provide a drag source.
@@ -1074,6 +1089,16 @@ void EventSender::gestureTap(const CppArgumentList& arguments, CppVariant* resul
     gestureEvent(WebInputEvent::GestureTap, arguments);
 }
 
+void EventSender::gestureScrollFirstPoint(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    if (arguments.size() < 2 || !arguments[0].isNumber() || !arguments[1].isNumber())
+        return;
+
+    WebPoint point(arguments[0].toInt32(), arguments[1].toInt32());
+    m_currentGestureLocation = point;
+}
+
 void EventSender::gestureEvent(WebInputEvent::Type type, const CppArgumentList& arguments)
 {
     if (arguments.size() < 2 || !arguments[0].isNumber() || !arguments[1].isNumber())
@@ -1088,14 +1113,23 @@ void EventSender::gestureEvent(WebInputEvent::Type type, const CppArgumentList& 
     case WebInputEvent::GestureScrollUpdate:
         event.deltaX = static_cast<float>(arguments[0].toDouble());
         event.deltaY = static_cast<float>(arguments[1].toDouble());
-        event.x = m_gestureStartLocation.x + event.deltaX;
-        event.y = m_gestureStartLocation.y + event.deltaY;
+        event.x = m_currentGestureLocation.x;
+        event.y = m_currentGestureLocation.y;
+        m_currentGestureLocation.x = m_currentGestureLocation.x + event.deltaX;
+        m_currentGestureLocation.y = m_currentGestureLocation.y + event.deltaY;
         break;
 
     case WebInputEvent::GestureScrollBegin:
-        m_gestureStartLocation = WebPoint(point.x, point.y);
-        // Fallthrough
+        m_currentGestureLocation = WebPoint(point.x, point.y);
+        event.x = m_currentGestureLocation.x;
+        event.y = m_currentGestureLocation.y;
+        break;
     case WebInputEvent::GestureScrollEnd:
+        event.deltaX = static_cast<float>(arguments[0].toDouble());
+        event.deltaY = static_cast<float>(arguments[1].toDouble());
+        event.x = m_currentGestureLocation.x;
+        event.y = m_currentGestureLocation.y;
+        break;
     case WebInputEvent::GestureTap:
         event.x = point.x;
         event.y = point.y;
@@ -1106,6 +1140,42 @@ void EventSender::gestureEvent(WebInputEvent::Type type, const CppArgumentList& 
 
     event.globalX = event.x;
     event.globalY = event.y;
+    event.timeStampSeconds = getCurrentEventTimeSec();
+    webview()->handleInputEvent(event);
+}
+
+void EventSender::gestureFlingCancel(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    if (!arguments.size())
+        return;
+
+    WebGestureEvent event;
+    event.type = WebInputEvent::GestureFlingCancel;
+    event.timeStampSeconds = getCurrentEventTimeSec();
+    webview()->handleInputEvent(event);
+}
+
+void EventSender::gestureFlingStart(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    if (arguments.size() < 4)
+        return;
+
+    for (int i = 0; i < 4; i++)
+        if (!arguments[i].isNumber())
+            return;
+
+    WebGestureEvent event;
+    event.type = WebInputEvent::GestureFlingStart;
+
+    event.x = static_cast<float>(arguments[0].toDouble());
+    event.y = static_cast<float>(arguments[1].toDouble());
+    event.globalX = event.x;
+    event.globalY = event.y;
+
+    event.deltaX = static_cast<float>(arguments[2].toDouble());
+    event.deltaY = static_cast<float>(arguments[3].toDouble());
     event.timeStampSeconds = getCurrentEventTimeSec();
     webview()->handleInputEvent(event);
 }

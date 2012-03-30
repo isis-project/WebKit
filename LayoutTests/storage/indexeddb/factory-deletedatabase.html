@@ -4,17 +4,14 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's webkitIndexedDB.deleteDatabase().");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    request = evalAndLog("webkitIndexedDB.open('database-to-delete')");
+    removeVendorPrefixes();
+    request = evalAndLog("indexedDB.open('database-to-delete')");
     request.onsuccess = startSetVersion;
     request.onerror = unexpectedErrorCallback;
 }
@@ -30,22 +27,22 @@ function startSetVersion()
 
 function deleteExisting()
 {
-    window.trans = evalAndLog("trans = event.target.result");
+    self.trans = evalAndLog("trans = event.target.result");
     shouldBeTrue("trans !== null");
 
     store = evalAndLog("store = db.createObjectStore('storeName', null)");
 
-    window.index = evalAndLog("store.createIndex('indexName', '')");
+    self.index = evalAndLog("store.createIndex('indexName', '')");
     shouldBeTrue("store.indexNames.contains('indexName')");
 
     request = evalAndLog("store.add('value', 'key')");
-    request.onsuccess = getValue;
     request.onerror = unexpectedErrorCallback;
+    trans.oncomplete = getValue;
 }
 
 function getValue()
 {
-    transaction = evalAndLog("db.transaction('storeName', webkitIDBTransaction.READ_WRITE)");
+    transaction = evalAndLog("db.transaction('storeName', IDBTransaction.READ_WRITE)");
     transaction.onabort = unexpectedErrorCallback;
     var store = evalAndLog("store = transaction.objectStore('storeName')");
 
@@ -66,14 +63,14 @@ function addIndex()
 function deleteDatabase()
 {
     db.onversionchange = function() { db.close(); }
-    request = evalAndLog("request = webkitIndexedDB.deleteDatabase('database-to-delete')");
+    request = evalAndLog("request = indexedDB.deleteDatabase('database-to-delete')");
     request.onsuccess = reopenDatabase;
     request.onerror = unexpectedErrorCallback;
 }
 
 function reopenDatabase()
 {
-    request = evalAndLog("webkitIndexedDB.open('database-to-delete')");
+    request = evalAndLog("indexedDB.open('database-to-delete')");
     request.onsuccess = startSetVersionAgain;
     request.onerror = unexpectedErrorCallback;
 }
@@ -91,10 +88,11 @@ function verifyNotFound()
 {
     shouldBe("db.objectStoreNames.length", "0");
 
-    done();
+    finishJSTest();
 }
 
 test();
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

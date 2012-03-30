@@ -48,6 +48,7 @@ private:
     virtual bool isOptionalFormControl() const { return false; }
 
     virtual bool isEnumeratable() const { return true; }
+    virtual bool supportLabels() const OVERRIDE { return true; }
 
     virtual void reset();
 

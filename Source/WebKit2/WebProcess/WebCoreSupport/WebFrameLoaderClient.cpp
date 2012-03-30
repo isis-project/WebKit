@@ -537,7 +537,7 @@ void WebFrameLoaderClient::dispatchDidFirstLayout()
     // Notify the UIProcess.
     webPage->send(Messages::WebPageProxy::DidFirstLayoutForFrame(m_frame->frameID(), InjectedBundleUserMessageEncoder(userData.get())));
 
-    if (m_frame == m_frame->page()->mainWebFrame() && !webPage->corePage()->settings()->suppressIncrementalRendering())
+    if (m_frame == m_frame->page()->mainWebFrame() && !webPage->corePage()->settings()->suppressesIncrementalRendering())
         webPage->drawingArea()->setLayerTreeStateIsFrozen(false);
 }
 
@@ -564,6 +564,9 @@ void WebFrameLoaderClient::dispatchDidNewFirstVisuallyNonEmptyLayout()
 
     RefPtr<APIObject> userData;
 
+    // Notify the bundle client.
+    webPage->injectedBundleLoaderClient().didNewFirstVisuallyNonEmptyLayout(webPage, userData);
+    
     // Notify the UIProcess.
     webPage->send(Messages::WebPageProxy::DidNewFirstVisuallyNonEmptyLayout(InjectedBundleUserMessageEncoder(userData.get())));
 }
@@ -871,13 +874,14 @@ void WebFrameLoaderClient::finishedLoading(DocumentLoader* loader)
             
             webPage->send(Messages::WebPageProxy::DidFinishLoadingDataForCustomRepresentation(loader->response().suggestedFilename(), dataReference));
         }
-
-        return;
     }
 
-    m_pluginView->manualLoadDidFinishLoading();
-    m_pluginView = 0;
-    m_hasSentResponseToPluginView = false;
+    // Plugin view could have been created inside committedLoad().
+    if (m_pluginView) {
+        m_pluginView->manualLoadDidFinishLoading();
+        m_pluginView = 0;
+        m_hasSentResponseToPluginView = false;
+    }
 }
 
 void WebFrameLoaderClient::updateGlobalHistory()
@@ -930,6 +934,11 @@ bool WebFrameLoaderClient::shouldGoToHistoryItem(HistoryItem* item) const
         // We should never be considering navigating to an item that is not actually in the back/forward list.
         ASSERT_NOT_REACHED();
         return false;
+    }
+    
+    if (webPage->willGoToBackForwardItemCallbackEnabled()) {
+        webPage->send(Messages::WebPageProxy::WillGoToBackForwardListItem(itemID));
+        return true;
     }
     
     bool shouldGoToBackForwardListItem;
@@ -1236,20 +1245,13 @@ PassRefPtr<Frame> WebFrameLoaderClient::createFrame(const KURL& url, const Strin
     m_frame->coreFrame()->loader()->loadURLIntoChildFrame(url, referrer, coreSubframe);
 
     // The frame's onload handler may have removed it from the document.
+    if (!subframe->coreFrame())
+        return 0;
+    ASSERT(subframe->coreFrame() == coreSubframe);
     if (!coreSubframe->tree()->parent())
         return 0;
 
     return coreSubframe;
-}
-
-void WebFrameLoaderClient::didTransferChildFrameToNewDocument(Page*)
-{
-    notImplemented();
-}
-
-void WebFrameLoaderClient::transferLoadingResourceFromPage(ResourceLoader*, const ResourceRequest&, Page*)
-{
-    notImplemented();
 }
 
 PassRefPtr<Widget> WebFrameLoaderClient::createPlugin(const IntSize&, HTMLPlugInElement* pluginElement, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
@@ -1265,15 +1267,6 @@ PassRefPtr<Widget> WebFrameLoaderClient::createPlugin(const IntSize&, HTMLPlugIn
     parameters.values = paramValues;
     parameters.mimeType = mimeType;
     parameters.loadManually = loadManually;
-    parameters.documentURL = m_frame->coreFrame()->document()->url().string();
-
-    Frame* mainFrame = webPage->mainWebFrame()->coreFrame();
-    if (m_frame->coreFrame() == mainFrame)
-        parameters.toplevelDocumentURL = parameters.documentURL;
-    else if (m_frame->coreFrame()->document()->securityOrigin()->canAccess(mainFrame->document()->securityOrigin())) {
-        // We only want to set the toplevel document URL if the plug-in has access to it.
-        parameters.toplevelDocumentURL = mainFrame->document()->url().string();
-    }
 
 #if PLUGIN_ARCHITECTURE(X11)
     // FIXME: This should really be X11-specific plug-in quirks.

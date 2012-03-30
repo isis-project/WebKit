@@ -28,13 +28,13 @@
 
 #include "EditingBehavior.h"
 #include "FileSystem.h"
-#include "GOwnPtr.h"
 #include "KURL.h"
 #include "PluginDatabase.h"
 #include "webkitenumtypes.h"
 #include "webkitglobalsprivate.h"
 #include "webkitversion.h"
 #include "webkitwebsettingsprivate.h"
+#include <wtf/gobject/GOwnPtr.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringConcatenate.h>
 #include <glib/gi18n-lib.h>
@@ -120,7 +120,8 @@ enum {
     PROP_ENABLE_DNS_PREFETCHING,
     PROP_ENABLE_WEBGL,
     PROP_ENABLE_WEB_AUDIO,
-    PROP_ENABLE_ACCELERATED_COMPOSITING
+    PROP_ENABLE_ACCELERATED_COMPOSITING,
+    PROP_ENABLE_SMOOTH_SCROLLING
 };
 
 // Create a default user agent string
@@ -183,7 +184,7 @@ static String chromeUserAgent()
 
     DEFINE_STATIC_LOCAL(const String, uaVersion, (makeString(String::number(WEBKIT_USER_AGENT_MAJOR_VERSION), '.', String::number(WEBKIT_USER_AGENT_MINOR_VERSION), '+')));
     DEFINE_STATIC_LOCAL(const String, staticUA, (makeString("Mozilla/5.0 (", webkitPlatform(), webkitOSVersion(), ") AppleWebKit/", uaVersion) +
-                                                 makeString(" (KHTML, like Gecko) Chromium/15.0.874.120 Chrome/15.0.874.120 Safari/", uaVersion)));
+                                                 makeString(" (KHTML, like Gecko) Chromium/17.0.963.56 Chrome/17.0.963.56 Safari/", uaVersion)));
 
     return staticUA;
 }
@@ -753,6 +754,8 @@ static void webkit_web_settings_class_init(WebKitWebSettingsClass* klass)
      * right-clicks that are handled by the page itself.
      *
      * Since: 1.1.18
+     *
+     * Deprecated: 1.10: Use #WebKitWebView::context-menu signal instead.
      */
     g_object_class_install_property(gobject_class,
                                     PROP_ENABLE_DEFAULT_CONTEXT_MENU,
@@ -953,6 +956,22 @@ static void webkit_web_settings_class_init(WebKitWebSettingsClass* klass)
                                                          _("Whether WebKit prefetches domain names"),
                                                          TRUE,
                                                          flags));
+
+    /**
+    * WebKitWebSettings:enable-smooth-scrolling
+    *
+    * Enable or disable support for smooth scrolling. The current implementation relies upon
+    * CPU work to produce a smooth scrolling experience.
+    *
+    * Since: 1.9.0
+    */
+    g_object_class_install_property(gobject_class,
+                                    PROP_ENABLE_SMOOTH_SCROLLING,
+                                    g_param_spec_boolean("enable-smooth-scrolling",
+                                                         _("Enable smooth scrolling"),
+                                                         _("Whether to enable smooth scrolling"),
+                                                         FALSE,
+                                                         flags));
 }
 
 static void webkit_web_settings_init(WebKitWebSettings* web_settings)
@@ -1128,6 +1147,9 @@ static void webkit_web_settings_set_property(GObject* object, guint prop_id, con
     case PROP_ENABLE_ACCELERATED_COMPOSITING:
         priv->enableAcceleratedCompositing = g_value_get_boolean(value);
         break;
+    case PROP_ENABLE_SMOOTH_SCROLLING:
+        priv->enableSmoothScrolling = g_value_get_boolean(value);
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
         break;
@@ -1292,6 +1314,9 @@ static void webkit_web_settings_get_property(GObject* object, guint prop_id, GVa
         break;
     case PROP_ENABLE_ACCELERATED_COMPOSITING:
         g_value_set_boolean(value, priv->enableAcceleratedCompositing);
+        break;
+    case PROP_ENABLE_SMOOTH_SCROLLING:
+        g_value_set_boolean(value, priv->enableSmoothScrolling);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);

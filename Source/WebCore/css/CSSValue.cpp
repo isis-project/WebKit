@@ -38,6 +38,7 @@
 #include "CSSFunctionValue.h"
 #include "CSSGradientValue.h"
 #include "CSSImageGeneratorValue.h"
+#include "CSSImageSetValue.h"
 #include "CSSImageValue.h"
 #include "CSSInheritedValue.h"
 #include "CSSInitialValue.h"
@@ -48,7 +49,6 @@
 #include "CSSUnicodeRangeValue.h"
 #include "CSSValueList.h"
 #include "FontValue.h"
-#include "FontFamilyValue.h"
 #include "FontFeatureValue.h"
 #include "ShadowValue.h"
 #include "SVGColor.h"
@@ -110,8 +110,6 @@ String CSSValue::cssText() const
         return static_cast<const FontValue*>(this)->customCssText();
     case FontFaceSrcClass:
         return static_cast<const CSSFontFaceSrcValue*>(this)->customCssText();
-    case FontFamilyClass:
-        return static_cast<const FontFamilyValue*>(this)->customCssText();
     case FontFeatureClass:
         return static_cast<const FontFeatureValue*>(this)->customCssText();
     case FunctionClass:
@@ -152,6 +150,10 @@ String CSSValue::cssText() const
         return static_cast<const CSSFlexValue*>(this)->customCssText();
     case CalculationClass:
         return static_cast<const CSSCalcValue*>(this)->customCssText();
+#if ENABLE(CSS_IMAGE_SET)
+    case ImageSetClass:
+        return static_cast<const CSSImageSetValue*>(this)->customCssText();
+#endif
 #if ENABLE(CSS_FILTERS)
     case WebKitCSSFilterClass:
         return static_cast<const WebKitCSSFilterValue*>(this)->customCssText();
@@ -191,9 +193,6 @@ void CSSValue::destroy()
         return;
     case FontFaceSrcClass:
         delete static_cast<CSSFontFaceSrcValue*>(this);
-        return;
-    case FontFamilyClass:
-        delete static_cast<FontFamilyValue*>(this);
         return;
     case FontFeatureClass:
         delete static_cast<FontFeatureValue*>(this);
@@ -255,6 +254,11 @@ void CSSValue::destroy()
     case CalculationClass:
         delete static_cast<CSSCalcValue*>(this);
         return;
+#if ENABLE(CSS_IMAGE_SET)
+    case ImageSetClass:
+        delete static_cast<CSSImageSetValue*>(this);
+        return;
+#endif
 #if ENABLE(CSS_FILTERS)
     case WebKitCSSFilterClass:
         delete static_cast<WebKitCSSFilterValue*>(this);

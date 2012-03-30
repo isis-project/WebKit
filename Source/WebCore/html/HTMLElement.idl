@@ -30,6 +30,7 @@ module html {
                  attribute [Reflect] DOMString id;
                  attribute [Reflect] DOMString title;
                  attribute [Reflect] DOMString lang;
+                 attribute boolean             translate;
                  attribute [Reflect] DOMString dir;
                  attribute [Reflect=class] DOMString className;
                  readonly attribute DOMTokenList classList;
@@ -68,6 +69,7 @@ module html {
 
                  attribute boolean spellcheck;
 
+#if !defined(LANGUAGE_OBJECTIVE_C) || !LANGUAGE_OBJECTIVE_C // No Objective-C bindings yet.
                  attribute [Conditional=MICRODATA, Reflect] boolean itemScope;
         readonly attribute [Conditional=MICRODATA] DOMSettableTokenList itemType;
                  attribute [Conditional=MICRODATA, Reflect, URL] DOMString itemId;
@@ -77,6 +79,7 @@ module html {
 
 #if defined(ENABLE_MICRODATA) && ENABLE_MICRODATA
         readonly attribute [Conditional=MICRODATA] HTMLPropertiesCollection properties;
+#endif
 #endif
 
 #if !defined(LANGUAGE_CPP) || !LANGUAGE_CPP

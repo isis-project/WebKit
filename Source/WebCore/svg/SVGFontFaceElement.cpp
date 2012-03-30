@@ -51,7 +51,7 @@ inline SVGFontFaceElement::SVGFontFaceElement(const QualifiedName& tagName, Docu
     , m_fontFaceRule(CSSFontFaceRule::create())
 {
     ASSERT(hasTagName(font_faceTag));
-    RefPtr<StylePropertySet> styleDeclaration = StylePropertySet::create(m_fontFaceRule.get());
+    RefPtr<StylePropertySet> styleDeclaration = StylePropertySet::create();
     styleDeclaration->setStrictParsing(true);
     m_fontFaceRule->setDeclaration(styleDeclaration.release());
 }
@@ -298,8 +298,7 @@ void SVGFontFaceElement::rebuildFontFace()
 
     // Parse in-memory CSS rules
     CSSProperty srcProperty(CSSPropertySrc, list);
-    const CSSProperty* srcPropertyRef = &srcProperty;
-    m_fontFaceRule->declaration()->addParsedProperties(&srcPropertyRef, 1);
+    m_fontFaceRule->declaration()->addParsedProperties(&srcProperty, 1);
 
     if (describesParentFont) {    
         // Traverse parsed CSS values and associate CSSFontFaceSrcValue elements with ourselves.
@@ -328,6 +327,7 @@ void SVGFontFaceElement::removedFromDocument()
 {
     removeFromMappedElementSheet();
     SVGElement::removedFromDocument();
+    m_fontFaceRule->declaration()->parseDeclaration(emptyString(), 0);
 }
 
 void SVGFontFaceElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)

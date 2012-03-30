@@ -28,19 +28,14 @@
 
 #include "CCLayerTreeTestCommon.h"
 #include "LayerChromium.h"
-#include "Region.h"
 #include "TransformationMatrix.h"
+#include "TranslateTransformOperation.h"
+#include "cc/CCLayerAnimationController.h"
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 using namespace WebCore;
-
-#define EXPECT_EQ_RECT(a, b) \
-    EXPECT_EQ(a.x(), b.x()); \
-    EXPECT_EQ(a.y(), b.y()); \
-    EXPECT_EQ(a.width(), b.width()); \
-    EXPECT_EQ(a.height(), b.height());
 
 namespace {
 
@@ -315,6 +310,56 @@ TEST(CCLayerTreeHostCommonTest, verifyTransformsForSingleRenderSurface)
     EXPECT_TRANSFORMATION_MATRIX_EQ(parentCompositeTransform, child->targetRenderSurface()->originTransform());
     EXPECT_TRANSFORMATION_MATRIX_EQ(parentCompositeTransform, child->targetRenderSurface()->drawTransform());
 
+    // The screen space is the same as the target since the child surface draws into the root.
+    EXPECT_TRANSFORMATION_MATRIX_EQ(parentCompositeTransform, child->targetRenderSurface()->screenSpaceTransform());
+}
+
+TEST(CCLayerTreeHostCommonTest, verifyTransformsForReplica)
+{
+    RefPtr<LayerChromium> parent = LayerChromium::create();
+    RefPtr<LayerChromium> child = LayerChromium::create();
+    RefPtr<LayerChromium> childReplica = LayerChromium::create();
+    RefPtr<LayerChromiumWithForcedDrawsContent> grandChild = adoptRef(new LayerChromiumWithForcedDrawsContent());
+    parent->createRenderSurface();
+    parent->addChild(child);
+    child->addChild(grandChild);
+    child->setReplicaLayer(childReplica.get());
+
+    // Child is set up so that a new render surface should be created.
+    child->setOpacity(0.5f);
+
+    TransformationMatrix identityMatrix;
+    TransformationMatrix parentLayerTransform;
+    parentLayerTransform.scale3d(2.0, 2.0, 1.0);
+    TransformationMatrix parentTranslationToAnchor;
+    parentTranslationToAnchor.translate(2.5, 3.0);
+    TransformationMatrix parentSublayerMatrix;
+    parentSublayerMatrix.scale3d(10.0, 10.0, 3.3);
+    TransformationMatrix parentTranslationToCenter;
+    parentTranslationToCenter.translate(5.0, 6.0);
+    TransformationMatrix parentCompositeTransform = parentTranslationToAnchor * parentLayerTransform * parentTranslationToAnchor.inverse()
+            * parentTranslationToCenter * parentSublayerMatrix * parentTranslationToCenter.inverse();
+    TransformationMatrix childTranslationToCenter;
+    childTranslationToCenter.translate(8.0, 9.0);
+    TransformationMatrix replicaLayerTransform;
+    replicaLayerTransform.scale3d(3.0, 3.0, 1.0);
+    TransformationMatrix replicaCompositeTransform = parentCompositeTransform * replicaLayerTransform;
+
+    // Child's render surface should not exist yet.
+    ASSERT_FALSE(child->renderSurface());
+
+    setLayerPropertiesForTesting(parent.get(), parentLayerTransform, parentSublayerMatrix, FloatPoint(0.25f, 0.25f), FloatPoint(2.5f, 3.0f), IntSize(10, 12), false);
+    setLayerPropertiesForTesting(child.get(), identityMatrix, identityMatrix, FloatPoint(0.0f, 0.0f), FloatPoint(0.0f, 0.0f), IntSize(16, 18), false);
+    setLayerPropertiesForTesting(grandChild.get(), identityMatrix, identityMatrix, FloatPoint(0.0f, 0.0f), FloatPoint(-0.5f, -0.5f), IntSize(1, 1), false);
+    setLayerPropertiesForTesting(childReplica.get(), replicaLayerTransform, identityMatrix, FloatPoint(0.0f, 0.0f), FloatPoint(0.0f, 0.0f), IntSize(0, 0), false);
+    executeCalculateDrawTransformsAndVisibility(parent.get());
+
+    // Render surface should have been created now.
+    ASSERT_TRUE(child->renderSurface());
+    ASSERT_EQ(child->renderSurface(), child->targetRenderSurface());
+
+    EXPECT_TRANSFORMATION_MATRIX_EQ(replicaCompositeTransform, child->targetRenderSurface()->replicaOriginTransform());
+    EXPECT_TRANSFORMATION_MATRIX_EQ(replicaCompositeTransform, child->targetRenderSurface()->replicaScreenSpaceTransform());
 }
 
 TEST(CCLayerTreeHostCommonTest, verifyTransformsForRenderSurfaceHierarchy)
@@ -322,6 +367,7 @@ TEST(CCLayerTreeHostCommonTest, verifyTransformsForRenderSurfaceHierarchy)
     // This test creates a more complex tree and verifies it all at once. This covers the following cases:
     //   - layers that are described w.r.t. a render surface: should have draw transforms described w.r.t. that surface
     //   - A render surface described w.r.t. an ancestor render surface: should have a draw transform described w.r.t. that ancestor surface
+    //   - Replicas of a render surface are described w.r.t. the replica's transform around its anchor, along with the surface itself.
     //   - Sanity check on recursion: verify transforms of layers described w.r.t. a render surface that is described w.r.t. an ancestor render surface.
     //   - verifying that each layer has a reference to the correct renderSurface and targetRenderSurface values.
 
@@ -331,6 +377,8 @@ TEST(CCLayerTreeHostCommonTest, verifyTransformsForRenderSurfaceHierarchy)
     RefPtr<LayerChromium> childOfRoot = LayerChromium::create();
     RefPtr<LayerChromium> childOfRS1 = LayerChromium::create();
     RefPtr<LayerChromium> childOfRS2 = LayerChromium::create();
+    RefPtr<LayerChromium> replicaOfRS1 = LayerChromium::create();
+    RefPtr<LayerChromium> replicaOfRS2 = LayerChromium::create();
     RefPtr<LayerChromium> grandChildOfRoot = LayerChromium::create();
     RefPtr<LayerChromiumWithForcedDrawsContent> grandChildOfRS1 = adoptRef(new LayerChromiumWithForcedDrawsContent());
     RefPtr<LayerChromiumWithForcedDrawsContent> grandChildOfRS2 = adoptRef(new LayerChromiumWithForcedDrawsContent());
@@ -343,6 +391,8 @@ TEST(CCLayerTreeHostCommonTest, verifyTransformsForRenderSurfaceHierarchy)
     childOfRoot->addChild(grandChildOfRoot);
     childOfRS1->addChild(grandChildOfRS1);
     childOfRS2->addChild(grandChildOfRS2);
+    renderSurface1->setReplicaLayer(replicaOfRS1.get());
+    renderSurface2->setReplicaLayer(replicaOfRS2.get());
 
     // In combination with descendantDrawsContent, opacity != 1 forces the layer to have a new renderSurface.
     renderSurface1->setOpacity(0.5f);
@@ -351,6 +401,7 @@ TEST(CCLayerTreeHostCommonTest, verifyTransformsForRenderSurfaceHierarchy)
     // All layers in the tree are initialized with an anchor at 2.5 and a size of (10,10).
     // matrix "A" is the composite layer transform used in all layers, centered about the anchor point
     // matrix "B" is the sublayer transform used in all layers, centered about the center position of the layer.
+    // matrix "R" is the composite replica transform used in all replica layers.
     //
     // x component tests that layerTransform and sublayerTransform are done in the right order (translation and scale are noncommutative).
     // y component has a translation by 1.0 for every ancestor, which indicates the "depth" of the layer in the hierarchy.
@@ -362,9 +413,12 @@ TEST(CCLayerTreeHostCommonTest, verifyTransformsForRenderSurfaceHierarchy)
     layerTransform.translate(1.0, 1.0);
     TransformationMatrix sublayerTransform;
     sublayerTransform.scale3d(10.0, 1.0, 1.0);
+    TransformationMatrix replicaLayerTransform;
+    replicaLayerTransform.scale3d(-2.0, 5.0, 1.0);
 
     TransformationMatrix A = translationToAnchor * layerTransform * translationToAnchor.inverse();
     TransformationMatrix B = translationToCenter * sublayerTransform * translationToCenter.inverse();
+    TransformationMatrix R = A * translationToAnchor * replicaLayerTransform * translationToAnchor.inverse();
 
     setLayerPropertiesForTesting(parent.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
     setLayerPropertiesForTesting(renderSurface1.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
@@ -375,6 +429,8 @@ TEST(CCLayerTreeHostCommonTest, verifyTransformsForRenderSurfaceHierarchy)
     setLayerPropertiesForTesting(grandChildOfRoot.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
     setLayerPropertiesForTesting(grandChildOfRS1.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
     setLayerPropertiesForTesting(grandChildOfRS2.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(replicaOfRS1.get(), replicaLayerTransform, sublayerTransform, FloatPoint(), FloatPoint(2.5f, 0.0f), IntSize(), false);
+    setLayerPropertiesForTesting(replicaOfRS2.get(), replicaLayerTransform, sublayerTransform, FloatPoint(), FloatPoint(2.5f, 0.0f), IntSize(), false);
 
     executeCalculateDrawTransformsAndVisibility(parent.get());
 
@@ -440,8 +496,14 @@ TEST(CCLayerTreeHostCommonTest, verifyTransformsForRenderSurfaceHierarchy)
     //
     // Origin transform of render surface 1 is described with respect to root.
     EXPECT_TRANSFORMATION_MATRIX_EQ(A * B * A, renderSurface1->renderSurface()->originTransform());
+    EXPECT_TRANSFORMATION_MATRIX_EQ(A * B * R, renderSurface1->renderSurface()->replicaOriginTransform());
+    EXPECT_TRANSFORMATION_MATRIX_EQ(A * B * A, renderSurface1->renderSurface()->screenSpaceTransform());
+    EXPECT_TRANSFORMATION_MATRIX_EQ(A * B * R, renderSurface1->renderSurface()->replicaScreenSpaceTransform());
     // Origin transform of render surface 2 is described with respect to render surface 2.
     EXPECT_TRANSFORMATION_MATRIX_EQ(B * A, renderSurface2->renderSurface()->originTransform());
+    EXPECT_TRANSFORMATION_MATRIX_EQ(B * R, renderSurface2->renderSurface()->replicaOriginTransform());
+    EXPECT_TRANSFORMATION_MATRIX_EQ(A * B * A * B * A, renderSurface2->renderSurface()->screenSpaceTransform());
+    EXPECT_TRANSFORMATION_MATRIX_EQ(A * B * A * B * R, renderSurface2->renderSurface()->replicaScreenSpaceTransform());
 
     // Sanity check. If these fail there is probably a bug in the test itself.
     // It is expected that we correctly set up transforms so that the y-component of the screen-space transform
@@ -580,13 +642,183 @@ TEST(CCLayerTreeHostCommonTest, verifyClipRectCullsRenderSurfaces)
 
     // FIXME: when we fix this "root-layer special case" behavior in CCLayerTreeHost, we will have to fix it here, too.
     parent->setClipRect(IntRect(IntPoint::zero(), parent->bounds()));
-    renderSurfaceLayerList.append(parent);
+    renderSurfaceLayerList.append(parent.get());
 
     CCLayerTreeHostCommon::calculateDrawTransformsAndVisibility(parent.get(), parent.get(), identityMatrix, identityMatrix, renderSurfaceLayerList, dummyLayerList, dummyMaxTextureSize);
 
     ASSERT_EQ(2U, renderSurfaceLayerList.size());
     EXPECT_EQ(parent->id(), renderSurfaceLayerList[0]->id());
     EXPECT_EQ(child->id(), renderSurfaceLayerList[1]->id());
+}
+
+static int addOpacityAnimationToLayer(LayerChromium* layer, float startValue, float endValue, double duration)
+{
+    static int id = 0;
+    WebCore::KeyframeValueList values(AnimatedPropertyOpacity);
+    values.insert(new FloatAnimationValue(0, startValue));
+    values.insert(new FloatAnimationValue(duration, endValue));
+
+    RefPtr<Animation> animation = Animation::create();
+    animation->setDuration(duration);
+
+    IntSize boxSize;
+    layer->layerAnimationController()->addAnimation(values, boxSize, animation.get(), id, 0, 0);
+    return id++;
+}
+
+static int addTransformAnimationToLayer(LayerChromium* layer, double duration)
+{
+    static int id = 0;
+    WebCore::KeyframeValueList values(AnimatedPropertyWebkitTransform);
+
+    TransformOperations operations1;
+    operations1.operations().append(TranslateTransformOperation::create(Length(2, WebCore::Fixed), Length(0, WebCore::Fixed), TransformOperation::TRANSLATE_X));
+    values.insert(new TransformAnimationValue(0, &operations1));
+
+    RefPtr<Animation> animation = Animation::create();
+    animation->setDuration(duration);
+
+    IntSize boxSize;
+    layer->layerAnimationController()->addAnimation(values, boxSize, animation.get(), id, 0, 0);
+    return id++;
+}
+
+TEST(CCLayerTreeHostCommonTest, verifyAnimationsForRenderSurfaceHierarchy)
+{
+    RefPtr<LayerChromium> parent = LayerChromium::create();
+    RefPtr<LayerChromium> renderSurface1 = LayerChromium::create();
+    RefPtr<LayerChromium> renderSurface2 = LayerChromium::create();
+    RefPtr<LayerChromium> childOfRoot = LayerChromium::create();
+    RefPtr<LayerChromium> childOfRS1 = LayerChromium::create();
+    RefPtr<LayerChromium> childOfRS2 = LayerChromium::create();
+    RefPtr<LayerChromium> grandChildOfRoot = LayerChromium::create();
+    RefPtr<LayerChromiumWithForcedDrawsContent> grandChildOfRS1 = adoptRef(new LayerChromiumWithForcedDrawsContent());
+    RefPtr<LayerChromiumWithForcedDrawsContent> grandChildOfRS2 = adoptRef(new LayerChromiumWithForcedDrawsContent());
+    parent->createRenderSurface();
+    parent->addChild(renderSurface1);
+    parent->addChild(childOfRoot);
+    renderSurface1->addChild(childOfRS1);
+    renderSurface1->addChild(renderSurface2);
+    renderSurface2->addChild(childOfRS2);
+    childOfRoot->addChild(grandChildOfRoot);
+    childOfRS1->addChild(grandChildOfRS1);
+    childOfRS2->addChild(grandChildOfRS2);
+
+    // In combination with descendantDrawsContent, opacity != 1 forces the layer to have a new renderSurface.
+    addOpacityAnimationToLayer(renderSurface1.get(), 1, 0, 10);
+    addOpacityAnimationToLayer(renderSurface2.get(), 1, 0, 10);
+
+    // Also put an animation on a layer without descendants.
+    addOpacityAnimationToLayer(grandChildOfRoot.get(), 1, 0, 10);
+
+    TransformationMatrix layerTransform;
+    layerTransform.translate(1.0, 1.0);
+    TransformationMatrix sublayerTransform;
+    sublayerTransform.scale3d(10.0, 1.0, 1.0);
+
+    // Put transform animations on child, renderSurface2, grandChildOfRoot, and grandChildOfRS2
+    addTransformAnimationToLayer(childOfRoot.get(), 10);
+    addTransformAnimationToLayer(grandChildOfRoot.get(), 10);
+    addTransformAnimationToLayer(renderSurface2.get(), 10);
+    addTransformAnimationToLayer(grandChildOfRS2.get(), 10);
+
+    setLayerPropertiesForTesting(parent.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(renderSurface1.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(renderSurface2.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(childOfRoot.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(childOfRS1.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(childOfRS2.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(grandChildOfRoot.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(grandChildOfRS1.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+    setLayerPropertiesForTesting(grandChildOfRS2.get(), layerTransform, sublayerTransform, FloatPoint(0.25f, 0.0f), FloatPoint(2.5f, 0.0f), IntSize(10, 10), false);
+
+    executeCalculateDrawTransformsAndVisibility(parent.get());
+
+    // Only layers that are associated with render surfaces should have an actual renderSurface() value.
+    //
+    ASSERT_TRUE(parent->renderSurface());
+    ASSERT_FALSE(childOfRoot->renderSurface());
+    ASSERT_FALSE(grandChildOfRoot->renderSurface());
+
+    ASSERT_TRUE(renderSurface1->renderSurface());
+    ASSERT_FALSE(childOfRS1->renderSurface());
+    ASSERT_FALSE(grandChildOfRS1->renderSurface());
+
+    ASSERT_TRUE(renderSurface2->renderSurface());
+    ASSERT_FALSE(childOfRS2->renderSurface());
+    ASSERT_FALSE(grandChildOfRS2->renderSurface());
+
+    // Verify all targetRenderSurface accessors
+    //
+    EXPECT_EQ(parent->renderSurface(), parent->targetRenderSurface());
+    EXPECT_EQ(parent->renderSurface(), childOfRoot->targetRenderSurface());
+    EXPECT_EQ(parent->renderSurface(), grandChildOfRoot->targetRenderSurface());
+
+    EXPECT_EQ(renderSurface1->renderSurface(), renderSurface1->targetRenderSurface());
+    EXPECT_EQ(renderSurface1->renderSurface(), childOfRS1->targetRenderSurface());
+    EXPECT_EQ(renderSurface1->renderSurface(), grandChildOfRS1->targetRenderSurface());
+
+    EXPECT_EQ(renderSurface2->renderSurface(), renderSurface2->targetRenderSurface());
+    EXPECT_EQ(renderSurface2->renderSurface(), childOfRS2->targetRenderSurface());
+    EXPECT_EQ(renderSurface2->renderSurface(), grandChildOfRS2->targetRenderSurface());
+
+    // Verify drawOpacityIsAnimating values
+    //
+    EXPECT_FALSE(parent->drawOpacityIsAnimating());
+    EXPECT_FALSE(childOfRoot->drawOpacityIsAnimating());
+    EXPECT_TRUE(grandChildOfRoot->drawOpacityIsAnimating());
+    EXPECT_FALSE(renderSurface1->drawOpacityIsAnimating());
+    EXPECT_TRUE(renderSurface1->renderSurface()->drawOpacityIsAnimating());
+    EXPECT_FALSE(childOfRS1->drawOpacityIsAnimating());
+    EXPECT_FALSE(grandChildOfRS1->drawOpacityIsAnimating());
+    EXPECT_FALSE(renderSurface2->drawOpacityIsAnimating());
+    EXPECT_TRUE(renderSurface2->renderSurface()->drawOpacityIsAnimating());
+    EXPECT_FALSE(childOfRS2->drawOpacityIsAnimating());
+    EXPECT_FALSE(grandChildOfRS2->drawOpacityIsAnimating());
+
+    // Verify drawTransformsAnimatingInTarget values
+    //
+    EXPECT_FALSE(parent->drawTransformIsAnimating());
+    EXPECT_TRUE(childOfRoot->drawTransformIsAnimating());
+    EXPECT_TRUE(grandChildOfRoot->drawTransformIsAnimating());
+    EXPECT_FALSE(renderSurface1->drawTransformIsAnimating());
+    EXPECT_FALSE(renderSurface1->renderSurface()->targetSurfaceTransformsAreAnimating());
+    EXPECT_FALSE(childOfRS1->drawTransformIsAnimating());
+    EXPECT_FALSE(grandChildOfRS1->drawTransformIsAnimating());
+    EXPECT_FALSE(renderSurface2->drawTransformIsAnimating());
+    EXPECT_TRUE(renderSurface2->renderSurface()->targetSurfaceTransformsAreAnimating());
+    EXPECT_FALSE(childOfRS2->drawTransformIsAnimating());
+    EXPECT_TRUE(grandChildOfRS2->drawTransformIsAnimating());
+
+    // Verify drawTransformsAnimatingInScreen values
+    //
+    EXPECT_FALSE(parent->screenSpaceTransformIsAnimating());
+    EXPECT_TRUE(childOfRoot->screenSpaceTransformIsAnimating());
+    EXPECT_TRUE(grandChildOfRoot->screenSpaceTransformIsAnimating());
+    EXPECT_FALSE(renderSurface1->screenSpaceTransformIsAnimating());
+    EXPECT_FALSE(renderSurface1->renderSurface()->screenSpaceTransformsAreAnimating());
+    EXPECT_FALSE(childOfRS1->screenSpaceTransformIsAnimating());
+    EXPECT_FALSE(grandChildOfRS1->screenSpaceTransformIsAnimating());
+    EXPECT_TRUE(renderSurface2->screenSpaceTransformIsAnimating());
+    EXPECT_TRUE(renderSurface2->renderSurface()->screenSpaceTransformsAreAnimating());
+    EXPECT_TRUE(childOfRS2->screenSpaceTransformIsAnimating());
+    EXPECT_TRUE(grandChildOfRS2->screenSpaceTransformIsAnimating());
+
+
+    // Sanity check. If these fail there is probably a bug in the test itself.
+    // It is expected that we correctly set up transforms so that the y-component of the screen-space transform
+    // encodes the "depth" of the layer in the tree.
+    EXPECT_FLOAT_EQ(1.0, parent->screenSpaceTransform().m42());
+    EXPECT_FLOAT_EQ(2.0, childOfRoot->screenSpaceTransform().m42());
+    EXPECT_FLOAT_EQ(3.0, grandChildOfRoot->screenSpaceTransform().m42());
+
+    EXPECT_FLOAT_EQ(2.0, renderSurface1->screenSpaceTransform().m42());
+    EXPECT_FLOAT_EQ(3.0, childOfRS1->screenSpaceTransform().m42());
+    EXPECT_FLOAT_EQ(4.0, grandChildOfRS1->screenSpaceTransform().m42());
+
+    EXPECT_FLOAT_EQ(3.0, renderSurface2->screenSpaceTransform().m42());
+    EXPECT_FLOAT_EQ(4.0, childOfRS2->screenSpaceTransform().m42());
+    EXPECT_FLOAT_EQ(5.0, grandChildOfRS2->screenSpaceTransform().m42());
 }
 
 // FIXME:
@@ -601,175 +833,5 @@ TEST(CCLayerTreeHostCommonTest, verifyClipRectCullsRenderSurfaces)
 //  - test the special cases for mask layers and replica layers
 //  - test the other functions in CCLayerTreeHostCommon
 //
-
-TEST(CCLayerTreeHostCommonTest, layerAddsSelfToOccludedRegion)
-{
-    // This tests that the right transforms are being used.
-    Region occluded;
-    const TransformationMatrix identityMatrix;
-    RefPtr<LayerChromium> parent = LayerChromium::create();
-    RefPtr<LayerChromiumWithForcedDrawsContent> layer = adoptRef(new LayerChromiumWithForcedDrawsContent());
-    parent->createRenderSurface();
-    parent->addChild(layer);
-
-    setLayerPropertiesForTesting(parent.get(), identityMatrix, identityMatrix, FloatPoint(0, 0), FloatPoint(0, 0), IntSize(100, 100), false);
-    setLayerPropertiesForTesting(layer.get(), identityMatrix, identityMatrix, FloatPoint(0, 0), FloatPoint(30, 30), IntSize(500, 500), false);
-
-    layer->setOpaque(true);
-
-    Vector<RefPtr<LayerChromium> > renderSurfaceLayerList;
-    Vector<RefPtr<LayerChromium> > dummyLayerList;
-    int dummyMaxTextureSize = 512;
-
-    // FIXME: when we fix this "root-layer special case" behavior in CCLayerTreeHost, we will have to fix it here, too.
-    parent->renderSurface()->setContentRect(IntRect(IntPoint::zero(), parent->bounds()));
-    parent->setClipRect(IntRect(IntPoint::zero(), parent->bounds()));
-    renderSurfaceLayerList.append(parent);
-
-    CCLayerTreeHostCommon::calculateDrawTransformsAndVisibility(parent.get(), parent.get(), identityMatrix, identityMatrix, renderSurfaceLayerList, dummyLayerList, dummyMaxTextureSize);
-
-    occluded = Region();
-    layer->addSelfToOccludedScreenSpace(occluded);
-    EXPECT_EQ_RECT(IntRect(30, 30, 70, 70), occluded.bounds());
-    EXPECT_EQ(1u, occluded.rects().size());
-}
-
-TEST(CCLayerTreeHostCommonTest, layerAddsSelfToOccludedRegionWithRotation)
-{
-    // This tests that the right transforms are being used.
-    Region occluded;
-    const TransformationMatrix identityMatrix;
-    RefPtr<LayerChromium> parent = LayerChromium::create();
-    RefPtr<LayerChromiumWithForcedDrawsContent> layer = adoptRef(new LayerChromiumWithForcedDrawsContent());
-    parent->createRenderSurface();
-    parent->addChild(layer);
-
-    TransformationMatrix layerTransform;
-    layerTransform.translate(250, 250);
-    layerTransform.rotate(90);
-    layerTransform.translate(-250, -250);
-
-    setLayerPropertiesForTesting(parent.get(), identityMatrix, identityMatrix, FloatPoint(0, 0), FloatPoint(0, 0), IntSize(100, 100), false);
-    setLayerPropertiesForTesting(layer.get(), layerTransform, identityMatrix, FloatPoint(0, 0), FloatPoint(30, 30), IntSize(500, 500), false);
-
-    layer->setOpaque(true);
-
-    Vector<RefPtr<LayerChromium> > renderSurfaceLayerList;
-    Vector<RefPtr<LayerChromium> > dummyLayerList;
-    int dummyMaxTextureSize = 512;
-
-    // FIXME: when we fix this "root-layer special case" behavior in CCLayerTreeHost, we will have to fix it here, too.
-    parent->renderSurface()->setContentRect(IntRect(IntPoint::zero(), parent->bounds()));
-    parent->setClipRect(IntRect(IntPoint::zero(), parent->bounds()));
-    renderSurfaceLayerList.append(parent);
-
-    CCLayerTreeHostCommon::calculateDrawTransformsAndVisibility(parent.get(), parent.get(), identityMatrix, identityMatrix, renderSurfaceLayerList, dummyLayerList, dummyMaxTextureSize);
-
-    occluded = Region();
-    layer->addSelfToOccludedScreenSpace(occluded);
-    EXPECT_EQ_RECT(IntRect(30, 30, 70, 70), occluded.bounds());
-    EXPECT_EQ(1u, occluded.rects().size());
-}
-
-TEST(CCLayerTreeHostCommonTest, layerAddsSelfToOccludedRegionWithTranslation)
-{
-    // This tests that the right transforms are being used.
-    Region occluded;
-    const TransformationMatrix identityMatrix;
-    RefPtr<LayerChromium> parent = LayerChromium::create();
-    RefPtr<LayerChromiumWithForcedDrawsContent> layer = adoptRef(new LayerChromiumWithForcedDrawsContent());
-    parent->createRenderSurface();
-    parent->addChild(layer);
-
-    TransformationMatrix layerTransform;
-    layerTransform.translate(20, 20);
-
-    setLayerPropertiesForTesting(parent.get(), identityMatrix, identityMatrix, FloatPoint(0, 0), FloatPoint(0, 0), IntSize(100, 100), false);
-    setLayerPropertiesForTesting(layer.get(), layerTransform, identityMatrix, FloatPoint(0, 0), FloatPoint(30, 30), IntSize(500, 500), false);
-
-    layer->setOpaque(true);
-
-    Vector<RefPtr<LayerChromium> > renderSurfaceLayerList;
-    Vector<RefPtr<LayerChromium> > dummyLayerList;
-    int dummyMaxTextureSize = 512;
-
-    // FIXME: when we fix this "root-layer special case" behavior in CCLayerTreeHost, we will have to fix it here, too.
-    parent->renderSurface()->setContentRect(IntRect(IntPoint::zero(), parent->bounds()));
-    parent->setClipRect(IntRect(IntPoint::zero(), parent->bounds()));
-    renderSurfaceLayerList.append(parent);
-
-    CCLayerTreeHostCommon::calculateDrawTransformsAndVisibility(parent.get(), parent.get(), identityMatrix, identityMatrix, renderSurfaceLayerList, dummyLayerList, dummyMaxTextureSize);
-
-    occluded = Region();
-    layer->addSelfToOccludedScreenSpace(occluded);
-    EXPECT_EQ_RECT(IntRect(50, 50, 50, 50), occluded.bounds());
-    EXPECT_EQ(1u, occluded.rects().size());
-}
-
-TEST(CCLayerTreeHostCommonTest, layerAddsSelfToOccludedRegionWithRotatedSurface)
-{
-    // This tests that the right transforms are being used.
-    Region occluded;
-    const TransformationMatrix identityMatrix;
-    RefPtr<LayerChromium> parent = LayerChromium::create();
-    RefPtr<LayerChromium> child = LayerChromium::create();
-    RefPtr<LayerChromiumWithForcedDrawsContent> layer = adoptRef(new LayerChromiumWithForcedDrawsContent());
-    parent->createRenderSurface();
-    parent->addChild(child);
-    child->addChild(layer);
-
-    TransformationMatrix childTransform;
-    childTransform.translate(250, 250);
-    childTransform.rotate(90);
-    childTransform.translate(-250, -250);
-
-    setLayerPropertiesForTesting(parent.get(), identityMatrix, identityMatrix, FloatPoint(0, 0), FloatPoint(0, 0), IntSize(100, 100), false);
-    setLayerPropertiesForTesting(child.get(), childTransform, identityMatrix, FloatPoint(0, 0), FloatPoint(30, 30), IntSize(500, 500), false);
-    setLayerPropertiesForTesting(layer.get(), identityMatrix, identityMatrix, FloatPoint(0, 0), FloatPoint(10, 10), IntSize(500, 500), false);
-
-    child->setMasksToBounds(true);
-    layer->setOpaque(true);
-
-    Vector<RefPtr<LayerChromium> > renderSurfaceLayerList;
-    Vector<RefPtr<LayerChromium> > dummyLayerList;
-    int dummyMaxTextureSize = 512;
-
-    // FIXME: when we fix this "root-layer special case" behavior in CCLayerTreeHost, we will have to fix it here, too.
-    parent->renderSurface()->setContentRect(IntRect(IntPoint::zero(), parent->bounds()));
-    parent->setClipRect(IntRect(IntPoint::zero(), parent->bounds()));
-    renderSurfaceLayerList.append(parent);
-
-    CCLayerTreeHostCommon::calculateDrawTransformsAndVisibility(parent.get(), parent.get(), identityMatrix, identityMatrix, renderSurfaceLayerList, dummyLayerList, dummyMaxTextureSize);
-
-    occluded = Region();
-    layer->addSelfToOccludedScreenSpace(occluded);
-    EXPECT_EQ_RECT(IntRect(30, 40, 70, 60), occluded.bounds());
-    EXPECT_EQ(1u, occluded.rects().size());
-
-    /* Justification for the above opaque rect from |layer|:
-               100
-      +---------------------+                                      +---------------------+
-      |                     |                                      |                     |30  Visible region of |layer|: /////
-      |    30               |           rotate(90)                 |                     |
-      | 30 + ---------------------------------+                    |     +---------------------------------+
-  100 |    |  10            |                 |            ==>     |     |               |10               |
-      |    |10+---------------------------------+                  |  +---------------------------------+  |
-      |    |  |             |                 | |                  |  |  |///////////////|     420      |  |
-      |    |  |             |                 | |                  |  |  |///////////////|60            |  |
-      |    |  |             |                 | |                  |  |  |///////////////|              |  |
-      +----|--|-------------+                 | |                  +--|--|---------------+              |  |
-           |  |                               | |                   20|10|     70                       |  |
-           |  |                               | |                     |  |                              |  |
-           |  |                               | |500                  |  |                              |  |
-           |  |                               | |                     |  |                              |  |
-           |  |                               | |                     |  |                              |  |
-           |  |                               | |                     |  |                              |  |
-           |  |                               | |                     |  |                              |10|
-           +--|-------------------------------+ |                     |  +------------------------------|--+
-              |                                 |                     |                 490             |
-              +---------------------------------+                     +---------------------------------+
-                             500                                                     500
-     */
-}
 
 } // namespace

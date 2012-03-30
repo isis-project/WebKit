@@ -134,6 +134,9 @@ void ProcessingInstruction::checkStyleSheet()
         m_title = attrs.get("title");
         m_media = attrs.get("media");
 
+        if (m_alternate && m_title.isEmpty())
+            return;
+
         if (href.length() > 1 && href[0] == '#') {
             m_localHref = href.substring(1);
 #if ENABLE(XSLT)
@@ -215,7 +218,7 @@ void ProcessingInstruction::setCSSStyleSheet(const String& href, const KURL& bas
     // type.
     parseStyleSheet(sheet->sheetText(true));
     newSheet->setTitle(m_title);
-    newSheet->setMedia(MediaList::create(newSheet.get(), m_media));
+    newSheet->setMediaQueries(MediaQuerySet::create(m_media));
     newSheet->setDisabled(m_alternate);
 }
 

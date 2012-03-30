@@ -692,6 +692,8 @@ void LayoutTestController::overridePreference(const QString& name, const QVarian
         settings->setAttribute(QWebSettings::PluginsEnabled, value.toBool());
     else if (name == "WebKitWebGLEnabled")
         settings->setAttribute(QWebSettings::WebGLEnabled, value.toBool());
+    else if (name == "WebKitCSSRegionsEnabled")
+        settings->setAttribute(QWebSettings::CSSRegionsEnabled, value.toBool());
     else if (name == "WebKitHyperlinkAuditingEnabled")
         settings->setAttribute(QWebSettings::HyperlinkAuditingEnabled, value.toBool());
     else if (name == "WebKitHixie76WebSocketProtocolEnabled")
@@ -939,17 +941,6 @@ void LayoutTestController::removeAllVisitedLinks()
     QWebHistory* history = m_drt->webPage()->history();
     history->clear();
     DumpRenderTreeSupportQt::dumpVisitedLinksCallbacks(true);
-}
-
-bool LayoutTestController::hasSpellingMarker(int, int)
-{
-    // FIXME: Implement.
-    return false;
-}
-
-QVariantList LayoutTestController::nodesFromRect(const QWebElement& document, int x, int y, unsigned top, unsigned right, unsigned bottom, unsigned left, bool ignoreClipping)
-{
-    return DumpRenderTreeSupportQt::nodesFromRect(document, x, y, top, right, bottom, left, ignoreClipping);
 }
 
 void LayoutTestController::addURLToRedirect(const QString& origin, const QString& destination)

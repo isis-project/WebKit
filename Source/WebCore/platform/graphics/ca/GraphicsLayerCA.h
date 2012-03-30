@@ -134,7 +134,7 @@ public:
     virtual void syncCompositingState(const FloatRect&);
     virtual void syncCompositingStateForThisLayerOnly();
 
-    virtual void visibleRectChanged() OVERRIDE;
+    virtual TiledBacking* tiledBacking() OVERRIDE;
 
     bool allowTiledLayer() const { return m_allowTiledLayer; }
     virtual void setAllowTiledLayer(bool b);
@@ -157,7 +157,8 @@ private:
     virtual bool platformCALayerContentsOpaque() const { return contentsOpaque(); }
     virtual bool platformCALayerDrawsContent() const { return drawsContent(); }
     virtual void platformCALayerLayerDidDisplay(PlatformLayer* layer) { return layerDidDisplay(layer); }
-    virtual void platformCALayerDidCreateTiles() OVERRIDE;
+    virtual void platformCALayerDidCreateTiles(const Vector<FloatRect>& dirtyRects) OVERRIDE;
+    virtual float platformCALayerDeviceScaleFactor() OVERRIDE;
 
     void updateOpacityOnLayer();
     

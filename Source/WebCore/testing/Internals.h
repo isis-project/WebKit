@@ -27,6 +27,7 @@
 #define Internals_h
 
 #include "FrameDestructionObserver.h"
+#include "NodeList.h"
 #include "PlatformString.h"
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
@@ -35,6 +36,7 @@
 namespace WebCore {
 
 class ClientRect;
+class ClientRectList;
 class Document;
 class DocumentMarker;
 class Element;
@@ -42,6 +44,7 @@ class InternalSettings;
 class Node;
 class Range;
 class ShadowRoot;
+class WebKitPoint;
 
 typedef int ExceptionCode;
 
@@ -55,9 +58,11 @@ public:
 
     String elementRenderTreeAsText(Element*, ExceptionCode&);
 
+    String address(Node*);
+
     bool isPreloaded(Document*, const String& url);
 
-    size_t numberOfScopedHTMLStyleChildren(const Element*, ExceptionCode&) const;
+    size_t numberOfScopedHTMLStyleChildren(const Node*, ExceptionCode&) const;
 
 #if ENABLE(SHADOW_DOM)
     typedef ShadowRoot ShadowRootIfShadowDOMEnabledOrNode;
@@ -68,18 +73,30 @@ public:
     ShadowRootIfShadowDOMEnabledOrNode* shadowRoot(Element* host, ExceptionCode&);
     ShadowRootIfShadowDOMEnabledOrNode* youngestShadowRoot(Element* host, ExceptionCode&);
     ShadowRootIfShadowDOMEnabledOrNode* oldestShadowRoot(Element* host, ExceptionCode&);
+    ShadowRootIfShadowDOMEnabledOrNode* youngerShadowRoot(Node* shadow, ExceptionCode&);
+    ShadowRootIfShadowDOMEnabledOrNode* olderShadowRoot(Node* shadow, ExceptionCode&);
     void removeShadowRoot(Element* host, ExceptionCode&);
     Element* includerFor(Node*, ExceptionCode&);
     String shadowPseudoId(Element*, ExceptionCode&);
     PassRefPtr<Element> createContentElement(Document*, ExceptionCode&);
     Element* getElementByIdInShadowRoot(Node* shadowRoot, const String& id, ExceptionCode&);
-    bool isValidContentSelect(Element* contentElement, ExceptionCode&);
+    bool isValidContentSelect(Element* insertionPoint, ExceptionCode&);
+
+    bool attached(Node*, ExceptionCode&);
+
+    Node* nextSiblingInReifiedTree(Node*, ExceptionCode&);
+    Node* firstChildInReifiedTree(Node*, ExceptionCode&);
+    Node* lastChildInReifiedTree(Node*, ExceptionCode&);
+    Node* traverseNextNodeInReifiedTree(Node*, ExceptionCode&);
+    Node* traversePreviousNodeInReifiedTree(Node*, ExceptionCode&);
 
 #if ENABLE(INPUT_COLOR)
     void selectColorInColorChooser(Element*, const String& colorValue);
 #endif
 
     PassRefPtr<ClientRect> boundingBox(Element*, ExceptionCode&);
+
+    PassRefPtr<ClientRectList> inspectorHighlightRects(Document*, ExceptionCode&);
 
     unsigned markerCountForNode(Node*, const String&, ExceptionCode&);
     PassRefPtr<Range> markerRangeForNode(Node*, const String& markerType, unsigned index, ExceptionCode&);
@@ -99,10 +116,18 @@ public:
     PassRefPtr<Range> rangeFromLocationAndLength(Element* scope, int rangeLocation, int rangeLength, ExceptionCode&);
     unsigned locationFromRange(Element* scope, const Range*, ExceptionCode&);
     unsigned lengthFromRange(Element* scope, const Range*, ExceptionCode&);
+    String rangeAsText(const Range*, ExceptionCode&);
+
+#if ENABLE(TOUCH_ADJUSTMENT)
+    PassRefPtr<WebKitPoint> touchPositionAdjustedToBestClickableNode(long x, long y, long width, long height, Document*, ExceptionCode&);
+    Node* touchNodeAdjustedToBestClickableNode(long x, long y, long width, long height, Document*, ExceptionCode&);
+#endif
 
     int lastSpellCheckRequestSequence(Document*, ExceptionCode&);
     int lastSpellCheckProcessedSequence(Document*, ExceptionCode&);
     
+    void setMediaPlaybackRequiresUserGesture(Document*, bool enabled, ExceptionCode&);
+
     Vector<String> userPreferredLanguages() const;
     void setUserPreferredLanguages(const Vector<String>&);
 
@@ -110,10 +135,27 @@ public:
     bool shouldDisplayTrackKind(Document*, const String& kind, ExceptionCode&);
 
     unsigned wheelEventHandlerCount(Document*, ExceptionCode&);
+    unsigned touchEventHandlerCount(Document*, ExceptionCode&);
+
+    PassRefPtr<NodeList> nodesFromRect(Document*, int x, int y, unsigned topPadding, unsigned rightPadding,
+        unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, ExceptionCode&) const;
+
+    void emitInspectorDidBeginFrame();
+    void emitInspectorDidCancelFrame();
+
+    bool hasSpellingMarker(Document*, int from, int length, ExceptionCode&);
+    bool hasGrammarMarker(Document*, int from, int length, ExceptionCode&);
 
     static const char* internalsId;
 
     InternalSettings* settings() const { return m_settings.get(); }
+
+    void setBatteryStatus(Document*, const String& eventType, bool charging, double chargingTime, double dischargingTime, double level, ExceptionCode&);
+
+#if ENABLE(INSPECTOR)
+    unsigned numberOfLiveNodes() const;
+    unsigned numberOfLiveDocuments() const;
+#endif
 
 private:
     explicit Internals(Document*);

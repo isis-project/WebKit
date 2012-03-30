@@ -32,87 +32,36 @@
 #include "Region.h"
 #include "TransformationMatrix.h"
 #include "cc/CCLayerImpl.h"
+#include "cc/CCOverdrawMetrics.h"
 #include "cc/CCRenderPass.h"
 #include "cc/CCRenderSurfaceDrawQuad.h"
 
 using namespace std;
 
-namespace std {
-
-// Specialize for OwnPtr<CCDrawQuad> since Vector doesn't know how to reverse a Vector of OwnPtr<T> in general.
-template<>
-void swap(OwnPtr<WebCore::CCDrawQuad>& a, OwnPtr<WebCore::CCDrawQuad>& b)
-{
-    a.swap(b);
-}
-
-}
-
 namespace WebCore {
 
-// Determines what portion of rect, if any, is visible (not occluded by region). If
-// the resulting visible region is not rectangular, we just return the original rect.
-static IntRect rectSubtractRegion(const Region& region, const IntRect& rect)
+CCQuadCuller::CCQuadCuller(CCQuadList& quadList, CCLayerImpl* layer, CCOcclusionTrackerImpl* occlusionTracker)
+    : m_quadList(quadList)
+    , m_layer(layer)
+    , m_occlusionTracker(occlusionTracker)
 {
-    Region rectRegion(rect);
-    Region intersectRegion(intersect(region, rectRegion));
-
-    if (intersectRegion.isEmpty())
-        return rect;
-
-    // Test if intersectRegion = rectRegion, if so return empty rect.
-    rectRegion.subtract(intersectRegion);
-    IntRect boundsRect = rectRegion.bounds();
-    if (boundsRect.isEmpty())
-        return boundsRect;
-
-    // Test if rectRegion is still a rectangle. If it is, it will be identical to its bounds.
-    Region boundsRegion(boundsRect);
-    boundsRegion.subtract(rectRegion);
-    if (boundsRegion.isEmpty())
-        return boundsRect;
-
-    return rect;
 }
 
-void CCQuadCuller::cullOccludedQuads(CCQuadList& quadList)
+bool CCQuadCuller::append(PassOwnPtr<CCDrawQuad> passDrawQuad)
 {
-    if (!quadList.size())
-        return;
+    OwnPtr<CCDrawQuad> drawQuad(passDrawQuad);
+    IntRect culledRect = m_occlusionTracker->unoccludedContentRect(m_layer, drawQuad->quadRect());
+    bool keepQuad = !culledRect.isEmpty();
+    if (keepQuad)
+        drawQuad->setQuadVisibleRect(culledRect);
 
-    CCQuadList culledList;
-    culledList.reserveCapacity(quadList.size());
+    m_occlusionTracker->overdrawMetrics().didCull(drawQuad->quadTransform(), drawQuad->quadRect(), culledRect);
+    m_occlusionTracker->overdrawMetrics().didDraw(drawQuad->quadTransform(), culledRect, drawQuad->opaqueRect());
 
-    Region opaqueCoverageThusFar;
-
-    for (int i = quadList.size() - 1; i >= 0; --i) {
-        CCDrawQuad* drawQuad = quadList[i].get();
-
-        FloatRect floatTransformedRect = drawQuad->quadTransform().mapRect(FloatRect(drawQuad->quadRect()));
-        // Inflate rect to be tested to stay conservative.
-        IntRect transformedQuadRect(enclosingIntRect(floatTransformedRect));
-
-        IntRect transformedVisibleQuadRect = rectSubtractRegion(opaqueCoverageThusFar, transformedQuadRect);
-        bool keepQuad = !transformedVisibleQuadRect.isEmpty();
-
-        // See if we can reduce the number of pixels to draw by reducing the size of the draw
-        // quad - we do this by changing its visible rect.
-        if (keepQuad && transformedVisibleQuadRect != transformedQuadRect && drawQuad->isLayerAxisAlignedIntRect())
-            drawQuad->setQuadVisibleRect(drawQuad->quadTransform().inverse().mapRect(transformedVisibleQuadRect));
-
-        // When adding rect to opaque region, deflate it to stay conservative.
-        if (keepQuad && drawQuad->isLayerAxisAlignedIntRect()) {
-            FloatRect floatOpaqueRect = drawQuad->quadTransform().mapRect(FloatRect(drawQuad->opaqueRect()));
-            opaqueCoverageThusFar.unite(Region(enclosedIntRect(floatOpaqueRect)));
-        }
-
-        if (keepQuad)
-            culledList.append(quadList[i].release());
-    }
-    quadList.clear(); // Release anything that remains.
-
-    culledList.reverse();
-    quadList.swap(culledList);
+    // Release the quad after we're done using it.
+    if (keepQuad)
+        m_quadList.append(drawQuad.release());
+    return keepQuad;
 }
 
 } // namespace WebCore

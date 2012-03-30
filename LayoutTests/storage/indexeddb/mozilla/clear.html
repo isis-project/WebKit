@@ -11,24 +11,15 @@
 <script src="../resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB's clearing an object store");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
-    IDBDatabaseException = evalAndLog("IDBDatabaseException = window.IDBDatabaseException || window.webkitIDBDatabaseException;");
-    shouldBeFalse("IDBDatabaseException == null");
-    IDBTransaction = evalAndLog("IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction;");
-    shouldBeFalse("IDBTransaction == null");
+    removeVendorPrefixes();
 
-    name = window.location.pathname;
+    name = self.location.pathname;
     description = "My Test Database";
     request = evalAndLog("indexedDB.open(name, description)");
     request.onsuccess = openSuccess;
@@ -50,8 +41,8 @@ function cleanDatabase()
 
     objectStore = evalAndLog("objectStore = db.createObjectStore('foo', { autoIncrement: true });");
     request = evalAndLog("request = objectStore.add({});");
-    request.onsuccess = clear;
     request.onerror = unexpectedErrorCallback;
+    event.target.result.oncomplete = clear;
 }
 
 function clear()
@@ -67,13 +58,14 @@ function areWeClearYet()
 {
     cursor = evalAndLog("cursor = request.result;");
     shouldBe("cursor", "null");
-    done();
+    finishJSTest();
 }
 
 
 test();
 
 </script>
+<script src="../../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>
 

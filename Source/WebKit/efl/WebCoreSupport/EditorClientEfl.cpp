@@ -23,6 +23,7 @@
 #include "config.h"
 #include "EditorClientEfl.h"
 
+#include "DumpRenderTreeSupportEfl.h"
 #include "Editor.h"
 #include "EventNames.h"
 #include "FocusController.h"
@@ -103,7 +104,7 @@ bool EditorClientEfl::shouldChangeSelectedRange(Range*, Range*, EAffinity, bool)
     return true;
 }
 
-bool EditorClientEfl::shouldApplyStyle(CSSStyleDeclaration*, Range*)
+bool EditorClientEfl::shouldApplyStyle(StylePropertySet*, Range*)
 {
     notImplemented();
     return true;
@@ -229,16 +230,28 @@ void EditorClientEfl::pageDestroyed()
     delete this;
 }
 
+void EditorClientEfl::setSmartInsertDeleteEnabled(bool enabled)
+{
+    m_smartInsertDeleteEnabled = enabled;
+    if (enabled)
+        setSelectTrailingWhitespaceEnabled(false);
+}
+
 bool EditorClientEfl::smartInsertDeleteEnabled()
 {
-    notImplemented();
-    return false;
+    return m_smartInsertDeleteEnabled;
+}
+
+void EditorClientEfl::setSelectTrailingWhitespaceEnabled(bool enabled)
+{
+    m_selectTrailingWhitespaceEnabled = enabled;
+    if (enabled)
+        setSmartInsertDeleteEnabled(false);
 }
 
 bool EditorClientEfl::isSelectTrailingWhitespaceEnabled()
 {
-    notImplemented();
-    return false;
+    return m_selectTrailingWhitespaceEnabled;
 }
 
 void EditorClientEfl::toggleContinuousSpellChecking()
@@ -437,6 +450,8 @@ void EditorClientEfl::handleInputMethodKeydown(KeyboardEvent* event)
 EditorClientEfl::EditorClientEfl(Evas_Object* view)
     : m_isInRedo(false)
     , m_view(view)
+    , m_selectTrailingWhitespaceEnabled(false)
+    , m_smartInsertDeleteEnabled(false)
 {
     notImplemented();
 }

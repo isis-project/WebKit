@@ -43,6 +43,7 @@
 #include "FrameSelection.h"
 #include "FrameTree.h"
 #include "FrameView.h"
+#include "GeolocationController.h"
 #include "HTMLElement.h"
 #include "HistoryItem.h"
 #include "InspectorController.h"
@@ -51,8 +52,6 @@
 #include "MediaCanStartListener.h"
 #include "Navigator.h"
 #include "NetworkStateNotifier.h"
-#include "NotificationController.h"
-#include "NotificationPresenter.h"
 #include "PageGroup.h"
 #include "PluginData.h"
 #include "PluginView.h"
@@ -64,30 +63,18 @@
 #include "RenderWidget.h"
 #include "RuntimeEnabledFeatures.h"
 #include "SchemeRegistry.h"
+#include "ScrollingCoordinator.h"
 #include "Settings.h"
 #include "SharedBuffer.h"
-#include "SpeechInput.h"
-#include "SpeechInputClient.h"
 #include "StorageArea.h"
 #include "StorageNamespace.h"
 #include "TextResourceDecoder.h"
+#include "VoidCallback.h"
 #include "Widget.h"
 #include <wtf/HashMap.h>
 #include <wtf/RefCountedLeakCounter.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/text/StringHash.h>
-
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
-#include "GeolocationController.h"
-#endif
-
-#if ENABLE(MEDIA_STREAM)
-#include "UserMediaClient.h"
-#endif
-
-#if ENABLE(THREADED_SCROLLING)
-#include "ScrollingCoordinator.h"
-#endif
 
 namespace WebCore {
 
@@ -135,20 +122,11 @@ Page::Page(PageClients& pageClients)
 #if ENABLE(INSPECTOR)
     , m_inspectorController(InspectorController::create(this, pageClients.inspectorClient))
 #endif
-#if ENABLE(CLIENT_BASED_GEOLOCATION)
+#if ENABLE(GEOLOCATION)
     , m_geolocationController(GeolocationController::create(this, pageClients.geolocationClient))
-#endif
-#if ENABLE(NOTIFICATIONS)
-    , m_notificationController(NotificationController::create(this, pageClients.notificationClient))
 #endif
 #if ENABLE(POINTER_LOCK)
     , m_pointerLockController(PointerLockController::create(this))
-#endif
-#if ENABLE(INPUT_SPEECH)
-    , m_speechInputClient(pageClients.speechInputClient)
-#endif
-#if ENABLE(MEDIA_STREAM)
-    , m_userMediaClient(pageClients.userMediaClient)
 #endif
     , m_settings(Settings::create(this))
     , m_progress(ProgressTracker::create())
@@ -176,6 +154,7 @@ Page::Page(PageClients& pageClients)
     , m_viewMode(ViewModeWindowed)
     , m_minimumTimerInterval(Settings::defaultMinDOMTimerInterval())
     , m_isEditable(false)
+    , m_isOnscreen(true)
 #if ENABLE(PAGE_VISIBILITY_API)
     , m_visibilityState(PageVisibilityStateVisible)
 #endif
@@ -202,8 +181,10 @@ Page::~Page()
     setGroupName(String());
     allPages->remove(this);
     
-    for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext())
-        frame->pageDestroyed();
+    for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext()) {
+        frame->willDetachPage();
+        frame->detachFromPage();
+    }
 
     m_editorClient->pageDestroyed();
 
@@ -211,15 +192,8 @@ Page::~Page()
     m_inspectorController->inspectedPageDestroyed();
 #endif
 
-#if ENABLE(MEDIA_STREAM)
-    if (m_userMediaClient)
-        m_userMediaClient->pageDestroyed();
-#endif
-
-#if ENABLE(THREADED_SCROLLING)
     if (m_scrollingCoordinator)
         m_scrollingCoordinator->pageDestroyed();
-#endif
 
     backForward()->close();
 
@@ -234,7 +208,6 @@ ViewportArguments Page::viewportArguments() const
     return mainFrame() && mainFrame()->document() ? mainFrame()->document()->viewportArguments() : ViewportArguments();
 }
 
-#if ENABLE(THREADED_SCROLLING)
 ScrollingCoordinator* Page::scrollingCoordinator()
 {
     if (!m_scrollingCoordinator && m_settings->scrollingCoordinatorEnabled())
@@ -242,7 +215,6 @@ ScrollingCoordinator* Page::scrollingCoordinator()
 
     return m_scrollingCoordinator.get();
 }
-#endif
 
 struct ViewModeInfo {
     const char* name;
@@ -353,7 +325,6 @@ void Page::goBackOrForward(int distance)
         }
     }
 
-    ASSERT(item);
     if (!item)
         return;
 
@@ -712,9 +683,11 @@ unsigned Page::pageCount() const
 
 void Page::didMoveOnscreen()
 {
+    m_isOnscreen = true;
+
     for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext()) {
-        if (frame->view())
-            frame->view()->didMoveOnscreen();
+        if (FrameView* frameView = frame->view())
+            frameView->didMoveOnscreen();
     }
     
     resumeScriptedAnimations();
@@ -722,9 +695,11 @@ void Page::didMoveOnscreen()
 
 void Page::willMoveOffscreen()
 {
+    m_isOnscreen = false;
+
     for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext()) {
-        if (frame->view())
-            frame->view()->willMoveOffscreen();
+        if (FrameView* frameView = frame->view())
+            frameView->willMoveOffscreen();
     }
     
     suspendScriptedAnimations();
@@ -969,16 +944,6 @@ double Page::minimumTimerInterval() const
     return m_minimumTimerInterval;
 }
 
-#if ENABLE(INPUT_SPEECH)
-SpeechInput* Page::speechInput()
-{
-    ASSERT(m_speechInputClient);
-    if (!m_speechInput.get())
-        m_speechInput = SpeechInput::create(m_speechInputClient);
-    return m_speechInput.get();
-}
-#endif
-
 void Page::dnsPrefetchingStateChanged()
 {
     for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext())
@@ -1045,28 +1010,45 @@ PageVisibilityState Page::visibilityState() const
 }
 #endif
 
+// FIXME: gPaintedObjectCounterThreshold is no longer used for calculating relevant repainted areas,
+// and it should be removed. For the time being, it is useful because it allows us to avoid doing
+// any of this work for ports that don't make sure of didNewFirstVisuallyNonEmptyLayout. We should
+// remove this when we resolve <rdar://problem/10791680> Need to merge didFirstVisuallyNonEmptyLayout 
+// and didNewFirstVisuallyNonEmptyLayout
 static uint64_t gPaintedObjectCounterThreshold = 0;
+
+// These are magical constants that might be tweaked over time.
+static double gMinimumPaintedAreaRatio = 0.1;
+static double gMaximumUnpaintedAreaRatio = 0.04;
 
 void Page::setRelevantRepaintedObjectsCounterThreshold(uint64_t threshold)
 {
     gPaintedObjectCounterThreshold = threshold;
 }
 
+bool Page::isCountingRelevantRepaintedObjects() const
+{
+    return m_isCountingRelevantRepaintedObjects && gPaintedObjectCounterThreshold > 0;
+}
+
 void Page::startCountingRelevantRepaintedObjects()
 {
     m_isCountingRelevantRepaintedObjects = true;
 
-    // Clear the HashSet in case we didn't hit the threshold last time.
-    m_relevantPaintedRenderObjects.clear();
+    // Reset everything in case we didn't hit the threshold last time.
+    resetRelevantPaintedObjectCounter();
 }
 
-void Page::addRelevantRepaintedObject(RenderObject* object, const IntRect& objectPaintRect)
+void Page::resetRelevantPaintedObjectCounter()
 {
-    if (!m_isCountingRelevantRepaintedObjects)
-        return;
+    m_relevantUnpaintedRenderObjects.clear();
+    m_relevantPaintedRegion = Region();
+    m_relevantUnpaintedRegion = Region();
+}
 
-    // We don't need to do anything if there is no counter threshold.
-    if (!gPaintedObjectCounterThreshold)
+void Page::addRelevantRepaintedObject(RenderObject* object, const LayoutRect& objectPaintRect)
+{
+    if (!isCountingRelevantRepaintedObjects())
         return;
 
     // The objects are only relevant if they are being painted within the viewRect().
@@ -1075,25 +1057,58 @@ void Page::addRelevantRepaintedObject(RenderObject* object, const IntRect& objec
             return;
     }
 
-    m_relevantPaintedRenderObjects.add(object);
+    IntRect snappedPaintRect = pixelSnappedIntRect(objectPaintRect);
 
-    if (m_relevantPaintedRenderObjects.size() == static_cast<int>(gPaintedObjectCounterThreshold)) {
+    // If this object was previously counted as an unpainted object, remove it from that HashSet
+    // and corresponding Region. FIXME: This doesn't do the right thing if the objects overlap.
+    if (m_relevantUnpaintedRenderObjects.contains(object)) {
+        m_relevantUnpaintedRenderObjects.remove(object);
+        m_relevantUnpaintedRegion.subtract(snappedPaintRect);
+    }
+
+    m_relevantPaintedRegion.unite(snappedPaintRect);
+
+    RenderView* view = object->view();
+    if (!view)
+        return;
+    
+    float viewArea = view->viewRect().width() * view->viewRect().height();
+    float ratioOfViewThatIsPainted = m_relevantPaintedRegion.totalArea() / viewArea;
+    float ratioOfViewThatIsUnpainted = m_relevantUnpaintedRegion.totalArea() / viewArea;
+
+    if (ratioOfViewThatIsPainted > gMinimumPaintedAreaRatio && ratioOfViewThatIsUnpainted < gMaximumUnpaintedAreaRatio) {
         m_isCountingRelevantRepaintedObjects = false;
-        m_relevantPaintedRenderObjects.clear();
+        resetRelevantPaintedObjectCounter();
         if (Frame* frame = mainFrame())
             frame->loader()->didNewFirstVisuallyNonEmptyLayout();
     }
 }
 
-void Page::provideSupplement(const AtomicString& name, PassOwnPtr<PageSupplement> supplement)
+void Page::addRelevantUnpaintedObject(RenderObject* object, const LayoutRect& objectPaintRect)
 {
-    ASSERT(!m_suppliments.get(name.impl()));
-    m_suppliments.set(name.impl(), supplement);
+    if (!isCountingRelevantRepaintedObjects())
+        return;
+
+    // The objects are only relevant if they are being painted within the viewRect().
+    if (RenderView* view = object->view()) {
+        if (!objectPaintRect.intersects(pixelSnappedIntRect(view->viewRect())))
+            return;
+    }
+
+    m_relevantUnpaintedRenderObjects.add(object);
+    m_relevantUnpaintedRegion.unite(pixelSnappedIntRect(objectPaintRect));
 }
 
-PageSupplement* Page::requireSupplement(const AtomicString& name)
+void Page::suspendActiveDOMObjectsAndAnimations()
 {
-    return m_suppliments.get(name.impl());
+    for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext())
+        frame->suspendActiveDOMObjectsAndAnimations();
+}
+
+void Page::resumeActiveDOMObjectsAndAnimations()
+{
+    for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext())
+        frame->resumeActiveDOMObjectsAndAnimations();
 }
 
 Page::PageClients::PageClients()
@@ -1103,9 +1118,6 @@ Page::PageClients::PageClients()
     , dragClient(0)
     , inspectorClient(0)
     , geolocationClient(0)
-    , speechInputClient(0)
-    , notificationClient(0)
-    , userMediaClient(0)
 {
 }
 

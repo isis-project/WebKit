@@ -44,6 +44,7 @@
 #import "AccessibilityTableRow.h"
 #import "Chrome.h"
 #import "ColorMac.h"
+#import "ContextMenuController.h"
 #import "Frame.h"
 #import "FrameLoaderClient.h"
 #import "FrameSelection.h"
@@ -331,6 +332,9 @@ using namespace std;
 #define NSAccessibilityVisitedLinkSearchKey @"AXVisitedLinkSearchKey"
 #endif
 
+#define NSAccessibilityTextMarkerIsValidParameterizedAttribute @"AXTextMarkerIsValid"
+#define NSAccessibilityIndexForTextMarkerParameterizedAttribute @"AXIndexForTextMarker"
+#define NSAccessibilityTextMarkerForIndexParameterizedAttribute @"AXTextMarkerForIndex"
 
 @interface NSObject (WebKitAccessibilityArrayCategory)
 
@@ -1548,7 +1552,8 @@ static const AccessibilityRoleMap& createAccessibilityRoleMap()
         { LabelRole, NSAccessibilityGroupRole },
         { DivRole, NSAccessibilityGroupRole },
         { FormRole, NSAccessibilityGroupRole },
-        { SpinButtonRole, NSAccessibilityIncrementorRole }
+        { SpinButtonRole, NSAccessibilityIncrementorRole },
+        { FooterRole, NSAccessibilityGroupRole }
     };
     AccessibilityRoleMap& roleMap = *new AccessibilityRoleMap;
     
@@ -1613,6 +1618,8 @@ static NSString* roleValueToNSString(AccessibilityRole value)
             return @"AXLandmarkBanner";
         case LandmarkComplementaryRole:
             return @"AXLandmarkComplementary";
+        // Footer roles should appear as content info types.
+        case FooterRole:
         case LandmarkContentInfoRole:
             return @"AXLandmarkContentInfo";
         case LandmarkMainRole:
@@ -1725,6 +1732,8 @@ static NSString* roleValueToNSString(AccessibilityRole value)
                 return AXDefinitionListTermText();
             case DefinitionListDefinitionRole:
                 return AXDefinitionListDefinitionText();
+            case FooterRole:
+                return AXFooterRoleDescriptionText();
         }
     }        
     
@@ -2485,6 +2494,7 @@ static NSString* roleValueToNSString(AccessibilityRole value)
     static NSArray* paramAttrs = nil;
     static NSArray* textParamAttrs = nil;
     static NSArray* tableParamAttrs = nil;
+    static NSArray* webAreaParamAttrs = nil;
     if (paramAttrs == nil) {
         paramAttrs = [[NSArray alloc] initWithObjects:
                       @"AXUIElementForTextMarker",
@@ -2540,6 +2550,14 @@ static NSString* roleValueToNSString(AccessibilityRole value)
         tableParamAttrs = [[NSArray alloc] initWithArray:tempArray];
         [tempArray release];
     }
+    if (!webAreaParamAttrs) {
+        NSMutableArray* tempArray = [[NSMutableArray alloc] initWithArray:paramAttrs];
+        [tempArray addObject:NSAccessibilityTextMarkerForIndexParameterizedAttribute];
+        [tempArray addObject:NSAccessibilityTextMarkerIsValidParameterizedAttribute];
+        [tempArray addObject:NSAccessibilityIndexForTextMarkerParameterizedAttribute];
+        webAreaParamAttrs = [[NSArray alloc] initWithArray:tempArray];
+        [tempArray release];
+    }
     
     if (m_object->isPasswordField())
         return [NSArray array];
@@ -2556,6 +2574,9 @@ static NSString* roleValueToNSString(AccessibilityRole value)
     if (m_object->isMenuRelated())
         return nil;
 
+    if (m_object->isWebArea())
+        return webAreaParamAttrs;
+    
     return paramAttrs;
 }
 
@@ -2614,14 +2635,7 @@ static NSString* roleValueToNSString(AccessibilityRole value)
     Page* page = frame->page();
     if (!page)
         return;
-
-    // Simulate a click in the middle of the object.
-    IntPoint clickPoint = m_object->clickPoint();
-    
-    PlatformMouseEvent mouseEvent(clickPoint, clickPoint, RightButton, PlatformEvent::MousePressed, 1, false, false, false, false, currentTime());
-    bool handled = frame->eventHandler()->sendContextMenuEvent(mouseEvent);
-    if (handled)
-        page->chrome()->showContextMenu();
+    page->contextMenuController()->showContextMenuAt(frame, m_object->clickPoint());
 }
 
 - (void)accessibilityPerformAction:(NSString*)action
@@ -2754,6 +2768,46 @@ static RenderObject* rendererForView(NSView* view)
     return [self doAXAttributedStringForTextMarkerRange:[self textMarkerRangeFromVisiblePositions:visiblePosRange.start endPosition:visiblePosRange.end]];
 }
 
+- (NSRange)_convertToNSRange:(Range*)range
+{
+    NSRange result = NSMakeRange(NSNotFound, 0);
+    if (!range || !range->startContainer())
+        return result;
+
+    Document* document = m_object->document();
+    if (!document)
+        return result;
+
+    size_t location;
+    size_t length;
+    TextIterator::getLocationAndLengthFromRange(document->documentElement(), range, location, length);
+    result.location = location;
+    result.length = length;
+
+    return result;
+}
+
+- (NSInteger)_indexForTextMarker:(id)marker
+{
+    if (!marker)
+        return NSNotFound;
+    
+    VisibleSelection selection([self visiblePositionForTextMarker:marker]);    
+    return [self _convertToNSRange:selection.toNormalizedRange().get()].location;
+}
+
+- (id)_textMarkerForIndex:(NSInteger)textIndex
+{
+    Document* document = m_object->document();
+    if (!document)
+        return nil;
+    
+    PassRefPtr<Range> textRange = TextIterator::rangeFromLocationAndLength(document->documentElement(), textIndex, 0);
+    
+    VisiblePosition position(textRange->startPosition());
+    return [self textMarkerForVisiblePosition:position];
+}
+
 // The RTF representation of the text associated with this accessibility object that is
 // specified by the given range.
 - (NSData*)doAXRTFForRange:(NSRange)range
@@ -2845,6 +2899,17 @@ static RenderObject* rendererForView(NSView* view)
         return convertToNSArray(results);
     }
 
+    if ([attribute isEqualToString:NSAccessibilityTextMarkerIsValidParameterizedAttribute]) {
+        VisiblePosition pos = [self visiblePositionForTextMarker:textMarker];
+        return [NSNumber numberWithBool:!pos.isNull()];
+    }
+    if ([attribute isEqualToString:NSAccessibilityIndexForTextMarkerParameterizedAttribute]) {
+        return [NSNumber numberWithInteger:[self _indexForTextMarker:textMarker]];
+    }
+    if ([attribute isEqualToString:NSAccessibilityTextMarkerForIndexParameterizedAttribute]) {
+        return [self _textMarkerForIndex:[number integerValue]];
+    }
+    
     if ([attribute isEqualToString:@"AXUIElementForTextMarker"]) {
         VisiblePosition visiblePos = [self visiblePositionForTextMarker:(textMarker)];
         AccessibilityObject* axObject = m_object->accessibilityObjectForPosition(visiblePos);

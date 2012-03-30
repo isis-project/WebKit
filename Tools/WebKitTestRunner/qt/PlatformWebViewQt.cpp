@@ -30,7 +30,7 @@
 #include "qquickwebpage_p.h"
 #include "qquickwebview_p.h"
 
-#include <QApplication>
+#include <QCoreApplication>
 #include <QDeclarativeProperty>
 #include <QEventLoop>
 #include <QtQuick/QQuickView>
@@ -55,8 +55,8 @@ private slots:
             return;
 
         setGeometry(0, 0, 800, 600);
-        setResizeMode(QQuickView::SizeRootObjectToView);
 
+        setResizeMode(QQuickView::SizeRootObjectToView);
         m_view->setParentItem(rootObject());
         QDeclarativeProperty::write(m_view, "anchors.fill", qVariantFromValue(rootObject()));
 
@@ -87,6 +87,14 @@ PlatformWebView::~PlatformWebView()
 
 void PlatformWebView::resizeTo(unsigned width, unsigned height)
 {
+    // If we do not have a platform window we will never get the necessary
+    // resize event, so simulate it in that case to make sure the quickview is
+    // resized to what the layout test expects.
+    if (!m_window->handle()) {
+        QRect newGeometry(m_window->x(), m_window->y(), width, height);
+        QWindowSystemInterface::handleSynchronousGeometryChange(m_window, newGeometry);
+    }
+
     m_window->resize(width, height);
 }
 
@@ -118,12 +126,12 @@ void PlatformWebView::setWindowFrame(WKRect wkRect)
 
 bool PlatformWebView::sendEvent(QEvent* event)
 {
-    return QCoreApplication::sendEvent(m_view, event);
+    return QCoreApplication::sendEvent(m_window, event);
 }
 
 void PlatformWebView::postEvent(QEvent* event)
 {
-    QCoreApplication::postEvent(m_view, event);
+    QCoreApplication::postEvent(m_window, event);
 }
 
 void PlatformWebView::addChromeInputField()

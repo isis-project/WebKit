@@ -5,24 +5,13 @@
 <script src="resources/shared.js"></script>
 </head>
 <body>
-<p id="description"></p>
-<div id="console"></div>
 <script>
 
 description("Test IndexedDB odd value datatypes");
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
 
 function test()
 {
-    indexedDB = evalAndLog("indexedDB = window.indexedDB || window.webkitIndexedDB || window.mozIndexedDB;");
-    shouldBeFalse("indexedDB == null");
-    IDBDatabaseException = evalAndLog("IDBDatabaseException = window.IDBDatabaseException || window.webkitIDBDatabaseException;");
-    shouldBeFalse("IDBDatabaseException == null");
-    IDBCursor = evalAndLog("IDBCursor = window.IDBCursor || window.webkitIDBCursor;");
-    shouldBeFalse("IDBCursor == null");
-    IDBKeyRange = evalAndLog("IDBKeyRange = window.IDBKeyRange || window.webkitIDBKeyRange;");
-    shouldBeFalse("IDBKeyRange == null");
+    removeVendorPrefixes();
 
     testData = [{ description: 'null',               name: '\u0000' },
                 { description: 'faihu',              name: '\ud800\udf46' },
@@ -40,12 +29,13 @@ function openNextDatabase()
     debug("opening a database named " + testData[nextToOpen].description);
     request = evalAndLog("indexedDB.open(testData[nextToOpen].name, testData[nextToOpen].description)");
     request.onerror = unexpectedErrorCallback;
-    request.onsuccess = ++nextToOpen < testData.length ? openNextDatabase : done;
+    request.onsuccess = ++nextToOpen < testData.length ? openNextDatabase : finishJSTest;
 }
 
 
 test();
 
 </script>
+<script src="../../fast/js/resources/js-test-post.js"></script>
 </body>
 </html>

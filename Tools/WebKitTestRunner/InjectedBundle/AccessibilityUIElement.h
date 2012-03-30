@@ -180,6 +180,7 @@ public:
     PassRefPtr<AccessibilityUIElement> selectedRowAtIndex(unsigned);
     PassRefPtr<AccessibilityUIElement> disclosedByRow();
     PassRefPtr<AccessibilityUIElement> disclosedRowAtIndex(unsigned);
+    PassRefPtr<AccessibilityUIElement> rowAtIndex(unsigned);
 
     // ARIA specific
     PassRefPtr<AccessibilityUIElement> ariaOwnsElementAtIndex(unsigned);
@@ -219,6 +220,9 @@ public:
     JSRetainPtr<JSStringRef> stringForTextMarkerRange(AccessibilityTextMarkerRange*);
     int textMarkerRangeLength(AccessibilityTextMarkerRange*);
     bool attributedStringForTextMarkerRangeContainsAttribute(JSStringRef, AccessibilityTextMarkerRange*);
+    int indexForTextMarker(AccessibilityTextMarker*);
+    bool isTextMarkerValid(AccessibilityTextMarker*);
+    PassRefPtr<AccessibilityTextMarker> textMarkerForIndex(int);
 
     // Notifications
     // Function callback should take one argument, the name of the notification.

@@ -85,7 +85,7 @@ def lint(port, options, expectations_class):
 def run(port, options, args, regular_output=sys.stderr, buildbot_output=sys.stdout):
     warnings = _set_up_derived_options(port, options)
 
-    printer = printing.Printer(port, options, regular_output, buildbot_output, configure_logging=True)
+    printer = printing.Printer(port, options, regular_output, buildbot_output, logger=logging.getLogger())
 
     for warning in warnings:
         _log.warning(warning)
@@ -121,11 +121,8 @@ def run(port, options, args, regular_output=sys.stderr, buildbot_output=sys.stdo
         printer.print_update("Parsing expectations ...")
         manager.parse_expectations()
 
-        result_summary = manager.set_up_run()
-        if result_summary:
-            unexpected_result_count = manager.run(result_summary)
-            manager.clean_up_run()
-            _log.debug("Testing completed, Exit status: %d" % unexpected_result_count)
+        unexpected_result_count = manager.run()
+        _log.debug("Testing completed, Exit status: %d" % unexpected_result_count)
     finally:
         printer.cleanup()
 
@@ -156,9 +153,9 @@ def _set_up_derived_options(port, options):
 
     if not options.time_out_ms:
         if options.configuration == "Debug":
-            options.time_out_ms = str(2 * Manager.DEFAULT_TEST_TIMEOUT_MS)
+            options.time_out_ms = str(2 * port.default_test_timeout_ms())
         else:
-            options.time_out_ms = str(Manager.DEFAULT_TEST_TIMEOUT_MS)
+            options.time_out_ms = str(port.default_test_timeout_ms())
 
     options.slow_time_out_ms = str(5 * int(options.time_out_ms))
 
@@ -198,7 +195,7 @@ def parse_args(args=None):
     """Provides a default set of command line args.
 
     Returns a tuple of options, args from optparse"""
-    
+
     option_group_definitions = []
 
     # FIXME: All of these options should be stored closer to the code which
@@ -379,6 +376,8 @@ def parse_args(args=None):
         # old-run-webkit-tests:
         # -i|--ignore-tests               Comma-separated list of directories
         #                                 or tests to ignore
+        optparse.make_option("-i", "--ignore-tests", action="append", default=[],
+            help="directories or test to ignore (may specify multiple times)"),
         optparse.make_option("--test-list", action="append",
             help="read list of tests to run from file", metavar="FILE"),
         # old-run-webkit-tests uses --skipped==[default|ignore|only]
@@ -470,7 +469,7 @@ def parse_args(args=None):
 
 def main():
     options, args = parse_args()
-    if options.platform and options.platform.startswith('test'):
+    if options.platform and 'test' in options.platform:
         # It's a bit lame to import mocks into real code, but this allows the user
         # to run tests against the test platform interactively, which is useful for
         # debugging test failures.
@@ -480,6 +479,7 @@ def main():
         host = Host()
     host._initialize_scm()
     port = host.port_factory.get(options.platform, options)
+    logging.getLogger().setLevel(logging.DEBUG if options.verbose else logging.INFO)
     return run(port, options, args)
 
 

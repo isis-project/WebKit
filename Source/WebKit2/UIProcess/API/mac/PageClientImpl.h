@@ -37,10 +37,6 @@ namespace WebKit {
 
 class FindIndicatorWindow;
 
-// NOTE: This does not use String::operator NSString*() since that function
-// expects to be called on the thread running WebCore.
-NSString* nsStringFromWebCoreString(const String&);
-
 class PageClientImpl : public PageClient {
 public:
     static PassOwnPtr<PageClientImpl> create(WKView*);
@@ -59,7 +55,8 @@ private:
     virtual bool isViewFocused();
     virtual bool isViewVisible();
     virtual bool isViewInWindow();
-    
+    virtual LayerHostingMode viewLayerHostingMode() OVERRIDE;
+
     virtual void processDidCrash();
     virtual void pageClosed();
     virtual void didRelaunchProcess();
@@ -75,6 +72,8 @@ private:
     virtual bool interpretKeyEvent(const NativeWebKeyboardEvent&, Vector<WebCore::KeypressCommand>&);
     virtual bool executeSavedCommandBySelector(const String& selector);
     virtual void setDragImage(const WebCore::IntPoint& clientPosition, PassRefPtr<ShareableBitmap> dragImage, bool isLinkDrag);
+    virtual void setPromisedData(const String& pasteboardName, PassRefPtr<WebCore::SharedBuffer> imageBuffer, const String& filename, const String& extension, const String& title,
+                                 const String& url, const String& visibleUrl, PassRefPtr<WebCore::SharedBuffer> archiveBuffer);
     virtual void updateTextInputState(bool updateSecureInputState);
     virtual void resetTextInputState();
 
@@ -95,6 +94,7 @@ private:
 
     virtual void enterAcceleratedCompositingMode(const LayerTreeContext&);
     virtual void exitAcceleratedCompositingMode();
+    virtual void updateAcceleratedCompositingMode(const LayerTreeContext&);
 
     virtual void accessibilityWebProcessTokenReceived(const CoreIPC::DataReference&);
 

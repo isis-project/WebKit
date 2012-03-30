@@ -61,6 +61,11 @@
 
 using namespace std;
 
+namespace {
+static int s_nextGroupId = 1;
+static int s_nextAnimationId = 1;
+}
+
 namespace WebCore {
 
 PassOwnPtr<GraphicsLayer> GraphicsLayer::create(GraphicsLayerClient* client)
@@ -73,6 +78,7 @@ GraphicsLayerChromium::GraphicsLayerChromium(GraphicsLayerClient* client)
     , m_contentsLayerPurpose(NoContentsLayer)
     , m_contentsLayerHasBackgroundColor(false)
     , m_inSetChildren(false)
+    , m_pageScaleChanged(false)
 {
     m_layer = ContentLayerChromium::create(this);
 
@@ -84,11 +90,20 @@ GraphicsLayerChromium::~GraphicsLayerChromium()
     if (m_layer) {
         m_layer->clearDelegate();
         m_layer->clearRenderSurface();
+        // Primary layer may have at one point been m_layer. Be sure to reset
+        // the delegate, just in case.
+        m_layer->setLayerAnimationDelegate(0);
     }
+
     if (m_contentsLayer)
         m_contentsLayer->clearRenderSurface();
-    if (m_transformLayer)
+
+    if (m_transformLayer) {
         m_transformLayer->clearRenderSurface();
+        // Primary layer may have switched from m_layer to m_transformLayer.
+        // Be sure to reset the delegate, just in case.
+        m_transformLayer->setLayerAnimationDelegate(0);
+    }
 }
 
 void GraphicsLayerChromium::setName(const String& inName)
@@ -102,11 +117,11 @@ void GraphicsLayerChromium::setName(const String& inName)
 void GraphicsLayerChromium::updateNames()
 {
     if (m_layer)
-        m_layer->setName("Layer for " + m_nameBase);
+        m_layer->setDebugName("Layer for " + m_nameBase);
     if (m_transformLayer)
-        m_transformLayer->setName("TransformLayer for " + m_nameBase);
+        m_transformLayer->setDebugName("TransformLayer for " + m_nameBase);
     if (m_contentsLayer)
-        m_contentsLayer->setName("ContentsLayer for " + m_nameBase);
+        m_contentsLayer->setDebugName("ContentsLayer for " + m_nameBase);
 }
 
 bool GraphicsLayerChromium::setChildren(const Vector<GraphicsLayer*>& children)
@@ -124,7 +139,7 @@ bool GraphicsLayerChromium::setChildren(const Vector<GraphicsLayer*>& children)
 void GraphicsLayerChromium::addChild(GraphicsLayer* childLayer)
 {
     GraphicsLayer::addChild(childLayer);
-    if (!m_inSetChildren) 
+    if (!m_inSetChildren)
         updateChildList();
 }
 
@@ -177,8 +192,9 @@ void GraphicsLayerChromium::setSize(const FloatSize& size)
 {
     // We are receiving negative sizes here that cause assertions to fail in the compositor. Clamp them to 0 to
     // avoid those assertions.
+    // FIXME: This should be an ASSERT instead, as negative sizes should not exist in WebCore.
     FloatSize clampedSize = size;
-    if (clampedSize.isEmpty())
+    if (clampedSize.width() < 0 || clampedSize.height() < 0)
         clampedSize = FloatSize();
 
     if (clampedSize == m_size)
@@ -186,6 +202,10 @@ void GraphicsLayerChromium::setSize(const FloatSize& size)
 
     GraphicsLayer::setSize(clampedSize);
     updateLayerSize();
+
+    if (m_pageScaleChanged && m_layer)
+        m_layer->setNeedsDisplay();
+    m_pageScaleChanged = false;
 }
 
 void GraphicsLayerChromium::setTransform(const TransformationMatrix& transform)
@@ -274,8 +294,6 @@ void GraphicsLayerChromium::setMaskLayer(GraphicsLayer* maskLayer)
     GraphicsLayer::setMaskLayer(maskLayer);
 
     LayerChromium* maskLayerChromium = m_maskLayer ? m_maskLayer->platformLayer() : 0;
-    if (maskLayerChromium)
-        maskLayerChromium->setIsMask(true);
     m_layer->setMaskLayer(maskLayerChromium);
 }
 
@@ -303,10 +321,8 @@ void GraphicsLayerChromium::setReplicatedByLayer(GraphicsLayer* layer)
 
 void GraphicsLayerChromium::setContentsNeedsDisplay()
 {
-    if (m_contentsLayer) {
+    if (m_contentsLayer)
         m_contentsLayer->setNeedsDisplay();
-        m_contentsLayer->contentChanged();
-    }
 }
 
 void GraphicsLayerChromium::setNeedsDisplay()
@@ -366,7 +382,6 @@ void GraphicsLayerChromium::setContentsToCanvas(PlatformLayer* platformLayer)
             m_contentsLayerPurpose = ContentsLayerForCanvas;
             childrenChanged = true;
         }
-        m_contentsLayer->setNeedsDisplay();
         updateContentsRect();
     } else {
         if (m_contentsLayer) {
@@ -381,6 +396,32 @@ void GraphicsLayerChromium::setContentsToCanvas(PlatformLayer* platformLayer)
         updateChildList();
 }
 
+bool GraphicsLayerChromium::addAnimation(const KeyframeValueList& values, const IntSize& boxSize, const Animation* animation, const String& animationName, double timeOffset)
+{
+    primaryLayer()->setLayerAnimationDelegate(this);
+    return primaryLayer()->addAnimation(values, boxSize, animation, mapAnimationNameToId(animationName), s_nextGroupId++, timeOffset);
+}
+
+void GraphicsLayerChromium::pauseAnimation(const String& animationName, double timeOffset)
+{
+    primaryLayer()->pauseAnimation(mapAnimationNameToId(animationName), timeOffset);
+}
+
+void GraphicsLayerChromium::removeAnimation(const String& animationName)
+{
+    primaryLayer()->removeAnimation(mapAnimationNameToId(animationName));
+}
+
+void GraphicsLayerChromium::suspendAnimations(double time)
+{
+    primaryLayer()->suspendAnimations(time);
+}
+
+void GraphicsLayerChromium::resumeAnimations()
+{
+    primaryLayer()->resumeAnimations();
+}
+
 void GraphicsLayerChromium::setContentsToMedia(PlatformLayer* layer)
 {
     bool childrenChanged = false;
@@ -390,17 +431,16 @@ void GraphicsLayerChromium::setContentsToMedia(PlatformLayer* layer)
             m_contentsLayerPurpose = ContentsLayerForVideo;
             childrenChanged = true;
         }
-        layer->setNeedsDisplay();
         updateContentsRect();
     } else {
         if (m_contentsLayer) {
             childrenChanged = true;
-  
+
             // The old contents layer will be removed via updateChildList.
             m_contentsLayer = 0;
         }
     }
-  
+
     if (childrenChanged)
         updateChildList();
 }
@@ -536,6 +576,7 @@ void GraphicsLayerChromium::updateLayerPreserves3D()
         // Create the transform layer.
         m_transformLayer = LayerChromium::create();
         m_transformLayer->setPreserves3D(true);
+        m_transformLayer->setLayerAnimationDelegate(this);
 
         // Copy the position from this layer.
         updateLayerPosition();
@@ -549,7 +590,7 @@ void GraphicsLayerChromium::updateLayerPreserves3D()
         m_layer->setAnchorPoint(FloatPoint(0.5f, 0.5f));
         TransformationMatrix identity;
         m_layer->setTransform(identity);
-        
+
         // Set the old layer to opacity of 1. Further down we will set the opacity on the transform layer.
         m_layer->setOpacity(1);
 
@@ -568,6 +609,7 @@ void GraphicsLayerChromium::updateLayerPreserves3D()
             m_transformLayer->parent()->replaceChild(m_transformLayer.get(), m_layer.get());
 
         // Release the transform layer.
+        m_transformLayer->setLayerAnimationDelegate(0);
         m_transformLayer = 0;
 
         updateLayerPosition();
@@ -679,13 +721,32 @@ float GraphicsLayerChromium::contentsScale() const
 void GraphicsLayerChromium::deviceOrPageScaleFactorChanged()
 {
     updateContentsScale();
-    if (m_layer)
-        m_layer->pageScaleChanged();
+    // Invalidations are clamped to the layer's bounds but we receive the scale changed notification before receiving
+    // the new layer bounds. When the scale changes, we really want to invalidate the post-scale layer bounds, so we
+    // remember that the scale has changed and then invalidate the full layer bounds when we receive the new size.
+    m_pageScaleChanged = true;
 }
 
 void GraphicsLayerChromium::paintContents(GraphicsContext& context, const IntRect& clip)
 {
     paintGraphicsLayerContents(context, clip);
+}
+
+int GraphicsLayerChromium::mapAnimationNameToId(const String& animationName)
+{
+    if (animationName.isEmpty())
+        return 0;
+
+    if (!m_animationIdMap.contains(animationName))
+        m_animationIdMap.add(animationName, s_nextAnimationId++);
+
+    return m_animationIdMap.find(animationName)->second;
+}
+
+void GraphicsLayerChromium::notifyAnimationStarted(double startTime)
+{
+    if (m_client)
+        m_client->notifyAnimationStarted(this, startTime);
 }
 
 } // namespace WebCore

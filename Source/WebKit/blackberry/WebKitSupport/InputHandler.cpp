@@ -64,22 +64,22 @@
 #define ENABLE_INPUT_LOG 0
 #define ENABLE_FOCUS_LOG 0
 
+static const unsigned MaxLearnTextDataSize = 500;
+
+using namespace BlackBerry::Platform;
+using namespace WebCore;
+
 #if ENABLE_INPUT_LOG
-#define InputLog(severity, format, ...) BlackBerry::Platform::logAlways(severity, format, ## __VA_ARGS__)
+#define InputLog(severity, format, ...) logAlways(severity, format, ## __VA_ARGS__)
 #else
 #define InputLog(severity, format, ...)
 #endif // ENABLE_INPUT_LOG
 
 #if ENABLE_FOCUS_LOG
-#define FocusLog(severity, format, ...) BlackBerry::Platform::logAlways(severity, format, ## __VA_ARGS__)
+#define FocusLog(severity, format, ...) logAlways(severity, format, ## __VA_ARGS__)
 #else
 #define FocusLog(severity, format, ...)
 #endif // ENABLE_FOCUS_LOG
-
-static const int MaxLearnTextDataSize = 500;
-
-using namespace BlackBerry::Platform;
-using namespace WebCore;
 
 namespace BlackBerry {
 namespace WebKit {
@@ -109,13 +109,15 @@ private:
 InputHandler::InputHandler(WebPagePrivate* page)
     : m_webPage(page)
     , m_currentFocusElement(0)
+    , m_inputModeEnabled(false)
     , m_processingChange(false)
-    , m_navigationMode(false)
     , m_changingFocus(false)
     , m_currentFocusElementType(TextEdit)
     , m_currentFocusElementTextEditMask(DEFAULT_STYLE)
     , m_composingTextStart(0)
     , m_composingTextEnd(0)
+    , m_pendingKeyboardVisibilityChange(NoChange)
+    , m_delayKeyboardVisibilityChange(false)
 {
 }
 
@@ -152,6 +154,12 @@ static BlackBerryInputType convertInputType(const HTMLInputElement* inputElement
     if (inputElement->isTimeControl())
         return InputTypeTime;
     // FIXME: missing WEEK popup selector
+    if (DOMSupport::elementIdOrNameIndicatesEmail(inputElement))
+        return InputTypeEmail;
+    if (DOMSupport::elementIdOrNameIndicatesUrl(inputElement))
+        return InputTypeURL;
+    if (DOMSupport::elementPatternIndicatesHexadecimal(inputElement))
+        return InputTypeHexadecimal;
 
     return InputTypeText;
 }
@@ -159,14 +167,18 @@ static BlackBerryInputType convertInputType(const HTMLInputElement* inputElement
 static int inputStyle(BlackBerryInputType type, const Element* element)
 {
     switch (type) {
-    case InputTypeText:
+    case InputTypeEmail:
+    case InputTypeURL:
     case InputTypeSearch:
+    case InputTypeText:
+    case InputTypeTextArea:
         {
             // Regular input mode, disable help if autocomplete is off.
             int imfMask = 0;
-            if (DOMSupport::elementSupportsAutocomplete(element) == DOMSupport::Off)
+            DOMSupport::AttributeState autoCompleteState = DOMSupport::elementSupportsAutocomplete(element);
+            if (autoCompleteState == DOMSupport::Off)
                 imfMask = NO_AUTO_TEXT | NO_PREDICTION;
-            else if (DOMSupport::elementSupportsAutocomplete(element) != DOMSupport::On
+            else if (autoCompleteState != DOMSupport::On
                      && DOMSupport::elementIdOrNameIndicatesNoAutocomplete(element))
                 imfMask = NO_AUTO_TEXT | NO_PREDICTION;
 
@@ -178,17 +190,17 @@ static int inputStyle(BlackBerryInputType type, const Element* element)
 
             if (imfMask)
                 return imfMask;
+            if ((type == InputTypeEmail || type == InputTypeURL) && autoCompleteState != DOMSupport::On)
+                return NO_AUTO_TEXT | NO_PREDICTION | NO_AUTO_CORRECTION;
             break;
         }
     case InputTypeIsIndex:
     case InputTypePassword:
-    case InputTypeEmail:
     case InputTypeNumber:
     case InputTypeTelephone:
-    case InputTypeURL:
+    case InputTypeHexadecimal:
         // Disable special handling.
         return NO_AUTO_TEXT | NO_PREDICTION | NO_AUTO_CORRECTION;
-    case InputTypeTextArea:
     default:
         break;
     }
@@ -221,10 +233,17 @@ BlackBerryInputType InputHandler::elementType(Element* element) const
     return InputTypeTextArea;
 }
 
-void InputHandler::nodeFocused(Node* node)
+void InputHandler::focusedNodeChanged()
 {
+    ASSERT(m_webPage->m_page->focusController());
+    Frame* frame = m_webPage->m_page->focusController()->focusedOrMainFrame();
+    if (!frame || !frame->document())
+        return;
+
+    Node* node = frame->document()->focusedNode();
+
     if (isActiveTextEdit() && m_currentFocusElement == node) {
-        setNavigationMode(true);
+        notifyClientOfKeyboardVisibilityChange(true);
         return;
     }
 
@@ -296,7 +315,7 @@ static bool convertStringToWchar(const String& string, wchar_t* dest, int destCa
     // wchar_t strings sent to IMF are 32 bit so casting to UChar32 is safe.
     u_strToUTF32(reinterpret_cast<UChar32*>(dest), destCapacity, destLength, string.characters(), string.length(), &ec);
     if (ec) {
-        InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::convertStringToWchar Error converting string ec (%d).", ec);
+        InputLog(LogLevelInfo, "InputHandler::convertStringToWchar Error converting string ec (%d).", ec);
         destLength = 0;
         return false;
     }
@@ -312,7 +331,7 @@ static bool convertStringToWcharVector(const String& string, WTF::Vector<wchar_t
         return true;
 
     if (!wcharString.tryReserveCapacity(length + 1)) {
-        BlackBerry::Platform::logAlways(BlackBerry::Platform::LogLevelWarn, "InputHandler::convertStringToWcharVector Cannot allocate memory for string.\n");
+        logAlways(LogLevelWarn, "InputHandler::convertStringToWcharVector Cannot allocate memory for string.\n");
         return false;
     }
 
@@ -332,7 +351,7 @@ static String convertSpannableStringToString(spannable_string_t* src)
     WTF::Vector<UChar> dest;
     int destCapacity = (src->length * 2) + 1;
     if (!dest.tryReserveCapacity(destCapacity)) {
-        BlackBerry::Platform::logAlways(BlackBerry::Platform::LogLevelWarn, "InputHandler::convertSpannableStringToString Cannot allocate memory for string.\n");
+        logAlways(LogLevelWarn, "InputHandler::convertSpannableStringToString Cannot allocate memory for string.\n");
         return String();
     }
 
@@ -341,7 +360,7 @@ static String convertSpannableStringToString(spannable_string_t* src)
     // wchar_t strings sent from IMF are 32 bit so casting to UChar32 is safe.
     u_strFromUTF32(dest.data(), destCapacity, &destLength, reinterpret_cast<UChar32*>(src->str), src->length, &ec);
     if (ec) {
-        InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::convertSpannableStringToString Error converting string ec (%d).", ec);
+        InputLog(LogLevelInfo, "InputHandler::convertSpannableStringToString Error converting string ec (%d).", ec);
         return String();
     }
     dest.resize(destLength);
@@ -367,7 +386,7 @@ void InputHandler::learnText()
         return;
 
     String textInField(elementText());
-    textInField = textInField.substring(std::max(0, static_cast<int>(textInField.length()) - MaxLearnTextDataSize), textInField.length());
+    textInField = textInField.substring(std::max(0, static_cast<int>(textInField.length() - MaxLearnTextDataSize)), textInField.length());
     textInField.remove(0, textInField.find(" "));
 
     // Build up the 500 character strings in word chunks.
@@ -377,14 +396,14 @@ void InputHandler::learnText()
     if (textInField.isEmpty())
         return;
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::learnText %s", textInField.latin1().data());
+    InputLog(LogLevelInfo, "InputHandler::learnText %s", textInField.latin1().data());
     sendLearnTextDetails(textInField);
 }
 
 void InputHandler::setElementUnfocused(bool refocusOccuring)
 {
     if (isActiveTextEdit()) {
-        FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setElementUnfocused");
+        FocusLog(LogLevelInfo, "InputHandler::setElementUnfocused");
 
         // Pass any text into the field to IMF to learn.
         learnText();
@@ -392,12 +411,16 @@ void InputHandler::setElementUnfocused(bool refocusOccuring)
         // End any composition that is in progress.
         finishComposition();
 
-        // Send change notifications. Only cancel navigation mode if we are not
-        // refocusing to avoid flashing the keyboard when switching between two
-        // input fields.
-        setNavigationMode(false, !refocusOccuring);
+        // Only hide the keyboard if we aren't refocusing on a new input field.
+        if (!refocusOccuring)
+            notifyClientOfKeyboardVisibilityChange(false);
+
         m_webPage->m_client->inputFocusLost();
         m_webPage->m_selectionHandler->selectionPositionChanged();
+
+        // If the frame selection isn't focused, focus it.
+        if (!m_currentFocusElement->document()->frame()->selection()->isFocused())
+            m_currentFocusElement->document()->frame()->selection()->setFocused(true);
     }
 
     // Clear the node details.
@@ -405,43 +428,22 @@ void InputHandler::setElementUnfocused(bool refocusOccuring)
     m_currentFocusElementType = TextEdit;
 }
 
-bool InputHandler::shouldAcceptInputFocus()
+void InputHandler::enableInputMode(bool inputModeAllowed)
 {
-    // If the DRT is running, always accept focus.
-    if (m_webPage->m_dumpRenderTree)
-        return true;
+    FocusLog(LogLevelInfo, "InputHandler::enableInputMode %s, override is %s"
+             , inputModeAllowed ? "true" : "false"
+            , m_webPage->m_dumpRenderTree || Platform::Settings::get()->alwaysShowKeyboardOnFocus() ? "true" : "false");
 
-    if (BlackBerry::Platform::Settings::get()->alwaysShowKeyboardOnFocus()) {
-        FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::shouldAcceptInputFocus alwaysShowKeyboardOnFocus is active.");
-        return true;
-    }
+    m_inputModeEnabled = inputModeAllowed;
 
-    Frame* focusedFrame = m_webPage->focusedOrMainFrame();
-    if (!focusedFrame) {
-        FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::shouldAcceptInputFocus Frame not valid.");
-        return false;
-    }
+    // If DRT is running or always show keyboard setting is active, do not delay
+    // showing the keyboard.
+    if (m_webPage->m_dumpRenderTree || Platform::Settings::get()->alwaysShowKeyboardOnFocus())
+        m_inputModeEnabled = true;
 
-    // Any user action should be respected. Mouse will be down when touch is
-    // used to focus.
-    if (focusedFrame->eventHandler()->mousePressed()) {
-        FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::shouldAcceptInputFocus Mouse is pressed focusing.");
-        return true;
-    }
-
-    if (!m_webPage->m_client->hasKeyboardFocus()) {
-        FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::shouldAcceptInputFocus Client does not have input focus.");
-        return false;
-    }
-
-    if (m_webPage->isLoading()) {
-        FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::shouldAcceptInputFocus Webpage is loading.");
-        return false;
-    }
-
-    // Make sure the focused frame is not processing load events.
-    FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::shouldAcceptInputFocus returning state of processingLoadEvent (%s).", !focusedFrame->document()->processingLoadEvent() ? "true" : "false");
-    return !focusedFrame->document()->processingLoadEvent();
+    // If the frame selection isn't focused, focus it.
+    if (m_inputModeEnabled && isActiveTextEdit() && !m_currentFocusElement->document()->frame()->selection()->isFocused())
+        m_currentFocusElement->document()->frame()->selection()->setFocused(true);
 }
 
 void InputHandler::setElementFocused(Element* element)
@@ -449,17 +451,8 @@ void InputHandler::setElementFocused(Element* element)
     ASSERT(DOMSupport::isTextBasedContentEditableElement(element));
     ASSERT(element->document() && element->document()->frame());
 
-    if (!m_changingFocus && !shouldAcceptInputFocus()) {
-        // Remove the focus from this element, but guard against recursion by
-        // allowing a refocus during the blur to continue.
-        // THIS IS A HACK that needs to be fixed. Instead of blur the field,
-        // the frame or frame selection should be blurred. Google bypasses these
-        // though so it can't be done right now.
-        m_changingFocus = true;
-        element->blur();
-        m_changingFocus = false;
-        return;
-    }
+    if (element->document()->frame()->selection()->isFocused() != m_inputModeEnabled)
+        element->document()->frame()->selection()->setFocused(m_inputModeEnabled);
 
     // Clear the existing focus node details.
     setElementUnfocused(true /*refocusOccuring*/);
@@ -472,12 +465,13 @@ void InputHandler::setElementFocused(Element* element)
     BlackBerryInputType type = elementType(element);
     m_currentFocusElementTextEditMask = inputStyle(type, element);
 
-    FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setElementFocused, Type=%d, Style=%d", type, m_currentFocusElementTextEditMask);
-
+    FocusLog(LogLevelInfo, "InputHandler::setElementFocused, Type=%d, Style=%d", type, m_currentFocusElementTextEditMask);
     m_webPage->m_client->inputFocusGained(type, m_currentFocusElementTextEditMask);
-    m_navigationMode = true;
 
     handleInputLocaleChanged(m_webPage->m_webSettings->isWritingDirectionRTL());
+
+    if (!m_delayKeyboardVisibilityChange)
+        notifyClientOfKeyboardVisibilityChange(true);
 }
 
 bool InputHandler::openDatePopup(HTMLInputElement* element, BlackBerryInputType type)
@@ -532,7 +526,7 @@ void InputHandler::nodeTextChanged(const Node* node)
     if (node != m_currentFocusElement)
         return;
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::nodeTextChanged");
+    InputLog(LogLevelInfo, "InputHandler::nodeTextChanged");
 
     m_webPage->m_client->inputTextChanged();
 
@@ -543,10 +537,10 @@ void InputHandler::nodeTextChanged(const Node* node)
 
 void InputHandler::ensureFocusTextElementVisible(CaretScrollType scrollType)
 {
-    if (!m_currentFocusElement || !m_navigationMode || !m_currentFocusElement->document())
+    if (!m_inputModeEnabled || !m_currentFocusElement || !m_currentFocusElement->document())
         return;
 
-    if (!BlackBerry::Platform::Settings::get()->allowCenterScrollAdjustmentForInputFields() && scrollType != EdgeIfNeeded)
+    if (!Platform::Settings::get()->allowCenterScrollAdjustmentForInputFields() && scrollType != EdgeIfNeeded)
         return;
 
     Frame* elementFrame = m_currentFocusElement->document()->frame();
@@ -708,7 +702,7 @@ void InputHandler::ensureFocusElementVisible(bool centerInView)
         ensureFocusTextElementVisible(centerInView ? CenterAlways : CenterIfNeeded);
 }
 
-void InputHandler::frameUnloaded(Frame* frame)
+void InputHandler::frameUnloaded(const Frame* frame)
 {
     if (!isActiveTextEdit())
         return;
@@ -716,39 +710,45 @@ void InputHandler::frameUnloaded(Frame* frame)
     if (m_currentFocusElement->document()->frame() != frame)
         return;
 
-    FocusLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::frameUnloaded");
+    FocusLog(LogLevelInfo, "InputHandler::frameUnloaded");
 
     setElementUnfocused(false /*refocusOccuring*/);
 }
 
-void InputHandler::setNavigationMode(bool active, bool sendMessage)
+void InputHandler::setDelayKeyboardVisibilityChange(bool value)
 {
-    if (active && !isActiveTextEdit()) {
-        if (!m_navigationMode)
-            return;
+    m_delayKeyboardVisibilityChange = value;
+    m_pendingKeyboardVisibilityChange = NoChange;
+}
 
-        // We can't be active if there is no element. Send out notification that we
-        // aren't in navigation mode.
-        active = false;
+void InputHandler::processPendingKeyboardVisibilityChange()
+{
+    if (!m_delayKeyboardVisibilityChange) {
+        ASSERT(m_pendingKeyboardVisibilityChange == NoChange);
+        return;
     }
 
-    // Don't send the change if it's setting the event setting navigationMode true
-    // if we are already in navigation mode and this is a navigation move event.
-    // We need to send the event when it's triggered by a touch event or mouse
-    // event to allow display of the VKB, but do not want to send it when it's
-    // triggered by a navigation event as it has no effect.
-    // Touch events are simulated as mouse events so mousePressed will be active
-    // when it is a re-entry event.
-    // See RIM Bugs #369 & #878.
-    if (active && active == m_navigationMode && !m_webPage->m_mainFrame->eventHandler()->mousePressed())
+    m_delayKeyboardVisibilityChange = false;
+
+    if (m_pendingKeyboardVisibilityChange == NoChange)
         return;
 
-    m_navigationMode = active;
+    notifyClientOfKeyboardVisibilityChange(m_pendingKeyboardVisibilityChange == Visible);
+    m_pendingKeyboardVisibilityChange = NoChange;
+}
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setNavigationMode %s, %s", active ? "true" : "false", sendMessage ? "message sent" : "message not sent");
+void InputHandler::notifyClientOfKeyboardVisibilityChange(bool visible)
+{
+    // If we aren't ready for input, keyboard changes should be ignored.
+    if (!m_inputModeEnabled && visible)
+        return;
 
-    if (sendMessage)
-        m_webPage->m_client->inputSetNavigationMode(active);
+    if (!m_delayKeyboardVisibilityChange) {
+        m_webPage->showVirtualKeyboard(visible);
+        return;
+    }
+
+    m_pendingKeyboardVisibilityChange = visible ? Visible : NotVisible;
 }
 
 bool InputHandler::selectionAtStartOfElement()
@@ -833,7 +833,7 @@ void InputHandler::selectionChanged()
     int newSelectionStart = selectionStart();
     int newSelectionEnd = selectionEnd();
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::selectionChanged selectionStart=%u, selectionEnd=%u", newSelectionStart, newSelectionEnd);
+    InputLog(LogLevelInfo, "InputHandler::selectionChanged selectionStart=%u, selectionEnd=%u", newSelectionStart, newSelectionEnd);
 
     m_webPage->m_client->inputSelectionChanged(newSelectionStart, newSelectionEnd);
 
@@ -859,7 +859,7 @@ bool InputHandler::setSelection(int start, int end, bool changeIsPartOfCompositi
     VisibleSelection newSelection = DOMSupport::visibleSelectionForRangeInputElement(m_currentFocusElement.get(), start, end);
     m_currentFocusElement->document()->frame()->selection()->setSelection(newSelection, changeIsPartOfComposition ? 0 : FrameSelection::CloseTyping | FrameSelection::ClearTypingStyle);
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setSelection selectionStart=%u, selectionEnd=%u", start, end);
+    InputLog(LogLevelInfo, "InputHandler::setSelection selectionStart=%u, selectionEnd=%u", start, end);
 
     return start == selectionStart() && end == selectionEnd();
 }
@@ -871,7 +871,7 @@ WebCore::IntRect InputHandler::rectForCaret(int index)
 
     ASSERT(m_currentFocusElement->document() && m_currentFocusElement->document()->frame());
 
-    if (index < 0 || index > elementText().length()) {
+    if (index < 0 || index > static_cast<int>(elementText().length())) {
         // Invalid request.
         return WebCore::IntRect();
     }
@@ -894,9 +894,12 @@ void InputHandler::cancelSelection()
     setCursorPosition(selectionStartPosition);
 }
 
-bool InputHandler::handleKeyboardInput(const BlackBerry::Platform::KeyboardEvent& keyboardEvent, bool changeIsPartOfComposition)
+bool InputHandler::handleKeyboardInput(const Platform::KeyboardEvent& keyboardEvent, bool changeIsPartOfComposition)
 {
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::handleKeyboardInput received character=%lc, type=%d", keyboardEvent.character(), keyboardEvent.type());
+    InputLog(LogLevelInfo, "InputHandler::handleKeyboardInput received character=%lc, type=%d", keyboardEvent.character(), keyboardEvent.type());
+
+    // Enable input mode if we are processing a key event.
+    enableInputMode();
 
     // If we aren't specifically part of a composition, fail, IMF should never send key input
     // while composing text. If IMF has failed, we should have already finished the
@@ -913,88 +916,26 @@ bool InputHandler::handleKeyboardInput(const BlackBerry::Platform::KeyboardEvent
     ASSERT(m_webPage->m_page->focusController());
     bool keyboardEventHandled = false;
     if (Frame* focusedFrame = m_webPage->m_page->focusController()->focusedFrame()) {
-        bool isKeyChar = keyboardEvent.type() == BlackBerry::Platform::KeyboardEvent::KeyChar;
-        BlackBerry::Platform::KeyboardEvent::Type type = keyboardEvent.type();
+        bool isKeyChar = keyboardEvent.type() == Platform::KeyboardEvent::KeyChar;
+        Platform::KeyboardEvent::Type type = keyboardEvent.type();
 
         // If this is a KeyChar type then we handle it as a keydown followed by a key up.
         if (isKeyChar)
-            type = BlackBerry::Platform::KeyboardEvent::KeyDown;
+            type = Platform::KeyboardEvent::KeyDown;
 
-        BlackBerry::Platform::KeyboardEvent adjustedKeyboardEvent(keyboardEvent.character(), type, adjustedModifiers);
+        Platform::KeyboardEvent adjustedKeyboardEvent(keyboardEvent.character(), type, adjustedModifiers);
         keyboardEventHandled = focusedFrame->eventHandler()->keyEvent(PlatformKeyboardEvent(adjustedKeyboardEvent));
 
         if (isKeyChar) {
-            type = BlackBerry::Platform::KeyboardEvent::KeyUp;
-            adjustedKeyboardEvent = BlackBerry::Platform::KeyboardEvent(keyboardEvent.character(), type, adjustedModifiers);
+            type = Platform::KeyboardEvent::KeyUp;
+            adjustedKeyboardEvent = Platform::KeyboardEvent(keyboardEvent.character(), type, adjustedModifiers);
             keyboardEventHandled = focusedFrame->eventHandler()->keyEvent(PlatformKeyboardEvent(adjustedKeyboardEvent)) || keyboardEventHandled;
         }
 
-        if (!changeIsPartOfComposition && type == BlackBerry::Platform::KeyboardEvent::KeyUp)
+        if (!changeIsPartOfComposition && type == Platform::KeyboardEvent::KeyUp)
             ensureFocusTextElementVisible(EdgeIfNeeded);
     }
     return keyboardEventHandled;
-}
-
-bool InputHandler::handleNavigationMove(unsigned short character, bool shiftDown, bool altDown, bool canExitField)
-{
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::handleNavigationMove received character=%lc", character);
-
-    bool eventHandled = false;
-    ASSERT(m_webPage->m_page->focusController());
-    if (Frame* focusedFrame = m_webPage->m_page->focusController()->focusedFrame()) {
-        // If alt is down, do not break out of the field.
-        if (canExitField && !altDown) {
-            if ((character == KEYCODE_LEFT || character == KEYCODE_UP) && selectionAtStartOfElement()
-                || (character == KEYCODE_RIGHT || character == KEYCODE_DOWN) && selectionAtEndOfElement()) {
-                setNavigationMode(false);
-                return true;
-            }
-        }
-
-        switch (character) {
-        case KEYCODE_LEFT:
-            if (altDown && shiftDown)
-                eventHandled = focusedFrame->editor()->command("MoveToBeginningOfLineAndModifySelection").execute();
-            else if (altDown)
-                eventHandled = focusedFrame->editor()->command("MoveToBeginningOfLine").execute();
-            else if (shiftDown)
-                eventHandled = focusedFrame->editor()->command("MoveLeftAndModifySelection").execute();
-            else
-                eventHandled = focusedFrame->editor()->command("MoveLeft").execute();
-            break;
-        case KEYCODE_RIGHT:
-            if (altDown && shiftDown)
-                eventHandled = focusedFrame->editor()->command("MoveToEndOfLineAndModifySelection").execute();
-            else if (altDown)
-                eventHandled = focusedFrame->editor()->command("MoveToEndOfLine").execute();
-            else if (shiftDown)
-                eventHandled = focusedFrame->editor()->command("MoveRightAndModifySelection").execute();
-            else
-                eventHandled = focusedFrame->editor()->command("MoveRight").execute();
-            break;
-        case KEYCODE_UP:
-            if (altDown && shiftDown)
-                eventHandled = focusedFrame->editor()->command("MoveToBeginningOfDocumentAndModifySelection").execute();
-            else if (altDown)
-                eventHandled = focusedFrame->editor()->command("MoveToBeginningOfDocument").execute();
-            else if (shiftDown)
-                eventHandled = focusedFrame->editor()->command("MoveUpAndModifySelection").execute();
-            else
-                eventHandled = focusedFrame->editor()->command("MoveUp").execute();
-            break;
-        case KEYCODE_DOWN:
-            if (altDown && shiftDown)
-                eventHandled = focusedFrame->editor()->command("MoveToEndOfDocumentAndModifySelection").execute();
-            else if (altDown)
-                eventHandled = focusedFrame->editor()->command("MoveToEndOfDocument").execute();
-            else if (shiftDown)
-                eventHandled = focusedFrame->editor()->command("MoveDownAndModifySelection").execute();
-            else
-                eventHandled = focusedFrame->editor()->command("MoveDown").execute();
-            break;
-        }
-    }
-    return eventHandled;
 }
 
 bool InputHandler::deleteSelection()
@@ -1302,7 +1243,7 @@ bool InputHandler::deleteTextRelativeToCursor(int leftOffset, int rightOffset)
 
     ProcessingChangeGuard guard(this);
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::deleteTextRelativeToCursor left %d right %d", leftOffset, rightOffset);
+    InputLog(LogLevelInfo, "InputHandler::deleteTextRelativeToCursor left %d right %d", leftOffset, rightOffset);
 
     int caretOffset = caretPosition();
     int start = relativeLeftOffset(caretOffset, leftOffset);
@@ -1327,7 +1268,7 @@ bool InputHandler::deleteText(int start, int end)
     if (!setSelection(start, end, true /*changeIsPartOfComposition*/))
         return false;
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::deleteText start %d end %d", start, end);
+    InputLog(LogLevelInfo, "InputHandler::deleteText start %d end %d", start, end);
 
     return deleteSelection();
 }
@@ -1347,13 +1288,13 @@ spannable_string_t* InputHandler::spannableTextInRange(int start, int end, int32
 
     spannable_string_t* pst = (spannable_string_t*)malloc(sizeof(spannable_string_t));
     if (!pst) {
-        InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::spannableTextInRange error allocating spannable string.");
+        InputLog(LogLevelInfo, "InputHandler::spannableTextInRange error allocating spannable string.");
         return 0;
     }
 
     pst->str = (wchar_t*)malloc(sizeof(wchar_t) * (length + 1));
     if (!pst->str) {
-        InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::spannableTextInRange Cannot allocate memory for string.\n");
+        InputLog(LogLevelInfo, "InputHandler::spannableTextInRange Cannot allocate memory for string.\n");
         free(pst);
         return 0;
     }
@@ -1368,6 +1309,7 @@ spannable_string_t* InputHandler::spannableTextInRange(int start, int end, int32
     pst->length = stringLength;
     pst->spans_count = 0;
     pst->spans = 0;
+
     return pst;
 }
 
@@ -1496,7 +1438,7 @@ int32_t InputHandler::setComposingRegion(int32_t start, int32_t end)
     if (compositionActive())
         addAttributedTextMarker(start, end, compositionTextStyle());
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setComposingRegion start %d end %d", start, end);
+    InputLog(LogLevelInfo, "InputHandler::setComposingRegion start %d end %d", start, end);
 
     return 0;
 }
@@ -1513,7 +1455,7 @@ int32_t InputHandler::finishComposition()
     // Remove all markers.
     removeAttributedTextMarker();
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::finishComposition completed");
+    InputLog(LogLevelInfo, "InputHandler::finishComposition completed");
 
     return 0;
 }
@@ -1577,7 +1519,7 @@ bool InputHandler::setText(spannable_string_t* spannableString)
         // Handle the case where text is being composed.
         if (firstSpanInString(spannableString, COMPOSED_TEXT_ATTRIB))
             return editor->command("InsertText").execute(textToInsert.right(1));
-        return handleKeyboardInput(BlackBerry::Platform::KeyboardEvent(textToInsert[textLength - 1], BlackBerry::Platform::KeyboardEvent::KeyChar, 0), false /* changeIsPartOfComposition */);
+        return handleKeyboardInput(Platform::KeyboardEvent(textToInsert[textLength - 1], Platform::KeyboardEvent::KeyChar, 0), false /* changeIsPartOfComposition */);
     }
 
     // If no spans have changed, treat it as a delete operation.
@@ -1602,7 +1544,7 @@ bool InputHandler::setText(spannable_string_t* spannableString)
         return true;
     }
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "setText spannableString is %s, %d \n", textToInsert.latin1().data(), textLength);
+    InputLog(LogLevelInfo, "setText spannableString is %s, %d \n", textToInsert.latin1().data(), textLength);
 
     // Triggering an insert of the text with a space character trailing
     // causes new text to adopt the previous text style.
@@ -1615,27 +1557,27 @@ bool InputHandler::setText(spannable_string_t* spannableString)
         textToInsert.remove(textLength, 1);
     }
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setText Request being processed Text before %s", elementText().latin1().data());
+    InputLog(LogLevelInfo, "InputHandler::setText Request being processed Text before %s", elementText().latin1().data());
 
     if (textLength == 1 && !spannableString->spans_count) {
         // Handle single key non-attributed entry as key press rather than insert to allow
         // triggering of javascript events.
 
-        return handleKeyboardInput(BlackBerry::Platform::KeyboardEvent(textToInsert[0], BlackBerry::Platform::KeyboardEvent::KeyChar, 0), true /* changeIsPartOfComposition */);
+        return handleKeyboardInput(Platform::KeyboardEvent(textToInsert[0], Platform::KeyboardEvent::KeyChar, 0), true /* changeIsPartOfComposition */);
     }
 
     // Perform the text change as a single command if there is one.
     if (!textToInsert.isEmpty() && !editor->command("InsertText").execute(textToInsert)) {
-        InputLog(BlackBerry::Platform::LogLevelWarn, "InputHandler::setText Failed to insert text %s", textToInsert.latin1().data());
+        InputLog(LogLevelWarn, "InputHandler::setText Failed to insert text %s", textToInsert.latin1().data());
         return false;
     }
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setText Request being processed Text after insert %s", elementText().latin1().data());
+    InputLog(LogLevelInfo, "InputHandler::setText Request being processed Text after insert %s", elementText().latin1().data());
 
     if (requiresSpaceKeyPress)
-        handleKeyboardInput(BlackBerry::Platform::KeyboardEvent(32 /* space */, BlackBerry::Platform::KeyboardEvent::KeyChar, 0), true /* changeIsPartOfComposition */);
+        handleKeyboardInput(Platform::KeyboardEvent(32 /* space */, Platform::KeyboardEvent::KeyChar, 0), true /* changeIsPartOfComposition */);
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setText Text after %s", elementText().latin1().data());
+    InputLog(LogLevelInfo, "InputHandler::setText Text after %s", elementText().latin1().data());
 
     return true;
 }
@@ -1660,13 +1602,13 @@ bool InputHandler::setTextAttributes(int insertionPoint, spannable_string_t* spa
         // used by IMF. When they add support for on the fly spell checking we can
         // use it to apply spelling markers and disable continuous spell checking.
 
-        InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setTextAttributes adding marker %d to %d - %d", startPosition, endPosition, span->attributes_mask);
+        InputLog(LogLevelInfo, "InputHandler::setTextAttributes adding marker %d to %d - %d", startPosition, endPosition, span->attributes_mask);
         addAttributedTextMarker(startPosition, endPosition, textStyleFromMask(span->attributes_mask));
 
         span++;
     }
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setTextAttributes attribute count %d", spannableString->spans_count);
+    InputLog(LogLevelInfo, "InputHandler::setTextAttributes attribute count %d", spannableString->spans_count);
 
     return true;
 }
@@ -1697,14 +1639,14 @@ bool InputHandler::setRelativeCursorPosition(int insertionPoint, int relativeCur
     if (cursorPosition < 0 || cursorPosition > (int)elementText().length())
         return false;
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setRelativeCursorPosition cursor position %d", cursorPosition);
+    InputLog(LogLevelInfo, "InputHandler::setRelativeCursorPosition cursor position %d", cursorPosition);
 
     return setCursorPosition(cursorPosition);
 }
 
 bool InputHandler::setSpannableTextAndRelativeCursor(spannable_string_t* spannableString, int relativeCursorPosition, bool markTextAsComposing)
 {
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setSpannableTextAndRelativeCursor(%d, %d, %d)\n", spannableString->length, relativeCursorPosition, markTextAsComposing);
+    InputLog(LogLevelInfo, "InputHandler::setSpannableTextAndRelativeCursor(%d, %d, %d)\n", spannableString->length, relativeCursorPosition, markTextAsComposing);
     int insertionPoint = compositionActive() ? m_composingTextStart : selectionStart();
 
     ProcessingChangeGuard guard(this);
@@ -1738,7 +1680,10 @@ int32_t InputHandler::setComposingText(spannable_string_t* spannableString, int3
     if (!spannableString)
         return -1;
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::setComposingText at relativeCursorPosition: %d", relativeCursorPosition);
+    InputLog(LogLevelInfo, "InputHandler::setComposingText at relativeCursorPosition: %d", relativeCursorPosition);
+
+    // Enable input mode if we are processing a key event.
+    enableInputMode();
 
     return setSpannableTextAndRelativeCursor(spannableString, relativeCursorPosition, true /* markTextAsComposing */) ? 0 : -1;
 }
@@ -1751,7 +1696,7 @@ int32_t InputHandler::commitText(spannable_string_t* spannableString, int32_t re
     if (!spannableString)
         return -1;
 
-    InputLog(BlackBerry::Platform::LogLevelInfo, "InputHandler::commitText");
+    InputLog(LogLevelInfo, "InputHandler::commitText");
 
     return setSpannableTextAndRelativeCursor(spannableString, relativeCursorPosition, false /* markTextAsComposing */) ? 0 : -1;
 }

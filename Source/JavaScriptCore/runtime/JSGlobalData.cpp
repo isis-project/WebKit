@@ -35,6 +35,7 @@
 #include "DebuggerActivation.h"
 #include "FunctionConstructor.h"
 #include "GetterSetter.h"
+#include "HostCallReturnValue.h"
 #include "Interpreter.h"
 #include "JSActivation.h"
 #include "JSAPIValueWrapper.h"
@@ -61,7 +62,7 @@
 #include "RegExp.h"
 #endif
 
-#if PLATFORM(MAC)
+#if USE(CF)
 #include <CoreFoundation/CoreFoundation.h>
 #endif
 
@@ -80,7 +81,7 @@ inline void Recompiler::operator()(JSCell* cell)
 {
     if (!cell->inherits(&JSFunction::s_info))
         return;
-    JSFunction* function = asFunction(cell);
+    JSFunction* function = jsCast<JSFunction*>(cell);
     if (!function->executable() || function->executable()->isHostFunction())
         return;
     function->jsExecutable()->discardCode();
@@ -141,6 +142,8 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
     , keywords(adoptPtr(new Keywords(this)))
     , interpreter(0)
     , heap(this, heapSize)
+    , jsArrayClassInfo(&JSArray::s_info)
+    , jsFinalObjectClassInfo(&JSFinalObject::s_info)
 #if ENABLE(DFG_JIT)
     , sizeOfLastScratchBuffer(0)
 #endif
@@ -158,8 +161,9 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
     , m_timeoutCount(512)
 #endif
 #if ENABLE(GC_VALIDATION)
-    , m_isInitializingObject(false)
+    , m_initializingObjectClass(0)
 #endif
+    , m_inDefineOwnProperty(false)
 {
     interpreter = new Interpreter;
 
@@ -189,7 +193,7 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
 
     wtfThreadData().setCurrentIdentifierTable(existingEntryIdentifierTable);
 
-#if ENABLE(JIT) && ENABLE(INTERPRETER)
+#if ENABLE(JIT) && (ENABLE(CLASSIC_INTERPRETER) || ENABLE(LLINT))
 #if USE(CF)
     CFStringRef canUseJITKey = CFStringCreateWithCString(0 , "JavaScriptCoreUseJIT", kCFStringEncodingMacRoman);
     CFBooleanRef canUseJIT = (CFBooleanRef)CFPreferencesCopyAppValue(canUseJITKey, kCFPreferencesCurrentApplication);
@@ -209,16 +213,23 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
 #endif
 #endif
 #if ENABLE(JIT)
-#if ENABLE(INTERPRETER)
+#if ENABLE(CLASSIC_INTERPRETER) || ENABLE(LLINT)
     if (m_canUseJIT)
         m_canUseJIT = executableAllocator.isValid();
+    
+    if (!Options::useJIT)
+        m_canUseJIT = false;
 #endif
     jitStubs = adoptPtr(new JITThunks(this));
 #endif
-
-    interpreter->initialize(this->canUseJIT());
+    
+    interpreter->initialize(&llintData, this->canUseJIT());
+    
+    initializeHostCallReturnValue(); // This is needed to convince the linker not to drop host call return support.
 
     heap.notifyIsSafeToCollect();
+    
+    llintData.performAssertions(*this);
 }
 
 void JSGlobalData::clearBuiltinStructures()
@@ -383,7 +394,7 @@ static ThunkGenerator thunkGeneratorForIntrinsic(Intrinsic intrinsic)
 
 NativeExecutable* JSGlobalData::getHostFunction(NativeFunction function, NativeFunction constructor)
 {
-#if ENABLE(INTERPRETER)
+#if ENABLE(CLASSIC_INTERPRETER)
     if (!canUseJIT())
         return NativeExecutable::create(*this, function, constructor);
 #endif
@@ -467,7 +478,7 @@ void JSGlobalData::releaseExecutableMemory()
             if (cell->inherits(&ScriptExecutable::s_info))
                 executable = static_cast<ScriptExecutable*>(*ptr);
             else if (cell->inherits(&JSFunction::s_info)) {
-                JSFunction* function = asFunction(*ptr);
+                JSFunction* function = jsCast<JSFunction*>(*ptr);
                 if (function->isHostFunction())
                     continue;
                 executable = function->jsExecutable();

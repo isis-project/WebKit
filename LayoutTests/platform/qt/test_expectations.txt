@@ -21,10 +21,24 @@ BUGWK62662 DEBUG : inspector/cookie-parser.html = CRASH PASS
 
 BUGWK73766 : css3/unicode-bidi-isolate-aharon-failing.html = FAIL
 
-BUGWK74270 : fast/forms/basic-selects.html = FAIL
+// Rebaseline after https://bugs.webkit.org/show_bug.cgi?id=78412
+BUGWK78412 : tables/mozilla/bugs/bug2123.html = TEXT
+BUGWK78412 : tables/mozilla/bugs/bug2509.html = TEXT
+BUGWK78412 : tables/mozilla/bugs/bug34176.html = TEXT
+BUGWK78412 : tables/mozilla/bugs/bug44505.html = TEXT
+BUGWK78412 : tables/mozilla_expected_failures/bugs/bug59252.html = TEXT
+BUGWK78412 : tables/mozilla_expected_failures/bugs/bug7243.html = TEXT
 
-// The test hits an ASSERT in Debug.
-BUGWK68859 DEBUG : fast/dynamic/crash-paint-no-documentElement-renderer.html = CRASH
+// Temporary: generate platform specific IETestCenter results, then
+// remove when bots produce reference.
+BUGWK81936 : ietestcenter/css3/text/textshadow-001.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-002.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-003.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-004.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-005.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-006.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-007.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-008.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-009.htm = FAIL MISSING
+BUGWK81936 : ietestcenter/css3/text/textshadow-010.htm = FAIL MISSING
 
-// Needs baseline
-BUGWK76118 : fast/css/text-overflow-input.html = MISSING

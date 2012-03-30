@@ -63,7 +63,10 @@ class SQLTransaction;
 // For builds with IconDatabase disabled, they'll just use a default derivation of IconDatabaseBase. Which does nothing.
 class IconDatabase : public IconDatabaseBase {
 public:
+    static PassOwnPtr<IconDatabase> create() { return adoptPtr(new IconDatabase); }
     static void delayDatabaseCleanup() { }
+    static void allowDatabaseCleanup() { }
+    static void checkIntegrityBeforeOpening() { }
     static String defaultDatabaseFilename() { return "WebpageIcons.db"; }
 };
 #else 
@@ -183,15 +186,15 @@ public:
     virtual bool shouldStopThreadActivity() const;
 
 private:    
-    static void* iconDatabaseSyncThreadStart(void *);
-    void* iconDatabaseSyncThread();
+    static void iconDatabaseSyncThreadStart(void *);
+    void iconDatabaseSyncThread();
     
     // The following block of methods are called exclusively by the sync thread to manage i/o to and from the database
     // Each method should periodically monitor m_threadTerminationRequested when it makes sense to return early on shutdown
     void performOpenInitialization();
     bool checkIntegrity();
     void performURLImport();
-    void* syncThreadMainLoop();
+    void syncThreadMainLoop();
     bool readFromDatabase();
     bool writeToDatabase();
     void pruneUnretainedIcons();

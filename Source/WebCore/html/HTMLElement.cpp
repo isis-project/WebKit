@@ -29,6 +29,7 @@
 #include "CSSParser.h"
 #include "CSSPropertyNames.h"
 #include "CSSValueKeywords.h"
+#include "CSSValuePool.h"
 #include "ChildListMutationScope.h"
 #include "DocumentFragment.h"
 #include "Event.h"
@@ -142,11 +143,8 @@ static unsigned parseBorderWidthAttribute(Attribute* attr)
 
 void HTMLElement::applyBorderAttributeToStyle(Attribute* attr, StylePropertySet* style)
 {
-    style->setProperty(CSSPropertyBorderWidth, String::number(parseBorderWidthAttribute(attr)));
-    style->setProperty(CSSPropertyBorderTopStyle, CSSValueSolid);
-    style->setProperty(CSSPropertyBorderRightStyle, CSSValueSolid);
-    style->setProperty(CSSPropertyBorderBottomStyle, CSSValueSolid);
-    style->setProperty(CSSPropertyBorderLeftStyle, CSSValueSolid);
+    addPropertyToAttributeStyle(style, CSSPropertyBorderWidth, parseBorderWidthAttribute(attr), CSSPrimitiveValue::CSS_PX);
+    addPropertyToAttributeStyle(style, CSSPropertyBorderStyle, CSSValueSolid);
 }
 
 void HTMLElement::mapLanguageAttributeToLocale(Attribute* attribute, StylePropertySet* style)
@@ -154,55 +152,55 @@ void HTMLElement::mapLanguageAttributeToLocale(Attribute* attribute, StyleProper
     ASSERT(attribute && (attribute->name() == langAttr || attribute->name().matches(XMLNames::langAttr)));
     if (!attribute->isEmpty()) {
         // Have to quote so the locale id is treated as a string instead of as a CSS keyword.
-        style->setProperty(CSSPropertyWebkitLocale, quoteCSSString(attribute->value()));
+        addPropertyToAttributeStyle(style, CSSPropertyWebkitLocale, quoteCSSString(attribute->value()));
     } else {
         // The empty string means the language is explicitly unknown.
-        style->setProperty(CSSPropertyWebkitLocale, CSSValueAuto);
+        addPropertyToAttributeStyle(style, CSSPropertyWebkitLocale, CSSValueAuto);
     }
 }
 
-bool HTMLElement::isPresentationAttribute(Attribute* attr) const
+bool HTMLElement::isPresentationAttribute(const QualifiedName& name) const
 {
-    if (attr->name() == alignAttr || attr->name() == contenteditableAttr || attr->name() == hiddenAttr || attr->name() == langAttr || attr->name().matches(XMLNames::langAttr) || attr->name() == draggableAttr || attr->name() == dirAttr)
+    if (name == alignAttr || name == contenteditableAttr || name == hiddenAttr || name == langAttr || name.matches(XMLNames::langAttr) || name == draggableAttr || name == dirAttr)
         return true;
-    return StyledElement::isPresentationAttribute(attr);
+    return StyledElement::isPresentationAttribute(name);
 }
 
 void HTMLElement::collectStyleForAttribute(Attribute* attr, StylePropertySet* style)
 {
     if (attr->name() == alignAttr) {
         if (equalIgnoringCase(attr->value(), "middle"))
-            style->setProperty(CSSPropertyTextAlign, "center");
+            addPropertyToAttributeStyle(style, CSSPropertyTextAlign, CSSValueCenter);
         else
-            style->setProperty(CSSPropertyTextAlign, attr->value());
+            addPropertyToAttributeStyle(style, CSSPropertyTextAlign, attr->value());
     } else if (attr->name() == contenteditableAttr) {
         if (attr->isEmpty() || equalIgnoringCase(attr->value(), "true")) {
-            style->setProperty(CSSPropertyWebkitUserModify, CSSValueReadWrite);
-            style->setProperty(CSSPropertyWordWrap, CSSValueBreakWord);
-            style->setProperty(CSSPropertyWebkitNbspMode, CSSValueSpace);
-            style->setProperty(CSSPropertyWebkitLineBreak, CSSValueAfterWhiteSpace);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitUserModify, CSSValueReadWrite);
+            addPropertyToAttributeStyle(style, CSSPropertyWordWrap, CSSValueBreakWord);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitNbspMode, CSSValueSpace);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitLineBreak, CSSValueAfterWhiteSpace);
         } else if (equalIgnoringCase(attr->value(), "plaintext-only")) {
-            style->setProperty(CSSPropertyWebkitUserModify, CSSValueReadWritePlaintextOnly);
-            style->setProperty(CSSPropertyWordWrap, CSSValueBreakWord);
-            style->setProperty(CSSPropertyWebkitNbspMode, CSSValueSpace);
-            style->setProperty(CSSPropertyWebkitLineBreak, CSSValueAfterWhiteSpace);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitUserModify, CSSValueReadWritePlaintextOnly);
+            addPropertyToAttributeStyle(style, CSSPropertyWordWrap, CSSValueBreakWord);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitNbspMode, CSSValueSpace);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitLineBreak, CSSValueAfterWhiteSpace);
         } else if (equalIgnoringCase(attr->value(), "false"))
-            style->setProperty(CSSPropertyWebkitUserModify, CSSValueReadOnly);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitUserModify, CSSValueReadOnly);
     } else if (attr->name() == hiddenAttr) {
-        style->setProperty(CSSPropertyDisplay, CSSValueNone);
+        addPropertyToAttributeStyle(style, CSSPropertyDisplay, CSSValueNone);
     } else if (attr->name() == draggableAttr) {
         if (equalIgnoringCase(attr->value(), "true")) {
-            style->setProperty(CSSPropertyWebkitUserDrag, CSSValueElement);
-            style->setProperty(CSSPropertyWebkitUserSelect, CSSValueNone);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitUserDrag, CSSValueElement);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitUserSelect, CSSValueNone);
         } else if (equalIgnoringCase(attr->value(), "false"))
-            style->setProperty(CSSPropertyWebkitUserDrag, CSSValueNone);
+            addPropertyToAttributeStyle(style, CSSPropertyWebkitUserDrag, CSSValueNone);
     } else if (attr->name() == dirAttr) {
         if (equalIgnoringCase(attr->value(), "auto"))
-            style->setProperty(CSSPropertyUnicodeBidi, unicodeBidiAttributeForDirAuto(this));
+            addPropertyToAttributeStyle(style, CSSPropertyUnicodeBidi, unicodeBidiAttributeForDirAuto(this));
         else {
-            style->setProperty(CSSPropertyDirection, attr->value());
+            addPropertyToAttributeStyle(style, CSSPropertyDirection, attr->value());
             if (!hasTagName(bdiTag) && !hasTagName(bdoTag) && !hasTagName(outputTag))
-                style->setProperty(CSSPropertyUnicodeBidi, CSSValueEmbed);
+                addPropertyToAttributeStyle(style, CSSPropertyUnicodeBidi, CSSValueEmbed);
         }
     } else if (attr->name().matches(XMLNames::langAttr)) {
         mapLanguageAttributeToLocale(attr, style);
@@ -236,7 +234,6 @@ void HTMLElement::parseAttribute(Attribute* attr)
         setItemRef(attr->value());
     } else if (attr->name() == itemtypeAttr) {
         setItemType(attr->value());
-        itemTypeAttributeChanged();
 #endif
     }
 // standard events
@@ -343,84 +340,6 @@ String HTMLElement::innerHTML() const
 String HTMLElement::outerHTML() const
 {
     return createMarkup(this);
-}
-
-static inline bool hasOneChild(ContainerNode* node)
-{
-    Node* firstChild = node->firstChild();
-    return firstChild && !firstChild->nextSibling();
-}
-
-static inline bool hasOneTextChild(ContainerNode* node)
-{
-    return hasOneChild(node) && node->firstChild()->isTextNode();
-}
-
-static void replaceChildrenWithFragment(HTMLElement* element, PassRefPtr<DocumentFragment> fragment, ExceptionCode& ec)
-{
-#if ENABLE(MUTATION_OBSERVERS)
-    ChildListMutationScope mutation(element);
-#endif
-
-    if (!fragment->firstChild()) {
-        element->removeChildren();
-        return;
-    }
-
-    if (hasOneTextChild(element) && hasOneTextChild(fragment.get())) {
-        toText(element->firstChild())->setData(toText(fragment->firstChild())->data(), ec);
-        return;
-    }
-
-    if (hasOneChild(element)) {
-        element->replaceChild(fragment, element->firstChild(), ec);
-        return;
-    }
-
-    element->removeChildren();
-    element->appendChild(fragment, ec);
-}
-
-static void replaceChildrenWithText(HTMLElement* element, const String& text, ExceptionCode& ec)
-{
-#if ENABLE(MUTATION_OBSERVERS)
-    ChildListMutationScope mutation(element);
-#endif
-
-    if (hasOneTextChild(element)) {
-        toText(element->firstChild())->setData(text, ec);
-        return;
-    }
-
-    RefPtr<Text> textNode = Text::create(element->document(), text);
-
-    if (hasOneChild(element)) {
-        element->replaceChild(textNode.release(), element->firstChild(), ec);
-        return;
-    }
-
-    element->removeChildren();
-    element->appendChild(textNode.release(), ec);
-}
-
-// We may want to move a version of this function into DocumentFragment.h/cpp
-static PassRefPtr<DocumentFragment> createFragmentFromSource(const String& markup, Element* contextElement, ExceptionCode& ec)
-{
-    Document* document = contextElement->document();
-    RefPtr<DocumentFragment> fragment;
-
-    fragment = DocumentFragment::create(document);
-    if (document->isHTMLDocument()) {
-        fragment->parseHTML(markup, contextElement);
-        return fragment;
-    }
-
-    bool wasValid = fragment->parseXML(markup, contextElement);
-    if (!wasValid) {
-        ec = INVALID_STATE_ERR;
-        return 0;
-    }
-    return fragment;
 }
 
 void HTMLElement::setInnerHTML(const String& html, ExceptionCode& ec)
@@ -711,10 +630,10 @@ void HTMLElement::applyAlignmentAttributeToStyle(Attribute* attr, StylePropertyS
         verticalAlignValue = CSSValueTextTop;
 
     if (floatValue != CSSValueInvalid)
-        style->setProperty(CSSPropertyFloat, floatValue);
+        addPropertyToAttributeStyle(style, CSSPropertyFloat, floatValue);
 
     if (verticalAlignValue != CSSValueInvalid)
-        style->setProperty(CSSPropertyVerticalAlign, verticalAlignValue);
+        addPropertyToAttributeStyle(style, CSSPropertyVerticalAlign, verticalAlignValue);
 }
 
 bool HTMLElement::supportsFocus() const
@@ -800,6 +719,42 @@ void HTMLElement::setTabIndex(int value)
     setAttribute(tabindexAttr, String::number(value));
 }
 
+TranslateAttributeMode HTMLElement::translateAttributeMode() const
+{
+    const AtomicString& value = getAttribute(translateAttr);
+
+    if (value == nullAtom)
+        return TranslateAttributeInherit;
+    if (equalIgnoringCase(value, "yes") || equalIgnoringCase(value, ""))
+        return TranslateAttributeYes;
+    if (equalIgnoringCase(value, "no"))
+        return TranslateAttributeNo;
+
+    return TranslateAttributeInherit;
+}
+
+bool HTMLElement::translate() const
+{
+    for (const Node* n = this; n; n = n->parentNode()) {
+        if (n->isHTMLElement()) {
+            TranslateAttributeMode mode = static_cast<const HTMLElement*>(n)->translateAttributeMode();
+            if (mode != TranslateAttributeInherit) {
+                ASSERT(mode == TranslateAttributeYes || mode == TranslateAttributeNo);
+                return mode == TranslateAttributeYes;
+            }
+        }
+    }
+
+    // Default on the root element is translate=yes.
+    return true;
+}
+
+void HTMLElement::setTranslate(bool enable)
+{
+    setAttribute(translateAttr, enable ? "yes" : "no");
+}
+
+
 HTMLCollection* HTMLElement::children()
 {
     return ensureCachedHTMLCollection(NodeChildren);
@@ -840,6 +795,11 @@ HTMLFormElement* HTMLElement::virtualForm() const
     return findFormAncestor();
 }
 
+static inline bool elementAffectsDirectionality(const Node* node)
+{
+    return node->isHTMLElement() && (node->hasTagName(bdiTag) || toHTMLElement(node)->hasAttribute(dirAttr));
+}
+
 static void setHasDirAutoFlagRecursively(Node* firstNode, bool flag, Node* lastNode = 0)
 {
     firstNode->setSelfOrAncestorHasDirAutoAttribute(flag);
@@ -850,7 +810,7 @@ static void setHasDirAutoFlagRecursively(Node* firstNode, bool flag, Node* lastN
         if (node->selfOrAncestorHasDirAutoAttribute() == flag)
             return;
 
-        if (node->isHTMLElement() && toElement(node)->hasAttribute(dirAttr)) {
+        if (elementAffectsDirectionality(node)) {
             if (node == lastNode)
                 return;
             node = node->traverseNextSibling(firstNode);
@@ -869,9 +829,15 @@ void HTMLElement::childrenChanged(bool changedByParser, Node* beforeChange, Node
     adjustDirectionalityIfNeededAfterChildrenChanged(beforeChange, childCountDelta);
 }
 
+bool HTMLElement::hasDirectionAuto() const
+{
+    const AtomicString& direction = fastGetAttribute(dirAttr);
+    return (hasTagName(bdiTag) && direction == nullAtom) || equalIgnoringCase(direction, "auto");
+}
+
 TextDirection HTMLElement::directionalityIfhasDirAutoAttribute(bool& isAuto) const
 {
-    if (!(selfOrAncestorHasDirAutoAttribute() && equalIgnoringCase(getAttribute(dirAttr), "auto"))) {
+    if (!(selfOrAncestorHasDirAutoAttribute() && hasDirectionAuto())) {
         isAuto = false;
         return LTR;
     }
@@ -944,7 +910,7 @@ void HTMLElement::adjustDirectionalityIfNeededAfterChildAttributeChanged(Element
     if (renderer() && renderer()->style() && renderer()->style()->direction() != textDirection) {
         Element* elementToAdjust = this;
         for (; elementToAdjust; elementToAdjust = elementToAdjust->parentElement()) {
-            if (elementToAdjust->hasAttribute(dirAttr)) {
+            if (elementAffectsDirectionality(elementToAdjust)) {
                 elementToAdjust->setNeedsStyleRecalc();
                 return;
             }
@@ -966,7 +932,7 @@ void HTMLElement::adjustDirectionalityIfNeededAfterChildrenChanged(Node* beforeC
     if ((!document() || document()->renderer()) && childCountDelta < 0) {
         Node* node = beforeChange ? beforeChange->traverseNextSibling() : 0;
         for (int counter = 0; node && counter < childCountDelta; counter++, node = node->traverseNextSibling()) {
-            if (node->isElementNode() && toElement(node)->hasAttribute(dirAttr))
+            if (elementAffectsDirectionality(node))
                 continue;
 
             setHasDirAutoFlagRecursively(node, false);
@@ -977,13 +943,13 @@ void HTMLElement::adjustDirectionalityIfNeededAfterChildrenChanged(Node* beforeC
         return;
 
     Node* oldMarkedNode = beforeChange ? beforeChange->traverseNextSibling() : 0;
-    while (oldMarkedNode && oldMarkedNode->isHTMLElement() && toHTMLElement(oldMarkedNode)->hasAttribute(dirAttr))
+    while (oldMarkedNode && elementAffectsDirectionality(oldMarkedNode))
         oldMarkedNode = oldMarkedNode->traverseNextSibling(this);
     if (oldMarkedNode)
         setHasDirAutoFlagRecursively(oldMarkedNode, false);
 
     for (Element* elementToAdjust = this; elementToAdjust; elementToAdjust = elementToAdjust->parentElement()) {
-        if (elementToAdjust->isHTMLElement() && elementToAdjust->hasAttribute(dirAttr)) {
+        if (elementAffectsDirectionality(elementToAdjust)) {
             toHTMLElement(elementToAdjust)->calculateAndAdjustDirectionality();
             return;
         }
@@ -1059,15 +1025,15 @@ void HTMLElement::addHTMLLengthToStyle(StylePropertySet* style, int propertyID, 
         }
 
         if (l != v->length()) {
-            style->setProperty(propertyID, v->substring(0, l));
+            addPropertyToAttributeStyle(style, propertyID, v->substring(0, l));
             return;
         }
     }
 
-    style->setProperty(propertyID, value);
+    addPropertyToAttributeStyle(style, propertyID, value);
 }
 
-static String parseColorStringWithCrazyLegacyRules(const String& colorString)
+static RGBA32 parseColorStringWithCrazyLegacyRules(const String& colorString)
 {
     // Per spec, only look at the first 128 digits of the string.
     const size_t maxColorLength = 128;
@@ -1089,14 +1055,14 @@ static String parseColorStringWithCrazyLegacyRules(const String& colorString)
     }
 
     if (!digitBuffer.size())
-        return "#000000";
+        return Color::black;
 
     // Pad the buffer out to at least the next multiple of three in size.
     digitBuffer.append('0');
     digitBuffer.append('0');
 
     if (digitBuffer.size() < 6)
-        return String::format("#0%c0%c0%c", digitBuffer[0], digitBuffer[1], digitBuffer[2]);
+        return makeRGB(toASCIIHexValue(digitBuffer[0]), toASCIIHexValue(digitBuffer[1]), toASCIIHexValue(digitBuffer[2]));
 
     // Split the digits into three components, then search the last 8 digits of each component.
     ASSERT(digitBuffer.size() >= 6);
@@ -1116,7 +1082,11 @@ static String parseColorStringWithCrazyLegacyRules(const String& colorString)
     ASSERT(greenIndex + 1 < componentLength * 2);
     ASSERT(blueIndex >= componentLength * 2);
     ASSERT(blueIndex + 1 < digitBuffer.size());
-    return String::format("#%c%c%c%c%c%c", digitBuffer[redIndex], digitBuffer[redIndex + 1], digitBuffer[greenIndex], digitBuffer[greenIndex + 1], digitBuffer[blueIndex], digitBuffer[blueIndex + 1]);
+
+    int redValue = toASCIIHexValue(digitBuffer[redIndex], digitBuffer[redIndex + 1]);
+    int greenValue = toASCIIHexValue(digitBuffer[greenIndex], digitBuffer[greenIndex + 1]);
+    int blueValue = toASCIIHexValue(digitBuffer[blueIndex], digitBuffer[blueIndex + 1]);
+    return makeRGB(redValue, greenValue, blueValue);
 }
 
 // Color parsing that matches HTML's "rules for parsing a legacy color value"
@@ -1134,12 +1104,10 @@ void HTMLElement::addHTMLColorToStyle(StylePropertySet* style, int propertyID, c
 
     // If the string is a named CSS color or a 3/6-digit hex color, use that.
     Color parsedColor(colorString);
-    if (parsedColor.isValid()) {
-        style->setProperty(propertyID, colorString);
-        return;
-    }
+    if (!parsedColor.isValid())
+        parsedColor.setRGB(parseColorStringWithCrazyLegacyRules(colorString));
 
-    style->setProperty(propertyID, parseColorStringWithCrazyLegacyRules(colorString));
+    style->setProperty(propertyID, document()->cssValuePool()->createColorValue(parsedColor.rgb()));
 }
 
 void StyledElement::copyNonAttributeProperties(const Element* sourceElement)
@@ -1148,16 +1116,15 @@ void StyledElement::copyNonAttributeProperties(const Element* sourceElement)
     ASSERT(sourceElement->isStyledElement());
 
     const StyledElement* source = static_cast<const StyledElement*>(sourceElement);
-    if (!source->inlineStyleDecl())
+    if (!source->inlineStyle())
         return;
 
-    StylePropertySet* inlineStyle = ensureInlineStyleDecl();
-    inlineStyle->copyPropertiesFrom(*source->inlineStyleDecl());
-    inlineStyle->setStrictParsing(source->inlineStyleDecl()->useStrictParsing());
+    StylePropertySet* inlineStyle = ensureAttributeData()->ensureMutableInlineStyle(this);
+    inlineStyle->copyPropertiesFrom(*source->inlineStyle());
+    inlineStyle->setStrictParsing(source->inlineStyle()->useStrictParsing());
 
     setIsStyleAttributeValid(source->isStyleAttributeValid());
-    setIsSynchronizingStyleAttribute(source->isSynchronizingStyleAttribute());
-    
+
     Element::copyNonAttributeProperties(sourceElement);
 }
 

@@ -100,7 +100,6 @@ class Port(object):
         # These are default values that should be overridden in a subclasses.
         self._version = ''
         self._architecture = 'x86'
-        self._graphics_type = 'cpu'
 
         # FIXME: Ideally we'd have a package-wide way to get a
         # well-formed options object that had all of the necessary
@@ -142,6 +141,9 @@ class Port(object):
         self._reftest_list = {}
         self._results_directory = None
 
+    def default_test_timeout_ms(self):
+        return 6 * 1000
+
     def wdiff_available(self):
         if self._wdiff_available is None:
             self._wdiff_available = self.check_wdiff(logging=False)
@@ -168,6 +170,13 @@ class Port(object):
 
     def default_worker_model(self):
         return 'processes'
+
+    def worker_startup_delay_secs(self):
+        # FIXME: If we start workers up too quickly, DumpRenderTree appears
+        # to thrash on something and time out its first few tests. Until
+        # we can figure out what's going on, sleep a bit in between
+        # workers. See https://bugs.webkit.org/show_bug.cgi?id=79147 .
+        return 0.1
 
     def baseline_path(self):
         """Return the absolute path to the directory to store new baselines in for this port."""
@@ -281,9 +290,6 @@ class Port(object):
                                     actual_filename)
         return ''.join(diff)
 
-    def is_crash_reporter(self, process_name):
-        return False
-
     def check_for_leaks(self, process_name, process_pid):
         # Subclasses should check for leaks in the running process
         # and print any necessary warnings if leaks are found.
@@ -372,6 +378,11 @@ class Port(object):
         platform_dir, baseline_filename = self.expected_baselines(test_name, suffix)[0]
         if platform_dir:
             return self._filesystem.join(platform_dir, baseline_filename)
+
+        actual_test_name = self.lookup_virtual_test_base(test_name)
+        if actual_test_name:
+            return self.expected_filename(actual_test_name, suffix)
+
         return self._filesystem.join(self.layout_tests_dir(), baseline_filename)
 
     def expected_checksum(self, test_name):
@@ -452,6 +463,9 @@ class Port(object):
 
     def tests(self, paths):
         """Return the list of tests found."""
+        return self._real_tests(paths).union(self._virtual_tests(paths, self.populated_virtual_test_suites()))
+
+    def _real_tests(self, paths):
         # When collecting test cases, skip these directories
         skipped_directories = set(['.svn', '_svn', 'resources', 'script-tests', 'reference', 'reftest'])
         files = find_files.find(self._filesystem, self.layout_tests_dir(), paths, skipped_directories, Port._is_test_file)
@@ -491,22 +505,26 @@ class Port(object):
     def test_isfile(self, test_name):
         """Return True if the test name refers to a directory of tests."""
         # Used by test_expectations.py to apply rules to whole directories.
-        test_path = self.abspath_for_test(test_name)
-        return self._filesystem.isfile(test_path)
+        if self._filesystem.isfile(self.abspath_for_test(test_name)):
+            return True
+        base = self.lookup_virtual_test_base(test_name)
+        return base and self._filesystem.isfile(self.abspath_for_test(base))
 
     @memoized
     def test_isdir(self, test_name):
         """Return True if the test name refers to a directory of tests."""
         # Used by test_expectations.py to apply rules to whole directories.
-        test_path = self.abspath_for_test(test_name)
-        return self._filesystem.isdir(test_path)
+        if self._filesystem.isdir(self.abspath_for_test(test_name)):
+            return True
+        base = self.lookup_virtual_test_base(test_name)
+        return base and self._filesystem.isdir(self.abspath_for_test(base))
 
+    @memoized
     def test_exists(self, test_name):
         """Return True if the test name refers to an existing test or baseline."""
         # Used by test_expectations.py to determine if an entry refers to a
         # valid test and by printing.py to determine if baselines exist.
-        test_path = self.abspath_for_test(test_name)
-        return self._filesystem.exists(test_path)
+        return self.test_isfile(test_name) or self.test_isdir(test_name)
 
     def split_test(self, test_name):
         """Splits a test name into the 'directory' part and the 'basename' part."""
@@ -526,7 +544,7 @@ class Port(object):
     def driver_cmd_line(self):
         """Prints the DRT command line that will be used."""
         driver = self.create_driver(0)
-        return driver.cmd_line()
+        return driver.cmd_line(self.get_option('pixel_tests'), [])
 
     def update_baseline(self, baseline_path, data):
         """Updates the baseline for a test.
@@ -581,7 +599,7 @@ class Port(object):
         return self._expectations_from_skipped_files([self.perf_tests_dir()])
 
     def skipped_tests(self, test_list):
-        return []
+        return set([])
 
     def skips_layout_test(self, test_name):
         """Figures out if the givent test is being skipped or not.
@@ -606,14 +624,9 @@ class Port(object):
 
     def name(self):
         """Returns a name that uniquely identifies this particular type of port
-        (e.g., "mac-snowleopard" or "chromium-gpu-linux-x86_x64" and can be passed
+        (e.g., "mac-snowleopard" or "chromium-linux-x86_x64" and can be passed
         to factory.get() to instantiate the port."""
         return self._name
-
-    def real_name(self):
-        # FIXME: Seems this is only used for MockDRT and should be removed.
-        """Returns the name of the port as passed to the --platform command line argument."""
-        return self.name()
 
     def operating_system(self):
         # Subclasses should override this default implementation.
@@ -626,10 +639,6 @@ class Port(object):
         This is used to help identify the exact port when parsing test
         expectations, determining search paths, and logging information."""
         return self._version
-
-    def graphics_type(self):
-        """Returns whether the port uses accelerated graphics ('gpu') or not ('cpu')."""
-        return self._graphics_type
 
     def architecture(self):
         return self._architecture
@@ -814,7 +823,7 @@ class Port(object):
     def test_configuration(self):
         """Returns the current TestConfiguration for the port."""
         if not self._test_configuration:
-            self._test_configuration = TestConfiguration(self._version, self._architecture, self._options.configuration.lower(), self._graphics_type)
+            self._test_configuration = TestConfiguration(self._version, self._architecture, self._options.configuration.lower())
         return self._test_configuration
 
     # FIXME: Belongs on a Platform object.
@@ -1041,3 +1050,65 @@ class Port(object):
     def _driver_class(self):
         """Returns the port's driver implementation."""
         raise NotImplementedError('Port._driver_class')
+
+    def _get_crash_log(self, name, pid, stdout, stderr):
+        name_str = name or '<unknown process name>'
+        pid_str = str(pid or '<unknown>')
+        stdout_lines = (stdout or '<empty>').decode('utf8').splitlines()
+        stderr_lines = (stderr or '<empty>').decode('utf8').splitlines()
+        return 'crash log for %s (pid %s):\n%s\n%s\n' % (name_str, pid_str,
+            '\n'.join(('STDOUT: ' + l) for l in stdout_lines),
+            '\n'.join(('STDERR: ' + l) for l in stderr_lines))
+
+    def virtual_test_suites(self):
+        return []
+
+    @memoized
+    def populated_virtual_test_suites(self):
+        suites = self.virtual_test_suites()
+
+        # Sanity-check the suites to make sure they don't point to other suites.
+        suite_dirs = [suite.name for suite in suites]
+        for suite in suites:
+            assert suite.base not in suite_dirs
+
+        for suite in suites:
+            base_tests = self._real_tests([suite.base])
+            suite.tests = {}
+            for test in base_tests:
+                suite.tests[test.replace(suite.base, suite.name)] = test
+        return suites
+
+    def _virtual_tests(self, paths, suites):
+        virtual_tests = set()
+        for suite in suites:
+            if paths:
+                for test in suite.tests:
+                    if any(test.startswith(p) for p in paths):
+                        virtual_tests.add(test)
+            else:
+                virtual_tests.update(set(suite.tests.keys()))
+        return virtual_tests
+
+    def lookup_virtual_test_base(self, test_name):
+        for suite in self.populated_virtual_test_suites():
+            if test_name.startswith(suite.name):
+                return suite.tests.get(test_name)
+        return None
+
+    def lookup_virtual_test_args(self, test_name):
+        for suite in self.populated_virtual_test_suites():
+            if test_name.startswith(suite.name):
+                return suite.args
+        return []
+
+
+class VirtualTestSuite(object):
+    def __init__(self, name, base, args, tests=None):
+        self.name = name
+        self.base = base
+        self.args = args
+        self.tests = tests or set()
+
+    def __repr__(self):
+        return "VirtualTestSuite('%s', '%s', %s)" % (self.name, self.base, self.args)

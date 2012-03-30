@@ -53,6 +53,10 @@ media/video-controls-transformed.html
 media/video-controls-zoomed.html
 media/video-source-error.html
 
+# Crashes due to debug assert until we fix issues with style elements in SVG
+# https://bugs.webkit.org/show_bug.cgi?id=77764
+svg/custom/use-referencing-style-crash.svg
+
 # This test requires media controls has a volume slider.
 media/video-volume-slider.html
 
@@ -83,6 +87,9 @@ plugins/reloadplugins-and-pages.html
 
 # This test requires ogg codecs
 media/media-can-play-ogg.html
+
+# This test requires flac codec
+media/media-can-play-flac-audio.html
 
 # These tests require touch support
 fast/events/touch
@@ -131,6 +138,9 @@ fast/media/media-query-list-07.html
 
 # Needs layoutTestController.enableAutoResizeMode()
 fast/autoresize
+
+# Uses layoutTestController.titleTextDirection, which is Chromium-only
+fast/dom/title-directionality-removeChild.html
 
 # Test is flaky and thus not useful until fixed.
 # https://bugs.webkit.org/show_bug.cgi?id=36642
@@ -220,8 +230,12 @@ gamepad/
 # Speech input is not yet enabled.
 fast/speech
 
+# Speech JavaScript API is not yet enabled.
+fast/events/constructors/speech-recognition-event-constructor.html
+
 # Media Stream API is not yet enabled.
 fast/dom/MediaStream
+fast/mediastream
 
 # Needs to be fixed at image decoder layer for Safari.
 fast/images/large-size-image-crash.html
@@ -278,10 +292,6 @@ http/tests/inspector/compiler-source-mapping-debug.html
 # Safari doesn't allow to customize outermost scrollbars.
 # https://bugs.webkit.org/show_bug.cgi?id=43960
 scrollbars/custom-scrollbar-with-incomplete-style.html
-
-# Timeout on Leopard only.
-# https://bugs.webkit.org/show_bug.cgi?id=45576
-fast/files/apply-blob-url-to-img.html
 
 # Crash due to r66850.
 # https://bugs.webkit.org/show_bug.cgi?id=45575
@@ -342,6 +352,9 @@ editing/pasteboard/data-transfer-items.html
 editing/pasteboard/data-transfer-items-image-png.html
 editing/pasteboard/data-transfer-items-drag-drop-file.html
 editing/pasteboard/data-transfer-items-drag-drop-string.html
+fast/events/clipboard-dataTransferItemList.html
+fast/events/drag-dataTransferItemList.html
+fast/events/drag-dataTransferItemList-file-handling.html
 
 # Replacement text for misspelling is not given from NSSpellChecker.
 # https://bugs.webkit.org/show_bug.cgi?id=77934
@@ -420,8 +433,7 @@ fast/css-grid-layout
 fast/css/style-scoped
 
 # ENABLE(SHADOW_DOM) is disabled.
-fast/dom/shadow/shadow-root-js-api.html
-fast/dom/shadow/shadow-disable.html
+fast/dom/shadow
 
 # JSC does not support setIsolatedWorldSecurityOrigin (http://webkit.org/b/61540)
 http/tests/security/isolatedWorld/cross-origin-xhr.html
@@ -457,6 +469,9 @@ scrollbars/scrollbar-drag-thumb-with-large-content.html
 
 # Font feature settings is not implemented.
 css3/font-feature-settings-rendering.html
+
+# CSS Shaders not enabled
+css3/filters/custom
 
 # This test verifies that a mismatch reftest will fail as intended if both results are same.
 fast/harness/sample-fail-mismatch-reftest.html
@@ -495,11 +510,6 @@ fast/canvas/webgl/uniform-location-length-limits.html
 # It needs a rebaseline
 fast/repaint/table-extra-bottom-grow.html
 
-# DRT doesn't support overridePreference("WebKit*FontMap"...)
-fast/text/international/content-language-font-selection.html
-fast/text/international/content-language-with-subtags.html
-fast/text/international/locale-sensitive-fonts.html
-
 # Web Intents is not yet enabled.
 webintents/
 
@@ -515,9 +525,6 @@ fast/dom/Window/window-postmessage-arrays.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=73148
 fast/canvas/webgl/webgl-texture-binding-preserved.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=73493
-fast/canvas/webgl/arraybuffer-transfer-of-control.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=73974
 fast/canvas/webgl/canvas-2d-webgl-texture.html
@@ -549,3 +556,67 @@ media/W3C/video/canPlayType/canPlayType_two_implies_one_6.html
 # Fails because MutationObservers are not notified at end-of-task
 # https://bugs.webkit.org/show_bug.cgi?id=78290
 fast/mutation/end-of-task-delivery.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=72010
+# Needs PageClients::vibrationClient() implementation.
+fast/dom/navigator-vibration.html
+
+# Touch adjustment not enabled
+# https://bugs.webkit.org/show_bug.cgi?id=78801
+touchadjustment
+
+# canvas/philip/tests/2d.line.cap.round.html fails on Mac Lion WK1
+# https://bugs.webkit.org/show_bug.cgi?id=81289
+# <rdar://problem/11059777>
+canvas/philip/tests/2d.line.cap.round.html
+canvas/philip/tests/2d.shadow.canvas.transparent.2.html
+canvas/philip/tests/2d.shadow.image.transparent.2.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=62698
+# Needs BatteryClient implementation.
+batterystatus/
+
+# https://bugs.webkit.org/show_bug.cgi?id=43022
+tables/mozilla_expected_failures/bugs/bug85016.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=81410
+scrollbars/scrollbar-middleclick-nopaste.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=81599
+# These canvas tests are flaky (fail on bots, not locally, or vice versa)
+fast/canvas/canvas-createPattern-fillRect-shadow.html
+fast/canvas/canvas-draw-canvas-on-canvas-shadow.html
+fast/canvas/canvas-fillRect-gradient-shadow.html
+fast/canvas/set-colors.html
+canvas/philip/tests/2d.path.arc.scale.1.html
+
+# Media tests that time out unexpectedly
+# https://bugs.webkit.org/show_bug.cgi?id=81604
+http/tests/media/video-buffering-repaints-controls.html
+http/tests/media/video-useragent.html
+media/audio-garbage-collect.html
+ 
+# parser test that times out waiting for notifyDone
+# http://bugs.webkit.org/show_bug.cgi?id=81618
+fast/workers/storage/use-same-database-in-page-and-workers.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=81276
+# Allowed to regress to fix a crash. 
+fast/inline/continuation-outlines-with-layers.html
+
+# Not possible to set UA string for media requests with all Mac media engines.
+http/tests/media/video-useragent.html
+
+# Rebaseline after https://bugs.webkit.org/show_bug.cgi?id=78412
+tables/mozilla/bugs/bug2123.html
+tables/mozilla/bugs/bug2509.html
+tables/mozilla/bugs/bug34176.html
+tables/mozilla/bugs/bug44505.html
+tables/mozilla_expected_failures/bugs/bug59252.html
+tables/mozilla_expected_failures/bugs/bug7243.html
+fast/repaint/scroll-inside-table-cell.html
+fast/repaint/scroll-relative-table-inside-table-cell.html
+fast/table/cell-pref-width-invalidation.html
+
+# The inner <input> should now grow to take the full cell's height.
+fast/table/colspanMinWidth-vertical.html
