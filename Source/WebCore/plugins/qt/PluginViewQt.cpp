@@ -472,13 +472,13 @@ void PluginView::handleKeyboardEvent(KeyboardEvent* event)
     npEvent.data.keyEvent.chr = event->keyEvent()->text()[0];
     npEvent.data.keyEvent.modifiers = 0x0;
     if (event->ctrlKey())
-        npEvent.data.gestureEvent.modifiers |= npPalmCtrlKeyModifier;
+        npEvent.data.keyEvent.modifiers |= npPalmCtrlKeyModifier;
     if (event->altKey())
-        npEvent.data.gestureEvent.modifiers |= npPalmAltKeyModifier;
+        npEvent.data.keyEvent.modifiers |= npPalmAltKeyModifier;
     if (event->shiftKey())
-        npEvent.data.gestureEvent.modifiers |= npPalmShiftKeyModifier;
+        npEvent.data.keyEvent.modifiers |= npPalmShiftKeyModifier;
     if (event->metaKey())
-        npEvent.data.gestureEvent.modifiers |= npPalmMetaKeyModifier;
+        npEvent.data.keyEvent.modifiers |= npPalmMetaKeyModifier;
 
     // Our old GTK derived implementation would also preserve the raw key code &
     // modifiers for use by the adapter/server. This may no longer be necessary today.
