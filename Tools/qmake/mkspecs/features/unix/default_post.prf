@@ -11,7 +11,7 @@ linux-g++* {
         !contains(QT, declarative): QMAKE_CXXFLAGS += -Werror
     }
 
-    greaterThan(QT_GCC_MAJOR_VERSION, 3):greaterThan(QT_GCC_MINOR_VERSION, 5) {
+    # greaterThan(QT_GCC_MAJOR_VERSION, 3):greaterThan(QT_GCC_MINOR_VERSION, 5) {
         if (!contains(QMAKE_CXXFLAGS, -std=c++0x) && !contains(QMAKE_CXXFLAGS, -std=gnu++0x)) {
             # We need to deactivate those warnings because some names conflicts with upcoming c++0x types (e.g.nullptr).
             QMAKE_CFLAGS_WARN_ON += -Wno-c++0x-compat
@@ -19,7 +19,7 @@ linux-g++* {
             QMAKE_CFLAGS += -Wno-c++0x-compat
             QMAKE_CXXFLAGS += -Wno-c++0x-compat
         }
-    }
+    # }
 }
 
 # Don't warn about OVERRIDE and FINAL, since they are feature-checked anyways
