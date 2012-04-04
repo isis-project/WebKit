@@ -2474,11 +2474,17 @@ void EventHandler::bestClickableNodeForTouchPoint(const IntPoint& touchCenter, c
 
     IntRect touchRect = result.rectForPoint(touchCenter);
     RefPtr<StaticHashSetNodeList> nodeList = StaticHashSetNodeList::adopt(result.rectBasedTestResult());
-    if (!findBestClickableCandidate(targetNode, targetPoint, touchCenter, touchRect, *nodeList.get())) {
-        // Default to just returning innerNonSharedNode.
-        targetPoint = touchCenter;
-        targetNode = result.innerNonSharedNode();
-    }
+    findBestClickableCandidate(targetNode, targetPoint, touchCenter, touchRect, *nodeList.get());
+}
+
+void EventHandler::bestZoomableAreaForTouchPoint(const IntPoint& touchCenter, const IntSize& touchRadius, IntRect& targetArea, Node*& targetNode)
+{
+    HitTestRequest::HitTestRequestType hitType = HitTestRequest::ReadOnly | HitTestRequest::Active;
+    HitTestResult result = hitTestResultAtPoint(touchCenter, /*allowShadowContent*/ false, /*ignoreClipping*/ false, DontHitTestScrollbars, hitType, touchRadius);
+
+    IntRect touchRect = result.rectForPoint(touchCenter);
+    RefPtr<StaticHashSetNodeList> nodeList = StaticHashSetNodeList::adopt(result.rectBasedTestResult());
+    findBestZoomableArea(targetNode, targetArea, touchCenter, touchRect, *nodeList.get());
 }
 #endif
 
@@ -3585,7 +3591,7 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
         // Ensure this target's touch list exists, even if it ends up empty, so it can always be passed to TouchEvent::Create below.
         TargetTouchesMap::iterator targetTouchesIterator = touchesByTarget.find(touchTarget.get());
         if (targetTouchesIterator == touchesByTarget.end())
-            targetTouchesIterator = touchesByTarget.set(touchTarget.get(), TouchList::create()).first;
+            targetTouchesIterator = touchesByTarget.set(touchTarget.get(), TouchList::create()).iterator;
 
         // touches and targetTouches should only contain information about touches still on the screen, so if this point is
         // released or cancelled it will only appear in the changedTouches list.

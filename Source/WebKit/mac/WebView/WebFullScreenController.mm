@@ -150,12 +150,17 @@ static IntRect screenRectOfContents(Element* element)
     _element = element;
 }
 
+- (BOOL)isFullScreen
+{
+    return _isFullScreen;
+}
+
 #pragma mark -
 #pragma mark NSWindowController overrides
 
 - (void)cancelOperation:(id)sender
 {
-    [self performSelector:@selector(exitFullScreen) withObject:nil afterDelay:0];
+    [self performSelector:@selector(requestExitFullScreen) withObject:nil afterDelay:0];
 }
 
 #pragma mark -
@@ -288,6 +293,13 @@ static IntRect screenRectOfContents(Element* element)
         NSEnableScreenUpdates();
     } else
         [_scaleAnimation.get() stopAnimation];
+}
+
+- (void)requestExitFullScreen
+{
+    if (!_element)
+        return;
+    _element->document()->webkitCancelFullScreen();
 }
 
 - (void)exitFullScreen

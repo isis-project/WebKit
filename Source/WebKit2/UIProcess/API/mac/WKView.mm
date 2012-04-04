@@ -385,7 +385,6 @@ struct WKViewInterpretKeyEventsParameters {
 
     // Send back an empty string to the plug-in. This will disable text input.
     _data->_page->sendComplexTextInputToPlugin(_data->_pluginComplexTextInputIdentifier, String());
-    _data->_pluginComplexTextInputIdentifier = 0;   // Always reset the identifier when the plugin is disabled.
 }
 
 typedef HashMap<SEL, String> SelectorNameMap;
@@ -722,9 +721,9 @@ static void validateCommandCallback(WKStringRef commandName, bool isEnabled, int
         return YES;
 
     // Add this item to the vector of items for a given command that are awaiting validation.
-    pair<ValidationMap::iterator, bool> addResult = _data->_validationMap.add(commandName, ValidationVector());
-    addResult.first->second.append(item);
-    if (addResult.second) {
+    ValidationMap::AddResult addResult = _data->_validationMap.add(commandName, ValidationVector());
+    addResult.iterator->second.append(item);
+    if (addResult.isNewEntry) {
         // If we are not already awaiting validation for this command, start the asynchronous validation process.
         // FIXME: Theoretically, there is a race here; when we get the answer it might be old, from a previous time
         // we asked for the same command; there is no guarantee the answer is still valid.
@@ -1275,10 +1274,8 @@ static const short kIOHIDEventTypeScroll = 6;
     if (string) {
         _data->_page->sendComplexTextInputToPlugin(_data->_pluginComplexTextInputIdentifier, string);
 
-        if (!usingLegacyCocoaTextInput) {
+        if (!usingLegacyCocoaTextInput)
             _data->_pluginComplexTextInputState = PluginComplexTextInputDisabled;
-            _data->_pluginComplexTextInputIdentifier = 0;   // Always reset the identifier when the plugin is disabled.
-        }
     }
 
     return didHandleEvent;
@@ -2219,6 +2216,9 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
 
 - (void)_processDidCrash
 {
+    if (_data->_layerHostingView)
+        [self _exitAcceleratedCompositingMode];
+
     [self _updateRemoteAccessibilityRegistration:NO];
 }
 
@@ -2852,7 +2852,7 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 
 - (void)handleCorrectionPanelResult:(NSString*)result
 {
-    _data->_page->handleCorrectionPanelResult(result);
+    _data->_page->handleAlternativeTextUIResult(result);
 }
 
 @end
@@ -2927,6 +2927,9 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 - (void)updateLayer
 {
     self.layer.backgroundColor = CGColorGetConstantColor(kCGColorWhite);
+
+    if (DrawingAreaProxy* drawingArea = _data->_page->drawingArea())
+        drawingArea->waitForPossibleGeometryUpdate();
 }
 #endif
 

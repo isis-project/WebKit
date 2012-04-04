@@ -117,7 +117,7 @@ WebInspector.CompilerScriptMapping.prototype = {
                 contentProvider = new WebInspector.StaticContentProvider("text/javascript", sourceContent);
             else
                 contentProvider = new WebInspector.CompilerSourceMappingContentProvider(sourceURL);
-            var uiSourceCode = new WebInspector.UISourceCode(sourceURL, sourceURL, contentProvider);
+            var uiSourceCode = new WebInspector.UISourceCodeImpl(sourceURL, sourceURL, contentProvider);
             uiSourceCode.isContentScript = script.isContentScript;
             uiSourceCode.isEditable = false;
             this._uiSourceCodeByURL[sourceURL] = uiSourceCode;
@@ -129,7 +129,7 @@ WebInspector.CompilerScriptMapping.prototype = {
         this._scriptForSourceMap.put(sourceMap, script);
         var data = { removedItems: [], addedItems: uiSourceCodeList };
         this.dispatchEventToListeners(WebInspector.ScriptMapping.Events.UISourceCodeListChanged, data);
-        var data = { scriptId: script.scriptId, uiSourceCodes: uiSourceCodeList };
+        data = { scriptId: script.scriptId, uiSourceCodes: uiSourceCodeList };
         this.dispatchEventToListeners(WebInspector.ScriptMapping.Events.ScriptBound, data);
     },
 

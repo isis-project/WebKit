@@ -21,6 +21,7 @@
 #include "config.h"
 #include "CSSStyleSheet.h"
 
+#include "CSSCharsetRule.h"
 #include "CSSFontFaceRule.h"
 #include "CSSImportRule.h"
 #include "CSSNamespace.h"
@@ -35,6 +36,7 @@
 #include "Node.h"
 #include "SVGNames.h"
 #include "SecurityOrigin.h"
+#include "StylePropertySet.h"
 #include "StyleRule.h"
 #include "TextEncoding.h"
 #include <wtf/Deque.h>
@@ -74,9 +76,10 @@ static bool isAcceptableCSSStyleSheetParent(Node* parentNode)
 
 CSSStyleSheet::CSSStyleSheet(Node* parentNode, const String& href, const KURL& baseURL, const String& charset)
     : StyleSheet(parentNode, href, baseURL)
+    , m_ownerRule(0)
     , m_charset(charset)
     , m_loadCompleted(false)
-    , m_strictParsing(false)
+    , m_cssParserMode(CSSQuirksMode)
     , m_isUserStyleSheet(false)
     , m_hasSyntacticallyValidCSSHeader(true)
     , m_didLoadErrorOccur(false)
@@ -84,11 +87,12 @@ CSSStyleSheet::CSSStyleSheet(Node* parentNode, const String& href, const KURL& b
     ASSERT(isAcceptableCSSStyleSheetParent(parentNode));
 }
 
-CSSStyleSheet::CSSStyleSheet(CSSImportRule* ownerRule, const String& href, const KURL& baseURL, const String& charset)
-    : StyleSheet(ownerRule, href, baseURL)
+CSSStyleSheet::CSSStyleSheet(StyleRuleImport* ownerRule, const String& href, const KURL& baseURL, const String& charset)
+    : StyleSheet(href, baseURL)
+    , m_ownerRule(ownerRule)
     , m_charset(charset)
     , m_loadCompleted(false)
-    , m_strictParsing(!ownerRule || ownerRule->useStrictParsing())
+    , m_cssParserMode((ownerRule && ownerRule->parentStyleSheet()) ? ownerRule->parentStyleSheet()->cssParserMode() : CSSStrictMode)
     , m_hasSyntacticallyValidCSSHeader(true)
     , m_didLoadErrorOccur(false)
 {
@@ -98,28 +102,96 @@ CSSStyleSheet::CSSStyleSheet(CSSImportRule* ownerRule, const String& href, const
 
 CSSStyleSheet::~CSSStyleSheet()
 {
+    clearRules();
+}
+
+void CSSStyleSheet::parserAppendRule(PassRefPtr<StyleRuleBase> rule)
+{
+    ASSERT(!rule->isCharsetRule());
+    if (rule->isImportRule()) {
+        // Parser enforces that @import rules come before anything else except @charset.
+        ASSERT(m_childRules.isEmpty());
+        m_importRules.append(static_cast<StyleRuleImport*>(rule.get()));
+        m_importRules.last()->requestStyleSheet();
+        return;
+    }
+    m_childRules.append(rule);
+}
+
+PassRefPtr<CSSRule> CSSStyleSheet::createChildRuleCSSOMWrapper(unsigned index)
+{
+    ASSERT(index < length());
+    
+    unsigned childVectorIndex = index;
+    if (hasCharsetRule()) {
+        if (index == 0)
+            return CSSCharsetRule::create(this, m_encodingFromCharsetRule);
+        --childVectorIndex;
+    }
+    if (childVectorIndex < m_importRules.size())
+        return m_importRules[childVectorIndex]->createCSSOMWrapper(this);
+    
+    childVectorIndex -= m_importRules.size();
+    return m_childRules[childVectorIndex]->createCSSOMWrapper(this);
+}
+
+unsigned CSSStyleSheet::length() const
+{
+    unsigned result = 0;
+    result += hasCharsetRule() ? 1 : 0;
+    result += m_importRules.size();
+    result += m_childRules.size();
+    return result;
+}
+
+CSSRule* CSSStyleSheet::item(unsigned index)
+{
+    unsigned ruleCount = length();
+    if (index >= ruleCount)
+        return 0;
+    
+    if (m_childRuleCSSOMWrappers.isEmpty())
+        m_childRuleCSSOMWrappers.grow(ruleCount);
+    ASSERT(m_childRuleCSSOMWrappers.size() == ruleCount);
+
+    RefPtr<CSSRule>& cssRule = m_childRuleCSSOMWrappers[index];
+    if (!cssRule)
+        cssRule = createChildRuleCSSOMWrapper(index);
+    return cssRule.get();
+}
+
+void CSSStyleSheet::clearCharsetRule()
+{
+    m_encodingFromCharsetRule = String();
+}
+
+void CSSStyleSheet::clearRules()
+{
     // For style rules outside the document, .parentStyleSheet can become null even if the style rule
     // is still observable from JavaScript. This matches the behavior of .parentNode for nodes, but
     // it's not ideal because it makes the CSSOM's behavior depend on the timing of garbage collection.
-    for (unsigned i = 0; i < m_children.size(); ++i) {
-        ASSERT(m_children.at(i)->parentStyleSheet() == this);
-        m_children.at(i)->setParentStyleSheet(0);
+    for (unsigned i = 0; i < m_childRuleCSSOMWrappers.size(); ++i) {
+        if (m_childRuleCSSOMWrappers[i])
+            m_childRuleCSSOMWrappers[i]->setParentStyleSheet(0);
     }
+    m_childRuleCSSOMWrappers.clear();
+
+    for (unsigned i = 0; i < m_importRules.size(); ++i) {
+        ASSERT(m_importRules.at(i)->parentStyleSheet() == this);
+        m_importRules[i]->clearParentStyleSheet();
+    }
+    m_importRules.clear();
+    m_childRules.clear();
+    clearCharsetRule();
 }
 
-void CSSStyleSheet::append(PassRefPtr<CSSRule> child)
+void CSSStyleSheet::parserSetEncodingFromCharsetRule(const String& encoding)
 {
-    CSSRule* c = child.get();
-    m_children.append(child);
-    if (c->isImportRule())
-        static_cast<CSSImportRule*>(c)->requestStyleSheet();
+    // Parser enforces that there is ever only one @charset.
+    ASSERT(m_encodingFromCharsetRule.isNull());
+    m_encodingFromCharsetRule = encoding; 
 }
 
-void CSSStyleSheet::remove(unsigned index)
-{
-    m_children.remove(index);
-}
-    
 PassRefPtr<CSSRuleList> CSSStyleSheet::rules()
 {
     KURL url = finalURL();
@@ -128,54 +200,69 @@ PassRefPtr<CSSRuleList> CSSStyleSheet::rules()
         return 0;
     // IE behavior.
     RefPtr<StaticCSSRuleList> nonCharsetRules = StaticCSSRuleList::create();
-    for (unsigned i = 0; i < m_children.size(); ++i) {
-        if (m_children[i]->isCharsetRule())
+    unsigned ruleCount = length();
+    for (unsigned i = 0; i < ruleCount; ++i) {
+        CSSRule* rule = item(i);
+        if (rule->isCharsetRule())
             continue;
-        nonCharsetRules->rules().append(m_children[i]);
+        nonCharsetRules->rules().append(rule);
     }
     return nonCharsetRules.release();
 }
 
-unsigned CSSStyleSheet::insertRule(const String& rule, unsigned index, ExceptionCode& ec)
+unsigned CSSStyleSheet::insertRule(const String& ruleString, unsigned index, ExceptionCode& ec)
 {
     ec = 0;
-    if (index > m_children.size()) {
+    if (index > length()) {
         ec = INDEX_SIZE_ERR;
         return 0;
     }
-    CSSParser p(useStrictParsing());
-    RefPtr<CSSRule> r = p.parseRule(this, rule);
+    CSSParser p(cssParserMode());
+    RefPtr<StyleRuleBase> rule = p.parseRule(this, ruleString);
 
-    if (!r) {
+    if (!rule) {
         ec = SYNTAX_ERR;
         return 0;
     }
-
-    // Throw a HIERARCHY_REQUEST_ERR exception if the rule cannot be inserted at the specified index.  The best
-    // example of this is an @import rule inserted after regular rules.
-    if (index > 0) {
-        if (r->isImportRule()) {
-            // Check all the rules that come before this one to make sure they are only @charset and @import rules.
-            for (unsigned i = 0; i < index; ++i) {
-                if (!m_children.at(i)->isCharsetRule() && !m_children.at(i)->isImportRule()) {
-                    ec = HIERARCHY_REQUEST_ERR;
-                    return 0;
-                }
-            }
-        } else if (r->isCharsetRule()) {
-            // The @charset rule has to come first and there can be only one.
+    // Parser::parseRule doesn't currently allow @charset so we don't need to deal with it.
+    ASSERT(!rule->isCharsetRule());
+    
+    unsigned childVectorIndex = index;
+    // m_childRules does not contain @charset which is always in index 0 if it exists.
+    if (hasCharsetRule()) {
+        if (childVectorIndex == 0) {
+            // Nothing can be inserted before @charset.
             ec = HIERARCHY_REQUEST_ERR;
             return 0;
         }
+        --childVectorIndex;
     }
+    
+    if (childVectorIndex < m_importRules.size() || (childVectorIndex == m_importRules.size() && rule->isImportRule())) {
+        // Inserting non-import rule before @import is not allowed.
+        if (!rule->isImportRule()) {
+            ec = HIERARCHY_REQUEST_ERR;
+            return 0;
+        }
+        m_importRules.insert(childVectorIndex, static_cast<StyleRuleImport*>(rule.get()));
+        m_importRules[childVectorIndex]->requestStyleSheet();
+        goto success;
+    }
+    // Inserting @import rule after a non-import rule is not allowed.
+    if (rule->isImportRule()) {
+        ec = HIERARCHY_REQUEST_ERR;
+        return 0;
+    }
+    childVectorIndex -= m_importRules.size();
+ 
+    m_childRules.insert(childVectorIndex, rule.release());
+    
+success:
+    if (!m_childRuleCSSOMWrappers.isEmpty())
+        m_childRuleCSSOMWrappers.insert(index, RefPtr<CSSRule>());
 
-    CSSRule* c = r.get();
-    m_children.insert(index, r.release());
-    if (c->isImportRule())
-        static_cast<CSSImportRule*>(c)->requestStyleSheet();
-
+    // FIXME: Stylesheet doesn't actually change meaningfully before the imported sheets are loaded.
     styleSheetChanged();
-
     return index;
 }
 
@@ -189,7 +276,7 @@ int CSSStyleSheet::addRule(const String& selector, const String& style, int inde
 
 int CSSStyleSheet::addRule(const String& selector, const String& style, ExceptionCode& ec)
 {
-    return addRule(selector, style, m_children.size(), ec);
+    return addRule(selector, style, length(), ec);
 }
 
 PassRefPtr<CSSRuleList> CSSStyleSheet::cssRules()
@@ -205,14 +292,35 @@ PassRefPtr<CSSRuleList> CSSStyleSheet::cssRules()
 
 void CSSStyleSheet::deleteRule(unsigned index, ExceptionCode& ec)
 {
-    if (index >= m_children.size()) {
+    if (index >= length()) {
         ec = INDEX_SIZE_ERR;
         return;
     }
-
+    
     ec = 0;
-    m_children.at(index)->setParentStyleSheet(0);
-    m_children.remove(index);
+    unsigned childVectorIndex = index;
+    if (hasCharsetRule()) {
+        if (childVectorIndex == 0) {
+            clearCharsetRule();
+            goto success;
+        }
+        --childVectorIndex;
+    }
+    if (childVectorIndex < m_importRules.size()) {
+        m_importRules[childVectorIndex]->clearParentStyleSheet();
+        m_importRules.remove(childVectorIndex);
+        goto success;
+    }
+    childVectorIndex -= m_importRules.size();
+
+    m_childRules.remove(childVectorIndex);
+
+success:
+    if (!m_childRuleCSSOMWrappers.isEmpty()) {
+        m_childRuleCSSOMWrappers[index]->setParentStyleSheet(0);
+        m_childRuleCSSOMWrappers.remove(index);
+    }
+
     styleSheetChanged();
 }
 
@@ -242,24 +350,23 @@ const AtomicString& CSSStyleSheet::determineNamespace(const AtomicString& prefix
     return nullAtom; // Assume we won't match any namespaces.
 }
 
-bool CSSStyleSheet::parseString(const String &string, bool strict)
+bool CSSStyleSheet::parseString(const String &string, CSSParserMode cssParserMode)
 {
-    return parseStringAtLine(string, strict, 0);
+    return parseStringAtLine(string, cssParserMode, 0);
 }
 
-bool CSSStyleSheet::parseStringAtLine(const String& string, bool strict, int startLineNumber)
+bool CSSStyleSheet::parseStringAtLine(const String& string, CSSParserMode cssParserMode, int startLineNumber)
 {
-    setStrictParsing(strict);
-    CSSParser p(strict);
+    setCSSParserMode(cssParserMode);
+    CSSParser p(cssParserMode);
     p.parseSheet(this, string, startLineNumber);
     return true;
 }
 
 bool CSSStyleSheet::isLoading()
 {
-    for (unsigned i = 0; i < m_children.size(); ++i) {
-        CSSRule* rule = m_children.at(i).get();
-        if (rule->isImportRule() && static_cast<CSSImportRule*>(rule)->isLoading())
+    for (unsigned i = 0; i < m_importRules.size(); ++i) {
+        if (m_importRules[i]->isLoading())
             return true;
     }
     return false;
@@ -361,19 +468,43 @@ void CSSStyleSheet::addSubresourceStyleURLs(ListHashSet<KURL>& urls)
 
     while (!styleSheetQueue.isEmpty()) {
         CSSStyleSheet* styleSheet = styleSheetQueue.takeFirst();
-
-        for (unsigned i = 0; i < styleSheet->m_children.size(); ++i) {
-            CSSRule* rule = styleSheet->m_children.at(i).get();
-            if (rule->isImportRule()) {
-                if (CSSStyleSheet* ruleStyleSheet = static_cast<CSSImportRule*>(rule)->styleSheet())
-                    styleSheetQueue.append(ruleStyleSheet);
-                static_cast<CSSImportRule*>(rule)->addSubresourceStyleURLs(urls);
-            } else if (rule->isFontFaceRule())
-                static_cast<CSSFontFaceRule*>(rule)->addSubresourceStyleURLs(urls);
-            else if (rule->isStyleRule() || rule->isPageRule())
-                static_cast<CSSStyleRule*>(rule)->styleRule()->addSubresourceStyleURLs(urls, this);
+        
+        for (unsigned i = 0; i < styleSheet->m_importRules.size(); ++i) {
+            StyleRuleImport* importRule = styleSheet->m_importRules[i].get();
+            if (importRule->styleSheet()) {
+                styleSheetQueue.append(importRule->styleSheet());
+                addSubresourceURL(urls, importRule->styleSheet()->baseURL());
+            }
+        }
+        for (unsigned i = 0; i < styleSheet->m_childRules.size(); ++i) {
+            StyleRuleBase* rule = styleSheet->m_childRules[i].get();
+            if (rule->isStyleRule())
+                static_cast<StyleRule*>(rule)->properties()->addSubresourceStyleURLs(urls, this);
+            else if (rule->isFontFaceRule())
+                static_cast<StyleRuleFontFace*>(rule)->properties()->addSubresourceStyleURLs(urls, this);
         }
     }
+}
+
+CSSImportRule* CSSStyleSheet::ensureCSSOMWrapper(StyleRuleImport* importRule)
+{
+     for (unsigned i = 0; i < m_importRules.size(); ++i) {
+         if (m_importRules[i] == importRule)
+             return static_cast<CSSImportRule*>(item(i));
+     }
+    ASSERT_NOT_REACHED();
+    return 0;
+}
+
+CSSImportRule* CSSStyleSheet::ownerRule() const 
+{  
+    return parentStyleSheet() ? parentStyleSheet()->ensureCSSOMWrapper(m_ownerRule) : 0; 
+}
+
+CSSStyleSheet* CSSStyleSheet::parentStyleSheet() const
+{
+    ASSERT(isCSSStyleSheet());
+    return m_ownerRule ? m_ownerRule->parentStyleSheet() : 0;
 }
 
 }

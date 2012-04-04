@@ -743,11 +743,11 @@ END
     // Get the proxy corresponding to the DOMWindow if possible to
     // make sure that the constructor function is constructed in the
     // context of the DOMWindow and not in the context of the caller.
-    return V8DOMWrapper::getConstructor(type, V8DOMWindow::toNative(info.Holder()));
+    return V8DOMWrapper::constructorForType(type, V8DOMWindow::toNative(info.Holder()));
 END
     } elsif ($dataNode->extendedAttributes->{"IsWorkerContext"}) {
         push(@implContentDecls, <<END);
-    return V8DOMWrapper::getConstructor(type, V8WorkerContext::toNative(info.Holder()));
+    return V8DOMWrapper::constructorForType(type, V8WorkerContext::toNative(info.Holder()));
 END
     } else {
         push(@implContentDecls, "    return v8::Handle<v8::Value>();");
@@ -3146,13 +3146,15 @@ END
     if (IsNodeSubType($dataNode) || IsVisibleAcrossOrigins($dataNode)) {
         push(@implContent, <<END);
 
-    v8::Handle<v8::Context> context;
-    if (proxy)
-        context = proxy->context();
-
     // Enter the node's context and create the wrapper in that context.
-    if (!context.IsEmpty())
-        context->Enter();
+    v8::Handle<v8::Context> context;
+    if (proxy && !proxy->matchesCurrentContext()) {
+        // For performance, we enter the context only if the currently running context
+        // is different from the context that we are about to enter.
+        context = proxy->context();
+        if (!context.IsEmpty())
+            context->Enter();
+    }
 END
     }
 
@@ -3556,8 +3558,9 @@ sub JSValueToNative
         return "V8DOMWrapper::getXPathNSResolver($value)";
     }
 
-    if ($codeGenerator->GetArrayType($type)) {
-        return "toNativeArray($value)";
+    my $arrayType = $codeGenerator->GetArrayType($type);
+    if ($arrayType) {
+        return "toNativeArray<$arrayType>($value)";
     }
 
     AddIncludesForType($type);
@@ -3607,8 +3610,13 @@ sub CreateCustomSignature
                 $result .= "v8::Handle<v8::FunctionTemplate>()";
             } else {
                 my $type = $parameter->type;
-                my $header = GetV8HeaderName($type);
-                AddToImplIncludes($header);
+                my $arrayType = $codeGenerator->GetArrayType($type);
+                if ($arrayType) {
+                    AddToImplIncludes("$arrayType.h");
+                } else {
+                    my $header = GetV8HeaderName($type);
+                    AddToImplIncludes($header);
+                }
                 $result .= "V8${type}::GetRawTemplate()";
             }
         } else {
@@ -3631,6 +3639,9 @@ sub RequiresCustomSignature
     }
     # No signature needed for overloaded function
     if (@{$function->{overloads}} > 1) {
+        return 0;
+    }
+    if ($function->isStatic) {
         return 0;
     }
     # Type checking is performed in the generated code
@@ -3775,8 +3786,10 @@ sub NativeToJSValue
 
     my $arrayType = $codeGenerator->GetArrayType($type);
     if ($arrayType) {
-        AddToImplIncludes("V8$arrayType.h");
-        AddToImplIncludes("$arrayType.h");
+        if ($arrayType ne "String") {
+            AddToImplIncludes("V8$arrayType.h");
+            AddToImplIncludes("$arrayType.h");
+        }
         return "v8Array($value)";
     }
 

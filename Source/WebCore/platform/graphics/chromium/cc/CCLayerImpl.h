@@ -158,6 +158,7 @@ public:
     bool drawOpacityIsAnimating() const { return m_drawOpacityIsAnimating; }
     void setDrawOpacityIsAnimating(bool drawOpacityIsAnimating) { m_drawOpacityIsAnimating = drawOpacityIsAnimating; }
 
+    // Usage: if this->usesLayerClipping() is false, then this clipRect should not be used.
     const IntRect& clipRect() const { return m_clipRect; }
     void setClipRect(const IntRect& rect) { m_clipRect = rect; }
     CCRenderSurface* targetRenderSurface() const { return m_targetRenderSurface; }
@@ -231,7 +232,7 @@ public:
 
     CCLayerAnimationController* layerAnimationController() { return m_layerAnimationController.get(); }
 
-    virtual Region opaqueContentsRegion() const { return Region(); };
+    virtual Region visibleContentOpaqueRegion() const { return Region(); };
 
     // Indicates that the context previously used to render this layer
     // was lost and that a new one has been created. Won't be called

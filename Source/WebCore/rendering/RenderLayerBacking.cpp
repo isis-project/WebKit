@@ -502,7 +502,7 @@ void RenderLayerBacking::updateGraphicsLayerGeometry()
     }
     
     if (m_owningLayer->hasTransform()) {
-        const IntRect borderBox = pixelSnappedIntRect(toRenderBox(renderer())->borderBoxRect());
+        const IntRect borderBox = toRenderBox(renderer())->borderBoxRect();
 
         // Get layout bounds in the coords of compAncestor to match relativeCompositingBounds.
         IntRect layerBounds = IntRect(delta, borderBox.size());
@@ -1160,6 +1160,10 @@ static void paintScrollbar(Scrollbar* scrollbar, GraphicsContext& context, const
 // Up-call from compositing layer drawing callback.
 void RenderLayerBacking::paintContents(const GraphicsLayer* graphicsLayer, GraphicsContext& context, GraphicsLayerPaintingPhase paintingPhase, const IntRect& clip)
 {
+#ifndef NDEBUG
+    if (Page* page = renderer()->frame()->page())
+        page->setIsPainting(true);
+#endif
     if (graphicsLayer == m_graphicsLayer.get() || graphicsLayer == m_foregroundLayer.get() || graphicsLayer == m_maskLayer.get()) {
         InspectorInstrumentationCookie cookie = InspectorInstrumentation::willPaint(m_owningLayer->renderer()->frame(), &context, clip);
 
@@ -1185,6 +1189,10 @@ void RenderLayerBacking::paintContents(const GraphicsLayer* graphicsLayer, Graph
         m_owningLayer->paintResizer(&context, IntPoint(), transformedClip);
         context.restore();
     }
+#ifndef NDEBUG
+    if (Page* page = renderer()->frame()->page())
+        page->setIsPainting(false);
+#endif
 }
 
 float RenderLayerBacking::pageScaleFactor() const
@@ -1211,6 +1219,13 @@ bool RenderLayerBacking::showRepaintCounter(const GraphicsLayer*) const
 {
     return compositor() ? compositor()->compositorShowRepaintCounter() : false;
 }
+
+#ifndef NDEBUG
+void RenderLayerBacking::verifyNotPainting()
+{
+    ASSERT(!renderer()->frame()->page() || !renderer()->frame()->page()->isPainting());
+}
+#endif
 
 bool RenderLayerBacking::startAnimation(double timeOffset, const Animation* anim, const KeyframeList& keyframes)
 {
@@ -1262,7 +1277,7 @@ bool RenderLayerBacking::startAnimation(double timeOffset, const Animation* anim
     bool didAnimateFilter = false;
 #endif
     
-    if (hasTransform && m_graphicsLayer->addAnimation(transformVector, pixelSnappedIntRect(toRenderBox(renderer())->borderBoxRect()).size(), anim, keyframes.animationName(), timeOffset)) {
+    if (hasTransform && m_graphicsLayer->addAnimation(transformVector, toRenderBox(renderer())->borderBoxRect().size(), anim, keyframes.animationName(), timeOffset)) {
         didAnimateTransform = true;
         compositor()->didStartAcceleratedAnimation(CSSPropertyWebkitTransform);
     }
@@ -1296,7 +1311,7 @@ void RenderLayerBacking::animationFinished(const String& animationName)
     m_graphicsLayer->removeAnimation(animationName);
 }
 
-bool RenderLayerBacking::startTransition(double timeOffset, int property, const RenderStyle* fromStyle, const RenderStyle* toStyle)
+bool RenderLayerBacking::startTransition(double timeOffset, CSSPropertyID property, const RenderStyle* fromStyle, const RenderStyle* toStyle)
 {
     bool didAnimateOpacity = false;
     bool didAnimateTransform = false;
@@ -1304,9 +1319,9 @@ bool RenderLayerBacking::startTransition(double timeOffset, int property, const 
     bool didAnimateFilter = false;
 #endif
 
-    ASSERT(property != cAnimateAll);
+    ASSERT(property != CSSPropertyInvalid);
 
-    if (property == (int)CSSPropertyOpacity) {
+    if (property == CSSPropertyOpacity) {
         const Animation* opacityAnim = toStyle->transitionForProperty(CSSPropertyOpacity);
         if (opacityAnim && !opacityAnim->isEmptyOrZeroDuration()) {
             KeyframeValueList opacityVector(AnimatedPropertyOpacity);
@@ -1321,13 +1336,13 @@ bool RenderLayerBacking::startTransition(double timeOffset, int property, const 
         }
     }
 
-    if (property == (int)CSSPropertyWebkitTransform && m_owningLayer->hasTransform()) {
+    if (property == CSSPropertyWebkitTransform && m_owningLayer->hasTransform()) {
         const Animation* transformAnim = toStyle->transitionForProperty(CSSPropertyWebkitTransform);
         if (transformAnim && !transformAnim->isEmptyOrZeroDuration()) {
             KeyframeValueList transformVector(AnimatedPropertyWebkitTransform);
             transformVector.insert(new TransformAnimationValue(0, &fromStyle->transform()));
             transformVector.insert(new TransformAnimationValue(1, &toStyle->transform()));
-            if (m_graphicsLayer->addAnimation(transformVector, pixelSnappedIntRect(toRenderBox(renderer())->borderBoxRect()).size(), transformAnim, GraphicsLayer::animationNameForTransition(AnimatedPropertyWebkitTransform), timeOffset)) {
+            if (m_graphicsLayer->addAnimation(transformVector, toRenderBox(renderer())->borderBoxRect().size(), transformAnim, GraphicsLayer::animationNameForTransition(AnimatedPropertyWebkitTransform), timeOffset)) {
                 // To ensure that the correct transform is visible when the animation ends, also set the final transform.
                 updateLayerTransform(toStyle);
                 didAnimateTransform = true;
@@ -1336,7 +1351,7 @@ bool RenderLayerBacking::startTransition(double timeOffset, int property, const 
     }
 
 #if ENABLE(CSS_FILTERS)
-    if (property == (int)CSSPropertyWebkitFilter && m_owningLayer->hasFilter()) {
+    if (property == CSSPropertyWebkitFilter && m_owningLayer->hasFilter()) {
         const Animation* filterAnim = toStyle->transitionForProperty(CSSPropertyWebkitFilter);
         if (filterAnim && !filterAnim->isEmptyOrZeroDuration()) {
             KeyframeValueList filterVector(AnimatedPropertyWebkitFilter);

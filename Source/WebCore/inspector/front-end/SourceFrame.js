@@ -54,10 +54,6 @@ WebInspector.SourceFrame = function(url)
     this._textViewer.readOnly = !this.canEditSource();
 }
 
-WebInspector.SourceFrame.Events = {
-    Loaded: "loaded"
-}
-
 WebInspector.SourceFrame.createSearchRegex = function(query)
 {
     var regex;
@@ -216,7 +212,7 @@ WebInspector.SourceFrame.prototype = {
         this._textViewer.mimeType = mimeType;
 
         this._loaded = true;
-        this._textModel.setText(null, content);
+        this._textModel.setText(content);
 
         this._textViewer.beginUpdates();
 
@@ -237,10 +233,12 @@ WebInspector.SourceFrame.prototype = {
             delete this._delayedFindSearchMatches;
         }
 
-        this.dispatchEventToListeners(WebInspector.SourceFrame.Events.Loaded);
+        this.onTextViewerContentLoaded();
 
         this._textViewer.endUpdates();
     },
+
+    onTextViewerContentLoaded: function() {},
 
     _setTextViewerDecorations: function()
     {
@@ -478,10 +476,6 @@ WebInspector.SourceFrame.prototype = {
         WebInspector.populateResourceContextMenu(contextMenu, this._url, lineNumber);
     },
 
-    suggestedFileName: function()
-    {
-    },
-
     inheritScrollPositions: function(sourceFrame)
     {
         this._textViewer.inheritScrollPositions(sourceFrame._textViewer);
@@ -551,11 +545,6 @@ WebInspector.TextViewerDelegateForSourceFrame.prototype = {
     populateTextAreaContextMenu: function(contextMenu, lineNumber)
     {
         this._sourceFrame.populateTextAreaContextMenu(contextMenu, lineNumber);
-    },
-
-    suggestedFileName: function()
-    {
-        return this._sourceFrame.suggestedFileName();
     }
 }
 

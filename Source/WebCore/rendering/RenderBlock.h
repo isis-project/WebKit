@@ -233,11 +233,13 @@ public:
     using RenderBoxModelObject::continuation;
     using RenderBoxModelObject::setContinuation;
 
-    // This function is a convenience helper for creating an anonymous block that inherits its
-    // style from this RenderBlock.
-    RenderBlock* createAnonymousBlock(bool isFlexibleBox = false) const;
-    RenderBlock* createAnonymousColumnsBlock() const;
-    RenderBlock* createAnonymousColumnSpanBlock() const;
+    static RenderBlock* createAnonymousWithParentRendererAndDisplay(const RenderObject*, EDisplay = BLOCK);
+    static RenderBlock* createAnonymousColumnsWithParentRenderer(const RenderObject*);
+    static RenderBlock* createAnonymousColumnSpanWithParentRenderer(const RenderObject*);
+    RenderBlock* createAnonymousBlock(EDisplay display = BLOCK) const { return createAnonymousWithParentRendererAndDisplay(this, display); }
+    RenderBlock* createAnonymousColumnsBlock() const { return createAnonymousColumnsWithParentRenderer(this); }
+    RenderBlock* createAnonymousColumnSpanBlock() const { return createAnonymousColumnSpanWithParentRenderer(this); }
+
     RenderBlock* createAnonymousBlockWithSameTypeAs(RenderBlock* otherAnonymousBlock) const;
     
     static void appendRunsForObject(BidiRunList<BidiRun>&, int start, int end, RenderObject*, InlineBidiResolver&);
@@ -620,16 +622,23 @@ private:
         void setIsInPlacedTree(bool value) { m_isInPlacedTree = value; }
 #endif
 
+        bool shouldPaint() const { return m_shouldPaint; }
+        void setShouldPaint(bool shouldPaint) { m_shouldPaint = shouldPaint; }
+        bool isDescendant() const { return m_isDescendant; }
+        void setIsDescendant(bool isDescendant) { m_isDescendant = isDescendant; }
+
         RenderBox* m_renderer;
         RootInlineBox* m_originatingLine;
         LayoutRect m_frameRect;
         int m_paginationStrut;
+
+    private:
         unsigned m_type : 3; // Type (left/right aligned or positioned)
-        bool m_shouldPaint : 1;
-        bool m_isDescendant : 1;
-        bool m_isPlaced : 1;
+        unsigned m_shouldPaint : 1;
+        unsigned m_isDescendant : 1;
+        unsigned m_isPlaced : 1;
 #ifndef NDEBUG
-        bool m_isInPlacedTree : 1;
+        unsigned m_isInPlacedTree : 1;
 #endif
     };
 
@@ -1127,9 +1136,9 @@ protected:
     RenderLineBoxList m_lineBoxes;   // All of the root line boxes created for this block flow.  For example, <div>Hello<br>world.</div> will have two total lines for the <div>.
 
     mutable signed m_lineHeight : 29;
-    bool m_beingDestroyed : 1;
-    bool m_hasPositionedFloats : 1;
-    bool m_hasMarkupTruncation : 1;
+    unsigned m_beingDestroyed : 1;
+    unsigned m_hasPositionedFloats : 1;
+    unsigned m_hasMarkupTruncation : 1;
 
     // RenderRubyBase objects need to be able to split and merge, moving their children around
     // (calling moveChildTo, moveAllChildrenTo, and makeChildrenNonInline).

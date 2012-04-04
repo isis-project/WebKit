@@ -20,6 +20,7 @@
 #ifndef SVGElementRareData_h
 #define SVGElementRareData_h
 
+#include "CSSParserMode.h"
 #include <wtf/HashSet.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/StdLibExtras.h>
@@ -78,8 +79,7 @@ public:
     StylePropertySet* ensureAnimatedSMILStyleProperties()
     {
         if (!m_animatedSMILStyleProperties) {
-            m_animatedSMILStyleProperties = StylePropertySet::create();
-            m_animatedSMILStyleProperties->setStrictParsing(false);
+            m_animatedSMILStyleProperties = StylePropertySet::create(SVGAttributeMode);
         }
         return m_animatedSMILStyleProperties.get();
     }

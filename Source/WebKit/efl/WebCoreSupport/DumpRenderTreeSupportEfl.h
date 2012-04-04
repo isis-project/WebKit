@@ -50,9 +50,11 @@ public:
     static String counterValueByElementId(const Evas_Object* ewkFrame, const char* elementId);
     static Eina_List* frameChildren(const Evas_Object* ewkFrame);
     static WebCore::Frame* frameParent(const Evas_Object* ewkFrame);
+    static bool isPageBoxVisible(const Evas_Object* ewkFrame, int pageIndex);
     static void layoutFrame(Evas_Object* ewkFrame);
     static int numberOfPages(const Evas_Object* ewkFrame, float pageWidth, float pageHeight);
     static int numberOfPagesForElementId(const Evas_Object* ewkFrame, const char* elementId, float pageWidth, float pageHeight);
+    static String pageSizeAndMarginsInPixels(const Evas_Object* ewkFrame, int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft);
     static bool pauseAnimation(Evas_Object* ewkFrame, const char* name, const char* elementId, double time);
     static bool pauseTransition(Evas_Object* ewkFrame, const char* name, const char* elementId, double time);
     static unsigned pendingUnloadEventCount(const Evas_Object* ewkFrame);
@@ -64,6 +66,7 @@ public:
     static void suspendAnimations(Evas_Object* ewkFrame);
     static void setValueForUser(JSContextRef, JSValueRef nodeObject, JSStringRef value);
     static void setAutofilled(JSContextRef, JSValueRef nodeObject, bool autofilled);
+    static void setDefersLoading(Evas_Object* ewkView, bool defers);
 
     static bool findString(const Evas_Object* ewkView, const char* text, WebCore::FindOptions);
     static void setSmartInsertDeleteEnabled(Evas_Object* ewkView, bool enabled);
@@ -85,6 +88,8 @@ public:
     static void deliverAllMutationsIfNecessary();
     static void setEditingBehavior(Evas_Object* ewkView, const char* editingBehavior);
     static String markerTextForListItem(JSContextRef, JSValueRef nodeObject);
+    static void setInteractiveFormValidationEnabled(Evas_Object* ewkView, bool enabled);
+    static JSValueRef computedStyleIncludingVisitedInfo(JSContextRef, JSValueRef);
 };
 
 #endif // DumpRenderTreeSupportEfl_h

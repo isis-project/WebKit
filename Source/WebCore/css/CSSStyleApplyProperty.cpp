@@ -28,7 +28,6 @@
 #include "CSSAspectRatioValue.h"
 #include "CSSCalculationValue.h"
 #include "CSSCursorImageValue.h"
-#include "CSSFlexValue.h"
 #include "CSSPrimitiveValueMappings.h"
 #include "CSSStyleSelector.h"
 #include "CSSValueList.h"
@@ -39,6 +38,7 @@
 #include "Rect.h"
 #include "RenderObject.h"
 #include "RenderStyle.h"
+#include "RenderView.h"
 #include "Settings.h"
 #include <wtf/StdLibExtras.h>
 #include <wtf/UnusedParam.h>
@@ -335,7 +335,6 @@ enum LengthIntrinsic { IntrinsicDisabled = 0, IntrinsicEnabled };
 enum LengthMinIntrinsic { MinIntrinsicDisabled = 0, MinIntrinsicEnabled };
 enum LengthNone { NoneDisabled = 0, NoneEnabled };
 enum LengthUndefined { UndefinedDisabled = 0, UndefinedEnabled };
-enum LengthFlexDirection { FlexDirectionDisabled = 0, FlexWidth, FlexHeight };
 template <Length (RenderStyle::*getterFunction)() const,
           void (RenderStyle::*setterFunction)(Length),
           Length (*initialFunction)(),
@@ -343,33 +342,14 @@ template <Length (RenderStyle::*getterFunction)() const,
           LengthIntrinsic intrinsicEnabled = IntrinsicDisabled,
           LengthMinIntrinsic minIntrinsicEnabled = MinIntrinsicDisabled,
           LengthNone noneEnabled = NoneDisabled,
-          LengthUndefined noneUndefined = UndefinedDisabled,
-          LengthFlexDirection flexDirection = FlexDirectionDisabled>
+          LengthUndefined noneUndefined = UndefinedDisabled>
 class ApplyPropertyLength {
 public:
     static void setValue(RenderStyle* style, Length value) { (style->*setterFunction)(value); }
     static void applyValue(CSSStyleSelector* selector, CSSValue* value)
     {
-        float positiveFlex = 0;
-        float negativeFlex = 0;
-        if (!value->isPrimitiveValue()) {
-            if (!flexDirection || !value->isFlexValue())
-                return;
-
-            CSSFlexValue* flexValue = static_cast<CSSFlexValue*>(value);
-            value = flexValue->preferredSize();
-
-            positiveFlex = flexValue->positiveFlex();
-            negativeFlex = flexValue->negativeFlex();
-        }
-
-        if (flexDirection == FlexWidth) {
-            selector->style()->setFlexboxWidthPositiveFlex(positiveFlex);
-            selector->style()->setFlexboxWidthNegativeFlex(negativeFlex);
-        } else if (flexDirection == FlexHeight) {
-            selector->style()->setFlexboxHeightPositiveFlex(positiveFlex);
-            selector->style()->setFlexboxHeightNegativeFlex(negativeFlex);
-        }
+        if (!value->isPrimitiveValue())
+            return;
 
         CSSPrimitiveValue* primitiveValue = static_cast<CSSPrimitiveValue*>(value);
         if (noneEnabled && primitiveValue->getIdent() == CSSValueNone)
@@ -392,6 +372,8 @@ public:
                 setValue(selector->style(), Length(primitiveValue->getDoubleValue(), Percent));
             else if (primitiveValue->isCalculatedPercentageWithLength())
                 setValue(selector->style(), Length(primitiveValue->cssCalcValue()->toCalcValue(selector->style(), selector->rootElementStyle(), selector->style()->effectiveZoom())));            
+            else if (primitiveValue->isViewportPercentageLength())
+                setValue(selector->style(), primitiveValue->viewportPercentageLength());
         }
     }
 
@@ -443,6 +425,8 @@ public:
         Length radiusHeight;
         if (pair->first()->isPercentage())
             radiusWidth = Length(pair->first()->getDoubleValue(), Percent);
+        else if (pair->first()->isViewportPercentageLength())
+            radiusWidth = pair->first()->viewportPercentageLength();
         else if (pair->first()->isCalculatedPercentageWithLength()) {
             // FIXME calc(): http://webkit.org/b/16662
             // handle this case
@@ -451,6 +435,8 @@ public:
             radiusWidth = pair->first()->computeLength<Length>(selector->style(), selector->rootElementStyle(), selector->style()->effectiveZoom());
         if (pair->second()->isPercentage())
             radiusHeight = Length(pair->second()->getDoubleValue(), Percent);
+        else if (pair->second()->isViewportPercentageLength())
+            radiusHeight = pair->second()->viewportPercentageLength();
         else if (pair->second()->isCalculatedPercentageWithLength()) {
             // FIXME calc(): http://webkit.org/b/16662
             // handle this case
@@ -745,6 +731,8 @@ public:
                 size = (primitiveValue->getFloatValue() * parentSize) / 100.0f;
             else if (primitiveValue->isCalculatedPercentageWithLength())
                 size = primitiveValue->cssCalcValue()->toCalcValue(selector->parentStyle(), selector->rootElementStyle())->evaluate(parentSize);                
+            else if (primitiveValue->isViewportPercentageLength())
+                size = valueForLength(primitiveValue->viewportPercentageLength(), 0, selector->document()->renderView());
             else
                 return;
         }
@@ -995,7 +983,7 @@ public:
         typedef CounterDirectiveMap::iterator Iterator;
         Iterator end = parentMap.end();
         for (Iterator it = parentMap.begin(); it != end; ++it) {
-            CounterDirectives& directives = map.add(it->first, CounterDirectives()).first->second;
+            CounterDirectives& directives = map.add(it->first, CounterDirectives()).iterator->second;
             if (counterBehavior == Reset) {
                 directives.m_reset = it->second.m_reset;
                 directives.m_resetValue = it->second.m_resetValue;
@@ -1043,7 +1031,7 @@ public:
 
             AtomicString identifier = static_cast<CSSPrimitiveValue*>(pair->first())->getStringValue();
             int value = static_cast<CSSPrimitiveValue*>(pair->second())->getIntValue();
-            CounterDirectives& directives = map.add(identifier.impl(), CounterDirectives()).first->second;
+            CounterDirectives& directives = map.add(identifier.impl(), CounterDirectives()).iterator->second;
             if (counterBehavior == Reset) {
                 directives.m_reset = true;
                 directives.m_resetValue = value;
@@ -1206,6 +1194,8 @@ public:
         } else if (primitiveValue->isNumber()) {
             // FIXME: number and percentage values should produce the same type of Length (ie. Fixed or Percent).
             lineHeight = Length(primitiveValue->getDoubleValue() * 100.0, Percent);
+        } else if (primitiveValue->isViewportPercentageLength()) {
+            lineHeight = primitiveValue->viewportPercentageLength();
         } else
             return;
         selector->style()->setLineHeight(lineHeight);
@@ -1458,6 +1448,7 @@ public:
             if (list->size() <= i)
                 list->append(Animation::create());
             setValue(list->animation(i), value(parentList->animation(i)));
+            list->animation(i)->setAnimationMode(parentList->animation(i)->animationMode());
         }
 
         /* Reset any remaining animations to not have the property set. */
@@ -1567,7 +1558,7 @@ public:
         if (primitiveValue->getIdent())
             return selector->style()->setVerticalAlign(*primitiveValue);
 
-        selector->style()->setVerticalAlignLength(primitiveValue->convertToLength<FixedIntegerConversion | PercentConversion | CalculatedConversion>(selector->style(), selector->rootElementStyle(), selector->style()->effectiveZoom()));
+        selector->style()->setVerticalAlignLength(primitiveValue->convertToLength<FixedIntegerConversion | PercentConversion | CalculatedConversion | ViewportPercentageConversion>(selector->style(), selector->rootElementStyle(), selector->style()->effectiveZoom()));
     }
 
     static PropertyHandler createHandler()
@@ -1712,6 +1703,67 @@ public:
     }
 };
 
+class ApplyPropertyFlex {
+public:
+    static void applyInheritValue(CSSStyleSelector* selector)
+    {
+        ApplyPropertyDefaultBase<float, &RenderStyle::positiveFlex, float, &RenderStyle::setPositiveFlex, float, &RenderStyle::initialNegativeFlex>::applyInheritValue(selector);
+        ApplyPropertyDefaultBase<float, &RenderStyle::negativeFlex, float, &RenderStyle::setNegativeFlex, float, &RenderStyle::initialPositiveFlex>::applyInheritValue(selector);
+        ApplyPropertyDefaultBase<Length, &RenderStyle::flexPreferredSize, Length, &RenderStyle::setFlexPreferredSize, Length, &RenderStyle::initialFlexPreferredSize>::applyInheritValue(selector);
+    }
+
+    static void applyInitialValue(CSSStyleSelector* selector)
+    {
+        selector->style()->setPositiveFlex(RenderStyle::initialPositiveFlex());
+        selector->style()->setNegativeFlex(RenderStyle::initialNegativeFlex());
+        selector->style()->setFlexPreferredSize(RenderStyle::initialFlexPreferredSize());
+    }
+
+    static void applyValue(CSSStyleSelector* selector, CSSValue* value)
+    {
+        if (value->isPrimitiveValue()) {
+            CSSPrimitiveValue* primitiveValue = static_cast<CSSPrimitiveValue*>(value);
+            if (primitiveValue->getIdent() == CSSValueNone)
+                applyInitialValue(selector);
+            return;
+        }
+
+        if (!value->isValueList())
+            return;
+        CSSValueList* valueList = static_cast<CSSValueList*>(value);
+        if (valueList->length() != 3)
+            return;
+
+        float flexValue = 0;
+        if (!getFlexValue(valueList->itemWithoutBoundsCheck(0), flexValue))
+            return;
+        selector->style()->setPositiveFlex(flexValue);
+
+        if (!getFlexValue(valueList->itemWithoutBoundsCheck(1), flexValue))
+            return;
+        selector->style()->setNegativeFlex(flexValue);
+
+        ApplyPropertyLength<&RenderStyle::flexPreferredSize, &RenderStyle::setFlexPreferredSize, &RenderStyle::initialFlexPreferredSize, AutoEnabled>::applyValue(selector, valueList->itemWithoutBoundsCheck(2));
+    }
+
+    static PropertyHandler createHandler()
+    {
+        return PropertyHandler(&applyInheritValue, &applyInitialValue, &applyValue);
+    }
+private:
+    static bool getFlexValue(CSSValue* value, float& flexValue)
+    {
+        if (!value->isPrimitiveValue())
+            return false;
+        CSSPrimitiveValue* primitiveValue = static_cast<CSSPrimitiveValue*>(value);
+        if (!primitiveValue->isNumber())
+            return false;
+        flexValue = primitiveValue->getFloatValue();
+        return true;
+    }
+
+};
+
 const CSSStyleApplyProperty& CSSStyleApplyProperty::sharedCSSStyleApplyProperty()
 {
     DEFINE_STATIC_LOCAL(CSSStyleApplyProperty, cssStyleApplyPropertyInstance, ());
@@ -1786,7 +1838,7 @@ CSSStyleApplyProperty::CSSStyleApplyProperty()
     setPropertyHandler(CSSPropertyFontStyle, ApplyPropertyFont<FontItalic, &FontDescription::italic, &FontDescription::setItalic, FontItalicOff>::createHandler());
     setPropertyHandler(CSSPropertyFontVariant, ApplyPropertyFont<FontSmallCaps, &FontDescription::smallCaps, &FontDescription::setSmallCaps, FontSmallCapsOff>::createHandler());
     setPropertyHandler(CSSPropertyFontWeight, ApplyPropertyFontWeight::createHandler());
-    setPropertyHandler(CSSPropertyHeight, ApplyPropertyLength<&RenderStyle::height, &RenderStyle::setHeight, &RenderStyle::initialSize, AutoEnabled, IntrinsicEnabled, MinIntrinsicEnabled, NoneDisabled, UndefinedDisabled, FlexHeight>::createHandler());
+    setPropertyHandler(CSSPropertyHeight, ApplyPropertyLength<&RenderStyle::height, &RenderStyle::setHeight, &RenderStyle::initialSize, AutoEnabled, IntrinsicEnabled, MinIntrinsicEnabled, NoneDisabled, UndefinedDisabled>::createHandler());
     setPropertyHandler(CSSPropertyImageRendering, ApplyPropertyDefault<EImageRendering, &RenderStyle::imageRendering, EImageRendering, &RenderStyle::setImageRendering, EImageRendering, &RenderStyle::initialImageRendering>::createHandler());
     setPropertyHandler(CSSPropertyLeft, ApplyPropertyLength<&RenderStyle::left, &RenderStyle::setLeft, &RenderStyle::initialOffset, AutoEnabled>::createHandler());
     setPropertyHandler(CSSPropertyLetterSpacing, ApplyPropertyComputeLength<int, &RenderStyle::letterSpacing, &RenderStyle::setLetterSpacing, &RenderStyle::initialLetterWordSpacing, NormalEnabled, ThicknessDisabled, SVGZoomEnabled>::createHandler());
@@ -1878,6 +1930,7 @@ CSSStyleApplyProperty::CSSStyleApplyProperty()
     setPropertyHandler(CSSPropertyWebkitColumnSpan, ApplyPropertyDefault<ColumnSpan, &RenderStyle::columnSpan, ColumnSpan, &RenderStyle::setColumnSpan, ColumnSpan, &RenderStyle::initialColumnSpan>::createHandler());
     setPropertyHandler(CSSPropertyWebkitColumnRuleStyle, ApplyPropertyDefault<EBorderStyle, &RenderStyle::columnRuleStyle, EBorderStyle, &RenderStyle::setColumnRuleStyle, EBorderStyle, &RenderStyle::initialBorderStyle>::createHandler());
     setPropertyHandler(CSSPropertyWebkitColumnWidth, ApplyPropertyAuto<float, &RenderStyle::columnWidth, &RenderStyle::setColumnWidth, &RenderStyle::hasAutoColumnWidth, &RenderStyle::setHasAutoColumnWidth, ComputeLength>::createHandler());
+    setPropertyHandler(CSSPropertyWebkitFlex, ApplyPropertyFlex::createHandler());
     setPropertyHandler(CSSPropertyWebkitFlexAlign, ApplyPropertyDefault<EFlexAlign, &RenderStyle::flexAlign, EFlexAlign, &RenderStyle::setFlexAlign, EFlexAlign, &RenderStyle::initialFlexAlign>::createHandler());
     setPropertyHandler(CSSPropertyWebkitFlexDirection, ApplyPropertyDefault<EFlexDirection, &RenderStyle::flexDirection, EFlexDirection, &RenderStyle::setFlexDirection, EFlexDirection, &RenderStyle::initialFlexDirection>::createHandler());
     setPropertyHandler(CSSPropertyWebkitFlexFlow, ApplyPropertyExpanding<SuppressValue, CSSPropertyWebkitFlexDirection, CSSPropertyWebkitFlexWrap>::createHandler());
@@ -1952,7 +2005,7 @@ CSSStyleApplyProperty::CSSStyleApplyProperty()
     setPropertyHandler(CSSPropertyWebkitTransformStyle, ApplyPropertyDefault<ETransformStyle3D, &RenderStyle::transformStyle3D, ETransformStyle3D, &RenderStyle::setTransformStyle3D, ETransformStyle3D, &RenderStyle::initialTransformStyle3D>::createHandler());
     setPropertyHandler(CSSPropertyWebkitTransitionDelay, ApplyPropertyAnimation<double, &Animation::delay, &Animation::setDelay, &Animation::isDelaySet, &Animation::clearDelay, &Animation::initialAnimationDelay, &CSSStyleSelector::mapAnimationDelay, &RenderStyle::accessTransitions, &RenderStyle::transitions>::createHandler());
     setPropertyHandler(CSSPropertyWebkitTransitionDuration, ApplyPropertyAnimation<double, &Animation::duration, &Animation::setDuration, &Animation::isDurationSet, &Animation::clearDuration, &Animation::initialAnimationDuration, &CSSStyleSelector::mapAnimationDuration, &RenderStyle::accessTransitions, &RenderStyle::transitions>::createHandler());
-    setPropertyHandler(CSSPropertyWebkitTransitionProperty, ApplyPropertyAnimation<int, &Animation::property, &Animation::setProperty, &Animation::isPropertySet, &Animation::clearProperty, &Animation::initialAnimationProperty, &CSSStyleSelector::mapAnimationProperty, &RenderStyle::accessTransitions, &RenderStyle::transitions>::createHandler());
+    setPropertyHandler(CSSPropertyWebkitTransitionProperty, ApplyPropertyAnimation<CSSPropertyID, &Animation::property, &Animation::setProperty, &Animation::isPropertySet, &Animation::clearProperty, &Animation::initialAnimationProperty, &CSSStyleSelector::mapAnimationProperty, &RenderStyle::accessTransitions, &RenderStyle::transitions>::createHandler());
     setPropertyHandler(CSSPropertyWebkitTransitionTimingFunction, ApplyPropertyAnimation<const PassRefPtr<TimingFunction>, &Animation::timingFunction, &Animation::setTimingFunction, &Animation::isTimingFunctionSet, &Animation::clearTimingFunction, &Animation::initialAnimationTimingFunction, &CSSStyleSelector::mapAnimationTimingFunction, &RenderStyle::accessTransitions, &RenderStyle::transitions>::createHandler());
     setPropertyHandler(CSSPropertyWebkitUserDrag, ApplyPropertyDefault<EUserDrag, &RenderStyle::userDrag, EUserDrag, &RenderStyle::setUserDrag, EUserDrag, &RenderStyle::initialUserDrag>::createHandler());
     setPropertyHandler(CSSPropertyWebkitUserModify, ApplyPropertyDefault<EUserModify, &RenderStyle::userModify, EUserModify, &RenderStyle::setUserModify, EUserModify, &RenderStyle::initialUserModify>::createHandler());
@@ -1964,7 +2017,7 @@ CSSStyleApplyProperty::CSSStyleApplyProperty()
     setPropertyHandler(CSSPropertyWebkitWrapThrough, ApplyPropertyDefault<WrapThrough, &RenderStyle::wrapThrough, WrapThrough, &RenderStyle::setWrapThrough, WrapThrough, &RenderStyle::initialWrapThrough>::createHandler());
     setPropertyHandler(CSSPropertyWhiteSpace, ApplyPropertyDefault<EWhiteSpace, &RenderStyle::whiteSpace, EWhiteSpace, &RenderStyle::setWhiteSpace, EWhiteSpace, &RenderStyle::initialWhiteSpace>::createHandler());
     setPropertyHandler(CSSPropertyWidows, ApplyPropertyDefault<short, &RenderStyle::widows, short, &RenderStyle::setWidows, short, &RenderStyle::initialWidows>::createHandler());
-    setPropertyHandler(CSSPropertyWidth, ApplyPropertyLength<&RenderStyle::width, &RenderStyle::setWidth, &RenderStyle::initialSize, AutoEnabled, IntrinsicEnabled, MinIntrinsicEnabled, NoneDisabled, UndefinedDisabled, FlexWidth>::createHandler());
+    setPropertyHandler(CSSPropertyWidth, ApplyPropertyLength<&RenderStyle::width, &RenderStyle::setWidth, &RenderStyle::initialSize, AutoEnabled, IntrinsicEnabled, MinIntrinsicEnabled, NoneDisabled, UndefinedDisabled>::createHandler());
     setPropertyHandler(CSSPropertyWordBreak, ApplyPropertyDefault<EWordBreak, &RenderStyle::wordBreak, EWordBreak, &RenderStyle::setWordBreak, EWordBreak, &RenderStyle::initialWordBreak>::createHandler());
     setPropertyHandler(CSSPropertyWordSpacing, ApplyPropertyComputeLength<int, &RenderStyle::wordSpacing, &RenderStyle::setWordSpacing, &RenderStyle::initialLetterWordSpacing, NormalEnabled, ThicknessDisabled, SVGZoomEnabled>::createHandler());
     setPropertyHandler(CSSPropertyWordWrap, ApplyPropertyDefault<EWordWrap, &RenderStyle::wordWrap, EWordWrap, &RenderStyle::setWordWrap, EWordWrap, &RenderStyle::initialWordWrap>::createHandler());

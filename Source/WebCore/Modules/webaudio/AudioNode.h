@@ -58,12 +58,11 @@ public:
     enum NodeType {
         NodeTypeUnknown,
         NodeTypeDestination,
+        NodeTypeOscillator,
         NodeTypeAudioBufferSource,
         NodeTypeMediaElementAudioSource,
         NodeTypeJavaScript,
         NodeTypeBiquadFilter,
-        NodeTypeLowPass2Filter,
-        NodeTypeHighPass2Filter,
         NodeTypePanner,
         NodeTypeConvolver,
         NodeTypeDelay,

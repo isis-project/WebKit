@@ -53,7 +53,9 @@ class WebPermissionClient;
 class WebSettings;
 class WebSpellCheckClient;
 class WebString;
+class WebTextFieldDecoratorClient;
 class WebViewClient;
+struct WebActiveWheelFlingParameters;
 struct WebMediaPlayerAction;
 struct WebPluginAction;
 struct WebPoint;
@@ -103,6 +105,7 @@ public:
     virtual void setDevToolsAgentClient(WebDevToolsAgentClient*) = 0;
     virtual void setPermissionClient(WebPermissionClient*) = 0;
     virtual void setSpellCheckClient(WebSpellCheckClient*) = 0;
+    virtual void addTextFieldDecoratorClient(WebTextFieldDecoratorClient*) = 0;
 
 
     // Options -------------------------------------------------------------
@@ -428,6 +431,10 @@ public:
     // Can be used for allocating resources that the compositor will later access.
     virtual WebGraphicsContext3D* sharedGraphicsContext3D() = 0;
 
+    // Called to inform the WebView that a wheel fling animation was started externally (for instance
+    // by the compositor) but must be completed by the WebView.
+    virtual void transferActiveWheelFlingAnimation(const WebActiveWheelFlingParameters&) = 0;
+
     // Visibility -----------------------------------------------------------
 
     // Sets the visibility of the WebView.
@@ -451,7 +458,6 @@ public:
 
     // Simulates a compositor lost context.
     virtual void loseCompositorContext(int numTimes) = 0;
-
 
 protected:
     ~WebView() {}

@@ -49,7 +49,11 @@ WebInspector.UISourceCode = function(id, url, contentProvider)
 }
 
 WebInspector.UISourceCode.Events = {
-    ContentChanged: "content-changed"
+    ContentChanged: "content-changed",
+    BreakpointAdded: "breakpoint-added",
+    BreakpointRemoved: "breakpoint-removed",
+    ConsoleMessageAdded: "console-message-added",
+    ConsoleMessagesCleared: "console-messages-cleared"
 }
 
 WebInspector.UISourceCode.prototype = {
@@ -112,10 +116,10 @@ WebInspector.UISourceCode.prototype = {
     {
         if (typeof(this._domain) === "undefined")
             this._parseURL();
-        
+
         return this._domain;
     },
-    
+
     /**
      * @type {string}
      */
@@ -123,10 +127,10 @@ WebInspector.UISourceCode.prototype = {
     {
         if (typeof(this._folderName) === "undefined")
             this._parseURL();
-        
+
         return this._folderName;
     },
-    
+
     /**
      * @type {string}
      */
@@ -134,10 +138,10 @@ WebInspector.UISourceCode.prototype = {
     {
         if (typeof(this._fileName) === "undefined")
             this._parseURL();
-        
+
         return this._fileName;
     },
-    
+
     /**
      * @type {string}
      */
@@ -145,10 +149,10 @@ WebInspector.UISourceCode.prototype = {
     {
         if (typeof(this._displayName) === "undefined")
             this._parseURL();
-        
+
         return this._displayName;
     },
-    
+
     _parseURL: function()
     {
         var parsedURL = this.url.asParsedURL();
@@ -172,10 +176,10 @@ WebInspector.UISourceCode.prototype = {
             indexOfQuery = fileName.length;
         var lastPathComponent = fileName.substring(0, indexOfQuery);
         var queryParams = fileName.substring(indexOfQuery, fileName.length);
-        
+
         const maxDisplayNameLength = 30;
         const minDisplayQueryParamLength = 5;
-        
+
         var maxDisplayQueryParamLength = Math.max(minDisplayQueryParamLength, maxDisplayNameLength - lastPathComponent.length);
         var displayQueryParams = queryParams.trimEnd(maxDisplayQueryParamLength);
         var displayLastPathComponent = lastPathComponent.trimMiddle(maxDisplayNameLength - displayQueryParams.length);
@@ -205,7 +209,17 @@ WebInspector.UISourceCode.prototype = {
         for (var i = 0; i < this._requestContentCallbacks.length; ++i)
             this._requestContentCallbacks[i](mimeType, content);
         this._requestContentCallbacks = [];
-    }
+    },
+
+    /**
+     * @return {Object.<string,WebInspector.UIBreakpoint>}
+     */
+    breakpoints: function() {},
+
+    /**
+     * @return {Array.<WebInspector.PresentationConsoleMessage>}
+     */
+    consoleMessages: function() {}
 }
 
 WebInspector.UISourceCode.prototype.__proto__ = WebInspector.Object.prototype;

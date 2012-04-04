@@ -45,11 +45,11 @@
 #include "RenderBoxRegionInfo.h"
 #include "RenderCombineText.h"
 #include "RenderDeprecatedFlexibleBox.h"
-#include "RenderFlowThread.h"
 #include "RenderImage.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
 #include "RenderMarquee.h"
+#include "RenderNamedFlowThread.h"
 #include "RenderRegion.h"
 #include "RenderReplica.h"
 #include "RenderTableCell.h"
@@ -68,6 +68,29 @@ using namespace Unicode;
 namespace WebCore {
 
 using namespace HTMLNames;
+
+struct SameSizeAsRenderBlock : public RenderBox {
+    void* pointers[3];
+    RenderObjectChildList children;
+    RenderLineBoxList lineBoxes;
+    uint32_t bitfields;
+};
+
+COMPILE_ASSERT(sizeof(RenderBlock) == sizeof(SameSizeAsRenderBlock), RenderBlock_should_stay_small);
+
+struct SameSizeAsFloatingObject {
+    void* pointers[2];
+    LayoutRect rect;
+    int paginationStrut;
+    uint32_t bitfields : 8;
+};
+
+COMPILE_ASSERT(sizeof(RenderBlock::MarginValues) == sizeof(LayoutUnit[4]), MarginValues_should_stay_small);
+
+struct SameSizeAsMarginInfo {
+    uint32_t bitfields : 16;
+    LayoutUnit margins[2];
+};
 
 typedef WTF::HashMap<const RenderBox*, ColumnInfo*> ColumnInfoMap;
 static ColumnInfoMap* gColumnInfoMap = 0;
@@ -181,6 +204,8 @@ RenderBlock::RenderBlock(Node* node)
       , m_hasMarkupTruncation(false)
 {
     setChildrenInline(true);
+    COMPILE_ASSERT(sizeof(RenderBlock::FloatingObject) == sizeof(SameSizeAsFloatingObject), FloatingObject_should_stay_small);
+    COMPILE_ASSERT(sizeof(RenderBlock::MarginInfo) == sizeof(SameSizeAsMarginInfo), MarginInfo_should_stay_small);
 }
 
 RenderBlock::~RenderBlock()
@@ -756,7 +781,7 @@ RenderObject* RenderBlock::splitTablePartsAroundChild(RenderObject* beforeChild)
 
             // Create an anonymous table container next to our table container.
             RenderBlock* parentBlock = toRenderBlock(table->parent());
-            RenderTable* postTable = parentBlock->createAnonymousTable();
+            RenderTable* postTable = RenderTable::createAnonymousWithParentRenderer(parentBlock);
             parentBlock->children()->insertChildNode(parentBlock, postTable, table->nextSibling());
             
             // Move all the children from beforeChild to the newly created anonymous table container.
@@ -1227,8 +1252,8 @@ void RenderBlock::collapseAnonymousBoxChild(RenderBlock* parent, RenderObject* c
     // Delete the now-empty block's lines and nuke it.
     if (!parent->documentBeingDestroyed())
         anonBlock->deleteLineBoxTree();
-    if (childFlowThread && !parent->documentBeingDestroyed())
-        childFlowThread->removeFlowChildInfo(anonBlock);
+    if (!parent->documentBeingDestroyed() && childFlowThread && childFlowThread->isRenderNamedFlowThread())
+        toRenderNamedFlowThread(childFlowThread)->removeFlowChildInfo(anonBlock);
     anonBlock->destroy();
 }
 
@@ -1646,7 +1671,7 @@ void RenderBlock::layoutBlock(bool relayoutChildren, LayoutUnit pageLogicalHeigh
     }
     
     if (needAnotherLayoutPass && layoutPass == NormalLayoutPass) {
-        setChildNeedsLayout(true, false);
+        setChildNeedsLayout(true, MarkOnlyThis);
         layoutBlock(false, pageLogicalHeight, PositionedFloatLayoutPass);
     } else
         setNeedsLayout(false);
@@ -1721,7 +1746,7 @@ void RenderBlock::addOverflowFromFloats()
     FloatingObjectSetIterator end = floatingObjectSet.end();
     for (FloatingObjectSetIterator it = floatingObjectSet.begin(); it != end; ++it) {
         FloatingObject* r = *it;
-        if (r->m_isDescendant && !r->m_renderer->isPositioned())
+        if (r->isDescendant() && !r->m_renderer->isPositioned())
             addOverflowFromChild(r->m_renderer, IntSize(xPositionForFloatIncludingMargin(r), yPositionForFloatIncludingMargin(r)));
     }
     return;
@@ -1790,7 +1815,7 @@ void RenderBlock::adjustPositionedBlock(RenderBox* child, const MarginInfo& marg
     if (childLayer->staticBlockPosition() != logicalTop) {
         childLayer->setStaticBlockPosition(logicalTop);
         if (hasStaticBlockPosition)
-            child->setChildNeedsLayout(true, false);
+            child->setChildNeedsLayout(true, MarkOnlyThis);
     }
 }
 
@@ -1851,12 +1876,20 @@ bool RenderBlock::handleRunInChild(RenderBox* child)
     // block.
     if (!child->isRunIn() || !child->childrenInline())
         return false;
+
     // FIXME: We don't handle non-block elements with run-in for now.
     if (!child->isRenderBlock())
-        return false;  
+        return false;
+
     // Run-in child shouldn't intrude into the sibling block if it is part of a
     // continuation chain. In that case, treat it as a normal block.
     if (child->isElementContinuation() || child->virtualContinuation())
+        return false;
+
+    // Check if this node is allowed to run-in. E.g. <select> expects its renderer to
+    // be a RenderListBox or RenderMenuList, and hence cannot be a RenderInline run-in.
+    Node* runInNode = child->node();
+    if (runInNode && runInNode->hasTagName(selectTag))
         return false;
 
     RenderBlock* blockRunIn = toRenderBlock(child);
@@ -1880,7 +1913,6 @@ bool RenderBlock::handleRunInChild(RenderBox* child)
     children()->removeChildNode(this, blockRunIn);
 
     // Create an inline.
-    Node* runInNode = blockRunIn->node();
     RenderInline* inlineRunIn = new (renderArena()) RenderInline(runInNode ? runInNode : document());
     inlineRunIn->setStyle(blockRunIn->style());
 
@@ -2229,7 +2261,7 @@ void RenderBlock::layoutBlockChildren(bool relayoutChildren, LayoutUnit& maxFloa
                 while (box != this) {
                     if (box->normalChildNeedsLayout())
                         break;
-                    box->setChildNeedsLayout(true, false);
+                    box->setChildNeedsLayout(true, MarkOnlyThis);
                     box = box->containingBlock();
                     ASSERT(box);
                     if (!box)
@@ -2272,11 +2304,11 @@ void RenderBlock::layoutBlockChildren(bool relayoutChildren, LayoutUnit& maxFloa
         // FIXME: Technically percentage height objects only need a relayout if their percentage isn't going to be turned into
         // an auto value.  Add a method to determine this, so that we can avoid the relayout.
         if (relayoutChildren || (child->hasRelativeLogicalHeight() && !isRenderView()))
-            child->setChildNeedsLayout(true, false);
+            child->setChildNeedsLayout(true, MarkOnlyThis);
 
         // If relayoutChildren is set and the child has percentage padding or an embedded content box, we also need to invalidate the childs pref widths.
         if (relayoutChildren && child->needsPreferredWidthsRecalculation())
-            child->setPreferredLogicalWidthsDirty(true, false);
+            child->setPreferredLogicalWidthsDirty(true, MarkOnlyThis);
 
         // Handle the four types of special elements first.  These include positioned content, floating content, compacts and
         // run-ins.  When we encounter these four types of objects, we don't actually lay them out as normal flow blocks.
@@ -2374,7 +2406,7 @@ void RenderBlock::layoutBlockChild(RenderBox* child, MarginInfo& marginInfo, Lay
             // When the child shifts to clear an item, its width can
             // change (because it has more available line width).
             // So go ahead and mark the item as dirty.
-            child->setChildNeedsLayout(true, false);
+            child->setChildNeedsLayout(true, MarkOnlyThis);
         }
         
         if (childRenderBlock) {
@@ -2543,11 +2575,11 @@ bool RenderBlock::layoutPositionedObjects(bool relayoutChildren)
         // objects that are positioned implicitly like this.  Such objects are rare, and so in typical DHTML menu usage (where everything is
         // positioned explicitly) this should not incur a performance penalty.
         if (relayoutChildren || (r->style()->hasStaticBlockPosition(isHorizontalWritingMode()) && r->parent() != this))
-            r->setChildNeedsLayout(true, false);
+            r->setChildNeedsLayout(true, MarkOnlyThis);
             
         // If relayoutChildren is set and the child has percentage padding or an embedded content box, we also need to invalidate the childs pref widths.
         if (relayoutChildren && r->needsPreferredWidthsRecalculation())
-            r->setPreferredLogicalWidthsDirty(true, false);
+            r->setPreferredLogicalWidthsDirty(true, MarkOnlyThis);
         
         if (!r->needsLayout())
             r->markForPaginationRelayoutIfNeeded();
@@ -2578,7 +2610,7 @@ bool RenderBlock::layoutPositionedObjects(bool relayoutChildren)
         
         // Lay out again if our estimate was wrong.
         if (needsBlockDirectionLocationSetBeforeLayout && logicalTopForChild(r) != oldLogicalTop) {
-            r->setChildNeedsLayout(true, false);
+            r->setChildNeedsLayout(true, MarkOnlyThis);
             r->layoutIfNeeded();
         }
     }
@@ -2608,7 +2640,7 @@ void RenderBlock::markForPaginationRelayoutIfNeeded()
         return;
 
     if (view()->layoutState()->pageLogicalHeightChanged() || (view()->layoutState()->pageLogicalHeight() && view()->layoutState()->pageLogicalOffset(logicalTop()) != pageLogicalOffset()))
-        setChildNeedsLayout(true, false);
+        setChildNeedsLayout(true, MarkOnlyThis);
 }
 
 void RenderBlock::repaintOverhangingFloats(bool paintAllDescendants)
@@ -2628,7 +2660,7 @@ void RenderBlock::repaintOverhangingFloats(bool paintAllDescendants)
         // Only repaint the object if it is overhanging, is not in its own layer, and
         // is our responsibility to paint (m_shouldPaint is set). When paintAllDescendants is true, the latter
         // condition is replaced with being a descendant of us.
-        if (logicalBottomForFloat(r) > logicalHeight() && ((paintAllDescendants && r->m_renderer->isDescendantOf(this)) || r->m_shouldPaint) && !r->m_renderer->hasSelfPaintingLayer()) {
+        if (logicalBottomForFloat(r) > logicalHeight() && ((paintAllDescendants && r->m_renderer->isDescendantOf(this)) || r->shouldPaint()) && !r->m_renderer->hasSelfPaintingLayer()) {
             r->m_renderer->repaint();
             r->m_renderer->repaintOverhangingFloats();
         }
@@ -2987,7 +3019,7 @@ void RenderBlock::paintFloats(PaintInfo& paintInfo, const LayoutPoint& paintOffs
     for (FloatingObjectSetIterator it = floatingObjectSet.begin(); it != end; ++it) {
         FloatingObject* r = *it;
         // Only paint the object if our m_shouldPaint flag is set.
-        if (r->m_shouldPaint && !r->m_renderer->hasSelfPaintingLayer()) {
+        if (r->shouldPaint() && !r->m_renderer->hasSelfPaintingLayer()) {
             PaintInfo currentPaintInfo(paintInfo);
             currentPaintInfo.phase = preservePhase ? paintInfo.phase : PaintPhaseBlockBackground;
             LayoutPoint childPoint = flipFloatForWritingModeForChild(r, LayoutPoint(paintOffset.x() + xPositionForFloatIncludingMargin(r) - r->m_renderer->x(), paintOffset.y() + yPositionForFloatIncludingMargin(r) - r->m_renderer->y()));
@@ -3527,7 +3559,7 @@ void RenderBlock::removePositionedObjects(RenderBlock* o)
         r = *it;
         if (!o || r->isDescendantOf(o)) {
             if (o)
-                r->setChildNeedsLayout(true, false);
+                r->setChildNeedsLayout(true, MarkOnlyThis);
             
             // It is parent blocks job to add positioned child to positioned objects list of its containing block
             // Parent layout needs to be invalidated to ensure this happens.
@@ -3569,7 +3601,7 @@ RenderBlock::FloatingObject* RenderBlock::insertFloatingObject(RenderBox* o)
     if (!o->isPositioned()) {
         bool isChildRenderBlock = o->isRenderBlock();
         if (isChildRenderBlock && !o->needsLayout() && view()->layoutState()->pageLogicalHeightChanged())
-            o->setChildNeedsLayout(true, false);
+            o->setChildNeedsLayout(true, MarkOnlyThis);
             
         bool needsBlockDirectionLocationSetBeforeLayout = isChildRenderBlock && view()->layoutState()->needsBlockDirectionLocationSetBeforeLayout();
         if (!needsBlockDirectionLocationSetBeforeLayout || isWritingModeRoot()) // We are unsplittable if we're a block flow root.
@@ -3581,8 +3613,8 @@ RenderBlock::FloatingObject* RenderBlock::insertFloatingObject(RenderBox* o)
     }
     setLogicalWidthForFloat(newObj, logicalWidthForChild(o) + marginStartForChild(o) + marginEndForChild(o));
 
-    newObj->m_shouldPaint = !o->hasSelfPaintingLayer(); // If a layer exists, the float will paint itself.  Otherwise someone else will.
-    newObj->m_isDescendant = true;
+    newObj->setShouldPaint(!o->hasSelfPaintingLayer()); // If a layer exists, the float will paint itself. Otherwise someone else will.
+    newObj->setIsDescendant(true);
     newObj->m_renderer = o;
 
     m_floatingObjects->add(newObj);
@@ -3782,7 +3814,7 @@ bool RenderBlock::positionNewFloats()
                 setLogicalTopForChild(childBox, floatLogicalLocation.y() + marginBeforeForChild(childBox));
         
                 if (childBlock)
-                    childBlock->setChildNeedsLayout(true, false);
+                    childBlock->setChildNeedsLayout(true, MarkOnlyThis);
                 childBox->layoutIfNeeded();
             }
         }
@@ -3833,7 +3865,7 @@ void RenderBlock::addPercentHeightDescendant(RenderBox* descendant)
         descendantSet = new HashSet<RenderBox*>;
         gPercentHeightDescendantsMap->set(this, descendantSet);
     }
-    bool added = descendantSet->add(descendant).second;
+    bool added = descendantSet->add(descendant).isNewEntry;
     if (!added) {
         ASSERT(gPercentHeightContainerMap->get(descendant));
         ASSERT(gPercentHeightContainerMap->get(descendant)->contains(this));
@@ -3919,9 +3951,12 @@ inline void RenderBlock::FloatIntervalSearchAdapter<FloatTypeValue>::collectIfNe
 LayoutUnit RenderBlock::textIndentOffset() const
 {
     LayoutUnit cw = 0;
+    RenderView* renderView = 0;
     if (style()->textIndent().isPercent())
         cw = containingBlock()->availableLogicalWidth();
-    return miminumValueForLength(style()->textIndent(), cw);
+    else if (style()->textIndent().isViewportPercentage())
+        renderView = view();
+    return minimumValueForLength(style()->textIndent(), cw, renderView);
 }
 
 LayoutUnit RenderBlock::logicalLeftOffsetForContent(RenderRegion* region, LayoutUnit offsetFromLogicalTopOfFirstPage) const
@@ -4125,6 +4160,17 @@ void RenderBlock::clearFloats(BlockLayoutPass layoutPass)
     // Clear our positioned floats boolean.
     m_hasPositionedFloats = false;
 
+    HashSet<RenderBox*> oldIntrudingFloatSet;
+    if (!childrenInline() && m_floatingObjects) {
+        const FloatingObjectSet& floatingObjectSet = m_floatingObjects->set();
+        FloatingObjectSetIterator end = floatingObjectSet.end();
+        for (FloatingObjectSetIterator it = floatingObjectSet.begin(); it != end; ++it) {
+            FloatingObject* floatingObject = *it;
+            if (!floatingObject->isDescendant())
+                oldIntrudingFloatSet.add(floatingObject->m_renderer);
+        }
+    }
+
     // Inline blocks are covered by the isReplaced() check in the avoidFloats method.
     if (avoidsFloats() || isRoot() || isRenderView() || isFloatingOrPositioned() || isTableCell()) {
         if (m_floatingObjects) {
@@ -4133,6 +4179,8 @@ void RenderBlock::clearFloats(BlockLayoutPass layoutPass)
         }
         if (layoutPass == PositionedFloatLayoutPass)
             addPositionedFloats();
+        if (!oldIntrudingFloatSet.isEmpty())
+            markAllDescendantsWithFloatsForLayout();
         return;
     }
 
@@ -4235,7 +4283,7 @@ void RenderBlock::clearFloats(BlockLayoutPass layoutPass)
         RendererToFloatInfoMap::iterator end = floatMap.end();
         for (RendererToFloatInfoMap::iterator it = floatMap.begin(); it != end; ++it) {
             FloatingObject* floatingObject = (*it).second;
-            if (!floatingObject->m_isDescendant) {
+            if (!floatingObject->isDescendant()) {
                 changeLogicalTop = 0;
                 changeLogicalBottom = max(changeLogicalBottom, logicalBottomForFloat(floatingObject));
             }
@@ -4243,6 +4291,15 @@ void RenderBlock::clearFloats(BlockLayoutPass layoutPass)
         deleteAllValues(floatMap);
 
         markLinesDirtyInBlockRange(changeLogicalTop, changeLogicalBottom);
+    } else if (!oldIntrudingFloatSet.isEmpty()) {
+        // If there are previously intruding floats that no longer intrude, then children with floats
+        // should also get layout because they might need their floating object lists cleared.
+        const FloatingObjectSet& floatingObjectSet = m_floatingObjects->set();
+        FloatingObjectSetIterator end = floatingObjectSet.end();
+        for (FloatingObjectSetIterator it = floatingObjectSet.begin(); it != end; ++it)
+            oldIntrudingFloatSet.remove((*it)->m_renderer);
+        if (!oldIntrudingFloatSet.isEmpty())
+            markAllDescendantsWithFloatsForLayout();
     }
 }
 
@@ -4278,11 +4335,11 @@ LayoutUnit RenderBlock::addOverhangingFloats(RenderBlock* child, bool makeChildP
                 // far out as we can, to the outermost block that overlaps the float, stopping only
                 // if we hit a self-painting layer boundary.
                 if (r->m_renderer->enclosingFloatPaintingLayer() == enclosingFloatPaintingLayer())
-                    r->m_shouldPaint = false;
+                    r->setShouldPaint(false);
                 else
-                    floatingObj->m_shouldPaint = false;
-                
-                floatingObj->m_isDescendant = true;
+                    floatingObj->setShouldPaint(false);
+
+                floatingObj->setIsDescendant(true);
 
                 // We create the floating object list lazily.
                 if (!m_floatingObjects)
@@ -4291,19 +4348,19 @@ LayoutUnit RenderBlock::addOverhangingFloats(RenderBlock* child, bool makeChildP
                 m_floatingObjects->add(floatingObj);
             }
         } else {
-            if (makeChildPaintOtherFloats && !r->m_shouldPaint && !r->m_renderer->hasSelfPaintingLayer() &&
-                r->m_renderer->isDescendantOf(child) && r->m_renderer->enclosingFloatPaintingLayer() == child->enclosingFloatPaintingLayer()) {
+            if (makeChildPaintOtherFloats && !r->shouldPaint() && !r->m_renderer->hasSelfPaintingLayer()
+                && r->m_renderer->isDescendantOf(child) && r->m_renderer->enclosingFloatPaintingLayer() == child->enclosingFloatPaintingLayer()) {
                 // The float is not overhanging from this block, so if it is a descendant of the child, the child should
                 // paint it (the other case is that it is intruding into the child), unless it has its own layer or enclosing
                 // layer.
                 // If makeChildPaintOtherFloats is false, it means that the child must already know about all the floats
                 // it should paint.
-                r->m_shouldPaint = true;
+                r->setShouldPaint(true);
             }
             
             // Since the float doesn't overhang, it didn't get put into our list.  We need to go ahead and add its overflow in to the
             // child now.
-            if (r->m_isDescendant)
+            if (r->isDescendant())
                 child->addOverflowFromChild(r->m_renderer, LayoutSize(xPositionForFloatIncludingMargin(r), yPositionForFloatIncludingMargin(r)));
         }
     }
@@ -4354,7 +4411,7 @@ void RenderBlock::addIntrudingFloats(RenderBlock* prev, LayoutUnit logicalLeftOf
                         floatingObj->setY(floatingObj->y() + prev->marginTop());
                 }
                
-                floatingObj->m_shouldPaint = false;  // We are not in the direct inheritance chain for this float. We will never paint it.
+                floatingObj->setShouldPaint(false); // We are not in the direct inheritance chain for this float. We will never paint it.
                 floatingObj->m_renderer = r->m_renderer;
                 
                 // We create the floating object list lazily.
@@ -4382,7 +4439,8 @@ void RenderBlock::markAllDescendantsWithFloatsForLayout(RenderBox* floatToRemove
     if (!everHadLayout())
         return;
 
-    setChildNeedsLayout(true, !inLayout);
+    MarkingBehavior markParents = inLayout ? MarkOnlyThis : MarkContainingBlockChain;
+    setChildNeedsLayout(true, markParents);
  
     if (floatToRemove)
         removeFloatingObject(floatToRemove);
@@ -4571,7 +4629,7 @@ bool RenderBlock::hitTestFloats(const HitTestRequest& request, HitTestResult& re
     for (FloatingObjectSetIterator it = floatingObjectSet.end(); it != begin;) {
         --it;
         FloatingObject* floatingObject = *it;
-        if (floatingObject->m_shouldPaint && !floatingObject->m_renderer->hasSelfPaintingLayer()) {
+        if (floatingObject->shouldPaint() && !floatingObject->m_renderer->hasSelfPaintingLayer()) {
             LayoutUnit xOffset = xPositionForFloatIncludingMargin(floatingObject) - floatingObject->m_renderer->x();
             LayoutUnit yOffset = yPositionForFloatIncludingMargin(floatingObject) - floatingObject->m_renderer->y();
             LayoutPoint childPoint = flipFloatForWritingModeForChild(floatingObject, adjustedLocation + LayoutSize(xOffset, yOffset));
@@ -5561,7 +5619,7 @@ void RenderBlock::computeInlinePreferredLogicalWidths()
                 LayoutUnit ti = 0;
                 if (!addedTextIndent) {
                     addedTextIndent = true;
-                    ti = miminumValueForLength(styleToUse->textIndent(), cw);
+                    ti = minimumValueForLength(styleToUse->textIndent(), cw, view());
                     childMin += ti;
                     childMax += ti;
                 }
@@ -5632,7 +5690,7 @@ void RenderBlock::computeInlinePreferredLogicalWidths()
                 LayoutUnit ti = 0;
                 if (!addedTextIndent) {
                     addedTextIndent = true;
-                    ti = miminumValueForLength(styleToUse->textIndent(), cw);
+                    ti = minimumValueForLength(styleToUse->textIndent(), cw, view());
                     childMin+=ti; beginMin += ti;
                     childMax+=ti; beginMax += ti;
                 }
@@ -5826,11 +5884,11 @@ LayoutUnit RenderBlock::lineHeight(bool firstLine, LineDirectionMode direction, 
     if (firstLine && document()->usesFirstLineRules()) {
         RenderStyle* s = style(firstLine);
         if (s != style())
-            return s->computedLineHeight();
+            return s->computedLineHeight(view());
     }
     
     if (m_lineHeight == -1)
-        m_lineHeight = style()->computedLineHeight();
+        m_lineHeight = style()->computedLineHeight(view());
 
     return m_lineHeight;
 }
@@ -6302,7 +6360,7 @@ void RenderBlock::adjustForBorderFit(LayoutUnit x, LayoutUnit& left, LayoutUnit&
             for (FloatingObjectSetIterator it = floatingObjectSet.begin(); it != end; ++it) {
                 FloatingObject* r = *it;
                 // Only examine the object if our m_shouldPaint flag is set.
-                if (r->m_shouldPaint) {
+                if (r->shouldPaint()) {
                     LayoutUnit floatLeft = xPositionForFloatIncludingMargin(r) - r->m_renderer->x();
                     LayoutUnit floatRight = floatLeft + r->m_renderer->width();
                     left = min(left, floatLeft);
@@ -6617,52 +6675,13 @@ void RenderBlock::addFocusRingRects(Vector<IntRect>& rects, const LayoutPoint& a
         inlineElementContinuation()->addFocusRingRects(rects, flooredLayoutPoint(additionalOffset + inlineElementContinuation()->containingBlock()->location() - location()));
 }
 
-RenderBlock* RenderBlock::createAnonymousBlock(bool isFlexibleBox) const
-{
-    RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(style());
-
-    RenderBlock* newBox = 0;
-    if (isFlexibleBox) {
-        newStyle->setDisplay(BOX);
-        newBox = new (renderArena()) RenderDeprecatedFlexibleBox(document() /* anonymous box */);
-    } else {
-        newStyle->setDisplay(BLOCK);
-        newBox = new (renderArena()) RenderBlock(document() /* anonymous box */);
-    }
-
-    newBox->setStyle(newStyle.release());
-    return newBox;
-}
-
 RenderBlock* RenderBlock::createAnonymousBlockWithSameTypeAs(RenderBlock* otherAnonymousBlock) const
 {
     if (otherAnonymousBlock->isAnonymousColumnsBlock())
         return createAnonymousColumnsBlock();
     if (otherAnonymousBlock->isAnonymousColumnSpanBlock())
         return createAnonymousColumnSpanBlock();
-    return createAnonymousBlock(otherAnonymousBlock->style()->display() == BOX);
-}
-
-RenderBlock* RenderBlock::createAnonymousColumnsBlock() const
-{
-    RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(style());
-    newStyle->inheritColumnPropertiesFrom(style());
-    newStyle->setDisplay(BLOCK);
-
-    RenderBlock* newBox = new (renderArena()) RenderBlock(document() /* anonymous box */);
-    newBox->setStyle(newStyle.release());
-    return newBox;
-}
-
-RenderBlock* RenderBlock::createAnonymousColumnSpanBlock() const
-{
-    RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(style());
-    newStyle->setColumnSpan(ColumnSpanAll);
-    newStyle->setDisplay(BLOCK);
-
-    RenderBlock* newBox = new (renderArena()) RenderBlock(document() /* anonymous box */);
-    newBox->setStyle(newStyle.release());
-    return newBox;
+    return createAnonymousBlock(otherAnonymousBlock->style()->display());
 }
 
 bool RenderBlock::hasNextPage(LayoutUnit logicalOffset, PageBoundaryRule pageBoundaryRule) const
@@ -6900,7 +6919,7 @@ LayoutUnit RenderBlock::adjustBlockChildForPagination(LayoutUnit logicalTopAfter
             // When the child shifts to clear an item, its width can
             // change (because it has more available line width).
             // So go ahead and mark the item as dirty.
-            child->setChildNeedsLayout(true, false);
+            child->setChildNeedsLayout(true, MarkOnlyThis);
         }
         
         if (childRenderBlock) {
@@ -7393,6 +7412,47 @@ TextRun RenderBlock::constructTextRun(RenderObject* context, const Font& font, c
 TextRun RenderBlock::constructTextRun(RenderObject* context, const Font& font, const String& string, RenderStyle* style, TextRun::ExpansionBehavior expansion, TextRunFlags flags)
 {
     return constructTextRun(context, font, string.characters(), string.length(), style, expansion, flags);
+}
+
+RenderBlock* RenderBlock::createAnonymousWithParentRendererAndDisplay(const RenderObject* parent, EDisplay display)
+{
+    RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(parent->style());
+
+    // FIXME: Do we need to cover the new flex box here ?
+    // FIXME: Do we need to convert all our inline displays to block-type in the anonymous logic ?
+    RenderBlock* newBox = 0;
+    if (display == BOX || display == INLINE_BOX) {
+        newStyle->setDisplay(BOX);
+        newBox = new (parent->renderArena()) RenderDeprecatedFlexibleBox(parent->document() /* anonymous box */);
+    } else {
+        newStyle->setDisplay(BLOCK);
+        newBox = new (parent->renderArena()) RenderBlock(parent->document() /* anonymous box */);
+    }
+
+    newBox->setStyle(newStyle.release());
+    return newBox;
+}
+
+RenderBlock* RenderBlock::createAnonymousColumnsWithParentRenderer(const RenderObject* parent)
+{
+    RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(parent->style());
+    newStyle->inheritColumnPropertiesFrom(parent->style());
+    newStyle->setDisplay(BLOCK);
+
+    RenderBlock* newBox = new (parent->renderArena()) RenderBlock(parent->document() /* anonymous box */);
+    newBox->setStyle(newStyle.release());
+    return newBox;
+}
+
+RenderBlock* RenderBlock::createAnonymousColumnSpanWithParentRenderer(const RenderObject* parent)
+{
+    RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(parent->style());
+    newStyle->setColumnSpan(ColumnSpanAll);
+    newStyle->setDisplay(BLOCK);
+
+    RenderBlock* newBox = new (parent->renderArena()) RenderBlock(parent->document() /* anonymous box */);
+    newBox->setStyle(newStyle.release());
+    return newBox;
 }
 
 #ifndef NDEBUG

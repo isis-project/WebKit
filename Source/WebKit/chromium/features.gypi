@@ -52,9 +52,7 @@
       'ENABLE_GESTURE_EVENTS=1',
       'ENABLE_ICONDATABASE=0',
       'ENABLE_INDEXED_DATABASE=1',
-      'ENABLE_INPUT_COLOR=0',
       'ENABLE_INPUT_SPEECH=1',
-      'ENABLE_INPUT_TYPE_COLOR=0',
       'ENABLE_INPUT_TYPE_DATE=0',
       'ENABLE_INPUT_TYPE_DATETIME=0',
       'ENABLE_INPUT_TYPE_DATETIMELOCAL=0',
@@ -95,7 +93,7 @@
       'ENABLE_V8_SCRIPT_DEBUG_SERVER=1',
       'ENABLE_VIDEO=1',
       'ENABLE_VIDEO_TRACK=1',
-      'ENABLE_VIEWPORT=<(enable_viewport)',
+      'ENABLE_VIEWPORT=1',
       'ENABLE_WEBGL=1',
       'ENABLE_WEB_SOCKETS=1',
       'ENABLE_WEB_TIMING=1',
@@ -131,11 +129,22 @@
     'conditions': [
       ['OS=="android"', {
         'feature_defines': [
+          'ENABLE_CALENDAR_PICKER=0',
           'ENABLE_WEB_AUDIO=0',
         ],
       }, {
         'feature_defines': [
+          'ENABLE_CALENDAR_PICKER=1',
           'ENABLE_WEB_AUDIO=1',
+        ],
+      }],
+      ['OS=="android" or use_aura==1', {
+        'feature_defines': [
+          'ENABLE_INPUT_TYPE_COLOR=0',
+        ],
+      }, {
+        'feature_defines': [
+          'ENABLE_INPUT_TYPE_COLOR=1',
         ],
       }],
       ['use_accelerated_compositing==1', {

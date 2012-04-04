@@ -123,11 +123,11 @@ bool InspectorInstrumentation::isDebuggerPausedImpl(InstrumentingAgents* instrum
     return false;
 }
 
-void InspectorInstrumentation::willInsertDOMNodeImpl(InstrumentingAgents* instrumentingAgents, Node* node, Node* parent)
+void InspectorInstrumentation::willInsertDOMNodeImpl(InstrumentingAgents* instrumentingAgents, Node* parent)
 {
 #if ENABLE(JAVASCRIPT_DEBUGGER)
     if (InspectorDOMDebuggerAgent* domDebuggerAgent = instrumentingAgents->inspectorDOMDebuggerAgent())
-        domDebuggerAgent->willInsertDOMNode(node, parent);
+        domDebuggerAgent->willInsertDOMNode(parent);
 #endif
 }
 
@@ -407,8 +407,14 @@ InspectorInstrumentationCookie InspectorInstrumentation::willLayoutImpl(Instrume
 
 void InspectorInstrumentation::didLayoutImpl(const InspectorInstrumentationCookie& cookie)
 {
+    if (!cookie.first)
+        return;
+
     if (InspectorTimelineAgent* timelineAgent = retrieveTimelineAgent(cookie))
         timelineAgent->didLayout();
+
+    if (InspectorPageAgent* pageAgent = cookie.first->inspectorPageAgent())
+        pageAgent->didLayout();
 }
 
 InspectorInstrumentationCookie InspectorInstrumentation::willLoadXHRImpl(InstrumentingAgents* instrumentingAgents, XMLHttpRequest* request)
@@ -482,7 +488,8 @@ InspectorInstrumentationCookie InspectorInstrumentation::willMatchRuleImpl(Instr
 {
     InspectorCSSAgent* cssAgent = instrumentingAgents->inspectorCSSAgent();
     if (cssAgent) {
-        cssAgent->willMatchRule(rule->ensureCSSStyleRule());
+        RefPtr<CSSRule> cssRule = rule->createCSSOMWrapper();
+        cssAgent->willMatchRule(static_cast<CSSStyleRule*>(cssRule.get()));
         return InspectorInstrumentationCookie(instrumentingAgents, 1);
     }
 
@@ -500,7 +507,8 @@ InspectorInstrumentationCookie InspectorInstrumentation::willProcessRuleImpl(Ins
 {
     InspectorCSSAgent* cssAgent = instrumentingAgents->inspectorCSSAgent();
     if (cssAgent) {
-        cssAgent->willProcessRule(rule->ensureCSSStyleRule());
+        RefPtr<CSSRule> cssRule = rule->createCSSOMWrapper();
+        cssAgent->willProcessRule(static_cast<CSSStyleRule*>(cssRule.get()));
         return InspectorInstrumentationCookie(instrumentingAgents, 1);
     }
 

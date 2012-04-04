@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-# Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010 Apple Inc. All rights reserved.
+# Copyright (C) 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012 Apple Inc. All rights reserved.
 # Copyright (C) 2009 Google Inc. All rights reserved.
 # Copyright (C) 2010 moiji-mobile.com All rights reserved.
 # Copyright (C) 2011 Research In Motion Limited. All rights reserved.
@@ -95,7 +95,7 @@ my (
     $iconDatabaseSupport,
     $imageResizerSupport,
     $indexedDatabaseSupport,
-    $inputColorSupport,
+    $inputTypeColorSupport,
     $inputSpeechSupport,
     $scriptedSpeechSupport,
     $inputTypeDateSupport,
@@ -116,6 +116,7 @@ my (
     $microdataSupport,
     $mutationObserversSupport,
     $netscapePluginSupport,
+    $networkInfoSupport,
     $notificationsSupport,
     $orientationEventsSupport,
     $pageVisibilityApiSupport,
@@ -188,7 +189,7 @@ my @features = (
       define => "ENABLE_SQL_DATABASE", default => 1, value => \$sqlDatabaseSupport },
 
     { option => "datalist", desc => "Toggle HTML5 datalist support",
-      define => "ENABLE_DATALIST", default => 1, value => \$datalistSupport },
+      define => "ENABLE_DATALIST", default => 0, value => \$datalistSupport },
 
     { option => "data-transfer-items", desc => "Toggle HTML5 data transfer items support",
       define => "ENABLE_DATA_TRANSFER_ITEMS", default => 0, value => \$dataTransferItemsSupport },
@@ -226,14 +227,14 @@ my @features = (
     { option => "indexed-database", desc => "Toggle Indexed Database API support",
       define => "ENABLE_INDEXED_DATABASE", default => 0, value => \$indexedDatabaseSupport },
 
-    { option => "input-color", desc => "Color Input support",
-      define => "ENABLE_INPUT_COLOR", default => isBlackBerry(), value => \$inputColorSupport },
-
     { option => "input-speech", desc => "Speech Input API support",
       define => "ENABLE_INPUT_SPEECH", default => 0, value => \$inputSpeechSupport },
 
     { option => "scripted-speech", desc => "Scripted Speech API support",
       define => "ENABLE_SCRIPTED_SPEECH", default => 0, value => \$scriptedSpeechSupport },
+
+    { option => "input-type-color", desc => "Toggle color type <input> support",
+      define => "ENABLE_INPUT_TYPE_COLOR", default => isBlackBerry(), value => \$inputTypeColorSupport },
 
     { option => "input-type-date", desc => "Toggle date type <input> support",
       define => "ENABLE_INPUT_TYPE_DATE", default => 0, value => \$inputTypeDateSupport },
@@ -292,6 +293,9 @@ my @features = (
     { option => "netscape-plugin", desc => "Netscape Plugin support",
       define => "ENABLE_NETSCAPE_PLUGIN_API", default => !isEfl(), value => \$netscapePluginSupport },
 
+    { option => "network-info", desc => "Network Information API support",
+      define => "ENABLE_NETWORK_INFO", default => isEfl(), value => \$networkInfoSupport },
+
     { option => "notifications", desc => "Toggle Desktop Notifications Support",
       define => "ENABLE_NOTIFICATIONS", default => isBlackBerry(), value => \$notificationsSupport },
 
@@ -314,7 +318,7 @@ my @features = (
       define => "USE_SYSTEM_MALLOC", default => 0, value => \$systemMallocSupport },
 
     { option => "shadow-dom", desc => "Toggle Shadow DOM support",
-      define => "ENABLE_SHADOW_DOM", default => 0, value => \$shadowDomSupport },
+      define => "ENABLE_SHADOW_DOM", default => isGtk(), value => \$shadowDomSupport },
 
     { option => "shared-workers", desc => "Toggle SharedWorkers support",
       define => "ENABLE_SHARED_WORKERS", default => (isAppleWebKit() || isGtk() || isBlackBerry() || isEfl()), value => \$sharedWorkersSupport },
@@ -561,13 +565,16 @@ if (isGtk()) {
         "libWebKitSystemInterfaceLion.a",
         "libWebCoreSQLite3.a",
     );
+
+    my $ranlib = `xcrun -find ranlib`;
+    chomp $ranlib;
     foreach my $libName (@librariesToCopy) {
         my $srcLib = "WebKitLibraries/" . $libName;
         my $lib = "$productDir/" . $libName;
         if (!-e $lib || -M $lib > -M $srcLib) {
             print "Updating $lib\n";
             system "ditto", $srcLib, $lib;
-            system "ranlib", $lib;
+            system $ranlib, $lib;
         }
     }
 
@@ -599,7 +606,7 @@ if (isGtk()) {
     push @options, "--qmakearg=CONFIG+=no_webkit2" if $noWebKit2;
 
     if (checkForArgumentAndRemoveFromARGV("-2")) {
-        print "Note: WebKit2 is now built by default, you don't need to passs -2. Disable using --no-webkit2\n";
+        print "Note: WebKit2 is now built by default, you don't need to pass -2. Disable using --no-webkit2\n";
     }
 
     @options = (@ARGV, @options);

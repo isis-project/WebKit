@@ -707,7 +707,7 @@ class Manager(object):
             self._printer.print_config("Running %d %ss in parallel over %d shards (%d locked)" %
                 (num_workers, driver_name, num_shards, num_locked_shards))
 
-    def _run_tests(self, file_list, result_summary):
+    def _run_tests(self, file_list, result_summary, num_workers):
         """Runs the tests in the file_list.
 
         Return: A tuple (interrupted, keyboard_interrupted, thread_timings,
@@ -748,10 +748,10 @@ class Manager(object):
         if locked_shards:
             self.start_servers_with_lock()
 
-        num_workers = min(int(self._options.child_processes), len(all_shards))
+        num_workers = min(num_workers, len(all_shards))
         self._log_num_workers(num_workers, len(all_shards), len(locked_shards))
 
-        manager_connection = manager_worker_broker.get(self._options.worker_model, self, worker.Worker)
+        manager_connection = manager_worker_broker.get(num_workers, self, worker.Worker)
 
         if self._options.dry_run:
             return (keyboard_interrupted, interrupted, thread_timings, self._group_stats, self._all_results)
@@ -760,7 +760,7 @@ class Manager(object):
         for worker_number in xrange(num_workers):
             worker_arguments = worker.WorkerArguments(worker_number, self.results_directory(), self._options)
             worker_connection = manager_connection.start_worker(worker_arguments)
-            if self._options.worker_model == 'inline':
+            if num_workers == 1:
                 # FIXME: We need to be able to share a port with the work so
                 # that some of the tests can query state on the port; ideally
                 # we'd rewrite the tests so that this wasn't necessary.
@@ -894,11 +894,11 @@ class Manager(object):
 
         start_time = time.time()
 
-        interrupted, keyboard_interrupted, thread_timings, test_timings, individual_test_timings = self._run_tests(self._test_files_list, result_summary)
+        interrupted, keyboard_interrupted, thread_timings, test_timings, individual_test_timings = self._run_tests(self._test_files_list, result_summary, int(self._options.child_processes))
 
         # We exclude the crashes from the list of results to retry, because
         # we want to treat even a potentially flaky crash as an error.
-        failures = self._get_failures(result_summary, include_crashes=False, include_missing=False)
+        failures = self._get_failures(result_summary, include_crashes=self._port.should_retry_crashes(), include_missing=False)
         retry_summary = result_summary
         while (len(failures) and self._options.retry_failures and not self._retrying and not interrupted and not keyboard_interrupted):
             _log.info('')
@@ -907,7 +907,7 @@ class Manager(object):
             self._retrying = True
             retry_summary = ResultSummary(self._expectations, failures.keys())
             # Note that we intentionally ignore the return value here.
-            self._run_tests(failures.keys(), retry_summary)
+            self._run_tests(failures.keys(), retry_summary, num_workers=1)
             failures = self._get_failures(retry_summary, include_crashes=True, include_missing=True)
 
         end_time = time.time()
@@ -982,12 +982,21 @@ class Manager(object):
 
             self._update_summary_with_result(result_summary, result)
 
+    def _mark_interrupted_tests_as_skipped(self, result_summary):
+        for test_name in self._test_files:
+            if test_name not in result_summary.results:
+                result = test_results.TestResult(test_name)
+                result.type = test_expectations.SKIP
+                # FIXME: We probably need to loop here if there are multiple iterations.
+                result_summary.add(result, expected=True)
+
     def _interrupt_if_at_failure_limits(self, result_summary):
         # Note: The messages in this method are constructed to match old-run-webkit-tests
         # so that existing buildbot grep rules work.
         def interrupt_if_at_failure_limit(limit, failure_count, result_summary, message):
             if limit and failure_count >= limit:
                 message += " %d tests run." % (result_summary.expected + result_summary.unexpected)
+                self._mark_interrupted_tests_as_skipped(result_summary)
                 raise TestRunInterruptedException(message)
 
         interrupt_if_at_failure_limit(
@@ -1124,7 +1133,6 @@ class Manager(object):
 
         p.print_config('Command line: ' +
                        ' '.join(self._port.driver_cmd_line()))
-        p.print_config("Worker model: %s" % self._options.worker_model)
         p.print_config("")
 
     def _print_expected_results_of_type(self, result_summary,

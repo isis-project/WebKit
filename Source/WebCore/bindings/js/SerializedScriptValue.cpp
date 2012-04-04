@@ -389,20 +389,33 @@ private:
         return isJSArray(object) || object->inherits(&JSArray::s_info);
     }
 
-    bool startObjectInternal(JSObject* object)
+    bool checkForDuplicate(JSObject* object)
     {
         // Record object for graph reconstruction
-        pair<ObjectPool::iterator, bool> iter = m_objectPool.add(object, m_objectPool.size());
-        
+        ObjectPool::AddResult addResult = m_objectPool.add(object, m_objectPool.size());
+
         // Handle duplicate references
-        if (!iter.second) {
+        if (!addResult.isNewEntry) {
             write(ObjectReferenceTag);
-            ASSERT(static_cast<int32_t>(iter.first->second) < m_objectPool.size());
-            writeObjectIndex(iter.first->second);
-            return false;
+            ASSERT(static_cast<int32_t>(addResult.iterator->second) < m_objectPool.size());
+            writeObjectIndex(addResult.iterator->second);
+            return true;
         }
-        
+
+        return false;
+    }
+
+    void recordObject(JSObject* object)
+    {
+        m_objectPool.add(object, m_objectPool.size());
         m_gcBuffer.append(object);
+    }
+
+    bool startObjectInternal(JSObject* object)
+    {
+        if (checkForDuplicate(object))
+            return false;
+        recordObject(object);
         return true;
     }
 
@@ -643,9 +656,11 @@ private:
                 return true;
             }
             if (obj->inherits(&JSArrayBufferView::s_info)) {
-                if (!startObjectInternal(obj))
+                if (checkForDuplicate(obj))
                     return true;
-                return dumpArrayBufferView(obj, code);
+                bool success = dumpArrayBufferView(obj, code);
+                recordObject(obj);
+                return success;
             }
 
             CallData unusedData;
@@ -726,10 +741,10 @@ private:
     void write(const Identifier& ident)
     {
         UString str = ident.ustring();
-        pair<StringConstantPool::iterator, bool> iter = m_constantPool.add(str.impl(), m_constantPool.size());
-        if (!iter.second) {
+        StringConstantPool::AddResult addResult = m_constantPool.add(str.impl(), m_constantPool.size());
+        if (!addResult.isNewEntry) {
             write(StringPoolTag);
-            writeStringIndex(iter.first->second);
+            writeStringIndex(addResult.iterator->second);
             return;
         }
 

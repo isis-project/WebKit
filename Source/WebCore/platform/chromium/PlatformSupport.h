@@ -66,6 +66,7 @@ typedef struct HFONT__* HFONT;
 
 namespace WebCore {
 
+class AsyncFileSystem;
 class Clipboard;
 class Color;
 class Cursor;
@@ -146,6 +147,11 @@ public:
     static bool truncateFile(PlatformFileHandle, long long offset);
     static int readFromFile(PlatformFileHandle, char* data, int length);
     static int writeToFile(PlatformFileHandle, const char* data, int length);
+
+#if ENABLE(FILE_SYSTEM)
+    static String createIsolatedFileSystemName(const String& storageIdentifier, const String& filesystemId);
+    static PassOwnPtr<AsyncFileSystem> createIsolatedFileSystem(const String& originString, const String& filesystemId);
+#endif
 
     // Font ---------------------------------------------------------------
 #if OS(WINDOWS)
@@ -236,9 +242,6 @@ public:
     static PassOwnPtr<AudioBus> decodeAudioFileData(const char* data, size_t, double sampleRate);
 #endif
 
-    // Sandbox ------------------------------------------------------------
-    static bool sandboxEnabled();
-
     // Screen -------------------------------------------------------------
     static int screenHorizontalDPI(Widget*);
     static int screenVerticalDPI(Widget*);
@@ -254,13 +257,7 @@ public:
     static void stopSharedTimer();
 
     // StatsCounters ------------------------------------------------------
-    static void decrementStatsCounter(const char* name);
-    static void incrementStatsCounter(const char* name);
-    static void histogramCustomCounts(const char* name, int sample, int min, int max, int bucketCount);
     static void histogramEnumeration(const char* name, int sample, int boundaryValue);
-
-    // Sudden Termination
-    static void suddenTerminationChanged(bool enabled);
 
     // Theming ------------------------------------------------------------
 #if OS(WINDOWS)

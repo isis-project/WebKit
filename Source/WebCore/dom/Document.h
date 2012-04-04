@@ -447,7 +447,9 @@ public:
     virtual bool isPluginDocument() const { return false; }
     virtual bool isMediaDocument() const { return false; }
     virtual bool isFrameSet() const { return false; }
-    
+
+    bool isSrcdocDocument() const { return m_isSrcdocDocument; }
+
     PassRefPtr<CSSValuePool> cssValuePool() const;
     
     CSSStyleSelector* styleSelectorIfExists() const { return m_styleSelector.get(); }
@@ -626,6 +628,8 @@ public:
 
     virtual void disableEval();
 
+    bool canNavigate(Frame* targetFrame);
+
     CSSStyleSheet* pageUserSheet();
     void clearPageUserSheet();
     void updatePageUserSheet();
@@ -634,10 +638,10 @@ public:
     void clearPageGroupUserSheets();
     void updatePageGroupUserSheets();
 
+    const Vector<RefPtr<CSSStyleSheet> >* documentUserSheets() const { return m_userSheets.get(); }
     void addUserSheet(PassRefPtr<CSSStyleSheet> userSheet);
 
     CSSStyleSheet* elementSheet();
-    CSSStyleSheet* mappedElementSheet();
     
     virtual PassRefPtr<DocumentParser> createParser();
     DocumentParser* parser() const { return m_parser.get(); }
@@ -1136,6 +1140,8 @@ public:
     void suspendScheduledTasks();
     void resumeScheduledTasks();
 
+    IntSize viewportSize() const;
+
 protected:
     Document(Frame*, const KURL&, bool isXHTML, bool isHTML);
 
@@ -1260,7 +1266,6 @@ private:
     bool m_hasNodesWithPlaceholderStyle;
 
     RefPtr<CSSStyleSheet> m_elemSheet;
-    RefPtr<CSSStyleSheet> m_mappedElementSheet;
     RefPtr<CSSStyleSheet> m_pageUserSheet;
     mutable OwnPtr<Vector<RefPtr<CSSStyleSheet> > > m_pageGroupUserSheets;
     OwnPtr<Vector<RefPtr<CSSStyleSheet> > > m_userSheets;
@@ -1428,6 +1433,7 @@ private:
 
     bool m_isViewSource;
     bool m_sawElementsInKnownNamespaces;
+    bool m_isSrcdocDocument;
 
     RefPtr<DocumentEventQueue> m_eventQueue;
 

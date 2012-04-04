@@ -61,7 +61,8 @@
  *  - "mixedcontent,displayed", void: any of the containing frames has loaded and displayed mixed content.
  *  - "mixedcontent,run", void: any of the containing frames has loaded and run mixed content.
  *  - "ready", void: page is fully loaded.
- *  - "resource,request,willsend", Ewk_Frame_Resource_Request*: the network request for the main frame will be sent.
+ *  - "resource,request,willsend", Ewk_Frame_Resource_Request*: a resource will
+ *    be requested.
  *  - "scrollbars,visible,get", Eina_Bool *: expects a @c EINA_TRUE if scrollbars
  *    are visible; @c EINA_FALSE, otherwise.
  *  - "scrollbars,visible,set", Eina_Bool: sets scrollbars visibility.
@@ -2262,7 +2263,8 @@ EAPI Eina_Bool ewk_view_js_object_add(Evas_Object *o, Ewk_JS_Object *obj, const 
 enum _Ewk_Page_Visibility_State {
     EWK_PAGE_VISIBILITY_STATE_VISIBLE,
     EWK_PAGE_VISIBILITY_STATE_HIDDEN,
-    EWK_PAGE_VISIBILITY_STATE_PRERENDER
+    EWK_PAGE_VISIBILITY_STATE_PRERENDER,
+    EWK_PAGE_VISIBILITY_STATE_PREVIEW
 };
 /// Creates a type name for @a _Ewk_Page_Visibility_State.
 typedef enum _Ewk_Page_Visibility_State Ewk_Page_Visibility_State;

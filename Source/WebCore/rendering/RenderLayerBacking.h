@@ -105,7 +105,7 @@ public:
     void contentChanged(RenderLayer::ContentChangeType);
 
     // Interface to start, finish, suspend and resume animations and transitions
-    bool startTransition(double timeOffset, int property, const RenderStyle* fromStyle, const RenderStyle* toStyle);
+    bool startTransition(double, CSSPropertyID, const RenderStyle* fromStyle, const RenderStyle* toStyle);
     void transitionPaused(double timeOffset, int property);
     void transitionFinished(int property);
 
@@ -135,6 +135,10 @@ public:
 
     virtual bool showDebugBorders(const GraphicsLayer*) const;
     virtual bool showRepaintCounter(const GraphicsLayer*) const;
+
+#ifndef NDEBUG
+    virtual void verifyNotPainting();
+#endif
 
     IntRect contentsBox() const;
     

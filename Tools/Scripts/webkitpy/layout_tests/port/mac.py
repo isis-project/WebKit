@@ -27,6 +27,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import logging
+import os
 import re
 import subprocess
 import time
@@ -56,6 +57,10 @@ class MacPort(ApplePort):
     def _most_recent_version(self):
         # This represents the most recently-shipping version of the operating system.
         return self.VERSION_FALLBACK_ORDER[-2]
+
+    def should_retry_crashes(self):
+        # On Apple Mac, we retry crashes due to https://bugs.webkit.org/show_bug.cgi?id=82233
+        return True
 
     def baseline_path(self):
         if self.name() == self._most_recent_version():
@@ -102,7 +107,15 @@ class MacPort(ApplePort):
         if self.is_snowleopard():
             _log.warn("Cannot run tests in parallel on Snow Leopard due to rdar://problem/10621525.")
             return 1
-        return super(MacPort, self).default_child_processes()
+
+        # FIXME: As a temporary workaround while we figure out what's going
+        # on with https://bugs.webkit.org/show_bug.cgi?id=83076, reduce by
+        # half the # of workers we run by default on bigger machines.
+        default_count = super(MacPort, self).default_child_processes()
+        if default_count >= 8:
+            cpu_count = self._executive.cpu_count()
+            return max(1, min(default_count, int(cpu_count / 2)))
+        return default_count
 
     def _build_java_test_support(self):
         java_tests_path = self._filesystem.join(self.layout_tests_dir(), "java")
@@ -142,7 +155,8 @@ class MacPort(ApplePort):
         # We don't use self._run_script() because we don't want to wait for the script
         # to exit and we want the output to show up on stdout in case there are errors
         # launching the browser.
-        self._executive.popen([self._config.script_path('run-safari')] + self._arguments_for_configuration() + ['--no-saved-state', '-NSOpen', results_filename], cwd=self._config.webkit_base_dir())
+        self._executive.popen([self._config.script_path('run-safari')] + self._arguments_for_configuration() + ['--no-saved-state', '-NSOpen', results_filename],
+            cwd=self._config.webkit_base_dir(), stdout=file(os.devnull), stderr=file(os.devnull))
 
     # FIXME: The next two routines turn off the http locking in order
     # to work around failures on the bots caused when the slave restarts.

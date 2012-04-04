@@ -299,7 +299,10 @@ fast/media/print-restores-previous-mediatype.html
 # ENABLE(SHADOW_DOM) is disabled
 fast/dom/shadow
 
-# defined(ENABLE_INPUT_COLOR) is disabled
+# ENABLE(DATALIST) is disabled
+fast/forms/datalist
+
+# defined(ENABLE_INPUT_TYPE_COLOR) is disabled
 fast/forms/color/input-color-onchange-event.html
 
 # EFL's LayoutTestController does not implement copy{Encoded,Decoded}HostName
@@ -312,12 +315,6 @@ http/tests/loading/deleted-host-in-resource-load-delegate-callback.html
 fast/history/visited-generated-content-test.html
 fast/history/visited-link-background-color.html
 fast/history/window-open.html
-# These tests also depend on computedStyleIncludingVisitedInfo
-fast/history/multiple-classes-visited.html
-fast/history/nested-visited-test.html
-fast/history/self-is-visited.html
-fast/history/sibling-visited-test.html
-fast/loader/stateobjects/state-url-sets-links-visited.html
 
 # EFL's LayoutTestController does not implement layerTreeAsText
 compositing/animation/animation-compositing.html
@@ -399,12 +396,6 @@ compositing/video/video-poster.html
 # EFL's LayoutTestController does not implement pageProperty
 printing/page-rule-selection.html
 
-# EFL's LayoutTestController does not implement pageProperty
-printing/page-format-data.html
-
-# EFL's LayoutTestController does not implement pageSizeAndMarginsInPixels
-printing/page-format-data.html
-
 # EFL's LayoutTestController does not implement setCustomPolicyDelegate
 fast/loader/javascript-url-hierarchical-execution.html
 fast/loader/onload-policy-ignore-for-frame.html
@@ -463,10 +454,6 @@ fast/xmlhttprequest/xmlhttprequest-nonexistent-file.html
 
 # EFL's LayoutTestController does not implement setAuthorAndUserStylesEnabled
 fast/css/disabled-author-styles.html
-
-# EFL's LayoutTestController does not implement disableImageLoading
-http/tests/misc/favicon-loads-with-icon-loading-override.html
-http/tests/misc/favicon-loads-with-images-disabled.html
 
 # EFL's LayoutTestController does not implement setJavaScriptProfilingEnabled
 fast/profiler
@@ -597,12 +584,6 @@ storage/domstorage/localstorage/storagetracker
 # EFL's LayoutTestController does not implement setDomainRelaxationForbiddenForURLScheme
 http/tests/security/setDomainRelaxationForbiddenForURLScheme.html
 
-# EFL's LayoutTestController does not implement goBack
-loader/navigation-while-deferring-loads.html
-
-# EFL's LayoutTestController does not implement setDefersLoading
-loader/navigation-while-deferring-loads.html
-
 # EFL's LayoutTestController does not implement overridePreference
 compositing/webgl/webgl-background-color.html
 compositing/webgl/webgl-no-alpha.html
@@ -659,6 +640,7 @@ printing/page-rule-selection.html
 
 # EFL's LayoutTestController does not implement setAsynchronousSpellCheckingEnabled
 editing/spelling/spellcheck-paste.html
+editing/spelling/spellcheck-paste-disabled.html
 
 # EFL's LayoutTestController does not implement evaluateScriptInIsolatedWorld
 http/tests/security/isolatedWorld
@@ -749,13 +731,6 @@ fast/preloader/document-write.html
 http/tests/local/link-stylesheet-load-order-preload.html
 http/tests/local/link-stylesheet-load-order.html
 
-# EFL's LayoutTestController does not implement setMinimumTimerInterval
-fast/dom/timer-increase-min-interval-and-reset-part-1.html
-fast/dom/timer-increase-min-interval-repeating.html
-fast/dom/timer-increase-min-interval.html
-fast/dom/timer-increase-then-decrease-min-interval-repeating.html
-fast/dom/timer-increase-then-decrease-min-interval.html
-
 # EFL's LayoutTestController does not implement setTextDirection
 fast/html/set-text-direction.html
 
@@ -802,28 +777,8 @@ fast/forms/mailto/post-text-plain.html
 fast/dom/title-text-property.html
 fast/dom/title-text-property-2.html
 
-# EFL's DRT (DumpRenderTreeChrome) needs to catch the "resource,request,willsend" signal
-fast/ruby/before-block-doesnt-crash.html
-fast/ruby/before-table-doesnt-crash.html
-fast/ruby/generated-before-counter-doesnt-crash.html
-fast/workers/worker-crash-with-invalid-location.html
-
-# Need to call Settings::setInteractiveFormValidationEnabled(true).
-fast/forms/interactive-validation-prevented.html
-fast/forms/interactive-validation-attach-assertion.html
-fast/forms/interactive-validation-assertion-by-validate-twice.html
-fast/forms/interactive-validation-select-crash.html
-fast/forms/interactive-validation-crash-by-style-override.html
-
 # Need to call Settings::setValidationMessageTimerMagnification(-1) in DRT.
 fast/forms/validation-message-appearance.html
-fast/forms/validation-message-clone.html
-fast/forms/validation-message-on-checkbox.html
-fast/forms/validation-message-on-listbox.html
-fast/forms/validation-message-on-menulist.html
-fast/forms/validation-message-on-radio.html
-fast/forms/validation-message-on-range.html
-fast/forms/validation-message-on-textarea.html
 
 # These tests needs enhanced frameloader delegate logging in DRT
 fast/loader/recursive-before-unload-crash.html
@@ -1229,10 +1184,6 @@ http/tests/multipart/invalid-image-data-standalone.html
 # https://bugs.webkit.org/show_bug.cgi?id=60206
 http/tests/navigation/response204.html
 
-# BUG: test timing out. Also fails on Qt.
-# https://bugs.webkit.org/show_bug.cgi?id=70110
-fast/events/media-focus-in-standalone-media-document.html
-
 # http/tests/multipart/stop-crash.html fails on GTK and Qt missing multipart/x-mixed-replace support in libsoup
 # https://bugs.webkit.org/show_bug.cgi?id=47060
 http/tests/multipart/stop-crash.html
@@ -1519,7 +1470,6 @@ media/controls-strict.html
 media/controls-without-preload.html
 media/event-attributes.html
 media/media-document-audio-repaint.html
-media/media-document-audio-size.html
 media/media-ended.html
 media/media-fullscreen-inline.html
 media/media-fullscreen-not-in-document.html
@@ -1548,10 +1498,8 @@ media/video-autoplay.html
 media/video-buffered.html
 media/video-canvas-alpha.html
 media/video-canvas-source.html
-media/video-click-dblckick-standalone.html
 media/video-controls-rendering.html
 media/video-controls.html
-media/video-controls-in-media-document.html
 media/video-controls-no-scripting.html
 media/video-currentTime.html
 media/video-currentTime-delay.html
@@ -1565,7 +1513,6 @@ media/video-does-not-loop.html
 media/video-dom-autoplay.html
 media/video-dom-src.html
 media/video-duration-known-after-eos.html
-media/video-element-other-namespace-crash.html
 media/video-layer-crash.html
 media/video-load-networkState.html
 media/video-load-preload-none.html
@@ -1754,9 +1701,6 @@ http/tests/security/local-video-source-from-remote.html
 http/tests/security/local-video-src-from-remote.html
 media/csp-blocks-video.html
 
-# BUG: iframe with src="content/counting.mp4" is not opened in a MediaDocument
-media/video-document-types.html
-
 # BUG: Only works if --gui is passed (due to the current implementation of PlatformScreenEfl::screenRect).
 fast/media/invalid-lengths.html
 fast/media/matchmedium-query-api.html
@@ -1878,6 +1822,11 @@ fast/css-grid-layout
 
 # <style scoped> is not yet enabled. http://webkit.org/b/49142
 fast/css/style-scoped
+# CSS Regions tests for region styling and scoped styles
+fast/regions/style-scoped-in-flow-override-container-style.html
+fast/regions/style-scoped-in-flow-override-region-styling-multiple-regions.html
+fast/regions/style-scoped-in-flow-override-region-styling.html
+fast/regions/style-scoped-in-flow.html
 
 # ENABLE(SHADOW_DOM) is disabled.
 fast/dom/shadow/content-element-api.html
@@ -2538,8 +2487,6 @@ http/tests/xmlhttprequest/cross-origin-cookie-storage.html
 http/tests/xmlhttprequest/cross-origin-no-authorization.html
 http/tests/xmlhttprequest/failed-auth.html
 http/tests/xmlhttprequest/logout.html
-http/tests/xmlhttprequest/methods.html
-http/tests/xmlhttprequest/methods-async.html
 http/tests/xmlhttprequest/origin-whitelisting-all.html
 http/tests/xmlhttprequest/origin-whitelisting-exact-match.html
 http/tests/xmlhttprequest/origin-whitelisting-ip-addresses.html
@@ -2547,10 +2494,6 @@ http/tests/xmlhttprequest/origin-whitelisting-removal.html
 http/tests/xmlhttprequest/origin-whitelisting-subdomains.html
 http/tests/xmlhttprequest/remember-bad-password.html
 http/tests/xmlhttprequest/redirect-cross-origin-tripmine.html
-http/tests/xmlhttprequest/workers/shared-worker-methods.html
-http/tests/xmlhttprequest/workers/methods.html
-http/tests/xmlhttprequest/workers/methods-async.html
-http/tests/xmlhttprequest/workers/shared-worker-methods-async.html
 http/tests/xmlviewer/extensions-api.html
 
 # These test cases don't have expected result yet.
@@ -2697,3 +2640,13 @@ fast/css/color-correction-untagged-images.html
 
 # The inner <input> should now grow to take the full cell's height.
 fast/table/colspanMinWidth-vertical.html
+
+# Transparent image being produced
+fast/frames/transparent-scrollbar.html
+
+# This should only be a layer change.
+# http://webkit.org/b/82129
+fast/box-shadow/shadow-buffer-partial.html
+fast/block/lineboxcontain/block-font.html
+fast/block/lineboxcontain/block-glyphs.html
+fast/block/lineboxcontain/font.html

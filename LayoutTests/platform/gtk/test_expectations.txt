@@ -19,10 +19,6 @@ BUGWK54637 : media/video-controls-in-media-document.html = PASS TEXT
 BUGWK54637 : media/controls-after-reload.html = PASS TEXT
 BUGWK55126 : media/video-aspect-ratio.html = PASS TEXT
 
-BUGWK68523 : svg/zoom/page/zoom-svg-through-object-with-auto-size.html = PASS TEXT
-BUGWK68523 : svg/zoom/page/zoom-svg-through-object-with-override-size.html = PASS TEXT
-BUGWK68523 : svg/zoom/page/zoom-svg-through-object-with-percentage-size.xhtml = PASS TEXT
-BUGWK68523 : svg/zoom/page/zoom-svg-through-object-with-huge-size.xhtml = PASS TEXT
 BUGWK61914 : svg/zoom/page/zoom-svg-through-object-with-absolute-size-2.xhtml = PASS TEXT
 BUGWK61914 : svg/zoom/page/zoom-svg-through-object-with-absolute-size.xhtml = PASS TEXT
 
@@ -47,8 +43,6 @@ BUGWK37560 : svg/dom/SVGScriptElement/script-set-href.svg = PASS TEXT
 BUGWK37562 : plugins/update-widgets-crash.html = PASS TEXT
 BUGWK37572 : plugins/open-and-close-window-with-plugin.html = PASS TEXT
 
-BUGWK43034 : inspector/debugger/debugger-breakpoints-not-activated-on-reload.html = PASS TEXT
-
 BUGWK53995 : editing/selection/end-of-document.html = PASS TEXT
 BUGWK51325 : editing/selection/extend-by-character-003.html = PASS TEXT
 BUGWK51699 : editing/selection/extend-by-character-004.html = PASS TEXT
@@ -68,6 +62,7 @@ BUGWK71655 : fast/frames/flattening/frameset-flattening-simple.html = PASS TEXT
 BUGWK80129 : fast/frames/flattening/frameset-flattening-advanced.html = PASS TEXT
 BUGWK80129 : fast/frames/flattening/frameset-flattening-subframesets.html = PASS TEXT
 
+BUGWK72698 : media/audio-garbage-collect.html = PASS TEXT
 BUGWK79760 : media/video-poster-blocked-by-willsendrequest.html = PASS TEXT
 
 BUGWK72694 : fast/canvas/canvas-lineWidth.html = PASS TIMEOUT TEXT
@@ -93,8 +88,6 @@ BUGWK77636 : fast/forms/radio/radio-group.html = PASS TEXT
 BUGWK78344 : fast/text/international/inline-plaintext-relayout-with-leading-neutrals.html = PASS IMAGE
 
 BUGWK80246 DEBUG : fast/css/hover-update.html = PASS TEXT
-
-BUGWK72434 : inspector/styles/svg-style.xhtml = PASS TEXT
 
 // End of Flaky tests
 
@@ -130,3 +123,64 @@ BUGWK81936 : ietestcenter/css3/text/textshadow-008.htm = FAIL MISSING
 BUGWK81936 : ietestcenter/css3/text/textshadow-009.htm = FAIL MISSING
 BUGWK81936 : ietestcenter/css3/text/textshadow-010.htm = FAIL MISSING
 
+// Temporary: generate platform specific IETestCenter results, then
+// remove when bots produce reference.
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-attachment-local-scrolling.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-color-applied-to-rounded-inline-element.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-color-border-box.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_color_padding_box.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_position_three_four_values.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_properties_greater_than_images.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_repeat_space_border_box.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_repeat_space_content_box.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-repeat-space-padding-box.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-002.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-applies-to-block.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-aspect-ratio.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-002.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-003.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-004.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-005.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-006.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-007.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-008.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-009.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-010.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-011.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-012.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-013.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-014.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-015.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-016.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-017.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-clip-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-clip-002.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-content-edge-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-different-width-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-initial-value-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-not-inherited-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-shorthand-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-002.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-003.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-004.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-005.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-sum-of-radii-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-sum-of-radii-002.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-with-three-values-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-with-two-values-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-002.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-003.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-004.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-right-radius-values-004.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-001.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-002.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-003.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-004.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/color-behind-images.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/none-as-image-layer.htm = FAIL MISSING
+BUGWK82734 : ietestcenter/css3/bordersbackgrounds/order-of-images.htm = FAIL MISSING
+
+BUGWK83123 BUGWK83124 : http/tests/websocket/tests/hybi/workers/worker-reload.html = FAIL CRASH

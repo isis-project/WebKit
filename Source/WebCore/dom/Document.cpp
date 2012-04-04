@@ -123,9 +123,9 @@
 #include "ProcessingInstruction.h"
 #include "RegisteredEventListener.h"
 #include "RenderArena.h"
-#include "RenderFlowThread.h"
 #include "RenderLayer.h"
 #include "RenderLayerBacking.h"
+#include "RenderNamedFlowThread.h"
 #include "RenderTextControl.h"
 #include "RenderView.h"
 #include "RenderWidget.h"
@@ -346,6 +346,44 @@ static bool disableRangeMutation(Page* page)
 #endif
 }
 
+static bool canAccessAncestor(const SecurityOrigin* activeSecurityOrigin, Frame* targetFrame)
+{
+    // targetFrame can be 0 when we're trying to navigate a top-level frame
+    // that has a 0 opener.
+    if (!targetFrame)
+        return false;
+
+    const bool isLocalActiveOrigin = activeSecurityOrigin->isLocal();
+    for (Frame* ancestorFrame = targetFrame; ancestorFrame; ancestorFrame = ancestorFrame->tree()->parent()) {
+        Document* ancestorDocument = ancestorFrame->document();
+        // FIXME: Should be an ASSERT? Frames should alway have documents.
+        if (!ancestorDocument)
+            return true;
+
+        const SecurityOrigin* ancestorSecurityOrigin = ancestorDocument->securityOrigin();
+        if (activeSecurityOrigin->canAccess(ancestorSecurityOrigin))
+            return true;
+        
+        // Allow file URL descendant navigation even when allowFileAccessFromFileURLs is false.
+        // FIXME: It's a bit strange to special-case local origins here. Should we be doing
+        // something more general instead?
+        if (isLocalActiveOrigin && ancestorSecurityOrigin->isLocal())
+            return true;
+    }
+
+    return false;
+}
+
+static void printNavigationErrorMessage(Frame* frame, const KURL& activeURL)
+{
+    // FIXME: this error message should contain more specifics of why the navigation change is not allowed.
+    String message = "Unsafe JavaScript attempt to initiate a navigation change for frame with URL " +
+                     frame->document()->url().string() + " from frame with URL " + activeURL.string() + ".\n";
+
+    // FIXME: should we print to the console of the document performing the navigation instead?
+    frame->domWindow()->printErrorMessage(message);
+}
+
 static HashSet<Document*>* documentsThatNeedStyleRecalc = 0;
 
 class DocumentWeakReference : public ThreadSafeRefCounted<DocumentWeakReference> {
@@ -420,6 +458,7 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     , m_isHTML(isHTML)
     , m_isViewSource(false)
     , m_sawElementsInKnownNamespaces(false)
+    , m_isSrcdocDocument(false)
     , m_eventQueue(DocumentEventQueue::create(this))
     , m_weakReference(DocumentWeakReference::create(this))
     , m_idAttributeName(idAttr)
@@ -556,8 +595,6 @@ Document::~Document()
 
     if (m_elemSheet)
         m_elemSheet->clearOwnerNode();
-    if (m_mappedElementSheet)
-        m_mappedElementSheet->clearOwnerNode();
     if (m_pageUserSheet)
         m_pageUserSheet->clearOwnerNode();
     if (m_pageGroupUserSheets) {
@@ -1042,8 +1079,8 @@ PassRefPtr<WebKitNamedFlow> Document::webkitGetFlowByName(const String& flowName
         return 0;
 
     // Make a slower check for invalid flow name
-    CSSParser p(true);
-    if (!p.parseFlowThread(flowName, this))
+    CSSParser parser(CSSStrictMode);
+    if (!parser.parseFlowThread(flowName, this))
         return 0;
 
     if (RenderView* view = renderer()->view())
@@ -1783,6 +1820,7 @@ bool Document::isPageBoxVisible(int pageIndex)
 void Document::pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int& marginTop, int& marginRight, int& marginBottom, int& marginLeft)
 {
     RefPtr<RenderStyle> style = styleForPage(pageIndex);
+    RenderView* view = renderView();
 
     int width = pageSize.width();
     int height = pageSize.height();
@@ -1801,8 +1839,8 @@ void Document::pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int&
         LengthSize size = style->pageSize();
         ASSERT(size.width().isFixed());
         ASSERT(size.height().isFixed());
-        width = valueForLength(size.width(), 0);
-        height = valueForLength(size.height(), 0);
+        width = valueForLength(size.width(), 0, view);
+        height = valueForLength(size.height(), 0, view);
         break;
     }
     default:
@@ -1812,10 +1850,10 @@ void Document::pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int&
 
     // The percentage is calculated with respect to the width even for margin top and bottom.
     // http://www.w3.org/TR/CSS2/box.html#margin-properties
-    marginTop = style->marginTop().isAuto() ? marginTop : valueForLength(style->marginTop(), width);
-    marginRight = style->marginRight().isAuto() ? marginRight : valueForLength(style->marginRight(), width);
-    marginBottom = style->marginBottom().isAuto() ? marginBottom : valueForLength(style->marginBottom(), width);
-    marginLeft = style->marginLeft().isAuto() ? marginLeft : valueForLength(style->marginLeft(), width);
+    marginTop = style->marginTop().isAuto() ? marginTop : valueForLength(style->marginTop(), width, view);
+    marginRight = style->marginRight().isAuto() ? marginRight : valueForLength(style->marginRight(), width, view);
+    marginBottom = style->marginBottom().isAuto() ? marginBottom : valueForLength(style->marginBottom(), width, view);
+    marginLeft = style->marginLeft().isAuto() ? marginLeft : valueForLength(style->marginLeft(), width, view);
 }
 
 PassRefPtr<CSSValuePool> Document::cssValuePool() const
@@ -1856,11 +1894,10 @@ void Document::createStyleSelector()
     bool matchAuthorAndUserStyles = true;
     if (Settings* docSettings = settings())
         matchAuthorAndUserStyles = docSettings->authorAndUserStylesEnabled();
-    m_styleSelector = adoptPtr(new CSSStyleSelector(this, m_styleSheets.get(), m_mappedElementSheet.get(), pageUserSheet(), pageGroupUserSheets(), m_userSheets.get(),
-                                                    !inQuirksMode(), matchAuthorAndUserStyles));
+    m_styleSelector = adoptPtr(new CSSStyleSelector(this, matchAuthorAndUserStyles));
     combineCSSFeatureFlags();
 }
-    
+
 inline void Document::clearStyleSelector()
 {
     m_styleSelector.clear();
@@ -2289,6 +2326,7 @@ void Document::implicitClose()
 
     ImageLoader::dispatchPendingBeforeLoadEvents();
     ImageLoader::dispatchPendingLoadEvents();
+    ImageLoader::dispatchPendingErrorEvents();
 
     HTMLLinkElement::dispatchPendingLoadEvents();
     HTMLStyleElement::dispatchPendingLoadEvents();
@@ -2523,8 +2561,6 @@ void Document::updateBaseURL()
 
     if (m_elemSheet)
         m_elemSheet->setFinalURL(m_baseURL);
-    if (m_mappedElementSheet)
-        m_mappedElementSheet->setFinalURL(m_baseURL);
     
     if (!equalIgnoringFragmentIdentifier(oldBaseURL, m_baseURL)) {
         // Base URL change changes any relative visited links.
@@ -2590,6 +2626,62 @@ void Document::disableEval()
     frame()->script()->disableEval();
 }
 
+bool Document::canNavigate(Frame* targetFrame)
+{
+    if (!m_frame)
+        return false;
+
+    // FIXME: We shouldn't call this function without a target frame, but
+    // fast/forms/submit-to-blank-multiple-times.html depends on this function
+    // returning true when supplied with a 0 targetFrame.
+    if (!targetFrame)
+        return true;
+
+    // Frame-busting is generally allowed (unless we're sandboxed and prevent from frame-busting).
+    if (!isSandboxed(SandboxTopNavigation) && targetFrame == m_frame->tree()->top())
+        return true;
+
+    if (isSandboxed(SandboxNavigation)) {
+        if (targetFrame->tree()->isDescendantOf(m_frame))
+            return true;
+
+        printNavigationErrorMessage(targetFrame, url());
+        return false;
+    }
+
+    // This is the normal case. A document can navigate its decendant frames,
+    // or, more generally, a document can navigate a frame if the document is
+    // in the same origin as any of that frame's ancestors (in the frame
+    // hierarchy).
+    //
+    // See http://www.adambarth.com/papers/2008/barth-jackson-mitchell.pdf for
+    // historical information about this security check.
+    if (canAccessAncestor(securityOrigin(), targetFrame))
+        return true;
+
+    // Top-level frames are easier to navigate than other frames because they
+    // display their URLs in the address bar (in most browsers). However, there
+    // are still some restrictions on navigation to avoid nuisance attacks.
+    // Specifically, a document can navigate a top-level frame if that frame
+    // opened the document or if the document is the same-origin with any of
+    // the top-level frame's opener's ancestors (in the frame hierarchy).
+    //
+    // In both of these cases, the document performing the navigation is in
+    // some way related to the frame being navigate (e.g., by the "opener"
+    // and/or "parent" relation). Requiring some sort of relation prevents a
+    // document from navigating arbitrary, unrelated top-level frames.
+    if (!targetFrame->tree()->parent()) {
+        if (targetFrame == m_frame->loader()->opener())
+            return true;
+
+        if (canAccessAncestor(securityOrigin(), targetFrame->loader()->opener()))
+            return true;
+    }
+
+    printNavigationErrorMessage(targetFrame, url());
+    return false;
+}
+
 CSSStyleSheet* Document::pageUserSheet()
 {
     if (m_pageUserSheet)
@@ -2606,7 +2698,7 @@ CSSStyleSheet* Document::pageUserSheet()
     // Parse the sheet and cache it.
     m_pageUserSheet = CSSStyleSheet::createInline(this, settings()->userStyleSheetLocation());
     m_pageUserSheet->setIsUserStyleSheet(true);
-    m_pageUserSheet->parseString(userSheetText, !inQuirksMode());
+    m_pageUserSheet->parseString(userSheetText, strictToCSSParserMode(!inQuirksMode()));
     return m_pageUserSheet.get();
 }
 
@@ -2652,7 +2744,7 @@ const Vector<RefPtr<CSSStyleSheet> >* Document::pageGroupUserSheets() const
                 continue;
             RefPtr<CSSStyleSheet> parsedSheet = CSSStyleSheet::createInline(const_cast<Document*>(this), sheet->url());
             parsedSheet->setIsUserStyleSheet(sheet->level() == UserStyleUserLevel);
-            parsedSheet->parseString(sheet->source(), !inQuirksMode());
+            parsedSheet->parseString(sheet->source(), strictToCSSParserMode(!inQuirksMode()));
             if (!m_pageGroupUserSheets)
                 m_pageGroupUserSheets = adoptPtr(new Vector<RefPtr<CSSStyleSheet> >);
             m_pageGroupUserSheets->append(parsedSheet.release());
@@ -2691,13 +2783,6 @@ CSSStyleSheet* Document::elementSheet()
     if (!m_elemSheet)
         m_elemSheet = CSSStyleSheet::createInline(this, m_baseURL);
     return m_elemSheet.get();
-}
-
-CSSStyleSheet* Document::mappedElementSheet()
-{
-    if (!m_mappedElementSheet)
-        m_mappedElementSheet = CSSStyleSheet::createInline(this, m_baseURL);
-    return m_mappedElementSheet.get();
 }
 
 int Document::nodeAbsIndex(Node *node)
@@ -4149,8 +4234,6 @@ void Document::documentDidResumeFromPageCache()
 
     ASSERT(m_frame);
     m_frame->loader()->client()->dispatchDidBecomeFrameset(isFrameSet());
-
-    updateViewportArguments();
 }
 
 void Document::registerForPageCacheSuspensionCallbacks(Element* e)
@@ -4448,7 +4531,7 @@ HTMLAllCollection* Document::all()
 
 HTMLCollection* Document::windowNamedItems(const AtomicString& name)
 {
-    OwnPtr<HTMLNameCollection>& collection = m_windowNamedItemCollections.add(name.impl(), nullptr).first->second;
+    OwnPtr<HTMLNameCollection>& collection = m_windowNamedItemCollections.add(name.impl(), nullptr).iterator->second;
     if (!collection)
         collection = HTMLNameCollection::create(this, WindowNamedItems, name);
     return collection.get();
@@ -4456,7 +4539,7 @@ HTMLCollection* Document::windowNamedItems(const AtomicString& name)
 
 HTMLCollection* Document::documentNamedItems(const AtomicString& name)
 {
-    OwnPtr<HTMLNameCollection>& collection = m_documentNamedItemCollections.add(name.impl(), nullptr).first->second;
+    OwnPtr<HTMLNameCollection>& collection = m_documentNamedItemCollections.add(name.impl(), nullptr).iterator->second;
     if (!collection)
         collection = HTMLNameCollection::create(this, DocumentNamedItems, name);
     return collection.get();
@@ -4749,6 +4832,21 @@ void Document::initSecurityContext()
         return;
     }
 
+    if (m_frame->loader()->shouldTreatURLAsSrcdocDocument(url())) {
+        m_isSrcdocDocument = true;
+        setBaseURLOverride(ownerFrame->document()->baseURL());
+    }
+
+    if (isSandboxed(SandboxOrigin)) {
+        // If we're supposed to inherit our security origin from our owner,
+        // but we're also sandboxed, the only thing we inherit is the ability
+        // to load local resources. This lets about:blank iframes in file://
+        // URL documents load images and other resources from the file system.
+        if (ownerFrame->document()->securityOrigin()->canLoadLocalResources())
+            securityOrigin()->grantLoadLocalResources();
+        return;
+    }
+
     m_cookieURL = ownerFrame->document()->cookieURL();
     // We alias the SecurityOrigins to match Firefox, see Bug 15313
     // https://bugs.webkit.org/show_bug.cgi?id=15313
@@ -4849,7 +4947,7 @@ CanvasRenderingContext* Document::getCSSCanvasContext(const String& type, const 
 
 HTMLCanvasElement* Document::getCSSCanvasElement(const String& name)
 {
-    RefPtr<HTMLCanvasElement>& element = m_cssCanvasElements.add(name, 0).first->second;
+    RefPtr<HTMLCanvasElement>& element = m_cssCanvasElements.add(name, 0).iterator->second;
     if (!element)
         element = HTMLCanvasElement::create(this);
     return element.get();
@@ -5280,6 +5378,9 @@ bool Document::webkitFullscreenEnabled() const
 
 void Document::webkitWillEnterFullScreenForElement(Element* element)
 {
+    if (!attached() || inPageCache())
+        return;
+
     ASSERT(element);
 
     // Protect against being called after the document has been removed from the page.
@@ -5316,7 +5417,10 @@ void Document::webkitDidEnterFullScreenForElement(Element*)
 {
     if (!m_fullScreenElement)
         return;
-    
+
+    if (!attached() || inPageCache())
+        return;
+
     m_fullScreenElement->didBecomeFullscreenElement();
 
     m_fullScreenChangeDelayTimer.startOneShot(0);
@@ -5327,6 +5431,9 @@ void Document::webkitWillExitFullScreenForElement(Element*)
     if (!m_fullScreenElement)
         return;
 
+    if (!attached() || inPageCache())
+        return;
+
     m_fullScreenElement->setContainsFullScreenElementOnAncestorsCrossingFrameBoundaries(false);
     
     m_fullScreenElement->willStopBeingFullscreenElement();
@@ -5334,6 +5441,9 @@ void Document::webkitWillExitFullScreenForElement(Element*)
 
 void Document::webkitDidExitFullScreenForElement(Element*)
 {
+    if (!attached() || inPageCache())
+        return;
+
     m_areKeysEnabledInFullScreen = false;
     
     if (m_fullScreenRenderer)
@@ -5652,12 +5762,12 @@ PassRefPtr<NodeList> Document::getItems(const String& typeNames)
     // In this case we need to create an unique string identifier to map such request in the cache.
     String localTypeNames = typeNames.isNull() ? String("http://webkit.org/microdata/undefinedItemType") : typeNames;
 
-    pair<NodeListsNodeData::MicroDataItemListCache::iterator, bool> result = nodeLists->m_microDataItemListCache.add(localTypeNames, 0);
-    if (!result.second)
-        return PassRefPtr<NodeList>(result.first->second);
+    NodeListsNodeData::MicroDataItemListCache::AddResult result = nodeLists->m_microDataItemListCache.add(localTypeNames, 0);
+    if (!result.isNewEntry)
+        return PassRefPtr<NodeList>(result.iterator->second);
 
     RefPtr<MicroDataItemList> list = MicroDataItemList::create(this, typeNames);
-    result.first->second = list.get();
+    result.iterator->second = list.get();
     return list.release();
 }
 
@@ -5673,5 +5783,12 @@ void Document::removeCachedMicroDataItemList(MicroDataItemList* list, const Stri
     data->m_microDataItemListCache.remove(localTypeNames);
 }
 #endif
+
+IntSize Document::viewportSize() const
+{
+    if (!view())
+        return IntSize();
+    return view()->visibleContentRect(/* includeScrollbars */ true).size();
+}
 
 } // namespace WebCore

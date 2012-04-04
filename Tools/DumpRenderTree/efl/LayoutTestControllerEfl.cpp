@@ -111,10 +111,9 @@ void LayoutTestController::keepWebHistory()
     notImplemented();
 }
 
-JSValueRef LayoutTestController::computedStyleIncludingVisitedInfo(JSContextRef context, JSValueRef)
+JSValueRef LayoutTestController::computedStyleIncludingVisitedInfo(JSContextRef context, JSValueRef value)
 {
-    notImplemented();
-    return JSValueMakeUndefined(context);
+    return DumpRenderTreeSupportEfl::computedStyleIncludingVisitedInfo(context, value);
 }
 
 JSRetainPtr<JSStringRef> LayoutTestController::layerTreeAsText() const
@@ -139,16 +138,20 @@ JSRetainPtr<JSStringRef> LayoutTestController::pageProperty(const char*, int) co
     return 0;
 }
 
-bool LayoutTestController::isPageBoxVisible(int) const
+bool LayoutTestController::isPageBoxVisible(int pageIndex) const
 {
-    notImplemented();
-    return false;
+    return DumpRenderTreeSupportEfl::isPageBoxVisible(browser->mainFrame(), pageIndex);
 }
 
-JSRetainPtr<JSStringRef> LayoutTestController::pageSizeAndMarginsInPixels(int, int, int, int, int, int, int) const
+JSRetainPtr<JSStringRef> LayoutTestController::pageSizeAndMarginsInPixels(int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft) const
 {
-    notImplemented();
-    return 0;
+    String pageSizeAndMargins = DumpRenderTreeSupportEfl::pageSizeAndMarginsInPixels(browser->mainFrame(), pageNumber, width, height, marginTop, marginRight, marginBottom, marginLeft);
+
+    if (pageSizeAndMargins.isEmpty())
+        return 0;
+
+    JSRetainPtr<JSStringRef> returnValue(Adopt, JSStringCreateWithUTF8CString(pageSizeAndMargins.utf8().data()));
+    return returnValue;
 }
 
 size_t LayoutTestController::webHistoryItemCount()
@@ -359,9 +362,7 @@ void LayoutTestController::setAutofilled(JSContextRef context, JSValueRef nodeOb
 
 void LayoutTestController::disableImageLoading()
 {
-    // FIXME: Implement for testing fix for https://bugs.webkit.org/show_bug.cgi?id=27896
-    // Also need to make sure image loading is re-enabled for each new test.
-    notImplemented();
+    ewk_view_setting_auto_load_images_set(browser->mainView(), EINA_FALSE);
 }
 
 void LayoutTestController::setMockDeviceOrientation(bool, double, bool, double, bool, double)
@@ -606,14 +607,12 @@ void LayoutTestController::setDomainRelaxationForbiddenForURLScheme(bool, JSStri
 
 void LayoutTestController::goBack()
 {
-    // FIXME: implement to enable loader/navigation-while-deferring-loads.html
-    notImplemented();
+    ewk_frame_back(browser->mainFrame());
 }
 
-void LayoutTestController::setDefersLoading(bool)
+void LayoutTestController::setDefersLoading(bool defers)
 {
-    // FIXME: implement to enable loader/navigation-while-deferring-loads.html
-    notImplemented();
+    DumpRenderTreeSupportEfl::setDefersLoading(browser->mainView(), defers);
 }
 
 void LayoutTestController::setAppCacheMaximumSize(unsigned long long size)
@@ -757,9 +756,9 @@ void LayoutTestController::setSerializeHTTPLoads(bool)
     notImplemented();
 }
 
-void LayoutTestController::setMinimumTimerInterval(double)
+void LayoutTestController::setMinimumTimerInterval(double minimumTimerInterval)
 {
-    notImplemented();
+    ewk_view_setting_minimum_timer_interval_set(browser->mainView(), minimumTimerInterval);
 }
 
 void LayoutTestController::setTextDirection(JSStringRef)

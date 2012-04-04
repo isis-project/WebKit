@@ -374,7 +374,7 @@ class WebKitPort(Port):
             # Set --build-directory here Since this modifies the options object used by the worker subprocesses,
             # it avoids the slow call out to build_directory in each subprocess.
             self.set_option_default('build_directory', build_directory)
-        return self._filesystem.join(build_directory, *comps)
+        return self._filesystem.join(self._filesystem.abspath(build_directory), *comps)
 
     def _path_to_driver(self):
         return self._build_path(self.driver_name())
@@ -480,6 +480,7 @@ class WebKitDriver(Driver):
     def _start(self, pixel_tests, per_test_args):
         server_name = self._port.driver_name()
         environment = self._port.setup_environ_for_server(server_name)
+        environment['DYLD_LIBRARY_PATH'] = self._port._build_path()
         environment['DYLD_FRAMEWORK_PATH'] = self._port._build_path()
         # FIXME: We're assuming that WebKitTestRunner checks this DumpRenderTree-named environment variable.
         environment['DUMPRENDERTREE_TEMP'] = str(self._driver_tempdir)

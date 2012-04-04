@@ -67,7 +67,10 @@ canvas/philip/tests/2d.drawImage.outsidesource.html
 #       Disabled features.                                                    #
 # =========================================================================== #
 
-# ENABLE(INPUT_COLOR) is disabled.
+# ENABLE_DATALIST is not yet enabled.
+fast/forms/datalist
+
+# ENABLE_INPUT_TYPE_COLOR is disabled.
 fast/forms/color
 
 # ENABLE(INPUT_TYPE_*) are not enabled.
@@ -160,17 +163,25 @@ fast/css-grid-layout
 
 # <style scoped> is not yet enabled. http://webkit.org/b/49142
 fast/css/style-scoped
+# CSS Regions tests for region styling and scoped styles
+fast/regions/style-scoped-in-flow-override-container-style.html
+fast/regions/style-scoped-in-flow-override-region-styling-multiple-regions.html
+fast/regions/style-scoped-in-flow-override-region-styling.html
+fast/regions/style-scoped-in-flow.html
 
 # ENABLE(SHADOW_DOM) is disabled.
 fast/dom/shadow/access-key.html
+fast/dom/shadow/composed-shadow-tree-walker.html
 fast/dom/shadow/content-element-api.html
 fast/dom/shadow/content-element-move.html
 fast/dom/shadow/content-element-outside-shadow.html
 fast/dom/shadow/content-element-outside-shadow-style.html
 fast/dom/shadow/content-element-in-media-element.html
 fast/dom/shadow/content-element-in-meter-element.html
+fast/dom/shadow/focus-navigation.html
 fast/dom/shadow/get-element-by-id-in-shadow-root.html
 fast/dom/shadow/iframe-shadow.html
+fast/dom/shadow/link-in-shadow-tree.html
 fast/dom/shadow/multiple-shadowroot.html
 fast/dom/shadow/multiple-shadowroot-rendering.html
 fast/dom/shadow/multiple-shadowroot-adopt.html
@@ -189,6 +200,7 @@ fast/dom/shadow/shadow-root-innerHTML.html
 fast/dom/shadow/shadow-root-js-api.html
 fast/dom/shadow/shadow-root-new.html
 fast/dom/shadow/shadow-ul-li.html
+fast/dom/shadow/tab-order-iframe-and-shadow.html
 
 # CSS Regions support not yet enabled. http://webkit.org/b/57312
 fast/regions
@@ -236,6 +248,10 @@ inspector/debugger/event-listener-breakpoints.html
 inspector/debugger/step-through-event-listeners.html
 inspector/debugger/xhr-breakpoints.html
 
+# JSC doesn't support heap profiling
+# https://bugs.webkit.org/show_bug.cgi?id=50485
+inspector/profiler/heap-snapshot-inspect-dom-wrapper.html
+
 # https://bugs.webkit.org/show_bug.cgi?id=40300
 inspector/debugger/live-edit.html
 
@@ -245,6 +261,10 @@ http/tests/inspector/compiler-source-mapping-debug.html
 #[Qt] inspector/styles/svg-style.xhtml fails
 # https://bugs.webkit.org/show_bug.cgi?id=79068
 inspector/styles/svg-style.xhtml
+
+# Web Inspector: Implement support for InspectorClient::overrideDeviceMetrics() in platforms other than Chromium
+# https://bugs.webkit.org/show_bug.cgi?id=82886
+inspector/styles/override-screen-size.html
 
 # Needs rebaseline
 fast/repaint/scale-page-shrink.html
@@ -345,12 +365,6 @@ fast/dom/HTMLAnchorElement/anchor-download.html
 fast/dom/HTMLAnchorElement/anchor-nodownload-set.html
 fast/dom/HTMLAnchorElement/anchor-download-unset.html
 
-# This platform does not support the Page Visibility API.
-fast/events/page-visibility-iframe-delete-test.html
-fast/events/page-visibility-iframe-move-test.html
-fast/events/page-visibility-iframe-propagation-test.html
-fast/events/page-visibility-transition-test.html
-
 # For now, Web Audio API is disabled
 webaudio/
 
@@ -371,6 +385,9 @@ fast/dom/navigator-vibration.html
 
 #Battery Status API is not implemented.
 batterystatus
+
+# Network Information API is not supported yet. http://webkit.org/b/73528
+networkinformation
 
 # =========================================================================== #
 #       Drag and Drop Support in DRT.                                         #
@@ -486,6 +503,7 @@ fast/events/drag-and-drop-fire-drag-dragover.html
 fast/events/drag-link.html
 fast/events/drag-text-with-clear.html
 fast/events/ondrop-text-html.html
+fast/events/drop-handler-should-not-stop-navigate.html
 fast/events/dropzone-001.html
 fast/events/dropzone-002.html
 fast/events/dropzone-003.html
@@ -621,6 +639,10 @@ http/tests/misc/onload-remove-iframe-crash-2.html
 #https://bugs.webkit.org/show_bug.cgi?id=80103
 http/tests/websocket/tests/hybi/unpaired-surrogates-in-close-reason.html
 http/tests/websocket/tests/hybi/unpaired-surrogates-in-message.html
+
+# [Qt] REGRESSION (112488) It made http/tests/websocket/tests/hybi/reserved-bits.html test fail.
+# https://bugs.webkit.org/show_bug.cgi?id=82100
+http/tests/websocket/tests/hybi/reserved-bits.html
 
 # =========================================================================== #
 #       Failing xmlhttprequest tests                                          #
@@ -788,6 +810,7 @@ editing/spelling/spelling-attribute-at-child.html
 
 # EditorClient::requestCheckingOfString() is not implemented
 editing/spelling/spellcheck-paste.html
+editing/spelling/spellcheck-paste-disabled.html
 editing/spelling/spellcheck-queue.html
 editing/spelling/spellcheck-sequencenum.html
 editing/spelling/spellcheck-async-mutation.html
@@ -1348,91 +1371,6 @@ svg/custom/svg-fonts-no-latin-glyph.html
 svg/custom/use-font-face-crash.svg
 svg/zoom/text/zoom-coords-viewattr-01-b.svg
 
-# [Qt] Couple of tests have different results on 64 bit and/or in debug mode compared to 32 bit and/or release mode
-# https://bugs.webkit.org/show_bug.cgi?id=52810
-fast/block/float/overhanging-tall-block.html
-fast/repaint/moving-shadow-on-container.html
-fast/repaint/moving-shadow-on-path.html
-svg/as-image/img-preserveAspectRatio-support-1.html
-svg/batik/masking/maskRegions.svg
-svg/clip-path/deep-nested-clip-in-mask-different-unitTypes.svg
-svg/css/stars-with-shadow.html
-svg/custom/circular-marker-reference-1.svg
-svg/custom/circular-marker-reference-2.svg
-svg/custom/circular-marker-reference-3.svg
-svg/custom/circular-marker-reference-4.svg
-svg/custom/embedding-external-svgs.xhtml
-svg/custom/empty-merge.svg
-svg/custom/image-with-transform-clip-filter.svg
-svg/custom/non-circular-marker-reference.svg
-svg/custom/non-scaling-stroke-markers.svg
-svg/custom/object-sizing-explicit-width-height.xhtml
-svg/custom/recursive-filter.svg
-svg/custom/relative-sized-inner-svg.xhtml
-svg/custom/relative-sized-use-on-symbol.xhtml
-svg/custom/relative-sized-use-without-attributes-on-symbol.xhtml
-svg/custom/resource-invalidate-on-target-update.svg
-svg/custom/scrolling-embedded-svg-file-image-repaint-problem.html
-svg/custom/stroked-pattern.svg
-svg/custom/text-rotated-gradient.svg
-svg/custom/use-css-events.svg
-svg/custom/use-detach.svg
-svg/custom/use-on-symbol-inside-pattern.svg
-svg/filters/feColorMatrix-values.svg
-svg/filters/feColorMatrix-saturate.svg
-svg/filters/feImage-preserveAspectratio.svg
-svg/filters/filteredImage.svg
-svg/hixie/links/001.xml
-svg/hixie/perf/007.xml
-svg/hixie/viewbox/preserveAspectRatio/001.xml
-svg/overflow/overflow-on-inner-svg-element.svg
-svg/text/small-fonts-2.svg
-svg/text/text-align-05-b.svg
-svg/W3C-SVG-1.1/animate-elem-06-t.svg
-svg/W3C-SVG-1.1/extend-namespace-01-f.svg
-svg/W3C-SVG-1.1/painting-marker-03-f.svg
-svg/W3C-SVG-1.1/paths-data-03-f.svg
-svg/W3C-SVG-1.1-SE/filters-image-05-f.svg
-svg/W3C-SVG-1.1-SE/types-dom-05-b.svg
-svg/W3C-SVG-1.1/struct-frag-02-t.svg
-svg/W3C-SVG-1.1/struct-frag-03-t.svg
-svg/W3C-SVG-1.1/text-align-04-b.svg
-svg/zoom/page/zoom-mask-with-percentages.svg
-svg/zoom/page/zoom-img-preserveAspectRatio-support-1.html
-svg/dom/css-transforms.xhtml
-svg/carto.net/tabgroup.svg
-
-# [Qt] fast/table/max-width-integer-overflow.html differs on 32- and 64-bit systems
-# https://bugs.webkit.org/show_bug.cgi?id=81509
-fast/table/max-width-integer-overflow.html
-
-# [Qt] New test introduced in r110532 fails on 32 bit
-# https://bugs.webkit.org/show_bug.cgi?id=79068
-svg/transforms/transform-origin-css-property.xhtml
-
-# [Qt] Couple of tests have different results on 64 bit and/or in debug mode compared to 32 bit and/or release mode
-# https://bugs.webkit.org/show_bug.cgi?id=52810
-# new failing tests after r101342 on 64 bit.
-svg/batik/text/textAnchor.svg
-svg/text/select-x-list-with-tspans-1.svg
-svg/text/select-x-list-with-tspans-3.svg
-svg/text/select-textLength-spacing-stretch-3.svg
-svg/text/select-textLength-spacingAndGlyphs-stretch-4.svg
-svg/text/select-x-list-2.svg
-svg/text/select-textLength-spacing-stretch-4.svg
-svg/text/select-textLength-spacing-squeeze-4.svg
-svg/text/select-textLength-spacing-stretch-1.svg
-svg/text/select-textLength-spacing-squeeze-1.svg
-svg/text/select-x-list-3.svg
-svg/text/select-x-list-with-tspans-4.svg
-svg/text/select-textLength-spacing-stretch-2.svg
-svg/text/select-x-list-4.svg
-svg/text/select-x-list-with-tspans-2.svg
-svg/text/select-textLength-spacing-squeeze-3.svg
-svg/text/select-x-list-1.svg
-svg/text/select-textLength-spacing-squeeze-2.svg
-svg/W3C-SVG-1.1/text-text-01-b.svg
-
 # [Qt] fontCache related assertion revealed by r105143
 # https://bugs.webkit.org/show_bug.cgi?id=76534
 svg/carto.net/combobox.svg
@@ -1479,14 +1417,22 @@ svg/zoom/page/zoom-svg-through-object-with-absolute-size-2.xhtml
 
 # [Qt] REGRESSION(r111480): It made svg/as-image tests assert
 # https://bugs.webkit.org/show_bug.cgi?id=82052
-svg/as-image/animated-svg-as-image.html
-svg/as-image/img-preserveAspectRatio-support-2.html
-svg/as-image/svg-image-leak-loader.html
-svg/as-image/animated-svg-as-image-same-image.html
+svg/as-image
+svg/as-object
+svg/zoom/page/zoom-mask-with-percentages.svg
 
 # [Qt] svg/animations tests are very flaky
 # https://bugs.webkit.org/show_bug.cgi?id=80703
 svg/animations/animate-elem-08-t-drt.html
+
+# [Qt] Diverging test results on 32/64 bit architectures
+# https://bugs.webkit.org/show_bug.cgi?id=82601
+fast/repaint/moving-shadow-on-container.html
+fast/repaint/moving-shadow-on-path.html
+svg/W3C-SVG-1.1/paths-data-03-f.svg
+svg/css/stars-with-shadow.html
+svg/custom/use-on-symbol-inside-pattern.svg
+svg/transforms/transform-origin-css-property.xhtml
 
 # ============================================================================= #
 # Failing CSS Tests
@@ -1577,6 +1523,10 @@ fast/css/case-transform.html
 # Discussed in https://bugs.webkit.org/show_bug.cgi?id=38928
 fast/loader/recursive-before-unload-crash.html
 
+# New test flakey on Qt Linux Release introduced in r113086
+# https://bugs.webkit.org/show_bug.cgi?id=83057
+fast/dom/inline-event-attributes-release.html
+
 # REGRESSION (r53450) - skipped until fix
 # https://bugs.webkit.org/show_bug.cgi?id=33834
 fast/forms/textarea-scrollbar-height.html
@@ -1646,7 +1596,6 @@ fast/events/keypress-insert-tab.html
 fast/events/ondragenter.html
 fast/events/standalone-image-drag-to-editable.html
 fast/events/updateLayoutForHitTest.html
-fast/forms/input-selectedoption.html
 fast/forms/drag-into-textarea.html
 fast/forms/input-readonly-autoscroll.html
 fast/forms/input-text-click-outside.html
@@ -2041,6 +1990,10 @@ fast/writing-mode/border-styles-vertical-rl.html
 # https://bugs.webkit.org/show_bug.cgi?id=80689
 fast/viewport/viewport-133.html
 
+# [Qt] fast/dom/shadow/drag-to-meter-in-shadow-crash.html asserts
+# https://bugs.webkit.org/show_bug.cgi?id=82308
+fast/dom/shadow/drag-to-meter-in-shadow-crash.html
+
 # ============================================================================= #
 # failing fonts tests
 # ============================================================================= #
@@ -2285,8 +2238,6 @@ svg/custom/clip-path-with-css-transform-1.svg
 svg/stroke/zero-length-path-linecap-rendering.svg
 svg/stroke/zero-length-subpaths-linecap-rendering.svg
 svg/filters/feImage-filterUnits-objectBoundingBox-primitiveUnits-userSpaceOnUse.svg
-css2.1/20110323/outline-color-applies-to-008.htm
-css2.1/20110323/border-collapse-offset-002.htm
 http/tests/misc/willCacheResponse-delegate-callback.html
 fast/borders/scaled-border-image.html
 
@@ -2661,6 +2612,9 @@ editing/selection/move-by-word-visually-single-space-one-element.html
 editing/selection/move-by-word-visually-textarea.html
 editing/selection/move-by-word-visually-wrong-left-right.html
 
+# https://bugs.webkit.org/show_bug.cgi?id=82628
+svg/hittest/svg-ellipse-non-scale-stroke.xhtml
+
 # https://bugs.webkit.org/show_bug.cgi?id=81276
 # Allowed to regress to fix a crash. 
 fast/inline/continuation-outlines-with-layers.html
@@ -2679,3 +2633,14 @@ fast/js/large-expressions.html
 # [Qt] css2.1/20110323/c543-txt-decor-000.html is failing
 # https://bugs.webkit.org/show_bug.cgi?id=82225
 css2.1/20110323/c543-txt-decor-000.html
+
+# This should only be a layer change.
+# http://webkit.org/b/82129
+fast/box-shadow/shadow-buffer-partial.html
+fast/block/lineboxcontain/block-font.html
+fast/block/lineboxcontain/block-glyphs.html
+fast/block/lineboxcontain/font.html
+
+# [Qt] REGRESSION(r113138 ): It made fast/workers/worker-multi-startup.html crash on 32 bit
+# https://bugs.webkit.org/show_bug.cgi?id=83133
+fast/workers/worker-multi-startup.html

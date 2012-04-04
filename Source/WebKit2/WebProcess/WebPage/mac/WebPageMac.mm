@@ -358,7 +358,7 @@ void WebPage::characterIndexForPoint(IntPoint point, uint64_t& index)
     HitTestResult result = frame->eventHandler()->hitTestResultAtPoint(point, false);
     frame = result.innerNonSharedNode() ? result.innerNonSharedNode()->document()->frame() : m_page->focusController()->focusedOrMainFrame();
     
-    RefPtr<Range> range = frame->rangeForPoint(result.point());
+    RefPtr<Range> range = frame->rangeForPoint(result.roundedPoint());
     if (!range)
         return;
 
@@ -709,6 +709,14 @@ void WebPage::acceptsFirstMouse(int eventNumber, const WebKit::WebMouseEvent& ev
         result = frame->eventHandler()->eventMayStartDrag(platform(event));
     else 
         result = !!hitResult.scrollbar();
+}
+
+void WebPage::setLayerHostingMode(LayerHostingMode layerHostingMode)
+{
+    m_layerHostingMode = layerHostingMode;
+
+    for (HashSet<PluginView*>::const_iterator it = m_pluginViews.begin(), end = m_pluginViews.end(); it != end; ++it)
+        (*it)->setLayerHostingMode(layerHostingMode);
 }
 
 } // namespace WebKit

@@ -182,6 +182,7 @@ HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName, Document* docum
     , m_progressEventTimer(this, &HTMLMediaElement::progressEventTimerFired)
     , m_playbackProgressTimer(this, &HTMLMediaElement::playbackProgressTimerFired)
     , m_playedTimeRanges()
+    , m_asyncEventQueue(GenericEventQueue::create(this))
     , m_playbackRate(1.0f)
     , m_defaultPlaybackRate(1.0f)
     , m_webkitPreservesPitch(true)
@@ -527,7 +528,7 @@ void HTMLMediaElement::scheduleLoad(LoadType loadType)
     }
 
 #if ENABLE(VIDEO_TRACK)
-    if (loadType & TextTrackResource)
+    if (RuntimeEnabledFeatures::webkitVideoTrackEnabled() && (loadType & TextTrackResource))
         m_pendingLoadFlags |= TextTrackResource;
 #endif
 
@@ -550,7 +551,7 @@ void HTMLMediaElement::scheduleEvent(const AtomicString& eventName)
     RefPtr<Event> event = Event::create(eventName, false, true);
     event->setTarget(this);
 
-    m_asyncEventQueue.enqueueEvent(event.release());
+    m_asyncEventQueue->enqueueEvent(event.release());
 }
 
 void HTMLMediaElement::loadTimerFired(Timer<HTMLMediaElement>*)
@@ -558,7 +559,7 @@ void HTMLMediaElement::loadTimerFired(Timer<HTMLMediaElement>*)
     RefPtr<HTMLMediaElement> protect(this); // loadNextSourceChild may fire 'beforeload', which can make arbitrary DOM mutations.
 
 #if ENABLE(VIDEO_TRACK)
-    if (m_pendingLoadFlags & TextTrackResource)
+    if (RuntimeEnabledFeatures::webkitVideoTrackEnabled() && (m_pendingLoadFlags & TextTrackResource))
         configureNewTextTracks();
 #endif
 
@@ -682,7 +683,8 @@ void HTMLMediaElement::prepareForLoad()
         scheduleEvent(eventNames().emptiedEvent);
         updateMediaController();
 #if ENABLE(VIDEO_TRACK)
-        updateActiveTextTrackCues(0);
+        if (RuntimeEnabledFeatures::webkitVideoTrackEnabled())
+            updateActiveTextTrackCues(0);
 #endif
     }
 
@@ -740,12 +742,14 @@ void HTMLMediaElement::loadInternal()
 #if ENABLE(VIDEO_TRACK)
     // HTMLMediaElement::textTracksAreReady will need "... the text tracks whose mode was not in the
     // disabled state when the element's resource selection algorithm last started".
-    m_textTracksWhenResourceSelectionBegan.clear();
-    if (m_textTracks) {
-        for (unsigned i = 0; i < m_textTracks->length(); ++i) {
-            TextTrack* track = m_textTracks->item(i);
-            if (track->mode() != TextTrack::DISABLED)
-                m_textTracksWhenResourceSelectionBegan.append(track);
+    if (RuntimeEnabledFeatures::webkitVideoTrackEnabled()) {
+        m_textTracksWhenResourceSelectionBegan.clear();
+        if (m_textTracks) {
+            for (unsigned i = 0; i < m_textTracks->length(); ++i) {
+                TextTrack* track = m_textTracks->item(i);
+                if (track->mode() != TextTrack::DISABLED)
+                    m_textTracksWhenResourceSelectionBegan.append(track);
+            }
         }
     }
 #endif
@@ -1149,7 +1153,7 @@ void HTMLMediaElement::updateActiveTextTrackCues(float movieTime)
             event = Event::create(eventNames().exitEvent, false, false);
 
         event->setTarget(eventTasks[i].second);
-        m_asyncEventQueue.enqueueEvent(event.release());
+        m_asyncEventQueue->enqueueEvent(event.release());
     }
 
     // 14 - Sort affected tracks in the same order as the text tracks appear in
@@ -1164,7 +1168,7 @@ void HTMLMediaElement::updateActiveTextTrackCues(float movieTime)
         RefPtr<Event> event = Event::create(eventNames().cuechangeEvent, false, false);
         event->setTarget(affectedTracks[i]);
 
-        m_asyncEventQueue.enqueueEvent(event.release());
+        m_asyncEventQueue->enqueueEvent(event.release());
 
         // Fire syncronous cue change event for track elements.
         if (affectedTracks[i]->trackType() == TextTrack::TrackElement)
@@ -1399,7 +1403,7 @@ void HTMLMediaElement::mediaEngineError(PassRefPtr<MediaError> err)
 void HTMLMediaElement::cancelPendingEventsAndCallbacks()
 {
     LOG(Media, "HTMLMediaElement::cancelPendingEventsAndCallbacks");
-    m_asyncEventQueue.cancelAllEvents();
+    m_asyncEventQueue->cancelAllEvents();
 
     for (Node* node = firstChild(); node; node = node->nextSibling()) {
         if (node->hasTagName(sourceTag))
@@ -1535,7 +1539,7 @@ void HTMLMediaElement::setReadyState(MediaPlayer::ReadyState state)
     ReadyState newState = static_cast<ReadyState>(state);
 
 #if ENABLE(VIDEO_TRACK)
-    bool tracksAreReady = textTracksAreReady();
+    bool tracksAreReady = !RuntimeEnabledFeatures::webkitVideoTrackEnabled() || textTracksAreReady();
 
     if (newState == oldState && m_tracksAreReady == tracksAreReady)
         return;
@@ -1636,7 +1640,8 @@ void HTMLMediaElement::setReadyState(MediaPlayer::ReadyState state)
     updatePlayState();
     updateMediaController();
 #if ENABLE(VIDEO_TRACK)
-    updateActiveTextTrackCues(currentTime());
+    if (RuntimeEnabledFeatures::webkitVideoTrackEnabled())
+        updateActiveTextTrackCues(currentTime());
 #endif
 }
 
@@ -2392,7 +2397,8 @@ void HTMLMediaElement::playbackProgressTimerFired(Timer<HTMLMediaElement>*)
         mediaControls()->playbackProgressed();
     
 #if ENABLE(VIDEO_TRACK)
-    updateActiveTextTrackCues(currentTime());
+    if (RuntimeEnabledFeatures::webkitVideoTrackEnabled())
+        updateActiveTextTrackCues(currentTime());
 #endif
 }
 
@@ -2935,7 +2941,8 @@ void HTMLMediaElement::mediaPlayerTimeChanged(MediaPlayer*)
     LOG(Media, "HTMLMediaElement::mediaPlayerTimeChanged");
 
 #if ENABLE(VIDEO_TRACK)
-    updateActiveTextTrackCues(currentTime());
+    if (RuntimeEnabledFeatures::webkitVideoTrackEnabled())
+        updateActiveTextTrackCues(currentTime());
 #endif
 
     beginProcessingMediaPlayerCallback();
@@ -3399,7 +3406,8 @@ void HTMLMediaElement::userCancelledLoad()
     m_readyState = HAVE_NOTHING;
     updateMediaController();
 #if ENABLE(VIDEO_TRACK)
-    updateActiveTextTrackCues(0);
+    if (RuntimeEnabledFeatures::webkitVideoTrackEnabled())
+        updateActiveTextTrackCues(0);
 #endif
 }
 
@@ -3466,7 +3474,7 @@ void HTMLMediaElement::resume()
 
 bool HTMLMediaElement::hasPendingActivity() const
 {
-    return m_asyncEventQueue.hasPendingEvents();
+    return m_asyncEventQueue->hasPendingEvents();
 }
 
 void HTMLMediaElement::mediaVolumeDidChange()

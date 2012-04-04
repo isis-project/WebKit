@@ -58,6 +58,7 @@ public:
     virtual void applyScrollAndScale(const IntSize& scrollDelta, float pageScale) = 0;
     virtual PassRefPtr<GraphicsContext3D> createContext() = 0;
     virtual void didRecreateContext(bool success) = 0;
+    virtual void didCommit() = 0;
     virtual void didCommitAndDrawFrame() = 0;
     virtual void didCompleteSwapBuffers() = 0;
 
@@ -129,9 +130,12 @@ public:
     // Returns true if any CCLayerTreeHost is alive.
     static bool anyLayerTreeHostInstanceExists();
 
+    static bool needsFilterContext() { return s_needsFilterContext; }
+    static void setNeedsFilterContext(bool needsFilterContext) { s_needsFilterContext = needsFilterContext; }
+
     // CCLayerTreeHost interface to CCProxy.
     void willBeginFrame() { m_client->willBeginFrame(); }
-    void updateAnimations(double wallClockTime);
+    void updateAnimations(double monotonicFrameBeginTime);
     void layout();
     void beginCommitOnImplThread(CCLayerTreeHostImpl*);
     void finishCommitOnImplThread(CCLayerTreeHostImpl*);
@@ -181,6 +185,7 @@ public:
     // virtual for testing
     virtual void setNeedsCommit();
     void setNeedsRedraw();
+    bool commitRequested() const;
 
     void setAnimationEvents(PassOwnPtr<CCAnimationEventsVector>, double wallClockTime);
 
@@ -268,6 +273,7 @@ private:
 
     TextureList m_deleteTextureAfterCommitList;
     size_t m_partialTextureUpdateRequests;
+    static bool s_needsFilterContext;
 };
 
 }

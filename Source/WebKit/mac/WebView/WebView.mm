@@ -736,10 +736,10 @@ static NSString *leakOutlookQuirksUserScriptContents()
     pageClients.editorClient = new WebEditorClient(self);
     pageClients.dragClient = new WebDragClient(self);
     pageClients.inspectorClient = new WebInspectorClient(self);
-#if ENABLE(GEOLOCATION)
-    pageClients.geolocationClient = new WebGeolocationClient(self);
-#endif
     _private->page = new Page(pageClients);
+#if ENABLE(GEOLOCATION)
+    WebCore::provideGeolocationTo(_private->page, new WebGeolocationClient(self));
+#endif
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     WebCore::provideNotification(_private->page, new WebNotificationClient(self));
 #endif
@@ -1831,6 +1831,11 @@ static inline IMP getMethod(id o, SEL s)
     }
 
     [NSApp setWindowsNeedUpdate:YES];
+
+#if ENABLE(FULLSCREEN_API)
+    if (_private->newFullscreenController && [_private->newFullscreenController isFullScreen])
+        [_private->newFullscreenController close];
+#endif
 }
 
 - (void)_didCommitLoadForFrame:(WebFrame *)frame
@@ -4232,7 +4237,13 @@ static WebFrame *incrementFrame(WebFrame *frame, WebFindOptions options = 0)
 
 - (void)setMainFrameURL:(NSString *)URLString
 {
-    [[self mainFrame] loadRequest: [NSURLRequest requestWithURL: [NSURL _web_URLWithDataAsString: URLString]]];
+    NSURL *url;
+    if ([URLString hasPrefix:@"/"])
+        url = [NSURL fileURLWithPath:URLString];
+    else
+        url = [NSURL _web_URLWithDataAsString:URLString];
+
+    [[self mainFrame] loadRequest:[NSURLRequest requestWithURL:url]];
 }
 
 - (NSString *)mainFrameURL
@@ -5482,7 +5493,7 @@ static NSAppleEventDescriptor* aeDescFromJSValue(ExecState* exec, JSValue jsValu
     WebFrame *webFrame = [self _selectedOrMainFrame];
     Frame* coreFrame = core(webFrame);
     if (coreFrame)
-        coreFrame->editor()->handleCorrectionPanelResult(result);
+        coreFrame->editor()->handleAlternativeTextUIResult(result);
 }
 #endif
 
@@ -6382,7 +6393,7 @@ static void glibContextIterationCallback(CFRunLoopObserverRef, CFRunLoopActivity
 {
 #if ENABLE(GEOLOCATION)
     if (_private && _private->page)
-        _private->page->geolocationController()->positionChanged(core(position));
+        WebCore::GeolocationController::from(_private->page)->positionChanged(core(position));
 #endif // ENABLE(GEOLOCATION)
 }
 
@@ -6391,7 +6402,7 @@ static void glibContextIterationCallback(CFRunLoopObserverRef, CFRunLoopActivity
 #if ENABLE(GEOLOCATION)
     if (_private && _private->page) {
         RefPtr<GeolocationError> geolocatioError = GeolocationError::create(GeolocationError::PositionUnavailable, [error localizedDescription]);
-        _private->page->geolocationController()->errorOccurred(geolocatioError.get());
+        WebCore::GeolocationController::from(_private->page)->errorOccurred(geolocatioError.get());
     }
 #endif // ENABLE(GEOLOCATION)
 }

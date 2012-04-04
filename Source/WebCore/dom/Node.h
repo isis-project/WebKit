@@ -349,6 +349,8 @@ public:
     bool isContentEditable();
     bool isContentRichlyEditable();
 
+    void inspect();
+
     bool rendererIsEditable(EditableType editableType = ContentIsEditable) const
     {
         switch (editableType) {
@@ -377,6 +379,7 @@ public:
     virtual LayoutRect getRect() const;
     IntRect getPixelSnappedRect() const { return pixelSnappedIntRect(getRect()); }
     LayoutRect renderRect(bool* isReplaced);
+    IntRect pixelSnappedRenderRect(bool* isReplaced) { return pixelSnappedIntRect(renderRect(isReplaced)); }
 
     // Returns true if the node has a non-empty bounding box in layout.
     // This does not 100% guarantee the user can see it, but is pretty close.

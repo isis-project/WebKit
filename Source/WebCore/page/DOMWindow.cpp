@@ -905,11 +905,11 @@ void DOMWindow::close(ScriptExecutionContext* context)
 
     if (context) {
         ASSERT(isMainThread());
-        Frame* activeFrame = static_cast<Document*>(context)->frame();
-        if (!activeFrame)
+        Document* activeDocument = static_cast<Document*>(context);
+        if (!activeDocument)
             return;
 
-        if (!activeFrame->loader()->shouldAllowNavigation(m_frame))
+        if (!activeDocument->canNavigate(m_frame))
             return;
     }
 
@@ -1349,7 +1349,8 @@ void DOMWindow::scrollBy(int x, int y) const
     if (!view)
         return;
 
-    view->scrollBy(IntSize(x, y));
+    IntSize scaledOffset(view->mapFromCSSToLayoutUnits(x), view->mapFromCSSToLayoutUnits(y));
+    view->scrollBy(scaledOffset);
 }
 
 void DOMWindow::scrollTo(int x, int y) const
@@ -1647,11 +1648,11 @@ void DOMWindow::setLocation(const String& urlString, DOMWindow* activeWindow, DO
     if (!isCurrentlyDisplayedInFrame())
         return;
 
-    Frame* activeFrame = activeWindow->frame();
-    if (!activeFrame)
+    Document* activeDocument = activeWindow->document();
+    if (!activeDocument)
         return;
 
-    if (!activeFrame->loader()->shouldAllowNavigation(m_frame))
+    if (!activeDocument->canNavigate(m_frame))
         return;
 
     Frame* firstFrame = firstWindow->frame();
@@ -1666,8 +1667,9 @@ void DOMWindow::setLocation(const String& urlString, DOMWindow* activeWindow, DO
         return;
 
     // We want a new history item if we are processing a user gesture.
-    m_frame->navigationScheduler()->scheduleLocationChange(activeFrame->document()->securityOrigin(),
-        completedURL, activeFrame->loader()->outgoingReferrer(),
+    m_frame->navigationScheduler()->scheduleLocationChange(activeDocument->securityOrigin(),
+        // FIXME: What if activeDocument()->frame() is 0?
+        completedURL, activeDocument->frame()->loader()->outgoingReferrer(),
         locking != LockHistoryBasedOnGestureState || !ScriptController::processingUserGesture(),
         locking != LockHistoryBasedOnGestureState);
 }
@@ -1774,8 +1776,8 @@ PassRefPtr<DOMWindow> DOMWindow::open(const String& urlString, const AtomicStrin
 {
     if (!isCurrentlyDisplayedInFrame())
         return 0;
-    Frame* activeFrame = activeWindow->frame();
-    if (!activeFrame)
+    Document* activeDocument = activeWindow->document();
+    if (!activeDocument)
         return 0;
     Frame* firstFrame = firstWindow->frame();
     if (!firstFrame)
@@ -1800,7 +1802,7 @@ PassRefPtr<DOMWindow> DOMWindow::open(const String& urlString, const AtomicStrin
             targetFrame = m_frame;
     }
     if (targetFrame) {
-        if (!activeFrame->loader()->shouldAllowNavigation(targetFrame))
+        if (!activeDocument->canNavigate(targetFrame))
             return 0;
 
         KURL completedURL = firstFrame->document()->completeURL(urlString);
@@ -1815,7 +1817,7 @@ PassRefPtr<DOMWindow> DOMWindow::open(const String& urlString, const AtomicStrin
         // determine the outgoing referrer. We replicate that behavior here.
         bool lockHistory = !ScriptController::processingUserGesture();
         targetFrame->navigationScheduler()->scheduleLocationChange(
-            activeFrame->document()->securityOrigin(),
+            activeDocument->securityOrigin(),
             completedURL,
             firstFrame->loader()->outgoingReferrer(),
             lockHistory,

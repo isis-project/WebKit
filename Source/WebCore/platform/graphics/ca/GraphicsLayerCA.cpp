@@ -279,6 +279,12 @@ GraphicsLayerCA::GraphicsLayerCA(GraphicsLayerClient* client)
 
 GraphicsLayerCA::~GraphicsLayerCA()
 {
+    // Do cleanup while we can still safely call methods on the derived class.
+    willBeDestroyed();
+}
+
+void GraphicsLayerCA::willBeDestroyed()
+{
     // We release our references to the PlatformCALayers here, but do not actively unparent them,
     // since that will cause a commit and break our batched commit model. The layers will
     // get released when the rootmost modified GraphicsLayerCA rebuilds its child layers.
@@ -294,6 +300,8 @@ GraphicsLayerCA::~GraphicsLayerCA()
         m_structuralLayer->setOwner(0);
     
     removeCloneLayers();
+
+    GraphicsLayer::willBeDestroyed();
 }
 
 void GraphicsLayerCA::setName(const String& name)
@@ -1041,7 +1049,12 @@ void GraphicsLayerCA::commitLayerChangesBeforeSublayers(float pageScaleFactor, c
     
     if (m_uncommittedChanges & AnimationChanged)
         updateLayerAnimations();
-    
+
+    // Updating the contents scale can cause parts of the layer to be invalidated,
+    // so make sure to update the contents scale before updating the dirty rects.
+    if (m_uncommittedChanges & ContentsScaleChanged)
+        updateContentsScale(pageScaleFactor, positionRelativeToBase);
+
     if (m_uncommittedChanges & DirtyRectsChanged)
         repaintLayerDirtyRects();
     
@@ -1056,9 +1069,6 @@ void GraphicsLayerCA::commitLayerChangesBeforeSublayers(float pageScaleFactor, c
     
     if (m_uncommittedChanges & AcceleratesDrawingChanged)
         updateAcceleratesDrawing();
-    
-    if (m_uncommittedChanges & ContentsScaleChanged)
-        updateContentsScale(pageScaleFactor, positionRelativeToBase);
 }
 
 void GraphicsLayerCA::commitLayerChangesAfterSublayers()
@@ -2488,16 +2498,16 @@ PassRefPtr<PlatformCALayer> GraphicsLayerCA::findOrMakeClone(CloneID cloneID, Pl
     // Add with a dummy value to get an iterator for the insertion position, and a boolean that tells
     // us whether there's an item there. This technique avoids two hash lookups.
     RefPtr<PlatformCALayer> dummy;
-    pair<LayerMap::iterator, bool> addResult = clones->add(cloneID, dummy);
-    if (!addResult.second) {
+    LayerMap::AddResult addResult = clones->add(cloneID, dummy);
+    if (!addResult.isNewEntry) {
         // Value was not added, so it exists already.
-        resultLayer = addResult.first->second.get();
+        resultLayer = addResult.iterator->second.get();
     } else {
         resultLayer = cloneLayer(sourceLayer, cloneLevel);
 #ifndef NDEBUG
         resultLayer->setName(String::format("Clone %d of layer %p", cloneID[0U], sourceLayer->platformLayer()));
 #endif
-        addResult.first->second = resultLayer;
+        addResult.iterator->second = resultLayer;
     }
 
     return resultLayer;

@@ -552,7 +552,7 @@ QRect QWebElement::geometry() const
 {
     if (!m_element)
         return QRect();
-    return m_element->getRect();
+    return m_element->getPixelSnappedRect();
 }
 
 /*!
@@ -839,7 +839,7 @@ QString QWebElement::styleProperty(const QString &name, StyleResolveStrategy str
     if (!m_element || !m_element->isStyledElement())
         return QString();
 
-    int propID = cssPropertyID(name);
+    CSSPropertyID propID = cssPropertyID(name);
 
     if (!propID)
         return QString();
@@ -881,8 +881,6 @@ QString QWebElement::styleProperty(const QString &name, StyleResolveStrategy str
         if (!m_element || !m_element->isStyledElement())
             return QString();
 
-        int propID = cssPropertyID(name);
-
         RefPtr<CSSComputedStyleDeclaration> style = CSSComputedStyleDeclaration::create(m_element, true);
         if (!propID || !style)
             return QString();
@@ -908,7 +906,7 @@ void QWebElement::setStyleProperty(const QString &name, const QString &value)
     if (!m_element || !m_element->isStyledElement())
         return;
 
-    int propID = cssPropertyID(name);
+    CSSPropertyID propID = cssPropertyID(name);
     static_cast<StyledElement*>(m_element)->setInlineStyleProperty(propID, value);
 }
 

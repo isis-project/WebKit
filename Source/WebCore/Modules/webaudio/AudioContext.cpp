@@ -49,15 +49,15 @@
 #include "FFTFrame.h"
 #include "HRTFDatabaseLoader.h"
 #include "HRTFPanner.h"
-#include "HighPass2FilterNode.h"
 #include "JavaScriptAudioNode.h"
-#include "LowPass2FilterNode.h"
 #include "OfflineAudioCompletionEvent.h"
 #include "OfflineAudioDestinationNode.h"
+#include "Oscillator.h"
 #include "PlatformString.h"
 #include "RealtimeAnalyserNode.h"
-#include "WaveShaperNode.h"
 #include "ScriptCallStack.h"
+#include "WaveShaperNode.h"
+#include "WaveTable.h"
 
 #if ENABLE(VIDEO)
 #include "HTMLMediaElement.h"
@@ -393,26 +393,6 @@ PassRefPtr<WaveShaperNode> AudioContext::createWaveShaper()
     return WaveShaperNode::create(this);
 }
 
-PassRefPtr<LowPass2FilterNode> AudioContext::createLowPass2Filter()
-{
-    ASSERT(isMainThread());
-    lazyInitialize();
-    if (document())
-        document()->addConsoleMessage(JSMessageSource, LogMessageType, WarningMessageLevel, "createLowPass2Filter() is deprecated.  Use createBiquadFilter() instead.");
-        
-    return LowPass2FilterNode::create(this, m_destinationNode->sampleRate());
-}
-
-PassRefPtr<HighPass2FilterNode> AudioContext::createHighPass2Filter()
-{
-    ASSERT(isMainThread());
-    lazyInitialize();
-    if (document())
-        document()->addConsoleMessage(JSMessageSource, LogMessageType, WarningMessageLevel, "createHighPass2Filter() is deprecated.  Use createBiquadFilter() instead.");
-
-    return HighPass2FilterNode::create(this, m_destinationNode->sampleRate());
-}
-
 PassRefPtr<AudioPannerNode> AudioContext::createPanner()
 {
     ASSERT(isMainThread());
@@ -473,6 +453,26 @@ PassRefPtr<AudioChannelMerger> AudioContext::createChannelMerger()
     ASSERT(isMainThread());
     lazyInitialize();
     return AudioChannelMerger::create(this, m_destinationNode->sampleRate());
+}
+
+PassRefPtr<Oscillator> AudioContext::createOscillator()
+{
+    ASSERT(isMainThread());
+    lazyInitialize();
+    return Oscillator::create(this, m_destinationNode->sampleRate());
+}
+
+PassRefPtr<WaveTable> AudioContext::createWaveTable(Float32Array* real, Float32Array* imag, ExceptionCode& ec)
+{
+    ASSERT(isMainThread());
+    
+    if (!real || !imag || (real->length() != imag->length())) {
+        ec = SYNTAX_ERR;
+        return 0;
+    }
+    
+    lazyInitialize();
+    return WaveTable::create(sampleRate(), real, imag);
 }
 
 void AudioContext::notifyNodeFinishedProcessing(AudioNode* node)

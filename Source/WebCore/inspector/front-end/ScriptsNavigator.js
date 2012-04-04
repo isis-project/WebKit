@@ -49,29 +49,29 @@ WebInspector.ScriptsNavigator = function()
 
     var scriptsTreeElement = document.createElement("ol");
     var scriptsView = new WebInspector.View();
-    scriptsView.element.addStyleClass("outline-disclosure");
-    scriptsView.element.addStyleClass("navigator");
-    scriptsView.element.appendChild(scriptsTreeElement);
+    scriptsView.element.addStyleClass("fill");
+    scriptsView.element.addStyleClass("navigator-container");
+    var scriptsOutlineElement = document.createElement("div");
+    scriptsOutlineElement.addStyleClass("outline-disclosure");
+    scriptsOutlineElement.addStyleClass("navigator");
+    scriptsOutlineElement.appendChild(scriptsTreeElement);
+    scriptsView.element.appendChild(scriptsOutlineElement);
     this._scriptsTree = new WebInspector.NavigatorTreeOutline(this, scriptsTreeElement);
     this._tabbedPane.appendTab(WebInspector.ScriptsNavigator.ScriptsTab, WebInspector.UIString("Scripts"), scriptsView);
     this._tabbedPane.selectTab(WebInspector.ScriptsNavigator.ScriptsTab);
 
     var contentScriptsTreeElement = document.createElement("ol");
     var contentScriptsView = new WebInspector.View();
-    contentScriptsView.element.addStyleClass("outline-disclosure");
-    contentScriptsView.element.addStyleClass("navigator");
-    contentScriptsView.element.appendChild(contentScriptsTreeElement);
+    contentScriptsView.element.addStyleClass("fill");
+    contentScriptsView.element.addStyleClass("navigator-container");
+    var contentScriptsOutlineElement = document.createElement("div");
+    contentScriptsOutlineElement.addStyleClass("outline-disclosure");
+    contentScriptsOutlineElement.addStyleClass("navigator");
+    contentScriptsOutlineElement.appendChild(contentScriptsTreeElement);
     this._contentScriptsTree = new WebInspector.NavigatorTreeOutline(this, contentScriptsTreeElement);
     this._tabbedPane.appendTab(WebInspector.ScriptsNavigator.ContentScriptsTab, WebInspector.UIString("Content scripts"), contentScriptsView);
 
-    var snippetsTreeElement = document.createElement("ol");
-    var snippetsView = new WebInspector.View();
-    snippetsView.element.addStyleClass("outline-disclosure");
-    snippetsView.element.addStyleClass("navigator");
-    snippetsView.element.appendChild(snippetsTreeElement);
-    this._snippetsTree = new WebInspector.NavigatorTreeOutline(this, snippetsTreeElement);
-    if (WebInspector.experimentsSettings.snippetsSupport.isEnabled())
-        this._tabbedPane.appendTab(WebInspector.ScriptsNavigator.SnippetsTab, WebInspector.UIString("Snippets"), snippetsView);
+    this._snippetsTree = this._createSnippetsTree();
 
     this._folderTreeElements = {};
     
@@ -135,12 +135,24 @@ WebInspector.ScriptsNavigator.prototype = {
         if (this._scriptTreeElementsByUISourceCode.get(uiSourceCode))
             return;
         
-        var scriptTitle = uiSourceCode.fileName || WebInspector.UIString("(program)");
-        var scriptTreeElement = new WebInspector.NavigatorScriptTreeElement(this, uiSourceCode, scriptTitle);
+        var scriptTreeElement = new WebInspector.NavigatorScriptTreeElement(this, uiSourceCode, "");
         this._scriptTreeElementsByUISourceCode.put(uiSourceCode, scriptTreeElement);
+        this._updateScriptTitle(uiSourceCode);
 
         var folderTreeElement = this._getOrCreateFolderTreeElement(uiSourceCode);
         folderTreeElement.appendChild(scriptTreeElement);
+    },
+
+    /**
+     * @param {WebInspector.UISourceCode} uiSourceCode
+     */
+    _updateScriptTitle: function(uiSourceCode)
+    {
+        var scriptTreeElement = this._scriptTreeElementsByUISourceCode.get(uiSourceCode);
+        if (!scriptTreeElement)
+            return;
+        var scriptTitle = uiSourceCode.fileName || WebInspector.UIString("(program)");
+        scriptTreeElement.titleText = scriptTitle;
     },
 
     /**
@@ -219,13 +231,16 @@ WebInspector.ScriptsNavigator.prototype = {
 
     /**
      * @param {WebInspector.UISourceCode} uiSourceCode
+     * @param {boolean} focusSource
      */
-    scriptSelected: function(uiSourceCode)
+    _scriptSelected: function(uiSourceCode, focusSource)
     {
         this._lastSelectedUISourceCode = uiSourceCode;
         this.dispatchEventToListeners(WebInspector.ScriptsPanel.FileSelector.Events.FileSelected, uiSourceCode);
+        if (focusSource)
+            this.dispatchEventToListeners(WebInspector.ScriptsPanel.FileSelector.Events.ReleasedFocusAfterSelection, uiSourceCode);
     },
-    
+
     /**
      * @param {WebInspector.UISourceCode} uiSourceCode
      */
@@ -245,7 +260,7 @@ WebInspector.ScriptsNavigator.prototype = {
         }
         this._scriptTreeElementsByUISourceCode.remove(uiSourceCode);
     },
-    
+
     _showScriptFoldersSettingChanged: function()
     {
         var uiSourceCodes = this._scriptsTree.scriptTreeElements();
@@ -254,11 +269,133 @@ WebInspector.ScriptsNavigator.prototype = {
 
         for (var i = 0; i < uiSourceCodes.length; ++i)
             this.addUISourceCode(uiSourceCodes[i]);
-        
+
         if (this._lastSelectedUISourceCode)
             this.revealUISourceCode(this._lastSelectedUISourceCode);
     },
-    
+
+    _createSnippetsTree: function()
+    {
+        var snippetsTreeElement = document.createElement("ol");
+        var snippetsView = new WebInspector.View();
+        snippetsView.element.addStyleClass("fill");
+        snippetsView.element.addStyleClass("navigator-container");
+        snippetsView.element.addEventListener("contextmenu", this._handleSnippetContextMenuEvent.bind(this), false);
+        var snippetsOutlineElement = document.createElement("div");
+        snippetsOutlineElement.addStyleClass("outline-disclosure");
+        snippetsOutlineElement.addStyleClass("navigator");
+        snippetsOutlineElement.appendChild(snippetsTreeElement);
+        snippetsView.element.appendChild(snippetsOutlineElement);
+        var snippetsTree = new WebInspector.NavigatorTreeOutline(this, snippetsTreeElement);
+        if (WebInspector.experimentsSettings.snippetsSupport.isEnabled())
+            this._tabbedPane.appendTab(WebInspector.ScriptsNavigator.SnippetsTab, WebInspector.UIString("Snippets"), snippetsView);
+        return snippetsTree;
+    },
+
+    /**
+     * @param {Event} event
+     */
+    _handleSnippetContextMenuEvent: function(event)
+    {
+        this._showSnippetContextMenu(event);
+    },
+
+    /**
+     * @param {Event} event
+     * @param {WebInspector.UISourceCode=} uiSourceCode
+     */
+    _showSnippetContextMenu: function(event, uiSourceCode)
+    {
+        var contextMenu = new WebInspector.ContextMenu();
+        if (uiSourceCode) {
+            contextMenu.appendItem(WebInspector.UIString(WebInspector.useLowerCaseMenuTitles() ? "Evaluate snippet" : "Evaluate Snippet"), this._handleEvaluateSnippet.bind(this, uiSourceCode));
+            contextMenu.appendItem(WebInspector.UIString(WebInspector.useLowerCaseMenuTitles() ? "Rename snippet" : "Rename Snippet"), this._handleRenameSnippet.bind(this, uiSourceCode));
+            contextMenu.appendItem(WebInspector.UIString(WebInspector.useLowerCaseMenuTitles() ? "Remove snippet" : "Remove Snippet"), this._handleRemoveSnippet.bind(this, uiSourceCode));
+            contextMenu.appendSeparator();
+        }
+        contextMenu.appendItem(WebInspector.UIString(WebInspector.useLowerCaseMenuTitles() ? "Create snippet" : "Create Snippet"), this._handleCreateSnippet.bind(this));
+        contextMenu.show(event);
+    },
+
+    /**
+     * @param {WebInspector.UISourceCode} uiSourceCode
+     * @param {Event} event
+     */
+    _handleEvaluateSnippet: function(uiSourceCode, event)
+    {
+        // FIXME: To be implemented.
+    },
+
+    /**
+     * @param {WebInspector.UISourceCode} uiSourceCode
+     * @param {Event} event
+     */
+    _handleRenameSnippet: function(uiSourceCode, event)
+    {
+        this.rename(uiSourceCode);
+    },
+
+    /**
+     * @param {WebInspector.UISourceCode} uiSourceCode
+     * @param {Event} event
+     */
+    _handleRemoveSnippet: function(uiSourceCode, event)
+    {
+        // FIXME: To be implemented.
+    },
+
+    /**
+     * @param {Event} event
+     */
+    _handleCreateSnippet: function(event)
+    {
+        // FIXME: To be implemented.
+    },
+
+    _fileRenamed: function(uiSourceCode, newTitle)
+    {
+        // FIXME: To be implemented.
+    },
+
+    /**
+     * @param {WebInspector.UISourceCode} uiSourceCode
+     * @param {function()=} callback
+     */
+    rename: function(uiSourceCode, callback)
+    {
+        var scriptTreeElement = this._scriptTreeElementsByUISourceCode.get(uiSourceCode);
+        if (!scriptTreeElement)
+            return;
+
+        // Tree outline should be marked as edited as well as the tree element to prevent search from starting.
+        WebInspector.markBeingEdited(scriptTreeElement.treeOutline.element, true);
+
+        function commitHandler(element, newTitle, oldTitle)
+        {
+            if (newTitle && newTitle !== oldTitle)
+                this._fileRenamed(uiSourceCode, newTitle);
+            else
+                this._updateScriptTitle(uiSourceCode);
+            afterEditing();
+        }
+
+        function cancelHandler()
+        {
+            afterEditing();
+        }
+
+        function afterEditing()
+        {
+            WebInspector.markBeingEdited(scriptTreeElement.treeOutline.element, false);
+            if (callback)
+                callback();
+        }
+
+        var editingConfig = new WebInspector.EditingConfig(commitHandler.bind(this), cancelHandler.bind(this));
+        WebInspector.startEditing(scriptTreeElement.titleElement, editingConfig);
+        window.getSelection().setBaseAndExtent(scriptTreeElement.titleElement, 0, scriptTreeElement.titleElement, 1);
+    },
+
     reset: function()
     {
         this._scriptsTree.stopSearch();
@@ -315,7 +452,7 @@ WebInspector.ScriptsNavigator.prototype = {
         var contentScriptPrefix = isContentScript ? "0" : "1";
         return contentScriptPrefix + ":" + domain + folderName;
     },
-    
+
     /**
      * @param {boolean} isContentScript
      * @param {string} domain
@@ -348,6 +485,7 @@ WebInspector.ScriptsNavigator.prototype.__proto__ = WebInspector.Object.prototyp
 /**
  * @constructor
  * @extends {TreeOutline}
+ * @param {WebInspector.ScriptsNavigator} navigator
  * @param {Element} element
  */
 WebInspector.NavigatorTreeOutline = function(navigator, element)
@@ -407,7 +545,7 @@ WebInspector.NavigatorTreeOutline.prototype = {
        }
        return result;
    },
-   
+
    searchStarted: function()
    {
        this._navigator._treeSearchBox.appendChild(this.searchInputElement);
@@ -485,7 +623,8 @@ WebInspector.BaseNavigatorTreeElement.prototype = {
     set titleText(titleText)
     {
         this._titleText = titleText || "";
-        this._titleTextNode.textContent = this._titleText;
+        if (this.titleElement)
+            this.titleElement.textContent = this._titleText;
     },
     
     /**
@@ -562,6 +701,14 @@ WebInspector.NavigatorScriptTreeElement = function(navigator, uiSourceCode, titl
 
 WebInspector.NavigatorScriptTreeElement.prototype = {
     /**
+     * @type {WebInspector.ScriptsNavigator}
+     */
+    get navigator()
+    {
+        return this._navigator;
+    },
+
+    /**
      * @type {WebInspector.UISourceCode}
      */
     get uiSourceCode()
@@ -569,17 +716,40 @@ WebInspector.NavigatorScriptTreeElement.prototype = {
         return this._uiSourceCode;
     },
 
+    onattach: function()
+    {
+        WebInspector.BaseNavigatorTreeElement.prototype.onattach.call(this);
+        this.listItemElement.addEventListener("click", this._onclick.bind(this), false);
+        if (this._uiSourceCode.isSnippet)
+            this.listItemElement.addEventListener("contextmenu", this._handleContextMenuEvent.bind(this), false);
+    },
+
+    onspace: function()
+    {
+        this._navigator._scriptSelected(this.uiSourceCode, true);
+        return true;
+    },
+
     /**
      * @param {Event} event
      */
-    ondblclick: function(event)
+    _onclick: function(event)
     {
-        this._navigator.scriptSelected(this.uiSourceCode);
+        this._navigator._scriptSelected(this.uiSourceCode, false);
     },
 
     onenter: function()
     {
-        this._navigator.scriptSelected(this.uiSourceCode);
+        this._navigator._scriptSelected(this.uiSourceCode, true);
+        return true;
+    },
+
+    /**
+     * @param {Event} event
+     */
+    _handleContextMenuEvent: function(event)
+    {
+        this.navigator._showSnippetContextMenu(event, this.uiSourceCode);
     }
 }
 

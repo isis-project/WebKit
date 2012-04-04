@@ -128,13 +128,13 @@ FloatRect SVGInlineTextBox::selectionRectForTextFragment(const SVGTextFragment& 
     return selectionRect;
 }
 
-IntRect SVGInlineTextBox::localSelectionRect(int startPosition, int endPosition)
+LayoutRect SVGInlineTextBox::localSelectionRect(int startPosition, int endPosition)
 {
     int boxStart = start();
     startPosition = max(startPosition - boxStart, 0);
     endPosition = min(endPosition - boxStart, static_cast<int>(len()));
     if (startPosition >= endPosition)
-        return IntRect();
+        return LayoutRect();
 
     RenderText* text = textRenderer();
     ASSERT(text);
@@ -427,7 +427,7 @@ TextRun SVGInlineTextBox::constructTextRun(RenderStyle* style, const SVGTextFrag
                 , 0 /* padding, only relevant for justified text, not relevant for SVG */
                 , TextRun::AllowTrailingExpansion
                 , direction()
-                , m_dirOverride || style->rtlOrdering() == VisualOrder /* directionalOverride */);
+                , dirOverride() || style->rtlOrdering() == VisualOrder /* directionalOverride */);
 
     if (textRunNeedsRenderingContext(style->font()))
         run.setRenderingContext(SVGTextRunRenderingContext::create(text));
