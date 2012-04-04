@@ -902,7 +902,8 @@ PluginView::PluginView(Frame* parentFrame, const IntSize& size, PluginPackage* p
     , m_pluginDisplay(0)
 #endif
 #if PLATFORM(QT) && PLATFORM(WEBOS)
-    , m_drawingModel(NPDrawingModelPixmap)
+    // FIXME There is currently no way to set this from the plugin when using AdapterBase.
+    , m_drawingModel(NPDrawingModelQt) // NPDrawingModelPixmap)
 #endif
     , m_loadManually(loadManually)
     , m_manualStream(0)

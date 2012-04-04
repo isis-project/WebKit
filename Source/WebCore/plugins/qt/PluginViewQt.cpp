@@ -382,7 +382,12 @@ bool PluginView::dispatchNPEvent(NPEvent& event)
     JSC::JSLock::DropAllLocks dropAllLocks(JSC::SilenceAssertionsOnly);
 #endif
     setCallingPlugin(true);
+// Why do some platforms negate the return result? The spec says it returns a bool, true if handled false if not.
+#if defined(XP_WEBOS)
+    bool accepted = m_plugin->pluginFuncs()->event(m_instance, &event);
+#else
     bool accepted = !m_plugin->pluginFuncs()->event(m_instance, &event);
+#endif
     setCallingPlugin(false);
     PluginView::setCurrentPluginView(0);
 
@@ -469,21 +474,37 @@ void PluginView::handleKeyboardEvent(KeyboardEvent* event)
     else
         return;
 
+    const PlatformKeyboardEvent* keyEvent = event->keyEvent();
+
+    if (keyEvent) {
+
+        QKeyEvent* qKeyEvent = keyEvent->qtEvent();
+
+        if (qKeyEvent) {
+
+            npEvent.data.keyEvent.rawkeyCode = qKeyEvent->key();
+            npEvent.data.keyEvent.rawModifier = qKeyEvent->modifiers();
+        }
+    }
+
     npEvent.data.keyEvent.chr = event->keyEvent()->text()[0];
+
+#if 0
     npEvent.data.keyEvent.modifiers = 0x0;
     if (event->ctrlKey())
-        npEvent.data.gestureEvent.modifiers |= npPalmCtrlKeyModifier;
+        npEvent.data.keyEvent.modifiers |= npPalmCtrlKeyModifier;
     if (event->altKey())
-        npEvent.data.gestureEvent.modifiers |= npPalmAltKeyModifier;
+        npEvent.data.keyEvent.modifiers |= npPalmAltKeyModifier;
     if (event->shiftKey())
-        npEvent.data.gestureEvent.modifiers |= npPalmShiftKeyModifier;
+        npEvent.data.keyEvent.modifiers |= npPalmShiftKeyModifier;
     if (event->metaKey())
-        npEvent.data.gestureEvent.modifiers |= npPalmMetaKeyModifier;
+        npEvent.data.keyEvent.modifiers |= npPalmMetaKeyModifier;
 
     // Our old GTK derived implementation would also preserve the raw key code &
     // modifiers for use by the adapter/server. This may no longer be necessary today.
     npEvent.data.keyEvent.rawkeyCode = event->keyCode();
     npEvent.data.keyEvent.rawModifier = npEvent.data.keyEvent.modifiers;
+#endif // 0
 #else
     XEvent npEvent;
     initXEvent(&npEvent);
@@ -828,6 +849,16 @@ void PluginView::setNPWindowIfNeeded()
         m_npWindow.width = m_windowRect.width();
         m_npWindow.height = m_windowRect.height();
     }
+
+#if defined(XP_WEBOS)
+    NpPalmWindow palmWindow;
+
+    palmWindow.visible = true;
+    palmWindow.bpp = 32;
+    palmWindow.scaleFactor = 1;
+
+    m_npWindow.window = (void *)&palmWindow;
+#endif
 
     PluginView::setCurrentPluginView(this);
 #if USE(JSC)
