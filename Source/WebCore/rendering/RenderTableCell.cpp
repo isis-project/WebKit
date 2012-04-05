@@ -95,7 +95,7 @@ LayoutUnit RenderTableCell::logicalHeightForRowSizing() const
 {
     LayoutUnit adjustedLogicalHeight = logicalHeight() - (intrinsicPaddingBefore() + intrinsicPaddingAfter());
 
-    LayoutUnit styleLogicalHeight = valueForLength(style()->logicalHeight(), 0);
+    LayoutUnit styleLogicalHeight = valueForLength(style()->logicalHeight(), 0, view());
     if (document()->inQuirksMode() || style()->boxSizing() == BORDER_BOX) {
         // Explicit heights use the border box in quirks mode.
         // Don't adjust height.
@@ -143,7 +143,7 @@ Length RenderTableCell::styleOrColLogicalWidth() const
         // Percentages don't need to be handled since they're always treated this way (even when specified on the cells).
         // See Bugzilla bug 8126 for details.
         if (colWidthSum.isFixed() && colWidthSum.value() > 0)
-            colWidthSum = Length(max<LayoutUnit>(0, colWidthSum.value() - borderAndPaddingLogicalWidth()), Fixed);
+            colWidthSum = Length(max(0, colWidthSum.value() - borderAndPaddingLogicalWidth()), Fixed);
         return colWidthSum;
     }
 
@@ -296,9 +296,8 @@ LayoutRect RenderTableCell::clippedOverflowRectForRepaint(RenderBoxModelObject* 
             right = max(right, below->borderHalfRight(true));
         }
     }
-    left = max(left, -minXVisualOverflow());
-    top = max(top, -minYVisualOverflow());
-    LayoutRect r(-left, - top, left + max(width() + right, maxXVisualOverflow()), top + max(height() + bottom, maxYVisualOverflow()));
+    LayoutPoint location(max<LayoutUnit>(left, -minXVisualOverflow()), max<LayoutUnit>(top, -minYVisualOverflow()));
+    LayoutRect r(-location.x(), -location.y(), location.x() + max(width() + right, maxXVisualOverflow()), location.y() + max(height() + bottom, maxYVisualOverflow()));
 
     if (RenderView* v = view()) {
         // FIXME: layoutDelta needs to be applied in parts before/after transforms and
@@ -1116,6 +1115,16 @@ void RenderTableCell::scrollbarsChanged(bool horizontalScrollbarChanged, bool ve
         setIntrinsicPaddingAfter(newAfterPadding);
     } else
         setIntrinsicPaddingAfter(intrinsicPaddingAfter() - scrollbarHeight);
+}
+
+RenderTableCell* RenderTableCell::createAnonymousWithParentRenderer(const RenderObject* parent)
+{
+    RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(parent->style());
+    newStyle->setDisplay(TABLE_CELL);
+
+    RenderTableCell* newCell = new (parent->renderArena()) RenderTableCell(parent->document() /* is anonymous */);
+    newCell->setStyle(newStyle.release());
+    return newCell;
 }
 
 } // namespace WebCore

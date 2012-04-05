@@ -885,7 +885,7 @@ void DumpRenderTreeSupportQt::resetGeolocationMock(QWebPage* page)
 {
 #if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
-    GeolocationClientMock* mockClient = toGeolocationClientMock(corePage->geolocationController()->client());
+    GeolocationClientMock* mockClient = toGeolocationClientMock(GeolocationController::from(corePage)->client());
     mockClient->reset();
 #endif
 }
@@ -894,7 +894,7 @@ void DumpRenderTreeSupportQt::setMockGeolocationPermission(QWebPage* page, bool 
 {
 #if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
-    GeolocationClientMock* mockClient = toGeolocationClientMock(corePage->geolocationController()->client());
+    GeolocationClientMock* mockClient = toGeolocationClientMock(GeolocationController::from(corePage)->client());
     mockClient->setPermission(allowed);
 #endif
 }
@@ -903,7 +903,7 @@ void DumpRenderTreeSupportQt::setMockGeolocationPosition(QWebPage* page, double 
 {
 #if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
-    GeolocationClientMock* mockClient = toGeolocationClientMock(corePage->geolocationController()->client());
+    GeolocationClientMock* mockClient = toGeolocationClientMock(GeolocationController::from(corePage)->client());
     mockClient->setPosition(GeolocationPosition::create(currentTime(), latitude, longitude, accuracy));
 #endif
 }
@@ -923,7 +923,7 @@ void DumpRenderTreeSupportQt::setMockGeolocationError(QWebPage* page, int errorC
         break;
     }
 
-    GeolocationClientMock* mockClient = static_cast<GeolocationClientMock*>(corePage->geolocationController()->client());
+    GeolocationClientMock* mockClient = static_cast<GeolocationClientMock*>(GeolocationController::from(corePage)->client());
     mockClient->setError(GeolocationError::create(code, message));
 #endif
 }
@@ -932,7 +932,7 @@ int DumpRenderTreeSupportQt::numberOfPendingGeolocationPermissionRequests(QWebPa
 {
 #if ENABLE(GEOLOCATION)
     Page* corePage = QWebPagePrivate::core(page);
-    GeolocationClientMock* mockClient = toGeolocationClientMock(corePage->geolocationController()->client());
+    GeolocationClientMock* mockClient = toGeolocationClientMock(GeolocationController::from(corePage)->client());
     return mockClient->numberOfPendingPermissionRequests();
 #else
     return -1;

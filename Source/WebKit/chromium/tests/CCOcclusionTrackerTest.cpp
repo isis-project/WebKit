@@ -26,6 +26,8 @@
 
 #include "cc/CCOcclusionTracker.h"
 
+#include "CCAnimationTestCommon.h"
+#include "CCOcclusionTrackerTestCommon.h"
 #include "FilterOperations.h"
 #include "LayerChromium.h"
 #include "Region.h"
@@ -40,6 +42,7 @@
 #include <gtest/gtest.h>
 
 using namespace WebCore;
+using namespace WebKitTests;
 
 #define EXPECT_EQ_RECT(a, b) \
     EXPECT_EQ(a.x(), b.x()); \
@@ -54,7 +57,7 @@ public:
     TestContentLayerChromium() : LayerChromium() { }
 
     virtual bool drawsContent() const { return true; }
-    virtual Region opaqueContentsRegion() const { return intersection(m_opaqueContentsRect, visibleLayerRect()); }
+    virtual Region visibleContentOpaqueRegion() const { return intersection(m_opaqueContentsRect, visibleLayerRect()); }
     void setOpaqueContentsRect(const IntRect& opaqueContentsRect) { m_opaqueContentsRect = opaqueContentsRect; }
 
 private:
@@ -65,27 +68,20 @@ class TestContentLayerImpl : public CCLayerImpl {
 public:
     TestContentLayerImpl(int id) : CCLayerImpl(id) { setDrawsContent(true); }
 
-    virtual Region opaqueContentsRegion() const { return intersection(m_opaqueContentsRect, visibleLayerRect()); }
+    virtual Region visibleContentOpaqueRegion() const { return intersection(m_opaqueContentsRect, visibleLayerRect()); }
     void setOpaqueContentsRect(const IntRect& opaqueContentsRect) { m_opaqueContentsRect = opaqueContentsRect; }
 private:
     IntRect m_opaqueContentsRect;
 };
 
-// A subclass to expose the total current occlusion.
 template<typename LayerType, typename RenderSurfaceType>
-class TestCCOcclusionTrackerBase : public CCOcclusionTrackerBase<LayerType, RenderSurfaceType> {
+class TestCCOcclusionTrackerWithScissor : public TestCCOcclusionTrackerBase<LayerType, RenderSurfaceType> {
 public:
-    TestCCOcclusionTrackerBase(IntRect screenScissorRect, bool recordMetricsForFrame = false)
-        : CCOcclusionTrackerBase<LayerType, RenderSurfaceType>(screenScissorRect, recordMetricsForFrame)
+    TestCCOcclusionTrackerWithScissor(IntRect screenScissorRect, bool recordMetricsForFrame = false)
+        : TestCCOcclusionTrackerBase<LayerType, RenderSurfaceType>(screenScissorRect, recordMetricsForFrame)
         , m_overrideLayerScissorRect(false)
     {
     }
-
-    Region occlusionInScreenSpace() const { return CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::m_stack.last().occlusionInScreen; }
-    Region occlusionInTargetSurface() const { return CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::m_stack.last().occlusionInTarget; }
-
-    void setOcclusionInScreenSpace(const Region& region) { CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::m_stack.last().occlusionInScreen = region; }
-    void setOcclusionInTargetSurface(const Region& region) { CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::m_stack.last().occlusionInTarget = region; }
 
     void setLayerScissorRect(const IntRect& rect) { m_overrideLayerScissorRect = true; m_layerScissorRect = rect;}
     void useDefaultLayerScissorRect() { m_overrideLayerScissorRect = false; }
@@ -139,6 +135,7 @@ protected:
         m_root.clear();
         m_renderSurfaceLayerListChromium.clear();
         m_renderSurfaceLayerListImpl.clear();
+        CCLayerTreeHost::setNeedsFilterContext(false);
     }
 
     typename Types::ContentLayerType* createRoot(const TransformationMatrix& transform, const FloatPoint& position, const IntSize& bounds)
@@ -312,7 +309,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingLayer(parent, this->identityMatrix, FloatPoint(30, 30), IntSize(500, 500), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(parent->renderSurface());
@@ -364,7 +361,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingLayer(parent, layerTransform, FloatPoint(30, 30), IntSize(500, 500), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(parent->renderSurface());
@@ -414,7 +411,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingLayer(parent, layerTransform, FloatPoint(30, 30), IntSize(500, 500), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(parent->renderSurface());
@@ -480,7 +477,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingLayer(child, this->identityMatrix, FloatPoint(10, 10), IntSize(500, 500), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(child->renderSurface());
@@ -577,7 +574,7 @@ protected:
         typename Types::ContentLayerType* child2 = this->createDrawingLayer(parent, this->identityMatrix, FloatPoint(30, 30), IntSize(60, 20), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(-10, -10, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(parent->renderSurface());
@@ -724,7 +721,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingLayer(child, layerTransform, FloatPoint(0, 0), IntSize(500, 500), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         IntRect clippedLayerInChild = layerTransform.mapRect(layer->visibleLayerRect());
@@ -789,7 +786,7 @@ protected:
         typename Types::ContentLayerType* layer2 = this->createDrawingLayer(child, this->identityMatrix, FloatPoint(10, 450), IntSize(500, 60), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(child->renderSurface());
@@ -878,7 +875,7 @@ protected:
         typename Types::ContentLayerType* layer2 = this->createDrawingLayer(child2, this->identityMatrix, FloatPoint(-10, -10), IntSize(510, 510), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(-20, -20, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(child2->renderSurface());
@@ -989,7 +986,7 @@ protected:
         typename Types::ContentLayerType* layer2 = this->createDrawingLayer(child2, this->identityMatrix, FloatPoint(-10, -10), IntSize(510, 510), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(-30, -30, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(child2->renderSurface());
@@ -1095,7 +1092,7 @@ protected:
 
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         // Opacity layer won't contribute to occlusion.
@@ -1159,7 +1156,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(200, 100, 100, 100));
 
         occlusion.enterTargetRenderSurface(layer->renderSurface());
@@ -1202,7 +1199,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(200, 100, 100, 100));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(200, 100, 100, 100));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(layer->renderSurface());
@@ -1245,7 +1242,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(100, 100, 100, 100));
 
         occlusion.enterTargetRenderSurface(layer->renderSurface());
@@ -1283,7 +1280,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(100, 100, 100, 100));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(100, 100, 100, 100));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(layer->renderSurface());
@@ -1321,7 +1318,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(50, 50, 200, 200));
 
         occlusion.enterTargetRenderSurface(layer->renderSurface());
@@ -1363,7 +1360,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(50, 50, 200, 200));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(50, 50, 200, 200));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(layer->renderSurface());
@@ -1405,7 +1402,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.setLayerScissorRect(IntRect(500, 500, 100, 100));
 
         occlusion.enterTargetRenderSurface(layer->renderSurface());
@@ -1447,7 +1444,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(500, 500, 100, 100));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(500, 500, 100, 100));
         occlusion.setLayerScissorRect(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(layer->renderSurface());
@@ -1489,7 +1486,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.enterTargetRenderSurface(layer->renderSurface());
 
         // This layer is translated when drawn into its target. So if the scissor rect given from the target surface
@@ -1513,7 +1510,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 200), false);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.enterTargetRenderSurface(layer->renderSurface());
 
         EXPECT_FALSE(occlusion.occluded(layer, IntRect(0, 0, 100, 100)));
@@ -1549,7 +1546,7 @@ protected:
         this->calcDrawEtc(parent);
 
         {
-            TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+            TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
             layer->setOpaqueContentsRect(IntRect(0, 0, 100, 100));
 
             occlusion.enterTargetRenderSurface(parent->renderSurface());
@@ -1564,7 +1561,7 @@ protected:
         }
 
         {
-            TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+            TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
             layer->setOpaqueContentsRect(IntRect(20, 20, 180, 180));
 
             occlusion.enterTargetRenderSurface(parent->renderSurface());
@@ -1579,7 +1576,7 @@ protected:
         }
 
         {
-            TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+            TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
             layer->setOpaqueContentsRect(IntRect(150, 150, 100, 100));
 
             occlusion.enterTargetRenderSurface(parent->renderSurface());
@@ -1610,7 +1607,7 @@ protected:
         typename Types::ContentLayerType* layer = this->createDrawingLayer(container, transform, FloatPoint(100, 100), IntSize(200, 200), true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.enterTargetRenderSurface(parent->renderSurface());
 
         EXPECT_EQ_RECT(IntRect(0, 0, 200, 200), occlusion.unoccludedContentRect(layer, IntRect(0, 0, 200, 200)));
@@ -1636,7 +1633,7 @@ protected:
         container->setPreserves3D(true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.enterTargetRenderSurface(parent->renderSurface());
 
         EXPECT_EQ_RECT(IntRect(0, 0, 200, 200), occlusion.unoccludedContentRect(layer, IntRect(0, 0, 200, 200)));
@@ -1665,7 +1662,7 @@ protected:
         container->setPreserves3D(true);
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
         occlusion.enterTargetRenderSurface(parent->renderSurface());
 
         // The bottom 11 pixel rows of this layer remain visible inside the container, after translation to the target surface. When translated back,
@@ -1675,40 +1672,6 @@ protected:
 };
 
 MAIN_THREAD_TEST(CCOcclusionTrackerTestPerspectiveTransformBehindCamera);
-
-template<typename LayerType>
-static int addOpacityAnimationToLayer(LayerType* layer, float startValue, float endValue, double duration)
-{
-    static int id = 0;
-    WebCore::KeyframeValueList values(AnimatedPropertyOpacity);
-    values.insert(new FloatAnimationValue(0, startValue));
-    values.insert(new FloatAnimationValue(duration, endValue));
-
-    RefPtr<Animation> animation = Animation::create();
-    animation->setDuration(duration);
-
-    IntSize boxSize;
-    layer->layerAnimationController()->addAnimation(values, boxSize, animation.get(), id, 0, 0);
-    return id++;
-}
-
-template<typename LayerType>
-static int addTransformAnimationToLayer(LayerType* layer, double duration)
-{
-    static int id = 0;
-    WebCore::KeyframeValueList values(AnimatedPropertyWebkitTransform);
-
-    TransformOperations operations1;
-    operations1.operations().append(TranslateTransformOperation::create(Length(2, WebCore::Fixed), Length(0, WebCore::Fixed), TransformOperation::TRANSLATE_X));
-    values.insert(new TransformAnimationValue(0, &operations1));
-
-    RefPtr<Animation> animation = Animation::create();
-    animation->setDuration(duration);
-
-    IntSize boxSize;
-    layer->layerAnimationController()->addAnimation(values, boxSize, animation.get(), id, 0, 0);
-    return id++;
-}
 
 template<class Types, bool opaqueLayers>
 class CCOcclusionTrackerTestAnimationOpacity1OnMainThread : public CCOcclusionTrackerTest<Types, opaqueLayers> {
@@ -1721,15 +1684,15 @@ protected:
         typename Types::ContentLayerType* surfaceChild = this->createDrawingLayer(surface, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 300), true);
         typename Types::ContentLayerType* surfaceChild2 = this->createDrawingLayer(surface, this->identityMatrix, FloatPoint(0, 0), IntSize(100, 300), true);
 
-        addOpacityAnimationToLayer(layer, 0, 1, 10);
-        addOpacityAnimationToLayer(surface, 0, 1, 10);
+        addOpacityTransitionToController(*layer->layerAnimationController(), 10, 0, 1, false);
+        addOpacityTransitionToController(*surface->layerAnimationController(), 10, 0, 1, false);
         this->calcDrawEtc(parent);
 
         EXPECT_TRUE(layer->drawOpacityIsAnimating());
         EXPECT_FALSE(surface->drawOpacityIsAnimating());
         EXPECT_TRUE(surface->renderSurface()->drawOpacityIsAnimating());
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(surface->renderSurface());
         occlusion.markOccludedBehindLayer(surfaceChild2);
@@ -1762,15 +1725,15 @@ protected:
         typename Types::ContentLayerType* surfaceChild = this->createDrawingLayer(surface, this->identityMatrix, FloatPoint(0, 0), IntSize(200, 300), true);
         typename Types::ContentLayerType* surfaceChild2 = this->createDrawingLayer(surface, this->identityMatrix, FloatPoint(0, 0), IntSize(100, 300), true);
 
-        addOpacityAnimationToLayer(layer, 1, 0, 10);
-        addOpacityAnimationToLayer(surface, 1, 0, 10);
+        addOpacityTransitionToController(*layer->layerAnimationController(), 10, 1, 0, false);
+        addOpacityTransitionToController(*surface->layerAnimationController(), 10, 1, 0, false);
         this->calcDrawEtc(parent);
 
         EXPECT_TRUE(layer->drawOpacityIsAnimating());
         EXPECT_FALSE(surface->drawOpacityIsAnimating());
         EXPECT_TRUE(surface->renderSurface()->drawOpacityIsAnimating());
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(surface->renderSurface());
         occlusion.markOccludedBehindLayer(surfaceChild2);
@@ -1804,9 +1767,9 @@ protected:
         typename Types::ContentLayerType* surfaceChild2 = this->createDrawingLayer(surface, this->identityMatrix, FloatPoint(0, 0), IntSize(100, 300), true);
         typename Types::ContentLayerType* surface2 = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(50, 300), true);
 
-        addTransformAnimationToLayer(layer, 10);
-        addTransformAnimationToLayer(surface, 10);
-        addTransformAnimationToLayer(surfaceChild, 10);
+        addAnimatedTransformToController(*layer->layerAnimationController(), 10, 30, 0);
+        addAnimatedTransformToController(*surface->layerAnimationController(), 10, 30, 0);
+        addAnimatedTransformToController(*surfaceChild->layerAnimationController(), 10, 30, 0);
         this->calcDrawEtc(parent);
 
         EXPECT_TRUE(layer->drawTransformIsAnimating());
@@ -1819,7 +1782,7 @@ protected:
         EXPECT_TRUE(surfaceChild->drawTransformIsAnimating());
         EXPECT_TRUE(surfaceChild->screenSpaceTransformIsAnimating());
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(surface2->renderSurface());
         occlusion.markOccludedBehindLayer(surface2);
@@ -1895,7 +1858,7 @@ protected:
         surface2->setOpaqueContentsRect(IntRect(0, 0, 200, 200));
         this->calcDrawEtc(parent);
 
-        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+        TestCCOcclusionTrackerWithScissor<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
 
         occlusion.enterTargetRenderSurface(surface2->renderSurface());
         occlusion.markOccludedBehindLayer(surface2);
@@ -1920,13 +1883,35 @@ protected:
         EXPECT_EQ(1u, occlusion.occlusionInScreenSpace().rects().size());
         EXPECT_EQ_RECT(IntRect(0, 0, 400, 400), occlusion.occlusionInTargetSurface().bounds());
         EXPECT_EQ(1u, occlusion.occlusionInTargetSurface().rects().size());
-
-        EXPECT_EQ_RECT(occlusion.occlusionInScreenSpace().bounds(), occlusion.occlusionInTargetSurface().bounds());
-        EXPECT_EQ(1u, occlusion.occlusionInScreenSpace().rects().size());
-        EXPECT_EQ(1u, occlusion.occlusionInTargetSurface().rects().size());
     }
 };
 
 MAIN_AND_IMPL_THREAD_TEST(CCOcclusionTrackerTestSurfaceOcclusionTranslatesToParent);
+
+template<class Types, bool opaqueLayers>
+class CCOcclusionTrackerTestSurfaceOcclusionTranslatesWithClipping : public CCOcclusionTrackerTest<Types, opaqueLayers> {
+protected:
+    void runMyTest()
+    {
+        typename Types::ContentLayerType* parent = this->createRoot(this->identityMatrix, FloatPoint(0, 0), IntSize(300, 300));
+        typename Types::ContentLayerType* surface = this->createDrawingSurface(parent, this->identityMatrix, FloatPoint(0, 0), IntSize(500, 300), false);
+        surface->setOpaqueContentsRect(IntRect(0, 0, 400, 200));
+        this->calcDrawEtc(parent);
+
+        TestCCOcclusionTrackerBase<typename Types::LayerType, typename Types::RenderSurfaceType> occlusion(IntRect(0, 0, 1000, 1000));
+
+        occlusion.enterTargetRenderSurface(surface->renderSurface());
+        occlusion.markOccludedBehindLayer(surface);
+        occlusion.finishedTargetRenderSurface(surface, surface->renderSurface());
+        occlusion.leaveToTargetRenderSurface(parent->renderSurface());
+
+        EXPECT_EQ_RECT(IntRect(0, 0, 300, 200), occlusion.occlusionInScreenSpace().bounds());
+        EXPECT_EQ(1u, occlusion.occlusionInScreenSpace().rects().size());
+        EXPECT_EQ_RECT(IntRect(0, 0, 300, 200), occlusion.occlusionInTargetSurface().bounds());
+        EXPECT_EQ(1u, occlusion.occlusionInTargetSurface().rects().size());
+    }
+};
+
+MAIN_AND_IMPL_THREAD_TEST(CCOcclusionTrackerTestSurfaceOcclusionTranslatesWithClipping);
 
 } // namespace

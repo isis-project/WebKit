@@ -65,6 +65,7 @@ public:
     virtual void setNeedsAnimate();
     virtual void setNeedsCommit();
     virtual void setNeedsRedraw();
+    virtual bool commitRequested() const;
     virtual void setVisible(bool);
     virtual void start();
     virtual void stop();
@@ -81,8 +82,8 @@ public:
     virtual bool canDraw();
     virtual bool hasMoreResourceUpdates() const;
     virtual void scheduledActionBeginFrame();
-    virtual bool scheduledActionDrawAndSwapIfPossible();
-    virtual void scheduledActionDrawAndSwapForced();
+    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible();
+    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced();
     virtual void scheduledActionUpdateMoreResources();
     virtual void scheduledActionCommit();
     virtual void scheduledActionBeginContextRecreation();
@@ -93,8 +94,8 @@ private:
 
     // Set on impl thread, read on main thread.
     struct BeginFrameAndCommitState {
-        BeginFrameAndCommitState() : frameBeginTime() { }
-        double frameBeginTime;
+        BeginFrameAndCommitState() : monotonicFrameBeginTime() { }
+        double monotonicFrameBeginTime;
         OwnPtr<CCScrollAndScaleSet> scrollInfo;
     };
     OwnPtr<BeginFrameAndCommitState> m_pendingBeginFrameRequest;
@@ -126,7 +127,7 @@ private:
     void layerTreeHostClosedOnImplThread(CCCompletionEvent*);
     void setFullRootLayerDamageOnImplThread();
     void recreateContextOnImplThread(CCCompletionEvent*, GraphicsContext3D*, bool* recreateSucceeded, LayerRendererCapabilities*);
-    bool scheduledActionDrawAndSwapInternal(bool forcedDraw);
+    CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapInternal(bool forcedDraw);
 
     // Accessed on main thread only.
     bool m_animateRequested;

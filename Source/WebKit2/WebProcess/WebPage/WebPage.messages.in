@@ -105,7 +105,6 @@ messages -> WebPage {
     ResumeActiveDOMObjectsAndAnimations()
 
 #if USE(TILED_BACKING_STORE)
-    SetFixedVisibleContentRect(WebCore::IntRect rect)
     SetViewportSize(WebCore::IntSize size)
 #endif
 
@@ -255,10 +254,14 @@ messages -> WebPage {
     GestureDidEnd()
 #endif
 #if PLATFORM(QT)
-    FindZoomableAreaForPoint(WebCore::IntPoint point)
+    FindZoomableAreaForPoint(WebCore::IntPoint point, WebCore::IntSize area)
 #endif
 
 #if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD)
-    HandleCorrectionPanelResult(String result)
+    HandleAlternativeTextUIResult(String result)
+#endif
+
+#if ENABLE(PAGE_VISIBILITY_API)
+    SetVisibilityState(int visibilityState, bool isInitialState);
 #endif
 }

@@ -333,7 +333,7 @@ PassRefPtr<TypeBuilder::Debugger::Location> InspectorDebuggerAgent::resolveBreak
 
     BreakpointIdToDebugServerBreakpointIdsMap::iterator debugServerBreakpointIdsIterator = m_breakpointIdToDebugServerBreakpointIds.find(breakpointId);
     if (debugServerBreakpointIdsIterator == m_breakpointIdToDebugServerBreakpointIds.end())
-        debugServerBreakpointIdsIterator = m_breakpointIdToDebugServerBreakpointIds.set(breakpointId, Vector<String>()).first;
+        debugServerBreakpointIdsIterator = m_breakpointIdToDebugServerBreakpointIds.set(breakpointId, Vector<String>()).iterator;
     debugServerBreakpointIdsIterator->second.append(debugServerBreakpointId);
 
     RefPtr<TypeBuilder::Debugger::Location> location = TypeBuilder::Debugger::Location::create()
@@ -569,6 +569,7 @@ void InspectorDebuggerAgent::didPause(ScriptState* scriptState, const ScriptValu
         if (!injectedScript.hasNoValue()) {
             m_breakReason = InspectorFrontend::Debugger::Reason::Exception;
             m_breakAuxData = injectedScript.wrapObject(exception, "backtrace");
+            // m_breakAuxData might be null after this.
         }
     }
 

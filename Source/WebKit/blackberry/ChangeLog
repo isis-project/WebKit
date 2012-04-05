@@ -1,3 +1,346 @@
+2012-04-04  Rob Buis  <rbuis@rim.com>
+
+        [BlackBerry] Make the switch statement in WebPage::notifyAppActivationStateChange() stronger
+        https://bugs.webkit.org/show_bug.cgi?id=83085
+
+        Reviewed by Antonio Gomes.
+
+        PR 121109
+
+        This way when we add something to the enum and forget to add to the switch we'll get a compile error.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPage::notifyAppActivationStateChange):
+
+2012-04-03  Mike Lattanzio  <mlattanzio@rim.com>
+
+        [BlackBerry] Expose CaseSensitive, Wrap, and HighlightAllMatches in WebPage::findNextString()
+        https://bugs.webkit.org/show_bug.cgi?id=82643
+
+        Enhance BlackBerry::WebKit::WebPage::findNextString()
+
+        This patch adds support for toggling case sensitivity,
+        search wrapping, and whether or not to highlight all matches
+        in addition to the next found match.
+
+        I refactored and renamed the new setActiveMatchAndMarker() method
+        to move the active match from one range to another. This was
+        required because in the case of a non wrapped search we do not
+        want to adjust the m_activeMatch if another match is not found.
+
+        Internal Review by Andy Chen.
+
+        Reviewed by Rob Buis.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPage::findNextString):
+        * Api/WebPage.h:
+        * WebKitSupport/InPageSearchManager.cpp:
+        (BlackBerry::WebKit::InPageSearchManager::InPageSearchManager):
+        (BlackBerry::WebKit::InPageSearchManager::findNextString):
+        (BlackBerry::WebKit::InPageSearchManager::findAndMarkText):
+        (BlackBerry::WebKit::InPageSearchManager::setActiveMatchAndMarker):
+        (BlackBerry::WebKit::InPageSearchManager::scopeStringMatches):
+        * WebKitSupport/InPageSearchManager.h:
+        (InPageSearchManager):
+
+2012-04-02  Jacky Jiang  <zhajiang@rim.com>
+
+        [BlackBerry] Adapt WebPagePrivate::webContext to the API change of r109570
+        https://bugs.webkit.org/show_bug.cgi?id=82945
+
+        Reviewed by Rob Buis.
+
+        RIM PR: 147163
+        Adapt WebPagePrivate::webContext to the API change of the security
+        cherry-pick of r109570 and r112023.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::webContext):
+
+2012-04-02  Lianghui Chen  <liachen@rim.com>
+
+        [BlackBerry] Set ResourceRequest TargetType in WebPagePrivate::load()
+        https://bugs.webkit.org/show_bug.cgi?id=80519
+
+        Set the right TargetType for main loads if they are not already set in
+        dispatchWillSendRequest().
+
+        Also adjust NetworkRequest TargetType for decidePolicyForExternalLoad()
+        and dispatchDecidePolicyForNavigationAction() as they are called before
+        dispatchWillSendRequest() is called. Patch to change ResourceRequest
+        TargetType earlier has been rejected as in WebKit bug
+        https://bugs.webkit.org/show_bug.cgi?id=80713
+
+        Reviewed by Rob Buis.
+
+        * WebCoreSupport/FrameLoaderClientBlackBerry.cpp:
+        (WebCore::FrameLoaderClientBlackBerry::dispatchDecidePolicyForNavigationAction):
+        (WebCore::FrameLoaderClientBlackBerry::dispatchWillSendRequest):
+        (WebCore::FrameLoaderClientBlackBerry::decidePolicyForExternalLoad):
+
+2012-04-01  Arvid Nilsson  <anilsson@rim.com>
+
+        [BlackBerry] Simplify the code that gets accelerated compositing output onto the screen
+        https://bugs.webkit.org/show_bug.cgi?id=82845
+
+        Reviewed by Rob Buis.
+
+        RIM PR: 136381
+        The code accounted for a now obsolete setup where we used one OpenGL
+        window for accelerated compositing and one native window for backing
+        store output, and let the windowing system composite those two. In that
+        setup an optimization to try and only update the window that had
+        changed was viable.
+
+        Nowadays, we either use an offscreen surface for accelerated
+        compositing output, which we blend onto the window containing the
+        backing store output, or render both backing store and accelerated
+        compositing output directly to one OpenGL window. We always have to
+        blit the backingstore contents and draw the accelerated compositing
+        output every frame with these code paths, so don't try to be clever
+        about it.
+
+        Even when we use an OpenGL window, the compositing surface can be non-
+        null, so don't try to glFinish() and swap the compositing surface when
+        the GLES2Context is tied to a window.
+
+        * Api/BackingStore.cpp:
+        (BlackBerry::WebKit::BackingStorePrivate::blitVisibleContents):
+        (BlackBerry::WebKit::BackingStorePrivate::blitContents):
+        (WebKit):
+        * Api/BackingStore_p.h:
+        (BackingStorePrivate):
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::drawLayersOnCommit):
+        * WebKitSupport/GLES2Context.cpp:
+        (BlackBerry::WebKit::GLES2Context::swapBuffers):
+
+2012-03-31  Jonathan Dong  <jonathan.dong@torchmobile.com.cn>
+
+        [BlackBerry] http authenticate dialog popup only once no matter authentication pass or fail
+        https://bugs.webkit.org/show_bug.cgi?id=80135
+
+        Reviewed by Rob Buis.
+
+        RIM PR: 145660
+        Fixed a regression introduced by r111810, which used the wrong
+        credential object.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::authenticationChallenge):
+
+2012-03-30  Mike Fenton  <mifenton@rim.com>
+
+        [BlackBerry] Speed up processing of Selection region generation.
+        https://bugs.webkit.org/show_bug.cgi?id=82766
+
+        Reviewed by Rob Buis.
+
+        PR 136593.
+
+        Refactor generation of Selection IntRectRegion to avoid
+        the need for IntRectRegion's helper functions which were
+        not available when using it as a container without
+        unioning the rects.
+
+        This greatly speeds up rendering by maintaining the distinct
+        rects as the union operation was length with large numbers of
+        rects.
+
+        Reviewed Internally by Gen Mak, Mike Lattanzio and Tyler Abbott.
+
+        * WebKitSupport/DOMSupport.cpp:
+        (BlackBerry::WebKit::DOMSupport::visibleTextQuads):
+        (DOMSupport):
+        * WebKitSupport/DOMSupport.h:
+        * WebKitSupport/SelectionHandler.cpp:
+        (BlackBerry::WebKit::SelectionHandler::clippingRectForVisibleContent):
+        (BlackBerry::WebKit::SelectionHandler::regionForTextQuads):
+        (BlackBerry::WebKit::SelectionHandler::setSelection):
+        (WebKit):
+        (BlackBerry::WebKit::regionRectListContainsPoint):
+        (BlackBerry::WebKit::SelectionHandler::selectionPositionChanged):
+        (BlackBerry::WebKit::SelectionHandler::caretPositionChanged):
+        * WebKitSupport/SelectionHandler.h:
+        (WebCore):
+        (SelectionHandler):
+
+2012-03-30  Mark Pilgrim  <pilgrim@chromium.org>
+
+        GEOLOCATION should be implemented as Page Supplement
+        https://bugs.webkit.org/show_bug.cgi?id=82228
+
+        Reviewed by Adam Barth.
+
+        Geolocation is now a Supplement in Page so the interface
+        has changed for setting up the page's geolocation client
+        initially and accessing the controller later.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::WebPagePrivate):
+        (BlackBerry::WebKit::WebPagePrivate::init):
+        * WebCoreSupport/GeolocationControllerClientBlackBerry.cpp:
+        (GeolocationControllerClientBlackBerry::onLocationUpdate):
+        (GeolocationControllerClientBlackBerry::onLocationError):
+        * WebKitSupport/DumpRenderTreeSupport.cpp:
+        (DumpRenderTreeSupport::numberOfPendingGeolocationPermissionRequests):
+        (DumpRenderTreeSupport::resetGeolocationMock):
+        (DumpRenderTreeSupport::setMockGeolocationError):
+        (DumpRenderTreeSupport::setMockGeolocationPermission):
+        (DumpRenderTreeSupport::setMockGeolocationPosition):
+
+2012-03-30  Keishi Hattori  <keishi@webkit.org>
+
+        Change ENABLE_INPUT_COLOR to ENABLE_INPUT_TYPE_COLOR and enable it for chromium
+        https://bugs.webkit.org/show_bug.cgi?id=80972
+
+        Reviewed by Kent Tamura.
+
+        * WebCoreSupport/AboutDataEnableFeatures.in:
+        * WebCoreSupport/ChromeClientBlackBerry.h:
+        (ChromeClientBlackBerry):
+        * WebKitSupport/DOMSupport.cpp:
+        (BlackBerry::WebKit::DOMSupport::isColorInputField):
+        * WebKitSupport/InputHandler.cpp:
+        (BlackBerry::WebKit::convertInputType):
+
+2012-03-29  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r111259.
+        http://trac.webkit.org/changeset/111259
+        https://bugs.webkit.org/show_bug.cgi?id=82650
+
+        Caused selection regression in calculations due to
+        misconstructed IntRectRegion. (Requested by mfenton on
+        #webkit).
+
+        * WebKitSupport/SelectionHandler.cpp:
+        (BlackBerry::WebKit::SelectionHandler::getConsolidatedRegionOfTextQuadsForSelection):
+
+2012-03-29  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r112553.
+        http://trac.webkit.org/changeset/112553
+        https://bugs.webkit.org/show_bug.cgi?id=82638
+
+        It made all tests crash on Qt WK2 (Requested by Ossy_away on
+        #webkit).
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::WebPagePrivate):
+        (BlackBerry::WebKit::WebPagePrivate::init):
+        * WebCoreSupport/GeolocationControllerClientBlackBerry.cpp:
+        (GeolocationControllerClientBlackBerry::onLocationUpdate):
+        (GeolocationControllerClientBlackBerry::onLocationError):
+        * WebKitSupport/DumpRenderTreeSupport.cpp:
+        (DumpRenderTreeSupport::numberOfPendingGeolocationPermissionRequests):
+        (DumpRenderTreeSupport::resetGeolocationMock):
+        (DumpRenderTreeSupport::setMockGeolocationError):
+        (DumpRenderTreeSupport::setMockGeolocationPermission):
+        (DumpRenderTreeSupport::setMockGeolocationPosition):
+
+2012-03-29  Mark Pilgrim  <pilgrim@chromium.org>
+
+        GEOLOCATION should be implemented as Page Supplement
+        https://bugs.webkit.org/show_bug.cgi?id=82228
+
+        Reviewed by Adam Barth.
+
+        Geolocation is now a Supplement in Page so the interface
+        has changed for setting up the page's geolocation client
+        initially and accessing the controller later.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::WebPagePrivate):
+        (BlackBerry::WebKit::WebPagePrivate::init):
+        * WebCoreSupport/GeolocationControllerClientBlackBerry.cpp:
+        (GeolocationControllerClientBlackBerry::onLocationUpdate):
+        (GeolocationControllerClientBlackBerry::onLocationError):
+        * WebKitSupport/DumpRenderTreeSupport.cpp:
+        (DumpRenderTreeSupport::numberOfPendingGeolocationPermissionRequests):
+        (DumpRenderTreeSupport::resetGeolocationMock):
+        (DumpRenderTreeSupport::setMockGeolocationError):
+        (DumpRenderTreeSupport::setMockGeolocationPermission):
+        (DumpRenderTreeSupport::setMockGeolocationPosition):
+
+2012-03-28  Nate Chapin  <japhet@chromium.org>
+
+        Remove dispatchDidLoadMainResource callback, since no
+        port implements it.
+        https://bugs.webkit.org/show_bug.cgi?id=82539
+
+        Reviewed by Alexey Proskuryakov.
+
+        * WebCoreSupport/FrameLoaderClientBlackBerry.h:
+        (FrameLoaderClientBlackBerry):
+
+2012-03-28  Leo Yang  <leo.yang@torchmobile.com.cn>
+
+        [BlackBerry] Use WebCore::PlatformMouseEvent::globalPosition() instead of WebCore::PlatformMouseEvent::globalPos() in WebPage.cpp
+        https://bugs.webkit.org/show_bug.cgi?id=82420
+
+        Reviewed by Rob Buis.
+
+        In PlatformMouseEvent.h the blackberry porting added globalPos() (but not upstreamed yet)
+        for PlatformMouseEvent, but this method is same as globalPosition() that is available for
+        every porting. We should use globalPosition().
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::updateCursor):
+
+2012-03-27  Sean Wang  <Xuewen.Wang@torchmobile.com.cn>
+
+        [BlackBerry] Text selection - selection gets broken in test.com/individuals.htm
+        https://bugs.webkit.org/show_bug.cgi?id=82292
+
+        Change to check and avoid text selection across frames.
+
+        Internal reviewed by Mike Fenton
+
+        Reviewed by Rob Buis.
+
+        * WebKitSupport/SelectionHandler.cpp:
+        (BlackBerry::WebKit::visiblePositionForPointIgnoringClipping):
+            support selection across frames, so check if the *framePoint* is in
+            the *frame*.
+        (BlackBerry::WebKit::SelectionHandler::setSelection):
+            function returns a null VisablePosition, it stands for a invalid position
+            or a position in the different frames, therefor we don't execute setting
+            handle's position.
+
+2012-03-27  Andrew Lo  <anlo@rim.com>
+
+        [BlackBerry] Switch WebPageCompositor to use AnimationFrameRateController instead of timer
+        https://bugs.webkit.org/show_bug.cgi?id=82350
+
+        Switch timer in WebPageCompositor to use AnimationFrameRateController.
+
+        Reviewed by Rob Buis.
+
+        * Api/WebPageCompositor.cpp:
+        (BlackBerry::WebKit::WebPageCompositorPrivate::WebPageCompositorPrivate):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::~WebPageCompositorPrivate):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::drawLayers):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::animationFrameChanged):
+        * Api/WebPageCompositor_p.h:
+        (WebPageCompositorPrivate):
+
+2012-03-27  Chris Guan  <chris.guan@torchmobile.com.cn>
+
+        A page containing multiparts with "multipart/x-mixed-replace" should not be cached.
+        https://bugs.webkit.org/show_bug.cgi?id=82291
+
+        Reviewed by Rob Buis.
+
+        If we have a multiPart reponse with multipart/x-mixed-replace, 
+        the current page should not be cached. I use isMultipartPayload() 
+        API which was supposed to be set in NetworkJob to decide to 
+        cache page or not.
+
+        * WebCoreSupport/FrameLoaderClientBlackBerry.cpp:
+        (WebCore::FrameLoaderClientBlackBerry::canCachePage):
+
 2012-03-25  Arvid Nilsson  <anilsson@rim.com>
 
         [BlackBerry] Accelerated compositing layers fail to render when using WebPageCompositor

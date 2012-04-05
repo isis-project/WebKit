@@ -294,11 +294,9 @@ void NetworkJob::handleNotifyHeaderReceived(const String& key, const String& val
     String lowerKey = key.lower();
     if (lowerKey == "content-type")
         m_contentType = value.lower();
-
-    if (lowerKey == "content-disposition")
+    else if (lowerKey == "content-disposition")
         m_contentDisposition = value;
-
-    if (lowerKey == "set-cookie") {
+    else if (lowerKey == "set-cookie") {
         // FIXME: If a tab is closed, sometimes network data will come in after the frame has been detached from its page but before it is deleted.
         // If this happens, m_frame->page() will return 0, and m_frame->loader()->client() will be in a bad state and calling into it will crash.
         // For now we check for this explicitly by checking m_frame->page(). But we should find out why the network job hasn't been cancelled when the frame was detached.
@@ -306,14 +304,16 @@ void NetworkJob::handleNotifyHeaderReceived(const String& key, const String& val
         if (m_frame && m_frame->page() && m_frame->loader() && m_frame->loader()->client()
             && static_cast<FrameLoaderClientBlackBerry*>(m_frame->loader()->client())->cookiesEnabled())
             handleSetCookieHeader(value);
-    }
 
-    if (lowerKey == "www-authenticate")
+        if (m_response.httpHeaderFields().contains("Set-Cookie")) {
+            m_response.setHTTPHeaderField(key, m_response.httpHeaderField(key) + "\r\n" + value);
+            return;
+        }
+    } else if (lowerKey == "www-authenticate")
         handleAuthHeader(ProtectionSpaceServerHTTP, value);
     else if (lowerKey == "proxy-authenticate" && !BlackBerry::Platform::Client::get()->getProxyAddress().empty())
         handleAuthHeader(ProtectionSpaceProxyHTTP, value);
-
-    if (equalIgnoringCase(key, BlackBerry::Platform::NetworkRequest::HEADER_BLACKBERRY_FTP))
+    else if (equalIgnoringCase(key, BlackBerry::Platform::NetworkRequest::HEADER_BLACKBERRY_FTP))
         handleFTPHeader(value);
 
     m_response.setHTTPHeaderField(key, value);
@@ -394,9 +394,9 @@ void NetworkJob::handleNotifyDataReceived(const char* buf, size_t len)
         // is on a file system if it has a MIME mappable file extension.
         // The file extension is likely to be correct.
         if (m_isFile) {
-            WTF::String urlFilename = m_response.url().lastPathComponent();
+            String urlFilename = m_response.url().lastPathComponent();
             size_t pos = urlFilename.reverseFind('.');
-            if (pos != WTF::notFound) {
+            if (pos != notFound) {
                 String extension = urlFilename.substring(pos + 1);
                 String mimeType = MIMETypeRegistry::getMIMETypeForExtension(extension);
                 if (!mimeType.isEmpty())
@@ -849,9 +849,6 @@ bool NetworkJob::sendRequestWithCredentials(ProtectionSpaceServerType type, Prot
         String username;
         String password;
 
-        if (!m_frame || !m_frame->loader() || !m_frame->loader()->client())
-            return false;
-
         // Before asking the user for credentials, we check if the URL contains that.
         if (!m_handle->getInternal()->m_user.isEmpty() && !m_handle->getInternal()->m_pass.isEmpty()) {
             username = m_handle->getInternal()->m_user.utf8().data();
@@ -863,12 +860,12 @@ bool NetworkJob::sendRequestWithCredentials(ProtectionSpaceServerType type, Prot
             m_handle->getInternal()->m_pass = "";
         } else {
             Credential inputCredential;
-            bool isConfirmed = false;
-            do {
-                isConfirmed = m_frame->page()->chrome()->client()->platformPageClient()->authenticationChallenge(newURL, protectionSpace, inputCredential);
-                username = inputCredential.user();
-                password = inputCredential.password();
-            } while (isConfirmed && username.isEmpty() && password.isEmpty());
+            bool isConfirmed = m_frame->page()->chrome()->client()->platformPageClient()->authenticationChallenge(newURL, protectionSpace, inputCredential);
+            username = inputCredential.user();
+            password = inputCredential.password();
+
+            if (!isConfirmed)
+                return false;
         }
 
         credential = Credential(username, password, CredentialPersistenceForSession);

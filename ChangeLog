@@ -1,3 +1,323 @@
+2012-04-03  Tony Chang  <tony@chromium.org>
+
+        remove WebKit files from .gitattributes
+        https://bugs.webkit.org/show_bug.cgi?id=82966
+
+        Reviewed by Adam Barth.
+
+        * .gitattributes: These entries were never updated from the move to
+        Source/WebKit so they're probably not needed.
+
+2012-04-03  Keishi Hattori  <keishi@webkit.org>
+
+        Disable ENABLE_DATALIST for now
+        https://bugs.webkit.org/show_bug.cgi?id=82871
+
+        Reviewed by Kent Tamura.
+
+        We should disable ENABLE_DATALIST because
+        - We need platform-dependent implementation, and non-BlackBerry platforms don't have it.
+        - We need to hide the content of <datalist>, but it is shown for now.
+
+        * Source/cmake/OptionsEfl.cmake: Disabled ENABLE_DATALIST.
+
+2012-04-02  Balazs Kelemen  <kbalazs@webkit.org>
+
+        [Qt][WK2] Set up plugin process on Unix
+        https://bugs.webkit.org/show_bug.cgi?id=72121
+
+        Reviewed by Simon Hausmann.
+
+        * Source/QtWebKit.pro: Add PluginProcess subproject.
+
+2012-04-02  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r112868, r112879, and r112881.
+        http://trac.webkit.org/changeset/112868
+        http://trac.webkit.org/changeset/112879
+        http://trac.webkit.org/changeset/112881
+        https://bugs.webkit.org/show_bug.cgi?id=82901
+
+        "Build fail on bots." (Requested by kbalazs on #webkit).
+
+        * Source/QtWebKit.pro:
+
+2012-04-02  Balazs Kelemen  <kbalazs@webkit.org>
+
+        [Qt][WK2] Set up plugin process on Unix
+        https://bugs.webkit.org/show_bug.cgi?id=72121
+
+        Reviewed by Simon Hausmann.
+
+        * Source/QtWebKit.pro: Add PluginProcess subproject.
+
+2012-04-02  Hayato Ito  <hayato@chromium.org>
+
+        [Shadow DOM] Introduce ComposedShadowTreeWalker as a successor of ReifiedTreeTraversal APIs
+        https://bugs.webkit.org/show_bug.cgi?id=82009
+
+        Reviewed by Dimitri Glazkov.
+
+        * Source/autotools/symbols.filter:
+
+2012-04-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Perf-o-matic build fix after 112829 for Chromium-style tests.
+
+        * Websites/webkit-perf.appspot.com/report_process_handler.py:
+        (ReportProcessHandler.post):
+
+2012-04-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        perf-o-matic should store test results' units
+        https://bugs.webkit.org/show_bug.cgi?id=82852
+
+        Reviewed by Kentaro Hara.
+
+        * Websites/webkit-perf.appspot.com/models.py:
+        (Test):
+        (Test.update_or_insert): Added "unit" to the argument list.
+        (Test.update_or_insert.execute): Store the unit.
+        (ReportLog.results_are_well_formed): Moved from ReportHandler.
+        (ReportLog.results_are_well_formed._is_float_convertible): Ditto.
+        * Websites/webkit-perf.appspot.com/models_unittest.py:
+        (TestModelTests.test_update_or_insert): Added a test case for "unit" argument.
+        (TestModelTests.test_update_or_insert_to_update): Ditto.
+        (ReportLogTests.test_results_are_well_formed): Added.
+        (ReportLogTests.test_results_are_well_formed.assert_results_are_well_formed): Added.
+        * Websites/webkit-perf.appspot.com/report_handler.py:
+        (ReportHandler.post): Calls ReportLog.results_are_well_formed.
+        * Websites/webkit-perf.appspot.com/report_process_handler.py:
+        (ReportProcessHandler.post): Passes results['unit'] to Test.update_or_insert.
+
+2012-04-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Admin page should lexicologically sort tests
+        https://bugs.webkit.org/show_bug.cgi?id=82849
+
+        Rubber-stamped by Hajime Morita.
+
+        * Websites/webkit-perf.appspot.com/js/admin.js:
+        * Websites/webkit-perf.appspot.com/js/config.js:
+        (sortProperties):
+        (fetchDashboardManifest):
+
+2012-04-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Revert an inadvertently committed change.
+
+        * Websites/webkit-perf.appspot.com/app.yaml:
+
+2012-04-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        perf-o-matic should have a way to hide some platforms and tests
+        https://bugs.webkit.org/show_bug.cgi?id=82842
+
+        Reviewed by Hajime Morita.
+
+        * Websites/webkit-perf.appspot.com/admin.html:
+        * Websites/webkit-perf.appspot.com/admin_handlers.py:
+        (AdminDashboardHandler.get_branches): Change the json format to allow platforms and tests to have
+        "hidden" boolean states.
+        (AdminDashboardHandler.get_platforms): Ditto.
+        (AdminDashboardHandler.get_builders): Just a cleanup. There is no clean for it to have a limit.
+        (AdminDashboardHandler.get_tests): Change the json format to add "hidden" boolean states.
+        (ChangeVisibilityHandler): Added.
+        (ChangeVisibilityHandler.post): Added. Changes the hidden-state (visibility) of a platform and a test.
+        * Websites/webkit-perf.appspot.com/app.yaml: Make sure everything under /admin/ requires admin privilege.
+        * Websites/webkit-perf.appspot.com/create_handler.py:
+        (CreateHandler.post): Don't emit LF after 'OK'.
+        * Websites/webkit-perf.appspot.com/css/admin.css: Added a bunch of rules for hide/show button.
+        * Websites/webkit-perf.appspot.com/js/admin.js:
+        (submitXHR): Extracted.
+        (createKeyNameReloader): Added hide/show button on each item and the corresponding ajax request.
+        * Websites/webkit-perf.appspot.com/json_generators.py:
+        (DashboardJSONGenerator.__init__): Skip hidden tests and platforms.
+        (ManifestJSONGenerator.__init__): Ditto.
+        * Websites/webkit-perf.appspot.com/json_generators_unittest.py: Added tests to ensure perf-o-matic
+        doesn't include hidden tests and platforms in dashboard and manifest json responses.
+        (DashboardJSONGeneratorTest.test_value_with_hidden_platform_and_tesst):
+        (ManifestJSONGeneratorTest.test_value_two_tests):
+        (ManifestJSONGeneratorTest.test_value_with_hidden_platform_and_test):
+        * Websites/webkit-perf.appspot.com/main.py:
+        * Websites/webkit-perf.appspot.com/models.py:
+        (Platform): Added the "hidden" property.
+        (Test): Ditto. Also removed the comment about this class only exists for efficiency purposes since that's
+        no longer true.
+
+2012-04-01  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Support the Network Information API
+        https://bugs.webkit.org/show_bug.cgi?id=73528
+
+        Reviewed by Adam Barth.
+
+        Add network information API feature.
+
+        * Source/cmake/OptionsEfl.cmake: Add NETWORK_INFO feature.
+        * Source/cmakeconfig.h.cmake: Add NETWORK_INFO feature.
+
+2012-03-31  Jonathan Dong  <jonathan.dong@torchmobile.com.cn>
+
+        [BlackBerry] http authenticate dialog popup only once no matter authentication pass or fail
+        https://bugs.webkit.org/show_bug.cgi?id=80135
+
+        Reviewed by Rob Buis.
+
+        RIM PR: 145660
+        Added manual test for testing the behavior of http authentication
+        challenge dialog. Both of these two files should be served over http.
+
+        * ManualTests/blackberry/http-auth-challenge.html: Added.
+        * ManualTests/blackberry/http-auth-challenge.php: Added.
+
+2012-03-30  Eli Fidler  <efidler@rim.com>
+
+        Enable OpenType Sanitizer for BlackBerry port.
+        https://bugs.webkit.org/show_bug.cgi?id=82782
+
+        Reviewed by Eric Seidel.
+
+        * Source/cmake/OptionsBlackBerry.cmake: define USE(OPENTYPE_SANITIZER)
+
+2012-03-30  Zalan Bujtas  <zbujtas@gmail.com>
+
+        Fix defective size_t overflow in GestureTapHighlighter.
+        https://bugs.webkit.org/show_bug.cgi?id=82605
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * ManualTests/tap-gesture-in-iframe-with-tap-highlight-crash.html: Added.
+
+2012-03-30  David Barr  <davidbarr@chromium.org>
+
+        Split up top-level .gitignore and .gitattributes
+        https://bugs.webkit.org/show_bug.cgi?id=82687
+
+        Reviewed by Tor Arne Vestbø.
+
+        Jeff King <peff@peff.net> suggested this on the git mailing list.
+        http://article.gmane.org/gmane.comp.version-control.git/194294
+        He reported a 1.6 times speed up for 'git status'.
+
+        * .gitattributes:
+        * .gitignore:
+        * ManualTests/.gitattributes: Added.
+        * Source/.gitignore: Added.
+        * Websites/.gitattributes: Added.
+
+2012-03-30  Keishi Hattori  <keishi@webkit.org>
+
+        Change ENABLE_INPUT_COLOR to ENABLE_INPUT_TYPE_COLOR and enable it for chromium
+        https://bugs.webkit.org/show_bug.cgi?id=80972
+
+        Reviewed by Kent Tamura.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+        * configure.ac:
+
+2012-03-30  Charles Wei  <charles.wei@torchmobile.com.cn>
+
+        [BlackBerry] Add more ENABLERS to cmakeconfig.h.cmake
+        https://bugs.webkit.org/show_bug.cgi?id=82594
+
+        Reviewed by Rob Buis.
+
+        Upstreaming feature enablers in cmakeconfig.h.cmake for BlackBerry porting,
+        and clean up obsolete MACROs in OptionsBlackBerry.cmake.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-03-29  Dave Tu  <dtu@chromium.org>
+
+        Add new chrome.webkit GPU bot to flakiness dashboard.
+        https://bugs.webkit.org/show_bug.cgi?id=82562
+
+        Reviewed by Ojan Vafai.
+
+        * Tools/TestResultServer/static-dashboards/builders.js:
+
+2012-03-29  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix. Remove a couple sources wx
+        should not build.
+
+        * wscript:
+
+2012-03-29  Zalan Bujtas  <zbujtas@gmail.com>
+
+        Remove redundant updateViewportArguments() call when page is restored from page cache.
+        https://bugs.webkit.org/show_bug.cgi?id=82500
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Add manual test for history navigation with viewport width check.
+
+        * ManualTests/viewport-width-test-after-history-navigation.html: Added.
+
+2012-03-28  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed. Build fix, move WTF back into JSCore target
+        until issues with JSCore not linking in all WTF symbols are resolved.
+
+        * wscript:
+
+2012-03-28  Sergio Villar Senin  <svillar@igalia.com>
+
+        [Soup] DNS prefetching spams resolver, shoots self in the foot
+        https://bugs.webkit.org/show_bug.cgi?id=41630
+
+        Reviewed by Martin Robinson.
+
+        Bump libsoup and glib dependencies.
+
+        * Source/cmake/OptionsEfl.cmake:
+        * configure.ac:
+
+2012-03-28  Xan Lopez  <xlopez@igalia.com>
+
+        [GTK] Respect NOCONFIGURE option in autogen.sh
+        https://bugs.webkit.org/show_bug.cgi?id=82447
+
+        Reviewed by Philippe Normand.
+
+        Make autogen.sh follow the new build-api for GNOME, see
+        http://people.gnome.org/~walters/docs/build-api.txt
+
+        * autogen.sh: respect the NOCONFIGURE environment flag, per the
+        new GNOME build-api.
+
+2012-03-27  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Perf-o-matic build fix.
+
+        * Websites/webkit-perf.appspot.com/controller.py:
+        (RunsChartHandler.post):
+        * Websites/webkit-perf.appspot.com/models.py:
+        (Runs.chart_params):
+
+2012-03-27  Dave Tu  <dtu@chromium.org>
+
+        Show image diffs for gpu_tests on flakiness dashboard
+        https://bugs.webkit.org/show_bug.cgi?id=81848
+
+        Reviewed by Ojan Vafai.
+
+        Add a new results layout for gpu_tests that pulls the image diffs in
+        addition to the text output. Also add new gpu_tests builders.
+
+        * Tools/TestResultServer/static-dashboards/builders.js: Update
+        gpu_tests builders.
+        * Tools/TestResultServer/static-dashboards/dashboard_base.js: Add a
+        function to check for GPU test type.
+        * Tools/TestResultServer/static-dashboards/flakiness_dashboard.html:
+        Add new GPU results layout.
+
+2012-03-26  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Trigger a build on Chromium Linux boxes to see if clean builds succeed or not.
+
 2012-03-26  Leo Yang  <leo.yang@torchmobile.com.cn>
 
         [BlackBerry] Skeleton code of AsyncFileSystemBlackBerry.cpp

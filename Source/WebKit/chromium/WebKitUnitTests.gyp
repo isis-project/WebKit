@@ -55,7 +55,8 @@
             'msvs_guid': '7CEFE800-8403-418A-AD6A-2D52C6FC3EAD',
             'dependencies': [
                 'WebKit.gyp:webkit',
-                '../../WebCore/WebCore.gyp/WebCore.gyp:webcore',
+                '<(chromium_src_dir)/build/temp_gyp/googleurl.gyp:googleurl',
+                '<(chromium_src_dir)/v8/tools/gyp/v8.gyp:v8',
                 '<(chromium_src_dir)/testing/gtest.gyp:gtest',
                 '<(chromium_src_dir)/testing/gmock.gyp:gmock',
                 '<(chromium_src_dir)/base/base.gyp:base',
@@ -78,6 +79,9 @@
                         'WEBKIT_DLL_UNITTEST',
                     ],
                 }, {
+                    'dependencies': [
+                        '../../WebCore/WebCore.gyp/WebCore.gyp:webcore',
+                    ],
                     'sources': [
                         '<@(webkit_unittest_files)',
                     ],

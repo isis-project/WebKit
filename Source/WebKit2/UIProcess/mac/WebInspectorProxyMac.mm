@@ -42,7 +42,7 @@
 #import <WebCore/SoftLinking.h>
 #import <wtf/text/WTFString.h>
 
-SOFT_LINK_PRIVATE_FRAMEWORK_OPTIONAL(WebInspector)
+SOFT_LINK_STAGED_FRAMEWORK_OPTIONAL(WebInspector, PrivateFrameworks)
 
 using namespace WebCore;
 using namespace WebKit;
@@ -285,11 +285,6 @@ void WebInspectorProxy::platformDetach()
 
     [m_inspectorView.get() removeFromSuperview];
 
-    createInspectorWindow();
-
-    // Make the inspector view visible in case it is still hidden from loading while attached.
-    [m_inspectorView.get() setHidden:NO];
-
     // Make sure that we size the inspected view's frame after detaching so that it takes up the space that the
     // attached inspector used to. This assumes the previous height was the Y origin.
     NSRect inspectedViewRect = [inspectedView frame];
@@ -297,8 +292,17 @@ void WebInspectorProxy::platformDetach()
     inspectedViewRect.origin.y = 0.0;
     [inspectedView setFrame:inspectedViewRect];
 
-    if (m_isVisible)
-        [m_inspectorWindow.get() makeKeyAndOrderFront:nil];
+    // Return early if we are not visible. This means the inspector was closed while attached
+    // and we should not create and show the inspector window.
+    if (!m_isVisible)
+        return;
+
+    createInspectorWindow();
+
+    // Make the inspector view visible in case it is still hidden from loading while attached.
+    [m_inspectorView.get() setHidden:NO];
+
+    [m_inspectorWindow.get() makeKeyAndOrderFront:nil];
 }
 
 void WebInspectorProxy::platformSetAttachedWindowHeight(unsigned height)

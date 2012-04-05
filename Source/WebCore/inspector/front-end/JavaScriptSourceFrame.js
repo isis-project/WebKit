@@ -49,7 +49,10 @@ WebInspector.JavaScriptSourceFrame = function(scriptsPanel, model, uiSourceCode)
     this.textViewer.element.addEventListener("mousedown", this._onMouseDown.bind(this), true);
     this.textViewer.element.addEventListener("keydown", this._onKeyDown.bind(this), true);
     this._uiSourceCode.addEventListener(WebInspector.UISourceCode.Events.ContentChanged, this._onContentChanged, this);
-    this.addEventListener(WebInspector.SourceFrame.Events.Loaded, this._onTextViewerContentLoaded, this);
+    this._uiSourceCode.addEventListener(WebInspector.UISourceCode.Events.BreakpointAdded, this._breakpointAdded, this);
+    this._uiSourceCode.addEventListener(WebInspector.UISourceCode.Events.BreakpointRemoved, this._breakpointRemoved, this);
+    this._uiSourceCode.addEventListener(WebInspector.UISourceCode.Events.ConsoleMessageAdded, this._consoleMessageAdded, this);
+    this._uiSourceCode.addEventListener(WebInspector.UISourceCode.Events.ConsoleMessagesCleared, this._consoleMessagesCleared, this);
 }
 
 WebInspector.JavaScriptSourceFrame.prototype = {
@@ -81,11 +84,6 @@ WebInspector.JavaScriptSourceFrame.prototype = {
         return this._model.canEditScriptSource(this._uiSourceCode);
     },
 
-    suggestedFileName: function()
-    {
-        return this._uiSourceCode.fileName || "untitled.js";
-    },
-
     editContent: function(newContent, callback)
     {
         this._editingContent = true;
@@ -109,10 +107,10 @@ WebInspector.JavaScriptSourceFrame.prototype = {
 
             function addConditionalBreakpoint()
             {
-                this.addBreakpoint(lineNumber, true, true, true, false);
+                this._addBreakpointDecoration(lineNumber, true, true, true, false);
                 function didEditBreakpointCondition(committed, condition)
                 {
-                    this.removeBreakpoint(lineNumber);
+                    this._removeBreakpointDecoration(lineNumber);
                     if (committed)
                         this._setBreakpoint(lineNumber, condition, true);
                 }
@@ -158,7 +156,7 @@ WebInspector.JavaScriptSourceFrame.prototype = {
 
     afterTextChanged: function(oldRange, newRange)
     {
-        var isDirty = this.textModel.copyRange() !== this._originalContent;
+        var isDirty = this.textModel.text !== this._originalContent;
         if (isDirty)
             this._scriptsPanel.setScriptSourceIsDirty(this._uiSourceCode, true);
         else
@@ -174,7 +172,7 @@ WebInspector.JavaScriptSourceFrame.prototype = {
                 if (breakpoint) {
                     this._model.removeBreakpoint(this._uiSourceCode, lineNumber);
                     // Re-adding decoration only.
-                    this.addBreakpoint(lineNumber, breakpoint.resolved, breakpoint.conditional, breakpoint.enabled, true); 
+                    this._addBreakpointDecoration(lineNumber, breakpoint.resolved, breakpoint.conditional, breakpoint.enabled, true);
                 }
             }
         }
@@ -199,7 +197,7 @@ WebInspector.JavaScriptSourceFrame.prototype = {
             var breakpoint = this.textModel.getAttribute(lineNumber, "breakpoint");
             if (breakpoint) {
                 // Remove fake decoration
-                this.removeBreakpoint(lineNumber);
+                this._removeBreakpointDecoration(lineNumber);
                 // Set new breakpoint
                 this._setBreakpoint(lineNumber, breakpoint.condition, breakpoint.enabled);
             }
@@ -316,7 +314,7 @@ WebInspector.JavaScriptSourceFrame.prototype = {
         return container;
     },
 
-    addBreakpoint: function(lineNumber, resolved, conditional, enabled, mutedWhileEditing)
+    _addBreakpointDecoration: function(lineNumber, resolved, conditional, enabled, mutedWhileEditing)
     {
         var breakpoint = {
             resolved: resolved,
@@ -334,7 +332,7 @@ WebInspector.JavaScriptSourceFrame.prototype = {
         this.textViewer.endUpdates();
     },
 
-    removeBreakpoint: function(lineNumber)
+    _removeBreakpointDecoration: function(lineNumber)
     {
         this.textModel.removeAttribute(lineNumber, "breakpoint");
         this.textViewer.beginUpdates();
@@ -429,8 +427,10 @@ WebInspector.JavaScriptSourceFrame.prototype = {
     setExecutionLine: function(lineNumber)
     {
         this._executionLineNumber = lineNumber;
-        if (this.loaded)
+        if (this.loaded) {
             this.textViewer.addDecoration(lineNumber, "webkit-execution-line");
+            this.revealLine(this._executionLineNumber);
+        }
     },
 
     clearExecutionLine: function()
@@ -461,10 +461,48 @@ WebInspector.JavaScriptSourceFrame.prototype = {
         return newLineNumber;
     },
 
-    _onTextViewerContentLoaded: function()
+    _breakpointAdded: function(event)
+    {
+        var breakpoint = /** @type {WebInspector.UIBreakpoint} */ event.data;
+        if (this.loaded)
+            this._addBreakpointDecoration(breakpoint.lineNumber, breakpoint.resolved, breakpoint.condition, breakpoint.enabled, false);
+    },
+
+    _breakpointRemoved: function(event)
+    {
+        var breakpoint = /** @type {WebInspector.UIBreakpoint} */ event.data;
+        if (this.loaded)
+            this._removeBreakpointDecoration(breakpoint.lineNumber);
+    },
+
+    _consoleMessageAdded: function(event)
+    {
+        var message = event.data;
+        if (this.loaded)
+            this.addMessageToSource(message.lineNumber, message.originalMessage);
+    },
+
+    _consoleMessagesCleared: function(event)
+    {
+        this.clearMessages();
+    },
+
+    onTextViewerContentLoaded: function()
     {
         if (typeof this._executionLineNumber === "number")
             this.setExecutionLine(this._executionLineNumber);
+
+        var breakpoints = this._uiSourceCode.breakpoints();
+        for (var lineNumber in breakpoints) {
+            var breakpoint = breakpoints[lineNumber];
+            this._addBreakpointDecoration(breakpoint.lineNumber, breakpoint.resolved, breakpoint.condition, breakpoint.enabled, false);
+        }
+
+        var messages = this._uiSourceCode.consoleMessages();
+        for (var i = 0; i < messages.length; ++i) {
+            var message = messages[i];
+            this.addMessageToSource(message.lineNumber, message.originalMessage);
+        }
     }
 }
 

@@ -102,6 +102,7 @@
       '../platform/audio',
       '../platform/audio/chromium',
       '../platform/chromium',
+      '../platform/chromium/support',
       '../platform/graphics',
       '../platform/graphics/chromium',
       '../platform/graphics/filters',
@@ -1430,7 +1431,11 @@
       'type': 'static_library',
       'dependencies': [
         'webcore_prerequisites',
+        '../../Platform/Platform.gyp/Platform.gyp:webkit_platform',
       ],
+      'defines': [ 
+        'WEBKIT_IMPLEMENTATION=1', 
+      ], 
       # This is needed for mac because of webkit_system_interface. It'd be nice
       # if this hard dependency could be split off the rest.
       'hard_dependency': 1,
@@ -1465,6 +1470,15 @@
         ['exclude', 'platform/text/TextEncodingDetectorNone\\.cpp$'],
       ],
       'conditions': [
+        ['inside_chromium_build==1', {
+            'conditions': [
+                ['component=="shared_library"', {
+                    'defines': [
+                        'WEBKIT_DLL',
+                    ],
+                }],
+            ],
+        }],
         ['use_x11 == 1', {
           'sources/': [
             # Cherry-pick files excluded by the broader regular expressions above.

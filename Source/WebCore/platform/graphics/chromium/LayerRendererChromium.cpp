@@ -45,6 +45,7 @@
 #include "PlatformColor.h"
 #include "RenderSurfaceChromium.h"
 #include "TextStream.h"
+#include "TextureCopier.h"
 #include "TextureManager.h"
 #include "TraceEvent.h"
 #include "TrackingTextureAllocator.h"
@@ -319,19 +320,6 @@ LayerRendererChromium::~LayerRendererChromium()
     cleanupSharedObjects();
 }
 
-void LayerRendererChromium::clearRenderSurfacesOnCCLayerImplRecursive(CCLayerImpl* layer)
-{
-    for (size_t i = 0; i < layer->children().size(); ++i)
-        clearRenderSurfacesOnCCLayerImplRecursive(layer->children()[i].get());
-    layer->clearRenderSurface();
-}
-
-void LayerRendererChromium::close()
-{
-    if (rootLayer())
-        clearRenderSurfacesOnCCLayerImplRecursive(rootLayer());
-}
-
 GraphicsContext3D* LayerRendererChromium::context()
 {
     return m_context.get();
@@ -348,10 +336,6 @@ void LayerRendererChromium::setVisible(bool visible)
 {
     if (!visible)
         releaseRenderSurfaceTextures();
-
-    // FIXME: Remove this once framebuffer is automatically recreated on first use
-    if (visible)
-        ensureFramebuffer();
 
     // TODO: Replace setVisibilityCHROMIUM with an extension to explicitly manage front/backbuffers
     // crbug.com/116049
@@ -405,7 +389,12 @@ void LayerRendererChromium::clearRenderSurface(CCRenderSurface* renderSurface, C
 void LayerRendererChromium::beginDrawingFrame()
 {
     ASSERT(rootLayer());
+
+    // FIXME: Remove this once framebuffer is automatically recreated on first use
+    ensureFramebuffer();
+
     m_defaultRenderSurface = rootLayer()->renderSurface();
+    ASSERT(m_defaultRenderSurface);
 
     // FIXME: use the frame begin time from the overall compositor scheduler.
     // This value is currently inaccessible because it is up in Chromium's
@@ -1072,13 +1061,13 @@ void LayerRendererChromium::finish()
     m_context->finish();
 }
 
-void LayerRendererChromium::swapBuffers(const IntRect& subBuffer)
+bool LayerRendererChromium::swapBuffers(const IntRect& subBuffer)
 {
     // FIXME: Remove this once gpu process supports ignoring swap buffers command while framebuffer is discarded.
     //        Alternatively (preferably?), protect all cc code so as not to attempt a swap after a framebuffer discard.
     if (m_isFramebufferDiscarded) {
         m_client->setFullRootLayerDamage();
-        return;
+        return false;
     }
 
     TRACE_EVENT("LayerRendererChromium::swapBuffers", this, 0);
@@ -1097,6 +1086,7 @@ void LayerRendererChromium::swapBuffers(const IntRect& subBuffer)
         m_context->prepareTexture();
 
     m_headsUpDisplay->onSwapBuffers();
+    return true;
 }
 
 void LayerRendererChromium::onSwapBuffersComplete()
@@ -1297,6 +1287,7 @@ bool LayerRendererChromium::initializeSharedObjects()
     m_renderSurfaceTextureManager = TextureManager::create(TextureManager::highLimitBytes(viewportSize()),
                                                            TextureManager::reclaimLimitBytes(viewportSize()),
                                                            m_capabilities.maxTextureSize);
+    m_textureCopier = AcceleratedTextureCopier::create(m_context.get());
     m_contentsTextureAllocator = TrackingTextureAllocator::create(m_context.get());
     m_renderSurfaceTextureAllocator = TrackingTextureAllocator::create(m_context.get());
     if (m_capabilities.usingTextureUsageHint)
@@ -1609,6 +1600,7 @@ void LayerRendererChromium::cleanupSharedObjects()
     m_streamTextureLayerProgram.clear();
     if (m_offscreenFramebufferId)
         GLC(m_context.get(), m_context->deleteFramebuffer(m_offscreenFramebufferId));
+    m_textureCopier.clear();
 
     releaseRenderSurfaceTextures();
 }

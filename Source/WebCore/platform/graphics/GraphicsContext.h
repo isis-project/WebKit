@@ -288,6 +288,9 @@ namespace WebCore {
         void fillPath(const Path&);
         void strokePath(const Path&);
 
+        void fillEllipse(const FloatRect&);
+        void strokeEllipse(const FloatRect&);
+
         // Arc drawing (used by border-radius in CSS) just supports stroking at the moment.
         void strokeArc(const IntRect&, int startAngle, int angleSpan);
 
@@ -352,12 +355,13 @@ namespace WebCore {
         FloatRect roundToDevicePixels(const FloatRect&, RoundingMode = RoundAllSides);
 
         void drawLineForText(const FloatPoint&, float width, bool printing);
-        enum TextCheckingLineStyle {
-            TextCheckingSpellingLineStyle,
-            TextCheckingGrammarLineStyle,
-            TextCheckingReplacementLineStyle
+        enum DocumentMarkerLineStyle {
+            DocumentMarkerSpellingLineStyle,
+            DocumentMarkerGrammarLineStyle,
+            DocumentMarkerAutocorrectionReplacementLineStyle,
+            DocumentMarkerDictationAlternativesLineStyle
         };
-        void drawLineForTextChecking(const FloatPoint&, float width, TextCheckingLineStyle);
+        void drawLineForDocumentMarker(const FloatPoint&, float width, DocumentMarkerLineStyle);
 
         bool paintingDisabled() const;
         void setPaintingDisabled(bool);
@@ -546,6 +550,12 @@ namespace WebCore {
         void beginPlatformTransparencyLayer(float opacity);
         void endPlatformTransparencyLayer();
         static bool supportsTransparencyLayers();
+
+        void fillEllipseAsPath(const FloatRect&);
+        void strokeEllipseAsPath(const FloatRect&);
+
+        void platformFillEllipse(const FloatRect&);
+        void platformStrokeEllipse(const FloatRect&);
 
         GraphicsContextPlatformPrivate* m_data;
 

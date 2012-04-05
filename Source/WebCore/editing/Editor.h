@@ -61,7 +61,7 @@ class Pasteboard;
 class SimpleFontData;
 class SpellChecker;
 class SpellCheckRequest;
-class SpellingCorrectionController;
+class AlternativeTextController;
 class StylePropertySet;
 class Text;
 class TextCheckerClient;
@@ -136,9 +136,9 @@ public:
     void respondToChangedSelection(const VisibleSelection& oldSelection);
     void respondToChangedContents(const VisibleSelection& endingSelection);
 
-    bool selectionStartHasStyle(int propertyID, const String& value) const;
-    TriState selectionHasStyle(int propertyID, const String& value) const;
-    String selectionStartCSSPropertyValue(int propertyID);
+    bool selectionStartHasStyle(CSSPropertyID, const String& value) const;
+    TriState selectionHasStyle(CSSPropertyID, const String& value) const;
+    String selectionStartCSSPropertyValue(CSSPropertyID);
     
     TriState selectionUnorderedListState() const;
     TriState selectionOrderedListState() const;
@@ -319,9 +319,9 @@ public:
 
     void addToKillRing(Range*, bool prepend);
 
-    void startCorrectionPanelTimer();
+    void startAlternativeTextUITimer();
     // If user confirmed a correction in the correction panel, correction has non-zero length, otherwise it means that user has dismissed the panel.
-    void handleCorrectionPanelResult(const String& correction);
+    void handleAlternativeTextUIResult(const String& correction);
     void dismissCorrectionPanelAsIgnored();
 
     void pasteAsFragment(PassRefPtr<DocumentFragment>, bool smartReplace, bool matchStyle);
@@ -401,7 +401,7 @@ private:
     bool m_shouldStyleWithCSS;
     OwnPtr<KillRing> m_killRing;
     OwnPtr<SpellChecker> m_spellChecker;
-    OwnPtr<SpellingCorrectionController> m_spellingCorrector;
+    OwnPtr<AlternativeTextController> m_alternativeTextController;
     VisibleSelection m_mark;
     bool m_areMarkedTextMatchesHighlighted;
     EditorParagraphSeparator m_defaultParagraphSeparator;

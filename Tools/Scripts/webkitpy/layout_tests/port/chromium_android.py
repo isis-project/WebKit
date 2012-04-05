@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # Copyright (C) 2012 Google Inc. All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -27,7 +28,11 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import logging
+import re
+import signal
+import time
 
+from webkitpy.layout_tests.port import base
 from webkitpy.layout_tests.port import chromium
 from webkitpy.layout_tests.port import factory
 
@@ -141,6 +146,9 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
     def __init__(self, host, port_name, **kwargs):
         chromium.ChromiumPort.__init__(self, host, port_name, **kwargs)
 
+        # The Chromium port for Android always uses the hardware GPU path.
+        self._options.enable_hardware_gpu = True
+
         self._operating_system = 'android'
         self._version = 'icecreamsandwich'
         self._original_governor = None
@@ -152,6 +160,7 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
         adb_args = self.get_option('adb_args')
         if adb_args:
             self._adb_command += shlex.split(adb_args)
+        self._drt_retry_after_killed = 0
 
     def default_test_timeout_ms(self):
         # Android platform has less computing power than desktop platforms.
@@ -178,9 +187,6 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
                            'See build instructions.' % font_path)
                 return False
         return True
-
-    def default_worker_model(self):
-        return 'inline'
 
     def test_expectations(self):
         # Automatically apply all expectation rules of chromium-linux to
@@ -222,6 +228,13 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
         # Leave the forwarder and tests httpd server there because they are
         # useful for debugging and do no harm to subsequent tests.
         self._teardown_performance()
+
+    def skipped_tests(self, test_list):
+        return base.Port._real_tests(self, [
+            # Canvas tests are run as virtual gpu tests.
+            'fast/canvas',
+            'canvas/philip',
+        ])
 
     def _build_path(self, *comps):
         return self._host_port._build_path(*comps)
@@ -364,9 +377,10 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
 
     def get_last_stacktrace(self):
         tombstones = self._run_adb_command(['shell', 'ls', '-n', '/data/tombstones'])
-        tombstones = tombstones.rstrip().split('\n')
         if not tombstones:
+            _log.error('DRT crashed, but no tombstone found!')
             return ''
+        tombstones = tombstones.rstrip().split('\n')
         last_tombstone = tombstones[0].split()
         for tombstone in tombstones[1:]:
             # Format of fields:
@@ -400,6 +414,7 @@ class ChromiumAndroidDriver(chromium.ChromiumDriver):
     def __init__(self, port, worker_number, pixel_tests, no_timeout=False):
         chromium.ChromiumDriver.__init__(self, port, worker_number, pixel_tests, no_timeout)
         self._device_image_path = None
+        self._drt_return_parser = re.compile('#DRT_RETURN (\d+)')
 
     def _start(self, pixel_tests, per_test_args):
         # Convert the original command line into to two parts:
@@ -443,7 +458,7 @@ class ChromiumAndroidDriver(chromium.ChromiumDriver):
             # the process. Sleep 1 second (long enough for debuggerd to dump
             # stack) before exiting the shell to ensure the process has quit,
             # otherwise the exit will fail because "You have stopped jobs".
-            drt_cmd = '%s %s 2>%s;sleep 1;exit\n' % (DEVICE_DRT_PATH, ' '.join(drt_args), DEVICE_DRT_STDERR)
+            drt_cmd = '%s %s 2>%s;echo "#DRT_RETURN $?";sleep 1;exit\n' % (DEVICE_DRT_PATH, ' '.join(drt_args), DEVICE_DRT_STDERR)
             _log.debug('Starting DumpRenderTree: ' + drt_cmd)
 
             # Wait until DRT echos '#READY'.
@@ -470,13 +485,30 @@ class ChromiumAndroidDriver(chromium.ChromiumDriver):
 
     def run_test(self, driver_input):
         driver_output = chromium.ChromiumDriver.run_test(self, driver_input)
+
+        drt_return = self._get_drt_return_value(driver_output.error)
+        if drt_return is not None:
+            _log.debug('DumpRenderTree return value: %d' % drt_return)
         # FIXME: Retrieve stderr from the target.
         if driver_output.crash:
+            # When Android is OOM, it sends a SIGKILL signal to DRT. DRT
+            # is stopped silently and regarded as crashed. Re-run the test for
+            # such crash.
+            if drt_return == 128 + signal.SIGKILL:
+                self._port._drt_retry_after_killed += 1
+                if self._port._drt_retry_after_killed > 10:
+                    raise AssertionError('DumpRenderTree is killed by Android for too many times!')
+                _log.error('DumpRenderTree is killed by SIGKILL. Retry the test (%d).' % self._port._drt_retry_after_killed)
+                self.stop()
+                # Sleep 10 seconds to let system recover.
+                time.sleep(10)
+                return self.run_test(driver_input)
             # Fetch the stack trace from the tombstone file.
             # FIXME: sometimes the crash doesn't really happen so that no
             # tombstone is generated. In that case we fetch the wrong stack
             # trace.
-            driver_output.error += self._port.get_last_stacktrace()
+            driver_output.error += self._port.get_last_stacktrace().encode('ascii', 'ignore')
+            driver_output.error += self._port._run_adb_command(['logcat', '-d']).encode('ascii', 'ignore')
         return driver_output
 
     def stop(self):
@@ -525,6 +557,10 @@ class ChromiumAndroidDriver(chromium.ChromiumDriver):
         # (which causes Shell to output a message), and dumps the stack strace.
         # We use the Shell output as a crash hint.
         return line is not None and line.find('[1] + Stopped (signal)') >= 0
+
+    def _get_drt_return_value(self, error):
+        return_match = self._drt_return_parser.search(error)
+        return None if (return_match is None) else int(return_match.group(1))
 
     def _read_prompt(self):
         last_char = ''

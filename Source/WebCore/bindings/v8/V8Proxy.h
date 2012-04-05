@@ -46,7 +46,7 @@
 #include <wtf/text/TextPosition.h>
 
 #if defined(ENABLE_DOM_STATS_COUNTERS) && PLATFORM(CHROMIUM)
-#define INC_STATS(name) PlatformSupport::incrementStatsCounter(name)
+#define INC_STATS(name) webkitPlatformSupport()->incrementStatsCounter(name)
 #else
 #define INC_STATS(name)
 #endif
@@ -60,6 +60,7 @@ namespace WebCore {
     class ScriptExecutionContext;
     class ScriptSourceCode;
     class SecurityOrigin;
+    class V8BindingPerContextData;
     class V8EventListener;
     class V8IsolatedContext;
     class WorldContextHandle;
@@ -182,6 +183,7 @@ namespace WebCore {
         // a context.
         static Frame* retrieveFrame(v8::Handle<v8::Context>);
 
+        static V8BindingPerContextData* retrievePerContextData(Frame*);
 
         // The three functions below retrieve WebFrame instances relating the
         // currently executing JavaScript. Since JavaScript can make function calls
@@ -243,6 +245,7 @@ namespace WebCore {
 
         v8::Local<v8::Context> context();
         v8::Local<v8::Context> mainWorldContext();
+        bool matchesCurrentContext();
 
         // FIXME: This should eventually take DOMWrapperWorld argument!
         V8DOMWindowShell* windowShell() const { return m_windowShell.get(); }

@@ -230,6 +230,7 @@ public:
     virtual PassRefPtr<InspectorArray> asArray();
 
     void pushBoolean(bool);
+    void pushInt(int);
     void pushNumber(double);
     void pushString(const String&);
     void pushValue(PassRefPtr<InspectorValue>);
@@ -281,25 +282,30 @@ inline void InspectorObject::setString(const String& name, const String& value)
 inline void InspectorObject::setValue(const String& name, PassRefPtr<InspectorValue> value)
 {
     ASSERT(value);
-    if (m_data.set(name, value).second)
+    if (m_data.set(name, value).isNewEntry)
         m_order.append(name);
 }
 
 inline void InspectorObject::setObject(const String& name, PassRefPtr<InspectorObject> value)
 {
     ASSERT(value);
-    if (m_data.set(name, value).second)
+    if (m_data.set(name, value).isNewEntry)
         m_order.append(name);
 }
 
 inline void InspectorObject::setArray(const String& name, PassRefPtr<InspectorArray> value)
 {
     ASSERT(value);
-    if (m_data.set(name, value).second)
+    if (m_data.set(name, value).isNewEntry)
         m_order.append(name);
 }
 
 inline void InspectorArray::pushBoolean(bool value)
+{
+    m_data.append(InspectorBasicValue::create(value));
+}
+
+inline void InspectorArray::pushInt(int value)
 {
     m_data.append(InspectorBasicValue::create(value));
 }

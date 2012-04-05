@@ -38,6 +38,7 @@
 #include "FloatQuad.h"
 #include "IntRect.h"
 #include "LayerChromium.h"
+#include "TextureCopier.h"
 #include "TrackingTextureAllocator.h"
 #include "VideoLayerChromium.h"
 #include "cc/CCDrawQuad.h"
@@ -59,8 +60,8 @@ class CCRenderPass;
 class CCTextureDrawQuad;
 class GeometryBinding;
 class GraphicsContext3D;
-class TrackingTextureAllocator;
 class LayerRendererSwapBuffersCompleteCallbackAdapter;
+class LayerRendererGpuMemoryAllocationChangedCallbackAdapter;
 class ScopedEnsureFramebufferAllocation;
 
 class LayerRendererChromiumClient {
@@ -79,9 +80,6 @@ class LayerRendererChromium {
     WTF_MAKE_NONCOPYABLE(LayerRendererChromium);
 public:
     static PassOwnPtr<LayerRendererChromium> create(LayerRendererChromiumClient*, PassRefPtr<GraphicsContext3D>);
-
-    // Must be called in order to allow the LayerRendererChromium to destruct
-    void close();
 
     ~LayerRendererChromium();
 
@@ -108,7 +106,7 @@ public:
     void finish();
 
     // puts backbuffer onscreen
-    void swapBuffers(const IntRect& subBuffer);
+    bool swapBuffers(const IntRect& subBuffer);
 
     static void debugGLCall(GraphicsContext3D*, const char* command, const char* file, int line);
 
@@ -142,6 +140,7 @@ public:
     void getFramebufferPixels(void *pixels, const IntRect&);
 
     TextureManager* renderSurfaceTextureManager() const { return m_renderSurfaceTextureManager.get(); }
+    TextureCopier* textureCopier() const { return m_textureCopier.get(); }
     TextureAllocator* renderSurfaceTextureAllocator() const { return m_renderSurfaceTextureAllocator.get(); }
     TextureAllocator* contentsTextureAllocator() const { return m_contentsTextureAllocator.get(); }
 
@@ -162,11 +161,12 @@ public:
                           float width, float height, float opacity, const FloatQuad&,
                           int matrixLocation, int alphaLocation, int quadLocation);
 
+protected:
+    friend class LayerRendererGpuMemoryAllocationChangedCallbackAdapter;
     void discardFramebuffer();
     void ensureFramebuffer();
     bool isFramebufferDiscarded() const { return m_isFramebufferDiscarded; }
 
-protected:
     LayerRendererChromium(LayerRendererChromiumClient*, PassRefPtr<GraphicsContext3D>);
     bool initialize();
 
@@ -205,8 +205,6 @@ private:
 
     bool initializeSharedObjects();
     void cleanupSharedObjects();
-
-    void clearRenderSurfacesOnCCLayerImplRecursive(CCLayerImpl*);
 
     friend class LayerRendererSwapBuffersCompleteCallbackAdapter;
     void onSwapBuffersComplete();
@@ -249,6 +247,7 @@ private:
     OwnPtr<CCVideoLayerImpl::StreamTextureProgram> m_streamTextureLayerProgram;
 
     OwnPtr<TextureManager> m_renderSurfaceTextureManager;
+    OwnPtr<AcceleratedTextureCopier> m_textureCopier;
     OwnPtr<TrackingTextureAllocator> m_contentsTextureAllocator;
     OwnPtr<TrackingTextureAllocator> m_renderSurfaceTextureAllocator;
 
@@ -262,33 +261,6 @@ private:
 
     bool m_isViewportChanged;
     bool m_isFramebufferDiscarded;
-};
-
-// The purpose of this helper is twofold:
-// 1. To ensure that a framebuffer is available for scope lifetime, and
-// 2. To reset framebuffer allocation to previous state on scope exit.
-// If the framebuffer is recreated, its contents are undefined.
-// FIXME: Prevent/delay discarding framebuffer via any means while any
-// instance of this is alive. At the moment, this isn't an issue.
-class ScopedEnsureFramebufferAllocation {
-public:
-    explicit ScopedEnsureFramebufferAllocation(LayerRendererChromium* layerRenderer)
-        : m_layerRenderer(layerRenderer)
-        , m_framebufferWasInitiallyDiscarded(layerRenderer->isFramebufferDiscarded())
-    {
-        if (m_framebufferWasInitiallyDiscarded)
-            m_layerRenderer->ensureFramebuffer();
-    }
-
-    ~ScopedEnsureFramebufferAllocation()
-    {
-        if (m_framebufferWasInitiallyDiscarded)
-            m_layerRenderer->discardFramebuffer();
-    }
-
-private:
-    LayerRendererChromium* m_layerRenderer;
-    bool m_framebufferWasInitiallyDiscarded;
 };
 
 

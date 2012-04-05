@@ -142,15 +142,15 @@ enum ParameterDefaultPolicy {
         if (setInlineCachedWrapper(world, domObject, wrapper))
             return;
         JSC::PassWeak<JSDOMWrapper> passWeak(*world->globalData(), wrapper, wrapperOwner(world, domObject), wrapperContext(world, domObject));
-        pair<DOMObjectWrapperMap::iterator, bool> result = world->m_wrappers.add(domObject, passWeak);
-        ASSERT_UNUSED(result, result.second);
+        DOMObjectWrapperMap::AddResult result = world->m_wrappers.add(domObject, passWeak);
+        ASSERT_UNUSED(result, result.isNewEntry);
     }
 
     template <typename DOMClass> inline void uncacheWrapper(DOMWrapperWorld* world, DOMClass* domObject, JSDOMWrapper* wrapper)
     {
         if (clearInlineCachedWrapper(world, domObject, wrapper))
             return;
-        ASSERT(world->m_wrappers.find(domObject)->second.get() == wrapper);
+        ASSERT(world->m_wrappers.find(domObject)->second.was(wrapper));
         world->m_wrappers.remove(domObject);
     }
     
@@ -279,16 +279,28 @@ enum ParameterDefaultPolicy {
         return toJS(exec, globalObject, ptr.get());
     }
 
-    template <typename Iterable>
-    JSC::JSValue jsArray(JSC::ExecState* exec, JSDOMGlobalObject* globalObject, const Iterable& iterator)
+    template <typename T>
+    JSC::JSValue jsArray(JSC::ExecState* exec, JSDOMGlobalObject* globalObject, const Vector<T>& iterator)
     {
         JSC::MarkedArgumentBuffer list;
-        typename Iterable::const_iterator end = iterator.end();
+        typename Vector<T>::const_iterator end = iterator.end();
 
-        for (typename Iterable::const_iterator iter = iterator.begin(); iter != end; ++iter)
+        for (typename Vector<T>::const_iterator iter = iterator.begin(); iter != end; ++iter)
             list.append(toJS(exec, globalObject, WTF::getPtr(*iter)));
 
         return JSC::constructArray(exec, globalObject, list);
+    }
+
+    template<>
+    inline JSC::JSValue jsArray(JSC::ExecState* exec, JSDOMGlobalObject* globalObject, const Vector<String>& iterator)
+    {
+        JSC::MarkedArgumentBuffer array;
+        Vector<String>::const_iterator end = iterator.end();
+
+        for (Vector<String>::const_iterator it = iterator.begin(); it != end; ++it)
+            array.append(jsString(exec, stringToUString(*it)));
+
+        return JSC::constructArray(exec, globalObject, array);
     }
 
     template <class T>

@@ -1,3 +1,150 @@
+2012-04-04  Mariusz Grzegorczyk  <mariusz.g@samsung.com>
+
+        Fix build break when CONTEXT_MENUS is disabled.
+        https://bugs.webkit.org/show_bug.cgi?id=82342
+
+        Reviewed by Andreas Kling.
+
+        Fixes build break in WebKit-Gtk, and WebKit-EFL ports when CONTEXT_MENUS macro is disabled.
+
+        * WebCoreSupport/ContextMenuClientGtk.cpp:
+        * WebCoreSupport/ContextMenuClientGtk.h:
+        * webkit/webkitglobals.cpp:
+        (webkit_context_menu_item_get_action):
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_button_press_event):
+        (webkit_web_view_class_init):
+        (webkit_web_view_init):
+
+2012-04-03  Simon Pena  <spena@igalia.com>
+
+        [GTK] DRT missing didRunInsecureContent notification
+        https://bugs.webkit.org/show_bug.cgi?id=59367
+
+        Reviewed by Philippe Normand.
+
+        Add a new signal "insecure-content-run" to the WebFrame to notify
+        when insecure HTTP content (such as CSS, an iframe or a script) is
+        run from a secure HTTPS WebFrame. Implement didRunInsecureContent
+        in gtk's FrameLoaderClient by means of emitting that signal.
+
+        * WebCoreSupport/FrameLoaderClientGtk.cpp: Implement
+        didRunInsecureContent by emitting WebFrame's
+        "insecure-content-run" signal
+        (WebKit::FrameLoaderClient::didRunInsecureContent):
+        * webkit/webkitwebframe.cpp: Add "insecure-content-run" signal
+        (webkit_web_frame_class_init):
+
+2012-03-30  Mark Pilgrim  <pilgrim@chromium.org>
+
+        GEOLOCATION should be implemented as Page Supplement
+        https://bugs.webkit.org/show_bug.cgi?id=82228
+
+        Reviewed by Adam Barth.
+
+        Geolocation is now a Supplement in Page so the interface
+        has changed for setting up the page's geolocation client
+        initially and accessing the controller later.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        (DumpRenderTreeSupportGtk::resetGeolocationClientMock):
+        (DumpRenderTreeSupportGtk::setMockGeolocationPermission):
+        (DumpRenderTreeSupportGtk::setMockGeolocationPosition):
+        (DumpRenderTreeSupportGtk::setMockGeolocationError):
+        (DumpRenderTreeSupportGtk::numberOfPendingGeolocationPermissionRequests):
+        * WebCoreSupport/GeolocationClientGtk.cpp:
+        (WebKit::GeolocationClient::updatePosition):
+        (WebKit::GeolocationClient::errorOccured):
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_init):
+
+2012-03-29  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r112553.
+        http://trac.webkit.org/changeset/112553
+        https://bugs.webkit.org/show_bug.cgi?id=82638
+
+        It made all tests crash on Qt WK2 (Requested by Ossy_away on
+        #webkit).
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        (DumpRenderTreeSupportGtk::resetGeolocationClientMock):
+        (DumpRenderTreeSupportGtk::setMockGeolocationPermission):
+        (DumpRenderTreeSupportGtk::setMockGeolocationPosition):
+        (DumpRenderTreeSupportGtk::setMockGeolocationError):
+        (DumpRenderTreeSupportGtk::numberOfPendingGeolocationPermissionRequests):
+        * WebCoreSupport/GeolocationClientGtk.cpp:
+        (WebKit::GeolocationClient::updatePosition):
+        (WebKit::GeolocationClient::errorOccured):
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_init):
+
+2012-03-29  Mark Pilgrim  <pilgrim@chromium.org>
+
+        GEOLOCATION should be implemented as Page Supplement
+        https://bugs.webkit.org/show_bug.cgi?id=82228
+
+        Reviewed by Adam Barth.
+
+        Geolocation is now a Supplement in Page so the interface
+        has changed for setting up the page's geolocation client
+        initially and accessing the controller later.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        (DumpRenderTreeSupportGtk::resetGeolocationClientMock):
+        (DumpRenderTreeSupportGtk::setMockGeolocationPermission):
+        (DumpRenderTreeSupportGtk::setMockGeolocationPosition):
+        (DumpRenderTreeSupportGtk::setMockGeolocationError):
+        (DumpRenderTreeSupportGtk::numberOfPendingGeolocationPermissionRequests):
+        * WebCoreSupport/GeolocationClientGtk.cpp:
+        (WebKit::GeolocationClient::updatePosition):
+        (WebKit::GeolocationClient::errorOccured):
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_init):
+
+2012-03-28  Nate Chapin  <japhet@chromium.org>
+
+        Remove dispatchDidLoadMainResource callback, since no
+        port implements it.
+        https://bugs.webkit.org/show_bug.cgi?id=82539
+
+        Reviewed by Alexey Proskuryakov.
+
+        * WebCoreSupport/FrameLoaderClientGtk.cpp:
+        (WebKit):
+        * WebCoreSupport/FrameLoaderClientGtk.h:
+        (FrameLoaderClient):
+
+2012-03-28  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Implement PlatformStrategies
+        https://bugs.webkit.org/show_bug.cgi?id=82454
+
+        Reviewed by Xan Lopez.
+
+        * GNUmakefile.am: Add new files to compilation.
+        * WebCoreSupport/PlatformStrategiesGtk.cpp: Added.
+        (PlatformStrategiesGtk::initialize): Initialize platform
+        strategies.
+        (PlatformStrategiesGtk::PlatformStrategiesGtk):
+        (PlatformStrategiesGtk::createCookiesStrategy): Return this.
+        (PlatformStrategiesGtk::createPluginStrategy): Ditto.
+        (PlatformStrategiesGtk::createVisitedLinkStrategy): Ditto.
+        (PlatformStrategiesGtk::createPasteboardStrategy): Return 0, since
+        PasteboardStrategy is only used by mac code for now.
+        (PlatformStrategiesGtk::notifyCookiesChanged):
+        (PlatformStrategiesGtk::refreshPlugins): Refresh the plugin
+        database.
+        (PlatformStrategiesGtk::getPluginInfo): Initialize plugins and
+        populate the given vector with plugins information.
+        (PlatformStrategiesGtk::isLinkVisited): Return whether the given
+        hash is a visited link of the page group.
+        (PlatformStrategiesGtk::addVisitedLink): Add the given hash to the
+        page group visited links.
+        * WebCoreSupport/PlatformStrategiesGtk.h: Added.
+        * webkit/webkitglobals.cpp:
+        (webkitInit): Initialize PlatformStrategiesGtk.
+
 2012-03-26  Joone Hur  <joone.hur@collabora.co.uk>
 
         [GTK] Build fix for Accelerated Compositing with Clutter

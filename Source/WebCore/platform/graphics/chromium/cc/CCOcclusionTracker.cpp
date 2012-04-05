@@ -206,9 +206,9 @@ static inline Region computeOcclusionBehindLayer(const LayerType* layer, const T
     if (layer->opaque())
         opaqueRegion = enclosedIntRect(unoccludedQuad.boundingBox());
     else if (usePaintTracking && transform.isIdentity())
-        opaqueRegion = layer->opaqueContentsRegion();
+        opaqueRegion = layer->visibleContentOpaqueRegion();
     else if (usePaintTracking) {
-        Region contentRegion = layer->opaqueContentsRegion();
+        Region contentRegion = layer->visibleContentOpaqueRegion();
         Vector<IntRect> contentRects = contentRegion.rects();
         for (size_t i = 0; i < contentRects.size(); ++i)
             opaqueRegion.unite(enclosedIntRect(transform.mapRect(FloatRect(contentRects[i]))));
@@ -340,26 +340,10 @@ IntRect CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::layerScissorRectIn
 {
     const RenderSurfaceType* targetSurface = m_stack.last().surface;
     FloatRect totalScissor = targetSurface->contentRect();
-    // FIXME: layer->clipRect() and layer->usesLayerClipping() is changing: https://bugs.webkit.org/show_bug.cgi?id=80622
-    if (!layer->clipRect().isEmpty())
+    if (layer->usesLayerClipping())
         totalScissor.intersect(layer->clipRect());
     return enclosingIntRect(totalScissor);
 }
-
-template<typename LayerType, typename RenderSurfaceType>
-const Region& CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::currentOcclusionInScreenSpace() const
-{
-    ASSERT(!m_stack.isEmpty());
-    return m_stack.last().occlusionInScreen;
-}
-
-template<typename LayerType, typename RenderSurfaceType>
-const Region& CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::currentOcclusionInTargetSurface() const
-{
-    ASSERT(!m_stack.isEmpty());
-    return m_stack.last().occlusionInTarget;
-}
-
 
 // Declare the possible functions here for the linker.
 template CCOcclusionTrackerBase<LayerChromium, RenderSurfaceChromium>::CCOcclusionTrackerBase(IntRect scissorRectInScreenSpace, bool recordMetricsForFrame);
@@ -369,8 +353,6 @@ template void CCOcclusionTrackerBase<LayerChromium, RenderSurfaceChromium>::leav
 template void CCOcclusionTrackerBase<LayerChromium, RenderSurfaceChromium>::markOccludedBehindLayer(const LayerChromium*);
 template bool CCOcclusionTrackerBase<LayerChromium, RenderSurfaceChromium>::occluded(const LayerChromium*, const IntRect& contentRect) const;
 template IntRect CCOcclusionTrackerBase<LayerChromium, RenderSurfaceChromium>::unoccludedContentRect(const LayerChromium*, const IntRect& contentRect) const;
-template const Region& CCOcclusionTrackerBase<LayerChromium, RenderSurfaceChromium>::currentOcclusionInScreenSpace() const;
-template const Region& CCOcclusionTrackerBase<LayerChromium, RenderSurfaceChromium>::currentOcclusionInTargetSurface() const;
 template IntRect CCOcclusionTrackerBase<LayerChromium, RenderSurfaceChromium>::layerScissorRectInTargetSurface(const LayerChromium*) const;
 
 template CCOcclusionTrackerBase<CCLayerImpl, CCRenderSurface>::CCOcclusionTrackerBase(IntRect scissorRectInScreenSpace, bool recordMetricsForFrame);
@@ -380,8 +362,6 @@ template void CCOcclusionTrackerBase<CCLayerImpl, CCRenderSurface>::leaveToTarge
 template void CCOcclusionTrackerBase<CCLayerImpl, CCRenderSurface>::markOccludedBehindLayer(const CCLayerImpl*);
 template bool CCOcclusionTrackerBase<CCLayerImpl, CCRenderSurface>::occluded(const CCLayerImpl*, const IntRect& contentRect) const;
 template IntRect CCOcclusionTrackerBase<CCLayerImpl, CCRenderSurface>::unoccludedContentRect(const CCLayerImpl*, const IntRect& contentRect) const;
-template const Region& CCOcclusionTrackerBase<CCLayerImpl, CCRenderSurface>::currentOcclusionInScreenSpace() const;
-template const Region& CCOcclusionTrackerBase<CCLayerImpl, CCRenderSurface>::currentOcclusionInTargetSurface() const;
 template IntRect CCOcclusionTrackerBase<CCLayerImpl, CCRenderSurface>::layerScissorRectInTargetSurface(const CCLayerImpl*) const;
 
 

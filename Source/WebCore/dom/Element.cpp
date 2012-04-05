@@ -475,13 +475,13 @@ int Element::scrollHeight()
     return 0;
 }
 
-LayoutRect Element::boundsInRootViewSpace()
+IntRect Element::boundsInRootViewSpace()
 {
     document()->updateLayoutIgnorePendingStylesheets();
 
     FrameView* view = document()->view();
     if (!view)
-        return LayoutRect();
+        return IntRect();
 
     Vector<FloatQuad> quads;
 #if ENABLE(SVG)
@@ -500,9 +500,9 @@ LayoutRect Element::boundsInRootViewSpace()
     }
 
     if (quads.isEmpty())
-        return LayoutRect();
+        return IntRect();
 
-    LayoutRect result = quads[0].enclosingBoundingBox();
+    IntRect result = quads[0].enclosingBoundingBox();
     for (size_t i = 1; i < quads.size(); ++i)
         result.unite(quads[i].enclosingBoundingBox());
 
@@ -903,6 +903,8 @@ void Element::insertedIntoDocument()
 
 void Element::removedFromDocument()
 {
+    setSavedLayerScrollOffset(IntSize());
+
     if (m_attributeData) {
         if (hasID()) {
             Attribute* idItem = getAttributeItem(document()->idAttributeName());
@@ -1038,7 +1040,7 @@ PassRefPtr<RenderStyle> Element::styleForRenderer()
 {
     if (hasCustomStyleForRenderer())
         return customStyleForRenderer();
-    return document()->styleSelector()->styleForElement(static_cast<Element*>(this), 0, true/*allowSharing*/);
+    return document()->styleSelector()->styleForElement(static_cast<Element*>(this));
 }
 
 void Element::recalcStyle(StyleChange change)
@@ -1118,7 +1120,7 @@ void Element::recalcStyle(StyleChange change)
         }
 
         if (change != Force) {
-            if (styleChangeType() >= FullStyleChange)
+            if (styleChangeType() == FullStyleChange)
                 change = Force;
             else
                 change = ch;
@@ -1548,8 +1550,6 @@ void Element::focus(bool restorePreviousSelection)
         // If a focus event handler changes the focus to a different node it
         // does not make sense to continue and update appearence.
         protect = this;
-        if (hasShadowRoot() && page->focusController()->transferFocusToElementInShadowRoot(this, restorePreviousSelection))
-            return;
         if (!page->focusController()->setFocusedNode(this, doc->frame()))
             return;
     }
@@ -1751,7 +1751,7 @@ bool Element::webkitMatchesSelector(const String& selector, ExceptionCode& ec)
     }
 
     bool strictParsing = !document()->inQuirksMode();
-    CSSParser p(strictParsing);
+    CSSParser p(strictToCSSParserMode(strictParsing));
 
     CSSSelectorList selectorList;
     p.parseSelector(selector, document(), selectorList);
@@ -2066,6 +2066,18 @@ void Element::updateExtraNamedItemRegistration(const AtomicString& oldId, const 
 HTMLCollection* Element::ensureCachedHTMLCollection(CollectionType type)
 {
     return ensureRareData()->ensureCachedHTMLCollection(this, type);
+}
+
+IntSize Element::savedLayerScrollOffset() const
+{
+    return hasRareData() ? rareData()->m_savedLayerScrollOffset : IntSize();
+}
+
+void Element::setSavedLayerScrollOffset(const IntSize& size)
+{
+    if (size.isZero() && !hasRareData())
+        return;
+    ensureRareData()->m_savedLayerScrollOffset = size;
 }
 
 } // namespace WebCore

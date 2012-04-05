@@ -39,7 +39,8 @@ var test = function()
             {
                 InspectorTest.addResult("Script execution paused.");
                 InspectorTest.captureStackTrace(callFrames);
-                InspectorTest.addSniffer(currentSourceFrame, "removeBreakpoint", breakpointRemoved);
+                dumpBreakpointSidebarPane()
+                InspectorTest.addSniffer(currentSourceFrame, "_removeBreakpointDecoration", breakpointRemoved);
                 InspectorTest.removeBreakpoint(currentSourceFrame, 16);
             }
 
@@ -50,6 +51,7 @@ var test = function()
 
             function didResume()
             {
+                dumpBreakpointSidebarPane()
                 InspectorTest.addResult("Script execution resumed.");
                 next();
             }
@@ -114,6 +116,14 @@ var test = function()
             }
         }
     ]);
+
+    function dumpBreakpointSidebarPane()
+    {
+        var paneElement = WebInspector.panels.scripts.sidebarPanes.jsBreakpoints.listElement
+        InspectorTest.addResult("");
+        InspectorTest.addResult("Dump breakpoint sidebar pane:");
+        InspectorTest.addResult(InspectorTest.textContentWithLineBreaks(paneElement));
+    }
 }
 
 </script>

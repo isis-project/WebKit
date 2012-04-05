@@ -52,7 +52,8 @@ var Capabilities = {
     debuggerCausesRecompilation: true,
     profilerCausesRecompilation: true,
     nativeInstrumentationEnabled: false,
-    heapProfilerPresent: false
+    heapProfilerPresent: false,
+    canOverrideDeviceMetrics: false
 }
 
 /**
@@ -86,11 +87,13 @@ WebInspector.Settings = function()
     this.cacheDisabled = this.createSetting("cacheDisabled", false);
     this.overrideUserAgent = this.createSetting("overrideUserAgent", "");
     this.userAgent = this.createSetting("userAgent", "");
+    this.deviceMetrics = this.createSetting("deviceMetrics", "");
     this.showScriptFolders = this.createSetting("showScriptFolders", true);
     this.dockToRight = this.createSetting("dockToRight", false);
     this.emulateTouchEvents = this.createSetting("emulateTouchEvents", false);
     this.showPaintRects = this.createSetting("showPaintRects", false);
     this.zoomLevel = this.createSetting("zoomLevel", 0);
+    this.savedURLs = this.createSetting("savedURLs", {});
 
     // If there are too many breakpoints in a storage, it is likely due to a recent bug that caused
     // periodical breakpoints duplication leading to inspector slowness.
@@ -175,8 +178,6 @@ WebInspector.ExperimentsSettings = function()
     
     // Add currently running experiments here.
     this.timelineVerticalOverview = this._createExperiment("timelineStartAtZero", "Enable vertical overview mode in the Timeline panel");
-    // FIXME: Enable http/tests/inspector/indexeddb/resources-panel.html when removed from experiments.
-    this.showIndexedDB = this._createExperiment("showIndexedDB", "Show IndexedDB in Resources panel");
     this.showShadowDOM = this._createExperiment("showShadowDOM", "Show shadow DOM");
     this.snippetsSupport = this._createExperiment("snippetsSupport", "Snippets support");
 

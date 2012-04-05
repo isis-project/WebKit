@@ -154,6 +154,9 @@ class Port(object):
             self._pretty_patch_available = self.check_pretty_patch(logging=False)
         return self._pretty_patch_available
 
+    def should_retry_crashes(self):
+        return False
+
     def default_child_processes(self):
         """Return the number of DumpRenderTree instances to use for this port."""
         cpu_count = self._executive.cpu_count()
@@ -167,9 +170,6 @@ class Port(object):
                 print "This machine could support %s child processes, but only has enough memory for %s." % (cpu_count, supportable_instances)
             return min(supportable_instances, cpu_count)
         return cpu_count
-
-    def default_worker_model(self):
-        return 'processes'
 
     def worker_startup_delay_secs(self):
         # FIXME: If we start workers up too quickly, DumpRenderTree appears
@@ -1054,8 +1054,8 @@ class Port(object):
     def _get_crash_log(self, name, pid, stdout, stderr):
         name_str = name or '<unknown process name>'
         pid_str = str(pid or '<unknown>')
-        stdout_lines = (stdout or '<empty>').decode('utf8').splitlines()
-        stderr_lines = (stderr or '<empty>').decode('utf8').splitlines()
+        stdout_lines = (stdout or '<empty>').decode('utf8', 'replace').splitlines()
+        stderr_lines = (stderr or '<empty>').decode('utf8', 'replace').splitlines()
         return 'crash log for %s (pid %s):\n%s\n%s\n' % (name_str, pid_str,
             '\n'.join(('STDOUT: ' + l) for l in stdout_lines),
             '\n'.join(('STDERR: ' + l) for l in stderr_lines))
@@ -1093,7 +1093,7 @@ class Port(object):
     def lookup_virtual_test_base(self, test_name):
         for suite in self.populated_virtual_test_suites():
             if test_name.startswith(suite.name):
-                return suite.tests.get(test_name)
+                return test_name.replace(suite.name, suite.base)
         return None
 
     def lookup_virtual_test_args(self, test_name):

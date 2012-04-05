@@ -86,6 +86,7 @@
 #include "NativeImageSkia.h"
 #endif
 
+#include "AsyncFileSystemChromium.h"
 #include "BitmapImage.h"
 #include "ClipboardChromium.h"
 #include "Cookie.h"
@@ -417,6 +418,18 @@ int PlatformSupport::writeToFile(PlatformFileHandle handle, const char* data, in
     return webKitPlatformSupport()->fileUtilities()->writeToFile(handle, data, length);
 }
 
+#if ENABLE(FILE_SYSTEM)
+String PlatformSupport::createIsolatedFileSystemName(const String& storageIdentifier, const String& filesystemId)
+{
+    return AsyncFileSystemChromium::createIsolatedFileSystemName(storageIdentifier, filesystemId);
+}
+
+PassOwnPtr<AsyncFileSystem> PlatformSupport::createIsolatedFileSystem(const String& originString, const String& filesystemId)
+{
+    return AsyncFileSystemChromium::createIsolatedFileSystem(originString, filesystemId);
+}
+#endif
+
 // Font -----------------------------------------------------------------------
 
 #if OS(WINDOWS)
@@ -674,13 +687,6 @@ PassOwnPtr<AudioBus> PlatformSupport::decodeAudioFileData(const char* data, size
 
 #endif // ENABLE(WEB_AUDIO)
 
-// Sandbox --------------------------------------------------------------------
-
-bool PlatformSupport::sandboxEnabled()
-{
-    return webKitPlatformSupport()->sandboxEnabled();
-}
-
 // SharedTimers ---------------------------------------------------------------
 
 void PlatformSupport::setSharedTimerFiredFunction(void (*func)())
@@ -700,31 +706,9 @@ void PlatformSupport::stopSharedTimer()
 
 // StatsCounters --------------------------------------------------------------
 
-void PlatformSupport::decrementStatsCounter(const char* name)
-{
-    webKitPlatformSupport()->decrementStatsCounter(name);
-}
-
-void PlatformSupport::incrementStatsCounter(const char* name)
-{
-    webKitPlatformSupport()->incrementStatsCounter(name);
-}
-
-void PlatformSupport::histogramCustomCounts(const char* name, int sample, int min, int max, int bucketCount)
-{
-    webKitPlatformSupport()->histogramCustomCounts(name, sample, min, max, bucketCount);
-}
-
 void PlatformSupport::histogramEnumeration(const char* name, int sample, int boundaryValue)
 {
     webKitPlatformSupport()->histogramEnumeration(name, sample, boundaryValue);
-}
-
-// Sudden Termination ---------------------------------------------------------
-
-void PlatformSupport::suddenTerminationChanged(bool enabled)
-{
-    webKitPlatformSupport()->suddenTerminationChanged(enabled);
 }
 
 // Theming --------------------------------------------------------------------

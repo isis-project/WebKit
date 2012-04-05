@@ -491,6 +491,35 @@ bool AccessibilityRenderObject::isNativeTextControl() const
     return m_renderer->isTextControl();
 }
     
+bool AccessibilityRenderObject::isSearchField() const
+{
+    if (!node())
+        return false;
+    
+    HTMLInputElement* inputElement = node()->toInputElement();
+    if (!inputElement)
+        return false;
+
+    if (inputElement->isSearchField())
+        return true;
+
+    // Some websites don't label their search fields as such. However, they will
+    // use the word "search" in either the form or input type. This won't catch every case,
+    // but it will catch google.com for example.
+    
+    // Check the node name of the input type, sometimes it's "search".
+    const AtomicString& nameAttribute = getAttribute(nameAttr);
+    if (nameAttribute.contains("search", false))
+        return true;
+    
+    // Check the form action and the name, which will sometimes be "search".
+    HTMLFormElement* form = inputElement->form();
+    if (form && (form->name().contains("search", false) || form->action().contains("search", false)))
+        return true;
+    
+    return false;
+}
+    
 bool AccessibilityRenderObject::isNativeImage() const
 {
     return m_renderer->isBoxModelObject() && toRenderBoxModelObject(m_renderer)->isImage();
@@ -2731,7 +2760,7 @@ VisiblePosition AccessibilityRenderObject::visiblePositionForIndex(unsigned inde
 // NOTE: Consider providing this utility method as AX API
 int AccessibilityRenderObject::index(const VisiblePosition& position) const
 {
-    if (!isTextControl())
+    if (position.isNull() || !isTextControl())
         return -1;
 
     if (renderObjectContainsPosition(m_renderer, position.deepEquivalent()))

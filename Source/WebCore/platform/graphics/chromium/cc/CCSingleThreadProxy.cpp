@@ -72,8 +72,6 @@ bool CCSingleThreadProxy::compositeAndReadback(void *pixels, const IntRect& rect
     TRACE_EVENT("CCSingleThreadProxy::compositeAndReadback", this, 0);
     ASSERT(CCProxy::isMainThread());
 
-    ScopedEnsureFramebufferAllocation ensureFramebuffer(m_layerTreeHostImpl->layerRenderer());
-
     if (!commitIfNeeded())
         return false;
 
@@ -202,7 +200,7 @@ void CCSingleThreadProxy::doCommit()
         m_layerTreeHostImpl->beginCommit();
 
         m_layerTreeHost->beginCommitOnImplThread(m_layerTreeHostImpl.get());
-        CCTextureUpdater updater(m_layerTreeHostImpl->contentsTextureAllocator());
+        CCTextureUpdater updater(m_layerTreeHostImpl->contentsTextureAllocator(), m_layerTreeHostImpl->layerRenderer()->textureCopier());
         m_layerTreeHost->updateCompositorResources(m_layerTreeHostImpl->context(), updater);
         updater.update(m_layerTreeHostImpl->context(), numeric_limits<size_t>::max());
         ASSERT(!updater.hasMoreUpdates());
@@ -234,6 +232,11 @@ void CCSingleThreadProxy::setNeedsRedraw()
     // treat redraw requests more efficiently than commitAndRedraw requests.
     m_layerTreeHostImpl->setFullRootLayerDamage();
     setNeedsCommit();
+}
+
+bool CCSingleThreadProxy::commitRequested() const
+{
+    return false;
 }
 
 void CCSingleThreadProxy::setVisible(bool visible)

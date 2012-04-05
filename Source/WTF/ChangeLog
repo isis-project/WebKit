@@ -1,3 +1,163 @@
+2012-04-04  Chris Rogers  <crogers@google.com>
+
+        Web Audio should use MutexTryLocker class
+        https://bugs.webkit.org/show_bug.cgi?id=83194
+
+        Reviewed by Kenneth Russell.
+
+        Add MutexTryLocker class which can be used as a stack-based object wrapping a Mutex.
+        It will automatically unlock the Mutex in its destructor if the tryLock() succeeded.
+
+        * wtf/ThreadingPrimitives.h:
+        (MutexTryLocker):
+        (WTF::MutexTryLocker::MutexTryLocker):
+        (WTF::MutexTryLocker::~MutexTryLocker):
+        (WTF::MutexTryLocker::locked):
+        Check if the tryLock() on the Mutex succeeded.
+        (WTF):
+
+2012-04-04  Kausalya Madhusudhanan  <kmadhusu@chromium.org>
+
+        [Coverity] Address some uninit constructor values.
+        https://bugs.webkit.org/show_bug.cgi?id=82424
+
+        Reviewed by Stephen White.
+
+        New tests are not required since I did not modify any code behavior. I just initialized the class member variables in the constructor.
+
+        * wtf/ArrayBufferView.cpp:
+        (WTF::ArrayBufferView::ArrayBufferView):
+
+2012-03-30  David Barr  <davidbarr@chromium.org>
+
+        Split up top-level .gitignore and .gitattributes
+        https://bugs.webkit.org/show_bug.cgi?id=82687
+
+        Reviewed by Tor Arne Vestbø.
+
+        * WTF.gyp/.gitignore: Added.
+
+2012-03-29  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix. Add export symbols needed to
+        build wx under Windows.
+        
+        * wtf/NullPtr.h:
+        * wtf/ParallelJobsGeneric.h:
+        (ParallelEnvironment):
+        * wtf/ThreadSpecific.h:
+        (WTF):
+
+2012-03-29  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix. Add WTF_EXPORT_PRIVATE_NO_RTTI
+        so that ports not using RTTI can add symbol exports to
+        classes that RTTI ports export with WTF_EXPORT_PRIVATE_RTTI.
+
+        * wtf/ArrayBufferView.h:
+        * wtf/ExportMacros.h:
+
+2012-03-29  Caio Marcelo de Oliveira Filho  <caio.oliveira@openbossa.org>
+
+        HashMap<>::add should return a more descriptive object
+        https://bugs.webkit.org/show_bug.cgi?id=71063
+
+        Reviewed by Ryosuke Niwa.
+
+        Make HashTable<>::add() and derivate functions return an AddResult struct instead
+        of a pair. This struct contains contains 'iterator' and 'isNewEntry' members, that are
+        more readable at callsites than previous 'first' and 'second'.
+
+        * wtf/HashCountedSet.h:
+        (HashCountedSet):
+        (WTF::::add):
+        * wtf/HashMap.h:
+        (HashMap):
+        (WTF):
+        (WTF::::set):
+        * wtf/HashSet.h:
+        (HashSet):
+        (WTF::::add):
+        (WTF):
+        * wtf/HashTable.h:
+        (WTF::HashTableAddResult::HashTableAddResult):
+        (HashTableAddResult):
+        (WTF):
+        (HashTable):
+        (WTF::HashTable::add):
+        (WTF::::add):
+        (WTF::::addPassingHashCode):
+        * wtf/ListHashSet.h:
+        (ListHashSet):
+        (WTF::::add):
+        (WTF::::insertBefore):
+        * wtf/RefPtrHashMap.h:
+        (WTF):
+        (WTF::::set):
+        * wtf/Spectrum.h:
+        (WTF::Spectrum::add):
+        * wtf/WTFThreadData.cpp:
+        (JSC::IdentifierTable::add):
+        * wtf/WTFThreadData.h:
+        (IdentifierTable):
+        * wtf/text/AtomicString.cpp:
+        (WTF::addToStringTable):
+        (WTF::AtomicString::addSlowCase):
+
+2012-03-29  Andreas Kling  <kling@webkit.org>
+
+        String: Subscript operator shouldn't force conversion to 16-bit characters.
+        <http://webkit.org/b/82613>
+
+        Reviewed by Anders Carlsson.
+
+        Forward String::operator[] to StringImpl::operator[] instead of indexing into characters().
+        This avoid implicit conversion of 8-bit strings to 16-bit, and as an example, reduces memory
+        usage on http://www.allthingsd.com/ by 360kB.
+
+        * wtf/text/WTFString.h:
+        (WTF::String::operator[]):
+
+2012-03-28  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Implement PlatformStrategies
+        https://bugs.webkit.org/show_bug.cgi?id=82454
+
+        Reviewed by Xan Lopez.
+
+        * wtf/Platform.h: Define WTF_USE_PLATFORM_STRATEGIES for GTK+
+        platform too.
+
+2012-03-26  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Set eol-style: native on WTF.sln per Ryan Sleevi's request.
+
+        * WTF.vcproj/WTF.sln: Added property svn:eol-style.
+
+2012-03-26  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Chromium build fix; add BitVector.h/cpp to gypi.
+
+        * WTF.gypi:
+
+2012-03-26  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Touch BitVector as a speculative fix for Chromium Linux.
+
+        * wtf/BitVector.h:
+        (BitVector):
+
+2012-03-23  Ryosuke Niwa  <rniwa@webkit.org>
+
+        cssText should use shorthand notations
+        https://bugs.webkit.org/show_bug.cgi?id=81737
+
+        Reviewed by Enrica Casucci.
+
+        * wtf/BitVector.h:
+        (BitVector):
+        (WTF::BitVector::ensureSizeAndSet): Added.
+
 2012-03-26  Carlos Garcia Campos  <cgarcia@igalia.com>
 
         Unreviewed. Fix make distcheck.

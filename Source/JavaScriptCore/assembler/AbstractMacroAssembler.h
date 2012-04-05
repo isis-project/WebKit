@@ -26,6 +26,7 @@
 #ifndef AbstractMacroAssembler_h
 #define AbstractMacroAssembler_h
 
+#include "AssemblerBuffer.h"
 #include "CodeLocation.h"
 #include "MacroAssemblerCodeRef.h"
 #include <wtf/CryptographicallyRandomNumber.h>
@@ -450,6 +451,12 @@ public:
             , m_condition(condition)
         {
         }
+#elif CPU(SH4)
+        Jump(AssemblerLabel jmp, SH4Assembler::JumpType type = SH4Assembler::JumpFar)
+            : m_label(jmp)
+            , m_type(type)
+        {
+        }
 #else
         Jump(AssemblerLabel jmp)    
             : m_label(jmp)
@@ -461,6 +468,8 @@ public:
         {
 #if CPU(ARM_THUMB2)
             masm->m_assembler.linkJump(m_label, masm->m_assembler.label(), m_type, m_condition);
+#elif CPU(SH4)
+            masm->m_assembler.linkJump(m_label, masm->m_assembler.label(), m_type);
 #else
             masm->m_assembler.linkJump(m_label, masm->m_assembler.label());
 #endif
@@ -482,6 +491,9 @@ public:
 #if CPU(ARM_THUMB2)
         ARMv7Assembler::JumpType m_type;
         ARMv7Assembler::Condition m_condition;
+#endif
+#if CPU(SH4)
+        SH4Assembler::JumpType m_type;
 #endif
     };
 

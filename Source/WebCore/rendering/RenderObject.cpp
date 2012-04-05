@@ -46,13 +46,13 @@
 #include "RenderCounter.h"
 #include "RenderDeprecatedFlexibleBox.h"
 #include "RenderFlexibleBox.h"
-#include "RenderFlowThread.h"
 #include "RenderImage.h"
 #include "RenderImageResourceStyleImage.h"
 #include "RenderInline.h"
 #include "RenderLayer.h"
 #include "RenderListItem.h"
 #include "RenderMultiColumnBlock.h"
+#include "RenderNamedFlowThread.h"
 #include "RenderRegion.h"
 #include "RenderRuby.h"
 #include "RenderRubyText.h"
@@ -269,16 +269,6 @@ static bool isBeforeAfterContentGeneratedByAncestor(RenderObject* renderer, Rend
     return false;
 }
 
-RenderTable* RenderObject::createAnonymousTable() const
-{
-    RefPtr<RenderStyle> newStyle = RenderStyle::createAnonymousStyle(style());
-    newStyle->setDisplay(TABLE);
-
-    RenderTable* table = new (renderArena()) RenderTable(document() /* is anonymous */);
-    table->setStyle(newStyle.release());
-    return table;
-}
-
 void RenderObject::addChild(RenderObject* newChild, RenderObject* beforeChild)
 {
     RenderObjectChildList* children = virtualChildren();
@@ -323,7 +313,7 @@ void RenderObject::addChild(RenderObject* newChild, RenderObject* beforeChild)
         if (afterChild && afterChild->isAnonymous() && afterChild->isTable() && !afterChild->isBeforeContent())
             table = toRenderTable(afterChild);
         else {
-            table = createAnonymousTable();
+            table = RenderTable::createAnonymousWithParentRenderer(this);
             addChild(table, beforeChild);
         }
         table->addChild(newChild);
@@ -332,11 +322,8 @@ void RenderObject::addChild(RenderObject* newChild, RenderObject* beforeChild)
         children->insertChildNode(this, newChild, beforeChild);
     }
 
-    if (newChild->isText() && newChild->style()->textTransform() == CAPITALIZE) {
-        RefPtr<StringImpl> textToTransform = toRenderText(newChild)->originalText();
-        if (textToTransform)
-            toRenderText(newChild)->setText(textToTransform.release(), true);
-    }
+    if (newChild->isText() && newChild->style()->textTransform() == CAPITALIZE)
+        toRenderText(newChild)->transformText();
 
     // SVG creates renderers for <g display="none">, as SVG requires children of hidden
     // <g>s to have renderers - at least that's how our implementation works. Consider:
@@ -683,11 +670,11 @@ void RenderObject::markContainingBlocksForLayout(bool scheduleRelayout, RenderOb
         last->scheduleRelayout();
 }
 
-void RenderObject::setPreferredLogicalWidthsDirty(bool b, bool markParents)
+void RenderObject::setPreferredLogicalWidthsDirty(bool shouldBeDirty, MarkingBehavior markParents)
 {
     bool alreadyDirty = preferredLogicalWidthsDirty();
-    m_bitfields.setPreferredLogicalWidthsDirty(b);
-    if (b && !alreadyDirty && markParents && (isText() || !style()->isPositioned()))
+    m_bitfields.setPreferredLogicalWidthsDirty(shouldBeDirty);
+    if (shouldBeDirty && !alreadyDirty && markParents == MarkContainingBlockChain && (isText() || !style()->isPositioned()))
         invalidateContainerPreferredLogicalWidths();
 }
 
@@ -1283,6 +1270,14 @@ RenderBoxModelObject* RenderObject::containerForRepaint() const
             repaintContainer = compLayer->renderer();
     }
 #endif
+    
+#if ENABLE(CSS_FILTERS)
+    if (RenderLayer* parentLayer = enclosingLayer()) {
+        RenderLayer* enclosingFilterLayer = parentLayer->enclosingFilterLayer();
+        if (enclosingFilterLayer)
+            return enclosingFilterLayer->renderer();
+    }
+#endif
 
     // If we have a flow thread, then we need to do individual repaints within the RenderRegions instead.
     // Return the flow thread as a repaint container in order to create a chokepoint that allows us to change
@@ -1305,6 +1300,13 @@ void RenderObject::repaintUsingContainer(RenderBoxModelObject* repaintContainer,
         toRenderFlowThread(repaintContainer)->repaintRectangleInRegions(r, immediate);
         return;
     }
+
+#if ENABLE(CSS_FILTERS)
+    if (repaintContainer->hasFilter() && repaintContainer->layer() && repaintContainer->layer()->requiresFullLayerImageForFilters()) {
+        repaintContainer->layer()->setFilterBackendNeedsRepaintingInRect(r, immediate);
+        return;
+    }
+#endif
 
 #if USE(ACCELERATED_COMPOSITING)
     RenderView* v = view();
@@ -1445,7 +1447,7 @@ bool RenderObject::repaintAfterLayoutIfNeeded(RenderBoxModelObject* repaintConta
 
         int borderRight = isBox() ? toRenderBox(this)->borderRight() : 0;
         LayoutUnit boxWidth = isBox() ? toRenderBox(this)->width() : zeroLayoutUnit;
-        LayoutUnit borderWidth = max<LayoutUnit>(-outlineStyle->outlineOffset(), max<LayoutUnit>(borderRight, max<LayoutUnit>(valueForLength(style()->borderTopRightRadius().width(), boxWidth), valueForLength(style()->borderBottomRightRadius().width(), boxWidth)))) + max<LayoutUnit>(ow, shadowRight);
+        LayoutUnit borderWidth = max<LayoutUnit>(-outlineStyle->outlineOffset(), max<LayoutUnit>(borderRight, max<LayoutUnit>(valueForLength(style()->borderTopRightRadius().width(), boxWidth, v), valueForLength(style()->borderBottomRightRadius().width(), boxWidth, v)))) + max<LayoutUnit>(ow, shadowRight);
         LayoutRect rightRect(newOutlineBox.x() + min(newOutlineBox.width(), oldOutlineBox.width()) - borderWidth,
             newOutlineBox.y(),
             width + borderWidth,
@@ -1464,7 +1466,7 @@ bool RenderObject::repaintAfterLayoutIfNeeded(RenderBoxModelObject* repaintConta
 
         int borderBottom = isBox() ? toRenderBox(this)->borderBottom() : 0;
         LayoutUnit boxHeight = isBox() ? toRenderBox(this)->height() : zeroLayoutUnit;
-        LayoutUnit borderHeight = max<LayoutUnit>(-outlineStyle->outlineOffset(), max<LayoutUnit>(borderBottom, max<LayoutUnit>(valueForLength(style()->borderBottomLeftRadius().height(), boxHeight), valueForLength(style()->borderBottomRightRadius().height(), boxHeight)))) + max<LayoutUnit>(ow, shadowBottom);
+        LayoutUnit borderHeight = max<LayoutUnit>(-outlineStyle->outlineOffset(), max<LayoutUnit>(borderBottom, max<LayoutUnit>(valueForLength(style()->borderBottomLeftRadius().height(), boxHeight, v), valueForLength(style()->borderBottomRightRadius().height(), boxHeight, v)))) + max<LayoutUnit>(ow, shadowBottom);
         LayoutRect bottomRect(newOutlineBox.x(),
             min(newOutlineBox.maxY(), oldOutlineBox.maxY()) - borderHeight,
             max(newOutlineBox.width(), oldOutlineBox.width()),
@@ -1720,6 +1722,16 @@ StyleDifference RenderObject::adjustStyleDifference(StyleDifference diff, unsign
         else if (diff < StyleDifferenceRecompositeLayer)
             diff = StyleDifferenceRecompositeLayer;
     }
+    
+#if ENABLE(CSS_FILTERS)
+    if ((contextSensitiveProperties & ContextSensitivePropertyFilter) && hasLayer()) {
+        RenderLayer* layer = toRenderBoxModelObject(this)->layer();
+        if (!layer->isComposited() || layer->paintsWithFilters())
+            diff = StyleDifferenceRepaintLayer;
+        else if (diff < StyleDifferenceRecompositeLayer)
+            diff = StyleDifferenceRecompositeLayer;
+    }
+#endif
     
     // The answer to requiresLayer() for plugins and iframes can change outside of the style system,
     // since it depends on whether we decide to composite these elements. When the layer status of
@@ -2291,11 +2303,11 @@ void RenderObject::willBeDestroyed()
     remove();
 
 #ifndef NDEBUG
-    if (!documentBeingDestroyed() && view() && view()->hasRenderFlowThreads()) {
+    if (!documentBeingDestroyed() && view() && view()->hasRenderNamedFlowThreads()) {
         // After remove, the object and the associated information should not be in any flow thread.
-        const RenderFlowThreadList* flowThreadList = view()->renderFlowThreadList();
-        for (RenderFlowThreadList::const_iterator iter = flowThreadList->begin(); iter != flowThreadList->end(); ++iter) {
-            const RenderFlowThread* renderFlowThread = *iter;
+        const RenderNamedFlowThreadList* flowThreadList = view()->renderNamedFlowThreadList();
+        for (RenderNamedFlowThreadList::const_iterator iter = flowThreadList->begin(); iter != flowThreadList->end(); ++iter) {
+            const RenderNamedFlowThread* renderFlowThread = *iter;
             ASSERT(!renderFlowThread->hasChild(this));
             ASSERT(!renderFlowThread->hasChildInfo(this));
         }
@@ -2538,19 +2550,20 @@ PassRefPtr<RenderStyle> RenderObject::getUncachedPseudoStyle(PseudoId pseudo, Re
         parentStyle = style();
     }
 
+    // FIXME: This "find nearest element parent" should be a helper function.
     Node* n = node();
     while (n && !n->isElementNode())
         n = n->parentNode();
     if (!n)
         return 0;
+    Element* element = toElement(n);
 
-    RefPtr<RenderStyle> result;
     if (pseudo == FIRST_LINE_INHERITED) {
-        result = document()->styleSelector()->styleForElement(static_cast<Element*>(n), parentStyle, false);
+        RefPtr<RenderStyle> result = document()->styleSelector()->styleForElement(element, parentStyle, DisallowStyleSharing);
         result->setStyleType(FIRST_LINE_INHERITED);
-    } else
-        result = document()->styleSelector()->pseudoStyleForElement(pseudo, static_cast<Element*>(n), parentStyle);
-    return result.release();
+        return result.release();
+    }
+    return document()->styleSelector()->pseudoStyleForElement(pseudo, element, parentStyle);
 }
 
 static Color decorationColor(RenderObject* renderer)
