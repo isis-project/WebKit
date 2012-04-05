@@ -697,6 +697,8 @@ void PluginView::handleMouseEvent(MouseEvent* event)
         npEvent.eventType = npPalmPenUpEvent;
     else if (event->type() == eventNames().mousemoveEvent)
         npEvent.eventType = npPalmPenMoveEvent;
+    else if (event->type() == eventNames().clickEvent)
+        npEvent.eventType = npPalmPenClickEvent;
     else
         return; // We don't currently handle mouse in/out/over/wheel events
 
