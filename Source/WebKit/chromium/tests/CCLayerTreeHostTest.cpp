@@ -27,6 +27,7 @@
 #include "cc/CCLayerTreeHost.h"
 
 #include "CCAnimationTestCommon.h"
+#include "CCOcclusionTrackerTestCommon.h"
 #include "CompositorFakeWebGraphicsContext3D.h"
 #include "ContentLayerChromium.h"
 #include "FilterOperations.h"
@@ -209,7 +210,7 @@ private:
     }
 
     Vector<WebGLId> m_textures;
-    HashSet<WebGLId> m_usedTextures;
+    HashSet<WebGLId, DefaultHash<WebGLId>::Hash, UnsignedWithZeroKeyHashTraits<WebGLId> > m_usedTextures;
 };
 
 // Implementation of CCLayerTreeHost callback interface.
@@ -247,6 +248,10 @@ public:
 
         OwnPtr<WebGraphicsContext3D> webContext = CompositorFakeWebGraphicsContext3DWithTextureTracking::create(webAttrs);
         return GraphicsContext3DPrivate::createGraphicsContextFromWebContext(webContext.release(), GraphicsContext3D::RenderDirectlyToHostWindow);
+    }
+
+    virtual void didCommit()
+    {
     }
 
     virtual void didCommitAndDrawFrame()
@@ -527,6 +532,10 @@ void CCLayerTreeHostTest::doBeginTest()
     m_client = MockLayerTreeHostClient::create(this);
 
     RefPtr<LayerChromium> rootLayer = LayerChromium::create();
+
+    // Only non-empty root layers will cause drawing to happen.
+    rootLayer->setBounds(IntSize(1, 1));
+
     m_layerTreeHost = MockLayerTreeHost::create(this, m_client.get(), rootLayer, m_settings);
     ASSERT_TRUE(m_layerTreeHost);
     rootLayer->setLayerTreeHost(m_layerTreeHost.get());
@@ -816,6 +825,56 @@ TEST_F(CCLayerTreeHostTestSetNeedsRedraw, runMultiThread)
     runTestThreaded();
 }
 
+// If the root layer has no content bounds, we should see a commit, but should not be
+// pushing any frames as the contents will be undefined. Regardless, forced draws need
+// to always signal completion.
+class CCLayerTreeHostTestEmptyContentsShouldNotDraw : public CCLayerTreeHostTestThreadOnly {
+public:
+    CCLayerTreeHostTestEmptyContentsShouldNotDraw()
+        : m_numCommits(0)
+    {
+    }
+
+    virtual void beginTest()
+    {
+    }
+
+    virtual void drawLayersOnCCThread(CCLayerTreeHostImpl* impl)
+    {
+        // Only the initial draw should bring us here.
+        EXPECT_FALSE(impl->rootLayer()->bounds().isEmpty());
+    }
+
+    virtual void didCommitAndDrawFrame()
+    {
+        m_numCommits++;
+        if (m_numCommits == 1) {
+            // Put an empty root layer.
+            RefPtr<LayerChromium> rootLayer = LayerChromium::create();
+            m_layerTreeHost->setRootLayer(rootLayer);
+
+            OwnArrayPtr<char> pixels(adoptArrayPtr(new char[4]));
+            m_layerTreeHost->compositeAndReadback(static_cast<void*>(pixels.get()), IntRect(0, 0, 1, 1));
+        } else if (m_numCommits == 2) {
+            m_layerTreeHost->setNeedsCommit();
+            m_layerTreeHost->finishAllRendering();
+            endTest();
+        }
+    }
+
+    virtual void afterTest()
+    {
+    }
+
+private:
+    int m_numCommits;
+};
+
+TEST_F(CCLayerTreeHostTestEmptyContentsShouldNotDraw, runMultiThread)
+{
+    runTestThreaded();
+}
+
 // A compositeAndReadback while invisible should force a normal commit without assertion.
 class CCLayerTreeHostTestCompositeAndReadbackWhileInvisible : public CCLayerTreeHostTestThreadOnly {
 public:
@@ -1022,7 +1081,7 @@ public:
 private:
 };
 
-TEST_F(CCLayerTreeHostTestAddAnimationWithTimingFunction, runMultiThread)
+TEST_F(CCLayerTreeHostTestAddAnimationWithTimingFunction, DISABLED_runMultiThread)
 {
     runTestThreaded();
 }
@@ -1061,6 +1120,7 @@ class CCLayerTreeHostTestSynchronizeAnimationStartTimes : public CCLayerTreeHost
 public:
     CCLayerTreeHostTestSynchronizeAnimationStartTimes()
         : m_numAnimates(0)
+        , m_layerTreeHostImpl(0)
     {
     }
 
@@ -1069,14 +1129,22 @@ public:
         postAddAnimationToMainThread();
     }
 
-    virtual void animateLayers(CCLayerTreeHostImpl* layerTreeHostImpl, double monotonicTime)
+    virtual void animateLayers(CCLayerTreeHostImpl* layerTreeHostImpl, double)
     {
+        m_layerTreeHostImpl = layerTreeHostImpl;
+
         if (!m_numAnimates) {
             m_numAnimates++;
             return;
         }
+    }
 
-        CCLayerAnimationController* controllerImpl = layerTreeHostImpl->rootLayer()->layerAnimationController();
+    virtual void notifyAnimationStarted(double time)
+    {
+        if (!m_numAnimates)
+            return;
+
+        CCLayerAnimationController* controllerImpl = m_layerTreeHostImpl->rootLayer()->layerAnimationController();
         CCLayerAnimationController* controller = m_layerTreeHost->rootLayer()->layerAnimationController();
         CCActiveAnimation* animationImpl = controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity);
         CCActiveAnimation* animation = controller->getActiveAnimation(0, CCActiveAnimation::Opacity);
@@ -1092,6 +1160,7 @@ public:
 
 private:
     int m_numAnimates;
+    CCLayerTreeHostImpl* m_layerTreeHostImpl;
 };
 
 TEST_F(CCLayerTreeHostTestSynchronizeAnimationStartTimes, runMultiThread)
@@ -1752,12 +1821,14 @@ public:
 
     virtual void paintContentsIfDirty(const CCOcclusionTracker* occlusion)
     {
-        m_occludedScreenSpace = occlusion ? occlusion->currentOcclusionInScreenSpace() : Region();
+        // Gain access to internals of the CCOcclusionTracker.
+        const TestCCOcclusionTracker* testOcclusion = static_cast<const TestCCOcclusionTracker*>(occlusion);
+        m_occludedScreenSpace = testOcclusion ? testOcclusion->occlusionInScreenSpace() : Region();
     }
 
     virtual bool drawsContent() const { return true; }
 
-    virtual Region opaqueContentsRegion() const { return intersection(m_opaqueContentsRect, visibleLayerRect()); }
+    virtual Region visibleContentOpaqueRegion() const { return intersection(m_opaqueContentsRect, visibleLayerRect()); }
     void setOpaqueContentsRect(const IntRect& opaqueContentsRect) { m_opaqueContentsRect = opaqueContentsRect; }
 
     const Region& occludedScreenSpace() const { return m_occludedScreenSpace; }
@@ -2102,6 +2173,7 @@ public:
         m_layerTreeHost->setRootLayer(0);
         m_layerTreeHost.clear();
 
+        CCLayerTreeHost::setNeedsFilterContext(false);
         endTest();
     }
 

@@ -150,6 +150,7 @@
     <file>TextEditorModel.js</file>
     <file>TextPrompt.js</file>
     <file>TextViewer.js</file>
+    <file>TimelineFrameController.js</file>
     <file>TimelineManager.js</file>
     <file>TimelineModel.js</file>
     <file>TimelinePresentationModel.js</file>
@@ -161,6 +162,7 @@
     <file>treeoutline.js</file>
     <file>UISourceCode.js</file>
     <file>UIUtils.js</file>
+    <file>UserAgentSupport.js</file>
     <file>UserMetrics.js</file>
     <file>utilities.js</file>
     <file>View.js</file>
@@ -241,6 +243,7 @@
     <file>Images/paneBottomGrow.png</file>
     <file>Images/paneBottomGrowActive.png</file>
     <file>Images/paneElementStateButtons.png</file>
+    <file>Images/paneFilterButtons.png</file>
     <file>Images/paneGrowHandleLine.png</file>
     <file>Images/paneRefreshButtons.png</file>
     <file>Images/paneSettingsButtons.png</file>

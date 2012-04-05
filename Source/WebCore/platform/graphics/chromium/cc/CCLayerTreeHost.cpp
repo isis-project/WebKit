@@ -49,6 +49,8 @@ static int numLayerTreeInstances;
 
 namespace WebCore {
 
+bool CCLayerTreeHost::s_needsFilterContext = false;
+
 bool CCLayerTreeHost::anyLayerTreeHostInstanceExists()
 {
     return numLayerTreeInstances > 0;
@@ -87,13 +89,9 @@ CCLayerTreeHost::CCLayerTreeHost(CCLayerTreeHostClient* client, const CCSettings
 bool CCLayerTreeHost::initialize()
 {
     TRACE_EVENT("CCLayerTreeHost::initialize", this, 0);
-    if (CCProxy::hasImplThread()) {
-        // The HUD does not work in threaded mode. Turn it off.
-        m_settings.showFPSCounter = false;
-        m_settings.showPlatformLayerTree = false;
-
+    if (CCProxy::hasImplThread())
         m_proxy = CCThreadProxy::create(this);
-    } else
+    else
         m_proxy = CCSingleThreadProxy::create(this);
     m_proxy->start();
 
@@ -179,11 +177,11 @@ void CCLayerTreeHost::deleteContentsTexturesOnImplThread(TextureAllocator* alloc
         m_contentsTextureManager->evictAndDeleteAllTextures(allocator);
 }
 
-void CCLayerTreeHost::updateAnimations(double wallClockTime)
+void CCLayerTreeHost::updateAnimations(double monotonicFrameBeginTime)
 {
     m_animating = true;
-    m_client->updateAnimations(wallClockTime);
-    animateLayers(monotonicallyIncreasingTime());
+    m_client->updateAnimations(monotonicFrameBeginTime);
+    animateLayers(monotonicFrameBeginTime);
     m_animating = false;
 }
 
@@ -231,6 +229,7 @@ void CCLayerTreeHost::commitComplete()
     m_deleteTextureAfterCommitList.clear();
     clearPendingUpdate();
     m_contentsTextureManager->unprotectAllTextures();
+    m_client->didCommit();
 }
 
 PassRefPtr<GraphicsContext3D> CCLayerTreeHost::createContext()
@@ -306,6 +305,11 @@ void CCLayerTreeHost::setNeedsRedraw()
     m_proxy->setNeedsRedraw();
     if (!CCThreadProxy::implThread())
         m_client->scheduleComposite();
+}
+
+bool CCLayerTreeHost::commitRequested() const
+{
+    return m_proxy->commitRequested();
 }
 
 void CCLayerTreeHost::setAnimationEvents(PassOwnPtr<CCAnimationEventsVector> events, double wallClockTime)
@@ -579,7 +583,7 @@ void CCLayerTreeHost::updateCompositorResources(GraphicsContext3D* context, CCTe
     CCLayerIteratorType end = CCLayerIteratorType::end(&m_updateList);
     for (CCLayerIteratorType it = CCLayerIteratorType::begin(&m_updateList); it != end; ++it) {
         if (it.representsTargetRenderSurface()) {
-            ASSERT(it->renderSurface()->drawOpacity() || it->drawOpacityIsAnimating());
+            ASSERT(it->renderSurface()->drawOpacity() || it->renderSurface()->drawOpacityIsAnimating());
             if (it->maskLayer())
                 it->maskLayer()->updateCompositorResources(context, updater);
 
@@ -654,7 +658,7 @@ void CCLayerTreeHost::deleteTextureAfterCommit(PassOwnPtr<ManagedTexture> textur
 
 void CCLayerTreeHost::animateLayers(double monotonicTime)
 {
-    if (!m_settings.threadedAnimationEnabled || !m_needsAnimateLayers || !m_rootLayer)
+    if (!m_settings.threadedAnimationEnabled || !m_needsAnimateLayers)
         return;
 
     TRACE_EVENT("CCLayerTreeHostImpl::animateLayers", this, 0);
@@ -663,6 +667,9 @@ void CCLayerTreeHost::animateLayers(double monotonicTime)
 
 bool CCLayerTreeHost::animateLayersRecursive(LayerChromium* current, double monotonicTime)
 {
+    if (!current)
+        return false;
+
     bool subtreeNeedsAnimateLayers = false;
     CCLayerAnimationController* currentController = current->layerAnimationController();
     currentController->animate(monotonicTime, 0);
@@ -681,6 +688,9 @@ bool CCLayerTreeHost::animateLayersRecursive(LayerChromium* current, double mono
 
 void CCLayerTreeHost::setAnimationEventsRecursive(const CCAnimationEventsVector& events, LayerChromium* layer, double wallClockTime)
 {
+    if (!layer)
+        return;
+
     for (size_t eventIndex = 0; eventIndex < events.size(); ++eventIndex) {
         if (layer->id() == events[eventIndex].layerId)
             layer->notifyAnimationStarted(events[eventIndex], wallClockTime);

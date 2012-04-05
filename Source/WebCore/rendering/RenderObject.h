@@ -97,6 +97,11 @@ enum BoxSide {
     BSLeft
 };
 
+enum MarkingBehavior {
+    MarkOnlyThis,
+    MarkContainingBlockChain,
+};
+
 const int caretWidth = 1;
 
 #if ENABLE(DASHBOARD_SUPPORT)
@@ -221,8 +226,6 @@ public:
     // normal flow object.
     void handleDynamicFloatPositionChange();
     
-    RenderTable* createAnonymousTable() const;
-    
     // RenderObject tree manipulation
     //////////////////////////////////////////
     virtual bool canHaveChildren() const { return virtualChildren(); }
@@ -344,6 +347,7 @@ public:
 #endif
 
     virtual bool isRenderFlowThread() const { return false; }
+    virtual bool isRenderNamedFlowThread() const { return false; }
     bool canHaveRegionStyle() const { return isRenderBlock() && !isAnonymous() && !isRenderFlowThread(); }
 
     bool isRoot() const { return document()->documentElement() == m_node; }
@@ -558,11 +562,11 @@ public:
     RenderBoxModelObject* offsetParent() const;
 
     void markContainingBlocksForLayout(bool scheduleRelayout = true, RenderObject* newRoot = 0);
-    void setNeedsLayout(bool b, bool markParents = true);
-    void setChildNeedsLayout(bool b, bool markParents = true);
+    void setNeedsLayout(bool needsLayout, MarkingBehavior = MarkContainingBlockChain);
+    void setChildNeedsLayout(bool childNeedsLayout, MarkingBehavior = MarkContainingBlockChain);
     void setNeedsPositionedMovementLayout();
     void setNeedsSimplifiedNormalFlowLayout();
-    void setPreferredLogicalWidthsDirty(bool, bool markParents = true);
+    void setPreferredLogicalWidthsDirty(bool, MarkingBehavior = MarkContainingBlockChain);
     void invalidateContainerPreferredLogicalWidths();
     
     void setNeedsLayoutAndPrefWidthsRecalc()
@@ -1034,14 +1038,14 @@ inline bool RenderObject::isBeforeOrAfterContent() const
     return isBeforeContent() || isAfterContent();
 }
 
-inline void RenderObject::setNeedsLayout(bool b, bool markParents)
+inline void RenderObject::setNeedsLayout(bool needsLayout, MarkingBehavior markParents)
 {
     bool alreadyNeededLayout = m_bitfields.needsLayout();
-    m_bitfields.setNeedsLayout(b);
-    if (b) {
+    m_bitfields.setNeedsLayout(needsLayout);
+    if (needsLayout) {
         ASSERT(!isSetNeedsLayoutForbidden());
         if (!alreadyNeededLayout) {
-            if (markParents)
+            if (markParents == MarkContainingBlockChain)
                 markContainingBlocksForLayout();
             if (hasLayer())
                 setLayerNeedsFullRepaint();
@@ -1055,13 +1059,13 @@ inline void RenderObject::setNeedsLayout(bool b, bool markParents)
     }
 }
 
-inline void RenderObject::setChildNeedsLayout(bool b, bool markParents)
+inline void RenderObject::setChildNeedsLayout(bool childNeedsLayout, MarkingBehavior markParents)
 {
     bool alreadyNeededLayout = normalChildNeedsLayout();
-    setNormalChildNeedsLayout(b);
-    if (b) {
+    setNormalChildNeedsLayout(childNeedsLayout);
+    if (childNeedsLayout) {
         ASSERT(!isSetNeedsLayoutForbidden());
-        if (!alreadyNeededLayout && markParents)
+        if (!alreadyNeededLayout && markParents == MarkContainingBlockChain)
             markContainingBlocksForLayout();
     } else {
         setPosChildNeedsLayout(false);

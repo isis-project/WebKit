@@ -107,6 +107,10 @@
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
 
+#if ENABLE(INSPECTOR)
+#include "InspectorController.h"
+#endif
+
 #if ENABLE(SVG)
 #include "SVGElementInstance.h"
 #include "SVGUseElement.h"
@@ -181,9 +185,9 @@ void Node::dumpStatistics()
 
                 // Tag stats
                 Element* element = static_cast<Element*>(node);
-                pair<HashMap<String, size_t>::iterator, bool> result = perTagCount.add(element->tagName(), 1);
-                if (!result.second)
-                    result.first->second++;
+                HashMap<String, size_t>::AddResult result = perTagCount.add(element->tagName(), 1);
+                if (!result.isNewEntry)
+                    result.iterator->second++;
 
                 if (ElementAttributeData* attributeData = element->attributeData()) {
                     attributes += attributeData->length();
@@ -715,6 +719,14 @@ bool Node::isContentRichlyEditable()
 {
     document()->updateStyleIfNeeded();
     return rendererIsEditable(RichlyEditable);
+}
+
+void Node::inspect()
+{
+#if ENABLE(INSPECTOR)
+    if (document() && document()->page())
+        document()->page()->inspectorController()->inspect(this);
+#endif
 }
 
 bool Node::rendererIsEditable(EditableLevel editableLevel) const
@@ -1600,12 +1612,12 @@ PassRefPtr<NodeList> Node::getElementsByTagName(const AtomicString& localName)
 
     AtomicString localNameAtom = name;
 
-    pair<NodeListsNodeData::TagNodeListCache::iterator, bool> result = ensureRareData()->ensureNodeLists(this)->m_tagNodeListCache.add(localNameAtom, 0);
-    if (!result.second)
-        return PassRefPtr<TagNodeList>(result.first->second);
+    NodeListsNodeData::TagNodeListCache::AddResult result = ensureRareData()->ensureNodeLists(this)->m_tagNodeListCache.add(localNameAtom, 0);
+    if (!result.isNewEntry)
+        return PassRefPtr<TagNodeList>(result.iterator->second);
 
     RefPtr<TagNodeList> list = TagNodeList::create(this, starAtom, localNameAtom);
-    result.first->second = list.get();
+    result.iterator->second = list.get();
     return list.release();   
 }
 
@@ -1623,36 +1635,36 @@ PassRefPtr<NodeList> Node::getElementsByTagNameNS(const AtomicString& namespaceU
 
     AtomicString localNameAtom = name;
 
-    pair<NodeListsNodeData::TagNodeListCacheNS::iterator, bool> result
+    NodeListsNodeData::TagNodeListCacheNS::AddResult result
         = ensureRareData()->ensureNodeLists(this)->m_tagNodeListCacheNS.add(QualifiedName(nullAtom, localNameAtom, namespaceURI).impl(), 0);
-    if (!result.second)
-        return PassRefPtr<TagNodeList>(result.first->second);
+    if (!result.isNewEntry)
+        return PassRefPtr<TagNodeList>(result.iterator->second);
 
     RefPtr<TagNodeList> list = TagNodeList::create(this, namespaceURI.isEmpty() ? nullAtom : namespaceURI, localNameAtom);
-    result.first->second = list.get();
+    result.iterator->second = list.get();
     return list.release();
 }
 
 PassRefPtr<NodeList> Node::getElementsByName(const String& elementName)
 {
-    pair<NodeListsNodeData::NameNodeListCache::iterator, bool> result = ensureRareData()->ensureNodeLists(this)->m_nameNodeListCache.add(elementName, 0);
-    if (!result.second)
-        return PassRefPtr<NodeList>(result.first->second);
+    NodeListsNodeData::NameNodeListCache::AddResult result = ensureRareData()->ensureNodeLists(this)->m_nameNodeListCache.add(elementName, 0);
+    if (!result.isNewEntry)
+        return PassRefPtr<NodeList>(result.iterator->second);
 
     RefPtr<NameNodeList> list = NameNodeList::create(this, elementName);
-    result.first->second = list.get();
+    result.iterator->second = list.get();
     return list.release();
 }
 
 PassRefPtr<NodeList> Node::getElementsByClassName(const String& classNames)
 {
-    pair<NodeListsNodeData::ClassNodeListCache::iterator, bool> result
+    NodeListsNodeData::ClassNodeListCache::AddResult result
         = ensureRareData()->ensureNodeLists(this)->m_classNodeListCache.add(classNames, 0);
-    if (!result.second)
-        return PassRefPtr<NodeList>(result.first->second);
+    if (!result.isNewEntry)
+        return PassRefPtr<NodeList>(result.iterator->second);
 
     RefPtr<ClassNodeList> list = ClassNodeList::create(this, classNames);
-    result.first->second = list.get();
+    result.iterator->second = list.get();
     return list.release();
 }
 
@@ -1663,7 +1675,7 @@ PassRefPtr<Element> Node::querySelector(const String& selectors, ExceptionCode& 
         return 0;
     }
     bool strictParsing = !document()->inQuirksMode();
-    CSSParser p(strictParsing);
+    CSSParser p(strictToCSSParserMode(strictParsing));
 
     CSSSelectorList querySelectorList;
     p.parseSelector(selectors, document(), querySelectorList);
@@ -1690,7 +1702,7 @@ PassRefPtr<NodeList> Node::querySelectorAll(const String& selectors, ExceptionCo
         return 0;
     }
     bool strictParsing = !document()->inQuirksMode();
-    CSSParser p(strictParsing);
+    CSSParser p(strictToCSSParserMode(strictParsing));
 
     CSSSelectorList querySelectorList;
     p.parseSelector(selectors, document(), querySelectorList);
@@ -2579,9 +2591,9 @@ void Node::collectMatchingObserversForMutation(HashMap<WebKitMutationObserver*, 
             MutationObserverRegistration* registration = registry->at(i).get();
             if (registration->shouldReceiveMutationFrom(this, type, attributeName)) {
                 MutationRecordDeliveryOptions deliveryOptions = registration->deliveryOptions();
-                pair<HashMap<WebKitMutationObserver*, MutationRecordDeliveryOptions>::iterator, bool> result = observers.add(registration->observer(), deliveryOptions);
-                if (!result.second)
-                    result.first->second |= deliveryOptions;
+                HashMap<WebKitMutationObserver*, MutationRecordDeliveryOptions>::AddResult result = observers.add(registration->observer(), deliveryOptions);
+                if (!result.isNewEntry)
+                    result.iterator->second |= deliveryOptions;
 
             }
         }
@@ -2592,9 +2604,9 @@ void Node::collectMatchingObserversForMutation(HashMap<WebKitMutationObserver*, 
             MutationObserverRegistration* registration = *iter;
             if (registration->shouldReceiveMutationFrom(this, type, attributeName)) {
                 MutationRecordDeliveryOptions deliveryOptions = registration->deliveryOptions();
-                pair<HashMap<WebKitMutationObserver*, MutationRecordDeliveryOptions>::iterator, bool> result = observers.add(registration->observer(), deliveryOptions);
-                if (!result.second)
-                    result.first->second |= deliveryOptions;
+                HashMap<WebKitMutationObserver*, MutationRecordDeliveryOptions>::AddResult result = observers.add(registration->observer(), deliveryOptions);
+                if (!result.isNewEntry)
+                    result.iterator->second |= deliveryOptions;
             }
         }
     }

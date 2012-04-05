@@ -21,6 +21,7 @@
 #ifndef StyleSheet_h
 #define StyleSheet_h
 
+#include "CSSParserMode.h"
 #include "KURLHash.h"
 #include "PlatformString.h"
 #include <wtf/ListHashSet.h>
@@ -31,6 +32,8 @@ namespace WebCore {
 class CSSImportRule;
 class MediaList;
 class Node;
+class StyleRuleImport;
+class StyleSheet;
 
 class StyleSheet : public RefCounted<StyleSheet> {
 public:
@@ -42,10 +45,9 @@ public:
     Node* ownerNode() const { return m_ownerNode; }
     void clearOwnerNode() { m_ownerNode = 0; }
 
-    CSSImportRule* ownerRule() const { return m_ownerRule; }
-    void clearOwnerRule() { m_ownerRule = 0; }
+    virtual CSSImportRule* ownerRule() const { return 0; }
 
-    StyleSheet* parentStyleSheet() const;
+    virtual StyleSheet* parentStyleSheet() const { return 0; }
 
     // Note that href is the URL that started the redirect chain that led to
     // this style sheet. This property probably isn't useful for much except
@@ -62,7 +64,7 @@ public:
     virtual String type() const = 0;
     virtual bool isLoading() = 0;
 
-    virtual bool parseString(const String&, bool strict = true) = 0;
+    virtual bool parseString(const String&, CSSParserMode = CSSStrictMode) = 0;
 
     virtual bool isCSSStyleSheet() const { return false; }
     virtual bool isXSLStyleSheet() const { return false; }
@@ -71,11 +73,10 @@ public:
 
 protected:
     StyleSheet(Node* ownerNode, const String& href, const KURL& finalURL);
-    StyleSheet(CSSImportRule* parentRule, const String& href, const KURL& finalURL);
+    StyleSheet(const String& href, const KURL& finalURL);
 
 private:
     bool m_disabled;
-    CSSImportRule* m_ownerRule;
     Node* m_ownerNode;
     String m_originalURL;
     KURL m_finalURL;

@@ -280,8 +280,8 @@ WebInspector.startEditing = function(element, config)
 
     element.addStyleClass("editing");
 
-    var oldTabIndex = element.tabIndex;
-    if (element.tabIndex < 0)
+    var oldTabIndex = element.getAttribute("tabIndex");
+    if (typeof oldTabIndex !== "number" || oldTabIndex < 0)
         element.tabIndex = 0;
 
     function blurEventListener() {
@@ -301,7 +301,11 @@ WebInspector.startEditing = function(element, config)
         WebInspector.markBeingEdited(element, false);
 
         this.removeStyleClass("editing");
-        this.tabIndex = oldTabIndex;
+        
+        if (typeof oldTabIndex !== "number")
+            element.removeAttribute("tabIndex");
+        else
+            this.tabIndex = oldTabIndex;
         this.scrollTop = 0;
         this.scrollLeft = 0;
 
@@ -351,10 +355,10 @@ WebInspector.startEditing = function(element, config)
     {
         if (result === "commit") {
             editingCommitted.call(element);
-            event.consume();
+            event.consume(true);
         } else if (result === "cancel") {
             editingCancelled.call(element);
-            event.consume();
+            event.consume(true);
         } else if (result && result.indexOf("move-") === 0) {
             moveDirection = result.substring(5);
             if (event.keyIdentifier !== "U+0009")

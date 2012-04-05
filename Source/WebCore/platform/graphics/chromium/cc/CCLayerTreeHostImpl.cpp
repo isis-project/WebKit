@@ -44,6 +44,17 @@
 
 namespace {
 const double lowFrequencyAnimationInterval = 1;
+
+void didVisibilityChange(WebCore::CCLayerTreeHostImpl* id, bool visible)
+{
+    if (visible) {
+        TRACE_EVENT_ASYNC_BEGIN1("webkit", "CCLayerTreeHostImpl::setVisible", id, "CCLayerTreeHostImpl", id);
+        return;
+    }
+
+    TRACE_EVENT_ASYNC_END0("webkit", "CCLayerTreeHostImpl::setVisible", id);
+}
+
 } // namespace
 
 namespace WebCore {
@@ -106,14 +117,16 @@ CCLayerTreeHostImpl::CCLayerTreeHostImpl(const CCSettings& settings, CCLayerTree
     , m_timeSourceClientAdapter(CCLayerTreeHostImplTimeSourceAdapter::create(this, CCDelayBasedTimeSource::create(lowFrequencyAnimationInterval * 1000.0, CCProxy::currentThread())))
 {
     ASSERT(CCProxy::isImplThread());
+    didVisibilityChange(this, m_visible);
 }
 
 CCLayerTreeHostImpl::~CCLayerTreeHostImpl()
 {
     ASSERT(CCProxy::isImplThread());
     TRACE_EVENT("CCLayerTreeHostImpl::~CCLayerTreeHostImpl()", this, 0);
-    if (m_layerRenderer)
-        m_layerRenderer->close();
+
+    if (rootLayer())
+        clearRenderSurfacesOnCCLayerImplRecursive(rootLayer());
 }
 
 void CCLayerTreeHostImpl::beginCommit()
@@ -129,7 +142,7 @@ void CCLayerTreeHostImpl::commitComplete()
 
 bool CCLayerTreeHostImpl::canDraw()
 {
-    if (!rootLayer())
+    if (!rootLayer() || rootLayer()->bounds().isEmpty())
         return false;
     if (viewportSize().isEmpty())
         return false;
@@ -364,9 +377,6 @@ bool CCLayerTreeHostImpl::prepareToDraw(FrameData& frame)
     frame.renderPasses.clear();
     frame.renderSurfaceLayerList.clear();
 
-    if (!rootLayer())
-        return false;
-
     if (!calculateRenderPasses(frame.renderPasses, frame.renderSurfaceLayerList))
         return false;
 
@@ -422,10 +432,10 @@ TextureAllocator* CCLayerTreeHostImpl::contentsTextureAllocator() const
     return m_layerRenderer ? m_layerRenderer->contentsTextureAllocator() : 0;
 }
 
-void CCLayerTreeHostImpl::swapBuffers()
+bool CCLayerTreeHostImpl::swapBuffers()
 {
     ASSERT(m_layerRenderer);
-    m_layerRenderer->swapBuffers(enclosingIntRect(m_rootDamageRect));
+    return m_layerRenderer->swapBuffers(enclosingIntRect(m_rootDamageRect));
 }
 
 void CCLayerTreeHostImpl::didLoseContext()
@@ -474,6 +484,7 @@ void CCLayerTreeHostImpl::setVisible(bool visible)
     if (m_visible == visible)
         return;
     m_visible = visible;
+    didVisibilityChange(this, m_visible);
 
     if (!m_layerRenderer)
         return;
@@ -489,9 +500,11 @@ bool CCLayerTreeHostImpl::initializeLayerRenderer(PassRefPtr<GraphicsContext3D> 
     OwnPtr<LayerRendererChromium> layerRenderer;
     layerRenderer = LayerRendererChromium::create(this, context);
 
-    if (m_layerRenderer) {
-        m_layerRenderer->close();
-        sendDidLoseContextRecursive(m_rootLayerImpl.get());
+    // Since we now have a new context/layerRenderer, we cannot continue to use the old
+    // resources (i.e. renderSurfaces and texture IDs).
+    if (rootLayer()) {
+        clearRenderSurfacesOnCCLayerImplRecursive(rootLayer());
+        sendDidLoseContextRecursive(rootLayer());
     }
 
     m_layerRenderer = layerRenderer.release();
@@ -810,14 +823,22 @@ void CCLayerTreeHostImpl::animateLayers(double monotonicTime, double wallClockTi
 
 void CCLayerTreeHostImpl::sendDidLoseContextRecursive(CCLayerImpl* current)
 {
-    if (!current)
-        return;
-
+    ASSERT(current);
     current->didLoseContext();
-    sendDidLoseContextRecursive(current->maskLayer());
-    sendDidLoseContextRecursive(current->replicaLayer());
+    if (current->maskLayer())
+        sendDidLoseContextRecursive(current->maskLayer());
+    if (current->replicaLayer())
+        sendDidLoseContextRecursive(current->replicaLayer());
     for (size_t i = 0; i < current->children().size(); ++i)
         sendDidLoseContextRecursive(current->children()[i].get());
+}
+
+void CCLayerTreeHostImpl::clearRenderSurfacesOnCCLayerImplRecursive(CCLayerImpl* current)
+{
+    ASSERT(current);
+    for (size_t i = 0; i < current->children().size(); ++i)
+        clearRenderSurfacesOnCCLayerImplRecursive(current->children()[i].get());
+    current->clearRenderSurface();
 }
 
 void CCLayerTreeHostImpl::animateGestures(double monotonicTime)

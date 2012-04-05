@@ -501,7 +501,7 @@ PassRefPtr<TypeBuilder::CSS::CSSStyle> InspectorStyle::styleWithProperties() con
                 // Parsed property overrides any property with the same name. Non-parsed property overrides
                 // previous non-parsed property with the same name (if any).
                 bool shouldInactivate = false;
-                CSSPropertyID propertyId = static_cast<CSSPropertyID>(cssPropertyID(name));
+                CSSPropertyID propertyId = cssPropertyID(name);
                 // Canonicalize property names to treat non-prefixed and vendor-prefixed property names the same (opacity vs. -webkit-opacity).
                 String canonicalPropertyName = propertyId ? String(getPropertyName(propertyId)) : name;
                 HashMap<String, RefPtr<TypeBuilder::CSS::CSSProperty> >::iterator activeIt = propertyNameToPreviousActiveProperty.find(canonicalPropertyName);
@@ -718,9 +718,8 @@ String InspectorStyleSheet::finalURL() const
 
 void InspectorStyleSheet::reparseStyleSheet(const String& text)
 {
-    for (unsigned i = 0, size = m_pageStyleSheet->length(); i < size; ++i)
-        m_pageStyleSheet->remove(0);
-    m_pageStyleSheet->parseString(text, m_pageStyleSheet->useStrictParsing());
+    m_pageStyleSheet->clearRules();
+    m_pageStyleSheet->parseString(text, m_pageStyleSheet->cssParserMode());
     m_pageStyleSheet->styleSheetChanged();
     m_inspectorStyles.clear();
     fireStyleSheetChanged();
@@ -1098,7 +1097,7 @@ bool InspectorStyleSheet::ensureSourceData()
     RefPtr<CSSRuleList> ruleList = asCSSRuleList(newStyleSheet.get());
     collectFlatRules(ruleList, &rules);
     for (unsigned i = 0, size = rules.size(); i < size; ++i) {
-        StyleRuleRangeMap::iterator it = ruleRangeMap.find(rules.at(i));
+        StyleRuleRangeMap::iterator it = ruleRangeMap.find(rules.at(i)->styleRule());
         if (it != ruleRangeMap.end()) {
             fixUnparsedPropertyRanges(it->second.get(), m_parsedStyleSheet->text());
             rangesVector->append(it->second);

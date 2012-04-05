@@ -237,7 +237,6 @@ v8 {
         bindings/v8/custom/V8ConsoleCustom.cpp \
         bindings/v8/custom/V8SQLTransactionSyncCustom.cpp \
         bindings/v8/V8WorkerContextErrorHandler.cpp \
-        testing/v8/V8InternalsCustom.cpp \
         testing/v8/WebCoreTestSupport.cpp
 } else {
     SOURCES += \
@@ -398,7 +397,6 @@ v8 {
         bridge/runtime_method.cpp \
         bridge/runtime_object.cpp \
         bridge/runtime_root.cpp \
-        testing/js/JSInternalsCustom.cpp \
         testing/js/WebCoreTestSupport.cpp
 }
 
@@ -433,7 +431,6 @@ SOURCES += \
     css/CSSComputedStyleDeclaration.cpp \
     css/CSSCrossfadeValue.cpp \
     css/CSSCursorImageValue.cpp \
-    css/CSSFlexValue.cpp \
     css/CSSFontFace.cpp \
     css/CSSFontFaceRule.cpp \
     css/CSSFontFaceSrcValue.cpp \
@@ -454,7 +451,6 @@ SOURCES += \
     css/CSSParserValues.cpp \
     css/CSSPrimitiveValue.cpp \
     css/CSSProperty.cpp \
-    css/CSSPropertyLonghand.cpp \
     css/CSSPropertySourceData.cpp \
     css/CSSReflectValue.cpp \
     css/CSSRule.cpp \
@@ -490,6 +486,7 @@ SOURCES += \
     css/ShadowValue.cpp \
     css/StyleMedia.cpp \
     css/StylePropertySet.cpp \
+    css/StylePropertyShorthand.cpp \
     css/StyleRule.cpp \
     css/StyleSheet.cpp \
     css/StyleSheetList.cpp \
@@ -516,6 +513,7 @@ SOURCES += \
     dom/Clipboard.cpp \
     dom/ClipboardEvent.cpp \
     dom/Comment.cpp \
+    dom/ComposedShadowTreeWalker.cpp \
     dom/CompositionEvent.cpp \
     dom/ContainerNode.cpp \
     dom/ContextDestructionObserver.cpp \
@@ -630,6 +628,7 @@ SOURCES += \
     dom/WheelEvent.cpp \
     dom/WindowEventContext.cpp \
     dom/default/PlatformMessagePortChannel.cpp \
+    editing/AlternativeTextController.cpp \
     editing/AppendNodeCommand.cpp \
     editing/ApplyBlockElementCommand.cpp \
     editing/ApplyStyleCommand.cpp \
@@ -671,7 +670,6 @@ SOURCES += \
     editing/SetSelectionCommand.cpp \
     editing/SpellChecker.cpp \
     editing/SpellingCorrectionCommand.cpp \
-    editing/SpellingCorrectionController.cpp \
     editing/SplitElementCommand.cpp \
     editing/SplitTextNodeCommand.cpp \
     editing/SplitTextNodeContainingElementCommand.cpp \
@@ -1148,6 +1146,7 @@ SOURCES += \
     platform/network/FormDataBuilder.cpp \
     platform/network/HTTPHeaderMap.cpp \
     platform/network/HTTPParsers.cpp \
+    platform/network/HTTPRequest.cpp \
     platform/network/HTTPValidation.cpp \
     platform/network/MIMEHeader.cpp \
     platform/network/NetworkStateNotifier.cpp \
@@ -1255,7 +1254,9 @@ SOURCES += \
     rendering/RenderMenuList.cpp \
     rendering/RenderMeter.cpp \
     rendering/RenderMultiColumnBlock.cpp \
+    rendering/RenderMultiColumnFlowThread.cpp \
     rendering/RenderMultiColumnSet.cpp \
+    rendering/RenderNamedFlowThread.cpp \
     rendering/RenderObject.cpp \
     rendering/RenderObjectChildList.cpp \
     rendering/RenderPart.cpp \
@@ -1407,6 +1408,7 @@ v8 {
         bindings/v8/PageScriptDebugServer.h \
         bindings/v8/RetainedDOMInfo.h \
         bindings/v8/RetainedObjectInfo.h \
+        bindings/v8/SafeAllocation.h \
         bindings/v8/ScheduledAction.h \
         bindings/v8/ScopedDOMDataStore.h \
         bindings/v8/ScriptCachedFrameData.h \
@@ -1575,7 +1577,6 @@ HEADERS += \
     css/CSSComputedStyleDeclaration.h \
     css/CSSCrossfadeValue.h \
     css/CSSCursorImageValue.h \
-    css/CSSFlexValue.h \
     css/CSSFontFace.h \
     css/CSSFontFaceRule.h \
     css/CSSFontFaceSource.h \
@@ -1593,10 +1594,10 @@ HEADERS += \
     css/CSSOMUtils.h \
     css/CSSPageRule.h \
     css/CSSParser.h \
+    css/CSSParserMode.h \
     css/CSSParserValues.h \
     css/CSSPrimitiveValue.h \
     css/CSSProperty.h \
-    css/CSSPropertyLonghand.h \
     css/CSSReflectValue.h \
     css/CSSRule.h \
     css/CSSRuleList.h \
@@ -1631,6 +1632,7 @@ HEADERS += \
     css/ShadowValue.h \
     css/StyleMedia.h \
     css/StylePropertySet.h \
+    css/StylePropertyShorthand.h \
     css/StyleRule.h \
     css/StyleSheet.h \
     css/StyleSheetList.h \
@@ -1656,6 +1658,7 @@ HEADERS += \
     dom/ClipboardEvent.h \
     dom/Clipboard.h \
     dom/Comment.h \
+    dom/ComposedShadowTreeWalker.h \
     dom/ContainerNode.h \
     dom/CustomEvent.h \
     dom/default/PlatformMessagePortChannel.h \
@@ -1758,6 +1761,7 @@ HEADERS += \
     dom/WebKitNamedFlow.h \
     dom/WebKitTransitionEvent.h \
     dom/WheelEvent.h \
+    editing/AlternativeTextController.h \
     editing/AppendNodeCommand.h \
     editing/ApplyBlockElementCommand.h \
     editing/ApplyStyleCommand.h \
@@ -1799,7 +1803,6 @@ HEADERS += \
     editing/SetNodeAttributeCommand.h \
     editing/SmartReplace.h \
     editing/SpellingCorrectionCommand.h \
-    editing/SpellingCorrectionController.h \
     editing/SplitElementCommand.h \
     editing/SplitTextNodeCommand.h \
     editing/SplitTextNodeContainingElementCommand.h \
@@ -2288,6 +2291,7 @@ HEADERS += \
     platform/network/FormData.h \
     platform/network/HTTPHeaderMap.h \
     platform/network/HTTPParsers.h \
+    platform/network/HTTPRequest.h \
     platform/network/HTTPValidation.h \
     platform/network/HTTPStatusCodes.h \
     platform/network/MIMESniffing.h \
@@ -2500,6 +2504,7 @@ HEADERS += \
     rendering/style/SVGRenderStyle.h \
     rendering/svg/RenderSVGBlock.h \
     rendering/svg/RenderSVGContainer.h \
+    rendering/svg/RenderSVGEllipse.h \
     rendering/svg/RenderSVGForeignObject.h \
     rendering/svg/RenderSVGGradientStop.h \
     rendering/svg/RenderSVGHiddenContainer.h \
@@ -2608,6 +2613,7 @@ HEADERS += \
     svg/SVGAnimatedColor.h \
     svg/SVGAnimatedEnumeration.h \
     svg/SVGAnimatedInteger.h \
+    svg/SVGAnimatedIntegerOptionalInteger.h \
     svg/SVGAnimatedLength.h \
     svg/SVGAnimatedLengthList.h \
     svg/SVGAnimatedNumber.h \
@@ -3434,6 +3440,7 @@ contains(DEFINES, ENABLE_SVG=1) {
         rendering/style/SVGRenderStyle.cpp \
         rendering/style/SVGRenderStyleDefs.cpp \
         rendering/PointerEventsHitRules.cpp \
+        rendering/svg/RenderSVGEllipse.cpp \
         rendering/svg/RenderSVGPath.cpp \
         rendering/svg/RenderSVGRect.cpp \
         rendering/svg/RenderSVGShape.cpp \
@@ -3520,7 +3527,9 @@ contains(DEFINES, ENABLE_SVG=1) {
                   svg/SVGAnimatedAngle.cpp \
                   svg/SVGAnimatedBoolean.cpp \
                   svg/SVGAnimatedColor.cpp \
+                  svg/SVGAnimatedEnumeration.cpp \
                   svg/SVGAnimatedInteger.cpp \
+                  svg/SVGAnimatedIntegerOptionalInteger.cpp \
                   svg/SVGAnimatedLength.cpp \
                   svg/SVGAnimatedLengthList.cpp \
                   svg/SVGAnimatedNumber.cpp \
@@ -3728,6 +3737,7 @@ contains(DEFINES, ENABLE_WEB_SOCKETS=1) {
         Modules/websockets/WebSocketDeflateFramer.cpp \
         Modules/websockets/WebSocketDeflater.cpp \
         Modules/websockets/WebSocketExtensionDispatcher.cpp \
+        Modules/websockets/WebSocketFrame.cpp \
         Modules/websockets/WebSocketHandshake.cpp \
         Modules/websockets/WebSocketHandshakeRequest.cpp \
         Modules/websockets/WebSocketHandshakeResponse.cpp \
@@ -3773,6 +3783,7 @@ contains(DEFINES, ENABLE_WEBGL=1) {
         html/canvas/WebGLRenderbuffer.h \
         html/canvas/WebGLRenderingContext.h \
         html/canvas/WebGLShader.h \
+        html/canvas/WebGLShaderPrecisionFormat.h \
         html/canvas/WebGLSharedObject.h \
         html/canvas/EXTTextureFilterAnisotropic.h \
         html/canvas/OESStandardDerivatives.h \
@@ -3814,6 +3825,7 @@ contains(DEFINES, ENABLE_WEBGL=1) {
         html/canvas/WebGLRenderbuffer.cpp \
         html/canvas/WebGLRenderingContext.cpp \
         html/canvas/WebGLShader.cpp \
+        html/canvas/WebGLShaderPrecisionFormat.cpp \
         html/canvas/WebGLSharedObject.cpp \
         html/canvas/EXTTextureFilterAnisotropic.cpp \
         html/canvas/OESStandardDerivatives.cpp \

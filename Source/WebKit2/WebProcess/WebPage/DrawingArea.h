@@ -78,6 +78,7 @@ public:
     virtual void pageCustomRepresentationChanged() { }
 
     virtual void setPaintingEnabled(bool) { }
+    virtual void updatePreferences() { }
 
 #if USE(ACCELERATED_COMPOSITING)
     virtual void setRootCompositingLayer(WebCore::GraphicsLayer*) = 0;
@@ -105,12 +106,12 @@ private:
     virtual void didUpdate() { }
     virtual void suspendPainting() { }
     virtual void resumePainting() { }
+    virtual void setLayerHostingMode(uint32_t) { }
 
 #if PLATFORM(MAC)
     // Used by TiledCoreAnimationDrawingArea.
     virtual void updateGeometry(const WebCore::IntSize& viewSize) { }
     virtual void setDeviceScaleFactor(float) { }
-    virtual void setLayerHostingMode(uint32_t) { }
 #endif
 };
 

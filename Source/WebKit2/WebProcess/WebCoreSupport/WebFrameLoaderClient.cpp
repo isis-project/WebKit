@@ -740,7 +740,7 @@ void WebFrameLoaderClient::dispatchWillSubmitForm(FramePolicyFunction function, 
     RefPtr<FormState> formState = prpFormState;
     
     HTMLFormElement* form = formState->form();
-    WebFrame* sourceFrame = static_cast<WebFrameLoaderClient*>(formState->sourceFrame()->loader()->client())->webFrame();    
+    WebFrame* sourceFrame = static_cast<WebFrameLoaderClient*>(formState->sourceDocument()->frame()->loader()->client())->webFrame();
     const Vector<std::pair<String, String> >& values = formState->textFieldValues();
 
     RefPtr<APIObject> userData;
@@ -751,11 +751,6 @@ void WebFrameLoaderClient::dispatchWillSubmitForm(FramePolicyFunction function, 
     StringPairVector valuesVector(values);
 
     webPage->send(Messages::WebPageProxy::WillSubmitForm(m_frame->frameID(), sourceFrame->frameID(), valuesVector, listenerID, InjectedBundleUserMessageEncoder(userData.get())));
-}
-
-void WebFrameLoaderClient::dispatchDidLoadMainResource(DocumentLoader*)
-{
-    notImplemented();
 }
 
 void WebFrameLoaderClient::revertToProvisionalState(DocumentLoader*)
@@ -1172,10 +1167,8 @@ void WebFrameLoaderClient::transitionToCommittedForNewPage()
     bool isMainFrame = webPage->mainWebFrame() == m_frame;
     bool shouldUseFixedLayout = isMainFrame && webPage->useFixedLayout();
 
-#if !USE(TILED_BACKING_STORE)
     const ResourceResponse& response = m_frame->coreFrame()->loader()->documentLoader()->response();
     m_frameHasCustomRepresentation = isMainFrame && WebProcess::shared().shouldUseCustomRepresentationForResponse(response);
-#endif
 
     m_frame->coreFrame()->createView(webPage->size(), backgroundColor, /* transparent */ false, IntSize(), shouldUseFixedLayout);
     m_frame->coreFrame()->view()->setTransparent(!webPage->drawsBackground());
@@ -1267,6 +1260,9 @@ PassRefPtr<Widget> WebFrameLoaderClient::createPlugin(const IntSize&, HTMLPlugIn
     parameters.values = paramValues;
     parameters.mimeType = mimeType;
     parameters.loadManually = loadManually;
+#if PLATFORM(MAC)
+    parameters.layerHostingMode = webPage->layerHostingMode();
+#endif
 
 #if PLUGIN_ARCHITECTURE(X11)
     // FIXME: This should really be X11-specific plug-in quirks.

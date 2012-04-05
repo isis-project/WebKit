@@ -74,10 +74,11 @@ public:
     bool isInitialValue() const { return m_classType == InitialClass; }
     bool isReflectValue() const { return m_classType == ReflectClass; }
     bool isShadowValue() const { return m_classType == ShadowClass; }
-    bool isTimingFunctionValue() const { return m_classType >= CubicBezierTimingFunctionClass && m_classType <= StepsTimingFunctionClass; }
+    bool isCubicBezierTimingFunctionValue() const { return m_classType == CubicBezierTimingFunctionClass; }
+    bool isLinearTimingFunctionValue() const { return m_classType == LinearTimingFunctionClass; }
+    bool isStepsTimingFunctionValue() const { return m_classType == StepsTimingFunctionClass; }
     bool isWebKitCSSTransformValue() const { return m_classType == WebKitCSSTransformClass; }
     bool isCSSLineBoxContainValue() const { return m_classType == LineBoxContainClass; }
-    bool isFlexValue() const { return m_classType == FlexClass; }
     bool isCalculationValue() const {return m_classType == CalculationClass; }
 #if ENABLE(CSS_FILTERS)
     bool isWebKitCSSFilterValue() const { return m_classType == WebKitCSSFilterClass; }
@@ -128,7 +129,6 @@ protected:
         ShadowClass,
         UnicodeRangeClass,
         LineBoxContainClass,
-        FlexClass,
         CalculationClass,
 #if ENABLE(CSS_FILTERS) && ENABLE(CSS_SHADERS)
         WebKitCSSShaderClass,

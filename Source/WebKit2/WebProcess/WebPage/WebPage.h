@@ -81,6 +81,7 @@
 
 #if PLATFORM(MAC)
 #include "DictionaryPopupInfo.h"
+#include "LayerHostingContext.h"
 #include <wtf/RetainPtr.h>
 OBJC_CLASS NSDictionary;
 OBJC_CLASS NSObject;
@@ -299,6 +300,9 @@ public:
     void addPluginView(PluginView*);
     void removePluginView(PluginView*);
 
+    LayerHostingMode layerHostingMode() const { return m_layerHostingMode; }
+    void setLayerHostingMode(LayerHostingMode);
+
     bool windowIsVisible() const { return m_windowIsVisible; }
     const WebCore::IntRect& windowFrameInScreenCoordinates() const { return m_windowFrameInScreenCoordinates; }
     const WebCore::IntRect& viewFrameInWindowCoordinates() const { return m_viewFrameInWindowCoordinates; }
@@ -483,7 +487,7 @@ public:
     void unmarkAllBadGrammar();
 
 #if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD)
-    void handleCorrectionPanelResult(const String&);
+    void handleAlternativeTextUIResult(const String&);
 #endif
 
     // For testing purpose.
@@ -508,7 +512,11 @@ public:
     void recomputeShortCircuitHorizontalWheelEventsState();
 
     bool willGoToBackForwardItemCallbackEnabled() const { return m_willGoToBackForwardItemCallbackEnabled; }
-    
+
+#if ENABLE(PAGE_VISIBILITY_API)
+    void setVisibilityState(int visibilityState, bool isInitialState);
+#endif
+
 private:
     WebPage(uint64_t pageID, const WebPageCreationParameters&);
 
@@ -623,7 +631,7 @@ private:
     void countStringMatches(const String&, uint32_t findOptions, uint32_t maxMatchCount);
 
 #if PLATFORM(QT)
-    void findZoomableAreaForPoint(const WebCore::IntPoint&);
+    void findZoomableAreaForPoint(const WebCore::IntPoint&, const WebCore::IntSize& area);
 #endif
 
     void didChangeSelectedIndexForActivePopupMenu(int32_t newIndex);
@@ -699,6 +707,9 @@ private:
     
     // All plug-in views on this web page.
     HashSet<PluginView*> m_pluginViews;
+
+    // The layer hosting mode.
+    LayerHostingMode m_layerHostingMode;
 
     RetainPtr<WKAccessibilityWebPageObject> m_mockAccessibilityElement;
 

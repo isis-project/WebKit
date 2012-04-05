@@ -64,6 +64,12 @@ fast/text/large-text-composed-char-dos.html
 # https://bugs.webkit.org/show_bug.cgi?id=58972
 media/adopt-node-crash.html
 
+# https://bugs.webkit.org/show_bug.cgi?id=82484
+# Started to fail after upgrading libsoup to 2.37.92
+fast/encoding/percent-escaping.html
+fast/loader/file-URL-with-port-number.html
+fast/loader/location-port.html
+
 ###############################################################################
 # TESTS CRASHING
 ###############################################################################
@@ -160,6 +166,14 @@ media/media-blocked-by-willsendrequest.html
 media/media-controls-clone-crash.html
 media/audio-repaint.html
 
+# https://bugs.webkit.org/show_bug.cgi?id=83005
+fast/events/ondrop-text-html.html
+editing/pasteboard/get-data-text-plain-drop.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=83046
+inspector/styles/commit-selector.html
+inspector/console/console-eval-global.html
+
 ###############################################################################
 # EXPECTED FAILURES
 ###############################################################################
@@ -244,6 +258,9 @@ http/tests/inspector/indexeddb
 
 # StorageTracker is not enabled.
 storage/domstorage/localstorage/storagetracker
+
+# Datalist is not yet enabled.
+fast/forms/datalist
 
 # Color input is not yet enabled.
 fast/forms/color
@@ -367,6 +384,11 @@ fast/css-grid-layout
 
 # <style scoped> is not yet enabled. http://webkit.org/b/49142
 fast/css/style-scoped
+# CSS Regions tests for region styling and scoped styles
+fast/regions/style-scoped-in-flow-override-container-style.html
+fast/regions/style-scoped-in-flow-override-region-styling-multiple-regions.html
+fast/regions/style-scoped-in-flow-override-region-styling.html
+fast/regions/style-scoped-in-flow.html
 
 # ENABLE(SHADOW_DOM) is disabled.
 fast/dom/shadow
@@ -423,6 +445,9 @@ pointer-lock/
 
 #Battery Status API support not yet. http://webkit.org/b/62698
 batterystatus
+
+#Network Information API support not yet. http://webkit.org/b/73528
+networkinformation
 
 ###############################################################################
 # TESTS FAILING
@@ -612,12 +637,8 @@ http/tests/multipart/invalid-image-data-standalone.html
 
 http/tests/plugins/npapi-response-headers.html
 http/tests/security/feed-urls-from-remote.html
-http/tests/security/mixedContent/insecure-css-in-main-frame.html
 http/tests/security/mixedContent/insecure-iframe-in-main-frame.html
-http/tests/security/mixedContent/insecure-image-in-main-frame.html
-http/tests/security/mixedContent/insecure-script-in-iframe.html
 http/tests/security/mixedContent/redirect-http-to-https-iframe-in-main-frame.html
-http/tests/security/mixedContent/redirect-http-to-https-script-in-iframe.html
 http/tests/security/mixedContent/redirect-https-to-http-iframe-in-main-frame.html
 http/tests/security/XFrameOptions/x-frame-options-deny-meta-tag-in-body.html
 http/tests/security/XFrameOptions/x-frame-options-deny-meta-tag-parent-same-origin-allow.html
@@ -640,8 +661,6 @@ http/tests/xmlhttprequest/xmlhttprequest-contenttype-empty.html
 #   Tests failing
 media/video-size-intrinsic-scale.html
 media/video-seek-past-end-playing.html
-# https://bugs.webkit.org/show_bug.cgi?id=30198
-media/video-source-error.html
 media/sources-fallback-codecs.html
 
 # Tests in plugins/ directory
@@ -680,7 +699,6 @@ storage/transaction-success-callback-isolated-world.html
 editing/selection/move-left-right.html
 
 # Probably related to https://bugs.webkit.org/show_bug.cgi?id=27637
-http/tests/security/mixedContent/insecure-plugin-in-iframe.html
 http/tests/loading/basic-auth-resend-wrong-credentials.html 
 
 # https://bugs.webkit.org/show_bug.cgi?id=30620
@@ -731,10 +749,6 @@ http/tests/misc/will-send-request-returns-null-on-redirect.html
 # Requires willPerformClientRedirectToURL
 # https://bugs.webkit.org/show_bug.cgi?id=58526
 http/tests/loading/onload-vs-immediate-refresh.pl
-
-# https://bugs.webkit.org/show_bug.cgi?id=59367
-# DRT missing didRunInsecureContent notification
-http/tests/security/mixedContent/insecure-css-in-main-frame.html
 
 # GTK+ does not have layoutTestController.setDomainRelaxationForbiddenForURLScheme
 http/tests/security/setDomainRelaxationForbiddenForURLScheme.html
@@ -1107,6 +1121,10 @@ inspector/debugger/event-listener-breakpoints.html
 inspector/debugger/step-through-event-listeners.html
 inspector/debugger/xhr-breakpoints.html
 
+# JSC doesn't support heap profiling
+# https://bugs.webkit.org/show_bug.cgi?id=50485
+inspector/profiler/heap-snapshot-inspect-dom-wrapper.html
+
 # https://bugs.webkit.org/show_bug.cgi?id=40300
 inspector/debugger/live-edit.html
 
@@ -1117,10 +1135,6 @@ http/tests/inspector/compiler-source-mapping-debug.html
 # https://bugs.webkit.org/show_bug.cgi?id=44316
 platform/gtk/accessibility/object-attributes.html
 platform/gtk/accessibility/title-and-alt.html
-
-# fails on 32-bits debug bot
-# https://bugs.webkit.org/show_bug.cgi?id=50389
-media/video-volume.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=44932
 canvas/philip/tests/2d.path.isPointInPath.edge.html
@@ -1180,6 +1194,7 @@ media/event-attributes.html
 # https://bugs.webkit.org/show_bug.cgi?id=50740
 editing/spelling/spelling-backspace-between-lines.html
 editing/spelling/spellcheck-paste.html
+editing/spelling/spellcheck-paste-disabled.html
 editing/spelling/spellcheck-queue.html
 editing/spelling/spellcheck-sequencenum.html
 editing/spelling/spellcheck-async-mutation.html
@@ -1412,11 +1427,6 @@ fast/viewport/viewport-133.html
 # https://bugs.webkit.org/show_bug.cgi?id=71465
 http/tests/security/xssAuditor/script-tag-with-callbacks.html
 
-# DRT missing didRunInsecureContent notification
-# https://bugs.webkit.org/show_bug.cgi?id=59367
-http/tests/security/mixedContent/insecure-css-in-iframe.html
-http/tests/security/mixedContent/redirect-https-to-http-script-in-iframe.html
-
 # ASSERT(!needsLayout()) in frame flattening test
 # https://bugs.webkit.org/show_bug.cgi?id=80155
 fast/frames/flattening/iframe-flattening-nested.html
@@ -1627,5 +1637,39 @@ inspector/debugger/snippets-model.html
 # https://bugs.webkit.org/show_bug.cgi?id=82020
 plugins/netscape-dom-access-and-reload.html
 
+# https://bugs.webkit.org/show_bug.cgi?id=82628
+svg/hittest/svg-ellipse-non-scale-stroke.xhtml
+
 # The inner <input> should now grow to take the full cell's height.
 fast/table/colspanMinWidth-vertical.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=82309
+http/tests/xmlhttprequest/basic-auth-default.html
+http/tests/xmlhttprequest/re-login-async.html
+
+# This should only be a layer change.
+# http://webkit.org/b/82129
+fast/box-shadow/shadow-buffer-partial.html
+fast/block/lineboxcontain/block-font.html
+fast/block/lineboxcontain/block-glyphs.html
+fast/block/lineboxcontain/font.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=82886
+inspector/styles/override-screen-size.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=83006
+fast/events/drop-handler-should-not-stop-navigate.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=72434
+inspector/styles/svg-style.xhtml
+
+# https://bugs.webkit.org/show_bug.cgi?id=83174
+inspector
+http/tests/inspector
+
+# https://bugs.webkit.org/show_bug.cgi?id=43034
+inspector/debugger/debugger-breakpoints-not-activated-on-reload.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=82886
+inspector/styles/override-screen-size.html
+

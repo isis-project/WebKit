@@ -30,7 +30,7 @@ handlers:
   script: main.py
   secure: always
 
-- url: /admin/
+- url: /admin/.*
   script: main.py
   secure: always
   login: admin

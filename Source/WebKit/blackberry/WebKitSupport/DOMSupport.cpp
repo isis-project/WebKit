@@ -48,6 +48,15 @@ namespace BlackBerry {
 namespace WebKit {
 namespace DOMSupport {
 
+void visibleTextQuads(const VisibleSelection& selection, Vector<FloatQuad>& quads)
+{
+    if (!selection.isRange())
+        return;
+    ASSERT(selection.firstRange());
+
+    visibleTextQuads(*(selection.firstRange()), quads, true /* useSelectionHeight */);
+}
+
 void visibleTextQuads(const Range& range, Vector<FloatQuad>& quads, bool useSelectionHeight)
 {
     // Range::textQuads includes hidden text, which we don't want.
@@ -165,7 +174,7 @@ bool isColorInputField(const Element* element)
 
     const HTMLInputElement* inputElement = static_cast<const HTMLInputElement*>(element);
 
-#if ENABLE(INPUT_COLOR)
+#if ENABLE(INPUT_TYPE_COLOR)
     if (inputElement->isColorControl())
         return true;
 #endif

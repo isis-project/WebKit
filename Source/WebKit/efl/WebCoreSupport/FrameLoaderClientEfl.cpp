@@ -50,6 +50,7 @@
 #include "ProgressTracker.h"
 #include "RenderPart.h"
 #include "ResourceRequest.h"
+#include "ResourceResponse.h"
 #include "Settings.h"
 #include "WebKitVersion.h"
 #include "ewk_logging.h"
@@ -122,8 +123,14 @@ void FrameLoaderClientEfl::dispatchWillSubmitForm(FramePolicyFunction function, 
 
 void FrameLoaderClientEfl::committedLoad(DocumentLoader* loader, const char* data, int length)
 {
-    if (!m_pluginView)
+    if (!m_pluginView) {
         loader->commitData(data, length);
+
+        // Let the media document handle the rest of loading itself, cancel here.
+        Frame* coreFrame = loader->frame();
+        if (coreFrame && coreFrame->document()->isMediaDocument())
+            loader->cancelMainResourceLoad(pluginWillHandleLoadError(loader->response()));
+    }
 
     // We re-check here as the plugin can have been created
     if (m_pluginView) {
@@ -165,21 +172,22 @@ void FrameLoaderClientEfl::dispatchWillSendRequest(DocumentLoader* loader, unsig
     CString url = coreRequest.url().string().utf8();
     DBG("Resource url=%s", url.data());
 
-    Ewk_Frame_Resource_Request request = { 0, identifier };
+    // We want to distinguish between a request for a document to be loaded into
+    // the main frame, a sub-frame, or the sub-objects in that document.
+    bool isMainFrameRequest = false;
+    if (loader) {
+            const FrameLoader* frameLoader = loader->frameLoader();
+            isMainFrameRequest = (loader == frameLoader->provisionalDocumentLoader() && frameLoader->isLoadingMainFrame());
+    }
+
+    Ewk_Frame_Resource_Request request = { 0, identifier, m_frame, isMainFrameRequest };
     Ewk_Frame_Resource_Request orig = request; /* Initialize const fields. */
 
     orig.url = request.url = url.data();
 
     ewk_frame_request_will_send(m_frame, &request);
 
-    // We want to distinguish between a request for a document to be loaded into
-    // the main frame, a sub-frame, or the sub-objects in that document (via Chromium).
-    if (loader) {
-        const FrameLoader* frameLoader = loader->frameLoader();
-        const bool isMainFrameRequest = (loader == frameLoader->provisionalDocumentLoader() && frameLoader->isLoadingMainFrame());
-        if (isMainFrameRequest)
-            evas_object_smart_callback_call(m_view, "resource,request,willsend", &request);
-    }
+    evas_object_smart_callback_call(m_view, "resource,request,willsend", &request);
 
     if (request.url != orig.url) {
         coreRequest.setURL(KURL(KURL(), request.url));
@@ -196,12 +204,18 @@ bool FrameLoaderClientEfl::shouldUseCredentialStorage(DocumentLoader*, unsigned 
     return false;
 }
 
-void FrameLoaderClientEfl::assignIdentifierToInitialRequest(unsigned long identifier, DocumentLoader*, const ResourceRequest& coreRequest)
+void FrameLoaderClientEfl::assignIdentifierToInitialRequest(unsigned long identifier, DocumentLoader* loader, const ResourceRequest& coreRequest)
 {
     CString url = coreRequest.url().string().utf8();
     DBG("Resource url=%s", url.data());
 
-    Ewk_Frame_Resource_Request request = { 0, identifier };
+    bool isMainFrameRequest = false;
+    if (loader) {
+            const FrameLoader* frameLoader = loader->frameLoader();
+            isMainFrameRequest = (loader == frameLoader->provisionalDocumentLoader() && frameLoader->isLoadingMainFrame());
+    }
+
+    Ewk_Frame_Resource_Request request = { 0, identifier, m_frame, isMainFrameRequest };
     ewk_frame_request_assign_identifier(m_frame, &request);
 }
 
@@ -294,7 +308,7 @@ void FrameLoaderClientEfl::dispatchDecidePolicyForNavigationAction(FramePolicyFu
     // if not acceptNavigationRequest - look at Qt -> PolicyIgnore;
     // FIXME: do proper check and only reset forms when on PolicyIgnore
     char* url = strdup(resourceRequest.url().string().utf8().data());
-    Ewk_Frame_Resource_Request request = { url, 0 };
+    Ewk_Frame_Resource_Request request = { url, 0, m_frame, false };
     bool ret = ewk_view_navigation_policy_decision(m_view, &request);
     free(url);
 
@@ -628,11 +642,6 @@ void FrameLoaderClientEfl::cancelPolicyCheck()
     notImplemented();
 }
 
-void FrameLoaderClientEfl::dispatchDidLoadMainResource(DocumentLoader*)
-{
-    notImplemented();
-}
-
 void FrameLoaderClientEfl::revertToProvisionalState(DocumentLoader*)
 {
     m_hasRepresentation = true;
@@ -662,10 +671,9 @@ bool FrameLoaderClientEfl::canShowMIMETypeAsHTML(const String& MIMEType) const
 
 bool FrameLoaderClientEfl::canShowMIMEType(const String& MIMEType) const
 {
-    if (MIMETypeRegistry::isSupportedImageMIMEType(MIMEType))
-        return true;
-
-    if (MIMETypeRegistry::isSupportedNonImageMIMEType(MIMEType))
+    if (MIMETypeRegistry::isSupportedImageMIMEType(MIMEType)
+        || MIMETypeRegistry::isSupportedNonImageMIMEType(MIMEType)
+        || MIMETypeRegistry::isSupportedMediaMIMEType(MIMEType))
         return true;
 
 #if 0 // PluginDatabase is disabled until we have Plugin system done.
@@ -785,6 +793,7 @@ enum {
     WebKitErrorCannotFindPlugIn = 200,
     WebKitErrorCannotLoadPlugIn = 201,
     WebKitErrorJavaUnavailable = 202,
+    WebKitErrorPluginWillHandleLoad = 204
 };
 
 ResourceError FrameLoaderClientEfl::cancelledError(const ResourceRequest& request)
@@ -825,15 +834,15 @@ ResourceError FrameLoaderClientEfl::fileDoesNotExistError(const ResourceResponse
                          "File does not exist");
 }
 
-ResourceError FrameLoaderClientEfl::pluginWillHandleLoadError(const ResourceResponse&)
+ResourceError FrameLoaderClientEfl::pluginWillHandleLoadError(const ResourceResponse& response)
 {
-    notImplemented();
-    return ResourceError("Error", 0, "", "");
+    return ResourceError("Error", WebKitErrorPluginWillHandleLoad, response.url().string(),
+                         "Plugin will handle load");
 }
 
 bool FrameLoaderClientEfl::shouldFallBack(const ResourceError& error)
 {
-    return !(error.isCancellation() || (error.errorCode() == WebKitErrorFrameLoadInterruptedByPolicyChange));
+    return !(error.isCancellation() || error.errorCode() == WebKitErrorFrameLoadInterruptedByPolicyChange || error.errorCode() == WebKitErrorPluginWillHandleLoad);
 }
 
 bool FrameLoaderClientEfl::canCachePage() const

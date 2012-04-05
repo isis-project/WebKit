@@ -88,7 +88,7 @@ public:
     virtual void beginCommit();
     virtual void commitComplete();
     virtual void animate(double monotonicTime, double wallClockTime);
-    // Returns false if problems occured preparing the frame, and we should try to avoid displaying the frame.
+    // Returns false if we should try to avoid displaying the frame, because it has visible checkerboard during an animation.
     virtual bool prepareToDraw(FrameData&);
     virtual void drawLayers(const FrameData&);
 
@@ -96,12 +96,14 @@ public:
     virtual const IntSize& viewportSize() const { return m_viewportSize; }
     virtual const CCSettings& settings() const { return m_settings; }
     virtual CCLayerImpl* rootLayer() { return m_rootLayerImpl.get(); }
-    virtual const CCLayerImpl* rootLayer() const  { return m_rootLayerImpl.get(); }
+    virtual const CCLayerImpl* rootLayer() const { return m_rootLayerImpl.get(); }
     virtual void didLoseContext();
     virtual void onSwapBuffersComplete();
     virtual void setFullRootLayerDamage();
 
     // Implementation
+
+    // Returns false if there is no valid root layer and thus no content that can be drawn.
     bool canDraw();
     GraphicsContext3D* context();
 
@@ -114,7 +116,7 @@ public:
     const LayerRendererCapabilities& layerRendererCapabilities() const;
     TextureAllocator* contentsTextureAllocator() const;
 
-    void swapBuffers();
+    bool swapBuffers();
 
     void readback(void* pixels, const IntRect&);
 
@@ -171,6 +173,7 @@ private:
     void animateLayersRecursive(CCLayerImpl*, double monotonicTime, double wallClockTime, CCAnimationEventsVector*, bool& didAnimate, bool& needsAnimateLayers);
     IntSize contentSize() const;
     void sendDidLoseContextRecursive(CCLayerImpl*);
+    void clearRenderSurfacesOnCCLayerImplRecursive(CCLayerImpl*);
 
     OwnPtr<LayerRendererChromium> m_layerRenderer;
     OwnPtr<CCLayerImpl> m_rootLayerImpl;

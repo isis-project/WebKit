@@ -419,12 +419,6 @@ StyleDifference RenderStyle::diff(const RenderStyle* other, unsigned& changedCon
 #endif
         }
 
-#if ENABLE(CSS_FILTERS)
-        if (rareNonInheritedData->m_filter.get() != other->rareNonInheritedData->m_filter.get()
-            && *rareNonInheritedData->m_filter.get() != *other->rareNonInheritedData->m_filter.get()) {
-            return StyleDifferenceLayout;
-        }
-#endif
 #if ENABLE(CSS_GRID_LAYOUT)
         if (rareNonInheritedData->m_grid.get() != other->rareNonInheritedData->m_grid.get()
             && rareNonInheritedData->m_gridItem.get() != other->rareNonInheritedData->m_gridItem.get())
@@ -605,6 +599,18 @@ StyleDifference RenderStyle::diff(const RenderStyle* other, unsigned& changedCon
         return StyleDifferenceRepaintLayer;
 #endif
     }
+
+#if ENABLE(CSS_FILTERS)
+    if (rareNonInheritedData->m_filter.get() != other->rareNonInheritedData->m_filter.get()
+        && *rareNonInheritedData->m_filter.get() != *other->rareNonInheritedData->m_filter.get()) {
+#if USE(ACCELERATED_COMPOSITING)
+        changedContextSensitiveProperties |= ContextSensitivePropertyFilter;
+        // Don't return; keep looking for another change.
+#else
+        return StyleDifferenceRepaintLayer;
+#endif
+    }
+#endif
 
     if (rareNonInheritedData->m_mask != other->rareNonInheritedData->m_mask
         || rareNonInheritedData->m_maskBoxImage != other->rareNonInheritedData->m_maskBoxImage)
@@ -874,17 +880,17 @@ void RenderStyle::setBoxShadow(PassOwnPtr<ShadowData> shadowData, bool add)
     rareData->m_boxShadow = shadowData;
 }
 
-static RoundedRect::Radii calcRadiiFor(const BorderData& border, LayoutSize size)
+static RoundedRect::Radii calcRadiiFor(const BorderData& border, LayoutSize size, RenderView* renderView)
 {
     return RoundedRect::Radii(
-        IntSize(valueForLength(border.topLeft().width(), size.width()), 
-                valueForLength(border.topLeft().height(), size.height())),
-        IntSize(valueForLength(border.topRight().width(), size.width()),
-                valueForLength(border.topRight().height(), size.height())),
-        IntSize(valueForLength(border.bottomLeft().width(), size.width()), 
-                valueForLength(border.bottomLeft().height(), size.height())),
-        IntSize(valueForLength(border.bottomRight().width(), size.width()), 
-                valueForLength(border.bottomRight().height(), size.height())));
+        IntSize(valueForLength(border.topLeft().width(), size.width(), renderView), 
+                valueForLength(border.topLeft().height(), size.height(), renderView)),
+        IntSize(valueForLength(border.topRight().width(), size.width(), renderView),
+                valueForLength(border.topRight().height(), size.height(), renderView)),
+        IntSize(valueForLength(border.bottomLeft().width(), size.width(), renderView), 
+                valueForLength(border.bottomLeft().height(), size.height(), renderView)),
+        IntSize(valueForLength(border.bottomRight().width(), size.width(), renderView), 
+                valueForLength(border.bottomRight().height(), size.height(), renderView)));
 }
 
 static float calcConstraintScaleFor(const IntRect& rect, const RoundedRect::Radii& radii)
@@ -919,12 +925,12 @@ static float calcConstraintScaleFor(const IntRect& rect, const RoundedRect::Radi
     return factor;
 }
 
-RoundedRect RenderStyle::getRoundedBorderFor(const LayoutRect& borderRect, bool includeLogicalLeftEdge, bool includeLogicalRightEdge) const
+RoundedRect RenderStyle::getRoundedBorderFor(const LayoutRect& borderRect, RenderView* renderView, bool includeLogicalLeftEdge, bool includeLogicalRightEdge) const
 {
     RoundedRect roundedRect(pixelSnappedIntRect(borderRect));
     if (hasBorderRadius()) {
-        RoundedRect::Radii radii = calcRadiiFor(surround->border, borderRect.size());
-        radii.scale(calcConstraintScaleFor(borderRect, radii));
+        RoundedRect::Radii radii = calcRadiiFor(surround->border, borderRect.size(), renderView);
+        radii.scale(calcConstraintScaleFor(pixelSnappedIntRect(borderRect), radii));
         roundedRect.includeLogicalEdges(radii, isHorizontalWritingMode(), includeLogicalLeftEdge, includeLogicalRightEdge);
     }
     return roundedRect;
@@ -1127,12 +1133,12 @@ AnimationList* RenderStyle::accessTransitions()
     return rareNonInheritedData->m_transitions.get();
 }
 
-const Animation* RenderStyle::transitionForProperty(int property) const
+const Animation* RenderStyle::transitionForProperty(CSSPropertyID property) const
 {
     if (transitions()) {
         for (size_t i = 0; i < transitions()->size(); ++i) {
             const Animation* p = transitions()->animation(i);
-            if (p->property() == cAnimateAll || p->property() == property) {
+            if (p->animationMode() == Animation::AnimateAll || p->property() == property) {
                 return p;
             }
         }

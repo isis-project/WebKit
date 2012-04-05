@@ -82,6 +82,9 @@ class MockFileSystem(object):
             return self.normpath(path)
         return self.abspath(self.join(self.cwd, path))
 
+    def realpath(self, path):
+        return self.abspath(path)
+
     def basename(self, path):
         return self._split(path)[1]
 
@@ -275,7 +278,7 @@ class MockFileSystem(object):
     def normpath(self, path):
         # This function is called a lot, so we try to optimize the common cases
         # instead of always calling _slow_but_correct_normpath(), above.
-        if '..' in path:
+        if '..' in path or '/./' in path:
             # This doesn't happen very often; don't bother trying to optimize it.
             return self._slow_but_correct_normpath(path)
         if not path:

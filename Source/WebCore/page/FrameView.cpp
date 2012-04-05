@@ -916,28 +916,19 @@ void FrameView::layout(bool allowSubtree)
     if (m_inLayout)
         return;
 
+    // Protect the view from being deleted during layout (in recalcStyle)
+    RefPtr<FrameView> protector(this);
+
     bool inChildFrameLayoutWithFrameFlattening = isInChildFrameWithFrameFlattening();
 
     if (inChildFrameLayoutWithFrameFlattening) {
-        FrameView* parentView = parentFrameView();
-        if (parentView && !parentView->m_nestedLayoutCount) {
-            while (parentView->parentFrameView())
-                parentView = parentView->parentFrameView();
-
-            parentView->layout(allowSubtree);
-
-            RenderObject* root = m_layoutRoot ? m_layoutRoot : m_frame->document()->renderer();
-            ASSERT_UNUSED(root, !root->needsLayout());
+        if (doLayoutWithFrameFlattening(allowSubtree))
             return;
-        }
     }
 
     m_layoutTimer.stop();
     m_delayedLayout = false;
     m_setNeedsLayoutWasDeferred = false;
-
-    // Protect the view from being deleted during layout (in recalcStyle)
-    RefPtr<FrameView> protector(this);
 
     if (!m_frame) {
         // FIXME: Do we need to set m_size.width here?
@@ -2028,7 +2019,7 @@ void FrameView::scheduleRelayout()
     // When frame flattening is enabled, the contents of the frame could affect the layout of the parent frames.
     // Also invalidate parent frame starting from the owner element of this frame.
     if (isInChildFrameWithFrameFlattening() && m_frame->ownerRenderer())
-        m_frame->ownerRenderer()->setNeedsLayout(true, true);
+        m_frame->ownerRenderer()->setNeedsLayout(true, MarkContainingBlockChain);
 
     int delay = m_frame->document()->minimumLayoutDelay();
     if (m_layoutTimer.isActive() && m_delayedLayout && !delay)
@@ -2885,6 +2876,33 @@ bool FrameView::isInChildFrameWithFrameFlattening()
     return false;
 }
 
+bool FrameView::doLayoutWithFrameFlattening(bool allowSubtree)
+{
+    // Try initiating layout from the topmost parent.
+    FrameView* parentView = parentFrameView();
+
+    if (!parentView)
+        return false;
+
+    // In the middle of parent layout, no need to restart from topmost.
+    if (parentView->m_nestedLayoutCount)
+        return false;
+
+    // Parent tree is clean. Starting layout from it would have no effect.
+    if (!parentView->needsLayout())
+        return false;
+
+    while (parentView->parentFrameView())
+        parentView = parentView->parentFrameView();
+
+    parentView->layout(allowSubtree);
+
+    RenderObject* root = m_layoutRoot ? m_layoutRoot : m_frame->document()->renderer();
+    ASSERT_UNUSED(root, !root->needsLayout());
+
+    return true;
+}
+
 void FrameView::updateControlTints()
 {
     // This is called when control tints are changed from aqua/graphite to clear and vice versa.
@@ -3385,6 +3403,11 @@ void FrameView::addScrollableArea(ScrollableArea* scrollableArea)
     if (!m_scrollableAreas)
         m_scrollableAreas = adoptPtr(new ScrollableAreaSet);
     m_scrollableAreas->add(scrollableArea);
+
+    if (Page* page = m_frame->page()) {
+        if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
+            scrollingCoordinator->frameViewScrollableAreasDidChange(this);
+    }
 }
 
 void FrameView::removeScrollableArea(ScrollableArea* scrollableArea)
@@ -3392,6 +3415,11 @@ void FrameView::removeScrollableArea(ScrollableArea* scrollableArea)
     if (!m_scrollableAreas)
         return;
     m_scrollableAreas->remove(scrollableArea);
+
+    if (Page* page = m_frame->page()) {
+        if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator())
+            scrollingCoordinator->frameViewScrollableAreasDidChange(this);
+    }
 }
 
 bool FrameView::containsScrollableArea(ScrollableArea* scrollableArea) const

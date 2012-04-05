@@ -35,6 +35,8 @@
 #include <WebCore/HTTPHeaderMap.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/KURL.h>
+#include <runtime/JSObject.h>
+#include <runtime/ScopeChain.h>
 #include <utility>
 #include <wtf/text/CString.h>
 
@@ -72,6 +74,7 @@ NetscapePlugin::NetscapePlugin(PassRefPtr<NetscapePluginModule> pluginModule)
     , m_drawingModel(static_cast<NPDrawingModel>(-1))
     , m_eventModel(static_cast<NPEventModel>(-1))
     , m_pluginReturnsNonretainedLayer(!m_pluginModule->pluginQuirks().contains(PluginQuirks::ReturnsRetainedCoreAnimationLayer))
+    , m_layerHostingMode(LayerHostingModeDefault)
     , m_currentMouseEvent(0)
     , m_pluginHasFocus(false)
     , m_windowHasFocus(false)
@@ -579,6 +582,8 @@ bool NetscapePlugin::initialize(const Parameters& parameters)
             }
         }
     }
+
+    m_layerHostingMode = parameters.layerHostingMode;
 #endif
 
     NetscapePlugin* previousNPPNewPlugin = currentNPPNewPlugin;

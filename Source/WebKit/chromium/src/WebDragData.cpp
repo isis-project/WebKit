@@ -70,8 +70,8 @@ void WebDragData::assign(const WebDragData& other)
 WebVector<WebDragData::Item> WebDragData::items() const
 {
     Vector<Item> itemList;
-    for (size_t i = 0; i < m_private->items()->length(); ++i) {
-        DataTransferItemChromium* originalItem = m_private->items()->item(i).get();
+    for (size_t i = 0; i < m_private->length(); ++i) {
+        ChromiumDataObjectItem* originalItem = m_private->item(i).get();
         WebDragData::Item item;
         if (originalItem->kind() == DataTransferItem::kindString) {
             item.storageType = Item::StorageTypeString;
@@ -126,6 +126,20 @@ void WebDragData::addItem(const Item& item)
         // This should never happen when dragging in.
         ASSERT_NOT_REACHED();
     }
+}
+
+WebString WebDragData::filesystemId() const
+{
+    // FIXME: Should return the ID set by setFileSystemId().
+    return WebString();
+}
+
+void WebDragData::setFilesystemId(const WebString& filesystemId)
+{
+    // FIXME: The given value should be stored internally and is to be used
+    // to instantiate an isolated filesystem for providing FileSystem Entry
+    // access to the dragged files/directories.
+    // The ID is an opaque string, given by and validated by chromium port.
 }
 
 WebDragData::WebDragData(const WTF::PassRefPtr<WebCore::ChromiumDataObject>& data)

@@ -116,15 +116,13 @@ namespace WebCore {
         void finishedLoading();
         const ResourceResponse& response() const { return m_response; }
         const ResourceError& mainDocumentError() const { return m_mainDocumentError; }
-        void mainReceivedError(const ResourceError&, bool isComplete);
+        void mainReceivedError(const ResourceError&);
         void setResponse(const ResourceResponse& response) { m_response = response; }
-        void prepareForLoadStart();
         bool isClientRedirect() const { return m_isClientRedirect; }
         void setIsClientRedirect(bool isClientRedirect) { m_isClientRedirect = isClientRedirect; }
         void handledOnloadEvents();
         bool wasOnloadHandled() { return m_wasOnloadHandled; }
         bool isLoadingInAPISense() const;
-        void setPrimaryLoadComplete(bool);
         void setTitle(const StringWithDirection&);
         const String& overrideEncoding() const { return m_overrideEncoding; }
 
@@ -183,7 +181,7 @@ namespace WebCore {
         // redirects into a chain from start to finish.
         String clientRedirectSourceForHistory() const { return m_clientRedirectSourceForHistory; } // null if no client redirect occurred.
         String clientRedirectDestinationForHistory() const { return urlForHistory(); }
-        void setClientRedirectSourceForHistory(const String& clientedirectSourceForHistory) { m_clientRedirectSourceForHistory = clientedirectSourceForHistory; }
+        void setClientRedirectSourceForHistory(const String& clientRedirectSourceForHistory) { m_clientRedirectSourceForHistory = clientRedirectSourceForHistory; }
         
         String serverRedirectSourceForHistory() const { return urlForHistory() == url() ? String() : urlForHistory().string(); } // null if no server redirect occurred.
         String serverRedirectDestinationForHistory() const { return url(); }
@@ -193,7 +191,7 @@ namespace WebCore {
         
         void setDefersLoading(bool);
 
-        void startLoadingMainResource(unsigned long identifier);
+        void startLoadingMainResource();
         void cancelMainResourceLoad(const ResourceError&);
         
         // Support iconDatabase in synchronous mode.
@@ -254,11 +252,11 @@ namespace WebCore {
     private:
         void setupForReplace();
         void commitIfReady();
-        void clearErrors();
         void setMainDocumentError(const ResourceError&);
         void commitLoad(const char*, int);
         bool doesProgressiveLoad(const String& MIMEType) const;
         void checkLoadComplete();
+        void clearMainResourceLoader();
 
         void deliverSubstituteResourcesAfterDelay();
         void substituteResourceDeliveryTimerFired(Timer<DocumentLoader>*);
@@ -298,7 +296,6 @@ namespace WebCore {
         bool m_committed;
         bool m_isStopping;
         bool m_gotFirstByte;
-        bool m_primaryLoadComplete;
         bool m_isClientRedirect;
 
         // FIXME: Document::m_processingLoadEvent and DocumentLoader::m_wasOnloadHandled are roughly the same

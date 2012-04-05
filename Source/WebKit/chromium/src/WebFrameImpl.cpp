@@ -109,7 +109,6 @@
 #include "Node.h"
 #include "Page.h"
 #include "PageOverlay.h"
-#include "painting/GraphicsContextBuilder.h"
 #include "Performance.h"
 #include "PlatformSupport.h"
 #include "PluginDocument.h"
@@ -142,6 +141,7 @@
 #include "WebDOMEvent.h"
 #include "WebDOMEventListener.h"
 #include "WebDataSourceImpl.h"
+#include "WebDevToolsAgentPrivate.h"
 #include "WebDocument.h"
 #include "WebFindOptions.h"
 #include "WebFormElement.h"
@@ -153,19 +153,21 @@
 #include "WebPerformance.h"
 #include "WebPlugin.h"
 #include "WebPluginContainerImpl.h"
-#include "platform/WebPoint.h"
 #include "WebRange.h"
-#include "platform/WebRect.h"
 #include "WebScriptSource.h"
 #include "WebSecurityOrigin.h"
-#include "platform/WebSize.h"
-#include "platform/WebURLError.h"
-#include "platform/WebVector.h"
 #include "WebViewImpl.h"
 #include "XPathResult.h"
 #include "markup.h"
+#include "painting/GraphicsContextBuilder.h"
+#include "platform/WebPoint.h"
+#include "platform/WebRect.h"
+#include "platform/WebSize.h"
+#include "platform/WebURLError.h"
+#include "platform/WebVector.h"
 
 #include <algorithm>
+#include <public/Platform.h>
 #include <wtf/CurrentTime.h>
 
 #if USE(V8)
@@ -894,6 +896,15 @@ v8::Handle<v8::Value> WebFrameImpl::executeScriptAndReturnValue(const WebScriptS
     return m_frame->script()->executeScript(ScriptSourceCode(source.code, source.url, position)).v8Value();
 }
 
+// Call the function with the given receiver and arguments, bypassing canExecuteScripts.
+v8::Handle<v8::Value> WebFrameImpl::callFunctionEvenIfScriptDisabled(v8::Handle<v8::Function> function,
+                                                                     v8::Handle<v8::Object> receiver,
+                                                                     int argc,
+                                                                     v8::Handle<v8::Value> argv[])
+{
+    return m_frame->script()->callFunctionEvenIfScriptDisabled(function, receiver, argc, argv).v8Value();
+}
+
 // Returns the V8 context for this frame, or an empty handle if there is none.
 v8::Local<v8::Context> WebFrameImpl::mainWorldScriptContext() const
 {
@@ -1189,7 +1200,7 @@ size_t WebFrameImpl::characterIndexForPoint(const WebPoint& webPoint) const
 
     IntPoint point = frame()->view()->windowToContents(webPoint);
     HitTestResult result = frame()->eventHandler()->hitTestResultAtPoint(point, false);
-    RefPtr<Range> range = frame()->rangeForPoint(result.point());
+    RefPtr<Range> range = frame()->rangeForPoint(result.roundedPoint());
     if (!range)
         return notFound;
 
@@ -1974,13 +1985,13 @@ WebFrameImpl::WebFrameImpl(WebFrameClient* client)
     , m_identifier(generateFrameIdentifier())
     , m_inSameDocumentHistoryLoad(false)
 {
-    PlatformSupport::incrementStatsCounter(webFrameActiveCount);
+    WebKit::Platform::current()->incrementStatsCounter(webFrameActiveCount);
     frameCount++;
 }
 
 WebFrameImpl::~WebFrameImpl()
 {
-    PlatformSupport::decrementStatsCounter(webFrameActiveCount);
+    WebKit::Platform::current()->decrementStatsCounter(webFrameActiveCount);
     frameCount--;
 
     cancelPendingScopingEffort();
@@ -2083,6 +2094,9 @@ void WebFrameImpl::createFrameView()
     m_frame->createView(webView->size(), Color::white, webView->isTransparent(),  webView->fixedLayoutSize(), isMainFrame ? webView->isFixedLayoutModeEnabled() : 0);
     if (webView->shouldAutoResize() && isMainFrame)
         m_frame->view()->enableAutoSizeMode(true, webView->minAutoSize(), webView->maxAutoSize());
+
+    if (isMainFrame && webView->devToolsAgentPrivate())
+        webView->devToolsAgentPrivate()->mainFrameViewCreated(this);
 }
 
 WebFrameImpl* WebFrameImpl::fromFrame(Frame* frame)

@@ -314,6 +314,7 @@ Rectangle {
         experimental.authenticationDialog: AuthenticationDialog { }
         experimental.proxyAuthenticationDialog: ProxyAuthenticationDialog { }
         experimental.filePicker: FilePicker { }
+        experimental.preferences.developerExtrasEnabled: true
         experimental.databaseQuotaDialog: Item {
             Timer {
                 interval: 1
@@ -325,10 +326,10 @@ Rectangle {
                 }
             }
         }
+    }
 
-        ScrollIndicator {
-            flickableItem: webView.experimental.flickable
-        }
+    ScrollIndicator {
+        flickableItem: webView
     }
 
     ViewportInfoItem {

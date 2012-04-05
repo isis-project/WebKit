@@ -57,7 +57,7 @@
 #include <wtf/MathExtras.h>
 #include <wtf/StdLibExtras.h>
 
-#if ENABLE(INPUT_COLOR)
+#if ENABLE(INPUT_TYPE_COLOR)
 #include "ColorInputType.h"
 #endif
 
@@ -771,11 +771,11 @@ void HTMLInputElement::parseAttribute(Attribute* attr)
     } else if (attr->name() == patternAttr || attr->name() == precisionAttr)
         setNeedsValidityCheck();
     else if (attr->name() == disabledAttr) {
+        HTMLTextFormControlElement::parseAttribute(attr);
         m_inputType->disabledAttributeChanged();
-        HTMLTextFormControlElement::parseAttribute(attr);
     } else if (attr->name() == readonlyAttr) {
-        m_inputType->readonlyAttributeChanged();
         HTMLTextFormControlElement::parseAttribute(attr);
+        m_inputType->readonlyAttributeChanged();
     }
 #if ENABLE(DATALIST)
     else if (attr->name() == listAttr)
@@ -1505,7 +1505,7 @@ void HTMLInputElement::requiredAttributeChanged()
         buttons->requiredAttributeChanged(this);
 }
 
-#if ENABLE(INPUT_COLOR)
+#if ENABLE(INPUT_TYPE_COLOR)
 void HTMLInputElement::selectColorInColorChooser(const Color& color)
 {
     if (!m_inputType->isColorControl())

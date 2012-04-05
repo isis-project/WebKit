@@ -188,6 +188,7 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
 #if PLATFORM(MAC)
     , m_windowIsVisible(false)
     , m_isSmartInsertDeleteEnabled(parameters.isSmartInsertDeleteEnabled)
+    , m_layerHostingMode(LayerHostingModeDefault)
     , m_keyboardEventBeingInterpreted(0)
 #elif PLATFORM(WIN)
     , m_nativeWindow(parameters.nativeWindow)
@@ -230,15 +231,15 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
     pageClients.editorClient = new WebEditorClient(this);
     pageClients.dragClient = new WebDragClient(this);
     pageClients.backForwardClient = WebBackForwardListProxy::create(this);
-#if ENABLE(GEOLOCATION)
-    pageClients.geolocationClient = new WebGeolocationClient(this);
-#endif
 #if ENABLE(INSPECTOR)
     pageClients.inspectorClient = new WebInspectorClient(this);
 #endif
     
     m_page = adoptPtr(new Page(pageClients));
 
+#if ENABLE(GEOLOCATION)
+    WebCore::provideGeolocationTo(m_page.get(), new WebGeolocationClient(this));
+#endif
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     WebCore::provideNotification(m_page.get(), new WebNotificationClient(this));
 #endif
@@ -810,9 +811,7 @@ void WebPage::setFixedVisibleContentRect(const IntRect& rect)
 {
     ASSERT(m_useFixedLayout);
 
-    Frame* frame = m_page->mainFrame();
-
-    frame->view()->setFixedVisibleContentRect(rect);
+    m_page->mainFrame()->view()->setFixedVisibleContentRect(rect);
 }
 
 void WebPage::setResizesToContentsUsingLayoutSize(const IntSize& targetLayoutSize)
@@ -848,12 +847,13 @@ void WebPage::resizeToContentsIfNeeded()
     if (!view->useFixedLayout())
         return;
 
-    IntSize contentSize = view->contentsSize();
-    if (contentSize == m_viewSize)
+    IntSize newSize = view->contentsSize().expandedTo(view->fixedLayoutSize());
+
+    if (newSize == m_viewSize)
         return;
 
-    m_viewSize = contentSize.expandedTo(view->fixedLayoutSize());
-    view->resize(m_viewSize);
+    m_viewSize = newSize;
+    view->resize(newSize);
     view->setNeedsLayout();
 }
 
@@ -1455,19 +1455,25 @@ void WebPage::highlightPotentialActivation(const IntPoint& point, const IntSize&
     IntPoint adjustedPoint;
 
     if (point != IntPoint::zero()) {
+        Node* adjustedNode = 0;
 #if ENABLE(TOUCH_ADJUSTMENT)
-        mainframe->eventHandler()->bestClickableNodeForTouchPoint(point, IntSize(area.width() / 2, area.height() / 2), adjustedPoint, activationNode);
+        mainframe->eventHandler()->bestClickableNodeForTouchPoint(point, IntSize(area.width() / 2, area.height() / 2), adjustedPoint, adjustedNode);
 #else
         HitTestResult result = mainframe->eventHandler()->hitTestResultAtPoint(mainframe->view()->windowToContents(point), /*allowShadowContent*/ false, /*ignoreClipping*/ true);
-        activationNode = result.innerNode();
+        adjustedNode = result.innerNode();
 #endif
-        if (activationNode && !activationNode->isFocusable()) {
-            for (Node* node = activationNode; node; node = node->parentOrHostNode()) {
-                if (node->isFocusable()) {
-                    activationNode = node;
-                    break;
-                }
+        // Find the node to highlight. This is not the same as the node responding the tap gesture, because many
+        // pages has a global click handler and we do not want to highlight the body.
+        // Instead find the enclosing link or focusable element, or the last enclosing inline element.
+        for (Node* node = adjustedNode; node; node = node->parentOrHostNode()) {
+            if (node->isMouseFocusable() || node->isLink()) {
+                activationNode = node;
+                break;
             }
+            if (node->renderer() && node->renderer()->isInline())
+                activationNode = node;
+            else if (activationNode)
+                break;
         }
     }
 
@@ -1872,6 +1878,7 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     settings->setLoadsSiteIconsIgnoringImageLoadingSetting(store.getBoolValueForKey(WebPreferencesKey::loadsSiteIconsIgnoringImageLoadingPreferenceKey()));
     settings->setPluginsEnabled(store.getBoolValueForKey(WebPreferencesKey::pluginsEnabledKey()));
     settings->setJavaEnabled(store.getBoolValueForKey(WebPreferencesKey::javaEnabledKey()));
+    settings->setJavaEnabledForLocalFiles(store.getBoolValueForKey(WebPreferencesKey::javaEnabledForLocalFilesKey()));    
     settings->setOfflineWebApplicationCacheEnabled(store.getBoolValueForKey(WebPreferencesKey::offlineWebApplicationCacheEnabledKey()));
     settings->setLocalStorageEnabled(store.getBoolValueForKey(WebPreferencesKey::localStorageEnabledKey()));
     settings->setXSSAuditorEnabled(store.getBoolValueForKey(WebPreferencesKey::xssAuditorEnabledKey()));
@@ -1970,6 +1977,9 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
 #endif
 
     platformPreferencesDidChange(store);
+
+    if (m_drawingArea)
+        m_drawingArea->updatePreferences();
 }
 
 #if ENABLE(INSPECTOR)
@@ -2451,7 +2461,6 @@ void WebPage::windowAndViewFramesChanged(const WebCore::IntRect& windowFrameInSc
     for (HashSet<PluginView*>::const_iterator it = m_pluginViews.begin(), end = m_pluginViews.end(); it != end; ++it)
         (*it)->windowAndViewFramesChanged(windowFrameInScreenCoordinates, viewFrameInWindowCoordinates);
 }
-
 #endif
 
 bool WebPage::windowIsFocused() const
@@ -2510,8 +2519,27 @@ InjectedBundleBackForwardList* WebPage::backForwardList()
 }
 
 #if PLATFORM(QT)
-void WebPage::findZoomableAreaForPoint(const WebCore::IntPoint& point)
+#if ENABLE(TOUCH_ADJUSTMENT)
+void WebPage::findZoomableAreaForPoint(const WebCore::IntPoint& point, const WebCore::IntSize& area)
 {
+    Frame* mainframe = m_mainFrame->coreFrame();
+    Node* node = 0;
+    IntRect zoomableArea;
+    mainframe->eventHandler()->bestZoomableAreaForTouchPoint(point, IntSize(area.width() / 2, area.height() / 2), zoomableArea, node);
+
+    ASSERT(node);
+    if (node->document() && node->document()->frame() && node->document()->frame()->view()) {
+        const ScrollView* view = node->document()->frame()->view();
+        zoomableArea = view->contentsToWindow(zoomableArea);
+    }
+
+    send(Messages::WebPageProxy::DidFindZoomableArea(point, zoomableArea));
+}
+
+#else
+void WebPage::findZoomableAreaForPoint(const WebCore::IntPoint& point, const WebCore::IntSize& area)
+{
+    UNUSED_PARAM(area);
     Frame* mainframe = m_mainFrame->coreFrame();
     HitTestResult result = mainframe->eventHandler()->hitTestResultAtPoint(mainframe->view()->windowToContents(point), /*allowShadowContent*/ false, /*ignoreClipping*/ true);
 
@@ -2546,6 +2574,7 @@ void WebPage::findZoomableAreaForPoint(const WebCore::IntPoint& point)
 
     send(Messages::WebPageProxy::DidFindZoomableArea(point, zoomableArea));
 }
+#endif
 #endif
 
 WebPage::SandboxExtensionTracker::~SandboxExtensionTracker()
@@ -2997,12 +3026,12 @@ bool WebPage::canHandleRequest(const WebCore::ResourceRequest& request)
 }
 
 #if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD)
-void WebPage::handleCorrectionPanelResult(const String& result)
+void WebPage::handleAlternativeTextUIResult(const String& result)
 {
     Frame* frame = m_page->focusController()->focusedOrMainFrame();
     if (!frame)
         return;
-    frame->editor()->handleCorrectionPanelResult(result);
+    frame->editor()->handleAlternativeTextUIResult(result);
 }
 #endif
 
@@ -3133,5 +3162,14 @@ FrameView* WebPage::mainFrameView() const
     
     return 0;
 }
+
+#if ENABLE(PAGE_VISIBILITY_API)
+void WebPage::setVisibilityState(int visibilityState, bool isInitialState)
+{
+    if (!m_page)
+        return;
+    m_page->setVisibilityState(static_cast<WebCore::PageVisibilityState>(visibilityState), isInitialState);
+}
+#endif
 
 } // namespace WebKit

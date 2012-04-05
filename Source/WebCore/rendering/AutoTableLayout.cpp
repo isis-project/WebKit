@@ -251,8 +251,8 @@ void AutoTableLayout::computePreferredLogicalWidths(LayoutUnit& minWidth, Layout
 
     if (scaleColumns) {
         maxNonPercent = maxNonPercent * 100 / max(remainingPercent, epsilon);
-        maxWidth = max(maxWidth, static_cast<int>(min(maxNonPercent, numeric_limits<LayoutUnit>::max() / 2.0f)));
-        maxWidth = max(maxWidth, static_cast<int>(min(maxPercent, numeric_limits<LayoutUnit>::max() / 2.0f)));
+        maxWidth = max<int>(maxWidth, static_cast<int>(min(maxNonPercent, numeric_limits<LayoutUnit>::max() / 2.0f)));
+        maxWidth = max<int>(maxWidth, static_cast<int>(min(maxPercent, numeric_limits<LayoutUnit>::max() / 2.0f)));
     }
 
     maxWidth = max<int>(maxWidth, spanMaxLogicalWidth);
@@ -551,7 +551,7 @@ void AutoTableLayout::layout()
         for (size_t i = 0; i < nEffCols; ++i) {
             Length& logicalWidth = m_layoutStruct[i].effectiveLogicalWidth;
             if (logicalWidth.isPercent()) {
-                int cellLogicalWidth = max<int>(m_layoutStruct[i].effectiveMinLogicalWidth, miminumValueForLength(logicalWidth, tableLogicalWidth));
+                int cellLogicalWidth = max<int>(m_layoutStruct[i].effectiveMinLogicalWidth, minimumValueForLength(logicalWidth, tableLogicalWidth));
                 available += m_layoutStruct[i].computedLogicalWidth - cellLogicalWidth;
                 m_layoutStruct[i].computedLogicalWidth = cellLogicalWidth;
             }

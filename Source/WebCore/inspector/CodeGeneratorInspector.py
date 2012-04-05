@@ -59,7 +59,10 @@ TYPE_NAME_FIX_MAP = {
 TYPES_WITH_RUNTIME_CAST_SET = frozenset(["Runtime.RemoteObject", "Runtime.PropertyDescriptor",
                                          "Debugger.FunctionDetails", "Debugger.CallFrame"])
 
-STRICT_ENABLED_DOMAINS = ["CSS", "Debugger", "Page"]
+STRICT_ENABLED_DOMAINS = ["Console", "DOMDebugger",
+                          "CSS", "Debugger", "DOM", "Network", "Page", "Runtime",
+                          "Inspector", "Memory", "Database",
+                          "IndexedDB", "DOMStorage", "ApplicationCache"]
 
 
 cmdline_parser = optparse.OptionParser()
@@ -237,9 +240,7 @@ class RawTypes(object):
             params = cls.get_validate_method_params()
             writer.newline("static void assert%s(InspectorValue* value)\n" % params.name)
             writer.newline("{\n")
-            writer.newline("    %s v;\n" % params.var_type)
-            writer.newline("    bool castRes = value->as%s(&v);\n" % params.as_method_name)
-            writer.newline("    ASSERT_UNUSED(castRes, castRes);\n")
+            writer.newline("    ASSERT(value->type() == InspectorValue::Type%s);\n" % params.as_method_name)
             writer.newline("}\n\n\n")
 
         @classmethod
@@ -274,7 +275,6 @@ class RawTypes(object):
         def get_validate_method_params():
             class ValidateMethodParams:
                 name = "String"
-                var_type = "String"
                 as_method_name = "String"
             return ValidateMethodParams
 
@@ -311,13 +311,19 @@ class RawTypes(object):
         def get_js_bind_type():
             return "number"
 
-        @staticmethod
-        def get_validate_method_params():
-            class ValidateMethodParams:
-                name = "Int"
-                var_type = "int"
-                as_method_name = "Number"
-            return ValidateMethodParams
+        @classmethod
+        def generate_validate_method(cls, writer):
+            writer.newline("static void assertInt(InspectorValue* value)\n")
+            writer.newline("{\n")
+            writer.newline("    double v;\n")
+            writer.newline("    bool castRes = value->asNumber(&v);\n")
+            writer.newline("    ASSERT_UNUSED(castRes, castRes);\n")
+            writer.newline("    ASSERT(static_cast<double>(static_cast<int>(v)) == v);\n")
+            writer.newline("}\n\n\n")
+
+        @classmethod
+        def get_raw_validator_call_text(cls):
+            return "assertInt"
 
         @staticmethod
         def get_output_pass_model():
@@ -338,7 +344,7 @@ class RawTypes(object):
     class Number(BaseType):
         @staticmethod
         def get_getter_name():
-            return "Object"
+            return "Double"
 
         @staticmethod
         def get_setter_name():
@@ -346,15 +352,18 @@ class RawTypes(object):
 
         @staticmethod
         def get_c_initializer():
-            raise Exception("Unsupported")
+            return "0"
 
         @staticmethod
         def get_js_bind_type():
-            raise Exception("Unsupported")
+            return "number"
 
         @staticmethod
         def get_validate_method_params():
-            raise Exception("TODO")
+            class ValidateMethodParams:
+                name = "Double"
+                as_method_name = "Number"
+            return ValidateMethodParams
 
         @staticmethod
         def get_output_pass_model():
@@ -391,7 +400,6 @@ class RawTypes(object):
         def get_validate_method_params():
             class ValidateMethodParams:
                 name = "Boolean"
-                var_type = "bool"
                 as_method_name = "Boolean"
             return ValidateMethodParams
 
@@ -432,7 +440,10 @@ class RawTypes(object):
 
         @staticmethod
         def get_validate_method_params():
-            raise Exception("TODO")
+            class ValidateMethodParams:
+                name = "Object"
+                as_method_name = "Object"
+            return ValidateMethodParams
 
         @staticmethod
         def get_output_pass_model():
@@ -1116,6 +1127,8 @@ class TypeBindings:
 
                     @classmethod
                     def request_internal_runtime_cast(cls):
+                        if cls.need_internal_runtime_cast_:
+                            return
                         cls.need_internal_runtime_cast_ = True
                         for p in cls.resolve_data_.main_properties:
                             p.param_type_binding.request_internal_runtime_cast()
@@ -1382,7 +1395,7 @@ class TypeBindings:
 
                     @staticmethod
                     def request_internal_runtime_cast():
-                        pass
+                        RawTypes.Object.request_raw_internal_runtime_cast()
 
                     @staticmethod
                     def get_code_generator():
@@ -1390,7 +1403,7 @@ class TypeBindings:
 
                     @staticmethod
                     def get_validator_call_text():
-                        raise Exception("Unsupported")
+                        return "assertObject"
 
                     @classmethod
                     def get_array_item_c_type_text(cls):
@@ -1452,6 +1465,8 @@ class TypeBindings:
 
                     @classmethod
                     def request_internal_runtime_cast(cls):
+                        if cls.need_internal_runtime_cast_:
+                            return
                         cls.need_internal_runtime_cast_ = True
                         cls.resolve_data_.item_type_binding.request_internal_runtime_cast()
 
@@ -1881,6 +1896,7 @@ $fieldDeclarations
     static R getPropertyValueImpl(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors, V0 initial_value, bool (*as_method)(InspectorValue*, V*), const char* type_name);
 
     static int getInt(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors);
+    static double getDouble(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors);
     static String getString(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors);
     static bool getBoolean(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors);
     static PassRefPtr<InspectorObject> getObject(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors);
@@ -2049,6 +2065,7 @@ R InspectorBackendDispatcherImpl::getPropertyValueImpl(InspectorObject* object, 
 
 struct AsMethodBridges {
     static bool asInt(InspectorValue* value, int* output) { return value->asNumber(output); }
+    static bool asDouble(InspectorValue* value, double* output) { return value->asNumber(output); }
     static bool asString(InspectorValue* value, String* output) { return value->asString(output); }
     static bool asBoolean(InspectorValue* value, bool* output) { return value->asBoolean(output); }
     static bool asObject(InspectorValue* value, RefPtr<InspectorObject>* output) { return value->asObject(output); }
@@ -2058,6 +2075,11 @@ struct AsMethodBridges {
 int InspectorBackendDispatcherImpl::getInt(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors)
 {
     return getPropertyValueImpl<int, int, int>(object, name, valueFound, protocolErrors, 0, AsMethodBridges::asInt, "Number");
+}
+
+double InspectorBackendDispatcherImpl::getDouble(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors)
+{
+    return getPropertyValueImpl<double, double, double>(object, name, valueFound, protocolErrors, 0, AsMethodBridges::asDouble, "Number");
 }
 
 String InspectorBackendDispatcherImpl::getString(InspectorObject* object, const String& name, bool* valueFound, InspectorArray* protocolErrors)
@@ -2138,7 +2160,6 @@ $methods
 #if ENABLE(INSPECTOR)
 
 #include "InspectorValues.h"
-#include <PlatformString.h>
 #include <wtf/Assertions.h>
 #include <wtf/PassRefPtr.h>
 
@@ -2249,11 +2270,31 @@ struct ArrayItemHelper<String> {
 };
 
 template<>
-struct ArrayItemHelper<InspectorObject> {
+struct ArrayItemHelper<int> {
     struct Traits {
-        static void pushRefPtr(InspectorArray* array, PassRefPtr<InspectorObject> value)
+        static void pushRaw(InspectorArray* array, int value)
         {
-            array->pushObject(value);
+            array->pushInt(value);
+        }
+    };
+};
+
+template<>
+struct ArrayItemHelper<InspectorValue> {
+    struct Traits {
+        static void pushRefPtr(InspectorArray* array, PassRefPtr<InspectorValue> value)
+        {
+            array->pushValue(value);
+        }
+    };
+};
+
+template<typename T>
+struct ArrayItemHelper<TypeBuilder::Array<T> > {
+    struct Traits {
+        static void pushRefPtr(InspectorArray* array, PassRefPtr<TypeBuilder::Array<T> > value)
+        {
+            array->pushArray(value);
         }
     };
 };
@@ -2480,6 +2521,8 @@ class Generator:
             Generator.method_handler_list,
             Generator.method_name_enum_list]
 
+        strict_enabled_domains_unused = set(STRICT_ENABLED_DOMAINS)
+
         for json_domain in json_api["domains"]:
             domain_name = json_domain["domain"]
             domain_name_lower = domain_name.lower()
@@ -2526,6 +2569,11 @@ class Generator:
                 for l in reversed(first_cycle_guardable_list_list):
                     domain_guard.generate_close(l)
             Generator.backend_js_domain_initializer_list.append("\n")
+
+            strict_enabled_domains_unused.discard(domain_name)
+
+        if strict_enabled_domains_unused:
+            raise Exception("Unknown domains listed: %s" % strict_enabled_domains_unused)
 
         sorted_json_domains = list(json_api["domains"])
         sorted_json_domains.sort(key=lambda o: o["domain"])
