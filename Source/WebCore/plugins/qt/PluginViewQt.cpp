@@ -482,6 +482,27 @@ void PluginView::handleKeyboardEvent(KeyboardEvent* event)
 
         if (qKeyEvent) {
 
+            int32_t value = 0;
+            char* ptr = (char*)&value;
+            QString str = qKeyEvent->text();
+            const uint16_t* buffer = str.utf16();
+            if (buffer) {
+
+                uint16_t raw = buffer[0];
+                char* source = (char*)&raw;
+                ptr[0] = source[0];
+                ptr[1] = source[1];
+
+                if (str.length() > 1) {
+
+                    raw = buffer[1];
+                    source = (char*)&raw;
+                    ptr[2] = source[0];
+                    ptr[3] = source[1];
+                }
+            }
+
+            npEvent.data.keyEvent.chr = value;
             npEvent.data.keyEvent.rawkeyCode = qKeyEvent->key();
             npEvent.data.keyEvent.rawModifier = qKeyEvent->modifiers();
         }
