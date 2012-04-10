@@ -1,3 +1,532 @@
+2012-04-09  Dirk Pranke  <dpranke@chromium.org>
+
+        add a webkit-patch print-baselines command
+        https://bugs.webkit.org/show_bug.cgi?id=83348
+
+        Reviewed by Adam Barth.
+
+        This adds a simple 'print-baselines' command to webkit-patch
+        that can be used in one of two forms: to print where the
+        baselines for a given test (or set of tests) on a single port
+        will be found, or to generate a report for multiple ports.
+
+        Example of the former:
+
+        $ webkit-patch print-baselines fast/html/keygen.html
+        // For mac-snowleopard
+        platform/mac/fast/html/keygen-expected.txt
+        platform/mac/fast/html/keygen-expected.png
+        $
+
+        The latter is most useful for finding out which fallback dirs are
+        used by which ports for which tests, for example,
+        'chromium-mac-leopard' uses 100 results from 'platform/mac/leopard'.
+        No example output is given because the reports are pretty wordy :).
+
+        * Scripts/webkitpy/layout_tests/port/base.py:
+        (Port.baseline_extensions): Added.
+        (Port.expected_baseline_dict): Added.
+        * Scripts/webkitpy/tool/commands/queries.py:
+        (PrintBaselines):
+        (PrintBaselines.__init__):
+        (PrintBaselines.execute):
+        (PrintBaselines._print_baselines):
+        (PrintBaselines._platform_for_path):
+
+2012-04-09  Florin Malita  <fmalita@chromium.org>
+
+        Unreviewed: adding myself to committers.py.
+
+        * Scripts/webkitpy/common/config/committers.py:
+
+2012-04-09  Ming Xie  <mxie@rim.com>
+
+        [BlackBerry] Allow simulator to use GLES2 acceleration
+        https://bugs.webkit.org/show_bug.cgi?id=81672
+
+        Reviewed by Rob Buis.
+
+        * Scripts/webkitdirs.pm:
+        (blackberryCMakeArguments):
+
+2012-04-09  Dana Jansens  <danakj@chromium.org>
+
+        Mark myself as a committer
+        https://bugs.webkit.org/show_bug.cgi?id=83510
+
+        Reviewed by Adrienne Walker.
+
+        * Scripts/webkitpy/common/config/committers.py:
+
+2012-04-09  Dirk Pranke  <dpranke@chromium.org>
+
+        nrwt is failing to upload test results on the chromium-mac-leopard bots
+        https://bugs.webkit.org/show_bug.cgi?id=83230
+
+        Unreviewed, build fix.
+
+        It looks like the change in r113399 to use the per-request
+        timeout variable didn't actually work, so I am removing the
+        timeout code altogether and counting on the idea that upload
+        just isn't likely to take that long and the timeouts and
+        retransmits are largely unused and largely unnecessary. We'll
+        see if this breaks anywhere else.
+
+        * Scripts/webkitpy/common/net/file_uploader.py:
+        (FileUploader.__init__):
+        (FileUploader._upload_data.callback):
+        (FileUploader):
+
+2012-04-09  Rob Buis  <rbuis@rim.com>
+
+        [BlackBerry] Cleanup LayoutTestControllerBlackBerry.cpp
+        https://bugs.webkit.org/show_bug.cgi?id=83469
+
+        Reviewed by Dirk Schulze.
+
+        Remove WTF:: prefixes and fix a warning with the length variable.
+
+        * DumpRenderTree/blackberry/LayoutTestControllerBlackBerry.cpp:
+        (jsStringRefToWebCoreString):
+        (LayoutTestController::execCommand):
+        (LayoutTestController::isCommandEnabled):
+        (LayoutTestController::setUserStyleSheetLocation):
+        (LayoutTestController::counterValueForElementById):
+        (LayoutTestController::overridePreference):
+        (LayoutTestController::setMockGeolocationError):
+        (LayoutTestController::findString):
+
+2012-04-09  Patrick Gansterer  <paroga@webkit.org>
+
+        Build fix for WinCE after r113570.
+
+        * Scripts/build-webkit: Do not use FastMalloc for WinCE.
+
+2012-04-09  Eric Carlson  <eric.carlson@apple.com>
+
+        Subscribe eric.carlson@apple.com to Media-related changes
+        https://bugs.webkit.org/show_bug.cgi?id=83421
+
+        Reviewed by Dan Bernstein.
+
+        * Scripts/webkitpy/common/config/watchlist:
+
+2012-04-09  Martin Robinson  <mrobinson@igalia.com>
+
+        check-webkit-style should ignore NULL usage in gtk_style_context_get_style
+        https://bugs.webkit.org/show_bug.cgi?id=83412
+
+        Reviewed by David Levin.
+
+        Accept NULL as an argument for gtk_style_context_get_style, because it's
+        used as a sentinel in a variable argument list. 
+
+        * Scripts/webkitpy/style/checkers/cpp.py:
+        (check_for_null): Add an exception.
+        * Scripts/webkitpy/style/checkers/cpp_unittest.py:
+        (WebKitStyleTest.test_null_false_zero): Add a test for the exception.
+
+2012-04-09  Dirk Pranke  <dpranke@chromium.org>
+
+        webkitpy: use the filesystem object properly in fileuploader
+        https://bugs.webkit.org/show_bug.cgi?id=83326
+
+        Reviewed by Adam Barth.
+
+        We should be using the filesystem object rather than the codecs
+        object.
+
+        * Scripts/webkitpy/common/net/file_uploader.py:
+        (FileUploader.upload_as_multipart_form_data):
+
+2012-04-09  Eric Seidel  <eric@webkit.org>
+
+        Enable webkit_unit_tests for commit queue and EWS while tracking failures
+        https://bugs.webkit.org/show_bug.cgi?id=83329
+
+        Unreviewed.  Add a missing import to unbreak all the Chromium EWS/CQ bots. :)
+
+        line 62, in _create_unit_test_results
+         return UnitTestResults.results_from_string(results_xml)
+         NameError: global name 'UnitTestResults' is not defined
+
+        * Scripts/webkitpy/tool/bot/layouttestresultsreader.py:
+        * Scripts/webkitpy/tool/bot/layouttestresultsreader_unittest.py:
+        (LayoutTestResultsReaderTest.test_create_unit_test_results):
+
+2012-04-08  Adam Barth  <abarth@webkit.org>
+
+        The port object is missing unit_tests_results_path
+        https://bugs.webkit.org/show_bug.cgi?id=83448
+
+        Unreviewed.
+
+        This is causing the cr-linux-ews to throw an exception.
+
+        * Scripts/webkitpy/common/config/ports.py:
+        (DeprecatedPort.unit_tests_results_path):
+
+2012-04-07  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake] Cleanup WTF include directories
+        https://bugs.webkit.org/show_bug.cgi?id=82716
+
+        Reviewed by Eric Seidel.
+
+        * DumpRenderTree/efl/CMakeLists.txt:
+        * WinCELauncher/CMakeLists.txt:
+
+2012-04-07  Rob Buis  <rbuis@rim.com>
+
+        [BlackBerry] Add Battery Status API support
+        https://bugs.webkit.org/show_bug.cgi?id=82615
+
+        Reviewed by George Staikos.
+
+        Enable BATTERY_STATUS.
+
+        * Scripts/build-webkit:
+
+2012-04-06  Ami Fischman  <fischman@chromium.org>
+
+        Subscribe feature-media-reviews@c.o to Media-related changes.
+        https://bugs.webkit.org/show_bug.cgi?id=83397
+
+        Reviewed by David Levin.
+
+        * Scripts/webkitpy/common/config/committers.py:
+        * Scripts/webkitpy/common/config/watchlist:
+
+2012-04-06  Adrienne Walker  <enne@google.com>
+
+        [chromium] Add virtual test suite for threaded compositing
+        https://bugs.webkit.org/show_bug.cgi?id=82263
+
+        Reviewed by James Robinson.
+
+        Add compositing/visibility as a virtual test suites to test threaded
+        compositing with. This is a reasonable smoke test of 9 tests, none of
+        which have any expectations in the non-threaded case.
+
+        To fix many of the remaining tests in this virtual test suite, there
+        will need to be some serious refactoring to merge the conflict between
+        the way CCScheduler wants to draw frames and the way DRT also wants to
+        control things. So, in the short term, enable a few simple tests that
+        are known to be passing.
+
+        * Scripts/webkitpy/layout_tests/port/chromium.py:
+        (ChromiumPort.virtual_test_suites):
+
+2012-04-06  Enrica Casucci  <enrica@apple.com>
+
+        Provide Obj-C private API to simplify markup.
+        https://bugs.webkit.org/show_bug.cgi?id=83334
+        <rdar://problem/11033861>
+
+        Reviewed by Sam Weinig.
+
+        * TestWebKitAPI/TestWebKitAPI.xcodeproj/project.pbxproj:
+        * TestWebKitAPI/Tests/mac/SimplifyMarkup.mm: Added.
+        (-[SimplifyMarkupTest webView:didFinishLoadForFrame:]):
+        * TestWebKitAPI/Tests/mac/verboseMarkup.html: Added.
+
+2012-04-06  Dirk Pranke  <dpranke@chromium.org>
+
+        new-run-webkit-tests: fix bugs in 'mock' drt implementation
+        https://bugs.webkit.org/show_bug.cgi?id=83341
+
+        Reviewed by Eric Seidel.
+
+        The current implementation crashed in some circumstances for
+        reference tests and files that were missing expected results.
+        This patch fixes those cases and adds more unit tests; it is a
+        precursor to adding unit tests each port that actually uses this
+        code, in order to get better coverage of the port/*
+        implementations.
+
+        * Scripts/webkitpy/layout_tests/port/mock_drt.py:
+        (parse_options):
+        (MockDRT.input_from_line):
+        (MockDRT.output_for_test):
+        (MockDRT.run_one_test):
+        (MockChromiumDRT.input_from_line):
+        (MockChromiumDRT.output_for_test):
+        (MockChromiumDRT.run_one_test):
+        * Scripts/webkitpy/layout_tests/port/mock_drt_unittest.py:
+        (MockDRTTest.make_input_output):
+        (MockDRTTest.expected_output):
+        (MockDRTTest):
+        (MockDRTTest.assertTest):
+        (MockDRTTest.test_missing_image):
+        (MockDRTTest.test_missing_text):
+        (MockDRTTest.test_reftest_match):
+        (MockDRTTest.test_reftest_mismatch):
+        (MockChromiumDRTTest.expected_output):
+
+2012-04-06  James Robinson  <jamesr@chromium.org>
+
+        Enable webkit_unit_tests for commit queue and EWS while tracking failures
+        https://bugs.webkit.org/show_bug.cgi?id=83329
+
+        Reviewed by Adam Barth.
+
+        This adds a step to parse XML output from webkit_unit_tests and consider regressions in the PatchAnalysisTask so
+        the commit queue and EWS can reject patches that cause regressions.
+
+        * Scripts/webkitpy/common/config/ports.py:
+        (ChromiumPort.run_webkit_unit_tests_command):
+        * Scripts/webkitpy/common/config/ports_mock.py:
+        (MockPort.unit_tests_results_path):
+        * Scripts/webkitpy/common/net/layouttestresults.py:
+        (LayoutTestResults.__init__):
+        (LayoutTestResults.failing_tests):
+        (LayoutTestResults):
+        (LayoutTestResults.add_unit_test_failures):
+        * Scripts/webkitpy/common/net/unittestresults.py: Copied from Tools/Scripts/webkitpy/tool/steps/runtests_unittest.py.
+        (UnitTestResults):
+        (UnitTestResults.results_from_string):
+        * Scripts/webkitpy/common/net/unittestresults_unittest.py: Added.
+        (UnitTestResultsTest):
+        (UnitTestResultsTest.test_nostring):
+        (UnitTestResultsTest.test_emptystring):
+        (UnitTestResultsTest.test_nofailures):
+        (test_onefailure):
+        (test_multiple_failures_per_test):
+        * Scripts/webkitpy/tool/bot/commitqueuetask_unittest.py:
+        (MockCommitQueue.test_results):
+        (MockCommitQueue.archive_last_test_results):
+        (FailingTestCommitQueue.test_results):
+        (test_flaky_test_failure):
+        (test_failed_archive):
+        * Scripts/webkitpy/tool/bot/layouttestresultsreader.py:
+        (LayoutTestResultsReader._create_unit_test_results):
+        (LayoutTestResultsReader.results):
+        * Scripts/webkitpy/tool/bot/layouttestresultsreader_unittest.py:
+        (LayoutTestResultsReaderTest.test_missing_layout_test_results):
+        * Scripts/webkitpy/tool/bot/patchanalysistask.py:
+        (PatchAnalysisTaskDelegate.test_results):
+        (PatchAnalysisTaskDelegate.archive_last_test_results):
+        (PatchAnalysisTask._test):
+        (PatchAnalysisTask._build_and_test_without_patch):
+        (PatchAnalysisTask._test_patch):
+        * Scripts/webkitpy/tool/commands/earlywarningsystem.py:
+        (AbstractEarlyWarningSystem.test_results):
+        (AbstractEarlyWarningSystem.archive_last_test_results):
+        * Scripts/webkitpy/tool/commands/earlywarningsystem_unittest.py:
+        (EarlyWarningSytemTest._test_testing_ews):
+        * Scripts/webkitpy/tool/commands/queues.py:
+        (CommitQueue.test_results):
+        (CommitQueue.archive_last_test_results):
+        * Scripts/webkitpy/tool/commands/queues_unittest.py:
+        (CommitQueueTest.test_commit_queue):
+        (test_rollout):
+        (test_manual_reject_during_processing):
+        * Scripts/webkitpy/tool/steps/runtests.py:
+        (RunTests.run):
+        * Scripts/webkitpy/tool/steps/runtests_unittest.py:
+        (RunTestsTest.test_webkit_run_unit_tests):
+
+2012-04-06  Aaron Colwell  <acolwell@chromium.org>
+
+        Enable MediaSource feature for DumpRenderTree so
+        MediaSource LayoutTests will pass for Chromium.
+        https://bugs.webkit.org/show_bug.cgi?id=83053
+
+        Reviewed by Dimitri Glazkov.
+
+        * DumpRenderTree/chromium/TestShell.cpp:
+        (TestShell::TestShell):
+
+2012-04-06  George Staikos  <staikos@webkit.org>
+
+        Turn on vibration support for BlackBerry.
+
+        Reviewed by Rob Buis.
+
+        * Scripts/build-webkit:
+
+2012-04-06  Dan Bernstein  <mitz@apple.com>
+
+        <rdar://problem/10912476> HiDPI: Have canvas use a hidpi backing store, but downsample upon access
+
+        Reviewed by Sam Weinig.
+
+        * Scripts/build-webkit: Added high-dpi-canvas option to control ENABLE_HIGH_DPI_CANVAS.
+
+2012-04-05  Dirk Pranke  <dpranke@chromium.org>
+
+        nrwt is failing to upload test results on the chromium-mac-leopard bots
+        https://bugs.webkit.org/show_bug.cgi?id=83230
+
+        Reviewed by Ojan Vafai.
+
+        This should fix things properly; FileUploader() was setting the
+        socket default timeout value, and apparently that doesn't work
+        properly with urllib. Also, the class had a bad try/finally
+        block that was causing the exceptions to be swallowed :(.
+
+        * Scripts/webkitpy/common/net/file_uploader.py:
+        (FileUploader.__init__):
+        (FileUploader._upload_data.callback):
+        (FileUploader):
+        (FileUploader._upload_data):
+        * Scripts/webkitpy/common/net/networktransaction.py:
+        (NetworkTimeout.__str__):
+        (NetworkTransaction.run):
+        * Scripts/webkitpy/layout_tests/layout_package/json_results_generator.py:
+        (JSONResultsGeneratorBase.upload_json_files):
+
+2012-04-05  Patrick Gansterer  <paroga@webkit.org>
+
+        [Qt] Correct <wtf/*.h> include paths.
+        https://bugs.webkit.org/show_bug.cgi?id=83270
+
+        Reviewed by Eric Seidel.
+
+        Modify the #include declerations so that the
+        wtf types are included using the full path.
+
+        * WebKitTestRunner/qt/TestInvocationQt.cpp:
+
+2012-04-05  Philippe Normand  <pnormand@igalia.com>
+
+        gtk_unittest.GtkPortTest.test_get_crash_log failing on windows
+        https://bugs.webkit.org/show_bug.cgi?id=83176
+
+        Reviewed by Tony Chang.
+
+        Refactored the test to use os.path.join() to specify the
+        core_pattern value of the empty crash log mock.
+
+        * Scripts/webkitpy/layout_tests/port/gtk_unittest.py:
+        (GtkPortTest):
+        (GtkPortTest.assertLinesEqual):
+        (GtkPortTest.test_get_crash_log):
+        (_mock_gdb_output):
+
+2012-04-05  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [Qt] Fix includes after QtDeclarative -> QtQML renaming
+        https://bugs.webkit.org/show_bug.cgi?id=82195
+
+        Relanding r112651, because Qt5 is updated everywhere.
+
+        * MiniBrowser/qt/BrowserWindow.cpp:
+        (BrowserWindow::updateVisualMockTouchPoints):
+        * MiniBrowser/qt/main.cpp:
+        * WebKitTestRunner/qt/PlatformWebViewQt.cpp:
+        (WTR::WrapperWindow::handleStatusChanged):
+        * qmake/mkspecs/features/unix/default_post.prf:
+
+2012-04-05  Pierre Rossi  <pierre.rossi@gmail.com>
+
+        [Qt] WK1/WK2 layout test results are diverging
+        https://bugs.webkit.org/show_bug.cgi?id=82720
+
+        The resolving of default font families was altered in Qt5.
+        This directly affects the font picked by DRT for layout
+        tests. Since we want to keep the Qt4 and Qt5 results in line,
+        we can trick DRT in picking the same font as before for now.
+
+        Reviewed by Csaba Osztrogonác.
+
+        * DumpRenderTree/qt/QtInitializeTestFonts.cpp:
+        (WebKit::initializeTestFonts):
+
+2012-04-05  Kinuko Yasuda  <kinuko@chromium.org>
+
+        Expose DataTransferItem.getAsEntry() to allow users access dropped files as FileEntry
+        https://bugs.webkit.org/show_bug.cgi?id=82592
+
+        Reviewed by David Levin.
+
+        Added filesystem hook support in EventSender.beginDragWithFiles() for DumpRenderTree.
+
+        * DumpRenderTree/chromium/EventSender.cpp:
+        (EventSender::beginDragWithFiles):
+
+2012-04-04  Tim Horton  <timothy_horton@apple.com>
+
+        [mac] WKTR should always keep its windows offscreen
+        https://bugs.webkit.org/show_bug.cgi?id=83244
+        <rdar://problem/11188764>
+
+        Reviewed by Simon Fraser.
+
+        We don't want to allow windows onto the main display; intercept attempts to
+        change WebKitTestRunnerWindow's frame origin and prevent it from happening.
+
+        Also keep around and respond with a new "fake" origin, in case someone is
+        expecting it to change (I couldn't find any tests that expected this, however).
+
+        * WebKitTestRunner/mac/PlatformWebViewMac.mm:
+        (-[WebKitTestRunnerWindow setFrameOrigin:]):
+        (-[WebKitTestRunnerWindow setFrame:display:animate:]):
+        (-[WebKitTestRunnerWindow setFrame:display:]):
+        (-[WebKitTestRunnerWindow frame]):
+
+2012-04-04  Dirk Pranke  <dpranke@chromium.org>
+
+        Fix typo introduced in r113271.
+
+        Unreviewed, build fix.
+
+        * Scripts/webkitpy/common/net/file_uploader.py:
+        (FileUploader._upload_data.callback):
+        (FileUploader):
+
+2012-04-04  Scott Graham  <scottmg@google.com>
+
+        [Chromium, DRT] Bounds check indices on gamepadController
+        https://bugs.webkit.org/show_bug.cgi?id=83192
+
+        Invalid test data would cause bad array accesses. Add simple checks to
+        ignore such invalid data.
+
+        Reviewed by Kent Tamura.
+
+        * DumpRenderTree/chromium/GamepadController.cpp:
+        (GamepadController::connect):
+        (GamepadController::disconnect):
+        (GamepadController::setId):
+        (GamepadController::setButtonCount):
+        (GamepadController::setButtonData):
+        (GamepadController::setAxisCount):
+        (GamepadController::setAxisData):
+
+2012-04-04  Dirk Pranke  <dpranke@chromium.org>
+
+        nrwt is failing to upload test results on the chromium-mac-leopard bots
+        https://bugs.webkit.org/show_bug.cgi?id=83230
+
+        Reviewed by Ojan Vafai.
+
+        More debugging info and a possible fix - stop messing with the
+        default network timeout, and don't swallow URLErrors.
+
+        * Scripts/webkitpy/common/net/file_uploader.py:
+        (FileUploader._upload_data):
+        * Scripts/webkitpy/common/net/networktransaction.py:
+        (NetworkTransaction.run):
+        * Scripts/webkitpy/layout_tests/layout_package/json_results_generator.py:
+        (JSONResultsGeneratorBase.upload_json_files):
+
+2012-04-04  Dirk Pranke  <dpranke@chromium.org>
+
+        nrwt is failing to upload test results on the chromium-mac-leopard bots
+        https://bugs.webkit.org/show_bug.cgi?id=83230
+
+        Reviewed by Ojan Vafai.
+
+        * Scripts/webkitpy/common/net/file_uploader.py:
+        (FileUploader.__init__):
+        (FileUploader._upload_data.callback):
+        (FileUploader):
+        * Scripts/webkitpy/layout_tests/controllers/manager.py:
+        (Manager._upload_json_files):
+        * Scripts/webkitpy/layout_tests/layout_package/json_results_generator.py:
+        (JSONResultsGeneratorBase.upload_json_files):
+
 2012-04-04  Jesus Sanchez-Palencia  <jesus.palencia@openbossa.org>
 
         WKTR needs to implement layoutTestController.setPageVisibility()

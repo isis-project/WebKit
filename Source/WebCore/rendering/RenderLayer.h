@@ -280,8 +280,8 @@ public:
 
     LayoutRect rect() const { return LayoutRect(location(), size()); }
 
-    int scrollWidth();
-    int scrollHeight();
+    int scrollWidth() const;
+    int scrollHeight() const;
 
     void panScrollFromPoint(const LayoutPoint&);
 
@@ -313,6 +313,9 @@ public:
 
     PassRefPtr<Scrollbar> createScrollbar(ScrollbarOrientation);
     void destroyScrollbar(ScrollbarOrientation);
+
+    bool hasHorizontalScrollbar() const { return horizontalScrollbar(); }
+    bool hasVerticalScrollbar() const { return verticalScrollbar(); }
 
     // ScrollableArea overrides
     virtual Scrollbar* horizontalScrollbar() const { return m_hBar.get(); }
@@ -573,6 +576,11 @@ public:
     FilterEffectRenderer* filter() const { return m_filter.get(); }
 #endif
 
+#if !ASSERT_DISABLED
+    bool layerListMutationAllowed() const { return m_layerListMutationAllowed; }
+    void setLayerListMutationAllowed(bool flag) { m_layerListMutationAllowed = flag; }
+#endif
+
 private:
     void updateZOrderListsSlowCase();
 
@@ -584,6 +592,9 @@ private:
     void restoreClip(GraphicsContext*, const LayoutRect& paintDirtyRect, const ClipRect&);
 
     bool shouldRepaintAfterLayout() const;
+
+    void updateScrollbarsAfterStyleChange(const RenderStyle* oldStyle);
+    void updateScrollbarsAfterLayout();
 
     friend IntSize RenderBox::scrolledContentOffset() const;
     IntSize scrolledContentOffset() const { return scrollOffset() + m_scrollOverflow; }
@@ -649,7 +660,9 @@ private:
     
     bool hitTestContents(const HitTestRequest&, HitTestResult&, const LayoutRect& layerBounds, const LayoutPoint& hitTestPoint, HitTestFilter) const;
     
-    void computeScrollDimensions(bool* needHBar = 0, bool* needVBar = 0);
+    void computeScrollDimensions();
+    bool hasHorizontalOverflow() const;
+    bool hasVerticalOverflow() const;
 
     bool shouldBeNormalFlowOnly() const; 
 
@@ -799,7 +812,9 @@ protected:
 #endif
 
     bool m_containsDirtyOverlayScrollbars : 1;
-
+#if !ASSERT_DISABLED
+    bool m_layerListMutationAllowed : 1;
+#endif
     // This is an optimization added for <table>.
     // Currently cells do not need to update their repaint rectangles when scrolling. This also
     // saves a lot of time when scrolling on a table.
@@ -889,6 +904,28 @@ inline void RenderLayer::updateZOrderLists()
         return;
     updateZOrderListsSlowCase();
 }
+
+#if !ASSERT_DISABLED
+class LayerListMutationDetector {
+public:
+    LayerListMutationDetector(RenderLayer* layer)
+        : m_layer(layer)
+        , m_previousMutationAllowedState(layer->layerListMutationAllowed())
+    {
+        m_layer->setLayerListMutationAllowed(false);
+    }
+    
+    ~LayerListMutationDetector()
+    {
+        m_layer->setLayerListMutationAllowed(m_previousMutationAllowedState);
+    }
+
+private:
+    RenderLayer* m_layer;
+    bool m_previousMutationAllowedState;
+};
+#endif
+
 
 } // namespace WebCore
 

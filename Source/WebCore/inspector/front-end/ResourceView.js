@@ -51,25 +51,19 @@ WebInspector.ResourceView.prototype.__proto__ = WebInspector.View.prototype;
 
 WebInspector.ResourceView.hasTextContent = function(resource)
 {
-    switch (resource.category) {
-    case WebInspector.resourceCategories.documents:
-    case WebInspector.resourceCategories.scripts:
-    case WebInspector.resourceCategories.xhr:
-    case WebInspector.resourceCategories.stylesheets:
-        return true;
-    case WebInspector.resourceCategories.other:
+    if (resource.type.isTextType())
+        return true; 
+    if (resource.type === WebInspector.resourceTypes.Other)
         return resource.content && !resource.contentEncoded;
-    default:
-        return false;
-    }
+    return false;
 }
 
 WebInspector.ResourceView.nonSourceViewForResource = function(resource)
 {
-    switch (resource.category) {
-    case WebInspector.resourceCategories.images:
+    switch (resource.type) {
+    case WebInspector.resourceTypes.Image:
         return new WebInspector.ImageView(resource);
-    case WebInspector.resourceCategories.fonts:
+    case WebInspector.resourceTypes.Font:
         return new WebInspector.FontView(resource);
     default:
         return new WebInspector.ResourceView(resource);
@@ -133,11 +127,15 @@ WebInspector.EditableResourceSourceFrame = function(resource)
     WebInspector.ResourceSourceFrame.call(this, resource);
 }
 
+WebInspector.EditableResourceSourceFrame.Events = {
+    TextEdited: "TextEdited"
+}
+
 WebInspector.EditableResourceSourceFrame.prototype = {
     canEditSource: function()
     {
         //FIXME: make live edit stop using resource content binding.
-        return this._resource.isEditable() && this._resource.type === WebInspector.Resource.Type.Stylesheet;
+        return this._resource.isEditable() && this._resource.type === WebInspector.resourceTypes.Stylesheet;
     },
 
     editContent: function(newText, callback)
@@ -159,6 +157,7 @@ WebInspector.EditableResourceSourceFrame.prototype = {
         {
             var majorChange = false;
             this.resource.setContent(this._textModel.text, majorChange, function() {});
+            this.dispatchEventToListeners(WebInspector.EditableResourceSourceFrame.Events.TextEdited, this);
         }
         const updateTimeout = 200;
         this._incrementalUpdateTimer = setTimeout(commitIncrementalEdit.bind(this), updateTimeout);
@@ -175,6 +174,11 @@ WebInspector.EditableResourceSourceFrame.prototype = {
     {
         if (!this._settingContent)
             WebInspector.ResourceSourceFrame.prototype._contentChanged.call(this, event);
+    },
+
+    isDirty: function()
+    {
+        return this._resource.content !== this.textModel.text;
     }
 }
 

@@ -86,8 +86,6 @@ SET(WebCore_INCLUDE_DIRECTORIES
     "${JAVASCRIPTCORE_DIR}/runtime"
     "${JAVASCRIPTCORE_DIR}/yarr"
     "${WTF_DIR}"
-    "${WTF_DIR}/wtf"
-    "${WTF_DIR}/wtf/unicode"
     "${DERIVED_SOURCES_WEBCORE_DIR}"
     "${CMAKE_SOURCE_DIR}/Source"
     "${CMAKE_BINARY_DIR}"
@@ -613,7 +611,6 @@ SET(WebCore_SOURCES
     dom/Range.cpp
     dom/RangeException.cpp
     dom/RegisteredEventListener.cpp
-    dom/ReifiedTreeTraversal.cpp
     dom/ScopedEventQueue.cpp
     dom/ScriptableDocumentParser.cpp
     dom/ScriptElement.cpp
@@ -691,6 +688,7 @@ SET(WebCore_SOURCES
     editing/ReplaceSelectionCommand.cpp
     editing/SetNodeAttributeCommand.cpp
     editing/SetSelectionCommand.cpp
+    editing/SimplifyMarkupCommand.cpp
     editing/SmartReplace.cpp
     editing/SpellChecker.cpp
     editing/SpellingCorrectionCommand.cpp
@@ -1146,6 +1144,7 @@ SET(WebCore_SOURCES
     platform/graphics/GraphicsTypes.cpp
     platform/graphics/Image.cpp
     platform/graphics/ImageBuffer.cpp
+    platform/graphics/ImageOrientation.cpp
     platform/graphics/IntRect.cpp
     platform/graphics/Path.cpp
     platform/graphics/PathTraversalState.cpp

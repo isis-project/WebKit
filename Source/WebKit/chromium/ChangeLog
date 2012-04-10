@@ -1,3 +1,469 @@
+2012-04-09  Dana Jansens  <danakj@chromium.org>
+
+        [chromium] Make culling work with clipped rects
+        https://bugs.webkit.org/show_bug.cgi?id=83494
+
+        Reviewed by Adrienne Walker.
+
+        * tests/CCOcclusionTrackerTest.cpp:
+        (CCOcclusionTrackerTestLayerBehindCameraDoesNotOcclude):
+        (WebKitTests::CCOcclusionTrackerTestLayerBehindCameraDoesNotOcclude::runMyTest):
+        (WebKitTests):
+        (CCOcclusionTrackerTestLargePixelsOccludeInsideClipRect):
+        (WebKitTests::CCOcclusionTrackerTestLargePixelsOccludeInsideClipRect::runMyTest):
+        * tests/CCQuadCullerTest.cpp:
+        (WebCore::TestCCOcclusionTrackerImpl::TestCCOcclusionTrackerImpl):
+        (WebCore::makeLayer):
+        (WebCore::TEST):
+
+2012-04-09  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r113613.
+        http://trac.webkit.org/changeset/113613
+        https://bugs.webkit.org/show_bug.cgi?id=83509
+
+        crashing most chromium bots (Requested by simonjam on
+        #webkit).
+
+        * WebKit.gyp:
+        * features.gypi:
+        * public/WebBatteryStatus.h: Removed.
+        * public/WebBatteryStatusClient.h: Removed.
+        * public/WebView.h:
+        (WebKit):
+        (WebView):
+        * public/WebViewClient.h:
+        (WebKit):
+        * src/BatteryClientImpl.cpp: Removed.
+        * src/BatteryClientImpl.h: Removed.
+        * src/WebViewImpl.cpp:
+        (WebKit::WebViewImpl::WebViewImpl):
+        * src/WebViewImpl.h:
+        (WebKit):
+        (WebViewImpl):
+
+2012-04-09  James Robinson  <jamesr@chromium.org>
+
+        [chromium] CCLayerTreeHost / WebLayerTreeView should be single ownership, not RefCounted
+        https://bugs.webkit.org/show_bug.cgi?id=83413
+
+        Reviewed by Adrienne Walker.
+
+        Updates tests and implementation for RefPtr->OwnPtr switch. One nice benefit is that since WebLayerTreeView is
+        explicitly owned by the user of the API we can safely rely on them managing the lifetime of the client and thus
+        don't have to null check the client all the time.
+
+        * src/WebLayerTreeView.cpp:
+        (WebKit::WebLayerTreeView::reset):
+        (WebKit::WebLayerTreeView::isNull):
+        (WebKit::WebLayerTreeView::initialize):
+        * src/WebLayerTreeViewImpl.cpp:
+        (WebKit::WebLayerTreeViewImpl::create):
+        (WebKit::WebLayerTreeViewImpl::willBeginFrame):
+        (WebKit::WebLayerTreeViewImpl::updateAnimations):
+        (WebKit::WebLayerTreeViewImpl::layout):
+        (WebKit::WebLayerTreeViewImpl::applyScrollAndScale):
+        (WebKit::WebLayerTreeViewImpl::createContext):
+        (WebKit::WebLayerTreeViewImpl::didRecreateContext):
+        (WebKit::WebLayerTreeViewImpl::didCommit):
+        (WebKit::WebLayerTreeViewImpl::didCommitAndDrawFrame):
+        (WebKit::WebLayerTreeViewImpl::didCompleteSwapBuffers):
+        (WebKit::WebLayerTreeViewImpl::scheduleComposite):
+        * src/WebLayerTreeViewImpl.h:
+        (WebLayerTreeViewImpl):
+        * tests/CCLayerTreeHostTest.cpp:
+        (WTF::MockLayerTreeHost::create):
+        (CCLayerTreeHostTest):
+        * tests/Canvas2DLayerChromiumTest.cpp:
+        * tests/LayerChromiumTest.cpp:
+        * tests/TiledLayerChromiumTest.cpp:
+        (WTF::TEST):
+
+2012-04-09  Joshua Bell  <jsbell@chromium.org>
+
+        Unreviewed, rolling out r113473.
+        http://trac.webkit.org/changeset/113473
+        https://bugs.webkit.org/show_bug.cgi?id=83074
+
+        Change does not handle cursor retention of LevelDB iterators
+
+        * WebKit.gypi:
+        * tests/IDBDatabaseBackendTest.cpp: Removed.
+
+2012-04-06  James Robinson  <jamesr@chromium.org>
+
+        [chromium] Texture copies should happen after incremental updates to preserve commit atomicity
+        https://bugs.webkit.org/show_bug.cgi?id=83392
+
+        Reviewed by Adrienne Walker.
+
+        * tests/Canvas2DLayerChromiumTest.cpp:
+
+2012-04-09  Sadrul Habib Chowdhury  <sadrul@chromium.org>
+
+        [chromium] Add Battery Status API support.
+
+        The battery-client (BatteryClientChromium) will notify the client (WebBatteryStatusClient) when to start or stop
+        sending battery status updates. The client, in response will send the notifications to WebViewImpl, which sends
+        this update information to the WebCore::BatteryClient, and it triggers the appropriate javascript-callbacks.
+        The spec is at http://www.w3.org/TR/2011/WD-battery-status-20111129/.
+        https://bugs.webkit.org/show_bug.cgi?id=83284
+
+        Reviewed by Adam Barth.
+
+        * WebKit.gyp:
+        * features.gypi:
+        * public/WebBatteryStatus.h: Added.
+        (WebKit):
+        (WebBatteryStatus):
+        (WebKit::WebBatteryStatus::WebBatteryStatus):
+        * public/WebBatteryStatusClient.h: Added.
+        (WebKit):
+        (WebBatteryStatusClient):
+        (WebKit::WebBatteryStatusClient::~WebBatteryStatusClient):
+        * public/WebView.h:
+        (WebKit):
+        (WebView):
+        (WebKit::WebView::updateBatteryStatus):
+        * public/WebViewClient.h:
+        (WebKit):
+        (WebViewClient):
+        (WebKit::WebViewClient::batteryStatusClient):
+        * src/BatteryClientImpl.cpp: Added.
+        (WebKit):
+        (WebKit::BatteryClientImpl::BatteryClientImpl):
+        (WebKit::BatteryClientImpl::updateBatteryStatus):
+        (WebKit::BatteryClientImpl::setController):
+        (WebKit::BatteryClientImpl::startUpdating):
+        (WebKit::BatteryClientImpl::stopUpdating):
+        (WebKit::BatteryClientImpl::batteryControllerDestroyed):
+        * src/BatteryClientImpl.h: Added.
+        (WebKit):
+        (BatteryClientImpl):
+        (WebKit::BatteryClientImpl::~BatteryClientImpl):
+        * src/WebViewImpl.cpp:
+        (WebKit::WebViewImpl::WebViewImpl):
+        (WebKit):
+        (WebKit::WebViewImpl::updateBatteryStatus):
+        * src/WebViewImpl.h:
+        (WebKit):
+        (WebViewImpl):
+
+2012-04-09  Shawn Singh  <shawnsingh@chromium.org>
+
+        [chromium] Fix layer sorting perspective w if w becomes negative
+        https://bugs.webkit.org/show_bug.cgi?id=82997
+
+        Reviewed by Adrienne Walker.
+
+        * tests/CCLayerSorterTest.cpp:
+        (WebCore::TEST):
+        (WebCore):
+
+2012-04-09  Dana Jansens  <danakj@chromium.org>
+
+        [chromium] Flip transition painting delayed with threaded animations
+        https://bugs.webkit.org/show_bug.cgi?id=82571
+
+        Reviewed by Adrienne Walker.
+
+        * tests/CCLayerTreeHostCommonTest.cpp:
+        (WebKitTests::TEST):
+        (WebKitTests):
+
+2012-04-09  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r113561.
+        http://trac.webkit.org/changeset/113561
+        https://bugs.webkit.org/show_bug.cgi?id=83487
+
+        broke webkit_unit_tests (Requested by simonjam on #webkit).
+
+        * tests/CCOcclusionTrackerTest.cpp:
+        (WebKitTests):
+        * tests/CCQuadCullerTest.cpp:
+        (WebCore::TestCCOcclusionTrackerImpl::TestCCOcclusionTrackerImpl):
+
+2012-04-09  Dana Jansens  <danakj@chromium.org>
+
+        [chromium] Make culling work with clipped rects
+        https://bugs.webkit.org/show_bug.cgi?id=83217
+
+        Reviewed by Adrienne Walker.
+
+        * tests/CCOcclusionTrackerTest.cpp:
+        (CCOcclusionTrackerTestLayerBehindCameraDoesNotOcclude):
+        (WebKitTests::CCOcclusionTrackerTestLayerBehindCameraDoesNotOcclude::runMyTest):
+        (WebKitTests):
+        (CCOcclusionTrackerTestLargePixelsOccludeInsideClipRect):
+        (WebKitTests::CCOcclusionTrackerTestLargePixelsOccludeInsideClipRect::runMyTest):
+        * tests/CCQuadCullerTest.cpp:
+        (WebCore::TestCCOcclusionTrackerImpl::TestCCOcclusionTrackerImpl):
+
+2012-04-06  Ami Fischman  <fischman@chromium.org>
+
+        Roll Chromium DEPS
+        https://bugs.webkit.org/show_bug.cgi?id=83389
+
+        Unreviewed, just a DEPS roll (130110:131183)
+
+        * DEPS:
+
+2012-04-06  James Robinson  <jamesr@chromium.org>
+
+        WebGL content swapped at wrong time in threaded compositing mode
+        https://bugs.webkit.org/show_bug.cgi?id=82275
+
+        Reviewed by Kenneth Russell.
+
+        * tests/WebGLLayerChromiumTest.cpp:
+        (WebKit::TEST):
+
+2012-04-06  Joshua Bell  <jsbell@chromium.org>
+
+        IndexedDB: ObjectStore/Index shouldn't hold reference to backing store
+        https://bugs.webkit.org/show_bug.cgi?id=83074
+
+        Reviewed by Tony Chang.
+
+        * WebKit.gypi:
+        * tests/IDBDatabaseBackendTest.cpp: Added.
+        (WebCore):
+        (MockIDBBackingStore):
+        (WebCore::TEST):
+
+2012-04-06  Kent Tamura  <tkent@chromium.org>
+
+        Calendar Picker: Add code to open/close the calendar picker
+        https://bugs.webkit.org/show_bug.cgi?id=83258
+
+        Reviewed by Hajime Morita.
+
+        * features.gypi: Enable ENABLE_PAGE_POPUP for non-Android
+        platforms. This is needed because ENABLE_CALENDAR_PICKER now depends on
+        ENABLE_PAGE_POPUP.
+        * src/ChroemClientImpl.cpp: Add stubs.
+        (WebKit::ChromeClientImpl::openPagePopup):
+        (WebKit::ChromeClientImpl::closePagePopup):
+        * src/ChromeClientImpl.h: Add declarations of openPagePopup() and closePagePopup().
+
+2012-04-05  Hironori Bono  <hbono@chromium.org>
+
+        [Chromium] moving a cursor on a misspelled word should not remove a misspelled underline
+        https://bugs.webkit.org/show_bug.cgi?id=83214
+
+        Reviewed by Ryosuke Niwa.
+
+        When Chrome enables asynchronous spellchecking, it adds Spelling markers in the
+        background. For this case, moving a cursor should not remove these markers
+        because it requires Chrome to spellcheck text again. This change prevents
+        removing Spelling markers added by spellcheckers asynchronously.
+
+        * src/ContextMenuClientImpl.cpp:
+        (WebKit::ContextMenuClientImpl::getCustomMenuFromDefaultItems): use marker descriptions instead of spellchecking text when Chrome enables asynchronous spellchecking.
+
+2012-04-05  Dana Jansens  <danakj@chromium.org>
+
+        [chromium] Record the number of tiles paint-culled instead of the incorrect number of pixels
+        https://bugs.webkit.org/show_bug.cgi?id=82423
+
+        Reviewed by Adrienne Walker.
+
+        * tests/CCQuadCullerTest.cpp:
+        (WebCore::TEST):
+        * tests/TiledLayerChromiumTest.cpp:
+        (WTF::TEST):
+
+2012-04-05  Shawn Singh  <shawnsingh@chromium.org>
+
+        [chromium] Need to clip to homogeneous w=0 plane when applying transforms.
+        https://bugs.webkit.org/show_bug.cgi?id=80806
+
+        Reviewed by Adrienne Walker.
+
+        * tests/CCLayerTreeHostCommonTest.cpp:
+        (WebKitTests::TEST):
+        (WebKitTests):
+
+2012-04-05  Dana Jansens  <danakj@chromium.org>
+
+        [chromium] Cleanup test, redundant code in CCSchedulerTest.NoBeginFrameWhenDrawFails
+        https://bugs.webkit.org/show_bug.cgi?id=83300
+
+        Reviewed by Adrienne Walker.
+
+        * tests/CCSchedulerTest.cpp:
+        (WebKitTests::TEST):
+
+2012-04-05  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r113241.
+        http://trac.webkit.org/changeset/113241
+        https://bugs.webkit.org/show_bug.cgi?id=83293
+
+        Requested by sievers@chromium.org (Requested by zhenyao on
+        #webkit).
+
+        * tests/CCLayerTreeHostImplTest.cpp:
+        (WebKitTests::TEST_F):
+        * tests/CCLayerTreeHostTest.cpp:
+        (WTF::CCLayerTreeHostTest::doBeginTest):
+
+2012-04-05  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r113341.
+        http://trac.webkit.org/changeset/113341
+        https://bugs.webkit.org/show_bug.cgi?id=83299
+
+        bots caught some build errors (Requested by shawnsingh on
+        #webkit).
+
+        * tests/CCLayerTreeHostCommonTest.cpp:
+
+2012-04-05  Ian Vollick  <vollick@chromium.org>
+
+        [chromium] Race condition in CCLayerTreeHostTestSynchronizeAnimationStartTimes
+        https://bugs.webkit.org/show_bug.cgi?id=83179
+
+        Reviewed by James Robinson.
+
+        * tests/CCLayerTreeHostTest.cpp:
+        (WTF::TestHooks::willAnimateLayers):
+        (WTF::MockLayerTreeHostImpl::animateLayers):
+        (WTF::CCLayerTreeHostTestSynchronizeAnimationStartTimes::CCLayerTreeHostTestSynchronizeAnimationStartTimes):
+        (CCLayerTreeHostTestSynchronizeAnimationStartTimes):
+        (WTF::CCLayerTreeHostTestSynchronizeAnimationStartTimes::willAnimateLayers):
+        (WTF::CCLayerTreeHostTestSynchronizeAnimationStartTimes::notifyAnimationStarted):
+
+2012-04-05  Justin Novosad  <junov@chromium.org>
+
+        [Chromium] With the skia port, setting LCD text filtering is causing
+        texture cache invalidations of gpu canvas backing store
+        https://bugs.webkit.org/show_bug.cgi?id=74183
+
+        Reviewed by Stephen White.
+
+        Replacing unnecessary usage of SkCanvas::LayerIter with call to
+        SkCanvas::isDrawingToLayer(). Same results, lower overhead, and no
+        GPU texture invalidation.
+
+        * src/WebFontImpl.cpp:
+        (WebKit::WebFontImpl::drawText):
+
+2012-04-05  Lei Zhang  <thestig@chromium.org>
+
+        [Chromium] Properly align members in WebInputEvent and subclasses to make Valgrind happy.
+        https://bugs.webkit.org/show_bug.cgi?id=81570
+
+        Reviewed by Darin Fisher.
+
+        * public/WebInputEvent.h:
+        (WebKit):
+        (WebKit::WebInputEvent::WebInputEvent):
+        (WebKeyboardEvent):
+        (WebKit::WebTouchEvent::WebTouchEvent):
+
+2012-04-05  Shawn Singh  <shawnsingh@chromium.org>
+
+        [chromium] Need to clip to homogeneous w=0 plane when applying transforms.
+        https://bugs.webkit.org/show_bug.cgi?id=80806
+
+        Reviewed by Adrienne Walker.
+
+        * tests/CCLayerTreeHostCommonTest.cpp:
+        (WebKitTests::TEST):
+        (WebKitTests):
+
+2012-04-05  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r113307.
+        http://trac.webkit.org/changeset/113307
+        https://bugs.webkit.org/show_bug.cgi?id=83288
+
+        Requested by sievers@chromium.org (Requested by zhenyao on
+        #webkit).
+
+        * tests/CCLayerTreeHostTest.cpp:
+        (WTF::TEST_F):
+
+2012-04-05  Pavel Feldman  <pfeldman@chromium.org>
+
+        Web Inspector: [chromium] clean up WDTFC::saveAs after migration to save()
+        https://bugs.webkit.org/show_bug.cgi?id=83271
+
+        Reviewed by Yury Semikhatsky.
+
+        * public/WebDevToolsFrontendClient.h:
+
+2012-04-05  Hans Wennborg  <hans@chromium.org>
+
+        webkit_unit_tests build fix.
+        https://bugs.webkit.org/show_bug.cgi?id=83261
+
+        Unreviewed, webkit_unit_tests buildfix.
+
+        The CCLayerTreeHostTestEmptyContentsShouldNotDraw.runMultiThread test
+        stopped working after r113254.
+
+        Disable it for now.
+
+        * tests/CCLayerTreeHostTest.cpp:
+        (WTF):
+        (WTF::TEST_F):
+
+2012-04-05  Jochen Eisinger  <jochen@chromium.org>
+
+        [chromium] Only shut down V8 if we actually initialized it
+        https://bugs.webkit.org/show_bug.cgi?id=83159
+
+        Reviewed by Pavel Feldman.
+
+        * src/WebKit.cpp:
+        (WebKit::initialize):
+        (WebKit::shutdown):
+
+2012-04-05  Kinuko Yasuda  <kinuko@chromium.org>
+
+        Expose DataTransferItem.getAsEntry() to allow users access dropped files as FileEntry
+        https://bugs.webkit.org/show_bug.cgi?id=82592
+
+        Reviewed by David Levin.
+
+        * src/WebDragData.cpp:
+        (WebKit::WebDragData::filesystemId): Added implementation.
+        (WebKit::WebDragData::setFilesystemId): Added implementation.
+
+2012-04-04  Kent Tamura  <tkent@chromium.org>
+
+        [Chromium] Calendar Picker: Add localization functions
+        https://bugs.webkit.org/show_bug.cgi?id=83235
+
+        Reviewed by Adam Barth.
+
+        Implement calendarTodayText() and calendarClearText(), which are
+        introduced in http://trac.webkit.org/changeset/113166
+
+        * public/platform/WebLocalizedString.h:
+        Add CalendarClear and CalendarToday.
+        * src/LocalizedStrings.cpp:
+        (WebCore::calendarTodayText): Added.
+        (WebCore::calendarClearText): Added.
+
+2012-04-04  Mark Pilgrim  <pilgrim@chromium.org>
+
+        Call histogramEnumeration directly
+        https://bugs.webkit.org/show_bug.cgi?id=83106
+
+        Reviewed by Adam Barth.
+
+        Part of a refactoring project to remove the PlatformSupport
+        abstraction from some functions. See bug 82948.
+
+        * src/ChromeClientImpl.cpp:
+        (WebKit::ChromeClientImpl::shouldRunModalDialogDuringPageDismissal):
+        * src/PlatformSupport.cpp:
+        (WebCore):
+
 2012-04-04  Shawn Singh  <shawnsingh@chromium.org>
 
         [chromium] Move recursive renderSurface clearing to CCLayerTreeHostImpl

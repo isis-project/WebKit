@@ -1930,8 +1930,6 @@ webcore_sources += \
 	Source/WebCore/dom/RawDataDocumentParser.h \
 	Source/WebCore/dom/RegisteredEventListener.cpp \
 	Source/WebCore/dom/RegisteredEventListener.h \
-	Source/WebCore/dom/ReifiedTreeTraversal.cpp \
-	Source/WebCore/dom/ReifiedTreeTraversal.h \
 	Source/WebCore/dom/RenderedDocumentMarker.h \
 	Source/WebCore/dom/ScopedEventQueue.cpp \
 	Source/WebCore/dom/ScopedEventQueue.h \
@@ -2088,6 +2086,8 @@ webcore_sources += \
 	Source/WebCore/editing/SetNodeAttributeCommand.h \
 	Source/WebCore/editing/SetSelectionCommand.cpp \
 	Source/WebCore/editing/SetSelectionCommand.h \
+	Source/WebCore/editing/SimplifyMarkupCommand.cpp \
+	Source/WebCore/editing/SimplifyMarkupCommand.h \
 	Source/WebCore/editing/SmartReplace.cpp \
 	Source/WebCore/editing/SmartReplace.h \
 	Source/WebCore/editing/SmartReplaceICU.cpp \
@@ -3238,6 +3238,8 @@ webcore_sources += \
 	Source/WebCore/platform/graphics/Image.cpp \
 	Source/WebCore/platform/graphics/Image.h \
 	Source/WebCore/platform/graphics/ImageObserver.h \
+	Source/WebCore/platform/graphics/ImageOrientation.cpp \
+	Source/WebCore/platform/graphics/ImageOrientation.h \
 	Source/WebCore/platform/graphics/ImageSource.cpp \
 	Source/WebCore/platform/graphics/ImageSource.h \
 	Source/WebCore/platform/graphics/IntPoint.h \
@@ -3384,6 +3386,8 @@ webcore_sources += \
 	Source/WebCore/platform/mediastream/SessionDescriptionDescriptor.cpp \
 	Source/WebCore/platform/mediastream/SessionDescriptionDescriptor.h \
 	Source/WebCore/platform/mediastream/gstreamer/DeprecatedPeerConnectionHandler.cpp \
+	Source/WebCore/platform/mediastream/gstreamer/MediaStreamCenterGStreamer.cpp \
+	Source/WebCore/platform/mediastream/gstreamer/MediaStreamCenterGStreamer.h \
 	Source/WebCore/platform/mock/DeviceOrientationClientMock.cpp \
 	Source/WebCore/platform/mock/DeviceOrientationClientMock.h \
 	Source/WebCore/platform/mock/GeolocationClientMock.cpp \

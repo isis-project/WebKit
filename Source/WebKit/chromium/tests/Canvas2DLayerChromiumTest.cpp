@@ -56,9 +56,9 @@ namespace {
 
 class FakeCCLayerTreeHost : public CCLayerTreeHost {
 public:
-    static PassRefPtr<FakeCCLayerTreeHost> create()
+    static PassOwnPtr<FakeCCLayerTreeHost> create()
     {
-        RefPtr<FakeCCLayerTreeHost> host = adoptRef(new FakeCCLayerTreeHost);
+        OwnPtr<FakeCCLayerTreeHost> host = adoptPtr(new FakeCCLayerTreeHost);
         host->initialize();
         return host.release();
     }
@@ -97,8 +97,8 @@ protected:
         RefPtr<GraphicsContext3D> mainContext = GraphicsContext3DPrivate::createGraphicsContextFromWebContext(adoptPtr(new MockCanvasContext()), GraphicsContext3D::RenderDirectlyToHostWindow);
         RefPtr<GraphicsContext3D> implContext = GraphicsContext3DPrivate::createGraphicsContextFromWebContext(adoptPtr(new MockCanvasContext()), GraphicsContext3D::RenderDirectlyToHostWindow);
 
-        MockCanvasContext& implMock = *static_cast<MockCanvasContext*>(GraphicsContext3DPrivate::extractWebGraphicsContext3D(implContext.get()));
         MockCanvasContext& mainMock = *static_cast<MockCanvasContext*>(GraphicsContext3DPrivate::extractWebGraphicsContext3D(mainContext.get()));
+        MockCanvasContext& implMock = *static_cast<MockCanvasContext*>(GraphicsContext3DPrivate::extractWebGraphicsContext3D(implContext.get()));
 
         MockTextureAllocator allocatorMock;
         MockTextureCopier copierMock;
@@ -111,7 +111,7 @@ protected:
            thread = adoptPtr(webKitPlatformSupport()->createThread("Canvas2DLayerChromiumTest"));
         WebCompositor::initialize(thread.get());
 
-        RefPtr<FakeCCLayerTreeHost> layerTreeHost = FakeCCLayerTreeHost::create();
+        OwnPtr<FakeCCLayerTreeHost> layerTreeHost = FakeCCLayerTreeHost::create();
         // Force an update, so that we get a valid TextureManager.
         layerTreeHost->updateLayers();
 
@@ -155,6 +155,8 @@ protected:
 
             canvas->updateCompositorResources(implContext.get(), updater);
             canvas->pushPropertiesTo(layerImpl.get());
+
+            updater.update(implContext.get(), 1);
 
             if (threaded)
                 EXPECT_EQ(frontTextureId, static_cast<CCTextureLayerImpl*>(layerImpl.get())->textureId());

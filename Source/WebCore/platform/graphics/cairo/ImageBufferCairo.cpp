@@ -54,9 +54,10 @@ ImageBufferData::ImageBufferData(const IntSize& size)
 {
 }
 
-ImageBuffer::ImageBuffer(const IntSize& size, ColorSpace, RenderingMode, DeferralMode, bool& success)
+ImageBuffer::ImageBuffer(const IntSize& size, float /* resolutionScale */, ColorSpace, RenderingMode, DeferralMode, bool& success)
     : m_data(size)
     , m_size(size)
+    , m_logicalSize(size)
 {
     success = false;  // Make early return mean error.
     m_data.m_surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,
@@ -98,7 +99,7 @@ void ImageBuffer::draw(GraphicsContext* context, ColorSpace styleColorSpace, con
 {
     // BitmapImage will release the passed in surface on destruction
     RefPtr<Image> image = BitmapImage::create(cairo_surface_reference(m_data.m_surface));
-    context->drawImage(image.get(), styleColorSpace, destRect, srcRect, op, useLowQualityScale);
+    context->drawImage(image.get(), styleColorSpace, destRect, srcRect, op, DoNotRespectImageOrientation, useLowQualityScale);
 }
 
 void ImageBuffer::drawPattern(GraphicsContext* context, const FloatRect& srcRect, const AffineTransform& patternTransform,

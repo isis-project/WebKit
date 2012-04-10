@@ -1,3 +1,556 @@
+2012-04-09  Filip Pizlo  <fpizlo@apple.com>
+
+        Unreviewed, modernize and clean up uses of ARM assembly mnemonics in inline asm blocks.
+
+        * dfg/DFGOperations.cpp:
+        (JSC):
+        * offlineasm/armv7.rb:
+
+2012-04-09  Patrick Gansterer  <paroga@webkit.org>
+
+        Remove HAVE_STDINT_H
+        https://bugs.webkit.org/show_bug.cgi?id=83434
+
+        Reviewed by Kentaro Hara.
+
+        HAVE_STDINT_H is defined with 1 all the time and we us stdint.h without HAVE(STDINT_H) already.
+
+        * config.h:
+
+2012-04-08  Filip Pizlo  <fpizlo@apple.com>
+
+        DFG should not load the property storage if it is inline.
+        https://bugs.webkit.org/show_bug.cgi?id=83455
+
+        Reviewed by Gavin Barraclough.
+        
+        We had previously decided to have all property storage accesses go through
+        the property storage pointer even if they don't "really" have to, because
+        we were thinking this would help GC barriers somehow. Well, we never ended
+        up doing anything with that. Hence, doing these wasted loads of the
+        property storage pointer when the storage is inline is just a waste of CPU
+        cycles.
+        
+        This change makes the DFG's inline property accesses (GetByOffset and
+        PutByOffset) go directly to the inline property storage if the structure(s)
+        tell us that it's OK.
+        
+        This looks like an across-the-board 1% win.
+
+        * bytecode/StructureSet.h:
+        (JSC):
+        (JSC::StructureSet::allAreUsingInlinePropertyStorage):
+        (StructureSet):
+        * dfg/DFGByteCodeParser.cpp:
+        (JSC::DFG::ByteCodeParser::parseBlock):
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::fillStorage):
+
+2012-04-08  Filip Pizlo  <fpizlo@apple.com>
+
+        Command-line jsc's exception handling should be rationalized
+        https://bugs.webkit.org/show_bug.cgi?id=83437
+
+        Reviewed by Dan Bernstein.
+        
+        - If an exception is thrown during run() execution, it is now propagated,
+          so that it will terminate program execution unless it is caught.
+          
+        - If program execution terminates with an exception, the exception is now
+          always printed.
+          
+        - When printing the exception, the backtrace is now also printed if one is
+          available. It will only not be available if you use something akin to my
+          favorite line of code, 'throw "error"', since primitives don't have
+          properties and hence we cannot attach a "stack" property to them.
+
+        * jsc.cpp:
+        (functionRun):
+        (runWithScripts):
+
+2012-04-04  Filip Pizlo  <fpizlo@apple.com>
+
+        Forced OSR exits should lead to recompilation based on count, not rate
+        https://bugs.webkit.org/show_bug.cgi?id=83247
+        <rdar://problem/10720925>
+
+        Reviewed by Geoff Garen.
+        
+        Track which OSR exits happen because of inadequate coverage. Count them
+        separately. If the count reaches a threshold, immediately trigger
+        reoptimization.
+        
+        This is in contrast to the recompilation trigger for all other OSR exits.
+        Normally recomp is triggered when the exit rate exceeds a certain ratio.
+        
+        Looks like a slight V8 speedup (sub 1%).
+
+        * bytecode/CodeBlock.cpp:
+        (JSC::CodeBlock::CodeBlock):
+        * bytecode/CodeBlock.h:
+        (JSC::CodeBlock::forcedOSRExitCounter):
+        (JSC::CodeBlock::addressOfForcedOSRExitCounter):
+        (JSC::CodeBlock::offsetOfForcedOSRExitCounter):
+        (JSC::CodeBlock::shouldReoptimizeNow):
+        (JSC::CodeBlock::shouldReoptimizeFromLoopNow):
+        (CodeBlock):
+        * bytecode/DFGExitProfile.h:
+        (JSC::DFG::exitKindToString):
+        * dfg/DFGOSRExitCompiler.cpp:
+        (JSC::DFG::OSRExitCompiler::handleExitCounts):
+        (DFG):
+        * dfg/DFGOSRExitCompiler.h:
+        (OSRExitCompiler):
+        * dfg/DFGOSRExitCompiler32_64.cpp:
+        (JSC::DFG::OSRExitCompiler::compileExit):
+        * dfg/DFGOSRExitCompiler64.cpp:
+        (JSC::DFG::OSRExitCompiler::compileExit):
+        * dfg/DFGOperations.cpp:
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compileGetIndexedPropertyStorage):
+        * dfg/DFGSpeculativeJIT32_64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * dfg/DFGSpeculativeJIT64.cpp:
+        (JSC::DFG::SpeculativeJIT::compile):
+        * runtime/Options.cpp:
+        (Options):
+        (JSC::Options::initializeOptions):
+        * runtime/Options.h:
+        (Options):
+
+2012-04-06  Benjamin Poulain  <bpoulain@apple.com>
+
+        Do not abuse ArrayStorage's m_length for testing array consistency
+        https://bugs.webkit.org/show_bug.cgi?id=83403
+
+        Reviewed by Geoffrey Garen.
+
+        Array creation from a list of values is a 3 steps process:
+        -JSArray::tryCreateUninitialized()
+        -JSArray::initializeIndex() for each values
+        -JSArray::completeInitialization()
+
+        Previously, the attribute m_length was not set to the final size
+        JSArray::tryCreateUninitialized() because it was used to test the array
+        consistency JSArray::initializeIndex().
+
+        This caused the initialization loop using JSArray::initializeIndex() maintain
+        two counters:
+        -index of the loop
+        -storage->m_length++
+
+        This patch fixes this by using the index of the initialization loop for the indinces of
+        JSArray::initializeIndex(). For testing consistency, the variable m_initializationIndex
+        is introduced if CHECK_ARRAY_CONSISTENCY is defined.
+
+        The patch also fixes minor unrelated build issue when CHECK_ARRAY_CONSISTENCY is defined.
+
+        This improves the performance of JSArray creation from literals by 8%.
+
+        * runtime/JSArray.cpp:
+        (JSC::JSArray::tryFinishCreationUninitialized):
+        (JSC::JSArray::checkConsistency):
+        * runtime/JSArray.h:
+        (ArrayStorage):
+        (JSC::JSArray::initializeIndex):
+        (JSC::JSArray::completeInitialization):
+
+2012-04-06  Jon Lee  <jonlee@apple.com>
+
+        Build fix for Windows bots.
+
+        * JavaScriptCore.vcproj/JavaScriptCore/JavaScriptCore.def: export missing symbol.
+
+2012-04-06  Geoffrey Garen  <ggaren@apple.com>
+
+        Renamed
+
+                WeakHeap => WeakSet
+                HandleHeap => HandleSet
+
+        Reviewed by Sam Weinig.
+
+        These sets do have internal allocators, but it's confusing to call them
+        heaps because they're sub-objects of an object called "heap".
+
+        * heap/HandleHeap.cpp: Removed.
+        * heap/HandleHeap.h: Removed.
+        * heap/HandleSet.cpp: Copied from JavaScriptCore/heap/HandleHeap.cpp.
+        * heap/WeakHeap.cpp: Removed.
+        * heap/WeakHeap.h: Removed.
+        * heap/WeakSet.cpp: Copied from JavaScriptCore/heap/WeakHeap.cpp.
+        * heap/WeakSet.h: Copied from JavaScriptCore/heap/WeakHeap.h.
+
+        Plus global rename using grep.
+
+2012-04-06  Dan Bernstein  <mitz@apple.com>
+
+        <rdar://problem/10912476> HiDPI: Have canvas use a hidpi backing store, but downsample upon access
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/FeatureDefines.xcconfig: Added ENABLE_HIGH_DPI_CANVAS.
+
+2012-04-06  Rob Buis  <rbuis@rim.com>
+
+        Fix cast-align warnings in JSC
+        https://bugs.webkit.org/show_bug.cgi?id=80790
+
+        Reviewed by George Staikos.
+
+        * assembler/ARMv7Assembler.h:
+        (JSC::ARMv7Assembler::computeJumpType):
+        (JSC::ARMv7Assembler::link):
+        * assembler/LinkBuffer.h:
+        (JSC::LinkBuffer::linkCode):
+        * heap/MarkStack.cpp:
+        (JSC::SlotVisitor::copyAndAppend):
+        * runtime/JSArray.cpp:
+        (JSC::JSArray::visitChildren):
+        * wtf/RefCountedArray.h:
+        (WTF::RefCountedArray::Header::payload):
+
+2012-04-06  Darin Adler  <darin@apple.com>
+
+        Streamline strtod and fix some related problems
+        https://bugs.webkit.org/show_bug.cgi?id=82857
+
+        Reviewed by Geoffrey Garen.
+
+        * parser/Lexer.cpp:
+        (JSC::Lexer<>::lex): Use parseDouble. Since we have already scanned the number
+        and we know it has only correct characters, leading spaces, trailing junk, and
+        trailing spaces are not a possibility. No need to add a trailing null character.
+
+        * runtime/JSGlobalObjectFunctions.cpp:
+        (JSC::parseInt): Changed overflow based 10 case to use parseDouble. No need
+        to allow trailing junk since the code above already allows only numeric digits
+        in the string. This code path is used only in unusual cases, so it's not
+        optimized for 8-bit strings, but easily could be.
+        (JSC::jsStrDecimalLiteral): Removed the allow trailing junk argument to this
+        function template because all the callers are OK with trailing junk. Use the
+        parseDouble function. No need to copy the data into a byte buffer, because
+        parseDouble handles that.
+        (JSC::toDouble): Got rid of the DisallowTrailingJunk argument to the
+        jsStrDecimalLiteral function template. That's OK because this function
+        already checks for trailing junk and handles it appropriately. The old code
+        path was doing it twice.
+        (JSC::parseFloat): Got rid of the AllowTrailingJunk argument to the
+        jsStrDecimalLiteral function template; the template allows junk unconditionally.
+
+        * runtime/LiteralParser.cpp:
+        (JSC::::Lexer::lexNumber): Use parseDouble. Since we have already scanned the number
+        and we know it has only correct characters, leading spaces, trailing junk, and
+        trailing spaces are not a possibility. No need to add a trailing null character.
+        No need to copy the data into a byte buffer, because parseDouble handles that.
+        We could optimize the UChar case even more because we know all the characters
+        are ASCII, but not doing that at this time.
+
+        * JavaScriptCore.vcproj/JavaScriptCore/JavaScriptCore.def: Updated.
+
+2012-04-06  Patrick Gansterer  <paroga@webkit.org>
+
+        Remove JSC dependency from GregorianDateTime
+        https://bugs.webkit.org/show_bug.cgi?id=83290
+
+        Reviewed by Geoffrey Garen.
+
+        This allows us to move it to WTF later.
+
+        * runtime/DateConstructor.cpp:
+        (JSC::callDate):
+        * runtime/JSDateMath.h:
+
+2012-04-05  Michael Saboff  <msaboff@apple.com>
+
+        Call Heap::discardAllCompiledCode() in low memory situations
+        https://bugs.webkit.org/show_bug.cgi?id=83335
+
+        Reviewed by Geoffrey Garen.
+
+        Restructured Heap::discardAllCompiledCode() to do the "Is JavaScriptRunning?"
+        check inline so that it can be called directly without this check.
+
+        * heap/Heap.cpp:
+        (JSC::Heap::discardAllCompiledCode):
+        (JSC::Heap::collectAllGarbage):
+        * heap/Heap.h: Added JS_EXPORT_PRIVATE to discardAllCompiledCode() so it can be
+        called from WebCore.
+        (Heap):
+        * runtime/JSGlobalData.h: Removed unused " void discardAllCompiledCode()" declaration.
+        (JSGlobalData):
+
+2012-04-05  Benjamin Poulain  <bpoulain@apple.com>
+
+        Speed up the conversion from JSValue to String for bulk operations
+        https://bugs.webkit.org/show_bug.cgi?id=83243
+
+        Reviewed by Geoffrey Garen.
+
+        When making operations on primitive types, we loose some time converting
+        values to JSString in order to extract the string.
+
+        This patch speeds up some basic Array operations by avoiding the creation
+        of intermediary JSString when possible.
+
+        For the cases where we need to convert a lot of JSValue in a tight loop,
+        an inline conversion is used.
+
+        * runtime/ArrayPrototype.cpp:
+        (JSC::arrayProtoFuncToString):
+        (JSC::arrayProtoFuncToLocaleString):
+        (JSC::arrayProtoFuncJoin):
+        (JSC::arrayProtoFuncPush):
+        (JSC::arrayProtoFuncSort):
+        * runtime/CommonIdentifiers.h:
+        * runtime/JSArray.cpp:
+        (JSC::JSArray::sort):
+        * runtime/JSString.h:
+        (JSC::JSValue::toUString):
+        (JSC):
+        (JSC::inlineJSValueNotStringtoUString):
+        (JSC::JSValue::toUStringInline):
+        * runtime/JSValue.cpp:
+        (JSC::JSValue::toUStringSlowCase):
+        (JSC):
+        * runtime/JSValue.h:
+        (JSValue):
+
+2012-04-05  Benjamin Poulain  <bpoulain@apple.com>
+
+        Use QuickSort when sorting primitive values by string representation
+        https://bugs.webkit.org/show_bug.cgi?id=83312
+
+        Reviewed by Gavin Barraclough.
+
+        When the value we are sorting are all primitive values, we do not need to
+        ensure a stable sort as two values with equal string representation are
+        indistinguishable from JavaScript.
+
+        This gives about 16% performance increase when sorting primitive values.
+
+        * runtime/JSArray.cpp:
+        (JSC::JSArray::sort):
+
+2012-04-05  Oliver Hunt  <oliver@apple.com>
+
+        SIGILL in JavaScriptCore on a Geode processor
+        https://bugs.webkit.org/show_bug.cgi?id=82496
+
+        Reviewed by Gavin Barraclough.
+
+        Don't attempt to use the DFG when SSE2 is not available.
+
+        * dfg/DFGCapabilities.cpp:
+        (JSC::DFG::canCompileOpcodes):
+
+2012-04-05  Oliver Hunt  <oliver@apple.com>
+
+        Fix 32-bit build.
+
+        * API/APICast.h:
+        (toJS):
+
+2012-04-05  Oliver Hunt  <oliver@apple.com>
+
+        Replace static_cast with jsCast when casting JSCell subclasses in JSC
+        https://bugs.webkit.org/show_bug.cgi?id=83307
+
+        Reviewed by Gavin Barraclough.
+
+        Replace all usage of static_cast<JSCell subtype*> with jsCast<> in JavaScriptCore.
+        This results in assertions when unsafe casts are performed, but simply leaves
+        a static_cast<> in release builds.
+
+        * API/APICast.h:
+        (toJS):
+        * API/JSCallbackConstructor.cpp:
+        (JSC::constructJSCallback):
+        * API/JSCallbackFunction.cpp:
+        (JSC::JSCallbackFunction::call):
+        * API/JSCallbackObjectFunctions.h:
+        (JSC::::asCallbackObject):
+        (JSC::::finishCreation):
+        (JSC::::construct):
+        (JSC::::call):
+        * API/JSObjectRef.cpp:
+        (JSObjectGetPrivate):
+        (JSObjectSetPrivate):
+        (JSObjectGetPrivateProperty):
+        (JSObjectSetPrivateProperty):
+        (JSObjectDeletePrivateProperty):
+        * API/JSValueRef.cpp:
+        (JSValueIsObjectOfClass):
+        * API/JSWeakObjectMapRefPrivate.cpp:
+        * bytecompiler/BytecodeGenerator.cpp:
+        (JSC::BytecodeGenerator::resolve):
+        (JSC::BytecodeGenerator::resolveConstDecl):
+        * debugger/DebuggerActivation.cpp:
+        (JSC::DebuggerActivation::finishCreation):
+        * dfg/DFGOperations.cpp:
+        * interpreter/Interpreter.cpp:
+        (JSC::Interpreter::execute):
+        (JSC::Interpreter::privateExecute):
+        * jit/JITStubs.cpp:
+        (JSC::DEFINE_STUB_FUNCTION):
+        * runtime/Executable.h:
+        (JSC::isHostFunction):
+        * runtime/JSActivation.h:
+        (JSC::asActivation):
+        * runtime/JSArray.cpp:
+        (JSC::JSArray::defineOwnProperty):
+        * runtime/JSArray.h:
+        (JSC::asArray):
+        * runtime/JSBoundFunction.cpp:
+        (JSC::boundFunctionCall):
+        (JSC::boundFunctionConstruct):
+        * runtime/JSByteArray.h:
+        (JSC::asByteArray):
+        * runtime/JSCell.cpp:
+        (JSC::JSCell::toObject):
+        * runtime/JSCell.h:
+        (JSC::jsCast):
+        * runtime/JSGlobalObject.h:
+        (JSC::asGlobalObject):
+        * runtime/JSGlobalObjectFunctions.cpp:
+        (JSC::globalFuncEval):
+        * runtime/JSObject.cpp:
+        (JSC::JSObject::setPrototypeWithCycleCheck):
+        (JSC::JSObject::allowsAccessFrom):
+        (JSC::JSObject::toThisObject):
+        (JSC::JSObject::unwrappedObject):
+        * runtime/JSObject.h:
+        (JSC::asObject):
+        * runtime/JSPropertyNameIterator.h:
+        (JSC::Register::propertyNameIterator):
+        * runtime/JSString.h:
+        (JSC::asString):
+        (JSC::JSValue::toString):
+        * runtime/StringPrototype.cpp:
+        (JSC::stringProtoFuncSubstr):
+
+2012-04-05  Benjamin Poulain  <bpoulain@apple.com>
+
+        Make something faster than JSStringBuilder for joining an array of JSValue
+        https://bugs.webkit.org/show_bug.cgi?id=83180
+
+        Reviewed by Geoffrey Garen.
+
+        This patch add the class JSStringJoiner optimized for join() operations.
+
+        This class makes stricter constraints than JSStringBuilder in order avoid
+        memory allocations.
+
+        In the best case, the class allocate memory only twice:
+        -Allocate an array to keep a list of UString to join.
+        -Allocate the final string.
+
+        We also avoid the conversion from 8bits strings to 16bits strings since
+        they are costly and unlikly to help for subsequent calls.
+
+        * CMakeLists.txt:
+        * GNUmakefile.list.am:
+        * JavaScriptCore.gypi:
+        * JavaScriptCore.vcproj/JavaScriptCore/JavaScriptCore.vcproj:
+        * JavaScriptCore.xcodeproj/project.pbxproj:
+        * Target.pri:
+        * runtime/ArrayPrototype.cpp:
+        (JSC::arrayProtoFuncToLocaleString):
+        (JSC::arrayProtoFuncJoin):
+        * runtime/JSStringJoiner.cpp: Added.
+        (JSC):
+        (JSC::appendStringToData):
+        (JSC::joinStrings):
+        (JSC::JSStringJoiner::build):
+        * runtime/JSStringJoiner.h: Added.
+        (JSC):
+        (JSStringJoiner):
+        (JSC::JSStringJoiner::JSStringJoiner):
+        (JSC::JSStringJoiner::append):
+
+2012-04-05  Gavin Barraclough  <barraclough@apple.com>
+
+        https://bugs.webkit.org/show_bug.cgi?id=77293
+        [Un]Reserve 'let'
+
+        Rubber stamped by Oliver Hunt.
+
+        Revert r106198.
+        This does break the web - e.g. https://bvi.bnc.ca/index/bnc/indexen.html
+        If we're going to reserve let, we're going to have to do so in a more
+        circumspect fashion.
+
+        * parser/Keywords.table:
+
+2012-04-05  Michael Saboff  <msaboff@apple.com>
+
+        Rolling out http://trac.webkit.org/changeset/113262.
+        Original code was fine.
+
+        Rubber-stamped by Oliver Hunt.
+
+        * assembler/MacroAssembler.h:
+        (JSC::MacroAssembler::additionBlindedConstant):
+
+2012-04-05  Patrick Gansterer  <paroga@webkit.org>
+
+        [WinCE] Remove unnecessary function decleration
+        https://bugs.webkit.org/show_bug.cgi?id=83155
+
+        Reviewed by Kentaro Hara.
+
+        * runtime/JSDateMath.cpp:
+
+2012-04-04  Patrick Gansterer  <paroga@webkit.org>
+
+        Add WTF::getCurrentLocalTime()
+        https://bugs.webkit.org/show_bug.cgi?id=83164
+
+        Reviewed by Alexey Proskuryakov.
+
+        Replace the calls to WTF::getLocalTime() with time(0) with the new function.
+        This allows us to use Win32 API on windows to get the same result in a next step.
+
+        * JavaScriptCore.vcproj/JavaScriptCore/JavaScriptCore.def:
+        * runtime/DateConstructor.cpp:
+        (JSC::callDate):
+
+2012-04-04  Oliver Hunt  <oliver@apple.com>
+
+        Parser fails to revert some state after parsing expression and object literals.
+        https://bugs.webkit.org/show_bug.cgi?id=83236
+
+        Reviewed by Gavin Barraclough.
+
+        Reset left hand side counter after parsing the literals.
+
+        * parser/Parser.cpp:
+        (JSC::::parseObjectLiteral):
+        (JSC::::parseStrictObjectLiteral):
+        (JSC::::parseArrayLiteral):
+
+2012-04-04  Filip Pizlo  <fpizlo@apple.com>
+
+        DFG InstanceOf should not uselessly speculate cell
+        https://bugs.webkit.org/show_bug.cgi?id=83234
+
+        Reviewed by Oliver Hunt.
+        
+        If InstanceOf is the only user of its child then don't speculate cell, since
+        the not-cell case is super easy to handle.
+
+        * dfg/DFGSpeculativeJIT.cpp:
+        (JSC::DFG::SpeculativeJIT::compileInstanceOf):
+
+2012-04-04  Michael Saboff  <msaboff@apple.com>
+
+        Fixed minor error: "& 3" should be "& 2".
+
+        Rubber-stamped by Oliver Hunt.
+
+        * assembler/MacroAssembler.h:
+        (JSC::MacroAssembler::additionBlindedConstant):
+
 2012-04-04  Michael Saboff  <msaboff@apple.com>
 
         Constant Blinding for add/sub immediate crashes in ArmV7 when dest is SP

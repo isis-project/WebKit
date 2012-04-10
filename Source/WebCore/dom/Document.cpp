@@ -38,7 +38,6 @@
 #include "CSSStyleSelector.h"
 #include "CSSStyleSheet.h"
 #include "CSSValueKeywords.h"
-#include "CSSValuePool.h"
 #include "CachedCSSStyleSheet.h"
 #include "CachedResourceLoader.h"
 #include "Chrome.h"
@@ -1240,7 +1239,7 @@ String Document::suggestedMIMEType() const
 // * making it receive a rect as parameter, i.e. nodesFromRect(x, y, w, h);
 // * making it receive the expading size of each direction separately,
 //   i.e. nodesFromRect(x, y, topSize, rightSize, bottomSize, leftSize);
-PassRefPtr<NodeList> Document::nodesFromRect(int centerX, int centerY, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping) const
+PassRefPtr<NodeList> Document::nodesFromRect(int centerX, int centerY, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, bool allowShadowContent) const
 {
     // FIXME: Share code between this, elementFromPoint and caretRangeFromPoint.
     if (!renderer())
@@ -1272,7 +1271,8 @@ PassRefPtr<NodeList> Document::nodesFromRect(int centerX, int centerY, unsigned 
         return handleZeroPadding(request, result);
     }
 
-    HitTestResult result(point, topPadding, rightPadding, bottomPadding, leftPadding);
+    enum ShadowContentFilterPolicy shadowContentFilterPolicy = allowShadowContent ? AllowShadowContent : DoNotAllowShadowContent;
+    HitTestResult result(point, topPadding, rightPadding, bottomPadding, leftPadding, shadowContentFilterPolicy);
     renderView()->layer()->hitTest(request, result);
 
     return StaticHashSetNodeList::adopt(result.rectBasedTestResult());
@@ -1856,13 +1856,6 @@ void Document::pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int&
     marginLeft = style->marginLeft().isAuto() ? marginLeft : valueForLength(style->marginLeft(), width, view);
 }
 
-PassRefPtr<CSSValuePool> Document::cssValuePool() const
-{
-    if (!m_cssValuePool)
-        m_cssValuePool = CSSValuePool::create();
-    return m_cssValuePool;
-}
-
 void Document::setIsViewSource(bool isViewSource)
 {
     m_isViewSource = isViewSource;
@@ -2350,11 +2343,11 @@ void Document::implicitClose()
         printf("onload fired at %d\n", elapsedTime());
 #endif
 
-    m_processingLoadEvent = false;
-
     // An event handler may have removed the frame
-    if (!frame())
+    if (!frame()) {
+        m_processingLoadEvent = false;
         return;
+    }
 
     // Make sure both the initial layout and reflow happen after the onload
     // fires. This will improve onload scores, and other browsers do it.
@@ -2363,6 +2356,7 @@ void Document::implicitClose()
     if (frame()->navigationScheduler()->locationChangePending() && elapsedTime() < cLayoutScheduleThreshold) {
         // Just bail out. Before or during the onload we were shifted to another page.
         // The old i-Bench suite does this. When this happens don't bother painting or laying out.        
+        m_processingLoadEvent = false;
         view()->unscheduleRelayout();
         return;
     }
@@ -2381,6 +2375,8 @@ void Document::implicitClose()
         if (view() && renderObject && (!renderObject->firstChild() || renderObject->needsLayout()))
             view()->layout();
     }
+
+    m_processingLoadEvent = false;
 
     // If painting and compositing layer updates were suppressed pending the load event, do these actions now.
     if (renderer() && settings() && settings()->suppressesIncrementalRendering()) {
@@ -2680,6 +2676,15 @@ bool Document::canNavigate(Frame* targetFrame)
 
     printNavigationErrorMessage(targetFrame, url());
     return false;
+}
+
+bool Document::canBeAccessedByEveryAncestorFrame()
+{
+    for (Frame* ancestorFrame = m_frame->tree()->parent(); ancestorFrame; ancestorFrame = ancestorFrame->tree()->parent()) {
+        if (!ancestorFrame->document()->securityOrigin()->canAccess(securityOrigin()))
+            return false;
+    }
+    return true;
 }
 
 CSSStyleSheet* Document::pageUserSheet()
@@ -5630,17 +5635,22 @@ void Document::loadEventDelayTimerFired(Timer<Document>*)
 }
 
 #if ENABLE(REQUEST_ANIMATION_FRAME)
-int Document::webkitRequestAnimationFrame(PassRefPtr<RequestAnimationFrameCallback> callback, Element* animationElement)
+int Document::webkitRequestAnimationFrame(PassRefPtr<RequestAnimationFrameCallback> callback)
 {
     if (!m_scriptedAnimationController) {
 #if USE(REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR)
-        m_scriptedAnimationController = ScriptedAnimationController::create(this, page()->displayID());
+        m_scriptedAnimationController = ScriptedAnimationController::create(this, page() ? page()->displayID() : 0);
 #else
         m_scriptedAnimationController = ScriptedAnimationController::create(this, 0);
 #endif
+        // It's possible that the Page may have suspended scripted animations before
+        // we were created. We need to make sure that we don't start up the animation
+        // controller on a background tab, for example.
+        if (!page() || page()->scriptedAnimationsSuspended())
+            m_scriptedAnimationController->suspend();
     }
 
-    return m_scriptedAnimationController->registerCallback(callback, animationElement);
+    return m_scriptedAnimationController->registerCallback(callback);
 }
 
 void Document::webkitCancelAnimationFrame(int id)

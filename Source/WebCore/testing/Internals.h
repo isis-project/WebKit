@@ -81,6 +81,7 @@ public:
     PassRefPtr<Element> createContentElement(Document*, ExceptionCode&);
     Element* getElementByIdInShadowRoot(Node* shadowRoot, const String& id, ExceptionCode&);
     bool isValidContentSelect(Element* insertionPoint, ExceptionCode&);
+    Node* treeScopeRootNode(Node*, ExceptionCode&);
 
     bool attached(Node*, ExceptionCode&);
 
@@ -90,12 +91,6 @@ public:
     Node* lastChildByWalker(Node*, ExceptionCode&);
     Node* nextNodeByWalker(Node*, ExceptionCode&);
     Node* previousNodeByWalker(Node*, ExceptionCode&);
-
-    Node* nextSiblingInReifiedTree(Node*, ExceptionCode&);
-    Node* firstChildInReifiedTree(Node*, ExceptionCode&);
-    Node* lastChildInReifiedTree(Node*, ExceptionCode&);
-    Node* traverseNextNodeInReifiedTree(Node*, ExceptionCode&);
-    Node* traversePreviousNodeInReifiedTree(Node*, ExceptionCode&);
 
 #if ENABLE(INPUT_TYPE_COLOR)
     void selectColorInColorChooser(Element*, const String& colorValue);
@@ -146,7 +141,7 @@ public:
     unsigned touchEventHandlerCount(Document*, ExceptionCode&);
 
     PassRefPtr<NodeList> nodesFromRect(Document*, int x, int y, unsigned topPadding, unsigned rightPadding,
-        unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, ExceptionCode&) const;
+        unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, bool allowShadowContent, ExceptionCode&) const;
 
     void emitInspectorDidBeginFrame();
     void emitInspectorDidCancelFrame();

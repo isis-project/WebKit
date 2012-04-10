@@ -503,7 +503,6 @@
 #endif
 
 #if OS(WINCE)
-#include <ce_time.h>
 #define WTF_USE_MERSENNE_TWISTER_19937 1
 #endif
 
@@ -1113,9 +1112,6 @@
 #if PLATFORM(MAC) && HAVE(ACCESSIBILITY)
 #define WTF_USE_ACCESSIBILITY_CONTEXT_MENUS 1
 #endif
-
-/* Geolocation request policy. pre-emptive policy is to acquire user permission before acquiring location. */
-#define WTF_USE_PREEMPT_GEOLOCATION_PERMISSION 1
 
 #if CPU(ARM_THUMB2)
 #define ENABLE_BRANCH_COMPACTION 1

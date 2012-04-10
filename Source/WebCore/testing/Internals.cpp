@@ -51,7 +51,6 @@
 #include "NodeRenderingContext.h"
 #include "Page.h"
 #include "Range.h"
-#include "ReifiedTreeTraversal.h"
 #include "RenderObject.h"
 #include "RenderTreeAsText.h"
 #include "Settings.h"
@@ -59,6 +58,7 @@
 #include "ShadowTree.h"
 #include "SpellChecker.h"
 #include "TextIterator.h"
+#include "TreeScope.h"
 
 #if ENABLE(INPUT_TYPE_COLOR)
 #include "ColorChooser.h"
@@ -178,6 +178,16 @@ bool Internals::isValidContentSelect(Element* insertionPoint, ExceptionCode& ec)
     return toInsertionPoint(insertionPoint)->isSelectValid();
 }
 
+Node* Internals::treeScopeRootNode(Node* node, ExceptionCode& ec)
+{
+    if (!node) {
+        ec = INVALID_ACCESS_ERR;
+        return 0;
+    }
+
+    return node->treeScope()->rootNode();
+}
+
 bool Internals::attached(Node* node, ExceptionCode& ec)
 {
     if (!node) {
@@ -241,51 +251,6 @@ Node* Internals::previousNodeByWalker(Node* node, ExceptionCode& ec)
     ComposedShadowTreeWalker walker(node);
     walker.previous();
     return walker.get();
-}
-
-Node* Internals::nextSiblingInReifiedTree(Node* node, ExceptionCode& ec)
-{
-    if (!node) {
-        ec = INVALID_ACCESS_ERR;
-        return 0;
-    }
-    return ReifiedTreeTraversal::nextSibling(node);
-}
-
-Node* Internals::firstChildInReifiedTree(Node* node, ExceptionCode& ec)
-{
-    if (!node) {
-        ec = INVALID_ACCESS_ERR;
-        return 0;
-    }
-    return ReifiedTreeTraversal::firstChild(node);
-}
-
-Node* Internals::lastChildInReifiedTree(Node* node, ExceptionCode& ec)
-{
-    if (!node) {
-        ec = INVALID_ACCESS_ERR;
-        return 0;
-    }
-    return ReifiedTreeTraversal::lastChild(node);
-}
-
-Node* Internals::traverseNextNodeInReifiedTree(Node* node, ExceptionCode& ec)
-{
-    if (!node) {
-        ec = INVALID_ACCESS_ERR;
-        return 0;
-    }
-    return ReifiedTreeTraversal::traverseNextNode(node);
-}
-
-Node* Internals::traversePreviousNodeInReifiedTree(Node* node, ExceptionCode& ec)
-{
-    if (!node) {
-        ec = INVALID_ACCESS_ERR;
-        return 0;
-    }
-    return ReifiedTreeTraversal::traversePreviousNode(node);
 }
 
 String Internals::elementRenderTreeAsText(Element* element, ExceptionCode& ec)
@@ -849,14 +814,14 @@ unsigned Internals::touchEventHandlerCount(Document* document, ExceptionCode& ec
 }
 
 PassRefPtr<NodeList> Internals::nodesFromRect(Document* document, int x, int y, unsigned topPadding, unsigned rightPadding,
-    unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, ExceptionCode& ec) const
+    unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, bool allowShadowContent, ExceptionCode& ec) const
 {
     if (!document || !document->frame() || !document->frame()->view()) {
         ec = INVALID_ACCESS_ERR;
         return 0;
     }
 
-    return document->nodesFromRect(x, y, topPadding, rightPadding, bottomPadding, leftPadding, ignoreClipping);
+    return document->nodesFromRect(x, y, topPadding, rightPadding, bottomPadding, leftPadding, ignoreClipping, allowShadowContent);
 }
 
 void Internals::emitInspectorDidBeginFrame()

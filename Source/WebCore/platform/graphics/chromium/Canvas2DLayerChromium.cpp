@@ -121,11 +121,11 @@ void Canvas2DLayerChromium::paintContentsIfDirty(const CCOcclusionTracker* /* oc
         return;
 
     if (m_canvas) {
-        TRACE_EVENT("SkDeferredCanvas::flush", m_canvas, 0);
+        TRACE_EVENT("SkCanvas::flush", m_canvas, 0);
         m_canvas->flush();
     }
 
-    TRACE_EVENT("GrContext::flush", m_context, 0);
+    TRACE_EVENT("GraphicsContext3D::flush", m_context, 0);
     m_context->flush();
 }
 
@@ -135,8 +135,7 @@ void Canvas2DLayerChromium::updateCompositorResources(GraphicsContext3D* context
         return;
 
     m_frontTexture->allocate(updater.allocator());
-    updater.copier()->copyTexture(context, m_backTextureId, m_frontTexture->textureId(), m_size);
-    GLC(context, context->flush());
+    updater.appendCopy(m_backTextureId, m_frontTexture->textureId(), m_size);
 }
 
 void Canvas2DLayerChromium::pushPropertiesTo(CCLayerImpl* layer)

@@ -453,9 +453,8 @@ input[type="search"]::-webkit-search-results-button {
 }
 
 #if defined(ENABLE_DATALIST) && ENABLE_DATALIST
-input::-webkit-input-list-button {
-    -webkit-appearance: list-button;
-    display: inline-block;
+datalist {
+    display: none;
 }
 #endif
 
@@ -533,9 +532,9 @@ input[type="file"] {
 }
 
 input:-webkit-autofill {
-    background-color: #FAFFBD !important;
-    background-image:none !important;
-    color: #000000 !important;
+    background-color: #FAFFBD;
+    background-image: none;
+    color: #000000;
 }
 
 input[type="radio"], input[type="checkbox"] {

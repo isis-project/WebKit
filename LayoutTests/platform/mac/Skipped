@@ -211,7 +211,6 @@ http/tests/multipart/policy-ignore-crash.php
 
 # Datalist is not yet enabled.
 fast/forms/datalist
-platform/mac/fast/forms/input-list-button-size.html
 
 # Color input is not yet enabled.
 fast/forms/color
@@ -359,6 +358,7 @@ compositing/webgl/webgl-nonpremultiplied-blend.html
 editing/pasteboard/data-transfer-items.html
 editing/pasteboard/data-transfer-items-image-png.html
 editing/pasteboard/data-transfer-items-drag-drop-file.html
+editing/pasteboard/data-transfer-items-drag-drop-entry.html
 editing/pasteboard/data-transfer-items-drag-drop-string.html
 fast/events/clipboard-dataTransferItemList.html
 fast/events/drag-dataTransferItemList.html
@@ -611,7 +611,6 @@ canvas/philip/tests/2d.path.arc.scale.1.html
 
 # Media tests that time out unexpectedly
 # https://bugs.webkit.org/show_bug.cgi?id=81604
-http/tests/media/video-buffering-repaints-controls.html
 http/tests/media/video-useragent.html
 media/audio-garbage-collect.html
  
@@ -625,6 +624,10 @@ fast/inline/continuation-outlines-with-layers.html
 
 # Not possible to set UA string for media requests with all Mac media engines.
 http/tests/media/video-useragent.html
+
+# Need rebaselining after https://bugs.webkit.org/show_bug.cgi?id=71541
+fast/overflow/hidden-scrollbar-resize.html
+scrollbars/scrollbars-on-positioned-content.html
 
 # Rebaseline after https://bugs.webkit.org/show_bug.cgi?id=78412
 tables/mozilla/bugs/bug2123.html
@@ -771,3 +774,15 @@ fast/dom/jsDevicePixelRatio.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=82886
 inspector/styles/override-screen-size.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=83239
+fast/animation/request-animation-frame-during-modal.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=83427
+fast/canvas/webgl/array-message-passing.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=77754
+# https://bugs.webkit.org/show_bug.cgi?id=83489
+# window.resizeTo() does not seem to work as expected in Mac DRT. The outerWidth changes after a resizeTo()
+# but not the innerWidth. The test passes on Qt, GTK and Chromium.
+fast/css/align-positioned-object-on-resize.html
