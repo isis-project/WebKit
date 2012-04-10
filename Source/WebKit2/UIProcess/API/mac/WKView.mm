@@ -2149,7 +2149,8 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
     NSEvent *fakeEvent = [NSEvent mouseEventWithType:NSMouseMoved location:[[flagsChangedEvent window] convertScreenToBase:[NSEvent mouseLocation]]
         modifierFlags:[flagsChangedEvent modifierFlags] timestamp:[flagsChangedEvent timestamp] windowNumber:[flagsChangedEvent windowNumber]
         context:[flagsChangedEvent context] eventNumber:0 clickCount:0 pressure:0];
-    [self mouseMoved:fakeEvent];
+    NativeWebMouseEvent webEvent(fakeEvent, self);
+    _data->_page->handleMouseEvent(webEvent);
 }
 
 - (NSInteger)conversationIdentifier
@@ -2799,6 +2800,11 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 }
 
 #if ENABLE(FULLSCREEN_API)
+- (BOOL)hasFullScreenWindowController
+{
+    return (bool)_data->_fullScreenWindowController;
+}
+
 - (WKFullScreenWindowController*)fullScreenWindowController
 {
     if (!_data->_fullScreenWindowController) {

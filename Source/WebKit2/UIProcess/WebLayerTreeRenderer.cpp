@@ -26,7 +26,6 @@
 #include "GraphicsLayerTextureMapper.h"
 #include "LayerBackingStore.h"
 #include "LayerTreeHostProxy.h"
-#include "MainThread.h"
 #include "MessageID.h"
 #include "ShareableBitmap.h"
 #include "TextureMapper.h"
@@ -35,6 +34,7 @@
 #include "UpdateInfo.h"
 #include <OpenGLShims.h>
 #include <wtf/Atomics.h>
+#include <wtf/MainThread.h>
 
 namespace WebKit {
 
@@ -121,18 +121,6 @@ void WebLayerTreeRenderer::paintToCurrentGLContext(const TransformationMatrix& m
     layer->paint();
     m_textureMapper->endClip();
     m_textureMapper->endPainting();
-
-    syncAnimations();
-}
-
-void WebLayerTreeRenderer::syncAnimations()
-{
-    TextureMapperLayer* layer = toTextureMapperLayer(rootLayer());
-    ASSERT(layer);
-
-    layer->syncAnimationsRecursively();
-    if (layer->descendantsOrSelfHaveRunningAnimations())
-        callOnMainThread(bind(&WebLayerTreeRenderer::updateViewport, this));
 }
 
 void WebLayerTreeRenderer::paintToGraphicsContext(QPainter* painter)
@@ -167,14 +155,32 @@ void WebLayerTreeRenderer::updateViewport()
         m_layerTreeHostProxy->updateViewport();
 }
 
-void WebLayerTreeRenderer::syncLayerParameters(const WebLayerInfo& layerInfo)
+void WebLayerTreeRenderer::setLayerChildren(WebLayerID id, const Vector<WebLayerID>& childIDs)
 {
-    WebLayerID id = layerInfo.id;
     ensureLayer(id);
     LayerMap::iterator it = m_layers.find(id);
     GraphicsLayer* layer = it->second;
+    Vector<GraphicsLayer*> children;
 
-    layer->setName(layerInfo.name);
+    for (size_t i = 0; i < childIDs.size(); ++i) {
+        WebLayerID childID = childIDs[i];
+        GraphicsLayer* child = layerByID(childID);
+        if (!child) {
+            child = createLayer(childID).leakPtr();
+            m_layers.add(childID, child);
+        }
+        children.append(child);
+    }
+    layer->setChildren(children);
+}
+
+void WebLayerTreeRenderer::setLayerState(WebLayerID id, const WebLayerInfo& layerInfo)
+{
+    ensureLayer(id);
+    LayerMap::iterator it = m_layers.find(id);
+    ASSERT(it != m_layers.end());
+
+    GraphicsLayer* layer = it->second;
 
     layer->setReplicatedByLayer(layerByID(layerInfo.replica));
     layer->setMaskLayer(layerByID(layerInfo.mask));
@@ -195,38 +201,6 @@ void WebLayerTreeRenderer::syncLayerParameters(const WebLayerInfo& layerInfo)
     layer->setMasksToBounds(layerInfo.isRootLayer ? false : layerInfo.masksToBounds);
     layer->setOpacity(layerInfo.opacity);
     layer->setPreserves3D(layerInfo.preserves3D);
-    Vector<GraphicsLayer*> children;
-
-    for (size_t i = 0; i < layerInfo.children.size(); ++i) {
-        WebLayerID childID = layerInfo.children[i];
-        GraphicsLayer* child = layerByID(childID);
-        if (!child) {
-            child = createLayer(childID).leakPtr();
-            m_layers.add(childID, child);
-        }
-        children.append(child);
-    }
-    layer->setChildren(children);
-
-    for (size_t i = 0; i < layerInfo.animations.size(); ++i) {
-        const WebKit::WebLayerAnimation anim = layerInfo.animations[i];
-
-        switch (anim.operation) {
-        case WebKit::WebLayerAnimation::AddAnimation: {
-            const IntSize boxSize = anim.boxSize;
-            layer->addAnimation(anim.keyframeList, boxSize, anim.animation.get(), anim.name, anim.startTime);
-            break;
-        }
-        case WebKit::WebLayerAnimation::RemoveAnimation:
-            layer->removeAnimation(anim.name);
-            break;
-        case WebKit::WebLayerAnimation::PauseAnimation:
-            double offset = WTF::currentTime() - anim.startTime;
-            layer->pauseAnimation(anim.name, offset);
-            break;
-        }
-    }
-
     if (layerInfo.isRootLayer && m_rootLayerID != id)
         setRootLayerID(id);
 }

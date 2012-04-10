@@ -55,6 +55,7 @@
 #include "cc/CCDebugBorderDrawQuad.h"
 #include "cc/CCLayerImpl.h"
 #include "cc/CCLayerTreeHostCommon.h"
+#include "cc/CCMathUtil.h"
 #include "cc/CCProxy.h"
 #include "cc/CCRenderPass.h"
 #include "cc/CCRenderSurfaceDrawQuad.h"
@@ -514,7 +515,11 @@ void LayerRendererChromium::drawDebugBorderQuad(const CCDebugBorderDrawQuad* qua
 void LayerRendererChromium::drawRenderSurfaceQuad(const CCRenderSurfaceDrawQuad* quad)
 {
     CCLayerImpl* layer = quad->layer();
-    layer->renderSurface()->draw(this, quad->surfaceDamageRect());
+    layer->renderSurface()->setScissorRect(this, quad->surfaceDamageRect());
+    if (quad->isReplica())
+        layer->renderSurface()->drawReplica(this);
+    else
+        layer->renderSurface()->drawContents(this);
     layer->renderSurface()->releaseContentsTexture();
 }
 
@@ -564,9 +569,11 @@ static void tileUniformLocation(T program, TileProgramUniforms& uniforms)
     uniforms.edgeLocation = program->fragmentShader().edgeLocation();
 }
 
-static void findTileProgramUniforms(LayerRendererChromium* layerRenderer, const CCTileDrawQuad* quad, TileProgramUniforms& uniforms)
+static void findTileProgramUniforms(LayerRendererChromium* layerRenderer, const CCTileDrawQuad* quad, TileProgramUniforms& uniforms, bool quadIsClipped)
 {
-    if (quad->isAntialiased()) {
+    // For now, we simply skip anti-aliasing with the quad is clipped. This only happens
+    // on perspective transformed layers that go partially behind the camera.
+    if (quad->isAntialiased() && !quadIsClipped) {
         if (quad->swizzleContents()) {
             const CCTiledLayerImpl::ProgramSwizzleAA* program = layerRenderer->tilerProgramSwizzleAA();
             tileUniformLocation(program, uniforms);
@@ -629,8 +636,17 @@ void LayerRendererChromium::drawTileQuad(const CCTileDrawQuad* quad)
     float fragmentTexScaleX = clampRect.width() / textureSize.width();
     float fragmentTexScaleY = clampRect.height() / textureSize.height();
 
+
+    FloatQuad localQuad;
+    TransformationMatrix deviceTransform = TransformationMatrix(windowMatrix() * projectionMatrix() * quad->quadTransform()).to2dTransform();
+    if (!deviceTransform.isInvertible())
+        return;
+
+    bool clipped = false;
+    FloatQuad deviceLayerQuad = CCMathUtil::mapQuad(deviceTransform, FloatQuad(quad->layerRect()), clipped);
+
     TileProgramUniforms uniforms;
-    findTileProgramUniforms(this, quad, uniforms);
+    findTileProgramUniforms(this, quad, uniforms, clipped);
 
     GLC(context(), context()->useProgram(uniforms.program));
     GLC(context(), context()->uniform1i(uniforms.samplerLocation, 0));
@@ -639,13 +655,8 @@ void LayerRendererChromium::drawTileQuad(const CCTileDrawQuad* quad)
     GLC(context(), context()->texParameteri(GraphicsContext3D::TEXTURE_2D, GraphicsContext3D::TEXTURE_MIN_FILTER, quad->textureFilter()));
     GLC(context(), context()->texParameteri(GraphicsContext3D::TEXTURE_2D, GraphicsContext3D::TEXTURE_MAG_FILTER, quad->textureFilter()));
 
-    FloatQuad localQuad;
-    if (quad->isAntialiased()) {
-        TransformationMatrix deviceTransform = TransformationMatrix(windowMatrix() * projectionMatrix() * quad->quadTransform()).to2dTransform();
-        if (!deviceTransform.isInvertible())
-            return;
 
-        FloatQuad deviceLayerQuad = deviceTransform.mapQuad(FloatQuad(quad->layerRect()));
+    if (!clipped && quad->isAntialiased()) {
 
         CCLayerQuad deviceLayerBounds = CCLayerQuad(FloatQuad(deviceLayerQuad.boundingBox()));
         deviceLayerBounds.inflateAntiAliasingDistance();
@@ -1190,7 +1201,11 @@ void LayerRendererChromium::copyOffscreenTextureToDisplay()
         drawTransform.translate3d(0.5 * m_defaultRenderSurface->contentRect().width(), 0.5 * m_defaultRenderSurface->contentRect().height(), 0);
         m_defaultRenderSurface->setDrawTransform(drawTransform);
         m_defaultRenderSurface->setDrawOpacity(1);
-        m_defaultRenderSurface->draw(this, m_defaultRenderSurface->contentRect());
+
+        m_defaultRenderSurface->setScissorRect(this, m_defaultRenderSurface->contentRect());
+        if (m_defaultRenderSurface->hasReplica())
+            m_defaultRenderSurface->drawReplica(this);
+        m_defaultRenderSurface->drawContents(this);
     }
 }
 

@@ -435,6 +435,7 @@ WebInspector._doLoadedDoneWithCapabilities = function()
     if (this._zoomLevel)
         this._requestZoom();
 
+    WebInspector.CSSCompletions.requestCSSNameCompletions();
     this._createPanels();
     this._createGlobalStatusBarItems();
 
@@ -474,7 +475,6 @@ WebInspector._doLoadedDoneWithCapabilities = function()
     if (WebInspector.settings.showPaintRects.get())
         PageAgent.setShowPaintRects(true);
 
-    WebInspector.CSSCompletions.requestCSSNameCompletions();
     WebInspector.WorkerManager.loadCompleted();
     InspectorFrontendAPI.loadCompleted();
 }
@@ -1019,6 +1019,16 @@ WebInspector._toolbarItemClicked = function(event)
 {
     var toolbarItem = event.currentTarget;
     WebInspector.inspectorView.setCurrentPanel(toolbarItem.panel);
+}
+
+WebInspector.save = function(url, content, forceSaveAs)
+{
+    // Remove this url from the saved URLs while it is being saved.
+    var savedURLs = WebInspector.settings.savedURLs.get();
+    delete savedURLs[url];
+    WebInspector.settings.savedURLs.set(savedURLs);
+
+    InspectorFrontendHost.save(url, content, forceSaveAs);
 }
 
 WebInspector.savedURL = function(url)

@@ -591,7 +591,6 @@ SOURCES += \
     dom/RangeException.cpp \
     dom/RawDataDocumentParser.h \
     dom/RegisteredEventListener.cpp \
-    dom/ReifiedTreeTraversal.cpp \
     dom/ScopedEventQueue.cpp \
     dom/ScriptedAnimationController.cpp \
     dom/ScriptableDocumentParser.cpp \
@@ -668,6 +667,7 @@ SOURCES += \
     editing/ReplaceSelectionCommand.cpp \
     editing/SetNodeAttributeCommand.cpp \
     editing/SetSelectionCommand.cpp \
+    editing/SimplifyMarkupCommand.cpp \
     editing/SpellChecker.cpp \
     editing/SpellingCorrectionCommand.cpp \
     editing/SplitElementCommand.cpp \
@@ -1094,6 +1094,7 @@ SOURCES += \
     platform/graphics/GraphicsTypes.cpp \
     platform/graphics/Image.cpp \
     platform/graphics/ImageBuffer.cpp \
+    platform/graphics/ImageOrientation.cpp \
     platform/graphics/ImageSource.cpp \
     platform/graphics/IntRect.cpp \
     platform/graphics/Path.cpp \
@@ -1727,7 +1728,6 @@ HEADERS += \
     dom/QualifiedName.h \
     dom/Range.h \
     dom/RegisteredEventListener.h \
-    dom/ReifiedTreeTraversal.h \
     dom/RenderedDocumentMarker.h \
     dom/ScriptedAnimationController.h \
     dom/ScriptElement.h \
@@ -1801,6 +1801,7 @@ HEADERS += \
     editing/ReplaceNodeWithSpanCommand.h \
     editing/ReplaceSelectionCommand.h \
     editing/SetNodeAttributeCommand.h \
+    editing/SimplifyMarkupCommand.h \
     editing/SmartReplace.h \
     editing/SpellingCorrectionCommand.h \
     editing/SplitElementCommand.h \
@@ -2226,6 +2227,7 @@ HEADERS += \
     platform/graphics/GraphicsTypes.h \
     platform/graphics/GraphicsTypes3D.h \
     platform/graphics/Image.h \
+    platform/graphics/ImageOrientation.h \
     platform/graphics/ImageSource.h \
     platform/graphics/IntPoint.h \
     platform/graphics/IntPointHash.h \
@@ -2259,6 +2261,7 @@ HEADERS += \
     platform/KillRing.h \
     platform/KURL.h \
     platform/Length.h \
+    platform/LengthBox.h \
     platform/leveldb/LevelDBComparator.h \
     platform/leveldb/LevelDBDatabase.h \
     platform/leveldb/LevelDBIterator.h \

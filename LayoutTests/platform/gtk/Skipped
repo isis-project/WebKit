@@ -76,10 +76,6 @@ fast/loader/location-port.html
 # This test is crashing when run along with other tests on the release build.
 fast/dynamic/layer-hit-test-crash.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=60931
-# crashes on GTK bots because of a failing ASSERT
-http/tests/security/cookies/cookie-theft-with-javascript-doc.html
-
 # One anonymous crashers with no bug.
 http/tests/xmlhttprequest/redirect-cross-origin-tripmine.html
 
@@ -89,13 +85,6 @@ fast/events/tabindex-focus-blur-all.html
 
 # crashes because of a failing ASSERT (see https://bugs.webkit.org/show_bug.cgi?id=54470)
 svg/text/select-textLength-spacing-squeeze-1.svg
-
-# Test crashing on release bot
-# https://bugs.webkit.org/show_bug.cgi?id=31433
-plugins/document-open.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=37574
-plugins/window-open.html
 
 # For some reason crashes when run with all tests. Passes individually.
 fast/forms/multiple-form-submission-protection-mouse.html
@@ -117,20 +106,8 @@ storage/open-database-set-empty-version.html
 # https://bugs.webkit.org/show_bug.cgi?id=60158
 fast/dom/Geolocation/argument-types.html
 
-# crashing on debug bots because of failing ASSERT in TextIterator.cpp
-# https://bugs.webkit.org/show_bug.cgi?id=63611
-editing/deleting/smart-delete-003.html
-editing/deleting/smart-delete-004.html
-editing/pasteboard/interchange-newline-2.html
-editing/pasteboard/paste-text-008.html
-editing/undo/undo-smart-delete-reversed-selection.html
-editing/selection/directionality-after-undo-replace.html
-
 # EditorClient::checkTextOfParagraph() is not implemented
 editing/spelling/spelling-marker-description.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=64530
-editing/selection/editable-html-element.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=65699
 fast/loader/reload-zero-byte-plugin.html
@@ -321,6 +298,7 @@ media/media-captions.html
 editing/pasteboard/data-transfer-items.html
 editing/pasteboard/data-transfer-items-image-png.html
 editing/pasteboard/data-transfer-items-drag-drop-file.html
+editing/pasteboard/data-transfer-items-drag-drop-entry.html
 editing/pasteboard/data-transfer-items-drag-drop-string.html
 fast/events/clipboard-dataTransferItemList.html
 fast/events/drag-dataTransferItemList.html
@@ -402,11 +380,6 @@ fast/exclusions
 # For now, Web Audio API is disabled
 webaudio
 
-# VIDEO_TRACK is disabled for now
-media/track
-fast/events/constructors/track-event-constructor.html
-http/tests/security/text-track-crossorigin.html
-
 # CSS Filters is disabled
 css3/filters
 
@@ -448,6 +421,11 @@ batterystatus
 
 #Network Information API support not yet. http://webkit.org/b/73528
 networkinformation
+
+# EXIF orientation support has not yet been implemented for this platform
+# http://webkit.org/b/19688
+fast/images/exif-orientation.html
+fast/images/exif-orientation-css.html
 
 ###############################################################################
 # TESTS FAILING
@@ -1427,11 +1405,6 @@ fast/viewport/viewport-133.html
 # https://bugs.webkit.org/show_bug.cgi?id=71465
 http/tests/security/xssAuditor/script-tag-with-callbacks.html
 
-# ASSERT(!needsLayout()) in frame flattening test
-# https://bugs.webkit.org/show_bug.cgi?id=80155
-fast/frames/flattening/iframe-flattening-nested.html
-fast/frames/flattening/iframe-flattening-fixed-width-and-height-no-scrolling.html
-
 # https://bugs.webkit.org/show_bug.cgi?id=72248
 editing/spelling/spelling-unified-emulation.html
 
@@ -1553,9 +1526,6 @@ http/tests/download
 fast/events/clear-drag-state.html
 fast/events/clear-edit-drag-state.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=77019
-http/tests/media/video-buffering-repaints-controls.html
-
 # https://bugs.webkit.org/show_bug.cgi?id=77413
 fast/parser/nested-fragment-parser-crash.html
 
@@ -1656,9 +1626,6 @@ fast/block/lineboxcontain/font.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=82886
 inspector/styles/override-screen-size.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=83006
-fast/events/drop-handler-should-not-stop-navigate.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=72434
 inspector/styles/svg-style.xhtml

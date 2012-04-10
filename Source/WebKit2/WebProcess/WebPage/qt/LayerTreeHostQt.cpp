@@ -63,11 +63,9 @@ LayerTreeHostQt::LayerTreeHostQt(WebPage* webPage)
     : LayerTreeHost(webPage)
     , m_notifyAfterScheduledLayerFlush(false)
     , m_isValid(true)
-#if USE(TILED_BACKING_STORE)
     , m_waitingForUIProcess(false)
     , m_isSuspended(false)
     , m_contentsScale(1)
-#endif
     , m_shouldSyncFrame(false)
     , m_shouldSyncRootLayer(true)
     , m_layerFlushTimer(this, &LayerTreeHostQt::layerFlushTimerFired)
@@ -85,9 +83,7 @@ LayerTreeHostQt::LayerTreeHostQt(WebPage* webPage)
     m_layerTreeContext.webLayerID = toWebGraphicsLayer(webRootLayer)->id();
 
     m_nonCompositedContentLayer = GraphicsLayer::create(this);
-#if USE(TILED_BACKING_STORE)
     toWebGraphicsLayer(m_rootLayer.get())->setWebGraphicsLayerClient(this);
-#endif
 #ifndef NDEBUG
     m_nonCompositedContentLayer->setName("LayerTreeHostQt non-composited content");
 #endif
@@ -230,10 +226,16 @@ bool LayerTreeHostQt::flushPendingLayerChanges()
     return didSync;
 }
 
-void LayerTreeHostQt::didSyncCompositingStateForLayer(const WebLayerInfo& info)
+void LayerTreeHostQt::syncLayerState(WebLayerID id, const WebLayerInfo& info)
 {
     m_shouldSyncFrame = true;
-    m_webPage->send(Messages::LayerTreeHostProxy::SyncCompositingLayerState(info));
+    m_webPage->send(Messages::LayerTreeHostProxy::SetCompositingLayerState(id, info));
+}
+
+void LayerTreeHostQt::syncLayerChildren(WebLayerID id, const Vector<WebLayerID>& children)
+{
+    m_shouldSyncFrame = true;
+    m_webPage->send(Messages::LayerTreeHostProxy::SetCompositingLayerChildren(id, children));
 }
 
 void LayerTreeHostQt::attachLayer(WebGraphicsLayer* layer)
@@ -254,10 +256,8 @@ void LayerTreeHostQt::detachLayer(WebGraphicsLayer* layer)
 
 void LayerTreeHostQt::performScheduledLayerFlush()
 {
-#if USE(TILED_BACKING_STORE)
     if (m_isSuspended || m_waitingForUIProcess)
         return;
-#endif
 
     m_webPage->layoutIfNeeded();
 

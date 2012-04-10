@@ -34,6 +34,7 @@
 #import "DOMCSSStyleDeclarationInternal.h"
 #import "DOMNodeInternal.h"
 #import "DOMRangeInternal.h"
+#import "WebAlternativeTextClient.h"
 #import "WebApplicationCache.h"
 #import "WebBackForwardListInternal.h"
 #import "WebBaseNetscapePluginView.h"
@@ -736,6 +737,7 @@ static NSString *leakOutlookQuirksUserScriptContents()
     pageClients.editorClient = new WebEditorClient(self);
     pageClients.dragClient = new WebDragClient(self);
     pageClients.inspectorClient = new WebInspectorClient(self);
+    pageClients.alternativeTextClient = new WebAlternativeTextClient(self);
     _private->page = new Page(pageClients);
 #if ENABLE(GEOLOCATION)
     WebCore::provideGeolocationTo(_private->page, new WebGeolocationClient(self));
@@ -1515,6 +1517,7 @@ static bool needsSelfRetainWhileLoadingQuirk()
     settings->setShouldDisplayTextDescriptions([preferences shouldDisplayTextDescriptions]);
 #endif
 
+    settings->setShouldRespectImageOrientation([preferences shouldRespectImageOrientation]);
     settings->setNeedsIsLoadingInAPISenseQuirk([self _needsIsLoadingInAPISenseQuirk]);
 
     // Application Cache Preferences are stored on the global cache storage manager, not in Settings.
@@ -2885,7 +2888,7 @@ static PassOwnPtr<Vector<String> > toStringVector(NSArray* patterns)
     _private->customDeviceScaleFactor = customScaleFactor;
 
     if (oldScaleFactor != [self _deviceScaleFactor])
-        _private->page->setDeviceScaleFactor(customScaleFactor);
+        _private->page->setDeviceScaleFactor([self _deviceScaleFactor]);
 }
 
 - (NSUInteger)markAllMatchesForText:(NSString *)string caseSensitive:(BOOL)caseFlag highlight:(BOOL)highlight limit:(NSUInteger)limit
@@ -5618,6 +5621,17 @@ FOR_EACH_RESPONDER_SELECTOR(FORWARD)
     if (!coreFrame)
         return NO;
     return coreFrame->selection()->isAll(CanCrossEditingBoundary);
+}
+
+- (void)_simplifyMarkup:(DOMNode *)startNode endNode:(DOMNode *)endNode
+{
+    Frame* coreFrame = core([self mainFrame]);
+    if (!coreFrame || !startNode)
+        return;
+    Node* coreStartNode= core(startNode);
+    if (coreStartNode->document() != coreFrame->document())
+        return;
+    return coreFrame->editor()->simplifyMarkup(coreStartNode, core(endNode));    
 }
 
 @end

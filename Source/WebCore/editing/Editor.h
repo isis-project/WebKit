@@ -300,7 +300,7 @@ public:
 
     void setStartNewKillRingSequence(bool);
 
-    PassRefPtr<Range> rangeForPoint(const LayoutPoint& windowPoint);
+    PassRefPtr<Range> rangeForPoint(const IntPoint& windowPoint);
 
     void clear();
 
@@ -381,6 +381,8 @@ public:
     bool selectionStartHasMarkerFor(DocumentMarker::MarkerType, int from, int length) const;
     void updateMarkersForWordsAffectedByEditing(bool onlyHandleWordsContainingSelection);
     void deletedAutocorrectionAtPosition(const Position&, const String& originalString);
+    
+    void simplifyMarkup(Node* startNode, Node* endNode);
 
     void deviceScaleFactorChanged();
 

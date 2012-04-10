@@ -137,7 +137,7 @@ public:
     virtual IntRect borderBoundingBox() const { return borderBoxRect(); } 
 
     // The content area of the box (excludes padding and border).
-    LayoutRect contentBoxRect(PaddingOptions paddingOption = ExcludeIntrinsicPadding) const { return LayoutRect(borderLeft() + paddingLeft(paddingOption), borderTop() + paddingTop(paddingOption), contentWidth(paddingOption), contentHeight(paddingOption)); }
+    LayoutRect contentBoxRect() const { return LayoutRect(borderLeft() + paddingLeft(), borderTop() + paddingTop(), contentWidth(), contentHeight()); }
     // The content box in absolute coords. Ignores transforms.
     IntRect absoluteContentBox() const;
     // The content box converted to absolute coords (taking transforms into account).
@@ -184,10 +184,10 @@ public:
     
     void updateLayerTransform();
 
-    LayoutUnit contentWidth(PaddingOptions paddingOption = ExcludeIntrinsicPadding) const { return clientWidth() - paddingLeft(paddingOption) - paddingRight(paddingOption); }
-    LayoutUnit contentHeight(PaddingOptions paddingOption = ExcludeIntrinsicPadding) const { return clientHeight() - paddingTop(paddingOption) - paddingBottom(paddingOption); }
-    LayoutUnit contentLogicalWidth(PaddingOptions paddingOption = ExcludeIntrinsicPadding) const { return style()->isHorizontalWritingMode() ? contentWidth(paddingOption) : contentHeight(paddingOption); }
-    LayoutUnit contentLogicalHeight(PaddingOptions paddingOption = ExcludeIntrinsicPadding) const { return style()->isHorizontalWritingMode() ? contentHeight(paddingOption) : contentWidth(paddingOption); }
+    LayoutUnit contentWidth() const { return clientWidth() - paddingLeft() - paddingRight(); }
+    LayoutUnit contentHeight() const { return clientHeight() - paddingTop() - paddingBottom(); }
+    LayoutUnit contentLogicalWidth() const { return style()->isHorizontalWritingMode() ? contentWidth() : contentHeight(); }
+    LayoutUnit contentLogicalHeight() const { return style()->isHorizontalWritingMode() ? contentHeight() : contentWidth(); }
 
     // IE extensions. Used to calculate offsetWidth/Height.  Overridden by inlines (RenderFlow)
     // to return the remaining width on a given line (and the height of a single line).
@@ -211,6 +211,11 @@ public:
 
     int pixelSnappedClientWidth() const;
     int pixelSnappedClientHeight() const;
+
+    LayoutUnit paddingBoxWidth() const { return width() - borderLeft() - borderRight(); }
+    LayoutUnit paddingBoxHeight() const { return height() - borderTop() - borderBottom(); }
+    int pixelSnappedPaddingBoxWidth() const { return snapSizeToPixel(paddingBoxWidth(), x() + paddingLeft()); }
+    int pixelSnappedPaddingBoxHeight() const { return snapSizeToPixel(paddingBoxHeight(), y() + paddingTop()); }
 
     // scrollWidth/scrollHeight will be the same as clientWidth/clientHeight unless the
     // object has overflow:hidden/scroll/auto specified and also has overflow.
@@ -484,6 +489,12 @@ public:
         return false;
     }
 
+    virtual RenderBox* createAnonymousBoxWithSameTypeAs(const RenderObject*) const
+    {
+        ASSERT_NOT_REACHED();
+        return 0;
+    }
+
 protected:
     virtual void willBeDestroyed();
 
@@ -514,6 +525,32 @@ protected:
 
     void paintRootBoxFillLayers(const PaintInfo&);
 
+    // These functions are only used internally to manipulate the render tree structure via remove/insert/appendChildNode.
+    // Since they are typically called only to move objects around within anonymous blocks (which only have layers in
+    // the case of column spans), the default for fullRemoveInsert is false rather than true.
+    void moveChildTo(RenderBox* toBox, RenderObject* child, RenderObject* beforeChild, bool fullRemoveInsert = false);
+    void moveChildTo(RenderBox* to, RenderObject* child, bool fullRemoveInsert = false)
+    {
+        moveChildTo(to, child, 0, fullRemoveInsert);
+    }
+    void moveAllChildrenTo(RenderBox* toBox, bool fullRemoveInsert = false)
+    {
+        moveAllChildrenTo(toBox, 0, fullRemoveInsert);
+    }
+    void moveAllChildrenTo(RenderBox* toBox, RenderObject* beforeChild, bool fullRemoveInsert = false)
+    {
+        moveChildrenTo(toBox, firstChild(), 0, beforeChild, fullRemoveInsert);
+    }
+    // Move all of the kids from |startChild| up to but excluding |endChild|. 0 can be passed as the |endChild| to denote
+    // that all the kids from |startChild| onwards should be moved.
+    void moveChildrenTo(RenderBox* toBox, RenderObject* startChild, RenderObject* endChild, bool fullRemoveInsert = false)
+    {
+        moveChildrenTo(toBox, startChild, endChild, 0, fullRemoveInsert);
+    }
+    void moveChildrenTo(RenderBox* toBox, RenderObject* startChild, RenderObject* endChild, RenderObject* beforeChild, bool fullRemoveInsert = false);
+   
+    RenderObject* splitAnonymousBoxesAroundChild(RenderObject* beforeChild);
+ 
 private:
     bool fixedElementLaysOutRelativeToFrame(Frame*, FrameView*) const;
 

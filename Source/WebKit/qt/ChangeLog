@@ -1,3 +1,43 @@
+2012-04-06  Levi Weintraub  <leviw@chromium.org>
+
+        Correct LayoutUnit usgae in RenderThemeQt and RenderThemeQStyle
+        https://bugs.webkit.org/show_bug.cgi?id=83376
+
+        Reviewed by Eric Seidel.
+
+        Calculating the progress animation using the pixel-snapped RenderProgress size instead
+        of the internal sub-pixel version.
+
+        * WebCoreSupport/RenderThemeQStyle.cpp:
+        (WebCore::RenderThemeQStyle::animationDurationForProgressBar):
+
+2012-04-05  Patrick Gansterer  <paroga@webkit.org>
+
+        [Qt] Correct <wtf/*.h> include paths.
+        https://bugs.webkit.org/show_bug.cgi?id=83270
+
+        Reviewed by Eric Seidel.
+
+        Modify the #include declerations so that the
+        wtf types are included using the full path.
+
+        * Api/qwebpage.cpp:
+        * WebCoreSupport/ContextMenuClientQt.h:
+        * WebCoreSupport/EditorClientQt.h:
+        * WebCoreSupport/FrameLoaderClientQt.h:
+        * WebCoreSupport/InspectorServerQt.cpp:
+
+2012-04-05  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [Qt] Fix includes after QtDeclarative -> QtQML renaming
+        https://bugs.webkit.org/show_bug.cgi?id=82195
+
+        Relanding r112651, because Qt5 is updated everywhere.
+
+        * declarative/experimental/plugin.cpp:
+        * declarative/plugin.cpp:
+        (WebKitQmlPlugin::initializeEngine):
+
 2012-04-04  Andras Becsi  <andras.becsi@nokia.com>
 
         [Qt][WK2] Make the WebView a subclass of Flickable

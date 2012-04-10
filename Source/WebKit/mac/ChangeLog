@@ -1,3 +1,97 @@
+2012-04-08  Dan Bernstein  <mitz@apple.com>
+
+        [mac] REGRESSION (r113467): Some canvas tests are failing in WebKit1 when run after compositing/tiled-layers-hidpi.html
+        https://bugs.webkit.org/show_bug.cgi?id=83453
+
+        Reviewed by Sam Weinig.
+
+        * WebView/WebView.mm:
+        (-[WebView _setCustomBackingScaleFactor:]): When the scale factor parameter was 0, meaning
+        no custom scale factor, this method was setting the Page scale factor to 0, and that value
+        was used by canvas. Changed it to correctly set the Page scale factor back to the device
+        scale factor.
+
+2012-04-06  Alexey Proskuryakov  <ap@apple.com>
+
+        [Mac] Adopt a different method of telling AppKit when inline input isn't supported
+        https://bugs.webkit.org/show_bug.cgi?id=83408
+        <rdar://problem/9205734>
+
+        Reviewed by Adele Peterson.
+
+        * Plugins/Hosted/WebTextInputWindowController.m:
+        (-[WebTextInputView validAttributesForMarkedText]):
+        (-[WebTextInputPanel init]):
+        (-[WebTextInputPanel _interpretKeyEvent:string:]): Added a comment about old approach.
+
+2012-04-06  Enrica Casucci  <enrica@apple.com>
+
+        Provide Obj-C private API to simplify markup.
+        https://bugs.webkit.org/show_bug.cgi?id=83334
+        <rdar://problem/11033861>
+
+        Reviewed by Sam Weinig.
+
+        * WebView/WebView.mm:
+        (-[WebView _simplifyMarkup:endNode:]): Added.
+        * WebView/WebViewPrivate.h:
+
+2012-04-06  Tim Horton  <timothy_horton@apple.com>
+
+        Add autodetection of image orientation from EXIF information
+        https://bugs.webkit.org/show_bug.cgi?id=19688
+        <rdar://problem/4126979> and <rdar://problem/11091578>
+
+        Original patch by David Carson and Eric Seidel.
+
+        Reviewed by Simon Fraser.
+
+        Add a preference, ShouldRespectImageOrientation, which will cause WebCore to respect EXIF orientation in all images.
+
+        * WebView/WebPreferenceKeysPrivate.h:
+        * WebView/WebPreferences.mm:
+        (+[WebPreferences initialize]):
+        (-[WebPreferences setShouldRespectImageOrientation:]):
+        (-[WebPreferences shouldRespectImageOrientation]):
+        * WebView/WebPreferencesPrivate.h:
+        * WebView/WebView.mm:
+        (-[WebView _preferencesChanged:]):
+
+2012-04-06  Dan Bernstein  <mitz@apple.com>
+
+        <rdar://problem/10912476> HiDPI: Have canvas use a hidpi backing store, but downsample upon access
+
+        Reviewed by Sam Weinig.
+
+        * Configurations/FeatureDefines.xcconfig: Added ENABLE_HIGH_DPI_CANVAS.
+
+2012-04-05  Jia Pu  <jpu@apple.com>
+
+        Move correction panel related functions from EditorClient into separated AlternativeTextClient class.
+        https://bugs.webkit.org/show_bug.cgi?id=82970
+
+        Reviewed by Enrica Casucci.
+
+        Move correction panel related functions from WebEditorClient to the new WebAlternativeTextClient.
+        See WebCore/ChangeLog for details.
+
+        * WebCoreSupport/CorrectionPanel.h:
+        * WebCoreSupport/CorrectionPanel.mm:
+        * WebCoreSupport/WebAlternativeTextClient.h: Added.
+        (WebAlternativeTextClient):
+        * WebCoreSupport/WebAlternativeTextClient.mm: Added.
+        (WebAlternativeTextClient::WebAlternativeTextClient):
+        (WebAlternativeTextClient::~WebAlternativeTextClient):
+        (WebAlternativeTextClient::showCorrectionAlternative):
+        (WebAlternativeTextClient::dismissAlternative):
+        (WebAlternativeTextClient::dismissAlternativeSoon):
+        (WebAlternativeTextClient::recordAutocorrectionResponse):
+        * WebCoreSupport/WebEditorClient.h:
+        * WebCoreSupport/WebEditorClient.mm:
+        (WebEditorClient::~WebEditorClient):
+        * WebView/WebView.mm:
+        (-[WebView _commonInitializationWithFrameName:groupName:]):
+
 2012-03-15  Jer Noble  <jer.noble@apple.com>
 
         Full Screen mode should cancel before navigation.

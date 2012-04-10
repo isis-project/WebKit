@@ -603,7 +603,8 @@
 }
 
 .timeline .resources-event-divider.timeline-frame-divider {
-    background-color: rgba(200, 185, 200, 0.8);
+    background-color: rgba(180, 180, 180, 0.8);
+    width: 1px;
     height: 100%;
 }
 
@@ -664,4 +665,16 @@
 
 .timeline-mode-horizontal-bars .glyph {
     -webkit-mask-position: -192px -48px;
+}
+
+.timeline-frame-strip {
+    position: absolute;
+    height: 19px;
+    background-color: rgb(220, 220, 220);
+    opacity: 0.6;
+    color: black;
+    text-align: center;
+    padding-top: 3px;
+    z-index: 350;
+    pointer-events: auto;
 }

@@ -259,7 +259,6 @@ void TextureMapperGL::beginPainting()
     data().previousScissorState = glIsEnabled(GL_SCISSOR_TEST);
     data().previousDepthState = glIsEnabled(GL_DEPTH_TEST);
     glDisable(GL_DEPTH_TEST);
-    glEnable(GL_SCISSOR_TEST);
 #if PLATFORM(QT)
     if (m_context) {
         QPainter* painter = m_context->platformContext();
@@ -603,6 +602,8 @@ void TextureMapperGL::bindSurface(BitmapTexture *surfacePointer)
 
 bool TextureMapperGL::beginScissorClip(const TransformationMatrix& modelViewMatrix, const FloatRect& targetRect)
 {
+    glEnable(GL_SCISSOR_TEST);
+
     // 3D transforms are currently not supported in scissor clipping
     // resulting in cropped surfaces when z>0.
     if (!modelViewMatrix.isAffine())

@@ -49,6 +49,7 @@ namespace JSC {
 
 namespace WebCore {
 
+    class AlternativeTextClient;
     class BackForwardController;
     class BackForwardList;
     class Chrome;
@@ -103,6 +104,7 @@ namespace WebCore {
             PageClients();
             ~PageClients();
 
+            AlternativeTextClient* alternativeTextClient;
             ChromeClient* chromeClient;
 #if ENABLE(CONTEXT_MENUS)
             ContextMenuClient* contextMenuClient;
@@ -271,6 +273,7 @@ namespace WebCore {
         
         void suspendScriptedAnimations();
         void resumeScriptedAnimations();
+        bool scriptedAnimationsSuspended() const { return m_scriptedAnimationsSuspended; }
         
         void userStyleSheetLocationChanged();
         const String& userStyleSheet() const;
@@ -333,6 +336,9 @@ namespace WebCore {
         void setIsPainting(bool painting) { m_isPainting = painting; }
         bool isPainting() const { return m_isPainting; }
 #endif
+
+        AlternativeTextClient* alternativeTextClient() const { return m_alternativeTextClient; }
+
     private:
         void initGroup();
 
@@ -432,6 +438,9 @@ namespace WebCore {
 #ifndef NDEBUG
         bool m_isPainting;
 #endif
+        AlternativeTextClient* m_alternativeTextClient;
+
+        bool m_scriptedAnimationsSuspended;
     };
 
 } // namespace WebCore

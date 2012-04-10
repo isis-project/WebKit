@@ -1678,7 +1678,7 @@ PassRefPtr<RenderStyle> CSSStyleSelector::styleForKeyframe(const RenderStyle* el
     if (StylePropertySet* styleDeclaration = keyframe->properties()) {
         unsigned propertyCount = styleDeclaration->propertyCount();
         for (unsigned i = 0; i < propertyCount; ++i) {
-            int property = styleDeclaration->propertyAt(i).id();
+            CSSPropertyID property = styleDeclaration->propertyAt(i).id();
             // Timing-function within keyframes is special, because it is not animated; it just
             // describes the timing function between this keyframe and the next.
             if (property != CSSPropertyWebkitAnimationTimingFunction)
@@ -2071,6 +2071,12 @@ void CSSStyleSelector::adjustRenderStyle(RenderStyle* style, RenderStyle* parent
     // If we have first-letter pseudo style, do not share this style.
     if (style->hasPseudoStyle(FIRST_LETTER))
         style->setUnique();
+
+    // FIXME: when dropping the -webkit prefix on transform-style, we should also have opacity < 1 cause flattening.
+    if (style->preserves3D() && (style->overflowX() != OVISIBLE
+        || style->overflowY() != OVISIBLE
+        || style->hasFilter()))
+        style->setTransformStyle3D(TransformStyle3DFlat);
 
 #if ENABLE(SVG)
     if (e && e->isSVGElement()) {
@@ -4237,7 +4243,7 @@ PassRefPtr<StyleImage> CSSStyleSelector::generatedOrPendingFromValue(CSSProperty
 #if ENABLE(CSS_IMAGE_SET)
 PassRefPtr<StyleImage> CSSStyleSelector::setOrPendingFromValue(CSSPropertyID property, CSSImageSetValue* value)
 {
-    RefPtr<StyleImage> image = value->cachedOrPendingImageSet();
+    RefPtr<StyleImage> image = value->cachedOrPendingImageSet(document());
     if (image && image->isPendingImage())
         m_pendingImageProperties.add(property);
     return image.release();
@@ -5744,9 +5750,9 @@ void CSSStyleSelector::loadPendingImages()
     if (m_pendingImageProperties.isEmpty())
         return;
 
-    HashSet<int>::const_iterator end = m_pendingImageProperties.end();
-    for (HashSet<int>::const_iterator it = m_pendingImageProperties.begin(); it != end; ++it) {
-        CSSPropertyID currentProperty = static_cast<CSSPropertyID>(*it);
+    HashSet<CSSPropertyID>::const_iterator end = m_pendingImageProperties.end();
+    for (HashSet<CSSPropertyID>::const_iterator it = m_pendingImageProperties.begin(); it != end; ++it) {
+        CSSPropertyID currentProperty = *it;
 
         switch (currentProperty) {
             case CSSPropertyBackgroundImage: {
