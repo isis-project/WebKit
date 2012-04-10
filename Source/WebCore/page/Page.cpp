@@ -159,6 +159,8 @@ Page::Page(PageClients& pageClients)
 #ifndef NDEBUG
     , m_isPainting(false)
 #endif
+    , m_alternativeTextClient(pageClients.alternativeTextClient)
+    , m_scriptedAnimationsSuspended(false)
 {
     if (!allPages) {
         allPages = new HashSet<Page*>;
@@ -716,6 +718,7 @@ void Page::windowScreenDidChange(PlatformDisplayID displayID)
 
 void Page::suspendScriptedAnimations()
 {
+    m_scriptedAnimationsSuspended = true;
     for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext()) {
         if (frame->document())
             frame->document()->suspendScriptedAnimationControllerCallbacks();
@@ -724,6 +727,7 @@ void Page::suspendScriptedAnimations()
 
 void Page::resumeScriptedAnimations()
 {
+    m_scriptedAnimationsSuspended = false;
     for (Frame* frame = mainFrame(); frame; frame = frame->tree()->traverseNext()) {
         if (frame->document())
             frame->document()->resumeScriptedAnimationControllerCallbacks();
@@ -1111,7 +1115,8 @@ void Page::resumeActiveDOMObjectsAndAnimations()
 }
 
 Page::PageClients::PageClients()
-    : chromeClient(0)
+    : alternativeTextClient(0)
+    , chromeClient(0)
 #if ENABLE(CONTEXT_MENUS)
     , contextMenuClient(0)
 #endif

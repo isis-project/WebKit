@@ -243,7 +243,7 @@ static bool animationHasStepsTimingFunction(const KeyframeValueList& valueList, 
     return false;
 }
 
-#if ENABLE(CSS_FILTERS)
+#if ENABLE(CSS_FILTERS) || !ASSERT_DISABLED
 static inline bool supportsAcceleratedFilterAnimations()
 {
 // <rdar://problem/10907251> - WebKit2 doesn't support CA animations of CI filters on Lion and below
@@ -604,6 +604,13 @@ void GraphicsLayerCA::setOpacity(float opacity)
 bool GraphicsLayerCA::setFilters(const FilterOperations& filterOperations)
 {
     bool canCompositeFilters = PlatformCALayer::filtersCanBeComposited(filterOperations);
+
+    if (m_filters == filterOperations)
+        return canCompositeFilters;
+
+    // Filters cause flattening, so we should never have filters on a layer with preserves3D().
+    ASSERT(!filterOperations.size() || !preserves3D());
+
     if (canCompositeFilters) {
         GraphicsLayer::setFilters(filterOperations);
         noteLayerPropertyChanged(FiltersChanged);

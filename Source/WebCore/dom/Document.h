@@ -63,7 +63,6 @@ class CDATASection;
 class CSSStyleDeclaration;
 class CSSStyleSelector;
 class CSSStyleSheet;
-class CSSValuePool;
 class CachedCSSStyleSheet;
 class CachedResourceLoader;
 class CachedScript;
@@ -375,7 +374,7 @@ public:
      *        If false, this method returns null for coordinates outside of the viewport.
      */
     PassRefPtr<NodeList> nodesFromRect(int centerX, int centerY, unsigned topPadding, unsigned rightPadding,
-                                       unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping) const;
+                                       unsigned bottomPadding, unsigned leftPadding, bool ignoreClipping, bool allowShadowContent) const;
     Element* elementFromPoint(int x, int y) const;
     PassRefPtr<Range> caretRangeFromPoint(int x, int y);
 
@@ -450,8 +449,6 @@ public:
 
     bool isSrcdocDocument() const { return m_isSrcdocDocument; }
 
-    PassRefPtr<CSSValuePool> cssValuePool() const;
-    
     CSSStyleSelector* styleSelectorIfExists() const { return m_styleSelector.get(); }
 
     bool isViewSource() const { return m_isViewSource; }
@@ -629,6 +626,7 @@ public:
     virtual void disableEval();
 
     bool canNavigate(Frame* targetFrame);
+    bool canBeAccessedByEveryAncestorFrame();
 
     CSSStyleSheet* pageUserSheet();
     void clearPageUserSheet();
@@ -1110,7 +1108,7 @@ public:
     const DocumentTiming* timing() const { return &m_documentTiming; }
 
 #if ENABLE(REQUEST_ANIMATION_FRAME)
-    int webkitRequestAnimationFrame(PassRefPtr<RequestAnimationFrameCallback>, Element*);
+    int webkitRequestAnimationFrame(PassRefPtr<RequestAnimationFrameCallback>);
     void webkitCancelAnimationFrame(int id);
     void serviceScriptedAnimations(DOMTimeStamp);
 #endif
@@ -1220,8 +1218,6 @@ private:
     bool m_didCalculateStyleSelector;
     bool m_hasDirtyStyleSelector;
     Vector<OwnPtr<FontData> > m_customFonts;
-
-    mutable RefPtr<CSSValuePool> m_cssValuePool;
 
     Frame* m_frame;
     OwnPtr<CachedResourceLoader> m_cachedResourceLoader;

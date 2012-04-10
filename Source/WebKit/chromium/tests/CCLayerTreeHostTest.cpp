@@ -67,6 +67,7 @@ public:
     virtual void prepareToDrawOnCCThread(CCLayerTreeHostImpl*) { }
     virtual void drawLayersOnCCThread(CCLayerTreeHostImpl*) { }
     virtual void animateLayers(CCLayerTreeHostImpl*, double monotonicTime) { }
+    virtual void willAnimateLayers(CCLayerTreeHostImpl*, double monotonicTime) { }
     virtual void applyScrollAndScale(const IntSize&, float) { }
     virtual void updateAnimations(double monotonicTime) { }
     virtual void layout() { }
@@ -113,6 +114,7 @@ public:
 protected:
     virtual void animateLayers(double monotonicTime, double wallClockTime)
     {
+        m_testHooks->willAnimateLayers(this, monotonicTime);
         CCLayerTreeHostImpl::animateLayers(monotonicTime, wallClockTime);
         m_testHooks->animateLayers(this, monotonicTime);
     }
@@ -130,13 +132,13 @@ private:
 // Adapts CCLayerTreeHost for test. Injects MockLayerTreeHostImpl.
 class MockLayerTreeHost : public CCLayerTreeHost {
 public:
-    static PassRefPtr<MockLayerTreeHost> create(TestHooks* testHooks, CCLayerTreeHostClient* client, PassRefPtr<LayerChromium> rootLayer, const CCSettings& settings)
+    static PassOwnPtr<MockLayerTreeHost> create(TestHooks* testHooks, CCLayerTreeHostClient* client, PassRefPtr<LayerChromium> rootLayer, const CCSettings& settings)
     {
         // For these tests, we will enable threaded animations.
         CCSettings settingsCopy = settings;
         settingsCopy.threadedAnimationEnabled = true;
 
-        RefPtr<MockLayerTreeHost> layerTreeHost = adoptRef(new MockLayerTreeHost(testHooks, client, settingsCopy));
+        OwnPtr<MockLayerTreeHost> layerTreeHost = adoptPtr(new MockLayerTreeHost(testHooks, client, settingsCopy));
         bool success = layerTreeHost->initialize();
         EXPECT_TRUE(success);
         layerTreeHost->setRootLayer(rootLayer);
@@ -513,7 +515,7 @@ protected:
 
     CCSettings m_settings;
     OwnPtr<MockLayerTreeHostClient> m_client;
-    RefPtr<CCLayerTreeHost> m_layerTreeHost;
+    OwnPtr<CCLayerTreeHost> m_layerTreeHost;
 
 private:
     bool m_beginning;
@@ -532,10 +534,6 @@ void CCLayerTreeHostTest::doBeginTest()
     m_client = MockLayerTreeHostClient::create(this);
 
     RefPtr<LayerChromium> rootLayer = LayerChromium::create();
-
-    // Only non-empty root layers will cause drawing to happen.
-    rootLayer->setBounds(IntSize(1, 1));
-
     m_layerTreeHost = MockLayerTreeHost::create(this, m_client.get(), rootLayer, m_settings);
     ASSERT_TRUE(m_layerTreeHost);
     rootLayer->setLayerTreeHost(m_layerTreeHost.get());
@@ -825,56 +823,6 @@ TEST_F(CCLayerTreeHostTestSetNeedsRedraw, runMultiThread)
     runTestThreaded();
 }
 
-// If the root layer has no content bounds, we should see a commit, but should not be
-// pushing any frames as the contents will be undefined. Regardless, forced draws need
-// to always signal completion.
-class CCLayerTreeHostTestEmptyContentsShouldNotDraw : public CCLayerTreeHostTestThreadOnly {
-public:
-    CCLayerTreeHostTestEmptyContentsShouldNotDraw()
-        : m_numCommits(0)
-    {
-    }
-
-    virtual void beginTest()
-    {
-    }
-
-    virtual void drawLayersOnCCThread(CCLayerTreeHostImpl* impl)
-    {
-        // Only the initial draw should bring us here.
-        EXPECT_FALSE(impl->rootLayer()->bounds().isEmpty());
-    }
-
-    virtual void didCommitAndDrawFrame()
-    {
-        m_numCommits++;
-        if (m_numCommits == 1) {
-            // Put an empty root layer.
-            RefPtr<LayerChromium> rootLayer = LayerChromium::create();
-            m_layerTreeHost->setRootLayer(rootLayer);
-
-            OwnArrayPtr<char> pixels(adoptArrayPtr(new char[4]));
-            m_layerTreeHost->compositeAndReadback(static_cast<void*>(pixels.get()), IntRect(0, 0, 1, 1));
-        } else if (m_numCommits == 2) {
-            m_layerTreeHost->setNeedsCommit();
-            m_layerTreeHost->finishAllRendering();
-            endTest();
-        }
-    }
-
-    virtual void afterTest()
-    {
-    }
-
-private:
-    int m_numCommits;
-};
-
-TEST_F(CCLayerTreeHostTestEmptyContentsShouldNotDraw, runMultiThread)
-{
-    runTestThreaded();
-}
-
 // A compositeAndReadback while invisible should force a normal commit without assertion.
 class CCLayerTreeHostTestCompositeAndReadbackWhileInvisible : public CCLayerTreeHostTestThreadOnly {
 public:
@@ -1081,7 +1029,7 @@ public:
 private:
 };
 
-TEST_F(CCLayerTreeHostTestAddAnimationWithTimingFunction, DISABLED_runMultiThread)
+TEST_F(CCLayerTreeHostTestAddAnimationWithTimingFunction, runMultiThread)
 {
     runTestThreaded();
 }
@@ -1119,8 +1067,7 @@ public:
 class CCLayerTreeHostTestSynchronizeAnimationStartTimes : public CCLayerTreeHostTestThreadOnly {
 public:
     CCLayerTreeHostTestSynchronizeAnimationStartTimes()
-        : m_numAnimates(0)
-        , m_layerTreeHostImpl(0)
+        : m_layerTreeHostImpl(0)
     {
     }
 
@@ -1129,20 +1076,15 @@ public:
         postAddAnimationToMainThread();
     }
 
-    virtual void animateLayers(CCLayerTreeHostImpl* layerTreeHostImpl, double)
+    // This is guaranteed to be called before CCLayerTreeHostImpl::animateLayers.
+    virtual void willAnimateLayers(CCLayerTreeHostImpl* layerTreeHostImpl, double monotonicTime)
     {
         m_layerTreeHostImpl = layerTreeHostImpl;
-
-        if (!m_numAnimates) {
-            m_numAnimates++;
-            return;
-        }
     }
 
     virtual void notifyAnimationStarted(double time)
     {
-        if (!m_numAnimates)
-            return;
+        EXPECT_TRUE(m_layerTreeHostImpl);
 
         CCLayerAnimationController* controllerImpl = m_layerTreeHostImpl->rootLayer()->layerAnimationController();
         CCLayerAnimationController* controller = m_layerTreeHost->rootLayer()->layerAnimationController();
@@ -1159,7 +1101,6 @@ public:
     }
 
 private:
-    int m_numAnimates;
     CCLayerTreeHostImpl* m_layerTreeHostImpl;
 };
 

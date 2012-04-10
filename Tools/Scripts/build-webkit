@@ -92,6 +92,7 @@ my (
     $fullscreenAPISupport,
     $gamepadSupport,
     $geolocationSupport,
+    $highDPICanvasSupport,
     $iconDatabaseSupport,
     $imageResizerSupport,
     $indexedDatabaseSupport,
@@ -165,7 +166,7 @@ my @features = (
       define => "ENABLE_ANIMATION_API", default => isBlackBerry(), value => \$animationAPISupport },
 
     { option => "battery-status-api", desc => "Toggle battery status API support",
-      define => "ENABLE_BATTERY_STATUS", default => isEfl(), value => \$batterystatusAPISupport },
+      define => "ENABLE_BATTERY_STATUS", default => (isEfl() || isBlackBerry()), value => \$batterystatusAPISupport },
 
     { option => "blob", desc => "Toggle Blob support",
       define => "ENABLE_BLOB", default => (isAppleMacWebKit() || isGtk() || isChromium() || isBlackBerry()), value => \$blobSupport },
@@ -220,6 +221,9 @@ my @features = (
 
     { option => "geolocation", desc => "Toggle Geolocation support",
       define => "ENABLE_GEOLOCATION", default => (isAppleWebKit() || isGtk() || isBlackBerry()), value => \$geolocationSupport },
+
+    { option => "high-dpi-canvas", desc => "Toggle high-DPI canvas backing store support",
+      define => "ENABLE_HIGH_DPI_CANVAS", default => (isAppleWebKit()), value => \$highDPICanvasSupport },
 
     { option => "icon-database", desc => "Toggle Icon database support",
       define => "ENABLE_ICONDATABASE", default => 1, value => \$iconDatabaseSupport },
@@ -315,7 +319,7 @@ my @features = (
       define => "ENABLE_REGISTER_PROTOCOL_HANDLER", default => 0, value => \$registerProtocolHandlerSupport },
 
     { option => "system-malloc", desc => "Toggle system allocator instead of TCmalloc",
-      define => "USE_SYSTEM_MALLOC", default => 0, value => \$systemMallocSupport },
+      define => "USE_SYSTEM_MALLOC", default => isWinCE(), value => \$systemMallocSupport },
 
     { option => "shadow-dom", desc => "Toggle Shadow DOM support",
       define => "ENABLE_SHADOW_DOM", default => isGtk(), value => \$shadowDomSupport },
@@ -345,7 +349,7 @@ my @features = (
       define => "ENABLE_TOUCH_ICON_LOADING", default => 0, value => \$touchIconLoadingSupport },
 
     { option => "vibration", desc => "Toggle Vibration API support",
-      define => "ENABLE_VIBRATION", default => isEfl(), value => \$vibrationSupport },
+      define => "ENABLE_VIBRATION", default => (isEfl() || isBlackBerry()), value => \$vibrationSupport },
 
     { option => "video", desc => "Toggle Video support",
       define => "ENABLE_VIDEO", default => (isAppleWebKit() || isGtk() || isBlackBerry() || isEfl()), value => \$videoSupport },

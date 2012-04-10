@@ -1,3 +1,173 @@
+2012-04-09  Dale Curtis  <dalecurtis@chromium.org>
+
+        Remove unworkable video-buffering-repaints-controls test.
+        https://bugs.webkit.org/show_bug.cgi?id=83097
+
+        Replaces the automated test for progress bar repaints during buffering
+        with a manual test entry.
+
+        Reviewed by Eric Carlson.
+
+        * ManualTests/media-controls.html:
+
+2012-04-09  Ming Xie  <mxie@rim.com>
+
+        [BlackBerry] Allow simulator to use GLES2 acceleration
+        https://bugs.webkit.org/show_bug.cgi?id=81672
+
+        Reviewed by Rob Buis.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-04-09  Zalan Bujtas  <zbujtas@gmail.com>
+
+        [Qt][WK2] Fail to activate links after double tap gesture.
+        https://bugs.webkit.org/show_bug.cgi?id=83468
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * ManualTests/link-activation-fails-after-double-tap-gesture.html: Added.
+
+2012-04-09  Martin Robinson  <mrobinson@igalia.com>
+
+        [soup] Crash while loading http://www.jusco.cn
+        https://bugs.webkit.org/show_bug.cgi?id=68238
+
+        Reviewed by Philippe Normand.
+
+        * configure.ac: Bumped the libsoup dependency to 2.37.90.
+
+2012-04-09  Abhishek Arya  <inferno@chromium.org>
+
+        Crash due to floats not cleared before starting SVG <text> layout.
+        https://bugs.webkit.org/show_bug.cgi?id=83021
+
+        Reviewed by Dirk Schulze.
+
+        * ManualTests/svg-text-float-not-removed-crash.html: Added.
+
+2012-04-09  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake] Build fix for USE_SYSTEM_MALLOC after r113570.
+
+        * Source/cmakeconfig.h.cmake:
+
+2012-04-09  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake] Share build system options across ports
+        https://bugs.webkit.org/show_bug.cgi?id=72815
+
+        Reviewed by Daniel Bates.
+
+        Don't define the generic features for every port again.
+        Add a few macros for reusing the central defined options.
+
+        * CMakeLists.txt:
+        * Source/cmake/OptionsBlackBerry.cmake:
+        * Source/cmake/OptionsEfl.cmake:
+        * Source/cmake/OptionsWinCE.cmake:
+        * Source/cmake/WebKitFeatures.cmake:
+
+2012-04-07  Rob Buis  <rbuis@rim.com>
+
+        [BlackBerry] Add Battery Status API support
+        https://bugs.webkit.org/show_bug.cgi?id=82615
+
+        Reviewed by George Staikos.
+
+        Enable BATTERY_STATUS.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-04-06  Martin Robinson  <mrobinson@igalia.com>
+
+        Fix the GTK+ debug build.
+
+        * Source/autotools/symbols.filter: Add a missing symbol to the symbols.list file.
+
+2012-04-05  George Staikos  <staikos@webkit.org>
+
+        Compile the vibration module for BlackBerry.
+        https://bugs.webkit.org/show_bug.cgi?id=83340
+
+        Reviewed by Rob Buis.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-04-05  Ryosuke Niwa  <rniwa@webkit.org>
+
+        perf-o-matic should include unit in runs JSON responses
+        https://bugs.webkit.org/show_bug.cgi?id=83294
+
+        Reviewed by Tony Chang.
+
+        This is a follow up to r112829. Report the unit in /api/test/runs so that the frontend can show it.
+        Fixed a bug in Test.update_or_insert that it didn't store the unit when it first created the Test object.
+
+        Also increment perf-o-matic's version to 18.
+
+        * Websites/webkit-perf.appspot.com/app.yaml: Incremented the version.
+        * Websites/webkit-perf.appspot.com/models.py:
+        (Test.update_or_insert.execute): Store unit when creating a test.
+        (Runs.to_json): Include unit.
+        * Websites/webkit-perf.appspot.com/models_unittest.py: Added tests.
+        (TestModelTests.test_update_or_insert_with_unit):
+        (RunsTest.test_to_json_without_results):
+        (RunsTest.test_to_json_with_results):
+        (RunsTest.test_to_json_with_unit):
+
+2012-03-14  Antonio Gomes  <agomes@rim.com>
+
+        Extend HitTestResult to support not "discarding" shadow content in favor of its DOM ancestor
+        https://bugs.webkit.org/show_bug.cgi?id=80847
+
+        Reviewed by David Hyatt.
+
+        Exporting Internals::nodesFromRect symbols for the Gtk build.
+
+        * Source/autotools/symbols.filter:
+
+2012-04-05  Jonathan Dong  <jonathan.dong@torchmobile.com.cn>
+
+        [BlackBerry] Clear local storage won't take effect until browser exit and relaunch
+        https://bugs.webkit.org/show_bug.cgi?id=83253
+
+        Reviewed by Rob Buis.
+
+        RIM PR: #146871
+        Added a manual test case to test the behavior when press
+        button "Clear Local Storage" from browser settings.
+        It has to be a manual test as it requires user interaction.
+
+        * ManualTests/blackberry/clear-localstorage.html: Added.
+
+2012-04-04  Kent Tamura  <tkent@chromium.org>
+
+        Add JavaScript and CSS code for the calendar picker implementation
+        https://bugs.webkit.org/show_bug.cgi?id=83011
+
+        Reviewed by Hajime Morita.
+
+        * ManualTests/forms/calendar-picker.html: Added.
+
+2012-04-04  Hayato Ito  <hayato@chromium.org>
+
+        Remove ReifiedTreeTraversal.
+        https://bugs.webkit.org/show_bug.cgi?id=83110
+
+        Reviewed by Dimitri Glazkov.
+
+        * Source/autotools/symbols.filter:
+
+2012-04-04  Shinya Kawanaka  <shinyak@chromium.org>
+
+        Shadow DOM is exposed in JS.
+        https://bugs.webkit.org/show_bug.cgi?id=82607
+
+        Reviewed by Hajime Morita.
+
+        * Source/autotools/symbols.filter:
+
 2012-04-03  Tony Chang  <tony@chromium.org>
 
         remove WebKit files from .gitattributes

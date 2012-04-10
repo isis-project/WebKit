@@ -95,10 +95,13 @@ ImageBufferData::~ImageBufferData()
     delete m_memDC;
 }
 
-ImageBuffer::ImageBuffer(const IntSize& size, ColorSpace colorSpace, RenderingMode, DeferralMode, bool& success)
+ImageBuffer::ImageBuffer(const IntSize& size, float resolutionScale, ColorSpace colorSpace, RenderingMode, DeferralMode, bool& success)
     : m_data(size)
     , m_size(size)
+    , m_logicalSize(size)
 {
+    // FIXME: Respect resoutionScale to support high-DPI canvas.
+    UNUSED_PARAM(resolutionScale);
     // FIXME: colorSpace is not used
     UNUSED_PARAM(colorSpace);
 
@@ -158,7 +161,7 @@ void ImageBuffer::clip(GraphicsContext* context, const FloatRect& rect) const
 void ImageBuffer::draw(GraphicsContext* context, ColorSpace styleColorSpace, const FloatRect& destRect, const FloatRect& srcRect, CompositeOperator op, bool useLowQualityScale)
 {
     RefPtr<Image> imageCopy = copyImage(CopyBackingStore);
-    context->drawImage(imageCopy.get(), styleColorSpace, destRect, srcRect, op, useLowQualityScale);
+    context->drawImage(imageCopy.get(), styleColorSpace, destRect, srcRect, op, DoNotRespectImageOrientation, useLowQualityScale);
 }
 
 void ImageBuffer::drawPattern(GraphicsContext* context, const FloatRect& srcRect, const AffineTransform& patternTransform,

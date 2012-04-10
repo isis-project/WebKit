@@ -895,6 +895,10 @@ bool RenderLayerBacking::containsNonEmptyRenderers() const
 // Conservative test for having no rendered children.
 bool RenderLayerBacking::hasVisibleNonCompositingDescendantLayers() const
 {
+#if !ASSERT_DISABLED
+    LayerListMutationDetector mutationChecker(m_owningLayer);
+#endif
+
     if (Vector<RenderLayer*>* normalFlowList = m_owningLayer->normalFlowList()) {
         size_t listSize = normalFlowList->size();
         for (size_t i = 0; i < listSize; ++i) {
@@ -933,7 +937,7 @@ bool RenderLayerBacking::hasVisibleNonCompositingDescendantLayers() const
 
 bool RenderLayerBacking::containsPaintedContent() const
 {
-    if (isSimpleContainerCompositingLayer() || paintingGoesToWindow() || m_artificiallyInflatedBounds || m_owningLayer->isReflection())
+    if (isSimpleContainerCompositingLayer() || paintsIntoWindow() || m_artificiallyInflatedBounds || m_owningLayer->isReflection())
         return false;
 
     if (isDirectlyCompositedImage())
@@ -1072,13 +1076,19 @@ IntRect RenderLayerBacking::contentsBox() const
     return contentsRect;
 }
 
-bool RenderLayerBacking::paintingGoesToWindow() const
+bool RenderLayerBacking::paintsIntoWindow() const
 {
     if (m_usingTiledCacheLayer)
         return false;
 
-    if (m_owningLayer->isRootLayer())
+    if (m_owningLayer->isRootLayer()) {
+#if PLATFORM(BLACKBERRY)
+        if (compositor()->inForcedCompositingMode())
+            return false;
+#endif
+
         return compositor()->rootLayerAttachment() != RenderLayerCompositor::RootLayerAttachedViaEnclosingFrame;
+    }
     
     return false;
 }
@@ -1122,7 +1132,7 @@ void RenderLayerBacking::paintIntoLayer(RenderLayer* rootLayer, GraphicsContext*
                     PaintBehavior paintBehavior, GraphicsLayerPaintingPhase paintingPhase,
                     RenderObject* paintingRoot)
 {
-    if (paintingGoesToWindow()) {
+    if (paintsIntoWindow()) {
         ASSERT_NOT_REACHED();
         return;
     }
@@ -1384,14 +1394,14 @@ bool RenderLayerBacking::startTransition(double timeOffset, CSSPropertyID proper
 #endif
 }
 
-void RenderLayerBacking::transitionPaused(double timeOffset, int property)
+void RenderLayerBacking::transitionPaused(double timeOffset, CSSPropertyID property)
 {
     AnimatedPropertyID animatedProperty = cssToGraphicsLayerProperty(property);
     if (animatedProperty != AnimatedPropertyInvalid)
         m_graphicsLayer->pauseAnimation(GraphicsLayer::animationNameForTransition(animatedProperty), timeOffset);
 }
 
-void RenderLayerBacking::transitionFinished(int property)
+void RenderLayerBacking::transitionFinished(CSSPropertyID property)
 {
     AnimatedPropertyID animatedProperty = cssToGraphicsLayerProperty(property);
     if (animatedProperty != AnimatedPropertyInvalid)
@@ -1430,9 +1440,9 @@ void RenderLayerBacking::setCompositedBounds(const IntRect& bounds)
     m_compositedBounds = bounds;
 
 }
-int RenderLayerBacking::graphicsLayerToCSSProperty(AnimatedPropertyID property)
+CSSPropertyID RenderLayerBacking::graphicsLayerToCSSProperty(AnimatedPropertyID property)
 {
-    int cssProperty = CSSPropertyInvalid;
+    CSSPropertyID cssProperty = CSSPropertyInvalid;
     switch (property) {
         case AnimatedPropertyWebkitTransform:
             cssProperty = CSSPropertyWebkitTransform;
@@ -1456,7 +1466,7 @@ int RenderLayerBacking::graphicsLayerToCSSProperty(AnimatedPropertyID property)
     return cssProperty;
 }
 
-AnimatedPropertyID RenderLayerBacking::cssToGraphicsLayerProperty(int cssProperty)
+AnimatedPropertyID RenderLayerBacking::cssToGraphicsLayerProperty(CSSPropertyID cssProperty)
 {
     switch (cssProperty) {
         case CSSPropertyWebkitTransform:
@@ -1469,7 +1479,9 @@ AnimatedPropertyID RenderLayerBacking::cssToGraphicsLayerProperty(int cssPropert
         case CSSPropertyWebkitFilter:
             return AnimatedPropertyWebkitFilter;
 #endif
-        // It's fine if we see other css properties here; they are just not accelerated.
+        default:
+            // It's fine if we see other css properties here; they are just not accelerated.
+            break;
     }
     return AnimatedPropertyInvalid;
 }

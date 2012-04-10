@@ -1,3 +1,156 @@
+2012-04-07  Rob Buis  <rbuis@rim.com>
+
+        [BlackBerry] Add Battery Status API support
+        https://bugs.webkit.org/show_bug.cgi?id=82615
+
+        Reviewed by George Staikos.
+
+        Add client implementation for Battery API.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::init):  initialize BatteryClient.
+        * WebCoreSupport/BatteryClientBlackBerry.cpp: Added.
+        (WebCore):
+        (WebCore::BatteryClientBlackBerry::BatteryClientBlackBerry):
+        (WebCore::BatteryClientBlackBerry::setController):
+        (WebCore::BatteryClientBlackBerry::startUpdating):
+        (WebCore::BatteryClientBlackBerry::stopUpdating):
+        (WebCore::BatteryClientBlackBerry::batteryControllerDestroyed):
+        (WebCore::BatteryClientBlackBerry::onLevelChange):
+        (WebCore::BatteryClientBlackBerry::onChargingChange):
+        (WebCore::BatteryClientBlackBerry::onChargingTimeChange):
+        (WebCore::BatteryClientBlackBerry::onDischargingTimeChange):
+        * WebCoreSupport/BatteryClientBlackBerry.h: Added.
+        (WebCore):
+        (BatteryClientBlackBerry):
+        (WebCore::BatteryClientBlackBerry::~BatteryClientBlackBerry):
+
+2012-04-06  Benjamin Poulain  <bpoulain@apple.com>
+
+        Get rid of the useless flag PREEMPT_GEOLOCATION_PERMISSION
+        https://bugs.webkit.org/show_bug.cgi?id=83325
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebCoreSupport/AboutDataUseFeatures.in:
+
+2012-04-06  Sean Wang  <Xuewen.Wang@torchmobile.com.cn>
+
+        [BlackBerry] Text selection - Can't select texts
+        https://bugs.webkit.org/show_bug.cgi?id=83355
+
+        Fix the problem of not sending out the result of the function 
+        SelectionHandler::regionForTextQuads(). This regression issue
+        is introduced by the git commit f9446b7d671d48a833ab0acf12b1e20637e0a910.
+
+        Reviewed by George Staikos.
+
+        * WebKitSupport/SelectionHandler.cpp:
+        (BlackBerry::WebKit::SelectionHandler::regionForTextQuads):
+            Add code to return the function result.
+
+2012-04-05  Jason Liu  <jason.liu@torchmobile.com.cn>
+
+        [BlackBerry] Empty Referrer should not be set into ResourceRequest when loading a main resource.
+        https://bugs.webkit.org/show_bug.cgi?id=83252
+
+        Reviewed by George Staikos.
+
+        Test: http/tests/misc/resources/referrer-main-resource.php
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::load):
+
+2012-04-05  George Staikos  <staikos@webkit.org>
+
+        Add a vibration client for BlackBerry and enable it.
+        https://bugs.webkit.org/show_bug.cgi?id=83340
+
+        Reviewed by Rob Buis.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::init): enable the client
+        * WebCoreSupport/VibrationClientBlackBerry.cpp: Added.
+        (WebCore):
+        (WebCore::VibrationClientBlackBerry::VibrationClientBlackBerry):
+        (WebCore::VibrationClientBlackBerry::vibrate):
+        (WebCore::VibrationClientBlackBerry::cancelVibration):
+        (WebCore::VibrationClientBlackBerry::vibrationDestroyed):
+        * WebCoreSupport/VibrationClientBlackBerry.h: Added.
+        (WebCore):
+        (VibrationClientBlackBerry):
+        (WebCore::VibrationClientBlackBerry::~VibrationClientBlackBerry):
+
+2012-04-05  Arvid Nilsson  <anilsson@rim.com>
+
+        [BlackBerry] Force compositing mode when backing store is not active
+        https://bugs.webkit.org/show_bug.cgi?id=83131
+
+        Reviewed by George Staikos.
+
+        RIM PR: 136381
+        Normally, the BlackBerry WebKit port resorts to direct rendering when
+        the backing store is not active. However, direct rendering is broken
+        with the OpenGL code path. This prevented multiple web pages from being
+        displayed at once with the new WebPageCompositor API.
+
+        Fixed by using accelerated compositing layer to render the root layer
+        instead of backing store. This will give us a tiled layer backing the
+        root layer, which for some use cases is even better than direct
+        rendering.
+
+        Reviewed internally by Filip Spacek.
+
+        * Api/BackingStore.cpp:
+        (BlackBerry::WebKit::BackingStorePrivate::shouldDirectRenderingToWindow):
+        (BlackBerry::WebKit::BackingStorePrivate::blitContents):
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::setLoadState):
+        (BlackBerry::WebKit::WebPage::setVisible):
+        (BlackBerry::WebKit::WebPagePrivate::suspendBackingStore):
+        (BlackBerry::WebKit::WebPagePrivate::resumeBackingStore):
+        (BlackBerry::WebKit::WebPagePrivate::compositorDrawsRootLayer):
+        (WebKit):
+        (BlackBerry::WebKit::WebPagePrivate::setCompositorDrawsRootLayer):
+        (BlackBerry::WebKit::WebPagePrivate::drawLayersOnCommit):
+        (BlackBerry::WebKit::WebPagePrivate::scheduleRootLayerCommit):
+        (BlackBerry::WebKit::WebPagePrivate::commitRootLayer):
+        (BlackBerry::WebKit::WebPagePrivate::commitRootLayerIfNeeded):
+        (BlackBerry::WebKit::WebPagePrivate::rootLayerCommitTimerFired):
+        (BlackBerry::WebKit::WebPagePrivate::setRootLayerCompositingThread):
+        (BlackBerry::WebKit::WebPagePrivate::createCompositor):
+        (BlackBerry::WebKit::WebPagePrivate::suspendRootLayerCommit):
+        (BlackBerry::WebKit::WebPagePrivate::setNeedsOneShotDrawingSynchronization):
+        * Api/WebPageCompositor.cpp:
+        (BlackBerry::WebKit::WebPageCompositorPrivate::WebPageCompositorPrivate):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::drawsRootLayer):
+        (WebKit):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::drawLayers):
+        * Api/WebPageCompositor_p.h:
+        (BlackBerry::WebKit::WebPageCompositorPrivate::rootLayer):
+        (WebPageCompositorPrivate):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::setDrawsRootLayer):
+        * Api/WebPage_p.h:
+        (WebPagePrivate):
+
+2012-04-05  Jonathan Dong  <jonathan.dong@torchmobile.com.cn>
+
+        [BlackBerry] Clear local storage won't take effect until browser exit and relaunch
+        https://bugs.webkit.org/show_bug.cgi?id=83253
+
+        Reviewed by Rob Buis.
+
+        RIM PR: #146871
+        Cleared the local storage namespace of a WebPage's PageGroup
+        when WebPage::clearLocalStorage() get called.
+        Also deleted unused global function clearLocalStorage().
+
+        * Api/BlackBerryGlobal.cpp:
+        * Api/BlackBerryGlobal.h:
+        (WebKit):
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPage::clearLocalStorage):
+
 2012-04-04  Rob Buis  <rbuis@rim.com>
 
         [BlackBerry] Make the switch statement in WebPage::notifyAppActivationStateChange() stronger

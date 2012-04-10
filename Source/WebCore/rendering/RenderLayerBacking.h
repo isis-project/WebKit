@@ -95,7 +95,7 @@ public:
     // for descendants, but its contents usually render into the window (in which case this returns true).
     // This returns false for other layers, and when the document layer actually needs to paint into its backing store
     // for some reason.
-    bool paintingGoesToWindow() const;
+    bool paintsIntoWindow() const;
 
     void setContentsNeedDisplay();
     // r is in the coordinate space of the layer's render object
@@ -106,8 +106,8 @@ public:
 
     // Interface to start, finish, suspend and resume animations and transitions
     bool startTransition(double, CSSPropertyID, const RenderStyle* fromStyle, const RenderStyle* toStyle);
-    void transitionPaused(double timeOffset, int property);
-    void transitionFinished(int property);
+    void transitionPaused(double timeOffset, CSSPropertyID);
+    void transitionFinished(CSSPropertyID);
 
     bool startAnimation(double timeOffset, const Animation* anim, const KeyframeList& keyframes);
     void animationPaused(double timeOffset, const String& name);
@@ -211,8 +211,8 @@ private:
 
     void paintIntoLayer(RenderLayer* rootLayer, GraphicsContext*, const IntRect& paintDirtyRect, PaintBehavior, GraphicsLayerPaintingPhase, RenderObject* paintingRoot);
 
-    static int graphicsLayerToCSSProperty(AnimatedPropertyID);
-    static AnimatedPropertyID cssToGraphicsLayerProperty(int);
+    static CSSPropertyID graphicsLayerToCSSProperty(AnimatedPropertyID);
+    static AnimatedPropertyID cssToGraphicsLayerProperty(CSSPropertyID);
 
 #ifndef NDEBUG
     String nameForLayer() const;

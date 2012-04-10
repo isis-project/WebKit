@@ -45,12 +45,13 @@
 #include "qwebviewportinfo_p.h"
 
 #include <JavaScriptCore/InitializeThreading.h>
-#include <QDeclarativeEngine>
+#include <QtQml/QQmlEngine>
 #include <QtQuick/QQuickCanvas>
 #include <WebCore/IntPoint.h>
 #include <WebCore/IntRect.h>
 #include <WKOpenPanelResultListener.h>
 #include <wtf/Assertions.h>
+#include <wtf/MainThread.h>
 #include <wtf/text/WTFString.h>
 
 using namespace WebCore;

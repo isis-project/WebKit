@@ -47,7 +47,6 @@ namespace WebCore {
 
 class CSSBorderImageSliceValue;
 class CSSPrimitiveValue;
-class CSSValuePool;
 class CSSProperty;
 class CSSSelectorList;
 class CSSStyleSheet;
@@ -84,8 +83,6 @@ public:
 
     Document* findDocument() const;
 
-    CSSValuePool* cssValuePool() const { return m_cssValuePool.get(); }
-
     void addProperty(CSSPropertyID, PassRefPtr<CSSValue>, bool important, bool implicit = false);
     void rollbackLastProperties(int num);
     bool hasProperties() const { return !m_parsedProperties.isEmpty(); }
@@ -109,7 +106,7 @@ public:
     void parseFillPosition(CSSParserValueList*, RefPtr<CSSValue>&, RefPtr<CSSValue>&);
 
     void parseFillRepeat(RefPtr<CSSValue>&, RefPtr<CSSValue>&);
-    PassRefPtr<CSSValue> parseFillSize(CSSPropertyID propId, bool &allowComma);
+    PassRefPtr<CSSValue> parseFillSize(CSSPropertyID, bool &allowComma);
 
     bool parseFillProperty(CSSPropertyID propId, CSSPropertyID& propId1, CSSPropertyID& propId2, RefPtr<CSSValue>&, RefPtr<CSSValue>&);
     bool parseFillShorthand(CSSPropertyID, const CSSPropertyID* properties, int numProperties, bool important);
@@ -130,7 +127,7 @@ public:
 
     bool parseTransformOriginShorthand(RefPtr<CSSValue>&, RefPtr<CSSValue>&, RefPtr<CSSValue>&);
     bool parseCubicBezierTimingFunctionValue(CSSParserValueList*& args, double& result);
-    bool parseAnimationProperty(CSSPropertyID propId, RefPtr<CSSValue>&);
+    bool parseAnimationProperty(CSSPropertyID, RefPtr<CSSValue>&);
     bool parseTransitionShorthand(bool important);
     bool parseAnimationShorthand(bool important);
 
@@ -143,7 +140,7 @@ public:
     bool parseClipShape(CSSPropertyID, bool important);
 
     bool parseExclusionShape(bool shapeInside, bool important);
-    PassRefPtr<CSSWrapShape> parseExclusionShapeRect(CSSParserValueList* args);
+    PassRefPtr<CSSWrapShape> parseExclusionShapeRectangle(CSSParserValueList* args);
     PassRefPtr<CSSWrapShape> parseExclusionShapeCircle(CSSParserValueList* args);
     PassRefPtr<CSSWrapShape> parseExclusionShapeEllipse(CSSParserValueList* args);
     PassRefPtr<CSSWrapShape> parseExclusionShapePolygon(CSSParserValueList* args);
@@ -181,7 +178,7 @@ public:
     bool parseBorderImageSlice(CSSPropertyID, RefPtr<CSSBorderImageSliceValue>&);
     bool parseBorderImageWidth(RefPtr<CSSPrimitiveValue>&);
     bool parseBorderImageOutset(RefPtr<CSSPrimitiveValue>&);
-    bool parseBorderRadius(CSSPropertyID, bool);
+    bool parseBorderRadius(CSSPropertyID, bool important);
 
     bool parseAspectRatio(bool important);
 
@@ -297,11 +294,10 @@ public:
     Vector<CSSProperty, 256> m_parsedProperties;
     CSSSelectorList* m_selectorListForParseSelector;
 
-    RefPtr<CSSValuePool> m_cssValuePool;
     unsigned m_numParsedPropertiesBeforeMarginBox;
 
     int m_inParseShorthand;
-    int m_currentShorthand;
+    CSSPropertyID m_currentShorthand;
     bool m_implicitShorthand;
 
     bool m_hasFontFaceOnlyValues;
@@ -350,7 +346,6 @@ private:
     inline void detectAtToken(int, bool);
 
     void setStyleSheet(CSSStyleSheet*);
-    void ensureCSSValuePool();
 
     inline bool inStrictMode() const { return m_cssParserMode == CSSStrictMode || m_cssParserMode == SVGAttributeMode; }
     inline bool inQuirksMode() const { return m_cssParserMode == CSSQuirksMode; }
@@ -482,7 +477,7 @@ public:
     ~ShorthandScope()
     {
         if (!(--m_parser->m_inParseShorthand))
-            m_parser->m_currentShorthand = 0;
+            m_parser->m_currentShorthand = CSSPropertyInvalid;
     }
 
 private:

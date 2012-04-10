@@ -725,7 +725,7 @@ String Frame::displayStringModifiedByEncoding(const String& str) const
     return document() ? document()->displayStringModifiedByEncoding(str) : str;
 }
 
-VisiblePosition Frame::visiblePositionForPoint(const LayoutPoint& framePoint)
+VisiblePosition Frame::visiblePositionForPoint(const IntPoint& framePoint)
 {
     HitTestResult result = eventHandler()->hitTestResultAtPoint(framePoint, true);
     Node* node = result.innerNonSharedNode();
@@ -745,7 +745,7 @@ Document* Frame::documentAtPoint(const IntPoint& point)
     if (!view())
         return 0;
 
-    LayoutPoint pt = view()->windowToContents(point);
+    IntPoint pt = view()->windowToContents(point);
     HitTestResult result = HitTestResult(pt);
 
     if (contentRenderer())
@@ -753,7 +753,7 @@ Document* Frame::documentAtPoint(const IntPoint& point)
     return result.innerNode() ? result.innerNode()->document() : 0;
 }
 
-PassRefPtr<Range> Frame::rangeForPoint(const LayoutPoint& framePoint)
+PassRefPtr<Range> Frame::rangeForPoint(const IntPoint& framePoint)
 {
     VisiblePosition position = visiblePositionForPoint(framePoint);
     if (position.isNull())
@@ -1087,7 +1087,7 @@ DragImageRef Frame::nodeImage(Node* node)
     m_view->paintContents(buffer->context(), paintingRect);
 
     RefPtr<Image> image = buffer->copyImage();
-    return createDragImageFromImage(image.get());
+    return createDragImageFromImage(image.get(), renderer->shouldRespectImageOrientation());
 }
 
 DragImageRef Frame::dragImageForSelection()

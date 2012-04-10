@@ -88,7 +88,7 @@ SET(JavaScriptCore_SOURCES
     heap/CopiedSpace.cpp
     heap/ConservativeRoots.cpp
     heap/DFGCodeBlocks.cpp
-    heap/HandleHeap.cpp
+    heap/HandleSet.cpp
     heap/HandleStack.cpp
     heap/Heap.cpp
     heap/MachineStackMarker.cpp
@@ -96,7 +96,7 @@ SET(JavaScriptCore_SOURCES
     heap/MarkedBlock.cpp
     heap/MarkedSpace.cpp
     heap/MarkStack.cpp
-    heap/WeakHeap.cpp
+    heap/WeakSet.cpp
     heap/WeakHandleOwner.cpp
     heap/WeakBlock.cpp
 
@@ -182,6 +182,7 @@ SET(JavaScriptCore_SOURCES
     runtime/JSPropertyNameIterator.cpp
     runtime/JSStaticScopeObject.cpp
     runtime/JSString.cpp
+    runtime/JSStringJoiner.cpp
     runtime/JSValue.cpp
     runtime/JSVariableObject.cpp
     runtime/JSWrapperObject.cpp

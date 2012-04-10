@@ -74,6 +74,7 @@
 #include "RenderedPosition.h"
 #include "ReplaceSelectionCommand.h"
 #include "Settings.h"
+#include "SimplifyMarkupCommand.h"
 #include "Sound.h"
 #include "SpellChecker.h"
 #include "SpellingCorrectionCommand.h"
@@ -1039,6 +1040,24 @@ void Editor::performDelete()
     // clear the "start new kill ring sequence" setting, because it was set to true
     // when the selection was updated by deleting the range
     setStartNewKillRingSequence(false);
+}
+
+void Editor::simplifyMarkup(Node* startNode, Node* endNode)
+{
+    if (!startNode)
+        return;
+    if (endNode) {
+        if (startNode->document() != endNode->document())
+            return;
+        // check if start node is before endNode
+        Node* node = startNode;
+        while (node && node != endNode)
+            node = node->traverseNextNode();
+        if (!node)
+            return;
+    }
+    
+    applyCommand(SimplifyMarkupCommand::create(m_frame->document(), startNode, (endNode) ? endNode->traverseNextNode() : 0));
 }
 
 void Editor::copyURL(const KURL& url, const String& title)
@@ -2248,7 +2267,7 @@ PassRefPtr<Range> Editor::rangeForPoint(const IntPoint& windowPoint)
     FrameView* frameView = frame->view();
     if (!frameView)
         return 0;
-    LayoutPoint framePoint = frameView->windowToContents(windowPoint);
+    IntPoint framePoint = frameView->windowToContents(windowPoint);
     VisibleSelection selection(frame->visiblePositionForPoint(framePoint));
     return avoidIntersectionWithNode(selection.toNormalizedRange().get(), m_deleteButtonController->containerElement());
 }
@@ -2868,7 +2887,7 @@ unsigned Editor::countMatchesForText(const String& target, Range* range, FindOpt
 
                 PaintBehavior oldBehavior = m_frame->view()->paintBehavior();
                 m_frame->view()->setPaintBehavior(oldBehavior | PaintBehaviorFlattenCompositingLayers);
-                m_frame->view()->paintContents(&context, visibleRect);
+                m_frame->view()->paintContents(&context, enclosingIntRect(visibleRect));
                 m_frame->view()->setPaintBehavior(oldBehavior);
             }
         }
@@ -2923,10 +2942,17 @@ void Editor::respondToChangedSelection(const VisibleSelection& oldSelection, Fra
         }
 
 #if !PLATFORM(MAC) || (PLATFORM(MAC) && (defined(BUILDING_ON_LEOPARD) || defined(BUILDING_ON_SNOW_LEOPARD)))
+#if PLATFORM(CHROMIUM)
+        if (!m_frame->settings() || !m_frame->settings()->asynchronousSpellCheckingEnabled()) {
+            if (RefPtr<Range> wordRange = newAdjacentWords.toNormalizedRange())
+                m_frame->document()->markers()->removeMarkers(wordRange.get(), DocumentMarker::Spelling);
+        }
+#else
         // This only erases markers that are in the first unit (word or sentence) of the selection.
         // Perhaps peculiar, but it matches AppKit on these Mac OS X versions.
         if (RefPtr<Range> wordRange = newAdjacentWords.toNormalizedRange())
             m_frame->document()->markers()->removeMarkers(wordRange.get(), DocumentMarker::Spelling);
+#endif
 #endif
         if (RefPtr<Range> sentenceRange = newSelectedSentence.toNormalizedRange())
             m_frame->document()->markers()->removeMarkers(sentenceRange.get(), DocumentMarker::Grammar);

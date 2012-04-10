@@ -68,12 +68,26 @@ GPRReg SpeculativeJIT::fillStorage(NodeIndex nodeIndex)
         return gpr;
     }
         
-    case DataFormatStorage: {
+    case DataFormatStorage:
+    case DataFormatCell: {
         GPRReg gpr = info.gpr();
         m_gprs.lock(gpr);
         return gpr;
     }
         
+    case DataFormatJS:
+    case DataFormatJSCell: {
+#if USE(JSVALUE64)
+        GPRReg gpr = info.gpr();
+        m_gprs.lock(gpr);
+        return gpr;
+#else
+        GPRReg gpr = info.payloadGPR();
+        m_gprs.lock(gpr);
+        return gpr;
+#endif
+    }
+
     default:
         ASSERT_NOT_REACHED();
     }
@@ -2229,8 +2243,12 @@ void SpeculativeJIT::compileInstanceOfForObject(Node&, GPRReg valueReg, GPRReg p
 
 void SpeculativeJIT::compileInstanceOf(Node& node)
 {
-    if (!!(at(node.child1()).prediction() & ~PredictCell) && !!(m_state.forNode(node.child1()).m_type & ~PredictCell)) {
+    if ((!!(at(node.child1()).prediction() & ~PredictCell)
+         && !!(m_state.forNode(node.child1()).m_type & ~PredictCell))
+        || at(node.child1()).adjustedRefCount() == 1) {
         // It might not be a cell. Speculate less aggressively.
+        // Or: it might only be used once (i.e. by us), so we get zero benefit
+        // from speculating any more aggressively than we absolutely need to.
         
         JSValueOperand value(this, node.child1());
         SpeculateCellOperand prototype(this, node.child3());
@@ -2969,7 +2987,7 @@ bool SpeculativeJIT::compileStrictEq(Node& node)
 void SpeculativeJIT::compileGetIndexedPropertyStorage(Node& node)
 {
     if (!node.prediction() || !at(node.child1()).prediction() || !at(node.child2()).prediction()) {
-        terminateSpeculativeExecution(Uncountable, JSValueRegs(), NoNode);
+        terminateSpeculativeExecution(InadequateCoverage, JSValueRegs(), NoNode);
         return;
     }
         

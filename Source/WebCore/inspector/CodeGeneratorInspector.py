@@ -57,13 +57,11 @@ TYPE_NAME_FIX_MAP = {
 
 
 TYPES_WITH_RUNTIME_CAST_SET = frozenset(["Runtime.RemoteObject", "Runtime.PropertyDescriptor",
-                                         "Debugger.FunctionDetails", "Debugger.CallFrame"])
+                                         "Debugger.FunctionDetails", "Debugger.CallFrame",
+                                         # This should be a temporary hack. TimelineEvent should be created via generated C++ API.
+                                         "Timeline.TimelineEvent"])
 
-STRICT_ENABLED_DOMAINS = ["Console", "DOMDebugger",
-                          "CSS", "Debugger", "DOM", "Network", "Page", "Runtime",
-                          "Inspector", "Memory", "Database",
-                          "IndexedDB", "DOMStorage", "ApplicationCache"]
-
+TYPES_WITH_OPEN_FIELD_LIST_SET = frozenset(["Timeline.TimelineEvent"])
 
 cmdline_parser = optparse.OptionParser()
 cmdline_parser.add_option("--output_h_dir")
@@ -1201,8 +1199,8 @@ class TypeBindings:
 
                                     param_type_binding = prop_data.param_type_binding
                                     param_raw_type = param_type_binding.reduce_to_raw_type()
-                                    for param_type_opt in MethodGenerateModes.get_modes(param_type_binding):
-                                        writer.newline_multiline("""
+
+                                    writer.newline_multiline("""
         Builder<STATE | %s>& set%s(%s value)
         {
             COMPILE_ASSERT(!(STATE & %s), property_%s_already_set);
@@ -1210,13 +1208,13 @@ class TypeBindings:
             return castState<%s>();
         }
 """
-                                        % (state_enum_items[pos],
-                                           Capitalizer.lower_camel_case_to_upper(prop_name),
-                                           param_type_opt.get_c_param_type_text(param_type_binding),
-                                           state_enum_items[pos], prop_name,
-                                           param_raw_type.get_setter_name(), prop_name,
-                                           param_type_opt.get_setter_value_expression(param_type_binding, "value"),
-                                           state_enum_items[pos]))
+                                    % (state_enum_items[pos],
+                                       Capitalizer.lower_camel_case_to_upper(prop_name),
+                                       param_type_binding.get_type_model().get_input_param_type_text(),
+                                       state_enum_items[pos], prop_name,
+                                       param_raw_type.get_setter_name(), prop_name,
+                                       format_setter_value_expression(param_type_binding, "value"),
+                                       state_enum_items[pos]))
 
                                     pos += 1
 
@@ -1257,14 +1255,13 @@ class TypeBindings:
                                     param_type_binding = prop_data.param_type_binding
                                     setter_name = "set%s" % Capitalizer.lower_camel_case_to_upper(prop_name)
 
-                                    for param_type_opt in MethodGenerateModes.get_modes(param_type_binding):
-                                        writer.append_multiline("\n    void %s" % setter_name)
-                                        writer.append("(%s value)\n" % param_type_opt.get_c_param_type_text(param_type_binding))
-                                        writer.newline("    {\n")
-                                        writer.newline("        this->set%s(\"%s\", %s);\n"
-                                            % (param_type_binding.reduce_to_raw_type().get_setter_name(), prop_data.p["name"],
-                                               param_type_opt.get_setter_value_expression(param_type_binding, "value")))
-                                        writer.newline("    }\n")
+                                    writer.append_multiline("\n    void %s" % setter_name)
+                                    writer.append("(%s value)\n" % param_type_binding.get_type_model().get_input_param_type_text())
+                                    writer.newline("    {\n")
+                                    writer.newline("        this->set%s(\"%s\", %s);\n"
+                                        % (param_type_binding.reduce_to_raw_type().get_setter_name(), prop_data.p["name"],
+                                           format_setter_value_expression(param_type_binding, "value")))
+                                    writer.newline("    }\n")
 
 
                                     if setter_name in INSPECTOR_OBJECT_SETTER_NAMES:
@@ -1289,6 +1286,8 @@ class TypeBindings:
                                     writer.newline("    static void assertCorrectValue(InspectorValue* value);\n")
                                     writer.append("#endif  // %s\n" % VALIDATOR_IFDEF_NAME)
 
+                                    closed_field_set = (context_domain_name + "." + class_name) not in TYPES_WITH_OPEN_FIELD_LIST_SET
+
                                     validator_writer = generate_context.validator_writer
                                     validator_writer.newline("void %s%s::assertCorrectValue(InspectorValue* value)\n" % (helper.full_name_prefix_for_impl, class_name))
                                     validator_writer.newline("{\n")
@@ -1304,7 +1303,8 @@ class TypeBindings:
                                         validator_writer.newline("        %s(%s->second.get());\n" % (prop_data.param_type_binding.get_validator_call_text(), it_name))
                                         validator_writer.newline("    }\n")
 
-                                    validator_writer.newline("    int foundPropertiesCount = %s;\n" % len(resolve_data.main_properties))
+                                    if closed_field_set:
+                                        validator_writer.newline("    int foundPropertiesCount = %s;\n" % len(resolve_data.main_properties))
 
                                     for prop_data in resolve_data.optional_properties:
                                         validator_writer.newline("    {\n")
@@ -1313,11 +1313,13 @@ class TypeBindings:
                                         validator_writer.newline("        %s = object->find(\"%s\");\n" % (it_name, prop_data.p["name"]))
                                         validator_writer.newline("        if (%s != object->end()) {\n" % it_name)
                                         validator_writer.newline("            %s(%s->second.get());\n" % (prop_data.param_type_binding.get_validator_call_text(), it_name))
-                                        validator_writer.newline("            ++foundPropertiesCount;\n")
+                                        if closed_field_set:
+                                            validator_writer.newline("            ++foundPropertiesCount;\n")
                                         validator_writer.newline("        }\n")
                                         validator_writer.newline("    }\n")
 
-                                    validator_writer.newline("    ASSERT(foundPropertiesCount == object->size());\n")
+                                    if closed_field_set:
+                                        validator_writer.newline("    ASSERT(foundPropertiesCount == object->size());\n")
                                     validator_writer.newline("}\n\n\n")
 
                                 writer.newline("};\n\n")
@@ -1429,7 +1431,7 @@ class TypeBindings:
 
                 class AdHocTypeContext:
                     container_full_name_prefix = "<not yet defined>"
-                    container_relative_name_prefix = "<not yet defined>"
+                    container_relative_name_prefix = ""
 
                     @staticmethod
                     def get_type_name_fix():
@@ -2289,6 +2291,16 @@ struct ArrayItemHelper<InspectorValue> {
     };
 };
 
+template<>
+struct ArrayItemHelper<InspectorObject> {
+    struct Traits {
+        static void pushRefPtr(InspectorArray* array, PassRefPtr<InspectorObject> value)
+        {
+            array->pushObject(value);
+        }
+    };
+};
+
 template<typename T>
 struct ArrayItemHelper<TypeBuilder::Array<T> > {
     struct Traits {
@@ -2419,7 +2431,6 @@ def resolve_all_types():
 global_forward_listener = resolve_all_types()
 
 
-
 def get_annotated_type_text(raw_type, annotated_type):
     if annotated_type != raw_type:
         return "/*%s*/ %s" % (annotated_type, raw_type)
@@ -2427,57 +2438,12 @@ def get_annotated_type_text(raw_type, annotated_type):
         return raw_type
 
 
-# Chooses method generate modes for a particular type. A particular setter
-# can be generated as one method with a simple parameter type,
-# as one method with a raw type name and commented annotation about expected
-# specialized type name or as overloaded method when raw and specialized
-# parameter types require different behavior.
-class MethodGenerateModes:
-    @classmethod
-    def get_modes(cls, type_binding):
-        if type_binding.get_setter_value_expression_pattern():
-            # In raw and strict modes method code is actually different.
-            return [cls.StrictParameterMode, cls.RawParameterMode]
-        else:
-            # In raw and strict modes method code is the same.
-            # Only put strict parameter type in comments.
-            return [cls.CombinedMode]
-
-    class StrictParameterMode:
-        @staticmethod
-        def get_c_param_type_text(type_binding):
-            return type_binding.get_type_model().get_input_param_type_text()
-
-        @staticmethod
-        def get_setter_value_expression(param_type_binding, value_ref):
-            pattern = param_type_binding.get_setter_value_expression_pattern()
-            if pattern:
-                return pattern % value_ref
-            else:
-                return value_ref
-
-    class RawParameterMode:
-        @staticmethod
-        def get_c_param_type_text(type_binding):
-            return type_binding.reduce_to_raw_type().get_raw_type_model().get_input_param_type_text()
-
-        @staticmethod
-        def get_setter_value_expression(param_type_binding, value_ref):
-            return value_ref
-
-    class CombinedMode:
-        @staticmethod
-        def get_c_param_type_text(type_binding):
-            return get_annotated_type_text(type_binding.reduce_to_raw_type().get_raw_type_model().get_input_param_type_text(),
-                type_binding.get_type_model().get_input_param_type_text())
-
-        @staticmethod
-        def get_setter_value_expression(param_type_binding, value_ref):
-            pattern = param_type_binding.get_setter_value_expression_pattern()
-            if pattern:
-                return pattern % value_ref
-            else:
-                return value_ref
+def format_setter_value_expression(param_type_binding, value_ref):
+    pattern = param_type_binding.get_setter_value_expression_pattern()
+    if pattern:
+        return pattern % value_ref
+    else:
+        return value_ref
 
 class Generator:
     frontend_class_field_lines = []
@@ -2519,9 +2485,11 @@ class Generator:
             Generator.frontend_domain_class_lines,
             Generator.frontend_method_list,
             Generator.method_handler_list,
-            Generator.method_name_enum_list]
-
-        strict_enabled_domains_unused = set(STRICT_ENABLED_DOMAINS)
+            Generator.method_name_enum_list,
+            Generator.backend_constructor_init_list,
+            Generator.backend_virtual_setters_list,
+            Generator.backend_setters_list,
+            Generator.backend_field_list]
 
         for json_domain in json_api["domains"]:
             domain_name = json_domain["domain"]
@@ -2565,54 +2533,21 @@ class Generator:
             Generator.backend_agent_interface_list.append("        virtual ~%s() { }\n" % agent_interface_name)
             Generator.backend_agent_interface_list.append("    };\n\n")
 
-            if domain_guard:
-                for l in reversed(first_cycle_guardable_list_list):
-                    domain_guard.generate_close(l)
-            Generator.backend_js_domain_initializer_list.append("\n")
-
-            strict_enabled_domains_unused.discard(domain_name)
-
-        if strict_enabled_domains_unused:
-            raise Exception("Unknown domains listed: %s" % strict_enabled_domains_unused)
-
-        sorted_json_domains = list(json_api["domains"])
-        sorted_json_domains.sort(key=lambda o: o["domain"])
-
-        sorted_cycle_guardable_list_list = [
-            Generator.backend_constructor_init_list,
-            Generator.backend_virtual_setters_list,
-            Generator.backend_setters_list,
-            Generator.backend_field_list]
-
-        for json_domain in sorted_json_domains:
-            domain_name = json_domain["domain"]
-
-            domain_fixes = DomainNameFixes.get_fixed_data(domain_name)
-            domain_guard = domain_fixes.get_guard()
-
-            if domain_guard:
-                for l in sorted_cycle_guardable_list_list:
-                    domain_guard.generate_open(l)
-
-            agent_interface_name = Capitalizer.lower_camel_case_to_upper(domain_name) + "CommandHandler"
-
-            agent_field_name = domain_fixes.agent_field_name
             Generator.backend_constructor_init_list.append("        , m_%s(0)" % agent_field_name)
             Generator.backend_virtual_setters_list.append("    virtual void registerAgent(%s* %s) = 0;" % (agent_interface_name, agent_field_name))
             Generator.backend_setters_list.append("    virtual void registerAgent(%s* %s) { ASSERT(!m_%s); m_%s = %s; }" % (agent_interface_name, agent_field_name, agent_field_name, agent_field_name, agent_field_name))
             Generator.backend_field_list.append("    %s* m_%s;" % (agent_interface_name, agent_field_name))
 
             if domain_guard:
-                for l in reversed(sorted_cycle_guardable_list_list):
+                for l in reversed(first_cycle_guardable_list_list):
                     domain_guard.generate_close(l)
+            Generator.backend_js_domain_initializer_list.append("\n")
 
         RawTypes.generate_validate_methods(Writer(Generator.validator_impl_raw_types_list, ""))
 
     @staticmethod
     def process_event(json_event, domain_name, frontend_method_declaration_lines):
         event_name = json_event["name"]
-
-        strict_mode = domain_name in STRICT_ENABLED_DOMAINS
 
         parameter_list = []
         method_line_list = []
@@ -2640,14 +2575,8 @@ class Generator:
                     type_model = type_model.get_optional()
                     raw_type_model = raw_type_model.get_optional()
 
-                if strict_mode:
-                    # All types are strict.
-                    annotated_type = type_model.get_input_param_type_text()
-                    mode_type_binding = param_type_binding
-                else:
-                    # All types are raw.
-                    annotated_type = get_annotated_type_text(raw_type_model.get_input_param_type_text(), type_model.get_input_param_type_text())
-                    mode_type_binding = raw_type_binding
+                annotated_type = type_model.get_input_param_type_text()
+                mode_type_binding = param_type_binding
 
                 parameter_list.append("%s %s" % (annotated_type, parameter_name))
 
@@ -2676,8 +2605,6 @@ class Generator:
     @staticmethod
     def process_command(json_command, domain_name, agent_field_name, agent_interface_name):
         json_command_name = json_command["name"]
-
-        strict_mode = domain_name in STRICT_ENABLED_DOMAINS
 
         Generator.method_name_enum_list.append("        k%s_%sCmd," % (domain_name, json_command["name"]))
         Generator.method_handler_list.append("            &InspectorBackendDispatcherImpl::%s_%s," % (domain_name, json_command_name))
@@ -2767,42 +2694,20 @@ class Generator:
                 if optional:
                     type_model = type_model.get_optional()
 
-                if strict_mode:
-                    # All types are strict. Values do not have default values.
-                    code = "    %s out_%s;\n" % (type_model.get_command_return_pass_model().get_return_var_type(), json_return_name)
-                    param = ", %sout_%s" % (type_model.get_command_return_pass_model().get_output_argument_prefix(), json_return_name)
-                    var_name = "out_%s" % json_return_name
-                    setter_argument = type_model.get_command_return_pass_model().get_output_to_raw_expression() % var_name
-                    if return_type_binding.get_setter_value_expression_pattern():
-                        setter_argument = return_type_binding.get_setter_value_expression_pattern() % setter_argument
+                code = "    %s out_%s;\n" % (type_model.get_command_return_pass_model().get_return_var_type(), json_return_name)
+                param = ", %sout_%s" % (type_model.get_command_return_pass_model().get_output_argument_prefix(), json_return_name)
+                var_name = "out_%s" % json_return_name
+                setter_argument = type_model.get_command_return_pass_model().get_output_to_raw_expression() % var_name
+                if return_type_binding.get_setter_value_expression_pattern():
+                    setter_argument = return_type_binding.get_setter_value_expression_pattern() % setter_argument
 
-                    cook = "            result->set%s(\"%s\", %s);\n" % (setter_type, json_return_name,
-                                                                     setter_argument)
+                cook = "            result->set%s(\"%s\", %s);\n" % (setter_type, json_return_name,
+                                                                 setter_argument)
 
-                    set_condition_pattern = type_model.get_command_return_pass_model().get_set_return_condition()
-                    if set_condition_pattern:
-                        cook = ("            if (%s)\n    " % (set_condition_pattern % var_name)) + cook
-                    annotated_type = type_model.get_command_return_pass_model().get_output_parameter_type()
-                else:
-                    # All types are raw. Values always have default values.
-                    raw_type_model = return_type_binding.get_type_model()
-                    if optional:
-                        raw_type_model = raw_type_model.get_optional()
-
-                    code = "    %s out_%s = %s;\n" % (raw_type.get_raw_type_model().get_command_return_pass_model().get_return_var_type(), json_return_name, initializer)
-                    param = ", %sout_%s" % (raw_type.get_output_pass_model().get_argument_prefix(), json_return_name)
-                    cook = "            result->set%s(\"%s\", out_%s);\n" % (setter_type, json_return_name, json_return_name)
-                    if optional:
-                        # FIXME: support optional properly. Probably an additional output parameter should be in each case.
-                        # FIXME: refactor this condition; it's a hack now.
-                        var_type_text = raw_type.get_raw_type_model().get_command_return_pass_model().get_return_var_type()
-                        if var_type_text == "bool" or var_type_text.startswith("RefPtr<"):
-                            cook = ("            if (out_%s)\n    " % json_return_name) + cook
-                        else:
-                            cook = "            // FIXME: support optional here.\n" + cook
-
-                    annotated_type = get_annotated_type_text(raw_type.get_raw_type_model().get_command_return_pass_model().get_return_var_type() + raw_type.get_output_pass_model().get_parameter_type_suffix(),
-                                                             type_model.get_command_return_pass_model().get_output_parameter_type())
+                set_condition_pattern = type_model.get_command_return_pass_model().get_set_return_condition()
+                if set_condition_pattern:
+                    cook = ("            if (%s)\n    " % (set_condition_pattern % var_name)) + cook
+                annotated_type = type_model.get_command_return_pass_model().get_output_parameter_type()
 
                 param_name = "out_%s" % json_return_name
                 if optional:

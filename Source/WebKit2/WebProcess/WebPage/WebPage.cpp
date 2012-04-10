@@ -42,6 +42,7 @@
 #include "PrintInfo.h"
 #include "SessionState.h"
 #include "ShareableBitmap.h"
+#include "WebAlternativeTextClient.h"
 #include "WebBackForwardList.h"
 #include "WebBackForwardListItem.h"
 #include "WebBackForwardListProxy.h"
@@ -233,6 +234,9 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
     pageClients.backForwardClient = WebBackForwardListProxy::create(this);
 #if ENABLE(INSPECTOR)
     pageClients.inspectorClient = new WebInspectorClient(this);
+#endif
+#if USE(AUTOCORRECTION_PANEL)
+    pageClients.alternativeTextClient = new WebAlternativeTextClient(this);
 #endif
     
     m_page = adoptPtr(new Page(pageClients));
@@ -1976,6 +1980,8 @@ void WebPage::updatePreferences(const WebPreferencesStore& store)
     settings->setNotificationsEnabled(store.getBoolValueForKey(WebPreferencesKey::notificationsEnabledKey()));
 #endif
 
+    settings->setShouldRespectImageOrientation(store.getBoolValueForKey(WebPreferencesKey::shouldRespectImageOrientationKey()));
+
     platformPreferencesDidChange(store);
 
     if (m_drawingArea)
@@ -2465,12 +2471,17 @@ void WebPage::windowAndViewFramesChanged(const WebCore::IntRect& windowFrameInSc
 
 bool WebPage::windowIsFocused() const
 {
+    return m_page->focusController()->isActive();
+}
+
+bool WebPage::windowAndWebPageAreFocused() const
+{
 #if PLATFORM(MAC)
     if (!m_windowIsVisible)
         return false;
 #endif
     return m_page->focusController()->isFocused() && m_page->focusController()->isActive();
-}    
+}
 
 void WebPage::didReceiveMessage(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments)
 {

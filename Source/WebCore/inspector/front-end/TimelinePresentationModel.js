@@ -127,7 +127,11 @@ WebInspector.TimelinePresentationModel.forAllRecords = function(recordsArray, ca
     }
 }
 
-WebInspector.TimelinePresentationModel.createEventDivider = function(record)
+/**
+ * @param {string} recordType
+ * @param {string=} title
+ */
+WebInspector.TimelinePresentationModel.createEventDivider = function(recordType, title)
 {
     var eventDivider = document.createElement("div");
     eventDivider.className = "resources-event-divider";
@@ -136,15 +140,17 @@ WebInspector.TimelinePresentationModel.createEventDivider = function(record)
     var eventDividerPadding = document.createElement("div");
     eventDividerPadding.className = "resources-event-divider-padding";
 
-    if (record.type === recordTypes.MarkDOMContent)
+    if (recordType === recordTypes.MarkDOMContent)
         eventDivider.className += " resources-blue-divider";
-    else if (record.type === recordTypes.MarkLoad)
+    else if (recordType === recordTypes.MarkLoad)
         eventDivider.className += " resources-red-divider";
-    else if (record.type === recordTypes.TimeStamp) {
+    else if (recordType === recordTypes.TimeStamp)
         eventDivider.className += " resources-orange-divider";
-        eventDividerPadding.title = record.data["message"];
-    } else if (record.type === recordTypes.BeginFrame)
+    else if (recordType === recordTypes.BeginFrame)
         eventDivider.className += " timeline-frame-divider";
+
+    if (title)
+        eventDividerPadding.title = title;
 
     eventDividerPadding.appendChild(eventDivider);
     return eventDividerPadding;
@@ -164,6 +170,11 @@ WebInspector.TimelinePresentationModel.prototype = {
         return this._rootRecord;
     },
 
+    frames: function()
+    {
+        return this._frames;
+    },
+
     reset: function()
     {
         this._linkifier.reset();
@@ -172,7 +183,13 @@ WebInspector.TimelinePresentationModel.prototype = {
         this._scheduledResourceRequests = {};
         this._timerRecords = {};
         this._requestAnimationFrameRecords = {};
+        this._frames = [];
         this._minimumRecordTime = -1;
+    },
+
+    addFrame: function(frame)
+    {
+        this._frames.push(frame);
     },
 
     addRecord: function(record, parentRecord)
@@ -333,7 +350,7 @@ WebInspector.TimelinePresentationModel.Record = function(presentationModel, reco
     if (parentRecord)
         parentRecord.children.push(this);
     this.category = style.category;
-    this.title = style.title;
+    this.title = record.type === recordTypes.TimeStamp ? record.data["message"] : style.title;
     this.startTime = WebInspector.TimelineModel.startTimeInSeconds(record);
     this.data = record.data;
     this.type = record.type;
@@ -446,28 +463,14 @@ WebInspector.TimelinePresentationModel.Record.prototype = {
         return this.startTime <= time && time <= this.endTime;
     },
 
-    _generateAggregatedInfo: function()
-    {
-        var cell = document.createElement("span");
-        cell.className = "timeline-aggregated-info";
-        for (var index in this._aggregatedStats) {
-            var label = document.createElement("div");
-            label.className = "timeline-aggregated-category timeline-" + index;
-            cell.appendChild(label);
-            var text = document.createElement("span");
-            text.textContent = Number.secondsToString(this._aggregatedStats[index], true);
-            cell.appendChild(text);
-        }
-        return cell;
-    },
-
     generatePopupContent: function()
     {
         var contentHelper = new WebInspector.TimelinePresentationModel.PopupContentHelper(this.title);
 
         if (this._children && this._children.length) {
             contentHelper._appendTextRow(WebInspector.UIString("Self Time"), Number.secondsToString(this._selfTime, true));
-            contentHelper._appendElementRow(WebInspector.UIString("Aggregated Time"), this._generateAggregatedInfo());
+            contentHelper._appendElementRow(WebInspector.UIString("Aggregated Time"),
+                WebInspector.TimelinePresentationModel._generateAggregatedInfo(this._aggregatedStats));
         }
         var text = WebInspector.UIString("%s (at %s)", Number.secondsToString(this._lastChildEndTime - this.startTime, true),
             Number.secondsToString(this._startTimeOffset));
@@ -643,6 +646,24 @@ WebInspector.TimelinePresentationModel.Record.prototype = {
 }
 
 /**
+ * @param {Object} aggregatedStats
+ */
+WebInspector.TimelinePresentationModel._generateAggregatedInfo = function(aggregatedStats)
+{
+    var cell = document.createElement("span");
+    cell.className = "timeline-aggregated-info";
+    for (var index in aggregatedStats) {
+        var label = document.createElement("div");
+        label.className = "timeline-aggregated-category timeline-" + index;
+        cell.appendChild(label);
+        var text = document.createElement("span");
+        text.textContent = Number.secondsToString(aggregatedStats[index], true);
+        cell.appendChild(text);
+    }
+    return cell;
+}
+
+/**
  * @constructor
  */
 WebInspector.TimelinePresentationModel.PopupContentHelper = function(title)
@@ -714,6 +735,21 @@ WebInspector.TimelinePresentationModel.PopupContentHelper.prototype = {
         }
         this._appendElementRow(title, framesTable, "timeline-stacktrace-title");
     }
+}
+
+WebInspector.TimelinePresentationModel.generatePopupContentForFrame = function(frame)
+{
+    var contentHelper = new WebInspector.TimelinePresentationModel.PopupContentHelper(WebInspector.UIString("Frame"));
+    var durationInSeconds = frame.endTime - frame.startTime;
+    var durationText = WebInspector.UIString("%s (at %s)", Number.secondsToString(frame.endTime - frame.startTime, true),
+        Number.secondsToString(frame.startTimeOffset, true));
+    contentHelper._appendTextRow(WebInspector.UIString("Duration"), durationText);
+    contentHelper._appendTextRow(WebInspector.UIString("FPS"), Math.floor(1 / durationInSeconds));
+    contentHelper._appendTextRow(WebInspector.UIString("CPU time"), Number.secondsToString(frame.cpuTime, true));
+    contentHelper._appendElementRow(WebInspector.UIString("Aggregated Time"),
+        WebInspector.TimelinePresentationModel._generateAggregatedInfo(frame.timeByCategory));
+
+    return contentHelper._contentTable;
 }
 
 /**

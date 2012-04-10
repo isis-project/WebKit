@@ -1002,6 +1002,11 @@ editing/pasteboard/drag-files-to-editable-element.html
 # http://webkit.org/b/79604
 fast/mutation/database-callback-delivery.html
 
+# EXIF orientation support has not yet been implemented for this platform
+# http://webkit.org/b/19688
+fast/images/exif-orientation.html
+fast/images/exif-orientation-css.html
+
 # --------------------------------
 # Tests which are expected to fail
 # --------------------------------
@@ -1319,7 +1324,6 @@ fast/events/event-view-toString.html
 fast/events/js-keyboard-event-creation.html
 fast/events/key-events-in-input-button.html
 fast/events/key-events-in-input-text.html
-fast/events/keydown-function-keys.html
 fast/events/keydown-numpad-keys.html
 fast/events/onsearch-enter.html
 fast/events/option-tab.html
@@ -1835,7 +1839,6 @@ fast/dom/shadow/content-element-outside-shadow-style.html
 fast/dom/shadow/content-element-in-media-element.html
 fast/dom/shadow/content-element-in-meter-element.html
 fast/dom/shadow/get-element-by-id-in-shadow-root.html
-fast/dom/shadow/reified-tree-traversal.html
 fast/dom/shadow/shadow-root-js-api.html
 fast/dom/shadow/shadow-disable.html
 fast/dom/shadow/shadow-root-attached.html
@@ -1889,6 +1892,10 @@ pointer-lock/
 # Tests for MediaSource API. Feature is not yet functional.
 # https://bugs.webkit.org/show_bug.cgi?id=64731
 http/tests/media/media-source/
+
+# Need rebaselining after https://bugs.webkit.org/show_bug.cgi?id=71541
+fast/overflow/hidden-scrollbar-resize.html
+scrollbars/scrollbars-on-positioned-content.html
 
 # Needs a rebaseline
 fast/events/clear-drag-state.html
@@ -2395,10 +2402,8 @@ http/tests/loading/preload-img-test.html
 http/tests/loading/progress-finished-callback.html
 http/tests/loading/slow-parsing-subframe.html
 http/tests/loading/state-object-security-exception.html
-http/tests/media/media-can-load-when-hidden.html
 http/tests/media/remove-while-loading.html
 http/tests/media/video-buffered.html
-http/tests/media/video-buffering-repaints-controls.html
 http/tests/media/video-cancel-load.html
 http/tests/media/video-cookie.html
 http/tests/media/video-error-abort.html
