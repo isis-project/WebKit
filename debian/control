@@ -12,14 +12,5 @@ Package: webkit
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: webkit for webOS
- WebKit is an open source web browser engine. QtWebKit is the Qt Port of WebKit. This code is based on the source found in  
- webkit.org but it contains modifications introduced by the isis-project.
-
- For more information see:
-
- http://www.webkit.org 
- http://developer.qt.nokia.com/wiki/QtWebKit 
- http://en.wikipedia.org/wiki/Webkit 
- http://isis-project.org/
 
 
