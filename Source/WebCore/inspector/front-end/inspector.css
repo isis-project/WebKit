@@ -259,9 +259,9 @@ body.detached.platform-mac-snowleopard #toolbar-dropdown {
     border-radius: 5px;
 }
 
-.toolbar-search-item {
+#toolbar-search-item {
     display: -webkit-box;
-    -webkit-box-orient: vertical;
+    -webkit-box-orient: horizontal;
     -webkit-box-align: center;
     -webkit-box-pack: end;
 }
@@ -269,6 +269,44 @@ body.detached.platform-mac-snowleopard #toolbar-dropdown {
 #search {
     width: 205px;
     font-size: 16px;
+}
+
+.with-navigation-buttons #search {
+    width: 165px;
+}
+
+.toolbar-search-navigation-label {
+    display: none;
+    border: 1px solid transparent;
+    border-radius: 2px;
+    padding: 3px;
+    margin-left: 2px;
+    width: 18px;
+    height: 18px;
+    float: right;
+}
+
+.with-navigation-buttons .toolbar-search-navigation-label {
+    display: block;
+}
+
+.toolbar-search-navigation-label:hover {
+    border: 1px solid rgba(120, 120, 120, 0.6);    
+}
+
+.toolbar-search-navigation-icon-prev , .toolbar-search-navigation-icon-next {
+    width: 9px;
+    margin-top: 2px;
+    height: 100%;
+    background-repeat: no-repeat;
+}
+
+.toolbar-search-navigation-icon-prev {
+    background-image: url(Images/searchPrev.png);
+}
+
+.toolbar-search-navigation-icon-next {
+    background-image: url(Images/searchNext.png);
 }
 
 body.compact #search {
@@ -1139,20 +1177,15 @@ iframe.panel.extension {
 }
 
 .placard.selected {
-    border-top: 1px solid rgb(145, 160, 192);
-    background-image: -webkit-gradient(linear, left top, left bottom, from(rgb(162, 177, 207)), to(rgb(120, 138, 177)));
+    border-top: 1px solid rgb(172, 172, 172);
+    background-image: -webkit-gradient(linear, left top, left bottom, from(rgb(182, 182, 182)), to(rgb(162, 162, 162)));
     -webkit-background-origin: padding;
     -webkit-background-clip: padding;
 }
 
 :focus .placard.selected {
-    border-top: 1px solid rgb(68, 128, 200);
-    background-image: -webkit-gradient(linear, left top, left bottom, from(rgb(92, 147, 213)), to(rgb(21, 83, 170)));
-}
-
-body.inactive .placard.selected {
-    border-top: 1px solid rgb(151, 151, 151);
-    background-image: -webkit-gradient(linear, left top, left bottom, from(rgb(180, 180, 180)), to(rgb(138, 138, 138)));
+    border-top: 1px solid rgb(70, 103, 215);
+    background-image: -webkit-gradient(linear, left top, left bottom, from(rgb(92, 147, 213)), to(rgb(56, 121, 217)));
 }
 
 .placard .title {
@@ -1460,7 +1493,8 @@ li.editing .swatch, li.editing .enabled-button,  li.editing-sub-part .delete-but
 .swatch-inner {
     width: 100%;
     height: 100%;
-    display: block;
+    display: inline-block;
+    margin-bottom: 1px;
 }
 
 .swatch:hover {

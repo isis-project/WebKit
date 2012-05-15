@@ -39,6 +39,7 @@
 #include "ScriptCallStackFactory.h"
 #include "ScriptableDocumentParser.h"
 #include "DOMWindow.h"
+#include "DOMWindowPagePopup.h"
 #include "Event.h"
 #include "EventListener.h"
 #include "EventNames.h"
@@ -55,6 +56,7 @@
 #include "Settings.h"
 #include "UserGestureIndicator.h"
 #include "V8Binding.h"
+#include "V8BindingMacros.h"
 #include "V8BindingState.h"
 #include "V8DOMWindow.h"
 #include "V8Event.h"
@@ -70,7 +72,7 @@
 
 #if !PLATFORM(WEBOS)
 #if PLATFORM(QT)
-#include <QJSEngine>
+#include <QtQml/QJSEngine>
 #endif
 #endif // !PLATFORM(WEBOS)
 
@@ -171,14 +173,22 @@ ScriptValue ScriptController::callFunctionEvenIfScriptDisabled(v8::Handle<v8::Fu
     return ScriptValue(m_proxy->callFunction(function, receiver, argc, argv));
 }
 
-void ScriptController::evaluateInIsolatedWorld(unsigned worldID, const Vector<ScriptSourceCode>& sources)
+void ScriptController::evaluateInIsolatedWorld(unsigned worldID, const Vector<ScriptSourceCode>& sources, Vector<ScriptValue>* results)
 {
-    m_proxy->evaluateInIsolatedWorld(worldID, sources, 0);
+    evaluateInIsolatedWorld(worldID, sources, 0, results);
 }
 
-void ScriptController::evaluateInIsolatedWorld(unsigned worldID, const Vector<ScriptSourceCode>& sources, int extensionGroup)
+void ScriptController::evaluateInIsolatedWorld(unsigned worldID, const Vector<ScriptSourceCode>& sources, int extensionGroup, Vector<ScriptValue>* results)
 {
-    m_proxy->evaluateInIsolatedWorld(worldID, sources, extensionGroup);
+    v8::HandleScope handleScope;
+    if (results) {
+        Vector<v8::Local<v8::Value> > v8Results;
+        m_proxy->evaluateInIsolatedWorld(worldID, sources, extensionGroup, &v8Results);
+        Vector<v8::Local<v8::Value> >::iterator itr;
+        for (itr = v8Results.begin(); itr != v8Results.end(); ++itr)
+            results->append(ScriptValue(*itr));
+    } else
+        m_proxy->evaluateInIsolatedWorld(worldID, sources, extensionGroup, 0);
 }
 
 void ScriptController::setIsolatedWorldSecurityOrigin(int worldID, PassRefPtr<SecurityOrigin> securityOrigin)
@@ -242,6 +252,36 @@ void ScriptController::bindToWindowObject(Frame* frame, const String& key, NPObj
     v8::Handle<v8::Object> global = v8Context->Global();
     global->Set(v8String(key), value);
 }
+
+#if ENABLE(PAGE_POPUP)
+static v8::Handle<v8::Value> setValueAndClosePopupCallback(const v8::Arguments& args)
+{
+    if (args.Length() < 2)
+        return V8Proxy::throwNotEnoughArgumentsError();
+    DOMWindow* imp = V8DOMWindow::toNative(args.Data()->ToObject());
+    EXCEPTION_BLOCK(int, intValue, toInt32(MAYBE_MISSING_PARAMETER(args, 0, DefaultIsUndefined)));
+    STRING_TO_V8PARAMETER_EXCEPTION_BLOCK(V8Parameter<>, stringValue, MAYBE_MISSING_PARAMETER(args, 1, DefaultIsUndefined));
+    DOMWindowPagePopup::setValueAndClosePopup(imp, intValue, stringValue);
+    // setValueAndClosePopup() deletes the window. Do not access it.
+    return v8::Undefined();
+}
+
+void ScriptController::installFunctionsForPagePopup(Frame* frame, PagePopupClient* popupClient)
+{
+    ASSERT(frame);
+    ASSERT(popupClient);
+    v8::HandleScope handleScope;
+    v8::Handle<v8::Context> context = V8Proxy::mainWorldContext(frame);
+    if (context.IsEmpty()) {
+        ASSERT_NOT_REACHED();
+        return;
+    }
+    v8::Context::Scope scope(context);
+    DOMWindowPagePopup::install(frame->existingDOMWindow(), popupClient);
+    v8::Local<v8::FunctionTemplate> templ = v8::FunctionTemplate::New(setValueAndClosePopupCallback, V8DOMWindow::wrap(frame->existingDOMWindow()));
+    context->Global()->Set(v8::String::New("setValueAndClosePopup"), v8::Handle<v8::Function>(templ->GetFunction()));
+}
+#endif
 
 void ScriptController::collectGarbage()
 {
@@ -340,7 +380,7 @@ void ScriptController::cleanupScriptObjectsForPlugin(Widget* nativeHandle)
     m_pluginObjects.remove(it);
 }
 
-void ScriptController::getAllWorlds(Vector<DOMWrapperWorld*>& worlds)
+void ScriptController::getAllWorlds(Vector<RefPtr<DOMWrapperWorld> >& worlds)
 {
     worlds.append(mainThreadNormalWorld());
 }
@@ -351,7 +391,7 @@ void ScriptController::evaluateInWorld(const ScriptSourceCode& source,
     Vector<ScriptSourceCode> sources;
     sources.append(source);
     // FIXME: Get an ID from the world param.
-    evaluateInIsolatedWorld(0, sources);
+    evaluateInIsolatedWorld(0, sources, 0);
 }
 
 static NPObject* createNoScriptObject()
@@ -429,6 +469,11 @@ void ScriptController::clearWindowShell(bool)
 void ScriptController::setCaptureCallStackForUncaughtExceptions(bool value)
 {
     v8::V8::SetCaptureStackTraceForUncaughtExceptions(value, ScriptCallStack::maxCallStackSizeToCapture, stackTraceOptions);
+}
+
+void ScriptController::collectIsolatedContexts(Vector<std::pair<ScriptState*, SecurityOrigin*> >& result)
+{
+    m_proxy->collectIsolatedContexts(result);
 }
 #endif
 

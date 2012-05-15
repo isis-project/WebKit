@@ -209,7 +209,12 @@ BitmapImage::BitmapImage(QPixmap* pixmap, ImageObserver* observer)
     , m_sizeAvailable(true)
     , m_haveFrameCount(true)
 {
-    initPlatformData();
+#if ENABLE(IMAGE_DECODER_DOWN_SAMPLING) && PLATFORM(WEBOS)
+    QSettings settings;
+    uint maxPixels = settings.value(QLatin1String("MaxPixelsPerDecodedImage")).toUInt();
+    if (maxPixels)
+        ImageSource::setMaxPixelsPerDecodedImage(maxPixels);
+#endif
 
     int width = pixmap->width();
     int height = pixmap->height();
@@ -221,16 +226,6 @@ BitmapImage::BitmapImage(QPixmap* pixmap, ImageObserver* observer)
     m_frames[0].m_hasAlpha = pixmap->hasAlpha();
     m_frames[0].m_haveMetadata = true;
     checkForSolidColor();
-}
-
-void BitmapImage::initPlatformData()
-{
-#if ENABLE(IMAGE_DECODER_DOWN_SAMPLING) && PLATFORM(WEBOS)
-    QSettings settings;
-    uint maxPixels = settings.value(QLatin1String("MaxPixelsPerDecodedImage")).toUInt();
-    if (maxPixels)
-        ImageSource::setMaxPixelsPerDecodedImage(maxPixels);
-#endif
 }
 
 void BitmapImage::invalidatePlatformData()

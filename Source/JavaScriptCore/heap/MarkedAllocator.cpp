@@ -1,29 +1,48 @@
 #include "config.h"
 #include "MarkedAllocator.h"
 
+#include "GCActivityCallback.h"
 #include "Heap.h"
+#include <wtf/CurrentTime.h>
 
 namespace JSC {
 
+bool MarkedAllocator::isPagedOut(double deadline)
+{
+    unsigned itersSinceLastTimeCheck = 0;
+    HeapBlock* block = m_blockList.head();
+    while (block) {
+        block = block->next();
+        ++itersSinceLastTimeCheck;
+        if (itersSinceLastTimeCheck >= Heap::s_timeCheckResolution) {
+            double currentTime = WTF::monotonicallyIncreasingTime();
+            if (currentTime > deadline)
+                return true;
+            itersSinceLastTimeCheck = 0;
+        }
+    }
+
+    return false;
+}
+
 inline void* MarkedAllocator::tryAllocateHelper()
 {
-    MarkedBlock::FreeCell* firstFreeCell = m_firstFreeCell;
-    if (!firstFreeCell) {
+    if (!m_freeList.head) {
         for (MarkedBlock*& block = m_currentBlock; block; block = static_cast<MarkedBlock*>(block->next())) {
-            firstFreeCell = block->sweep(MarkedBlock::SweepToFreeList);
-            if (firstFreeCell)
+            m_freeList = block->sweep(MarkedBlock::SweepToFreeList);
+            if (m_freeList.head)
                 break;
-            m_markedSpace->didConsumeFreeList(block);
             block->didConsumeFreeList();
         }
         
-        if (!firstFreeCell)
+        if (!m_freeList.head)
             return 0;
     }
     
-    ASSERT(firstFreeCell);
-    m_firstFreeCell = firstFreeCell->next;
-    return firstFreeCell;
+    MarkedBlock::FreeCell* head = m_freeList.head;
+    m_freeList.head = head->next;
+    ASSERT(head);
+    return head;
 }
     
 inline void* MarkedAllocator::tryAllocate()
@@ -41,59 +60,38 @@ void* MarkedAllocator::allocateSlowCase()
     ASSERT(m_heap->m_operationInProgress == NoOperation);
 #endif
     
+    ASSERT(!m_freeList.head);
+    m_heap->didAllocate(m_freeList.bytes);
+    
     void* result = tryAllocate();
     
     if (LIKELY(result != 0))
         return result;
     
-    AllocationEffort allocationEffort;
-    
-    if (m_heap->shouldCollect())
-        allocationEffort = AllocationCanFail;
-    else
-        allocationEffort = AllocationMustSucceed;
-    
-    MarkedBlock* block = allocateBlock(allocationEffort);
-    if (block) {
-        addBlock(block);
-        void* result = tryAllocate();
-        ASSERT(result);
-        return result;
+    if (m_heap->shouldCollect()) {
+        m_heap->collect(Heap::DoNotSweep);
+
+        result = tryAllocate();
+        if (result)
+            return result;
     }
+
+    ASSERT(!m_heap->shouldCollect());
     
-    m_heap->collect(Heap::DoNotSweep);
-    
-    result = tryAllocate();
-    
-    if (result)
-        return result;
-    
-    ASSERT(m_heap->waterMark() < m_heap->highWaterMark());
-    
-    addBlock(allocateBlock(AllocationMustSucceed));
-    
+    MarkedBlock* block = allocateBlock();
+    ASSERT(block);
+    addBlock(block);
+        
     result = tryAllocate();
     ASSERT(result);
     return result;
 }
     
-MarkedBlock* MarkedAllocator::allocateBlock(AllocationEffort allocationEffort)
+MarkedBlock* MarkedAllocator::allocateBlock()
 {
-    MarkedBlock* block;
-    
-    {
-        MutexLocker locker(m_heap->m_freeBlockLock);
-        if (m_heap->m_numberOfFreeBlocks) {
-            block = static_cast<MarkedBlock*>(m_heap->m_freeBlocks.removeHead());
-            ASSERT(block);
-            m_heap->m_numberOfFreeBlocks--;
-        } else
-            block = 0;
-    }
+    MarkedBlock* block = static_cast<MarkedBlock*>(m_heap->blockAllocator().allocate());
     if (block)
         block = MarkedBlock::recycle(block, m_heap, m_cellSize, m_cellsNeedDestruction);
-    else if (allocationEffort == AllocationCanFail)
-        return 0;
     else
         block = MarkedBlock::create(m_heap, m_cellSize, m_cellsNeedDestruction);
     
@@ -105,11 +103,11 @@ MarkedBlock* MarkedAllocator::allocateBlock(AllocationEffort allocationEffort)
 void MarkedAllocator::addBlock(MarkedBlock* block)
 {
     ASSERT(!m_currentBlock);
-    ASSERT(!m_firstFreeCell);
+    ASSERT(!m_freeList.head);
     
     m_blockList.append(block);
     m_currentBlock = block;
-    m_firstFreeCell = block->sweep(MarkedBlock::SweepToFreeList);
+    m_freeList = block->sweep(MarkedBlock::SweepToFreeList);
 }
 
 void MarkedAllocator::removeBlock(MarkedBlock* block)

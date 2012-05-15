@@ -27,17 +27,19 @@
 #include "config.h"
 #include "ShadowRoot.h"
 
-#include "CSSStyleSelector.h"
+#include "ContentDistributor.h"
+#include "DOMSelection.h"
+#include "DOMWindow.h"
 #include "Document.h"
 #include "DocumentFragment.h"
 #include "Element.h"
+#include "ElementShadow.h"
 #include "HTMLContentElement.h"
-#include "HTMLContentSelector.h"
 #include "HTMLNames.h"
 #include "InsertionPoint.h"
 #include "NodeRareData.h"
-#include "ShadowTree.h"
 #include "SVGNames.h"
+#include "StyleResolver.h"
 #include "markup.h"
 
 namespace WebCore {
@@ -47,7 +49,7 @@ ShadowRoot::ShadowRoot(Document* document)
     , TreeScope(this)
     , m_prev(0)
     , m_next(0)
-    , m_applyAuthorSheets(false)
+    , m_applyAuthorStyles(false)
     , m_insertionPointAssignedTo(0)
 {
     ASSERT(document);
@@ -116,11 +118,11 @@ PassRefPtr<ShadowRoot> ShadowRoot::create(Element* element, ShadowRootCreationPu
     RefPtr<ShadowRoot> shadowRoot = adoptRef(new ShadowRoot(element->document()));
 
     ec = 0;
-    element->ensureShadowTree()->addShadowRoot(element, shadowRoot, ec);
+    element->ensureShadow()->addShadowRoot(element, shadowRoot, ec);
     if (ec)
         return 0;
     ASSERT(element == shadowRoot->host());
-    ASSERT(element->hasShadowRoot());
+    ASSERT(element->shadow());
     return shadowRoot.release();
 }
 
@@ -147,6 +149,13 @@ void ShadowRoot::setInnerHTML(const String& markup, ExceptionCode& ec)
         replaceChildrenWithFragment(this, fragment.release(), ec);
 }
 
+DOMSelection* ShadowRoot::selection()
+{
+    if (document())
+        return document()->getSelection();
+    return 0;
+}
+
 bool ShadowRoot::childTypeAllowed(NodeType type) const
 {
     switch (type) {
@@ -162,10 +171,10 @@ bool ShadowRoot::childTypeAllowed(NodeType type) const
     }
 }
 
-ShadowTree* ShadowRoot::tree() const
+ElementShadow* ShadowRoot::owner() const
 {
     if (host())
-        return host()->shadowTree();
+        return host()->shadow();
     return 0;
 }
 
@@ -179,22 +188,22 @@ bool ShadowRoot::hasInsertionPoint() const
     return false;
 }
 
-bool ShadowRoot::applyAuthorSheets() const
+bool ShadowRoot::applyAuthorStyles() const
 {
-    return m_applyAuthorSheets;
+    return m_applyAuthorStyles;
 }
 
-void ShadowRoot::setApplyAuthorSheets(bool value)
+void ShadowRoot::setApplyAuthorStyles(bool value)
 {
-    m_applyAuthorSheets = value;
+    m_applyAuthorStyles = value;
 }
 
 void ShadowRoot::attach()
 {
-    CSSStyleSelector* styleSelector = document()->styleSelector();
-    styleSelector->pushParentShadowRoot(this);
+    StyleResolver* styleResolver = document()->styleResolver();
+    styleResolver->pushParentShadowRoot(this);
     DocumentFragment::attach();
-    styleSelector->popParentShadowRoot(this);
+    styleResolver->popParentShadowRoot(this);
 }
 
 }

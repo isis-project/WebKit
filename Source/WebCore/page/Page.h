@@ -91,6 +91,16 @@ namespace WebCore {
 
     float deviceScaleFactor(Frame*);
 
+    struct ArenaSize {
+        ArenaSize(size_t treeSize, size_t allocated)
+            : treeSize(treeSize)
+            , allocated(allocated)
+        {
+        }
+        size_t treeSize;
+        size_t allocated;
+    };
+
     class Page : public Supplementable<Page> {
         WTF_MAKE_NONCOPYABLE(Page);
         friend class Settings;
@@ -117,6 +127,8 @@ namespace WebCore {
 
         Page(PageClients&);
         ~Page();
+
+        ArenaSize renderTreeSize() const;
 
         void setNeedsRecalcStyleInAllFrames();
 
@@ -389,6 +401,7 @@ namespace WebCore {
 
         bool m_tabKeyCyclesThroughElements;
         bool m_defersLoading;
+        unsigned m_defersLoadingCallCount;
 
         bool m_inLowQualityInterpolationMode;
         bool m_cookieEnabled;

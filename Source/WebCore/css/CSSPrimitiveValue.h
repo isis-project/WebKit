@@ -42,13 +42,24 @@ class CSSWrapShape;
 
 struct Length;
 
+// Dimension calculations are imprecise, often resulting in values of e.g.
+// 44.99998. We need to go ahead and round if we're really close to the next
+// integer value.
 template<typename T> inline T roundForImpreciseConversion(double value)
 {
-    // Dimension calculations are imprecise, often resulting in values of e.g.
-    // 44.99998.  We need to go ahead and round if we're really close to the
-    // next integer value.
     value += (value < 0) ? -0.01 : +0.01;
     return ((value > std::numeric_limits<T>::max()) || (value < std::numeric_limits<T>::min())) ? 0 : static_cast<T>(value);
+}
+
+template<> inline float roundForImpreciseConversion(double value)
+{
+    double ceiledValue = ceil(value);
+    double proximityToNextInt = ceiledValue - value;
+    if (proximityToNextInt <= 0.01 && value > 0)
+        return static_cast<float>(ceiledValue);
+    if (proximityToNextInt >= 0.99 && value < 0)
+        return static_cast<float>(floor(value));
+    return static_cast<float>(value);
 }
 
 class CSSPrimitiveValue : public CSSValue {
@@ -272,7 +283,7 @@ public:
 
     bool isQuirkValue() { return m_isQuirkValue; }
 
-    void addSubresourceStyleURLs(ListHashSet<KURL>&, const CSSStyleSheet*);
+    void addSubresourceStyleURLs(ListHashSet<KURL>&, const StyleSheetInternal*);
 
     Length viewportPercentageLength();
     

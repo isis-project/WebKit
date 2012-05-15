@@ -65,7 +65,6 @@ public:
     static int pageNumberForElementById(WebKitWebFrame*, const char* id, float pageWidth, float pageHeight);
     static int numberOfPagesForFrame(WebKitWebFrame*, float pageWidth, float pageHeight);
     static WTF::CString pageProperty(WebKitWebFrame*, const char* propertyName, int pageNumber);
-    static bool isPageBoxVisible(WebKitWebFrame*, int pageNumber);
     static WTF::CString pageSizeAndMarginsInPixels(WebKitWebFrame*, int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft);
     static void addUserStyleSheet(WebKitWebFrame*, const char* sourceCode, bool allFrames);
     static guint getPendingUnloadEventCount(WebKitWebFrame*);
@@ -73,8 +72,6 @@ public:
     static bool pauseTransition(WebKitWebFrame*, const char* name, double time, const char* element);
     static WTF::CString markerTextForListItem(WebKitWebFrame*, JSContextRef, JSValueRef nodeObject);
     static unsigned int numberOfActiveAnimations(WebKitWebFrame*);
-    static void suspendAnimations(WebKitWebFrame*);
-    static void resumeAnimations(WebKitWebFrame*);
     static void clearMainFrameName(WebKitWebFrame*);
     static AtkObject* getFocusedAccessibleElement(WebKitWebFrame*);
     static AtkObject* getRootAccessibleElement(WebKitWebFrame*);
@@ -93,6 +90,7 @@ public:
     static void setMinimumTimerInterval(WebKitWebView*, double);
     static void rectangleForSelection(WebKitWebFrame*, cairo_rectangle_int_t*);
     static void scalePageBy(WebKitWebView*, float, float, float);
+    static void setDefersLoading(WebKitWebView*, bool);
     static void setSmartInsertDeleteEnabled(WebKitWebView*, bool);
 
     // Accessibility
@@ -114,6 +112,7 @@ public:
     static unsigned long gcCountJavascriptObjects();
 
     static void whiteListAccessFromOrigin(const gchar* sourceOrigin, const gchar* destinationProtocol, const gchar* destinationHost, bool allowDestinationSubdomains);
+    static void removeWhiteListAccessFromOrigin(const char* sourceOrigin, const char* destinationProtocol, const char* destinationHost, bool allowDestinationSubdomains);
     static void resetOriginAccessWhiteLists();
     static unsigned int workerThreadCount();
 
@@ -127,6 +126,7 @@ public:
     static void setPageCacheSupportsPlugins(WebKitWebView*, bool enabled);
 
     static void deliverAllMutationsIfNecessary();
+    static void setDomainRelaxationForbiddenForURLScheme(bool forbidden, const char* urlScheme);
 
 private:
     static bool s_drtRun;

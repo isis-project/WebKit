@@ -65,25 +65,26 @@ public:
         return false;
     }
 
-    virtual bool canDraw() { return m_canDraw; }
-    virtual bool hasMoreResourceUpdates() const { return m_hasMoreResourceUpdates; }
-    virtual void scheduledActionBeginFrame() { m_actions.push_back("scheduledActionBeginFrame"); }
-    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible()
+    virtual bool canDraw() OVERRIDE { return m_canDraw; }
+    virtual bool hasMoreResourceUpdates() const OVERRIDE { return m_hasMoreResourceUpdates; }
+    virtual void scheduledActionBeginFrame() OVERRIDE { m_actions.push_back("scheduledActionBeginFrame"); }
+    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible() OVERRIDE
     {
         m_actions.push_back("scheduledActionDrawAndSwapIfPossible");
         m_numDraws++;
         return CCScheduledActionDrawAndSwapResult(m_drawWillHappen, m_drawWillHappen && m_swapWillHappenIfDrawHappens);
     }
 
-    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced()
+    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced() OVERRIDE
     {
         m_actions.push_back("scheduledActionDrawAndSwapForced");
         return CCScheduledActionDrawAndSwapResult(true, m_swapWillHappenIfDrawHappens);
     }
 
-    virtual void scheduledActionUpdateMoreResources() { m_actions.push_back("scheduledActionUpdateMoreResources"); }
-    virtual void scheduledActionCommit() { m_actions.push_back("scheduledActionCommit"); }
-    virtual void scheduledActionBeginContextRecreation() { m_actions.push_back("scheduledActionBeginContextRecreation"); }
+    virtual void scheduledActionUpdateMoreResources() OVERRIDE { m_actions.push_back("scheduledActionUpdateMoreResources"); }
+    virtual void scheduledActionCommit() OVERRIDE { m_actions.push_back("scheduledActionCommit"); }
+    virtual void scheduledActionBeginContextRecreation() OVERRIDE { m_actions.push_back("scheduledActionBeginContextRecreation"); }
+    virtual void scheduledActionAcquireLayerTexturesForMainThread() OVERRIDE { m_actions.push_back("scheduledActionAcquireLayerTexturesForMainThread"); }
 
     void setDrawWillHappen(bool drawWillHappen) { m_drawWillHappen = drawWillHappen; }
     void setSwapWillHappenIfDrawHappens(bool swapWillHappenIfDrawHappens) { m_swapWillHappenIfDrawHappens = swapWillHappenIfDrawHappens; }
@@ -102,6 +103,7 @@ TEST(CCSchedulerTest, RequestCommit)
     FakeCCSchedulerClient client;
     RefPtr<FakeCCTimeSource> timeSource = adoptRef(new FakeCCTimeSource());
     OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, adoptPtr(new CCFrameRateController(timeSource)));
+    scheduler->setCanBeginFrame(true);
     scheduler->setVisible(true);
 
     // SetNeedsCommit should begin the frame.
@@ -137,6 +139,7 @@ TEST(CCSchedulerTest, RequestCommitAfterBeginFrame)
     FakeCCSchedulerClient client;
     RefPtr<FakeCCTimeSource> timeSource = adoptRef(new FakeCCTimeSource());
     OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, adoptPtr(new CCFrameRateController(timeSource)));
+    scheduler->setCanBeginFrame(true);
     scheduler->setVisible(true);
 
     // SetNedsCommit should begin the frame.
@@ -166,6 +169,72 @@ TEST(CCSchedulerTest, RequestCommitAfterBeginFrame)
     client.reset();
 }
 
+TEST(CCSchedulerTest, TextureAcquisitionCollision)
+{
+    FakeCCSchedulerClient client;
+    RefPtr<FakeCCTimeSource> timeSource = adoptRef(new FakeCCTimeSource());
+    OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, adoptPtr(new CCFrameRateController(timeSource)));
+    scheduler->setCanBeginFrame(true);
+    scheduler->setVisible(true);
+
+    scheduler->setNeedsCommit();
+    scheduler->setMainThreadNeedsLayerTextures();
+    EXPECT_EQ(2, client.numActions());
+    EXPECT_STREQ("scheduledActionBeginFrame", client.action(0));
+    EXPECT_STREQ("scheduledActionAcquireLayerTexturesForMainThread", client.action(1));
+    client.reset();
+
+    // Compositor not scheduled to draw because textures are locked by main thread
+    EXPECT_FALSE(timeSource->active());
+
+    // Trigger the commit
+    scheduler->beginFrameComplete();
+    EXPECT_TRUE(timeSource->active());
+    client.reset();
+
+    // Between commit and draw, texture acquisition for main thread delayed,
+    // and main thread blocks.
+    scheduler->setMainThreadNeedsLayerTextures();
+    EXPECT_EQ(0, client.numActions());
+    client.reset();
+
+    // Once compositor draw complete, the delayed texture acquisition fires.
+    timeSource->tick();
+    EXPECT_EQ(3, client.numActions());
+    EXPECT_STREQ("scheduledActionDrawAndSwapIfPossible", client.action(0));
+    EXPECT_STREQ("scheduledActionAcquireLayerTexturesForMainThread", client.action(1));
+    EXPECT_STREQ("scheduledActionBeginFrame", client.action(2));
+    client.reset();
+}
+
+TEST(CCSchedulerTest, VisibilitySwitchWithTextureAcquisition)
+{
+    FakeCCSchedulerClient client;
+    RefPtr<FakeCCTimeSource> timeSource = adoptRef(new FakeCCTimeSource());
+    OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, adoptPtr(new CCFrameRateController(timeSource)));
+    scheduler->setCanBeginFrame(true);
+    scheduler->setVisible(true);
+
+    scheduler->setNeedsCommit();
+    scheduler->beginFrameComplete();
+    scheduler->setMainThreadNeedsLayerTextures();
+    client.reset();
+    // Verify that pending texture acquisition fires when visibility
+    // is lost in order to avoid a deadlock.
+    scheduler->setVisible(false);
+    EXPECT_EQ(1, client.numActions());
+    EXPECT_STREQ("scheduledActionAcquireLayerTexturesForMainThread", client.action(0));
+    client.reset();
+
+    // Regaining visibility with textures acquired by main thread while
+    // compositor is waiting for first draw should result in a request
+    // for a new frame in order to escape a deadlock.
+    scheduler->setVisible(true);
+    EXPECT_EQ(1, client.numActions());
+    EXPECT_STREQ("scheduledActionBeginFrame", client.action(0));
+    client.reset();
+}
+
 class SchedulerClientThatSetNeedsDrawInsideDraw : public FakeCCSchedulerClient {
 public:
     SchedulerClientThatSetNeedsDrawInsideDraw()
@@ -173,8 +242,8 @@ public:
 
     void setScheduler(CCScheduler* scheduler) { m_scheduler = scheduler; }
 
-    virtual void scheduledActionBeginFrame() { }
-    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible()
+    virtual void scheduledActionBeginFrame() OVERRIDE { }
+    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible() OVERRIDE
     {
         // Only setNeedsRedraw the first time this is called
         if (!m_numDraws)
@@ -182,15 +251,15 @@ public:
         return FakeCCSchedulerClient::scheduledActionDrawAndSwapIfPossible();
     }
 
-    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced()
+    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced() OVERRIDE
     {
         ASSERT_NOT_REACHED();
         return CCScheduledActionDrawAndSwapResult(true, true);
     }
 
-    virtual void scheduledActionUpdateMoreResources() { }
-    virtual void scheduledActionCommit() { }
-    virtual void scheduledActionBeginContextRecreation() { }
+    virtual void scheduledActionUpdateMoreResources() OVERRIDE { }
+    virtual void scheduledActionCommit() OVERRIDE { }
+    virtual void scheduledActionBeginContextRecreation() OVERRIDE { }
 
 protected:
     CCScheduler* m_scheduler;
@@ -206,6 +275,7 @@ TEST(CCSchedulerTest, RequestRedrawInsideDraw)
     RefPtr<FakeCCTimeSource> timeSource = adoptRef(new FakeCCTimeSource());
     OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, adoptPtr(new CCFrameRateController(timeSource)));
     client.setScheduler(scheduler.get());
+    scheduler->setCanBeginFrame(true);
     scheduler->setVisible(true);
 
     scheduler->setNeedsRedraw();
@@ -231,6 +301,7 @@ TEST(CCSchedulerTest, RequestRedrawInsideFailedDraw)
     RefPtr<FakeCCTimeSource> timeSource = adoptRef(new FakeCCTimeSource());
     OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, adoptPtr(new CCFrameRateController(timeSource)));
     client.setScheduler(scheduler.get());
+    scheduler->setCanBeginFrame(true);
     scheduler->setVisible(true);
     client.setDrawWillHappen(false);
 
@@ -271,8 +342,8 @@ public:
 
     void setScheduler(CCScheduler* scheduler) { m_scheduler = scheduler; }
 
-    virtual void scheduledActionBeginFrame() { }
-    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible()
+    virtual void scheduledActionBeginFrame() OVERRIDE { }
+    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapIfPossible() OVERRIDE
     {
         // Only setNeedsCommit the first time this is called
         if (!m_numDraws)
@@ -280,15 +351,15 @@ public:
         return FakeCCSchedulerClient::scheduledActionDrawAndSwapIfPossible();
     }
 
-    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced()
+    virtual CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapForced() OVERRIDE
     {
         ASSERT_NOT_REACHED();
         return CCScheduledActionDrawAndSwapResult(true, true);
     }
 
-    virtual void scheduledActionUpdateMoreResources() { }
-    virtual void scheduledActionCommit() { }
-    virtual void scheduledActionBeginContextRecreation() { }
+    virtual void scheduledActionUpdateMoreResources() OVERRIDE { }
+    virtual void scheduledActionCommit() OVERRIDE { }
+    virtual void scheduledActionBeginContextRecreation() OVERRIDE { }
 
 protected:
     CCScheduler* m_scheduler;
@@ -302,6 +373,7 @@ TEST(CCSchedulerTest, RequestCommitInsideDraw)
     RefPtr<FakeCCTimeSource> timeSource = adoptRef(new FakeCCTimeSource());
     OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, adoptPtr(new CCFrameRateController(timeSource)));
     client.setScheduler(scheduler.get());
+    scheduler->setCanBeginFrame(true);
     scheduler->setVisible(true);
 
     scheduler->setNeedsRedraw();
@@ -328,6 +400,7 @@ TEST(CCSchedulerTest, RequestCommitInsideFailedDraw)
     RefPtr<FakeCCTimeSource> timeSource = adoptRef(new FakeCCTimeSource());
     OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, adoptPtr(new CCFrameRateController(timeSource)));
     client.setScheduler(scheduler.get());
+    scheduler->setCanBeginFrame(true);
     scheduler->setVisible(true);
     client.setDrawWillHappen(false);
 
@@ -369,6 +442,7 @@ TEST(CCSchedulerTest, NoBeginFrameWhenDrawFails)
     FakeCCFrameRateController* controllerPtr = controller.get();
     OwnPtr<CCScheduler> scheduler = CCScheduler::create(&client, controller.release());
     client.setScheduler(scheduler.get());
+    scheduler->setCanBeginFrame(true);
     scheduler->setVisible(true);
 
     EXPECT_EQ(0, controllerPtr->numFramesPending());

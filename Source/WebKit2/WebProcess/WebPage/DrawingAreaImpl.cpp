@@ -223,6 +223,20 @@ void DrawingAreaImpl::setPageOverlayNeedsDisplay(const IntRect& rect)
     setNeedsDisplay(rect);
 }
 
+void DrawingAreaImpl::setPageOverlayOpacity(float value)
+{
+    if (m_layerTreeHost)
+        m_layerTreeHost->setPageOverlayOpacity(value);
+}
+
+bool DrawingAreaImpl::pageOverlayShouldApplyFadeWhenPainting() const
+{
+    if (m_layerTreeHost && !m_layerTreeHost->pageOverlayShouldApplyFadeWhenPainting())
+        return false;
+
+    return true;
+}
+
 void DrawingAreaImpl::pageCustomRepresentationChanged()
 {
     if (!m_alwaysUseCompositing)
@@ -691,7 +705,11 @@ void DrawingAreaImpl::setLayerHostingMode(uint32_t opaqueLayerHostingMode)
     if (!m_layerTreeHost)
         return;
 
+    LayerTreeContext oldLayerTreeContext = m_layerTreeHost->layerTreeContext();
     m_layerTreeHost->setLayerHostingMode(layerHostingMode);
+
+    if (m_layerTreeHost->layerTreeContext() != oldLayerTreeContext)
+        m_webPage->send(Messages::DrawingAreaProxy::UpdateAcceleratedCompositingMode(m_backingStoreStateID, m_layerTreeHost->layerTreeContext()));
 }
 #endif
 

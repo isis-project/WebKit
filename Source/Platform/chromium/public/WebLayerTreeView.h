@@ -26,11 +26,13 @@
 #ifndef WebLayerTreeView_h
 #define WebLayerTreeView_h
 
+#include "WebColor.h"
 #include "WebCommon.h"
 #include "WebNonCopyable.h"
 #include "WebPrivateOwnPtr.h"
 
 namespace WebCore {
+class CCLayerTreeHost;
 struct CCSettings;
 }
 
@@ -48,9 +50,9 @@ public:
     struct Settings {
         Settings()
             : acceleratePainting(false)
-            , compositeOffscreen(false)
             , showFPSCounter(false)
             , showPlatformLayerTree(false)
+            , showPaintRects(false)
             , refreshRate(0)
             , perTilePainting(false)
             , partialSwapEnabled(false)
@@ -59,9 +61,9 @@ public:
         }
 
         bool acceleratePainting;
-        bool compositeOffscreen;
         bool showFPSCounter;
         bool showPlatformLayerTree;
+        bool showPaintRects;
         double refreshRate;
         bool perTilePainting;
         bool partialSwapEnabled;
@@ -85,6 +87,11 @@ public:
     // Must be called before any methods below.
     WEBKIT_EXPORT bool initialize(WebLayerTreeViewClient*, const WebLayer& root, const Settings&);
 
+    // Indicates that the compositing surface used by this WebLayerTreeView is ready to use.
+    // A WebLayerTreeView may request a context from its client before the surface is ready,
+    // but it won't attempt to use it.
+    WEBKIT_EXPORT void setSurfaceReady();
+
     // Sets the root of the tree. The root is set by way of the constructor.
     // This is typically used to explicitly set the root to null to break
     // cycles.
@@ -99,6 +106,9 @@ public:
 
     WEBKIT_EXPORT void setViewportSize(const WebSize&);
     WEBKIT_EXPORT WebSize viewportSize() const;
+
+    // Sets the background color for the viewport.
+    WEBKIT_EXPORT void setBackgroundColor(WebColor);
 
     // Sets whether this view is visible. In threaded mode, a view that is not visible will not
     // composite or trigger updateAnimations() or layout() calls until it becomes visible.

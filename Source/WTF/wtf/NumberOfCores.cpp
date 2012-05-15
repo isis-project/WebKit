@@ -27,15 +27,20 @@
 #include "NumberOfCores.h"
 
 #if OS(DARWIN) || OS(OPENBSD) || OS(NETBSD) || OS(FREEBSD)
+#include <sys/param.h>
 // sys/types.h must come before sys/sysctl.h because the latter uses
 // data types defined in the former. See sysctl(3) and style(9).
 #include <sys/types.h>
 #include <sys/sysctl.h>
 #elif OS(LINUX) || OS(AIX) || OS(SOLARIS)
 #include <unistd.h>
-#elif OS(WINDOWS)
-#include <windows.h>
+#elif OS(WINDOWS) || OS(QNX)
 #include <wtf/UnusedParam.h>
+#if OS(WINDOWS)
+#include <windows.h>
+#elif OS(QNX)
+#include <sys/syspage.h>
+#endif
 #endif
 
 namespace WTF {
@@ -68,6 +73,10 @@ int numberOfProcessorCores()
     GetSystemInfo(&sysInfo);
 
     s_numberOfCores = sysInfo.dwNumberOfProcessors;
+#elif OS(QNX)
+    UNUSED_PARAM(defaultIfUnavailable);
+
+    s_numberOfCores = _syspage_ptr->num_cpu;
 #else
     s_numberOfCores = defaultIfUnavailable;
 #endif

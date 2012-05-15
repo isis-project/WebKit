@@ -66,6 +66,7 @@ PluginProxy::PluginProxy(const String& pluginPath)
     , m_pluginBackingStoreContainsValidData(false)
     , m_isStarted(false)
     , m_waitingForPaintInResponseToUpdate(false)
+    , m_wantsWheelEvents(false)
     , m_remoteLayerClientID(0)
 {
 }
@@ -104,13 +105,15 @@ bool PluginProxy::initialize(const Parameters& parameters)
 #endif
 
     bool result = false;
+    bool wantsWheelEvents = false;
     uint32_t remoteLayerClientID = 0;
 
-    if (!m_connection->connection()->sendSync(Messages::WebProcessConnection::CreatePlugin(creationParameters), Messages::WebProcessConnection::CreatePlugin::Reply(result, remoteLayerClientID), 0) || !result) {
+    if (!m_connection->connection()->sendSync(Messages::WebProcessConnection::CreatePlugin(creationParameters), Messages::WebProcessConnection::CreatePlugin::Reply(result, wantsWheelEvents, remoteLayerClientID), 0) || !result) {
         m_connection->removePluginProxy(this);
         return false;
     }
 
+    m_wantsWheelEvents = wantsWheelEvents;
     m_remoteLayerClientID = remoteLayerClientID;
     m_isStarted = true;
 
@@ -169,6 +172,11 @@ bool PluginProxy::isTransparent()
     // This should never be called from the web process.
     ASSERT_NOT_REACHED();
     return false;
+}
+
+bool PluginProxy::wantsWheelEvents()
+{
+    return m_wantsWheelEvents;
 }
 
 void PluginProxy::geometryDidChange()
@@ -522,6 +530,18 @@ void PluginProxy::setStatusbarText(const String& statusbarText)
 {
     controller()->setStatusbarText(statusbarText);
 }
+
+#if PLUGIN_ARCHITECTURE(X11)
+void PluginProxy::createPluginContainer(uint64_t& windowID)
+{
+    windowID = controller()->createPluginContainer();
+}
+
+void PluginProxy::windowedPluginGeometryDidChange(const WebCore::IntRect& frameRect, const WebCore::IntRect& clipRect, uint64_t windowID)
+{
+    controller()->windowedPluginGeometryDidChange(frameRect, clipRect, windowID);
+}
+#endif
 
 void PluginProxy::update(const IntRect& paintedRect)
 {

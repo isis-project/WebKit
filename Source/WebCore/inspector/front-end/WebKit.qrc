@@ -10,7 +10,6 @@
     <file>AuditResultView.js</file>
     <file>AuditRules.js</file>
     <file>AuditsPanel.js</file>
-    <file>BinarySearch.js</file>
     <file>BottomUpProfileDataGridTree.js</file>
     <file>BreakpointManager.js</file>
     <file>BreakpointsSidebarPane.js</file>
@@ -22,6 +21,7 @@
     <file>ConsoleModel.js</file>
     <file>ConsolePanel.js</file>
     <file>ConsoleView.js</file>
+    <file>ContentProvider.js</file>
     <file>ContentProviders.js</file>
     <file>ContextMenu.js</file>
     <file>CookieItemsView.js</file>
@@ -34,14 +34,14 @@
     <file>Database.js</file>
     <file>DatabaseQueryView.js</file>
     <file>DatabaseTableView.js</file>
-    <file>DetailedHeapshotGridNodes.js</file>
-    <file>DetailedHeapshotView.js</file>
     <file>DataGrid.js</file>
     <file>DebuggerModel.js</file>
     <file>DebuggerPresentationModel.js</file>
+    <file>DebuggerResourceBinding.js</file>
     <file>Dialog.js</file>
     <file>DOMAgent.js</file>
     <file>DOMBreakpointsSidebarPane.js</file>
+    <file>DOMExtension.js</file>
     <file>DOMPresentationUtils.js</file>
     <file>DOMStorage.js</file>
     <file>DOMStorageItemsView.js</file>
@@ -56,13 +56,18 @@
     <file>ExtensionPanel.js</file>
     <file>ExtensionRegistryStub.js</file>
     <file>ExtensionServer.js</file>
+    <file>FileManager.js</file>
     <file>FilteredItemSelectionDialog.js</file>
     <file>FontView.js</file>
     <file>GoToLineDialog.js</file>
     <file>HAREntry.js</file>
     <file>HandlerRegistry.js</file>
     <file>HeapSnapshot.js</file>
+    <file>HeapSnapshotDataGrids.js</file>
+    <file>HeapSnapshotGridNodes.js</file>
+    <file>HeapSnapshotLoader.js</file>
     <file>HeapSnapshotProxy.js</file>
+    <file>HeapSnapshotView.js</file>
     <file>HeapSnapshotWorker.js</file>
     <file>HeapSnapshotWorkerDispatcher.js</file>
     <file>HelpScreen.js</file>
@@ -77,22 +82,27 @@
     <file>InspectorView.js</file>
     <file>JavaScriptContextManager.js</file>
     <file>JavaScriptFormatter.js</file>
+    <file>JavaScriptSource.js</file>
     <file>JavaScriptSourceFrame.js</file>
     <file>KeyboardShortcut.js</file>
+    <file>Linkifier.js</file>
     <file>MemoryStatistics.js</file>
     <file>MetricsSidebarPane.js</file>
+    <file>NavigatorOverlayController.js</file>
+    <file>NavigatorView.js</file>
     <file>NetworkItemView.js</file>
     <file>NetworkLog.js</file>
     <file>NetworkManager.js</file>
     <file>NetworkPanel.js</file>
+    <file>NetworkRequest.js</file>
     <file>Object.js</file>
     <file>ObjectPopoverHelper.js</file>
     <file>ObjectPropertiesSection.js</file>
     <file>Panel.js</file>
     <file>PanelEnablerView.js</file>
-    <file>PartialQuickSort.js</file>
     <file>Placard.js</file>
     <file>Popover.js</file>
+    <file>PresentationConsoleMessageHelper.js</file>
     <file>ProfileDataGridTree.js</file>
     <file>ProfileLauncherView.js</file>
     <file>ProfilesPanel.js</file>
@@ -102,24 +112,27 @@
     <file>RawSourceCode.js</file>
     <file>RemoteObject.js</file>
     <file>Resource.js</file>
-    <file>ResourceCookiesView.js</file>
-    <file>ResourceJSONView.js</file>
-    <file>ResourceHTMLView.js</file>
-    <file>ResourceHeadersView.js</file>
-    <file>ResourcePreviewView.js</file>
-    <file>ResourceResponseView.js</file>
+    <file>RequestCookiesView.js</file>
+    <file>RequestJSONView.js</file>
+    <file>RequestHTMLView.js</file>
+    <file>RequestHeadersView.js</file>
+    <file>RequestPreviewView.js</file>
+    <file>RequestResponseView.js</file>
+    <file>RequestTimingView.js</file>
+    <file>RequestView.js</file>
     <file>ResourceScriptMapping.js</file>
-    <file>ResourceTimingView.js</file>
     <file>ResourceTreeModel.js</file>
     <file>ResourceType.js</file>
     <file>ResourceUtils.js</file>
     <file>ResourceView.js</file>
+    <file>ResourceWebSocketFrameView.js</file>
     <file>ResourcesPanel.js</file>
     <file>ScopeChainSidebarPane.js</file>
     <file>Script.js</file>
     <file>ScriptFormatter.js</file>
     <file>ScriptFormatterWorker.js</file>
     <file>ScriptMapping.js</file>
+    <file>ScriptSnippetModel.js</file>
     <file>ScriptsPanel.js</file>
     <file>ScriptsNavigator.js</file>
     <file>ScriptsSearchScope.js</file>
@@ -132,7 +145,7 @@
     <file>SidebarOverlay.js</file>
     <file>SidebarPane.js</file>
     <file>SidebarTreeElement.js</file>
-    <file>SnippetsModel.js</file>
+    <file>SnippetStorage.js</file>
     <file>SoftContextMenu.js</file>
     <file>SourceCSSTokenizer.js</file>
     <file>SourceFrame.js</file>
@@ -142,6 +155,7 @@
     <file>Spectrum.js</file>
     <file>SplitView.js</file>
     <file>StatusBarButton.js</file>
+    <file>StylesPanel.js</file>
     <file>StylesSidebarPane.js</file>
     <file>TabbedEditorContainer.js</file>
     <file>TabbedPane.js</file>
@@ -181,6 +195,7 @@
     <file>inspector.css</file>
     <file>inspectorCommon.css</file>
     <file>inspectorSyntaxHighlight.css</file>
+    <file>navigatorView.css</file>
     <file>networkLogView.css</file>
     <file>networkPanel.css</file>
     <file>panelEnablerView.css</file>
@@ -238,7 +253,6 @@
     <file>Images/indexedDBIndex.png</file>
     <file>Images/localStorage.png</file>
     <file>Images/navigatorShowHideButton.png</file>
-    <file>Images/navigatorPinButton.png</file>
     <file>Images/paneAddButtons.png</file>
     <file>Images/paneBottomGrow.png</file>
     <file>Images/paneBottomGrowActive.png</file>
@@ -268,6 +282,8 @@
     <file>Images/searchSmallBrightBlue.png</file>
     <file>Images/searchSmallGray.png</file>
     <file>Images/searchSmallWhite.png</file>
+    <file>Images/searchNext.png</file>
+    <file>Images/searchPrev.png</file>
     <file>Images/segment.png</file>
     <file>Images/segmentEnd.png</file>
     <file>Images/segmentHover.png</file>

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -96,7 +96,6 @@ TestInvocation::TestInvocation(const std::string& pathOrURL)
     : m_url(AdoptWK, createWKURL(pathOrURL.c_str()))
     , m_pathOrURL(pathOrURL)
     , m_dumpPixels(false)
-    , m_skipPixelTestOption(false)
     , m_gotInitialResponse(false)
     , m_gotFinalMessage(false)
     , m_gotRepaint(false)
@@ -110,8 +109,6 @@ TestInvocation::~TestInvocation()
 
 void TestInvocation::setIsPixelTest(const std::string& expectedPixelHash)
 {
-    if (m_skipPixelTestOption && !expectedPixelHash.length())
-        return;
     m_dumpPixels = true;
     m_expectedPixelHash = expectedPixelHash;
 }
@@ -130,11 +127,17 @@ static void sizeWebViewForCurrentTest(const char* pathOrURL)
     else
         TestController::shared().mainWebView()->resizeTo(normalWidth, normalHeight);
 }
+static bool shouldLogFrameLoadDelegates(const char* pathOrURL)
+{
+    return strstr(pathOrURL, "loading/");
+}
 
+#if ENABLE(INSPECTOR)
 static bool shouldOpenWebInspector(const char* pathOrURL)
 {
     return strstr(pathOrURL, "inspector/") || strstr(pathOrURL, "inspector\\");
 }
+#endif
 
 void TestInvocation::invoke()
 {
@@ -142,6 +145,10 @@ void TestInvocation::invoke()
 
     WKRetainPtr<WKStringRef> messageName = adoptWK(WKStringCreateWithUTF8CString("BeginTest"));
     WKRetainPtr<WKMutableDictionaryRef> beginTestMessageBody = adoptWK(WKMutableDictionaryCreate());
+
+    WKRetainPtr<WKStringRef> dumpFrameLoadDelegatesKey = adoptWK(WKStringCreateWithUTF8CString("DumpFrameLoadDelegates"));
+    WKRetainPtr<WKBooleanRef> dumpFrameLoadDelegatesValue = adoptWK(WKBooleanCreate(shouldLogFrameLoadDelegates(m_pathOrURL.c_str())));
+    WKDictionaryAddItem(beginTestMessageBody.get(), dumpFrameLoadDelegatesKey.get(), dumpFrameLoadDelegatesValue.get());
 
     WKRetainPtr<WKStringRef> dumpPixelsKey = adoptWK(WKStringCreateWithUTF8CString("DumpPixels"));
     WKRetainPtr<WKBooleanRef> dumpPixelsValue = adoptWK(WKBooleanCreate(m_dumpPixels));
@@ -163,8 +170,10 @@ void TestInvocation::invoke()
         return;
     }
 
+#if ENABLE(INSPECTOR)
     if (shouldOpenWebInspector(m_pathOrURL.c_str()))
         WKInspectorShow(WKPageGetInspector(TestController::shared().mainWebView()->page()));
+#endif // ENABLE(INSPECTOR)        
 
     WKPageLoadURL(TestController::shared().mainWebView()->page(), m_url.get());
 
@@ -174,7 +183,9 @@ void TestInvocation::invoke()
     else if (m_error)
         dump("FAIL\n");
 
+#if ENABLE(INSPECTOR)
     WKInspectorClose(WKPageGetInspector(TestController::shared().mainWebView()->page()));
+#endif // ENABLE(INSPECTOR)
 }
 
 void TestInvocation::dump(const char* stringToDump, bool singleEOF)

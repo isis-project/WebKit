@@ -86,8 +86,6 @@ namespace JSC {
 
     protected:
 
-        RefPtr<JSGlobalData> m_globalData;
-
         size_t m_registerArraySize;
         Register m_globalCallFrame[RegisterFile::CallFrameHeaderSize];
 
@@ -201,20 +199,20 @@ namespace JSC {
 
         JS_EXPORT_PRIVATE static void visitChildren(JSCell*, SlotVisitor&);
 
-        JS_EXPORT_PRIVATE static bool getOwnPropertySlot(JSCell*, ExecState*, const Identifier&, PropertySlot&);
-        JS_EXPORT_PRIVATE static bool getOwnPropertyDescriptor(JSObject*, ExecState*, const Identifier&, PropertyDescriptor&);
-        bool hasOwnPropertyForWrite(ExecState*, const Identifier&);
-        JS_EXPORT_PRIVATE static void put(JSCell*, ExecState*, const Identifier&, JSValue, PutPropertySlot&);
+        JS_EXPORT_PRIVATE static bool getOwnPropertySlot(JSCell*, ExecState*, PropertyName, PropertySlot&);
+        JS_EXPORT_PRIVATE static bool getOwnPropertyDescriptor(JSObject*, ExecState*, PropertyName, PropertyDescriptor&);
+        bool hasOwnPropertyForWrite(ExecState*, PropertyName);
+        JS_EXPORT_PRIVATE static void put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
 
-        JS_EXPORT_PRIVATE static void putDirectVirtual(JSObject*, ExecState*, const Identifier& propertyName, JSValue, unsigned attributes);
+        JS_EXPORT_PRIVATE static void putDirectVirtual(JSObject*, ExecState*, PropertyName, JSValue, unsigned attributes);
 
-        JS_EXPORT_PRIVATE static void defineGetter(JSObject*, ExecState*, const Identifier& propertyName, JSObject* getterFunc, unsigned attributes);
-        JS_EXPORT_PRIVATE static void defineSetter(JSObject*, ExecState*, const Identifier& propertyName, JSObject* setterFunc, unsigned attributes);
-        JS_EXPORT_PRIVATE static bool defineOwnProperty(JSObject*, ExecState*, const Identifier& propertyName, PropertyDescriptor&, bool shouldThrow);
+        JS_EXPORT_PRIVATE static void defineGetter(JSObject*, ExecState*, PropertyName, JSObject* getterFunc, unsigned attributes);
+        JS_EXPORT_PRIVATE static void defineSetter(JSObject*, ExecState*, PropertyName, JSObject* setterFunc, unsigned attributes);
+        JS_EXPORT_PRIVATE static bool defineOwnProperty(JSObject*, ExecState*, PropertyName, PropertyDescriptor&, bool shouldThrow);
 
         // We use this in the code generator as we perform symbol table
         // lookups prior to initializing the properties
-        bool symbolTableHasProperty(const Identifier& propertyName);
+        bool symbolTableHasProperty(PropertyName);
 
         // The following accessors return pristine values, even if a script 
         // replaces the global object's associated property.
@@ -302,7 +300,7 @@ namespace JSC {
 
         void resetPrototype(JSGlobalData&, JSValue prototype);
 
-        JSGlobalData& globalData() const { return *m_globalData.get(); }
+        JSGlobalData& globalData() const { return *Heap::heap(this)->globalData(); }
 
         static Structure* createStructure(JSGlobalData& globalData, JSValue prototype)
         {
@@ -367,7 +365,7 @@ namespace JSC {
         m_registerArraySize = count;
     }
 
-    inline bool JSGlobalObject::hasOwnPropertyForWrite(ExecState* exec, const Identifier& propertyName)
+    inline bool JSGlobalObject::hasOwnPropertyForWrite(ExecState* exec, PropertyName propertyName)
     {
         PropertySlot slot;
         if (JSVariableObject::getOwnPropertySlot(this, exec, propertyName, slot))
@@ -376,7 +374,7 @@ namespace JSC {
         return symbolTableGet(propertyName, slot, slotIsWriteable);
     }
 
-    inline bool JSGlobalObject::symbolTableHasProperty(const Identifier& propertyName)
+    inline bool JSGlobalObject::symbolTableHasProperty(PropertyName propertyName)
     {
         SymbolTableEntry entry = symbolTable().inlineGet(propertyName.impl());
         return !entry.isNull();

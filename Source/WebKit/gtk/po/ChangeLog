@@ -1,3 +1,19 @@
+2012-05-04  Daniel Mustieles  <daniel.mustieles@gmail.com>
+
+        Updated Spanish translation
+        https://bugs.webkit.org/show_bug.cgi?id=83995
+
+        Reviewed by Gustavo Noronha Silva.
+
+        * es.po:
+
+2012-04-30  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Fix make distcheck.
+
+        * GNUmakefile.am: Use += for ALL_MOFILES variable to make sure all
+        .mo files are cleaned by distclean.
+
 2012-03-24  Christian Kirbach  <Christian.Kirbach@googlemail.com>
 
         Updated German translation

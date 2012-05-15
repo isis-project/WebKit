@@ -39,83 +39,59 @@ PassOwnPtr<SVGAnimatedType> SVGAnimatedRectAnimator::constructFromString(const S
     return animatedType.release();
 }
 
-PassOwnPtr<SVGAnimatedType> SVGAnimatedRectAnimator::startAnimValAnimation(const Vector<SVGAnimatedProperty*>& properties)
+PassOwnPtr<SVGAnimatedType> SVGAnimatedRectAnimator::startAnimValAnimation(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    return SVGAnimatedType::createRect(constructFromBaseValue<SVGAnimatedRect>(properties));
+    return SVGAnimatedType::createRect(constructFromBaseValue<SVGAnimatedRect>(animatedTypes));
 }
 
-void SVGAnimatedRectAnimator::stopAnimValAnimation(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedRectAnimator::stopAnimValAnimation(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    stopAnimValAnimationForType<SVGAnimatedRect>(properties);
+    stopAnimValAnimationForType<SVGAnimatedRect>(animatedTypes);
 }
 
-void SVGAnimatedRectAnimator::resetAnimValToBaseVal(const Vector<SVGAnimatedProperty*>& properties, SVGAnimatedType* type)
+void SVGAnimatedRectAnimator::resetAnimValToBaseVal(const SVGElementAnimatedPropertyList& animatedTypes, SVGAnimatedType* type)
 {
-    resetFromBaseValue<SVGAnimatedRect>(properties, type, &SVGAnimatedType::rect);
+    resetFromBaseValue<SVGAnimatedRect>(animatedTypes, type, &SVGAnimatedType::rect);
 }
 
-void SVGAnimatedRectAnimator::animValWillChange(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedRectAnimator::animValWillChange(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    animValWillChangeForType<SVGAnimatedRect>(properties);
+    animValWillChangeForType<SVGAnimatedRect>(animatedTypes);
 }
 
-void SVGAnimatedRectAnimator::animValDidChange(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedRectAnimator::animValDidChange(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    animValDidChangeForType<SVGAnimatedRect>(properties);
+    animValDidChangeForType<SVGAnimatedRect>(animatedTypes);
 }
 
-void SVGAnimatedRectAnimator::calculateFromAndToValues(OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, const String& fromString, const String& toString)
+void SVGAnimatedRectAnimator::addAnimatedTypes(SVGAnimatedType* from, SVGAnimatedType* to)
 {
-    from = constructFromString(fromString);
-    to = constructFromString(toString);
-}
-
-void SVGAnimatedRectAnimator::calculateFromAndByValues(OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, const String& fromString, const String& byString)
-{
-    ASSERT(m_contextElement);
-    
-    from = constructFromString(fromString);
-    to = constructFromString(byString);
+    ASSERT(from->type() == AnimatedRect);
+    ASSERT(from->type() == to->type());
 
     to->rect() += from->rect();
 }
 
-void SVGAnimatedRectAnimator::calculateAnimatedValue(float percentage, unsigned repeatCount,
-                                                       OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, OwnPtr<SVGAnimatedType>& animated)
+void SVGAnimatedRectAnimator::calculateAnimatedValue(float percentage, unsigned repeatCount, SVGAnimatedType* from, SVGAnimatedType* to, SVGAnimatedType* toAtEndOfDuration, SVGAnimatedType* animated)
 {
     ASSERT(m_animationElement);
     ASSERT(m_contextElement);
 
-    SVGAnimateElement* animationElement = static_cast<SVGAnimateElement*>(m_animationElement);
-    AnimationMode animationMode = animationElement->animationMode();
-    // To animation uses contributions from the lower priority animations as the base value.
-    FloatRect& animatedRect = animated->rect();
-    if (animationMode == ToAnimation)
-        from->rect() = animatedRect;
-    
-    const FloatRect& fromRect = from->rect();
+    const FloatRect& fromRect = m_animationElement->animationMode() == ToAnimation ? animated->rect() : from->rect();
     const FloatRect& toRect = to->rect();
-    FloatRect newRect;    
-    if (animationElement->calcMode() == CalcModeDiscrete)
-        newRect = percentage < 0.5 ? fromRect : toRect;
-    else
-        newRect = FloatRect((toRect.x() - fromRect.x()) * percentage + fromRect.x(),
-                            (toRect.y() - fromRect.y()) * percentage + fromRect.y(),
-                            (toRect.width() - fromRect.width()) * percentage + fromRect.width(),
-                            (toRect.height() - fromRect.height()) * percentage + fromRect.height());
-    
-    // FIXME: This is not correct for values animation. Right now we transform values-animation to multiple from-to-animations and
-    // accumulate every single value to the previous one. But accumulation should just take into account after a complete cycle
-    // of values-animaiton. See example at: http://www.w3.org/TR/2001/REC-smil-animation-20010904/#RepeatingAnim
-    if (animationElement->isAccumulated() && repeatCount) {
-        newRect += toRect;
-        newRect.scale(repeatCount);
-    }
-    
-    if (animationElement->isAdditive() && animationMode != ToAnimation)
-        animatedRect += newRect;
-    else
-        animatedRect = newRect;
+    const FloatRect& toAtEndOfDurationRect = toAtEndOfDuration->rect();
+    FloatRect& animatedRect = animated->rect();
+
+    float animatedX = animatedRect.x();
+    float animatedY = animatedRect.y();
+    float animatedWidth = animatedRect.width();
+    float animatedHeight = animatedRect.height();
+    m_animationElement->animateAdditiveNumber(percentage, repeatCount, fromRect.x(), toRect.x(), toAtEndOfDurationRect.x(), animatedX);
+    m_animationElement->animateAdditiveNumber(percentage, repeatCount, fromRect.y(), toRect.y(), toAtEndOfDurationRect.y(), animatedY);
+    m_animationElement->animateAdditiveNumber(percentage, repeatCount, fromRect.width(), toRect.width(), toAtEndOfDurationRect.width(), animatedWidth);
+    m_animationElement->animateAdditiveNumber(percentage, repeatCount, fromRect.height(), toRect.height(), toAtEndOfDurationRect.height(), animatedHeight);
+
+    animatedRect = FloatRect(animatedX, animatedY, animatedWidth, animatedHeight);
 }
 
 float SVGAnimatedRectAnimator::calculateDistance(const String&, const String&)

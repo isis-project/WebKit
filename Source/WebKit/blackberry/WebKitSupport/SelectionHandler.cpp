@@ -98,20 +98,18 @@ WebCore::IntRect SelectionHandler::clippingRectForVisibleContent() const
 {
     // Get the containing content rect for the frame.
     Frame* frame = m_webPage->focusedOrMainFrame();
-    WebCore::IntRect clipRect = WebCore::IntRect(-1, -1, 0, 0);
+    WebCore::IntRect clipRect = WebCore::IntRect(WebCore::IntPoint(0, 0), m_webPage->contentsSize());
     if (frame != m_webPage->mainFrame()) {
         clipRect = m_webPage->getRecursiveVisibleWindowRect(frame->view(), true /* no clip to main frame window */);
         clipRect = m_webPage->m_mainFrame->view()->windowToContents(clipRect);
     }
 
     // Get the input field containing box.
-    if (m_webPage->m_inputHandler->isInputMode()
-        && frame->document()->focusedNode()
-        && frame->document()->focusedNode()->renderer()) {
-
+    WebCore::IntRect inputBoundingBox = m_webPage->m_inputHandler->boundingBoxForInputField();
+    if (!inputBoundingBox.isEmpty()) {
         // Adjust the bounding box to the frame offset.
-        clipRect = frame->document()->focusedNode()->renderer()->absoluteBoundingBoxRect();
-        clipRect = m_webPage->mainFrame()->view()->windowToContents(frame->view()->contentsToWindow(clipRect));
+        inputBoundingBox = m_webPage->mainFrame()->view()->windowToContents(frame->view()->contentsToWindow(inputBoundingBox));
+        clipRect.intersect(inputBoundingBox);
     }
     return clipRect;
 }
@@ -135,18 +133,20 @@ void SelectionHandler::regionForTextQuads(Vector<FloatQuad> &quadList, IntRectRe
         // Convert the text quads into a more platform friendy
         // IntRectRegion and adjust for subframes.
         Platform::IntRect selectionBoundingBox;
+        std::vector<Platform::IntRect> adjustedIntRects;
         for (unsigned i = 0; i < quadList.size(); i++) {
             WebCore::IntRect enclosingRect = quadList[i].enclosingBoundingBox();
             enclosingRect.intersect(frameRect);
             enclosingRect.move(framePosition.x(), framePosition.y());
-            region = unionRegions(region, IntRectRegion(enclosingRect));
 
             // Clip to the visible content.
             if (clippingRect.location() != DOMSupport::InvalidPoint)
                 enclosingRect.intersect(clippingRect);
 
+            adjustedIntRects.push_back(enclosingRect);
             selectionBoundingBox = unionOfRects(enclosingRect, selectionBoundingBox);
         }
+        region = IntRectRegion(selectionBoundingBox, adjustedIntRects.size(), adjustedIntRects);
     }
 }
 
@@ -804,7 +804,7 @@ static WebCore::IntPoint referencePoint(const VisiblePosition& position, const W
 
 // Check all rects in the region for a point match. The region is non-banded
 // and non-sorted so all must be checked.
-static bool regionRectListContainsPoint(IntRectRegion& region, WebCore::IntPoint point)
+static bool regionRectListContainsPoint(const IntRectRegion& region, const WebCore::IntPoint& point)
 {
     if (!region.extents().contains(point))
         return false;
@@ -815,6 +815,21 @@ static bool regionRectListContainsPoint(IntRectRegion& region, WebCore::IntPoint
             return true;
     }
     return false;
+}
+
+bool SelectionHandler::inputNodeOverridesTouch() const
+{
+    if (!m_webPage->m_inputHandler->isInputMode())
+        return false;
+
+    Node* focusedNode = m_webPage->focusedOrMainFrame()->document()->focusedNode();
+    if (!focusedNode || !focusedNode->isElementNode())
+        return false;
+
+    // TODO consider caching this in InputHandler so it is only calculated once per focus.
+    DEFINE_STATIC_LOCAL(QualifiedName, selectionTouchOverrideAttr, (nullAtom, "data-blackberry-end-selection-on-touch", nullAtom));
+    Element* element = static_cast<Element*>(focusedNode);
+    return DOMSupport::elementAttributeState(element, selectionTouchOverrideAttr) == DOMSupport::On;
 }
 
 // Note: This is the only function in SelectionHandler in which the coordinate
@@ -918,7 +933,7 @@ void SelectionHandler::selectionPositionChanged(bool visualChangeOnly)
                     startCaret.x(), startCaret.y(), startCaret.width(), startCaret.height(), endCaret.x(), endCaret.y(), endCaret.width(), endCaret.height());
 
 
-    m_webPage->m_client->notifySelectionDetailsChanged(startCaret, endCaret, visibleSelectionRegion);
+    m_webPage->m_client->notifySelectionDetailsChanged(startCaret, endCaret, visibleSelectionRegion, inputNodeOverridesTouch());
 }
 
 // NOTE: This function is not in WebKit coordinates.
@@ -940,14 +955,14 @@ void SelectionHandler::caretPositionChanged()
     // This function should only reach this point if input mode is active.
     ASSERT(m_webPage->m_inputHandler->isInputMode());
 
+    WebCore::IntPoint frameOffset(m_webPage->frameOffset(m_webPage->focusedOrMainFrame()));
+    WebCore::IntRect clippingRectForContent(clippingRectForVisibleContent());
     if (m_webPage->focusedOrMainFrame()->selection()->selectionType() == VisibleSelection::CaretSelection) {
-        WebCore::IntPoint frameOffset = m_webPage->frameOffset(m_webPage->focusedOrMainFrame());
-
         caretLocation = m_webPage->focusedOrMainFrame()->selection()->selection().visibleStart().absoluteCaretBounds();
         caretLocation.move(frameOffset.x(), frameOffset.y());
 
         // Clip against the containing frame and node boundaries.
-        caretLocation.intersect(clippingRectForVisibleContent());
+        caretLocation.intersect(clippingRectForContent);
     }
 
     m_caretActive = !caretLocation.isEmpty();
@@ -958,7 +973,23 @@ void SelectionHandler::caretPositionChanged()
     caretLocation = m_webPage->mapToTransformed(caretLocation);
     m_webPage->clipToTransformedContentsRect(caretLocation);
 
-    m_webPage->m_client->notifyCaretChanged(caretLocation, m_webPage->m_touchEventHandler->lastFatFingersResult().isTextInput() /* userTouchTriggered */);
+    bool singleLineInput = !m_webPage->m_inputHandler->isMultilineInputMode();
+    WebCore::IntRect nodeBoundingBox = singleLineInput ? m_webPage->m_inputHandler->boundingBoxForInputField() : WebCore::IntRect();
+
+    if (!nodeBoundingBox.isEmpty()) {
+        nodeBoundingBox.move(frameOffset.x(), frameOffset.y());
+
+        // Clip against the containing frame and node boundaries.
+        nodeBoundingBox.intersect(clippingRectForContent);
+
+        nodeBoundingBox = m_webPage->mapToTransformed(nodeBoundingBox);
+        m_webPage->clipToTransformedContentsRect(nodeBoundingBox);
+    }
+
+    DEBUG_SELECTION(LogLevelInfo, "SelectionHandler::single line %s single line bounding box %d, %d, %dx%d",
+                    singleLineInput ? "true" : "false", nodeBoundingBox.x(), nodeBoundingBox.y(), nodeBoundingBox.width(), nodeBoundingBox.height());
+
+    m_webPage->m_client->notifyCaretChanged(caretLocation, m_webPage->m_touchEventHandler->lastFatFingersResult().isTextInput() /* userTouchTriggered */, singleLineInput, nodeBoundingBox);
 }
 
 bool SelectionHandler::selectionContains(const WebCore::IntPoint& point)

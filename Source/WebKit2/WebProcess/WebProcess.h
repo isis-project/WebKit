@@ -30,6 +30,7 @@
 #include "ChildProcess.h"
 #include "DrawingArea.h"
 #include "EventDispatcher.h"
+#include "PluginInfoStore.h"
 #include "ResourceCachesToClear.h"
 #include "SandboxExtension.h"
 #include "SharedMemory.h"
@@ -44,8 +45,16 @@
 #include <wtf/HashMap.h>
 #include <wtf/HashSet.h>
 
+#if USE(SOUP)
+#include "WebSoupRequestManager.h"
+#endif
+
 #if PLATFORM(QT)
 class QNetworkAccessManager;
+#endif
+
+#if PLATFORM(MAC)
+#include <dispatch/dispatch.h>
 #endif
 
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
@@ -148,6 +157,10 @@ public:
 
     EventDispatcher& eventDispatcher() { return m_eventDispatcher; }
 
+#if USE(SOUP)
+    WebSoupRequestManager& soupRequestManager() { return m_soupRequestManager; }
+#endif
+
 private:
     WebProcess();
 
@@ -203,6 +216,7 @@ private:
     
     void getWebCoreStatistics(uint64_t callbackID);
     void garbageCollectJavaScriptObjects();
+    void setJavaScriptGarbageCollectorTimerEnabled(bool flag);
 
 #if PLATFORM(MAC)
     void secItemResponse(CoreIPC::Connection*, uint64_t requestID, const SecItemResponseData&);
@@ -231,6 +245,8 @@ private:
     void didReceiveWebProcessMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*);
     void didReceiveWebProcessMessageOnConnectionWorkQueue(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, bool& didHandleMessage);
 
+    void didGetPlugins(CoreIPC::Connection*, uint64_t requestID, const Vector<WebCore::PluginInfo>&);
+
     RefPtr<WebConnectionToUIProcess> m_connection;
 
     HashMap<uint64_t, RefPtr<WebPage> > m_pageMap;
@@ -254,6 +270,7 @@ private:
 #endif
 #if PLATFORM(MAC)
     pid_t m_presenterApplicationPid;
+    dispatch_group_t m_clearResourceCachesDispatchGroup;
 #endif
 
     bool m_fullKeyboardAccessEnabled;
@@ -280,6 +297,10 @@ private:
 #if ENABLE(PLUGIN_PROCESS)
     PluginProcessConnectionManager m_pluginProcessConnectionManager;
     bool m_disablePluginProcessMessageTimeout;
+#endif
+
+#if USE(SOUP)
+    WebSoupRequestManager m_soupRequestManager;
 #endif
 
 };

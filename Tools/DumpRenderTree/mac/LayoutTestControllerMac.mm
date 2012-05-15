@@ -310,11 +310,6 @@ JSRetainPtr<JSStringRef> LayoutTestController::pageProperty(const char* property
     return propertyValue;
 }
 
-bool LayoutTestController::isPageBoxVisible(int pageNumber) const
-{
-    return [mainFrame isPageBoxVisible:pageNumber];
-}
-
 JSRetainPtr<JSStringRef> LayoutTestController::pageSizeAndMarginsInPixels(int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft) const
 {
     JSRetainPtr<JSStringRef> propertyValue(Adopt, JSStringCreateWithCFString((CFStringRef)[mainFrame pageSizeAndMarginsInPixels:pageNumber:width:height:marginTop:marginRight:marginBottom:marginLeft]));
@@ -849,16 +844,6 @@ unsigned LayoutTestController::numberOfActiveAnimations() const
     return [mainFrame _numberOfActiveAnimations];
 }
 
-void LayoutTestController::suspendAnimations() const
-{
-    return [mainFrame _suspendAnimations];
-}
-
-void LayoutTestController::resumeAnimations() const
-{
-    return [mainFrame _resumeAnimations];
-}
-
 void LayoutTestController::waitForPolicyDelegate()
 {
     setWaitToDump(true);
@@ -950,6 +935,11 @@ unsigned worldIDForWorld(WebScriptWorld *world)
     }
 
     return 0;
+}
+
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
+{
+    // FIXME: Implement this.
 }
 
 void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
@@ -1217,6 +1207,16 @@ void LayoutTestController::setBackingScaleFactor(double backingScaleFactor)
 }
 
 void LayoutTestController::simulateDesktopNotificationClick(JSStringRef title)
+{
+    // FIXME: Implement.
+}
+
+void LayoutTestController::resetPageVisibility()
+{
+    // FIXME: Implement.
+}
+
+void LayoutTestController::setPageVisibility(const char*)
 {
     // FIXME: Implement.
 }

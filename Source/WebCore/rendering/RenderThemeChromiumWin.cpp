@@ -137,7 +137,7 @@ bool ThemePainter::s_hasInstance = false;
 static void getNonClientMetrics(NONCLIENTMETRICS* metrics)
 {
     static UINT size = (windowsVersion() >= WindowsVista) ?
-        (sizeof NONCLIENTMETRICS) : NONCLIENTMETRICS_SIZE_PRE_VISTA;
+        sizeof(NONCLIENTMETRICS) : NONCLIENTMETRICS_SIZE_PRE_VISTA;
     metrics->cbSize = size;
     bool success = !!SystemParametersInfo(SPI_GETNONCLIENTMETRICS, size, metrics, 0);
     ASSERT(success);
@@ -706,7 +706,7 @@ bool RenderThemeChromiumWin::paintTextFieldInternal(RenderObject* o,
     return false;
 }
 
-void RenderThemeChromiumWin::adjustInnerSpinButtonStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
+void RenderThemeChromiumWin::adjustInnerSpinButtonStyle(StyleResolver*, RenderStyle* style, Element*) const
 {
     int width = ScrollbarTheme::theme()->scrollbarThickness();
     style->setWidth(Length(width, Fixed));
@@ -760,7 +760,7 @@ double RenderThemeChromiumWin::animationDurationForProgressBar(RenderProgress* r
     return progressAnimationFrameRate;
 }
 
-void RenderThemeChromiumWin::adjustProgressBarStyle(CSSStyleSelector*, RenderStyle*, Element*) const
+void RenderThemeChromiumWin::adjustProgressBarStyle(StyleResolver*, RenderStyle*, Element*) const
 {
 }
 

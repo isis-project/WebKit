@@ -46,6 +46,7 @@
 #include "platform/WebThread.h"
 #include "v8.h"
 #include <public/Platform.h>
+#include <public/WebPrerenderingSupport.h>
 #include <wtf/Assertions.h>
 #include <wtf/MainThread.h>
 #include <wtf/Threading.h>
@@ -92,8 +93,7 @@ static bool generateEntropy(unsigned char* buffer, size_t length)
 #ifndef NDEBUG
 static void assertV8RecursionScope()
 {
-    // FIXME: Enable when chromium usage of WebScriptInvocation has landed.
-    // ASSERT(!isMainThread() || WebCore::V8RecursionScope::properlyUsed());
+    ASSERT(!isMainThread() || WebCore::V8RecursionScope::properlyUsed());
 }
 #endif
 
@@ -164,6 +164,7 @@ void shutdown()
 #endif
     s_webKitPlatformSupport = 0;
     Platform::shutdown();
+    WebPrerenderingSupport::shutdown();
 }
 
 WebKitPlatformSupport* webKitPlatformSupport()

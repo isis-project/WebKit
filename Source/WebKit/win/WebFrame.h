@@ -260,8 +260,6 @@ public:
     virtual HRESULT STDMETHODCALLTYPE pauseAnimation(BSTR animationName, IDOMNode*, double secondsFromNow, BOOL* animationWasRunning);
     virtual HRESULT STDMETHODCALLTYPE pauseTransition(BSTR propertyName, IDOMNode*, double secondsFromNow, BOOL* transitionWasRunning);
     virtual HRESULT STDMETHODCALLTYPE numberOfActiveAnimations(UINT*);
-    virtual HRESULT STDMETHODCALLTYPE suspendAnimations();
-    virtual HRESULT STDMETHODCALLTYPE resumeAnimations();
     virtual HRESULT STDMETHODCALLTYPE loadPlainTextString(BSTR string, BSTR url);
 
     virtual HRESULT STDMETHODCALLTYPE isDisplayingStandaloneImage(BOOL*);
@@ -305,7 +303,7 @@ public:
     virtual void detachedFromParent2();
     virtual void detachedFromParent3();
     virtual void cancelPolicyCheck();
-    virtual void dispatchWillSendSubmitEvent(WebCore::HTMLFormElement*) { }
+    virtual void dispatchWillSendSubmitEvent(PassRefPtr<WebCore::FormState>);
     virtual void dispatchWillSubmitForm(WebCore::FramePolicyFunction, PassRefPtr<WebCore::FormState>);
     virtual void revertToProvisionalState(WebCore::DocumentLoader*);
     virtual void setMainFrameDocumentReady(bool);

@@ -288,7 +288,7 @@ PluginPackage* PluginDatabase::findPlugin(const KURL& url, String& mimeType)
         return pluginForMIMEType(mimeType);
     
     String filename = url.lastPathComponent();
-    if (filename.endsWith("/"))
+    if (filename.endsWith('/'))
         return 0;
     
     int extensionPos = filename.reverseFind('.');
@@ -437,7 +437,9 @@ bool PluginDatabase::isPreferredPluginDirectory(const String& path)
 {
     String preferredPath = homeDirectoryPath();
 
-#if defined(XP_UNIX)
+#if PLATFORM(BLACKBERRY)
+    preferredPath = BlackBerry::Platform::Client::get()->getApplicationPluginDirectory().c_str();
+#elif defined(XP_UNIX)
     preferredPath.append(String("/.mozilla/plugins"));
 #elif defined(XP_MACOSX)
     preferredPath.append(String("/Library/Internet Plug-Ins"));

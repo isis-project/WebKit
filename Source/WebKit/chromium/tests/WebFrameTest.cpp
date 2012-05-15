@@ -40,8 +40,10 @@
 #include "WebRange.h"
 #include "WebScriptSource.h"
 #include "WebSearchableFormData.h"
+#include "WebSecurityOrigin.h"
 #include "WebSecurityPolicy.h"
 #include "WebSettings.h"
+#include "WebViewClient.h"
 #include "WebViewImpl.h"
 #include "v8.h"
 #include <gtest/gtest.h>
@@ -135,21 +137,104 @@ TEST_F(WebFrameTest, FormWithNullFrame)
     WebSearchableFormData searchableDataForm(forms[0]);
 }
 
+TEST_F(WebFrameTest, ChromePageJavascript)
+{
+    registerMockedChromeURLLoad("history.html");
+ 
+    // Pass true to enable JavaScript.
+    WebView* webView = FrameTestHelpers::createWebViewAndLoad(m_chromeURL + "history.html", true);
+
+    // Try to run JS against the chrome-style URL.
+    FrameTestHelpers::loadFrame(webView->mainFrame(), "javascript:document.body.appendChild(document.createTextNode('Clobbered'))");
+
+    // Required to see any updates in contentAsText.
+    webView->layout();
+
+    // Now retrieve the frame's text and ensure it was modified by running javascript.
+    std::string content = webView->mainFrame()->contentAsText(1024).utf8();
+    EXPECT_NE(std::string::npos, content.find("Clobbered"));
+}
+
 TEST_F(WebFrameTest, ChromePageNoJavascript)
 {
     registerMockedChromeURLLoad("history.html");
 
+    /// Pass true to enable JavaScript.
     WebView* webView = FrameTestHelpers::createWebViewAndLoad(m_chromeURL + "history.html", true);
 
-    // Try to run JS against the chrome-style URL.
+    // Try to run JS against the chrome-style URL after prohibiting it.
     WebSecurityPolicy::registerURLSchemeAsNotAllowingJavascriptURLs("chrome");
     FrameTestHelpers::loadFrame(webView->mainFrame(), "javascript:document.body.appendChild(document.createTextNode('Clobbered'))");
 
-    // Now retrieve the frames text and see if it was clobbered.
+    // Required to see any updates in contentAsText.
+    webView->layout();
+
+    // Now retrieve the frame's text and ensure it wasn't modified by running javascript.
     std::string content = webView->mainFrame()->contentAsText(1024).utf8();
-    EXPECT_NE(std::string::npos, content.find("Simulated Chromium History Page"));
     EXPECT_EQ(std::string::npos, content.find("Clobbered"));
 }
+
+TEST_F(WebFrameTest, DispatchMessageEventWithOriginCheck)
+{
+    registerMockedHttpURLLoad("postmessage_test.html");
+
+    // Pass true to enable JavaScript.
+    WebView* webView = FrameTestHelpers::createWebViewAndLoad(m_baseURL + "postmessage_test.html", true);
+    
+    // Send a message with the correct origin.
+    WebSecurityOrigin correctOrigin(WebSecurityOrigin::create(GURL(m_baseURL)));
+    WebDOMEvent event = webView->mainFrame()->document().createEvent("MessageEvent");
+    WebDOMMessageEvent message = event.to<WebDOMMessageEvent>();
+    WebSerializedScriptValue data(WebSerializedScriptValue::fromString("foo"));
+    message.initMessageEvent("message", false, false, data, "http://origin.com", 0, "");
+    webView->mainFrame()->dispatchMessageEventWithOriginCheck(correctOrigin, message);
+
+    // Send another message with incorrect origin.
+    WebSecurityOrigin incorrectOrigin(WebSecurityOrigin::create(GURL(m_chromeURL)));
+    webView->mainFrame()->dispatchMessageEventWithOriginCheck(incorrectOrigin, message);
+
+    // Required to see any updates in contentAsText.
+    webView->layout();
+
+    // Verify that only the first addition is in the body of the page.
+    std::string content = webView->mainFrame()->contentAsText(1024).utf8();
+    EXPECT_NE(std::string::npos, content.find("Message 1."));
+    EXPECT_EQ(std::string::npos, content.find("Message 2."));
+}
+
+#if ENABLE(VIEWPORT)
+
+class FixedLayoutTestWebViewClient : public WebViewClient {
+ public:
+    virtual WebRect windowRect() OVERRIDE { return m_windowRect; }
+    virtual WebScreenInfo screenInfo() OVERRIDE { return m_screenInfo; }
+
+    WebRect m_windowRect;
+    WebScreenInfo m_screenInfo;
+};
+
+TEST_F(WebFrameTest, DeviceScaleFactorUsesDefaultWithoutViewportTag)
+{
+    registerMockedHttpURLLoad("no_viewport_tag.html");
+
+    int viewportWidth = 640;
+    int viewportHeight = 480;
+
+    FixedLayoutTestWebViewClient client;
+    client.m_screenInfo.horizontalDPI = 160;
+    client.m_windowRect = WebRect(0, 0, viewportWidth, viewportHeight);
+
+    WebView* webView = static_cast<WebView*>(FrameTestHelpers::createWebViewAndLoad(m_baseURL + "no_viewport_tag.html", true, 0, &client));
+
+    webView->resize(WebSize(viewportWidth, viewportHeight));
+    webView->settings()->setViewportEnabled(true);
+    webView->settings()->setDefaultDeviceScaleFactor(2);
+    webView->enableFixedLayoutMode(true);
+    webView->layout();
+
+    EXPECT_EQ(2, webView->deviceScaleFactor());
+}
+#endif
 
 #if ENABLE(GESTURE_EVENTS)
 TEST_F(WebFrameTest, FAILS_DivAutoZoomParamsTest)
@@ -238,7 +323,12 @@ public:
     {
         // Return a dummy error so the DocumentLoader doesn't assert when
         // the reload cancels it.
-        return WebURLError(WebCore::ResourceError("", 1, "", "cancelled"));
+        WebURLError webURLError;
+        webURLError.domain = "";
+        webURLError.reason = 1;
+        webURLError.isCancellation = true;
+        webURLError.unreachableURL = WebURL();
+        return webURLError;
     }
 };
 

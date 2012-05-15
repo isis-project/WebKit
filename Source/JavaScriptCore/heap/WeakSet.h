@@ -39,7 +39,7 @@ public:
     void finalizeAll();
     ~WeakSet();
 
-    WeakImpl* allocate(JSValue, WeakHandleOwner* = 0, void* context = 0);
+    static WeakImpl* allocate(JSValue, WeakHandleOwner* = 0, void* context = 0);
     static void deallocate(WeakImpl*);
 
     void visitLiveWeakImpls(HeapRootVisitor&);
@@ -47,6 +47,8 @@ public:
 
     void sweep();
     void resetAllocator();
+
+    void shrink();
 
 private:
     JS_EXPORT_PRIVATE WeakBlock::FreeCell* findAllocator();
@@ -56,7 +58,7 @@ private:
 
     WeakBlock::FreeCell* m_allocator;
     WeakBlock* m_nextAllocator;
-    DoublyLinkedList<HeapBlock> m_blocks;
+    DoublyLinkedList<WeakBlock> m_blocks;
     Heap* m_heap;
 };
 
@@ -67,20 +69,9 @@ inline WeakSet::WeakSet(Heap* heap)
 {
 }
 
-inline WeakImpl* WeakSet::allocate(JSValue jsValue, WeakHandleOwner* weakHandleOwner, void* context)
-{
-    WeakBlock::FreeCell* allocator = m_allocator;
-    if (UNLIKELY(!allocator))
-        allocator = findAllocator();
-    m_allocator = allocator->next;
-
-    WeakImpl* weakImpl = WeakBlock::asWeakImpl(allocator);
-    return new (NotNull, weakImpl) WeakImpl(jsValue, weakHandleOwner, context);
-}
-
 inline void WeakSet::deallocate(WeakImpl* weakImpl)
 {
-    WeakBlock::blockFor(weakImpl)->deallocate(weakImpl);
+    weakImpl->setState(WeakImpl::Deallocated);
 }
 
 } // namespace JSC

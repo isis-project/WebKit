@@ -116,7 +116,8 @@ public:
 #endif
 
 #if USE(ACCELERATED_COMPOSITING)
-    void updateCompositingLayers();
+    void updateCompositingLayersAfterStyleChange();
+    void updateCompositingLayersAfterLayout();
     bool syncCompositingStateForThisFrame(Frame* rootFrameForSync);
 
     void clearBackingStores();
@@ -167,7 +168,7 @@ public:
     void adjustViewSize();
     
     virtual IntRect windowClipRect(bool clipToContents = true) const;
-    IntRect windowClipRectForLayer(const RenderLayer*, bool clipToLayerContents) const;
+    IntRect windowClipRectForFrameOwner(const HTMLFrameOwnerElement*, bool clipToLayerContents) const;
 
     virtual IntRect windowResizerRect() const;
 
@@ -230,6 +231,9 @@ public:
     bool wasScrolledByUser() const;
     void setWasScrolledByUser(bool);
 
+    bool safeToPropagateScrollToParent() const { return m_safeToPropagateScrollToParent; }
+    void setSafeToPropagateScrollToParent(bool isSafe) { m_safeToPropagateScrollToParent = isSafe; }
+
     void addWidgetToUpdate(RenderEmbeddedObject*);
     void removeWidgetToUpdate(RenderEmbeddedObject*);
 
@@ -238,6 +242,7 @@ public:
     PaintBehavior paintBehavior() const;
     bool isPainting() const;
     bool hasEverPainted() const { return m_lastPaintTime; }
+    void setLastPaintTime(double lastPaintTime) { m_lastPaintTime = lastPaintTime; }
     void setNodeToDraw(Node*);
 
     virtual void paintOverhangAreas(GraphicsContext*, const IntRect& horizontalOverhangArea, const IntRect& verticalOverhangArea, const IntRect& dirtyRect);
@@ -291,7 +296,8 @@ public:
 
     bool isFrameViewScrollCorner(RenderScrollbarPart* scrollCorner) const { return m_scrollCorner == scrollCorner; }
 
-    void calculateScrollbarModesForLayout(ScrollbarMode& hMode, ScrollbarMode& vMode);
+    enum ScrollbarModesCalculationStrategy { RulesFromWebContentOnly, AnyRule };
+    void calculateScrollbarModesForLayout(ScrollbarMode& hMode, ScrollbarMode& vMode, ScrollbarModesCalculationStrategy = AnyRule);
 
     // Normal delay
     static void setRepaintThrottlingDeferredRepaintDelay(double p);
@@ -313,8 +319,6 @@ public:
     void setAnimatorsAreActive();
 
     RenderBox* embeddedContentBox() const;
-
-    void clearOwningRendererForCustomScrollbars(RenderBox*);
     
     void setTracksRepaints(bool);
     bool isTrackingRepaints() const { return m_isTrackingRepaints; }
@@ -327,7 +331,6 @@ public:
     bool containsScrollableArea(ScrollableArea*) const;
     const ScrollableAreaSet* scrollableAreas() const { return m_scrollableAreas.get(); }
 
-    virtual void addChild(PassRefPtr<Widget>) OVERRIDE;
     virtual void removeChild(Widget*) OVERRIDE;
 
     // This function exists for ports that need to handle wheel events manually.
@@ -388,6 +391,8 @@ private:
     virtual bool isOnActivePage() const;
     virtual ScrollableArea* enclosingScrollableArea() const;
     virtual IntRect scrollableAreaBoundingBox() const OVERRIDE;
+
+    void updateScrollableAreaSet();
 
 #if USE(ACCELERATED_COMPOSITING)
     virtual GraphicsLayer* layerForHorizontalScrollbar() const OVERRIDE;
@@ -474,7 +479,8 @@ private:
 
     bool m_wasScrolledByUser;
     bool m_inProgrammaticScroll;
-    
+    bool m_safeToPropagateScrollToParent;
+
     unsigned m_deferringRepaints;
     unsigned m_repaintCount;
     Vector<LayoutRect> m_repaintRects;

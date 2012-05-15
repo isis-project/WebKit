@@ -92,6 +92,7 @@ LayoutTestController::LayoutTestController(const std::string& testPathOrURL, con
     , m_shouldPaintBrokenImage(true)
     , m_shouldStayOnPageAfterHandlingBeforeUnload(false)
     , m_areDesktopNotificationPermissionRequestsIgnored(false)
+    , m_customFullScreenBehavior(false) 
     , m_testPathOrURL(testPathOrURL)
     , m_expectedPixelHash(expectedPixelHash)
 {
@@ -809,22 +810,6 @@ static bool parsePagePropertyParameters(JSContextRef context, int argumentCount,
     }
 }
 
-static bool parsePageNumber(JSContextRef context, int argumentCount, const JSValueRef* arguments, JSValueRef* exception, int& pageNumber)
-{
-    pageNumber = 0;
-    switch (argumentCount) {
-    case 1:
-        pageNumber = static_cast<int>(JSValueToNumber(context, arguments[0], exception));
-        if (*exception)
-            return false;
-        // Fall through.
-    case 0:
-        return true;
-    default:
-        return false;
-    }
-}
-
 static bool parsePageNumberSizeMarings(JSContextRef context, int argumentCount, const JSValueRef* arguments, JSValueRef* exception, int& pageNumber, int& width, int& height, int& marginTop, int& marginRight, int& marginBottom, int& marginLeft)
 {
     pageNumber = 0;
@@ -918,16 +903,6 @@ static JSValueRef pagePropertyCallback(JSContextRef context, JSObjectRef functio
 
     delete[] propertyName;
     return value;
-}
-
-static JSValueRef isPageBoxVisibleCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
-{
-    int pageNumber = 0;
-    if (!parsePageNumber(context, argumentCount, arguments, exception, pageNumber))
-        return JSValueMakeUndefined(context);
-
-    LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
-    return JSValueMakeBoolean(context, controller->isPageBoxVisible(pageNumber));
 }
 
 static JSValueRef pageSizeAndMarginsInPixelsCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
@@ -1742,10 +1717,6 @@ static JSValueRef setPageVisibilityCallback(JSContextRef context, JSObjectRef fu
 
 static JSValueRef resetPageVisibilityCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
 {
-    // Has mac & windows implementation
-    if (argumentCount < 1)
-        return JSValueMakeUndefined(context);
-
     LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
     controller->resetPageVisibility();
     return JSValueMakeUndefined(context);
@@ -1826,6 +1797,18 @@ static JSValueRef evaluateScriptInIsolatedWorldCallback(JSContextRef context, JS
     return JSValueMakeUndefined(context);
 }
 
+static JSValueRef evaluateScriptInIsolatedWorldAndReturnValueCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
+    double worldID = JSValueToNumber(context, arguments[0], exception);
+    ASSERT(!*exception);
+    JSRetainPtr<JSStringRef> script(Adopt, JSValueToStringCopy(context, arguments[1], exception));
+    ASSERT(!*exception);
+
+    controller->evaluateScriptInIsolatedWorldAndReturnValue(static_cast<unsigned>(worldID), JSContextGetGlobalObject(context), script.get());
+    return JSValueMakeUndefined(context);
+}
+
 static JSValueRef elementDoesAutoCompleteForElementWithIdCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
 {
     LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
@@ -1876,20 +1859,6 @@ static JSValueRef numberOfActiveAnimationsCallback(JSContextRef context, JSObjec
 
     LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
     return JSValueMakeNumber(context, controller->numberOfActiveAnimations());
-}
-
-static JSValueRef suspendAnimationsCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
-{
-    LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
-    controller->suspendAnimations();
-    return JSValueMakeUndefined(context);
-}
-
-static JSValueRef resumeAnimationsCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
-{
-    LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
-    controller->resumeAnimations();
-    return JSValueMakeUndefined(context);
 }
 
 static JSValueRef waitForPolicyDelegateCallback(JSContextRef context, JSObjectRef, JSObjectRef thisObject, size_t, const JSValueRef[], JSValueRef*)
@@ -2242,6 +2211,18 @@ static JSValueRef setTextDirectionCallback(JSContextRef context, JSObjectRef fun
     }
 
     return JSValueMakeUndefined(context);
+
+}
+
+static JSValueRef setHasCustomFullScreenBehaviorCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    if (argumentCount == 1) {
+        bool hasCustomBehavior = JSValueToBoolean(context, arguments[0]);
+        LayoutTestController* controller = static_cast<LayoutTestController*>(JSObjectGetPrivate(thisObject));
+        controller->setHasCustomFullScreenBehavior(hasCustomBehavior);
+    }
+
+    return JSValueMakeUndefined(context);
 }
 
 static void layoutTestControllerObjectFinalize(JSObjectRef object)
@@ -2338,6 +2319,7 @@ JSStaticFunction* LayoutTestController::staticFunctions()
         { "elementDoesAutoCompleteForElementWithId", elementDoesAutoCompleteForElementWithIdCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "encodeHostName", encodeHostNameCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "evaluateInWebInspector", evaluateInWebInspectorCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+        { "evaluateScriptInIsolatedWorldAndReturnValue", evaluateScriptInIsolatedWorldAndReturnValueCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "evaluateScriptInIsolatedWorld", evaluateScriptInIsolatedWorldCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "execCommand", execCommandCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "findString", findStringCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
@@ -2347,7 +2329,6 @@ JSStaticFunction* LayoutTestController::staticFunctions()
         { "grantDesktopNotificationPermission", grantDesktopNotificationPermissionCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete }, 
         { "ignoreDesktopNotificationPermissionRequests", ignoreDesktopNotificationPermissionRequestsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "isCommandEnabled", isCommandEnabledCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "isPageBoxVisible", isPageBoxVisibleCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "keepWebHistory", keepWebHistoryCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "layerTreeAsText", layerTreeAsTextCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "numberOfPages", numberOfPagesCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
@@ -2355,8 +2336,6 @@ JSStaticFunction* LayoutTestController::staticFunctions()
         { "markerTextForListItem", markerTextForListItemCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "notifyDone", notifyDoneCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "numberOfActiveAnimations", numberOfActiveAnimationsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "suspendAnimations", suspendAnimationsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
-        { "resumeAnimations", resumeAnimationsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "overridePreference", overridePreferenceCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "pageNumberForElementById", pageNumberForElementByIdCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "pageSizeAndMarginsInPixels", pageSizeAndMarginsInPixelsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
@@ -2461,6 +2440,7 @@ JSStaticFunction* LayoutTestController::staticFunctions()
         { "focusWebView", focusWebViewCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "setBackingScaleFactor", setBackingScaleFactorCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { "preciseTime", preciseTimeCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+        { "setHasCustomFullScreenBehavior", setHasCustomFullScreenBehaviorCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
         { 0, 0, 0 }
     };
 

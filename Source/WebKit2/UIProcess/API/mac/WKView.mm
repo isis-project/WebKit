@@ -177,7 +177,6 @@ struct WKViewInterpretKeyEventsParameters {
     bool _inResignFirstResponder;
     NSEvent *_mouseDownEvent;
     BOOL _ignoringMouseDraggedEvents;
-    BOOL _dragHasStarted;
 
     id _flagsChangedEventMonitor;
 #if ENABLE(GESTURE_EVENTS)
@@ -537,11 +536,17 @@ WEBCORE_COMMAND(yankAndSelect)
 
 - (BOOL)writeSelectionToPasteboard:(NSPasteboard *)pasteboard types:(NSArray *)types
 {
-    Vector<String> pasteboardTypes;
     size_t numTypes = [types count];
-    for (size_t i = 0; i < numTypes; ++i)
-        pasteboardTypes.append([types objectAtIndex:i]);
-    return _data->_page->writeSelectionToPasteboard([pasteboard name], pasteboardTypes);
+    [pasteboard declareTypes:types owner:nil];
+    for (size_t i = 0; i < numTypes; ++i) {
+        if ([[types objectAtIndex:i] isEqualTo:NSStringPboardType])
+            [pasteboard setString:_data->_page->stringSelectionForPasteboard() forType:NSStringPboardType];
+        else {
+            RefPtr<SharedBuffer> buffer = _data->_page->dataSelectionForPasteboard([types objectAtIndex:i]);
+            [pasteboard setData:buffer ? [buffer->createNSData() autorelease] : nil forType:[types objectAtIndex:i]];
+       }
+    }
+    return YES;
 }
 
 - (void)centerSelectionInVisibleArea:(id)sender 
@@ -1034,7 +1039,6 @@ NATIVE_EVENT_HANDLER(scrollWheel, Wheel)
 {
     [self _setMouseDownEvent:event];
     _data->_ignoringMouseDraggedEvents = NO;
-    _data->_dragHasStarted = NO;
     [self mouseDownInternal:event];
 }
 
@@ -1134,9 +1138,11 @@ static const short kIOHIDEventTypeScroll = 6;
     // As in insertText:replacementRange:, we assume that the call comes from an input method if there is marked text.
     bool isFromInputMethod = _data->_page->editorState().hasComposition;
 
-    if (parameters && !isFromInputMethod)
-        parameters->commands->append(KeypressCommand(NSStringFromSelector(selector)));
-    else {
+    if (parameters && !isFromInputMethod) {
+        KeypressCommand command(NSStringFromSelector(selector));
+        parameters->commands->append(command);
+        _data->_page->registerKeypressCommandName(command.commandName);
+    } else {
         // FIXME: Send the command to Editor synchronously and only send it along the
         // responder chain if it's a selector that does not correspond to an editing command.
         [super doCommandBySelector:selector];
@@ -1181,7 +1187,9 @@ static const short kIOHIDEventTypeScroll = 6;
     // then we also execute it immediately, as there will be no other chance.
     if (parameters && !isFromInputMethod) {
         ASSERT(replacementRange.location == NSNotFound);
-        parameters->commands->append(KeypressCommand("insertText:", text));
+        KeypressCommand command("insertText:", text);
+        parameters->commands->append(command);
+        _data->_page->registerKeypressCommandName(command.commandName);
         return;
     }
 
@@ -2200,8 +2208,10 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
 
 - (PassOwnPtr<WebKit::DrawingAreaProxy>)_createDrawingAreaProxy
 {
+#if ENABLE(THREADED_SCROLLING)
     if ([self _shouldUseTiledDrawingArea])
         return TiledCoreAnimationDrawingAreaProxy::create(_data->_page.get());
+#endif
 
     return DrawingAreaProxyImpl::create(_data->_page.get());
 }
@@ -2470,7 +2480,8 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
 
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    [self addSubview:_data->_layerHostingView.get()];
+
+    [self addSubview:_data->_layerHostingView.get() positioned:NSWindowBelow relativeTo:nil];
 
     // Create a root layer that will back the NSView.
     RetainPtr<CALayer> rootLayer(AdoptNS, [[CALayer alloc] init]);
@@ -2601,12 +2612,6 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
 
 - (void)_setDragImage:(NSImage *)image at:(NSPoint)clientPoint linkDrag:(BOOL)linkDrag
 {
-    // We need to prevent re-entering this call to avoid crashing in AppKit.
-    // Given the asynchronous nature of WebKit2 this can now happen.
-    if (_data->_dragHasStarted)
-        return;
-    
-    _data->_dragHasStarted = YES;
     IntSize size([image size]);
     size.scale(1.0 / _data->_page->deviceScaleFactor());
     [image setSize:size];
@@ -2621,7 +2626,6 @@ static void drawPageBackground(CGContextRef context, WebPageProxy* page, const I
           pasteboard:[NSPasteboard pasteboardWithName:NSDragPboard]
               source:self
            slideBack:YES];
-    _data->_dragHasStarted = NO;
 }
 
 static bool matchesExtensionOrEquivalent(NSString *filename, NSString *extension)
@@ -2906,8 +2910,8 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 
     _data->_pageClient = PageClientImpl::create(self);
     _data->_page = toImpl(contextRef)->createWebPage(_data->_pageClient.get(), toImpl(pageGroupRef));
-    _data->_page->initializeWebPage();
     _data->_page->setIntrinsicDeviceScaleFactor([self _intrinsicDeviceScaleFactor]);
+    _data->_page->initializeWebPage();
 #if ENABLE(FULLSCREEN_API)
     _data->_page->fullScreenManager()->setWebView(self);
 #endif
@@ -2916,8 +2920,12 @@ static NSString *pathWithUniqueFilenameForPath(NSString *path)
 
     [self _registerDraggedTypes];
 
-    if ([self _shouldUseTiledDrawingArea])
+    if ([self _shouldUseTiledDrawingArea]) {
         self.wantsLayer = YES;
+
+        // Explicitly set the layer contents placement so AppKit will make sure that our layer has masksToBounds set to YES.
+        self.layerContentsPlacement = NSViewLayerContentsPlacementTopLeft;
+    }
 
     WebContext::statistics().wkViewCount++;
 

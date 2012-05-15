@@ -58,7 +58,7 @@ class FakeCCLayerTreeHost : public CCLayerTreeHost {
 public:
     static PassOwnPtr<FakeCCLayerTreeHost> create()
     {
-        OwnPtr<FakeCCLayerTreeHost> host = adoptPtr(new FakeCCLayerTreeHost);
+        OwnPtr<FakeCCLayerTreeHost> host(adoptPtr(new FakeCCLayerTreeHost));
         host->initialize();
         return host.release();
     }
@@ -88,9 +88,19 @@ public:
     MOCK_METHOD4(copyTexture, void(GraphicsContext3D*, unsigned, unsigned, const IntSize&));
 };
 
+class MockTextureUploader : public TextureUploader {
+public:
+    MOCK_METHOD0(isBusy, bool());
+    MOCK_METHOD0(beginUploads, void());
+    MOCK_METHOD0(endUploads, void());
+    MOCK_METHOD5(uploadTexture, void(GraphicsContext3D*, LayerTextureUpdater::Texture*, TextureAllocator*, const IntRect, const IntRect));
+};
+
+} // namespace
+
 class Canvas2DLayerChromiumTest : public Test {
 protected:
-    void fullLifecycleTest(bool threaded)
+    void fullLifecycleTest(bool threaded, bool deferred)
     {
         GraphicsContext3D::Attributes attrs;
 
@@ -102,18 +112,19 @@ protected:
 
         MockTextureAllocator allocatorMock;
         MockTextureCopier copierMock;
-        CCTextureUpdater updater(&allocatorMock, &copierMock);
+        MockTextureUploader uploaderMock;
+        CCTextureUpdater updater;
 
         const IntSize size(300, 150);
 
         OwnPtr<WebThread> thread;
         if (threaded)
-           thread = adoptPtr(webKitPlatformSupport()->createThread("Canvas2DLayerChromiumTest"));
+            thread = adoptPtr(WebKit::Platform::current()->createThread("Canvas2DLayerChromiumTest"));
         WebCompositor::initialize(thread.get());
 
-        OwnPtr<FakeCCLayerTreeHost> layerTreeHost = FakeCCLayerTreeHost::create();
+        OwnPtr<FakeCCLayerTreeHost> layerTreeHost(FakeCCLayerTreeHost::create());
         // Force an update, so that we get a valid TextureManager.
-        layerTreeHost->updateLayers();
+        layerTreeHost->updateLayers(updater);
 
         const WebGLId backTextureId = 1;
         const WebGLId frontTextureId = 2;
@@ -124,8 +135,8 @@ protected:
             EXPECT_CALL(mainMock, flush());
 
             // Note that the canvas backing texture is doublebuffered only when using the threaded
-            // compositor.
-            if (threaded) {
+            // compositor and not using deferred canvas rendering
+            if (threaded && !deferred) {
                 // Create texture and do the copy (on the impl thread).
                 EXPECT_CALL(allocatorMock, createTexture(size, GraphicsContext3D::RGBA))
                     .WillOnce(Return(frontTextureId));
@@ -137,7 +148,7 @@ protected:
             }
         }
 
-        RefPtr<Canvas2DLayerChromium> canvas = Canvas2DLayerChromium::create(mainContext.get(), size);
+        RefPtr<Canvas2DLayerChromium> canvas = Canvas2DLayerChromium::create(mainContext.get(), size, deferred ? Deferred : NonDeferred);
         canvas->setIsDrawable(true);
         canvas->setLayerTreeHost(layerTreeHost.get());
         canvas->setBounds(IntSize(600, 300));
@@ -145,7 +156,7 @@ protected:
 
         canvas->setNeedsDisplay();
         EXPECT_TRUE(canvas->needsDisplay());
-        canvas->paintContentsIfDirty(0);
+        canvas->update(updater, 0);
         EXPECT_FALSE(canvas->needsDisplay());
         {
             DebugScopedSetImplThread scopedImplThread;
@@ -153,12 +164,10 @@ protected:
             OwnPtr<CCLayerImpl> layerImpl = canvas->createCCLayerImpl();
             EXPECT_EQ(0u, static_cast<CCTextureLayerImpl*>(layerImpl.get())->textureId());
 
-            canvas->updateCompositorResources(implContext.get(), updater);
+            updater.update(implContext.get(), &allocatorMock, &copierMock, &uploaderMock, 1);
             canvas->pushPropertiesTo(layerImpl.get());
 
-            updater.update(implContext.get(), 1);
-
-            if (threaded)
+            if (threaded && !deferred)
                 EXPECT_EQ(frontTextureId, static_cast<CCTextureLayerImpl*>(layerImpl.get())->textureId());
             else
                 EXPECT_EQ(backTextureId, static_cast<CCTextureLayerImpl*>(layerImpl.get())->textureId());
@@ -171,14 +180,26 @@ protected:
     }
 };
 
+namespace {
+
 TEST_F(Canvas2DLayerChromiumTest, testFullLifecycleSingleThread)
 {
-    fullLifecycleTest(false);
+    fullLifecycleTest(false, false);
 }
 
 TEST_F(Canvas2DLayerChromiumTest, testFullLifecycleThreaded)
 {
-    fullLifecycleTest(true);
+    fullLifecycleTest(true, false);
+}
+
+TEST_F(Canvas2DLayerChromiumTest, testFullLifecycleSingleThreadDeferred)
+{
+    fullLifecycleTest(false, true);
+}
+
+TEST_F(Canvas2DLayerChromiumTest, testFullLifecycleThreadedDeferred)
+{
+    fullLifecycleTest(true, true);
 }
 
 } // namespace

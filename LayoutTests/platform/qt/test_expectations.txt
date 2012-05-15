@@ -12,94 +12,56 @@ BUG_QT_SLOW DEBUG: fast/js/array-sort-modifying-tostring.html = TIMEOUT PASS
 BUG_QT_SLOW SLOW DEBUG: fast/overflow/lots-of-sibling-inline-boxes.html = PASS
 BUG_QT_SLOW SLOW DEBUG: fast/js/dfg-inline-function-dot-caller.html = PASS
 
-BUGWK67007 DEBUG : fast/ruby/after-block-doesnt-crash.html = CRASH
-BUGWK67007 DEBUG : fast/ruby/after-table-doesnt-crash.html = CRASH
-BUGWK67007 DEBUG : fast/ruby/generated-after-counter-doesnt-crash.html = CRASH
-BUGWK67007 DEBUG : fast/ruby/generated-before-and-after-counter-doesnt-crash.html = CRASH
-
 BUGWK62662 DEBUG : inspector/cookie-parser.html = CRASH PASS
 
 BUGWK73766 : css3/unicode-bidi-isolate-aharon-failing.html = FAIL
 
-// Rebaseline after https://bugs.webkit.org/show_bug.cgi?id=78412
-BUGWK78412 : tables/mozilla/bugs/bug2123.html = TEXT
-BUGWK78412 : tables/mozilla/bugs/bug2509.html = TEXT
-BUGWK78412 : tables/mozilla/bugs/bug34176.html = TEXT
-BUGWK78412 : tables/mozilla/bugs/bug44505.html = TEXT
-BUGWK78412 : tables/mozilla_expected_failures/bugs/bug59252.html = TEXT
-BUGWK78412 : tables/mozilla_expected_failures/bugs/bug7243.html = TEXT
-
-// Temporary: generate platform specific IETestCenter results, then
-// remove when bots produce reference.
-BUGWK81936 : ietestcenter/css3/text/textshadow-001.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-002.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-003.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-004.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-005.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-006.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-007.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-008.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-009.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-010.htm = FAIL MISSING
-
 BUGWK82886 : inspector/styles/override-screen-size.html = TEXT
 
-// Temporary: generate platform specific IETestCenter results, then
-// remove when bots produce reference.
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-attachment-local-scrolling.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-color-applied-to-rounded-inline-element.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-color-border-box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_color_padding_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_position_three_four_values.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_properties_greater_than_images.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_repeat_space_border_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_repeat_space_content_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-repeat-space-padding-box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-applies-to-block.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-aspect-ratio.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-005.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-006.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-007.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-008.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-009.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-010.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-011.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-012.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-013.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-014.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-015.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-016.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-017.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-clip-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-clip-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-content-edge-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-different-width-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-initial-value-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-not-inherited-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-shorthand-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-005.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-sum-of-radii-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-sum-of-radii-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-with-three-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-with-two-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-right-radius-values-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/color-behind-images.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/none-as-image-layer.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/order-of-images.htm = FAIL MISSING
+BUGWK83906 : ietestcenter/css3/grid/grid-column-001.htm = IMAGE
+BUGWK83907 : ietestcenter/css3/grid/grid-column-002.htm = IMAGE
+BUGWK83909 : ietestcenter/css3/grid/grid-column-003.htm = IMAGE
+BUGWK83912 : ietestcenter/css3/grid/grid-items-002.htm = IMAGE
+BUGWK83913 : ietestcenter/css3/grid/grid-items-003.htm = IMAGE
+
+BUGWK84759 : ietestcenter/css3/multicolumn/column-containing-block-001.htm = IMAGE
+BUGWK84760 : ietestcenter/css3/multicolumn/column-containing-block-002.htm = IMAGE
+BUGWK84761 : ietestcenter/css3/multicolumn/column-filling-001.htm = IMAGE
+BUGWK84764 : ietestcenter/css3/multicolumn/column-width-applies-to-001.htm = IMAGE
+BUGWK84767 : ietestcenter/css3/multicolumn/column-width-applies-to-002.htm = IMAGE
+BUGWK84768 : ietestcenter/css3/multicolumn/column-width-applies-to-003.htm = IMAGE
+BUGWK84769 : ietestcenter/css3/multicolumn/column-width-applies-to-004.htm = IMAGE
+BUGWK84770 : ietestcenter/css3/multicolumn/column-width-applies-to-007.htm = IMAGE
+BUGWK84771 : ietestcenter/css3/multicolumn/column-width-applies-to-009.htm = IMAGE
+BUGWK84772 : ietestcenter/css3/multicolumn/column-width-applies-to-010.htm = IMAGE
+BUGWK84773 : ietestcenter/css3/multicolumn/column-width-applies-to-012.htm = IMAGE
+BUGWK84775 : ietestcenter/css3/multicolumn/column-width-applies-to-013.htm = IMAGE
+BUGWK84776 : ietestcenter/css3/multicolumn/column-width-applies-to-014.htm = IMAGE
+BUGWK84777 : ietestcenter/css3/multicolumn/column-width-applies-to-015.htm = IMAGE
+BUGWK84778 : ietestcenter/css3/multicolumn/column-width-negative-001.htm = IMAGE
+
+// Following failing because of DRT not rendering monospace font for QT
+BUGWK85203 : ietestcenter/css3/multicolumn/column-width-applies-to-005.htm = IMAGE
+BUGWK85203 : ietestcenter/css3/multicolumn/column-width-applies-to-006.htm = IMAGE
+BUGWK85203 : ietestcenter/css3/multicolumn/column-width-applies-to-008.htm = IMAGE
+BUGWK85203 : ietestcenter/css3/multicolumn/column-width-percentage-001.htm = IMAGE
+BUGWK85203 : ietestcenter/css3/multicolumn/column-containing-block-003.htm = IMAGE
+
+// IETC flexbox failures
+BUGWK85211 : ietestcenter/css3/flexbox/flexbox-align-stretch-001.htm = IMAGE
+BUGWK85212 : ietestcenter/css3/flexbox/flexbox-layout-002.htm = IMAGE
+BUGWK85213 BUGWK85832 : ietestcenter/css3/flexbox/flexbox-ordinal-group-001.htm = CRASH IMAGE
+
+// Generate results for your platform(s)
+BUGWK85567 : fast/images/png-suite/test.html = IMAGE
+
+// Interferes with the tests that should pass
+BUGWK85689 SKIP : fast/animation/request-animation-frame-disabled.html = TEXT
+
+BUGWK85308 : ietestcenter/css3/valuesandunits/units-000.htm = IMAGE
+BUGWK85310 : ietestcenter/css3/valuesandunits/units-010.htm = IMAGE
+
+// IETC namespace failures
+BUGWK86137 : ietestcenter/css3/namespaces/prefix-007.xml = IMAGE
+BUGWK86139 : ietestcenter/css3/namespaces/prefix-010.xml = IMAGE
+BUGWK86142 : ietestcenter/css3/namespaces/syntax-021.xml = IMAGE

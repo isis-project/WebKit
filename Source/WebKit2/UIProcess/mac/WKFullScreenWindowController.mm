@@ -227,8 +227,8 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
 
     [[self window] makeResponder:webWindowFirstResponder firstResponderIfDescendantOfView:_webView];
 
-    [self _manager]->willEnterFullScreen();
     [self _manager]->setAnimatingFullScreen(true);
+    [self _manager]->willEnterFullScreen();
 }
 
 - (void)beganEnterFullScreenWithInitialFrame:(const WebCore::IntRect&)initialFrame finalFrame:(const WebCore::IntRect&)finalFrame
@@ -254,8 +254,8 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
     if (completed) {
         // Screen updates to be re-enabled ta the end of the current block.
         NSDisableScreenUpdates();
-        [self _manager]->setAnimatingFullScreen(false);
         [self _manager]->didEnterFullScreen();
+        [self _manager]->setAnimatingFullScreen(false);
 
         NSRect windowBounds = [[self window] frame];
         windowBounds.origin = NSZeroPoint;
@@ -299,8 +299,8 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
     NSDisableScreenUpdates();
     [[self window] setAutodisplay:NO];
 
-    [self _manager]->willExitFullScreen();
     [self _manager]->setAnimatingFullScreen(true);
+    [self _manager]->willExitFullScreen();
 }
 
 - (void)beganExitFullScreenWithInitialFrame:(const WebCore::IntRect&)initialFrame finalFrame:(const WebCore::IntRect&)finalFrame
@@ -323,7 +323,7 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
 #endif
     // If the user has moved the fullScreen window into a new space, temporarily change
     // the collectionBehavior of the webView's window so that it is pulled into the active space:
-    if (![webWindow isOnActiveSpace]) {
+    if (!([webWindow respondsToSelector:@selector(isOnActiveSpace)] ? [webWindow isOnActiveSpace] : YES)) {
         NSWindowCollectionBehavior behavior = [webWindow collectionBehavior];
         [webWindow setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces];
         [webWindow orderWindow:NSWindowBelow relativeTo:[[self window] windowNumber]];
@@ -338,6 +338,8 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
     [self _startExitFullScreenAnimationWithDuration:defaultAnimationDuration];
 }
 
+static void completeFinishExitFullScreenAnimationAfterRepaint(WKErrorRef, void*);
+
 - (void)finishedExitFullScreenAnimation:(bool)completed
 {
     if (!_isExitingFullScreen)
@@ -346,11 +348,9 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
 
     [self _updateMenuAndDockForFullScreen];
 
-    // Screen updates to be re-enabled ta the end of the current function.
+    // Screen updates to be re-enabled in completeFinishExitFullScreenAnimationAfterRepaint.
     NSDisableScreenUpdates();
-
-    [self _manager]->setAnimatingFullScreen(false);
-    [self _manager]->didExitFullScreen();
+    [[_webViewPlaceholder.get() window] setAutodisplay:NO];
 
     NSResponder *firstResponder = [[self window] firstResponder];
     [self _swapView:_webViewPlaceholder.get() with:_webView];
@@ -370,7 +370,24 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
     [_backgroundWindow.get() orderOut:self];
     [_backgroundWindow.get() setFrame:NSZeroRect display:YES];
 
+    [[_webView window] makeKeyAndOrderFront:self];
+
+    // These messages must be sent after the swap or flashing will occur during forceRepaint:
+    [self _manager]->didExitFullScreen();
+    [self _manager]->setAnimatingFullScreen(false);
+
+    [self _page]->forceRepaint(VoidCallback::create(self, completeFinishExitFullScreenAnimationAfterRepaint));
+}
+
+- (void)completeFinishExitFullScreenAnimationAfterRepaint
+{
+    [[_webView window] setAutodisplay:YES];
     NSEnableScreenUpdates();
+}
+
+static void completeFinishExitFullScreenAnimationAfterRepaint(WKErrorRef, void* _self)
+{
+    [(WKFullScreenWindowController*)_self completeFinishExitFullScreenAnimationAfterRepaint];
 }
 
 - (void)close
@@ -426,7 +443,7 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
         [NSApp setPresentationOptions:options];
     else
 #endif
-        SetSystemUIMode(_isFullScreen ? kUIModeNormal : kUIModeAllHidden, 0);
+        SetSystemUIMode(_isFullScreen ? kUIModeAllHidden : kUIModeNormal, 0);
 }
 
 - (WebPageProxy*)_page
@@ -449,7 +466,8 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
     [otherView setFrame:[view frame]];        
     [otherView setAutoresizingMask:[view autoresizingMask]];
     [otherView removeFromSuperview];
-    [[view superview] replaceSubview:view with:otherView];
+    [[view superview] addSubview:otherView positioned:NSWindowAbove relativeTo:view];
+    [view removeFromSuperview];
     [CATransaction commit];
 }
 
@@ -465,6 +483,9 @@ static RetainPtr<NSWindow> createBackgroundFullscreenWindow(NSRect frame)
 static NSRect windowFrameFromApparentFrames(NSRect screenFrame, NSRect initialFrame, NSRect finalFrame)
 {
     NSRect initialWindowFrame;
+    if (!NSWidth(initialFrame) || !NSWidth(finalFrame) || !NSHeight(initialFrame) || !NSHeight(finalFrame))
+        return screenFrame;
+
     CGFloat xScale = NSWidth(screenFrame) / NSWidth(finalFrame);
     CGFloat yScale = NSHeight(screenFrame) / NSHeight(finalFrame);
     CGFloat xTrans = NSMinX(screenFrame) - NSMinX(finalFrame);

@@ -14,7 +14,7 @@ LIST(APPEND WebKit_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/efl"
     "${WEBCORE_DIR}/platform/graphics/cairo"
     "${WEBCORE_DIR}/platform/graphics/efl"
-    ${Cairo_INCLUDE_DIRS}
+    ${CAIRO_INCLUDE_DIRS}
     ${ECORE_X_INCLUDE_DIRS}
     ${EDJE_INCLUDE_DIRS}
     ${EFLDEPS_INCLUDE_DIRS}
@@ -37,12 +37,18 @@ ENDIF ()
 IF (ENABLE_VIDEO)
 LIST(APPEND WebKit_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/platform/graphics/gstreamer"
-    ${GStreamer-App_INCLUDE_DIRS}
-    ${GStreamer-Interfaces_INCLUDE_DIRS}
-    ${GStreamer-Pbutils_INCLUDE_DIRS}
-    ${GStreamer-Video_INCLUDE_DIRS}
+    ${GSTREAMER_APP_INCLUDE_DIRS}
+    ${GSTREAMER_INTERFACES_INCLUDE_DIRS}
+    ${GSTREAMER_PBUTILS_INCLUDE_DIRS}
+    ${GSTREAMER_VIDEO_INCLUDE_DIRS}
 )
 ENDIF()
+
+IF (ENABLE_VIDEO_TRACK)
+  LIST(APPEND WebKit_INCLUDE_DIRECTORIES
+    "${WEBCORE_DIR}/html/track"
+  )
+ENDIF ()
 
 IF (WTF_USE_FREETYPE)
   LIST(APPEND WebKit_INCLUDE_DIRECTORIES
@@ -101,6 +107,7 @@ LIST(APPEND WebKit_SOURCES
     efl/ewk/ewk_js.cpp
     efl/ewk/ewk_main.cpp
     efl/ewk/ewk_network.cpp
+    efl/ewk/ewk_security_origin.cpp
     efl/ewk/ewk_security_policy.cpp
     efl/ewk/ewk_settings.cpp
     efl/ewk/ewk_tiled_backing_store.cpp
@@ -114,7 +121,7 @@ LIST(APPEND WebKit_SOURCES
 )
 
 LIST(APPEND WebKit_LIBRARIES
-    ${Cairo_LIBRARIES}
+    ${CAIRO_LIBRARIES}
     ${ECORE_X_LIBRARIES}
     ${EFLDEPS_LIBRARIES}
     ${FREETYPE_LIBRARIES}
@@ -249,9 +256,9 @@ SET(EWebKit_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_frame.h
     ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_history.h
     ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_js.h
-    ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_logging.h
     ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_main.h
     ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_network.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_security_origin.h
     ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_security_policy.h
     ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_settings.h
     ${CMAKE_CURRENT_SOURCE_DIR}/efl/ewk/ewk_view.h

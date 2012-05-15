@@ -167,7 +167,7 @@ PassRefPtr<DOMWrapperWorld> ScriptController::createWorld()
     return DOMWrapperWorld::create(JSDOMWindow::commonJSGlobalData());
 }
 
-void ScriptController::getAllWorlds(Vector<DOMWrapperWorld*>& worlds)
+void ScriptController::getAllWorlds(Vector<RefPtr<DOMWrapperWorld> >& worlds)
 {
     static_cast<WebCoreJSClientData*>(JSDOMWindow::commonJSGlobalData()->clientData)->getAllWorlds(worlds);
 }
@@ -325,6 +325,11 @@ PassRefPtr<Bindings::RootObject> ScriptController::createRootObject(void* native
 #if ENABLE(INSPECTOR)
 void ScriptController::setCaptureCallStackForUncaughtExceptions(bool)
 {
+}
+
+void ScriptController::collectIsolatedContexts(Vector<std::pair<JSC::ExecState*, SecurityOrigin*> >&)
+{
+    // FIXME(85709): support isolated contexts inspection for JSC.
 }
 #endif
 

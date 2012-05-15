@@ -73,9 +73,10 @@ private:
     virtual bool shouldLoadLink();
     void process();
     static void processCallback(Node*);
+    void clearSheet();
 
-    virtual void insertedIntoDocument();
-    virtual void removedFromDocument();
+    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
+    virtual void removedFrom(Node*) OVERRIDE;
 
     // from CachedResourceClient
     virtual void setCSSStyleSheet(const String& href, const KURL& baseURL, const String& charset, const CachedCSSStyleSheet* sheet);
@@ -90,7 +91,7 @@ private:
     
     void setDisabledState(bool);
 
-    virtual bool isURLAttribute(Attribute*) const;
+    virtual bool isURLAttribute(const Attribute&) const OVERRIDE;
 
 private:
     virtual void addSubresourceAttributeURLs(ListHashSet<KURL>&) const;

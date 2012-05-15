@@ -30,6 +30,7 @@
 #include "cc/CCTiledLayerImpl.h"
 
 #include "LayerRendererChromium.h"
+#include "cc/CCCheckerboardDrawQuad.h"
 #include "cc/CCDebugBorderDrawQuad.h"
 #include "cc/CCQuadCuller.h"
 #include "cc/CCSolidColorDrawQuad.h"
@@ -135,11 +136,9 @@ TransformationMatrix CCTiledLayerImpl::quadTransform() const
     return transform;
 }
 
-void CCTiledLayerImpl::appendQuads(CCQuadCuller& quadList, const CCSharedQuadState* sharedQuadState, bool& usedCheckerboard)
+void CCTiledLayerImpl::appendQuads(CCQuadCuller& quadList, const CCSharedQuadState* sharedQuadState, bool& hadMissingTiles)
 {
     const IntRect& layerRect = visibleLayerRect();
-
-    appendGutterQuads(quadList, sharedQuadState);
 
     if (!m_tiler || m_tiler->hasEmptyBounds() || layerRect.isEmpty())
         return;
@@ -178,7 +177,10 @@ void CCTiledLayerImpl::appendQuads(CCQuadCuller& quadList, const CCSharedQuadSta
                 continue;
 
             if (!tile || !tile->textureId()) {
-                usedCheckerboard |= quadList.append(CCSolidColorDrawQuad::create(sharedQuadState, tileRect, backgroundColor()));
+                if (drawCheckerboardForMissingTiles())
+                    hadMissingTiles |= quadList.append(CCCheckerboardDrawQuad::create(sharedQuadState, tileRect));
+                else
+                    hadMissingTiles |= quadList.append(CCSolidColorDrawQuad::create(sharedQuadState, tileRect, backgroundColor()));
                 continue;
             }
 
@@ -228,8 +230,14 @@ Region CCTiledLayerImpl::visibleContentOpaqueRegion() const
 {
     if (m_skipsDraw)
         return Region();
-
+    if (opaque())
+        return visibleLayerRect();
     return m_tiler->opaqueRegionInLayerRect(visibleLayerRect());
+}
+
+void CCTiledLayerImpl::didLoseContext()
+{
+    m_tiler->reset();
 }
 
 } // namespace WebCore

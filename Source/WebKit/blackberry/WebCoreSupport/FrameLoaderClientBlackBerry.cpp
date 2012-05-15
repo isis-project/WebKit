@@ -19,6 +19,7 @@
 #include "config.h"
 #include "FrameLoaderClientBlackBerry.h"
 
+#include "AutofillManager.h"
 #include "BackForwardController.h"
 #include "BackForwardListImpl.h"
 #include "BackingStoreClient.h"
@@ -51,6 +52,7 @@
 #include "NetworkManager.h"
 #include "NodeList.h"
 #include "Page.h"
+#include "PluginDatabase.h"
 #include "PluginView.h"
 #include "ProgressTracker.h"
 #include "ProtectionSpace.h"
@@ -100,13 +102,10 @@ FrameLoaderClientBlackBerry::FrameLoaderClientBlackBerry()
     , m_hasSentResponseToPlugin(false)
     , m_cancelLoadOnNextData(false)
 {
-    m_deferredJobsTimer = new Timer<FrameLoaderClientBlackBerry>(this, &FrameLoaderClientBlackBerry::deferredJobsTimerFired);
 }
 
 FrameLoaderClientBlackBerry::~FrameLoaderClientBlackBerry()
 {
-    delete m_deferredJobsTimer;
-    m_deferredJobsTimer = 0;
 }
 
 int FrameLoaderClientBlackBerry::playerId() const
@@ -278,8 +277,10 @@ void FrameLoaderClientBlackBerry::doPendingFragmentScroll()
 
 void FrameLoaderClientBlackBerry::dispatchDecidePolicyForNewWindowAction(FramePolicyFunction function, const NavigationAction&, const ResourceRequest& request, PassRefPtr<FormState>, const String& frameName)
 {
-    if (request.isRequestedByPlugin() && ScriptController::processingUserGesture() && !m_webPagePrivate->m_pluginMayOpenNewTab)
+    if (ScriptController::processingUserGesture() && !m_webPagePrivate->m_pluginMayOpenNewTab) {
         (m_frame->loader()->policyChecker()->*function)(PolicyIgnore);
+        return;
+    }
 
     // A new window can never be a fragment scroll.
     PolicyAction decision = decidePolicyForExternalLoad(request, false);
@@ -322,12 +323,12 @@ PassRefPtr<Widget> FrameLoaderClientBlackBerry::createPlugin(const IntSize& plug
     String mimeType(mimeTypeIn);
     if (mimeType.isEmpty()) {
         mimeType = MIMETypeRegistry::getMIMETypeForPath(url.path());
-        mimeType = WebSettings::getNormalizedMIMEType(mimeType);
+        mimeType = MIMETypeRegistry::getNormalizedMIMEType(mimeType);
         if (mimeType != "application/x-shockwave-flash")
             mimeType = mimeTypeIn;
     }
 
-    if (mimeType == "application/x-shockwave-flash" || mimeType == "application/jnext-scriptable-plugin")
+    if (PluginDatabase::installedPlugins()->isMIMETypeRegistered(mimeType))
         return PluginView::create(m_frame, pluginSize, element, url, paramNames, paramValues, mimeType, loadManually);
 
     // If it's not the plugin type we support, try load directly from browser.
@@ -365,17 +366,12 @@ void FrameLoaderClientBlackBerry::receivedData(const char* data, int length, con
     m_frame->loader()->documentLoader()->writer()->addData(data, length);
 }
 
-void FrameLoaderClientBlackBerry::finishedLoading(DocumentLoader* loader)
+void FrameLoaderClientBlackBerry::finishedLoading(DocumentLoader*)
 {
     if (m_pluginView) {
         m_pluginView->didFinishLoading();
         m_pluginView = 0;
         m_hasSentResponseToPlugin = false;
-    } else {
-        // Telling the frame we received some data and passing 0 as the data is our
-        // way to get work done that is normally done when the first bit of data is
-        // received, even for the case of a document with no data (like about:blank).
-        committedLoad(loader, 0, 0);
     }
 }
 
@@ -458,7 +454,7 @@ bool FrameLoaderClientBlackBerry::canHandleRequest(const ResourceRequest&) const
 bool FrameLoaderClientBlackBerry::canShowMIMEType(const String& mimeTypeIn) const
 {
     // Get normalized type.
-    String mimeType = WebSettings::getNormalizedMIMEType(mimeTypeIn);
+    String mimeType = MIMETypeRegistry::getNormalizedMIMEType(mimeTypeIn);
 
     // FIXME: Seems no other port checks empty MIME type in this function. Should we do that?
     return MIMETypeRegistry::isSupportedImageMIMEType(mimeType) || MIMETypeRegistry::isSupportedNonImageMIMEType(mimeType)
@@ -709,23 +705,25 @@ void FrameLoaderClientBlackBerry::dispatchDidFailProvisionalLoad(const ResourceE
 
 void FrameLoaderClientBlackBerry::dispatchWillSubmitForm(FramePolicyFunction function, PassRefPtr<FormState> formState)
 {
+    if (!m_webPagePrivate->m_webSettings->isPrivateBrowsingEnabled()) {
+        m_webPagePrivate->m_autofillManager->saveTextFields(formState->form());
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
-    if (!m_webPagePrivate->m_webSettings->isPrivateBrowsingEnabled())
         credentialManager().saveCredentialIfConfirmed(m_webPagePrivate, CredentialTransformData(formState->form()));
 #endif
+    }
 
     // FIXME: Stub.
     (m_frame->loader()->policyChecker()->*function)(PolicyUse);
 }
 
-void FrameLoaderClientBlackBerry::dispatchWillSendSubmitEvent(HTMLFormElement* form)
+void FrameLoaderClientBlackBerry::dispatchWillSendSubmitEvent(PassRefPtr<FormState> prpFormState)
 {
+    if (!m_webPagePrivate->m_webSettings->isPrivateBrowsingEnabled()) {
+        m_webPagePrivate->m_autofillManager->saveTextFields(prpFormState->form());
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
-    if (!m_webPagePrivate->m_webSettings->isPrivateBrowsingEnabled())
-        credentialManager().saveCredentialIfConfirmed(m_webPagePrivate, CredentialTransformData(form));
-#else
-    notImplemented();
+    credentialManager().saveCredentialIfConfirmed(m_webPagePrivate, CredentialTransformData(prpFormState->form()));
 #endif
+    }
 }
 
 PassRefPtr<Frame> FrameLoaderClientBlackBerry::createFrame(const KURL& url, const String& name
@@ -775,7 +773,7 @@ ObjectContentType FrameLoaderClientBlackBerry::objectContentType(const KURL& url
         mimeType = MIMETypeRegistry::getMIMETypeForPath(url.path());
 
     // Get mapped type.
-    mimeType = WebSettings::getNormalizedMIMEType(mimeType);
+    mimeType = MIMETypeRegistry::getNormalizedMIMEType(mimeType);
 
     ObjectContentType defaultType = FrameLoader::defaultObjectContentType(url, mimeType, shouldPreferPlugInsForImages);
     if (defaultType != ObjectContentNone)
@@ -1113,8 +1111,6 @@ PolicyAction FrameLoaderClientBlackBerry::decidePolicyForExternalLoad(const Reso
 
 void FrameLoaderClientBlackBerry::willDeferLoading()
 {
-    m_deferredJobsTimer->stop();
-
     if (!isMainFrame())
         return;
 
@@ -1123,34 +1119,10 @@ void FrameLoaderClientBlackBerry::willDeferLoading()
 
 void FrameLoaderClientBlackBerry::didResumeLoading()
 {
-    if (!m_deferredManualScript.isNull())
-        m_deferredJobsTimer->startOneShot(0);
-
     if (!isMainFrame())
         return;
 
     m_webPagePrivate->didResumeLoading();
-}
-
-void FrameLoaderClientBlackBerry::setDeferredManualScript(const KURL& script)
-{
-    ASSERT(!m_deferredJobsTimer->isActive());
-    m_deferredManualScript = script;
-}
-
-void FrameLoaderClientBlackBerry::deferredJobsTimerFired(Timer<FrameLoaderClientBlackBerry>*)
-{
-    ASSERT(!m_frame->page()->defersLoading());
-
-    if (!m_deferredManualScript.isNull()) {
-        // Executing the script will set deferred loading, which could trigger this timer again if a script is set. So clear the script first.
-        KURL script = m_deferredManualScript;
-        m_deferredManualScript = KURL();
-
-        m_frame->script()->executeIfJavaScriptURL(script);
-    }
-
-    ASSERT(!m_frame->page()->defersLoading());
 }
 
 void FrameLoaderClientBlackBerry::readyToRender(bool pageIsVisuallyNonEmpty)
@@ -1167,10 +1139,9 @@ PassRefPtr<FrameNetworkingContext> FrameLoaderClientBlackBerry::createNetworking
     return FrameNetworkingContextBlackBerry::create(m_frame);
 }
 
-void FrameLoaderClientBlackBerry::startDownload(const ResourceRequest& request, const String& /*suggestedName*/)
+void FrameLoaderClientBlackBerry::startDownload(const ResourceRequest& request, const String& suggestedName)
 {
-    // FIXME: use the suggestedName?
-    m_webPagePrivate->load(request.url().string().utf8().data(), 0, "GET", NetworkRequest::UseProtocolCachePolicy, 0, 0, 0, 0, false, false, true, "");
+    m_webPagePrivate->load(request.url().string().utf8().data(), 0, "GET", NetworkRequest::UseProtocolCachePolicy, 0, 0, 0, 0, false, false, true, "", suggestedName.utf8().data());
 }
 
 void FrameLoaderClientBlackBerry::download(ResourceHandle* handle, const ResourceRequest&, const ResourceRequest&, const ResourceResponse& r)

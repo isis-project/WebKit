@@ -319,6 +319,9 @@ IntPoint ScrollView::minimumScrollPosition() const
 
 IntPoint ScrollView::adjustScrollPositionWithinRange(const IntPoint& scrollPoint) const
 {
+    if (!constrainsScrollingToContentEdge())
+        return scrollPoint;
+
     IntPoint newScrollPosition = scrollPoint.shrunkTo(maximumScrollPosition());
     newScrollPosition = newScrollPosition.expandedTo(minimumScrollPosition());
     return newScrollPosition;
@@ -326,6 +329,13 @@ IntPoint ScrollView::adjustScrollPositionWithinRange(const IntPoint& scrollPoint
 
 int ScrollView::scrollSize(ScrollbarOrientation orientation) const
 {
+    // If no scrollbars are present, it does not indicate content is not be scrollable.
+    if (!m_horizontalScrollbar && !m_verticalScrollbar && !prohibitsScrolling()) {
+        IntSize scrollSize = m_contentsSize - visibleContentRect().size();
+        scrollSize.clampNegativeToZero();
+        return orientation == HorizontalScrollbar ? scrollSize.width() : scrollSize.height();
+    }
+
     Scrollbar* scrollbar = ((orientation == HorizontalScrollbar) ? m_horizontalScrollbar : m_verticalScrollbar).get();
     return scrollbar ? (scrollbar->totalSize() - scrollbar->visibleSize()) : 0;
 }
@@ -361,6 +371,12 @@ void ScrollView::scrollTo(const IntSize& newOffset)
         return;
 
     repaintFixedElementsAfterScrolling();
+#if USE(TILED_BACKING_STORE)
+    if (delegatesScrolling()) {
+        hostWindow()->delegatedScrollRequested(IntPoint(newOffset));
+        return;
+    }
+#endif
     scrollContents(scrollDelta);
     updateFixedElementsAfterScrolling();
 }
@@ -443,7 +459,7 @@ static const unsigned cMaxUpdateScrollbarsPass = 2;
 
 void ScrollView::updateScrollbars(const IntSize& desiredOffset)
 {
-    if (m_inUpdateScrollbars || prohibitsScrolling() || delegatesScrolling() || platformWidget())
+    if (m_inUpdateScrollbars || prohibitsScrolling() || platformWidget())
         return;
 
     // If we came in here with the view already needing a layout, then go ahead and do that

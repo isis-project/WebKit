@@ -71,6 +71,9 @@ fast/frames/flattening/frameset-flattening-subframesets.html
 http/tests/inspector/extensions-headers.html
 http/tests/inspector/extensions-network-redirect.html
 
+# Inspector only supports evaluation in content script world with v8, see https://bugs.webkit.org/show_bug.cgi?id=85709
+inspector/extensions/extensions-eval-content-script.html 
+
 # A bunch of inspector tests time out on Lion Intel Debug WebKit2 testers.
 # https://bugs.webkit.org/show_bug.cgi?id=81601
 http/tests/inspector/console-cross-origin-iframe-logging.html
@@ -82,6 +85,12 @@ inspector/styles/styles-computed-trace.html
 
 # Needs rebaseline
 fast/js/constructor-length.html
+
+# Fail until SUBPIXEL_LAYOUT is enabled
+# https://bugs.webkit.org/show_bug.cgi?id=85532
+fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/layout-boxes-with-zoom.html
+fast/sub-pixel/size-of-box-with-zoom.html
 
 # CONSOLE MESSAGE: line 0: SVG animation pause API missing!
 # [WK2] SVG animation pause API missing
@@ -329,6 +338,7 @@ webarchive/adopt-inline-styled-node-webarchive.html
 webarchive/archive-empty-frame-dom.html
 webarchive/archive-with-unencoded-url.html
 webarchive/css-page-rule-crash.html
+webarchive/ignore-noscript-if-scripting-enabled.html
 webarchive/test-body-background.html
 webarchive/test-css-import.html
 webarchive/test-css-url-resources-in-stylesheets.html
@@ -383,6 +393,7 @@ fast/loader/file-protocol-fragment.html
 fast/loader/main-document-url-for-non-http-loads.html
 fast/loader/user-style-sheet-resource-load-callbacks.html
 http/tests/loading/307-after-303-after-post.html
+http/tests/loading/pdf-commit-load-callbacks.html
 http/tests/loading/redirect-methods.html
 http/tests/misc/favicon-loads-with-images-disabled.html
 http/tests/misc/favicon-loads-with-icon-loading-override.html
@@ -413,6 +424,7 @@ editing/spelling/spelling-backspace-between-lines.html
 editing/selection/5825350-1.html
 editing/selection/5825350-2.html
 editing/selection/move-left-right.html
+editing/style/text-indent.html
 fast/events/ime-composition-events-001.html
 fast/forms/cursor-at-editable-content-boundary.html
 fast/text/international/thai-cursor-position.html
@@ -660,6 +672,7 @@ editing/selection/move-by-word-visually-single-space-one-element.html
 editing/selection/move-by-word-visually-textarea.html
 editing/selection/move-by-word-visually-wrong-left-right.html
 editing/selection/move-by-word-visually-crash-test-css-generated-content.html
+editing/selection/move-by-word-visually-mac.html
 editing/selection/programmatic-selection-on-mac-is-directionless.html
 editing/selection/selection-extend-should-not-move-across-caret-on-mac.html
 editing/execCommand/query-command-state.html
@@ -711,6 +724,8 @@ http/tests/security/cookies/first-party-cookie-allow-xslt.xml
 http/tests/security/cookies/third-party-cookie-blocking-user-action.html
 http/tests/security/cookies/third-party-cookie-blocking.html
 http/tests/security/cookies/third-party-cookie-blocking-xslt.xml
+http/tests/xmlhttprequest/access-control-preflight-credential-sync.html
+http/tests/xmlhttprequest/access-control-preflight-credential-async.html
 
 # WebKitTestRunner needs to print history delegate information
 # <https://bugs.webkit.org/show_bug.cgi?id=42704>
@@ -842,6 +857,11 @@ fast/selectors/selection-window-inactive.html
 # WebKit2 needs an implementation of InspectorClient::overrideDeviceMetrics() and
 # autoZoomPageToFitWidth().
 inspector/styles/override-screen-size.html
+
+# The network stack unconditionally strips the header on transitions from
+# secure to insecure. It should take the referrer policy into account instead.
+# https://bugs.webkit.org/show_bug.cgi?id=86000
+http/tests/security/referrer-policy-redirect-link.html
 
 ### END OF (1) Classified failures with bug reports
 ########################################
@@ -1053,7 +1073,6 @@ fast/mutation/inline-event-listener.html
 # eventSender.keyDown is unimplemented
 # https://bugs.webkit.org/show_bug.cgi?id=57515
 fast/dom/shadow/access-key.html
-fast/dom/shadow/shadow-host-transfer-focus.html
 fast/dom/shadow/tab-order-iframe-and-shadow.html
 fast/events/onchange-setvalue.html
 fast/forms/focus-with-display-block.html
@@ -1074,11 +1093,13 @@ editing/selection/5354455-2.html
 # Qt: https://bugs.webkit.org/show_bug.cgi?id=69946
 fast/events/moving-text-should-fire-drop-and-dragend-events.html
 fast/events/moving-text-should-fire-drop-and-dragend-events-2.html
+editing/pasteboard/drag-drop-url-with-style.html
 
 # missing window.internals.createShadowContentElement
 fast/dom/shadow/create-content-element.html
 
 # ENABLE(SHADOW_DOM) is disabled.
+editing/shadow
 fast/dom/shadow/content-element-api.html
 fast/dom/shadow/content-element-outside-shadow.html
 fast/dom/shadow/content-element-outside-shadow-style.html
@@ -1262,6 +1283,14 @@ http/tests/navigation/new-window-redirect-history.html
 http/tests/navigation/post-basic.html
 http/tests/navigation/post-goback1.html
 
+# [WK2] http/tests/navigation/anchor-frames-cross-origin.html fails.
+# https://bugs.webkit.org/show_bug.cgi?id=83581
+http/tests/navigation/anchor-frames-cross-origin.html
+
+# [WK2] http/tests/navigation/anchor-frames-same-origin.html fails.
+# https://bugs.webkit.org/show_bug.cgi?id=84227
+http/tests/navigation/anchor-frames-same-origin.html
+
 # Unexplained plugin failures
 platform/mac/plugins/testplugin-onnew-onpaint.html
 plugins/no-mime-with-valid-extension.html
@@ -1383,6 +1412,8 @@ platform/mac/fast/objc/dom-html-select-live-pseudo-selectors.html
 platform/mac/fast/objc/longlongTest.html
 platform/mac/fast/objc/webScriptObject-hasWebScriptKey.html
 platform/mac/plugins/bindings-array-apply-crash.html
+platform/mac/plugins/bindings-objc-long-method-name.html
+platform/mac/plugins/bindings-objc-method-name-conversion.html
 platform/mac/plugins/bindings-test-objc.html
 platform/mac/plugins/call-as-function-test.html
 platform/mac/plugins/root-object-premature-delete-crash.html
@@ -1410,6 +1441,8 @@ editing/pasteboard/file-input-files-access.html
 fast/dom/Window/window-postmessage-clone-frames.html
 fast/events/drag-file-crash.html
 fast/events/drag-to-navigate.html
+fast/events/drop-handler-should-not-stop-navigate.html
+fast/events/drop-with-file-paths.html
 fast/events/dropzone-004.html
 fast/events/file-input-hidden-in-ondrop.html
 fast/events/input-element-display-none-in-dragleave-crash.html

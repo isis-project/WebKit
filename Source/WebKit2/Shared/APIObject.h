@@ -30,7 +30,7 @@
 
 namespace WebKit {
 
-class APIObject : public RefCounted<APIObject> {
+class APIObject : public ThreadSafeRefCounted<APIObject> {
 public:
     enum Type {
         // Base types
@@ -106,6 +106,7 @@ public:
         TypeBundle,
         TypeBundleBackForwardList,
         TypeBundleBackForwardListItem,
+        TypeBundleDOMWindowExtension,
         TypeBundleFrame,
         TypeBundleHitTestResult,
         TypeBundleInspector,
@@ -119,7 +120,10 @@ public:
 
         // Platform specific
         TypeEditCommandProxy,
-        TypeView
+        TypeView,
+#if USE(SOUP)
+        TypeSoupRequestManager,
+#endif
     };
 
     virtual ~APIObject()

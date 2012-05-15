@@ -102,7 +102,7 @@ function testValue(value, callback)
 {
     // One transaction per test, since some tests require asynchronous
     // operations to verify the result (e.g. via FileReader)
-    evalAndLog("transaction = db.transaction('storeName', IDBTransaction.READ_WRITE)");
+    evalAndLog("transaction = db.transaction('storeName', 'readwrite')");
     transaction.onerror = unexpectedErrorCallback;
     transaction.onabort = unexpectedAbortCallback;
     evalAndLog("store = transaction.objectStore('storeName')");
@@ -376,13 +376,9 @@ function testBlob(callback)
     callback();
     return;
 
-    evalAndLog("BlobBuilder = self.BlobBuilder || self.WebKitBlobBuilder");
-    shouldBeTrue("BlobBuilder != null");
     shouldBeTrue("FileReader != null");
-    evalAndLog("builder = new BlobBuilder()");
     evalAndLog("test_content = 'This is a test. This is only a test.'");
-    evalAndLog("builder.append(test_content)");
-    evalAndLog("test_data = builder.getBlob()");
+    evalAndLog("test_data = new Blob([test_content])");
     testValue(test_data, function(result) {
         self.result = result;
         shouldBeTrue("test_data !== result");
@@ -515,7 +511,7 @@ function testBadTypes()
     debug("Test types that can't be cloned:");
     debug("");
 
-    evalAndLog("transaction = db.transaction('storeName', IDBTransaction.READ_WRITE)");
+    evalAndLog("transaction = db.transaction('storeName', 'readwrite')");
     evalAndLog("store = transaction.objectStore('storeName')");
     transaction.onerror = unexpectedErrorCallback;
     transaction.oncomplete = unexpectedCompleteCallback;

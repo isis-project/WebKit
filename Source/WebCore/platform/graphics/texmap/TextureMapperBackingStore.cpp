@@ -26,16 +26,16 @@
 
 namespace WebCore {
 
-void TextureMapperTile::updateContents(TextureMapper* textureMapper, Image* image, const IntRect& dirtyRect, BitmapTexture::PixelFormat format)
+void TextureMapperTile::updateContents(TextureMapper* textureMapper, Image* image, const IntRect& dirtyRect)
 {
     IntRect targetRect = enclosingIntRect(m_rect);
     targetRect.intersect(dirtyRect);
     if (targetRect.isEmpty())
         return;
-    IntRect sourceRect = targetRect;
+    IntPoint sourceOffset = targetRect.location();
 
     // Normalize sourceRect to the buffer's coordinates.
-    sourceRect.move(-dirtyRect.x(), -dirtyRect.y());
+    sourceOffset.move(-dirtyRect.x(), -dirtyRect.y());
 
     // Normalize targetRect to the texture's coordinates.
     targetRect.move(-m_rect.x(), -m_rect.y());
@@ -44,7 +44,7 @@ void TextureMapperTile::updateContents(TextureMapper* textureMapper, Image* imag
         m_texture->reset(targetRect.size(), image->currentFrameHasAlpha() ? BitmapTexture::SupportsAlpha : 0);
     }
 
-    m_texture->updateContents(image, targetRect, sourceRect, format);
+    m_texture->updateContents(image, targetRect, sourceOffset);
 }
 
 void TextureMapperTile::paint(TextureMapper* textureMapper, const TransformationMatrix& transform, float opacity, BitmapTexture* mask)
@@ -52,12 +52,17 @@ void TextureMapperTile::paint(TextureMapper* textureMapper, const Transformation
     textureMapper->drawTexture(*texture().get(), rect(), transform, opacity, mask);
 }
 
+TextureMapperTiledBackingStore::TextureMapperTiledBackingStore()
+    : m_drawsDebugBorders(false)
+{
+}
+
 void TextureMapperTiledBackingStore::updateContentsFromImageIfNeeded(TextureMapper* textureMapper)
 {
     if (!m_image)
         return;
 
-    updateContents(textureMapper, m_image.get(), m_image->currentFrameHasAlpha() ? BitmapTexture::BGRAFormat : BitmapTexture::BGRFormat);
+    updateContents(textureMapper, m_image.get());
     m_image.clear();
 }
 
@@ -66,8 +71,11 @@ void TextureMapperTiledBackingStore::paintToTextureMapper(TextureMapper* texture
     updateContentsFromImageIfNeeded(textureMapper);
     TransformationMatrix adjustedTransform = transform;
     adjustedTransform.multiply(TransformationMatrix::rectToRect(rect(), targetRect));
-    for (size_t i = 0; i < m_tiles.size(); ++i)
+    for (size_t i = 0; i < m_tiles.size(); ++i) {
         m_tiles[i].paint(textureMapper, adjustedTransform, opacity, mask);
+        if (m_drawsDebugBorders)
+            textureMapper->drawBorder(m_debugBorderColor, m_debugBorderWidth, m_tiles[i].rect(), adjustedTransform);
+    }
 }
 
 void TextureMapperTiledBackingStore::createOrDestroyTilesIfNeeded(const FloatSize& size, const IntSize& tileSize, bool hasAlpha)
@@ -134,11 +142,11 @@ void TextureMapperTiledBackingStore::createOrDestroyTilesIfNeeded(const FloatSiz
         m_tiles.remove(tileIndicesToRemove[i]);
 }
 
-void TextureMapperTiledBackingStore::updateContents(TextureMapper* textureMapper, Image* image, const FloatSize& totalSize, const IntRect& dirtyRect, BitmapTexture::PixelFormat format)
+void TextureMapperTiledBackingStore::updateContents(TextureMapper* textureMapper, Image* image, const FloatSize& totalSize, const IntRect& dirtyRect)
 {
     createOrDestroyTilesIfNeeded(totalSize, textureMapper->maxTextureSize(), image->currentFrameHasAlpha());
     for (size_t i = 0; i < m_tiles.size(); ++i)
-        m_tiles[i].updateContents(textureMapper, image, dirtyRect, format);
+        m_tiles[i].updateContents(textureMapper, image, dirtyRect);
 }
 
 PassRefPtr<BitmapTexture> TextureMapperTiledBackingStore::texture() const
@@ -150,6 +158,12 @@ PassRefPtr<BitmapTexture> TextureMapperTiledBackingStore::texture() const
     }
 
     return PassRefPtr<BitmapTexture>();
+}
+
+void TextureMapperTiledBackingStore::setDebugBorder(const Color& color, float width)
+{
+    m_debugBorderColor = color;
+    m_debugBorderWidth = width;
 }
 
 }

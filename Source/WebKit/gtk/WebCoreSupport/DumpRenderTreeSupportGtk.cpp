@@ -56,6 +56,7 @@
 #include "RenderListItem.h"
 #include "RenderTreeAsText.h"
 #include "RenderView.h"
+#include "SchemeRegistry.h"
 #include "SecurityOrigin.h"
 #include "SecurityPolicy.h"
 #include "Settings.h"
@@ -270,24 +271,6 @@ CString DumpRenderTreeSupportGtk::pageProperty(WebKitWebFrame* frame, const char
 }
 
 /**
- * isPageBoxVisible
- * @frame: a #WebKitWebFrame
- * @pageNumber: number of a page 
- *
- * Return value: TRUE if a page box is visible. 
- */
-bool DumpRenderTreeSupportGtk::isPageBoxVisible(WebKitWebFrame* frame, int pageNumber)
-{
-    g_return_val_if_fail(WEBKIT_IS_WEB_FRAME(frame), false);
-
-    Frame* coreFrame = core(frame);
-    if (!coreFrame)
-        return false;
-
-    return coreFrame->document()->isPageBoxVisible(pageNumber); 
-}
-
-/**
  * pageSizeAndMarginsInPixels
  * @frame: a #WebKitWebFrame
  * @pageNumber: number of a page 
@@ -378,24 +361,6 @@ unsigned int DumpRenderTreeSupportGtk::numberOfActiveAnimations(WebKitWebFrame* 
         return 0;
 
     return coreFrame->animation()->numberOfActiveAnimations(coreFrame->document());
-}
-
-void DumpRenderTreeSupportGtk::suspendAnimations(WebKitWebFrame* frame)
-{
-    Frame* coreFrame = core(frame);
-    if (!coreFrame)
-        return;
-
-    return coreFrame->animation()->suspendAnimations();
-}
-
-void DumpRenderTreeSupportGtk::resumeAnimations(WebKitWebFrame* frame)
-{
-    Frame* coreFrame = core(frame);
-    if (!coreFrame)
-        return;
-
-    return coreFrame->animation()->resumeAnimations();
 }
 
 void DumpRenderTreeSupportGtk::clearMainFrameName(WebKitWebFrame* frame)
@@ -608,6 +573,11 @@ bool DumpRenderTreeSupportGtk::selectedRange(WebKitWebView* webView, int* start,
     return true;
 }
 
+void DumpRenderTreeSupportGtk::setDefersLoading(WebKitWebView* webView, bool defers)
+{
+    core(webView)->setDefersLoading(defers);
+}
+
 void DumpRenderTreeSupportGtk::setSmartInsertDeleteEnabled(WebKitWebView* webView, bool enabled)
 {
     g_return_if_fail(WEBKIT_IS_WEB_VIEW(webView));
@@ -620,6 +590,11 @@ void DumpRenderTreeSupportGtk::setSmartInsertDeleteEnabled(WebKitWebView* webVie
 void DumpRenderTreeSupportGtk::whiteListAccessFromOrigin(const gchar* sourceOrigin, const gchar* destinationProtocol, const gchar* destinationHost, bool allowDestinationSubdomains)
 {
     SecurityPolicy::addOriginAccessWhitelistEntry(*SecurityOrigin::createFromString(sourceOrigin), destinationProtocol, destinationHost, allowDestinationSubdomains);
+}
+
+void DumpRenderTreeSupportGtk::removeWhiteListAccessFromOrigin(const char* sourceOrigin, const char* destinationProtocol, const char* destinationHost, bool allowDestinationSubdomains)
+{
+    SecurityPolicy::removeOriginAccessWhitelistEntry(*SecurityOrigin::createFromString(sourceOrigin), destinationProtocol, destinationHost, allowDestinationSubdomains);
 }
 
 void DumpRenderTreeSupportGtk::resetOriginAccessWhiteLists()
@@ -665,7 +640,7 @@ void DumpRenderTreeSupportGtk::dumpConfigurationForViewport(WebKitWebView* webVi
     ViewportAttributes attrs = computeViewportAttributes(arguments, /* default layout width for non-mobile pages */ 980, deviceWidth, deviceHeight, deviceDPI, IntSize(availableWidth, availableHeight));
     restrictMinimumScaleFactorToViewportSize(attrs, IntSize(availableWidth, availableHeight));
     restrictScaleFactorToInitialScaleIfNotUserScalable(attrs);
-    fprintf(stdout, "viewport size %dx%d scale %f with limits [%f, %f] and userScalable %f\n", attrs.layoutSize.width(), attrs.layoutSize.height(), attrs.initialScale, attrs.minimumScale, attrs.maximumScale, attrs.userScalable);
+    fprintf(stdout, "viewport size %dx%d scale %f with limits [%f, %f] and userScalable %f\n", static_cast<int>(attrs.layoutSize.width()), static_cast<int>(attrs.layoutSize.height()), attrs.initialScale, attrs.minimumScale, attrs.maximumScale, attrs.userScalable);
 }
 
 void DumpRenderTreeSupportGtk::clearOpener(WebKitWebFrame* frame)
@@ -904,4 +879,9 @@ void DumpRenderTreeSupportGtk::deliverAllMutationsIfNecessary()
 #if ENABLE(MUTATION_OBSERVERS)
     WebKitMutationObserver::deliverAllMutations();
 #endif
+}
+
+void DumpRenderTreeSupportGtk::setDomainRelaxationForbiddenForURLScheme(bool forbidden, const char* urlScheme)
+{
+    SchemeRegistry::setDomainRelaxationForbiddenForURLScheme(forbidden, String::fromUTF8(urlScheme));
 }

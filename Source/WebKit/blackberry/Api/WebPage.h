@@ -38,6 +38,7 @@ namespace WebCore {
 class ChromeClientBlackBerry;
 class Frame;
 class FrameLoaderClientBlackBerry;
+class PagePopupBlackBerry;
 }
 
 class WebDOMDocument;
@@ -66,6 +67,7 @@ class WebPageCompositor;
 class WebPageGroupLoadDeferrer;
 class WebPagePrivate;
 class WebSettings;
+class WebViewportArguments;
 
 enum JavaScriptDataType { JSUndefined = 0, JSNull, JSBoolean, JSNumber, JSString, JSObject, JSException, JSDataTypeMax };
 
@@ -174,6 +176,7 @@ public:
     bool pinchZoomAboutPoint(double scale, int x, int y);
 
     bool isUserScalable() const;
+    void setUserScalable(bool);
     double currentScale() const;
     double initialScale() const;
     double zoomToFitScale() const;
@@ -193,6 +196,7 @@ public:
     void clearCache();
     void clearLocalStorage();
     void clearCredentials();
+    void clearAutofillData();
     void clearNeverRememberSites();
 
     void runLayoutTests();
@@ -249,7 +253,7 @@ public:
     void selectionCancelled();
     bool selectionContains(const Platform::IntPoint&);
 
-    void popupListClosed(int size, bool* selecteds);
+    void popupListClosed(int size, const bool* selecteds);
     void popupListClosed(int index);
     void setDateTimeInput(const WebString& value);
     void setColorInput(const WebString& value);
@@ -307,6 +311,7 @@ public:
     void enablePasswordEcho();
     void disablePasswordEcho();
     void dispatchInspectorMessage(const std::string& message);
+    void inspectCurrentContextElement();
 
     // FIXME: Needs API review on this header. See PR #120402.
     void notifyPagePause();
@@ -327,8 +332,19 @@ public:
 
     void destroyWebPageCompositor();
 
+    void setUserViewportArguments(const WebViewportArguments&);
+    void resetUserViewportArguments();
+
+    // Popup client
+    void initPopupWebView(BlackBerry::WebKit::WebPage*);
+    void popupOpened(WebCore::PagePopupBlackBerry* webPopup);
+    void popupClosed();
+    bool hasOpenedPopup() const;
+    WebCore::PagePopupBlackBerry* popup();
+
+    void autofillTextField(const std::string&);
 private:
-    ~WebPage();
+    virtual ~WebPage();
 
     friend class WebKit::BackingStore;
     friend class WebKit::BackingStoreClient;
@@ -339,6 +355,7 @@ private:
     friend class WebKit::WebPagePrivate;
     friend class WebCore::ChromeClientBlackBerry;
     friend class WebCore::FrameLoaderClientBlackBerry;
+    friend class WebCore::PagePopupBlackBerry;
     WebPagePrivate* d;
 };
 }

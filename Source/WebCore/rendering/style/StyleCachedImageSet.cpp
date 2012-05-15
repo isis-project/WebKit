@@ -34,10 +34,10 @@
 
 namespace WebCore {
 
-StyleCachedImageSet::StyleCachedImageSet(CachedImage* image, float imageScaleFactor, PassRefPtr<CSSImageSetValue> value)
+StyleCachedImageSet::StyleCachedImageSet(CachedImage* image, float imageScaleFactor, CSSImageSetValue* value)
     : m_bestFitImage(image)
     , m_imageScaleFactor(imageScaleFactor)
-    , m_imageSetValue(value)  
+    , m_imageSetValue(value)
 {
     m_isCachedImageSet = true;
     m_bestFitImage->addClient(this);
@@ -88,7 +88,7 @@ bool StyleCachedImageSet::imageHasRelativeHeight() const
 
 void StyleCachedImageSet::computeIntrinsicDimensions(const RenderObject*, Length& intrinsicWidth, Length& intrinsicHeight, FloatSize& intrinsicRatio)
 {
-    m_bestFitImage->computeIntrinsicDimensions(intrinsicWidth, intrinsicHeight, intrinsicRatio, m_imageScaleFactor);
+    m_bestFitImage->computeIntrinsicDimensions(intrinsicWidth, intrinsicHeight, intrinsicRatio);
 }
 
 bool StyleCachedImageSet::usesImageContainerSize() const

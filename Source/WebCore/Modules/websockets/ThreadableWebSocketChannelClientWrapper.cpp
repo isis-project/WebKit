@@ -45,6 +45,7 @@ ThreadableWebSocketChannelClientWrapper::ThreadableWebSocketChannelClientWrapper
     : m_context(context)
     , m_client(client)
     , m_peer(0)
+    , m_failedWebSocketChannelCreation(false)
     , m_syncMethodDone(true)
     , m_useHixie76Protocol(true)
     , m_sendRequestResult(ThreadableWebSocketChannel::SendFail)
@@ -90,6 +91,16 @@ void ThreadableWebSocketChannelClientWrapper::clearPeer()
     m_peer = 0;
 }
 
+bool ThreadableWebSocketChannelClientWrapper::failedWebSocketChannelCreation() const
+{
+    return m_failedWebSocketChannelCreation;
+}
+
+void ThreadableWebSocketChannelClientWrapper::setFailedWebSocketChannelCreation()
+{
+    m_failedWebSocketChannelCreation = true;
+}
+
 bool ThreadableWebSocketChannelClientWrapper::useHixie76Protocol() const
 {
     return m_useHixie76Protocol;
@@ -98,7 +109,7 @@ bool ThreadableWebSocketChannelClientWrapper::useHixie76Protocol() const
 String ThreadableWebSocketChannelClientWrapper::subprotocol() const
 {
     if (m_subprotocol.isEmpty())
-        return String("");
+        return emptyString();
     return String(m_subprotocol);
 }
 
@@ -113,7 +124,7 @@ void ThreadableWebSocketChannelClientWrapper::setSubprotocol(const String& subpr
 String ThreadableWebSocketChannelClientWrapper::extensions() const
 {
     if (m_extensions.isEmpty())
-        return String("");
+        return emptyString();
     return String(m_extensions);
 }
 

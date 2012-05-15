@@ -49,21 +49,25 @@ public:
     Length(LengthType t)
         : m_intValue(0), m_quirk(false), m_type(t), m_isFloat(false)
     {
+        ASSERT(t != Calculated);
     }
 
     Length(int v, LengthType t, bool q = false)
         : m_intValue(v), m_quirk(q), m_type(t), m_isFloat(false)
     {
+        ASSERT(t != Calculated);
     }
     
     Length(FractionalLayoutUnit v, LengthType t, bool q = false)
         : m_floatValue(v.toFloat()), m_quirk(q), m_type(t), m_isFloat(true)
     {
+        ASSERT(t != Calculated);
     }
     
     Length(float v, LengthType t, bool q = false)
-    : m_floatValue(v), m_quirk(q), m_type(t), m_isFloat(true)
+        : m_floatValue(v), m_quirk(q), m_type(t), m_isFloat(true)
     {
+        ASSERT(t != Calculated);
     }
 
     Length(double v, LengthType t, bool q = false)
@@ -91,7 +95,7 @@ public:
             decrementCalculatedRef();
     }  
     
-    bool operator==(const Length& o) const { return (m_type == o.m_type) && (m_quirk == o.m_quirk) && (isUndefined() || (getFloatValue() == o.getFloatValue())); }
+    bool operator==(const Length& o) const { return (m_type == o.m_type) && (m_quirk == o.m_quirk) && (isUndefined() || (getFloatValue() == o.getFloatValue()) || isCalculatedEqual(o)); }
     bool operator!=(const Length& o) const { return !(*this == o); }
 
     const Length& operator*=(float v)
@@ -109,20 +113,18 @@ public:
         return *this;
     }
     
-    int value() const
+    inline float value() const
     {
+        return getFloatValue();
+    }
+
+     int intValue() const
+     {
         if (isCalculated()) {
             ASSERT_NOT_REACHED();
             return 0;
         }
         return getIntValue();
-    }
-
-    // FIXME: When we switch to sub-pixel layout, value will return float by default, and this will inherit
-    // the current implementation of value().
-    int intValue() const
-    {
-        return value();
     }
 
     float percent() const
@@ -212,8 +214,9 @@ public:
     bool isPercent() const { return type() == Percent || type() == Calculated; }
     bool isFixed() const { return type() == Fixed; }
     bool isIntrinsicOrAuto() const { return type() == Auto || type() == MinIntrinsic || type() == Intrinsic; }
-    bool isSpecified() const { return type() == Fixed || type() == Percent || type() == Calculated; }
+    bool isSpecified() const { return type() == Fixed || type() == Percent || type() == Calculated || isViewportPercentage(); }
     bool isCalculated() const { return type() == Calculated; }
+    bool isCalculatedEqual(const Length&) const;
 
     Length blend(const Length& from, double progress) const
     {
@@ -222,6 +225,10 @@ public:
             return *this;
 
         if (from.isZero() && isZero())
+            return *this;
+
+        // FIXME http://webkit.org/b/86160 - Blending doesn't work with calculated expressions
+        if (type() == Calculated)
             return *this;
         
         LengthType resultType = type();

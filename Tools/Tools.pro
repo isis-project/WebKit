@@ -42,6 +42,7 @@ OTHER_FILES = \
     qmake/config.tests/gccdepends/* \
     qmake/mkspecs/modules/* \
     qmake/mkspecs/features/*.prf \
+    qmake/mkspecs/features/*.pri \
     qmake/mkspecs/features/mac/*.prf \
     qmake/mkspecs/features/unix/*.prf \
     qmake/mkspecs/features/win32/*.prf

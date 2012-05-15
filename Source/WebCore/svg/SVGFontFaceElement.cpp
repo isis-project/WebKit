@@ -29,7 +29,6 @@
 #include "CSSParser.h"
 #include "CSSProperty.h"
 #include "CSSPropertyNames.h"
-#include "CSSStyleSelector.h"
 #include "CSSStyleSheet.h"
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
@@ -40,6 +39,7 @@
 #include "SVGFontFaceSrcElement.h"
 #include "SVGGlyphElement.h"
 #include "SVGNames.h"
+#include "StyleResolver.h"
 #include "StyleRule.h"
 #include <math.h>
 
@@ -312,26 +312,30 @@ void SVGFontFaceElement::rebuildFontFace()
         }
     }
 
-    document()->styleSelectorChanged(DeferRecalcStyle);
+    document()->styleResolverChanged(DeferRecalcStyle);
 }
 
-void SVGFontFaceElement::insertedIntoDocument()
+Node::InsertionNotificationRequest SVGFontFaceElement::insertedInto(Node* rootParent)
 {
-    SVGElement::insertedIntoDocument();
-
+    SVGElement::insertedInto(rootParent);
+    if (!rootParent->inDocument())
+        return InsertionDone;
     document()->accessSVGExtensions()->registerSVGFontFaceElement(this);
 
     rebuildFontFace();
+    return InsertionDone;
 }
 
-void SVGFontFaceElement::removedFromDocument()
+void SVGFontFaceElement::removedFrom(Node* rootParent)
 {
-    SVGElement::removedFromDocument();
+    SVGElement::removedFrom(rootParent);
 
-    document()->accessSVGExtensions()->unregisterSVGFontFaceElement(this);
-    m_fontFaceRule->properties()->parseDeclaration(emptyString(), 0);
+    if (rootParent->inDocument()) {
+        document()->accessSVGExtensions()->unregisterSVGFontFaceElement(this);
+        m_fontFaceRule->properties()->parseDeclaration(emptyString(), 0);
 
-    document()->styleSelectorChanged(DeferRecalcStyle);
+        document()->styleResolverChanged(DeferRecalcStyle);
+    }
 }
 
 void SVGFontFaceElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)

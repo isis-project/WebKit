@@ -21,6 +21,8 @@ function test()
             for (var i = 0, l = sourceStringified.length; i < l; i += partSize)
                 loader.pushJSONChunk(sourceStringified.slice(i, i + partSize));
             var result = loader.finishLoading();
+            result._nodes = new Uint32Array(result._nodes);
+            result._containmentEdges = new Uint32Array(result._containmentEdges);
             InspectorTest.assertSnapshotEquals(new WebInspector.HeapSnapshot(InspectorTest.createHeapSnapshotMock()), result);
             next();
         }

@@ -44,6 +44,12 @@ CCScheduler::~CCScheduler()
     m_frameRateController->setActive(false);
 }
 
+void CCScheduler::setCanBeginFrame(bool can)
+{
+    m_stateMachine.setCanBeginFrame(can);
+    processScheduledActions();
+}
+
 void CCScheduler::setVisible(bool visible)
 {
     m_stateMachine.setVisible(visible);
@@ -71,6 +77,12 @@ void CCScheduler::setNeedsRedraw()
 void CCScheduler::setNeedsForcedRedraw()
 {
     m_stateMachine.setNeedsForcedRedraw();
+    processScheduledActions();
+}
+
+void CCScheduler::setMainThreadNeedsLayerTextures()
+{
+    m_stateMachine.setMainThreadNeedsLayerTextures();
     processScheduledActions();
 }
 
@@ -176,6 +188,9 @@ void CCScheduler::processScheduledActions()
             break;
         } case CCSchedulerStateMachine::ACTION_BEGIN_CONTEXT_RECREATION:
             m_client->scheduledActionBeginContextRecreation();
+            break;
+        case CCSchedulerStateMachine::ACTION_ACQUIRE_LAYER_TEXTURES_FOR_MAIN_THREAD:
+            m_client->scheduledActionAcquireLayerTexturesForMainThread();
             break;
         }
     } while (action != CCSchedulerStateMachine::ACTION_NONE);

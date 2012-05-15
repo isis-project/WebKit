@@ -81,7 +81,7 @@ public:
     {
     }
 
-    virtual bool drawsContent() const { return true; }
+    virtual bool drawsContent() const OVERRIDE { return true; }
 };
 
 TEST(CCLayerTreeHostCommonTest, verifyTransformsForNoOpLayer)
@@ -529,7 +529,7 @@ TEST(CCLayerTreeHostCommonTest, verifyRenderSurfaceListForClipLayer)
     RefPtr<LayerChromium> parent = LayerChromium::create();
     RefPtr<LayerChromium> renderSurface1 = LayerChromium::create();
     RefPtr<LayerChromiumWithForcedDrawsContent> child = adoptRef(new LayerChromiumWithForcedDrawsContent());
-    renderSurface1->setOpacity(0.9);
+    renderSurface1->setOpacity(0.9f);
 
     const TransformationMatrix identityMatrix;
     setLayerPropertiesForTesting(renderSurface1.get(), identityMatrix, identityMatrix, FloatPoint::zero(), FloatPoint::zero(), IntSize(10, 10), false);
@@ -622,9 +622,9 @@ TEST(CCLayerTreeHostCommonTest, verifyClipRectCullsRenderSurfaces)
     setLayerPropertiesForTesting(leafNode2.get(), identityMatrix, identityMatrix, FloatPoint(0, 0), FloatPoint(0, 0), IntSize(20, 20), false);
 
     child->setMasksToBounds(true);
-    child->setOpacity(0.4);
-    grandChild->setOpacity(0.5);
-    greatGrandChild->setOpacity(0.4);
+    child->setOpacity(0.4f);
+    grandChild->setOpacity(0.5f);
+    greatGrandChild->setOpacity(0.4f);
 
     Vector<RefPtr<LayerChromium> > renderSurfaceLayerList;
     Vector<RefPtr<LayerChromium> > dummyLayerList;
@@ -671,9 +671,9 @@ TEST(CCLayerTreeHostCommonTest, verifyClipRectCullsRenderSurfacesCrashRepro)
     setLayerPropertiesForTesting(leafNode2.get(), identityMatrix, identityMatrix, FloatPoint(0, 0), FloatPoint(0, 0), IntSize(20, 20), false);
 
     child->setMasksToBounds(true);
-    child->setOpacity(0.4);
-    grandChild->setOpacity(0.5);
-    greatGrandChild->setOpacity(0.4);
+    child->setOpacity(0.4f);
+    grandChild->setOpacity(0.5f);
+    greatGrandChild->setOpacity(0.4f);
 
     // Contaminate the grandChild and greatGrandChild's clipRect to reproduce the crash
     // bug found in http://code.google.com/p/chromium/issues/detail?id=106734. In this
@@ -737,11 +737,11 @@ TEST(CCLayerTreeHostCommonTest, verifyClipRectIsPropagatedCorrectlyToLayers)
     grandChild4->setMasksToBounds(true);
 
     // Force everyone to be a render surface.
-    child->setOpacity(0.4);
-    grandChild1->setOpacity(0.5);
-    grandChild2->setOpacity(0.5);
-    grandChild3->setOpacity(0.5);
-    grandChild4->setOpacity(0.5);
+    child->setOpacity(0.4f);
+    grandChild1->setOpacity(0.5f);
+    grandChild2->setOpacity(0.5f);
+    grandChild3->setOpacity(0.5f);
+    grandChild4->setOpacity(0.5f);
 
     Vector<RefPtr<LayerChromium> > renderSurfaceLayerList;
     Vector<RefPtr<LayerChromium> > dummyLayerList;
@@ -809,11 +809,11 @@ TEST(CCLayerTreeHostCommonTest, verifyClipRectIsPropagatedCorrectlyToSurfaces)
     grandChild4->setMasksToBounds(true);
 
     // Force everyone to be a render surface.
-    child->setOpacity(0.4);
-    grandChild1->setOpacity(0.5);
-    grandChild2->setOpacity(0.5);
-    grandChild3->setOpacity(0.5);
-    grandChild4->setOpacity(0.5);
+    child->setOpacity(0.4f);
+    grandChild1->setOpacity(0.5f);
+    grandChild2->setOpacity(0.5f);
+    grandChild3->setOpacity(0.5f);
+    grandChild4->setOpacity(0.5f);
 
     Vector<RefPtr<LayerChromium> > renderSurfaceLayerList;
     Vector<RefPtr<LayerChromium> > dummyLayerList;
@@ -1172,7 +1172,7 @@ TEST(CCLayerTreeHostCommonTest, verifyVisibleRectFor3dOrthographicIsNotClippedBe
     EXPECT_INT_RECT_EQ(expected, actual);
 }
 
-TEST(CCLayerTreeHostCommonTest, verifyVisibleRectFor3dPerspectiveIsClipped)
+TEST(CCLayerTreeHostCommonTest, verifyVisibleRectFor3dPerspectiveWhenClippedByW)
 {
     // Test the calculateVisibleRect() function works correctly when projecting a surface
     // onto a layer, but the layer is partially behind the camera (not just behind the
@@ -1190,7 +1190,7 @@ TEST(CCLayerTreeHostCommonTest, verifyVisibleRectFor3dPerspectiveIsClipped)
     // center of the layer.
     layerToSurfaceTransform.makeIdentity();
     layerToSurfaceTransform.applyPerspective(1);
-    layerToSurfaceTransform.translate3d(0, 0, 1);
+    layerToSurfaceTransform.translate3d(-1, 0, 1);
     layerToSurfaceTransform.rotate3d(0, 45, 0);
 
     // Sanity check that this transform does indeed cause w < 0 when applying the
@@ -1199,7 +1199,7 @@ TEST(CCLayerTreeHostCommonTest, verifyVisibleRectFor3dPerspectiveIsClipped)
     CCMathUtil::mapQuad(layerToSurfaceTransform, FloatQuad(FloatRect(layerContentRect)), clipped);
     ASSERT_TRUE(clipped);
 
-    int expectedXPosition = -10;
+    int expectedXPosition = 0;
     int expectedWidth = 10;
     IntRect actual = CCLayerTreeHostCommon::calculateVisibleRect(targetSurfaceRect, layerContentRect, layerToSurfaceTransform);
     EXPECT_EQ(expectedXPosition, actual.x());

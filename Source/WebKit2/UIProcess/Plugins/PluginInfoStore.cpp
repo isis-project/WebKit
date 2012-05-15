@@ -113,15 +113,21 @@ void PluginInfoStore::loadPlugin(Vector<PluginModuleInfo>& plugins, const String
 
 Vector<PluginModuleInfo> PluginInfoStore::plugins()
 {
+    MutexLocker locker(m_pluginsLock);
     loadPluginsIfNecessary();
 
-    Vector<PluginModuleInfo> plugins(m_plugins);
+    // Let the copy begin!
+    Vector<PluginModuleInfo> infos;
+    for (unsigned i = 0; i < m_plugins.size(); ++i)
+        infos.append(m_plugins[i].isolatedCopy());
 
-    return plugins;
+    return infos;
 }
 
 PluginModuleInfo PluginInfoStore::findPluginForMIMEType(const String& mimeType) const
 {
+    MutexLocker locker(m_pluginsLock);
+
     ASSERT(!mimeType.isNull());
     
     for (size_t i = 0; i < m_plugins.size(); ++i) {
@@ -139,6 +145,8 @@ PluginModuleInfo PluginInfoStore::findPluginForMIMEType(const String& mimeType) 
 
 PluginModuleInfo PluginInfoStore::findPluginForExtension(const String& extension, String& mimeType) const
 {
+    MutexLocker locker(m_pluginsLock);
+
     ASSERT(!extension.isNull());
     
     for (size_t i = 0; i < m_plugins.size(); ++i) {
@@ -164,7 +172,7 @@ static inline String pathExtension(const KURL& url)
 {
     String extension;
     String filename = url.lastPathComponent();
-    if (!filename.endsWith("/")) {
+    if (!filename.endsWith('/')) {
         int extensionPos = filename.reverseFind('.');
         if (extensionPos != -1)
             extension = filename.substring(extensionPos + 1);
@@ -174,6 +182,11 @@ static inline String pathExtension(const KURL& url)
 }
 
 #if !PLATFORM(MAC)
+bool PluginInfoStore::shouldBlockPlugin(const PluginModuleInfo&) const
+{
+    return false;
+}
+
 String PluginInfoStore::getMIMETypeForExtension(const String& extension)
 {
     return MIMETypeRegistry::getMIMETypeForExtension(extension);
@@ -182,7 +195,10 @@ String PluginInfoStore::getMIMETypeForExtension(const String& extension)
 
 PluginModuleInfo PluginInfoStore::findPlugin(String& mimeType, const KURL& url)
 {
-    loadPluginsIfNecessary();
+    {
+        MutexLocker locker(m_pluginsLock);
+        loadPluginsIfNecessary();
+    }
     
     // First, check if we can get the plug-in based on its MIME type.
     if (!mimeType.isNull()) {
@@ -214,6 +230,8 @@ PluginModuleInfo PluginInfoStore::findPlugin(String& mimeType, const KURL& url)
 
 PluginModuleInfo PluginInfoStore::infoForPluginWithPath(const String& pluginPath) const
 {
+    MutexLocker locker(m_pluginsLock);
+
     for (size_t i = 0; i < m_plugins.size(); ++i) {
         if (m_plugins[i].path == pluginPath)
             return m_plugins[i];

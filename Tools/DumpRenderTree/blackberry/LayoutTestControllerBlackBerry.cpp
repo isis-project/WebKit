@@ -502,6 +502,14 @@ void LayoutTestController::evaluateInWebInspector(long callId, JSStringRef scrip
     notImplemented();
 }
 
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
+{
+    UNUSED_PARAM(worldID);
+    UNUSED_PARAM(globalObject);
+    UNUSED_PARAM(script);
+    notImplemented();
+}
+
 void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
 {
     UNUSED_PARAM(worldID);
@@ -539,12 +547,6 @@ int LayoutTestController::numberOfPages(float, float)
 {
     notImplemented();
     return -1;
-}
-
-bool LayoutTestController::isPageBoxVisible(int) const
-{
-    notImplemented();
-    return false;
 }
 
 void LayoutTestController::setScrollbarPolicy(JSStringRef, JSStringRef)
@@ -701,18 +703,6 @@ void LayoutTestController::setGeolocationPermission(bool allow)
 void LayoutTestController::setViewModeMediaFeature(const JSStringRef mode)
 {
     notImplemented();
-}
-
-void LayoutTestController::suspendAnimations() const
-{
-    if (mainFrame && mainFrame->animation())
-        mainFrame->animation()->suspendAnimations();
-}
-
-void LayoutTestController::resumeAnimations() const
-{
-    if (mainFrame && mainFrame->animation())
-        mainFrame->animation()->resumeAnimations();
 }
 
 void LayoutTestController::setSerializeHTTPLoads(bool)
@@ -889,3 +879,12 @@ void LayoutTestController::simulateDesktopNotificationClick(JSStringRef title)
 {
 }
 
+void LayoutTestController::resetPageVisibility()
+{
+    notImplemented();
+}
+
+void LayoutTestController::setPageVisibility(const char*)
+{
+    notImplemented();
+}

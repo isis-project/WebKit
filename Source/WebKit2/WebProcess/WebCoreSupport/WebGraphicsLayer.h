@@ -47,8 +47,8 @@ namespace WebKit {
 class WebGraphicsLayerClient {
 public:
     // TiledBackingStoreRemoteTileClient
-    virtual void createTile(WebLayerID, int tileID, const UpdateInfo&) = 0;
-    virtual void updateTile(WebLayerID, int tileID, const UpdateInfo&) = 0;
+    virtual void createTile(WebLayerID, int tileID, const SurfaceUpdateInfo&, const WebCore::IntRect&) = 0;
+    virtual void updateTile(WebLayerID, int tileID, const SurfaceUpdateInfo&, const WebCore::IntRect&) = 0;
     virtual void removeTile(WebLayerID, int tileID) = 0;
 
     virtual WebCore::IntRect visibleContentsRect() const = 0;
@@ -57,8 +57,13 @@ public:
     virtual void releaseImageBackingStore(int64_t) = 0;
     virtual void syncLayerState(WebLayerID, const WebLayerInfo&) = 0;
     virtual void syncLayerChildren(WebLayerID, const Vector<WebLayerID>&) = 0;
+#if ENABLE(CSS_FILTERS)
+    virtual void syncLayerFilters(WebLayerID, const WebCore::FilterOperations&) = 0;
+#endif
     virtual void attachLayer(WebCore::WebGraphicsLayer*) = 0;
     virtual void detachLayer(WebCore::WebGraphicsLayer*) = 0;
+    virtual void syncFixedLayers() = 0;
+    virtual PassOwnPtr<WebCore::GraphicsContext> beginContentUpdate(const WebCore::IntSize&, ShareableBitmap::Flags, ShareableSurface::Handle&, WebCore::IntPoint&) = 0;
 };
 }
 
@@ -102,6 +107,9 @@ public:
     void setVisibleContentRectTrajectoryVector(const FloatPoint&);
     virtual void syncCompositingState(const FloatRect&);
     virtual void syncCompositingStateForThisLayerOnly();
+#if ENABLE(CSS_FILTERS)
+    bool setFilters(const FilterOperations&);
+#endif
 
     void setRootLayer(bool);
 
@@ -109,6 +117,9 @@ public:
     static WebGraphicsLayer* layerByID(WebKit::WebLayerID);
     void didSynchronize();
     Image* image() { return m_image.get(); }
+
+    bool fixedToViewport() const { return m_fixedToViewport; }
+    void setFixedToViewport(bool isFixed) { m_fixedToViewport = isFixed; }
 
     GraphicsLayer* maskTarget() const { return m_maskTarget; }
     void setMaskTarget(GraphicsLayer* layer) { m_maskTarget = layer; }
@@ -125,13 +136,17 @@ public:
     virtual Color tiledBackingStoreBackgroundColor() const;
 
     // TiledBackingStoreRemoteTileClient
-    virtual void createTile(int tileID, const WebKit::UpdateInfo&);
-    virtual void updateTile(int tileID, const WebKit::UpdateInfo&);
+    virtual void createTile(int tileID, const WebKit::SurfaceUpdateInfo&, const WebCore::IntRect&);
+    virtual void updateTile(int tileID, const WebKit::SurfaceUpdateInfo&, const WebCore::IntRect&);
     virtual void removeTile(int tileID);
+    virtual PassOwnPtr<WebCore::GraphicsContext> beginContentUpdate(const WebCore::IntSize&, WebKit::ShareableSurface::Handle&, WebCore::IntPoint&);
 
     void setWebGraphicsLayerClient(WebKit::WebGraphicsLayerClient*);
     void syncChildren();
     void syncLayerState();
+#if ENABLE(CSS_FILTERS)
+    void syncFilters();
+#endif
     void ensureImageBackingStore();
 
     void adjustVisibleRect();
@@ -151,11 +166,17 @@ private:
     bool m_shouldUpdateVisibleRect: 1;
     bool m_shouldSyncLayerState: 1;
     bool m_shouldSyncChildren: 1;
+    bool m_shouldSyncFilters: 1;
+    bool m_fixedToViewport : 1;
 
     void notifyChange();
     void didChangeGeometry();
     void didChangeLayerState();
     void didChangeChildren();
+#if ENABLE(CSS_FILTERS)
+    void didChangeFilters();
+#endif
+
     void createBackingStore();
 
     bool selfOrAncestorHaveNonAffineTransforms();

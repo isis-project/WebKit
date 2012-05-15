@@ -27,12 +27,14 @@
 #include "config.h"
 #include "CachedCSSStyleSheet.h"
 
-#include "MemoryCache.h"
+#include "CSSStyleSheet.h"
 #include "CachedResourceClientWalker.h"
 #include "CachedStyleSheetClient.h"
 #include "HTTPParsers.h"
-#include "TextResourceDecoder.h"
+#include "MemoryCache.h"
 #include "SharedBuffer.h"
+#include "TextResourceDecoder.h"
+#include <wtf/CurrentTime.h>
 #include <wtf/Vector.h>
 
 namespace WebCore {
@@ -48,6 +50,8 @@ CachedCSSStyleSheet::CachedCSSStyleSheet(const ResourceRequest& resourceRequest,
 
 CachedCSSStyleSheet::~CachedCSSStyleSheet()
 {
+    if (m_parsedStyleSheetCache)
+        m_parsedStyleSheetCache->removedFromMemoryCache();
 }
 
 void CachedCSSStyleSheet::didAddClient(CachedResourceClient* c)
@@ -148,5 +152,44 @@ bool CachedCSSStyleSheet::canUseSheet(bool enforceMIMEType, bool* hasValidMIMETy
         return true;
     return typeOK;
 }
- 
+
+void CachedCSSStyleSheet::destroyDecodedData()
+{
+    if (!m_parsedStyleSheetCache)
+        return;
+
+    m_parsedStyleSheetCache->removedFromMemoryCache();
+    m_parsedStyleSheetCache.clear();
+
+    setDecodedSize(0);
+}
+
+PassRefPtr<StyleSheetInternal> CachedCSSStyleSheet::restoreParsedStyleSheet(const CSSParserContext& context)
+{
+    if (!m_parsedStyleSheetCache)
+        return 0;
+    ASSERT(m_parsedStyleSheetCache->isCacheable());
+    ASSERT(m_parsedStyleSheetCache->isInMemoryCache());
+
+    // Contexts must be identical so we know we would get the same exact result if we parsed again.
+    if (m_parsedStyleSheetCache->parserContext() != context)
+        return 0;
+
+    didAccessDecodedData(currentTime());
+
+    return m_parsedStyleSheetCache;
+}
+
+void CachedCSSStyleSheet::saveParsedStyleSheet(PassRefPtr<StyleSheetInternal> sheet)
+{
+    ASSERT(sheet && sheet->isCacheable());
+
+    if (m_parsedStyleSheetCache)
+        m_parsedStyleSheetCache->removedFromMemoryCache();
+    m_parsedStyleSheetCache = sheet;
+    m_parsedStyleSheetCache->addedToMemoryCache();
+
+    setDecodedSize(m_parsedStyleSheetCache->estimatedSizeInBytes());
+}
+
 }

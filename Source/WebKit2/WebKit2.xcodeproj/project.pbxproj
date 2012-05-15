@@ -203,7 +203,6 @@
 		1AAF0C4B12B16334008E49E2 /* ArgumentCodersCF.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1AAF0C4912B16334008E49E2 /* ArgumentCodersCF.cpp */; };
 		1AAF263814687C39004A1E8A /* TiledCoreAnimationDrawingArea.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1AAF263614687C39004A1E8A /* TiledCoreAnimationDrawingArea.mm */; };
 		1AAF263914687C39004A1E8A /* TiledCoreAnimationDrawingArea.h in Headers */ = {isa = PBXBuildFile; fileRef = 1AAF263714687C39004A1E8A /* TiledCoreAnimationDrawingArea.h */; };
-		1AB42E8714BBBBB2004272F7 /* KeychainShimResponseMap.h in Headers */ = {isa = PBXBuildFile; fileRef = 1AB42E8614BBBBB2004272F7 /* KeychainShimResponseMap.h */; };
 		1AB7D4CA1288AAA700CFD08C /* DownloadProxy.h in Headers */ = {isa = PBXBuildFile; fileRef = 1AB7D4C81288AAA700CFD08C /* DownloadProxy.h */; };
 		1AB7D4CB1288AAA700CFD08C /* DownloadProxy.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1AB7D4C91288AAA700CFD08C /* DownloadProxy.cpp */; };
 		1AB7D6191288B9D900CFD08C /* DownloadProxyMessageReceiver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1AB7D6171288B9D900CFD08C /* DownloadProxyMessageReceiver.cpp */; };
@@ -327,6 +326,7 @@
 		37C4E9F6131C6E7E0029BD5A /* config.h in Headers */ = {isa = PBXBuildFile; fileRef = B396EA5512E0ED2D00F4FEB7 /* config.h */; };
 		37F623B812A57B6200E3FDF6 /* WKFindOptions.h in Headers */ = {isa = PBXBuildFile; fileRef = 37F623B712A57B6200E3FDF6 /* WKFindOptions.h */; settings = {ATTRIBUTES = (Private, ); }; };
 		37F90DE31376560E0051CF68 /* HTTPCookieAcceptPolicy.h in Headers */ = {isa = PBXBuildFile; fileRef = F638954F133BEF38008941D5 /* HTTPCookieAcceptPolicy.h */; };
+		4F601432155C5AA2001FBDE0 /* BlockingResponseMap.h in Headers */ = {isa = PBXBuildFile; fileRef = 4F601430155C5A32001FBDE0 /* BlockingResponseMap.h */; };
 		51021E9C12B16788005C033C /* WebContextMenuClientMac.mm in Sources */ = {isa = PBXBuildFile; fileRef = 51021E9B12B16788005C033C /* WebContextMenuClientMac.mm */; };
 		510FBB9A1288C95E00AFFDF4 /* WebContextMenuItemData.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 510FBB981288C95E00AFFDF4 /* WebContextMenuItemData.cpp */; };
 		510FBB9B1288C95E00AFFDF4 /* WebContextMenuItemData.h in Headers */ = {isa = PBXBuildFile; fileRef = 510FBB991288C95E00AFFDF4 /* WebContextMenuItemData.h */; };
@@ -434,6 +434,9 @@
 		51D130551382EAC000351EDD /* SecItemResponseData.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 51D130511382EAC000351EDD /* SecItemResponseData.cpp */; };
 		51D130561382EAC000351EDD /* SecItemResponseData.h in Headers */ = {isa = PBXBuildFile; fileRef = 51D130521382EAC000351EDD /* SecItemResponseData.h */; };
 		51D130581382F10500351EDD /* WebProcessProxyMac.mm in Sources */ = {isa = PBXBuildFile; fileRef = 51D130571382F10500351EDD /* WebProcessProxyMac.mm */; };
+		51EFC1CF1524E62500C9A938 /* WKBundleDOMWindowExtension.h in Headers */ = {isa = PBXBuildFile; fileRef = 51FA2D541521118600C1BA0B /* WKBundleDOMWindowExtension.h */; settings = {ATTRIBUTES = (Private, ); }; };
+		51FA2D7415212DF100C1BA0B /* InjectedBundleDOMWindowExtension.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 51FA2D5C15211A5000C1BA0B /* InjectedBundleDOMWindowExtension.cpp */; };
+		51FA2D7715212E2600C1BA0B /* WKBundleDOMWindowExtension.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 51FA2D7515212E1E00C1BA0B /* WKBundleDOMWindowExtension.cpp */; };
 		5272B28A1406985D0096A5D0 /* StatisticsData.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5272B2881406985D0096A5D0 /* StatisticsData.cpp */; };
 		5272B28B1406985D0096A5D0 /* StatisticsData.h in Headers */ = {isa = PBXBuildFile; fileRef = 5272B2891406985D0096A5D0 /* StatisticsData.h */; };
 		5D51845513BCF9CC00C7FF4A /* APIClientTraits.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 5D51845313BCF9CC00C7FF4A /* APIClientTraits.cpp */; };
@@ -898,9 +901,11 @@
 		E17BF99614D0A73E00A5A069 /* NetscapeSandboxFunctions.h in Headers */ = {isa = PBXBuildFile; fileRef = E17BF99514D0A73E00A5A069 /* NetscapeSandboxFunctions.h */; };
 		E17BF99814D0AA8300A5A069 /* NetscapeSandboxFunctions.mm in Sources */ = {isa = PBXBuildFile; fileRef = E17BF99714D0AA8300A5A069 /* NetscapeSandboxFunctions.mm */; };
 		E18C92F412DB9E7100CF2AEB /* PrintInfo.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E18C92F312DB9E7100CF2AEB /* PrintInfo.cpp */; };
+		E19582D3153CBFD700B60875 /* PDFKitImports.h in Headers */ = {isa = PBXBuildFile; fileRef = E19582D2153CBFD700B60875 /* PDFKitImports.h */; };
+		E19582D6153CC05400B60875 /* PDFKitImports.mm in Sources */ = {isa = PBXBuildFile; fileRef = E19582D4153CC05300B60875 /* PDFKitImports.mm */; };
 		E1967E36150AB5D500C73169 /* com.apple.WebKit.PluginProcess.sb in Resources */ = {isa = PBXBuildFile; fileRef = E1967E35150AB5D500C73169 /* com.apple.WebKit.PluginProcess.sb */; };
 		E1967E38150AB5E200C73169 /* com.apple.WebProcess.sb in Resources */ = {isa = PBXBuildFile; fileRef = E1967E37150AB5E200C73169 /* com.apple.WebProcess.sb */; };
-		E199875E142C045400BB2DE7 /* BuiltInPDFView.cpp in Sources */ = {isa = PBXBuildFile; fileRef = E199875C142BFC9700BB2DE7 /* BuiltInPDFView.cpp */; };
+		E199875E142C045400BB2DE7 /* BuiltInPDFView.mm in Sources */ = {isa = PBXBuildFile; fileRef = E199875C142BFC9700BB2DE7 /* BuiltInPDFView.mm */; };
 		E1A31732134CEA6C007C9A4F /* AttributedString.h in Headers */ = {isa = PBXBuildFile; fileRef = E1A31731134CEA6C007C9A4F /* AttributedString.h */; };
 		E1A31735134CEA80007C9A4F /* AttributedString.mm in Sources */ = {isa = PBXBuildFile; fileRef = E1A31734134CEA80007C9A4F /* AttributedString.mm */; };
 		E1AEA22F14687BDB00804569 /* WKFullKeyboardAccessWatcher.h in Headers */ = {isa = PBXBuildFile; fileRef = E1AEA22D14687BDB00804569 /* WKFullKeyboardAccessWatcher.h */; };
@@ -1207,7 +1212,6 @@
 		1AAF0C4912B16334008E49E2 /* ArgumentCodersCF.cpp */ = {isa = PBXFileReference; explicitFileType = sourcecode.cpp.objcpp; fileEncoding = 4; path = ArgumentCodersCF.cpp; sourceTree = "<group>"; };
 		1AAF263614687C39004A1E8A /* TiledCoreAnimationDrawingArea.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = TiledCoreAnimationDrawingArea.mm; sourceTree = "<group>"; };
 		1AAF263714687C39004A1E8A /* TiledCoreAnimationDrawingArea.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = TiledCoreAnimationDrawingArea.h; sourceTree = "<group>"; };
-		1AB42E8614BBBBB2004272F7 /* KeychainShimResponseMap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = KeychainShimResponseMap.h; sourceTree = "<group>"; };
 		1AB7D4C81288AAA700CFD08C /* DownloadProxy.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = DownloadProxy.h; sourceTree = "<group>"; };
 		1AB7D4C91288AAA700CFD08C /* DownloadProxy.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = DownloadProxy.cpp; sourceTree = "<group>"; };
 		1AB7D5E91288B8C000CFD08C /* DownloadProxy.messages.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = DownloadProxy.messages.in; sourceTree = "<group>"; };
@@ -1344,6 +1348,7 @@
 		37948406150C4B9600E52CE9 /* WKRenderLayer.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WKRenderLayer.cpp; sourceTree = "<group>"; };
 		37948407150C4B9600E52CE9 /* WKRenderLayer.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKRenderLayer.h; sourceTree = "<group>"; };
 		37F623B712A57B6200E3FDF6 /* WKFindOptions.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKFindOptions.h; sourceTree = "<group>"; };
+		4F601430155C5A32001FBDE0 /* BlockingResponseMap.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = BlockingResponseMap.h; sourceTree = "<group>"; };
 		510031F61379CACB00C8DFE4 /* WebProcessShim.dylib */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = WebProcessShim.dylib; sourceTree = BUILT_PRODUCTS_DIR; };
 		51021E9B12B16788005C033C /* WebContextMenuClientMac.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebContextMenuClientMac.mm; sourceTree = "<group>"; };
 		510FBB981288C95E00AFFDF4 /* WebContextMenuItemData.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WebContextMenuItemData.cpp; sourceTree = "<group>"; };
@@ -1458,6 +1463,10 @@
 		51D130511382EAC000351EDD /* SecItemResponseData.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = SecItemResponseData.cpp; sourceTree = "<group>"; };
 		51D130521382EAC000351EDD /* SecItemResponseData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = SecItemResponseData.h; sourceTree = "<group>"; };
 		51D130571382F10500351EDD /* WebProcessProxyMac.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = WebProcessProxyMac.mm; sourceTree = "<group>"; };
+		51FA2D541521118600C1BA0B /* WKBundleDOMWindowExtension.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKBundleDOMWindowExtension.h; sourceTree = "<group>"; };
+		51FA2D5A15211A1E00C1BA0B /* InjectedBundleDOMWindowExtension.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = InjectedBundleDOMWindowExtension.h; sourceTree = "<group>"; };
+		51FA2D5C15211A5000C1BA0B /* InjectedBundleDOMWindowExtension.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = InjectedBundleDOMWindowExtension.cpp; sourceTree = "<group>"; };
+		51FA2D7515212E1E00C1BA0B /* WKBundleDOMWindowExtension.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = WKBundleDOMWindowExtension.cpp; sourceTree = "<group>"; };
 		5272B2881406985D0096A5D0 /* StatisticsData.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = StatisticsData.cpp; sourceTree = "<group>"; };
 		5272B2891406985D0096A5D0 /* StatisticsData.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = StatisticsData.h; sourceTree = "<group>"; };
 		5D51845313BCF9CC00C7FF4A /* APIClientTraits.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = APIClientTraits.cpp; sourceTree = "<group>"; };
@@ -1958,10 +1967,12 @@
 		E17BF99714D0AA8300A5A069 /* NetscapeSandboxFunctions.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = NetscapeSandboxFunctions.mm; sourceTree = "<group>"; };
 		E17BF99914D0CBF100A5A069 /* com.apple.WebKit.PluginProcess.sb.in */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = com.apple.WebKit.PluginProcess.sb.in; sourceTree = "<group>"; };
 		E18C92F312DB9E7100CF2AEB /* PrintInfo.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = PrintInfo.cpp; sourceTree = "<group>"; };
+		E19582D2153CBFD700B60875 /* PDFKitImports.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = PDFKitImports.h; sourceTree = "<group>"; };
+		E19582D4153CC05300B60875 /* PDFKitImports.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = PDFKitImports.mm; sourceTree = "<group>"; };
 		E1967E35150AB5D500C73169 /* com.apple.WebKit.PluginProcess.sb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = com.apple.WebKit.PluginProcess.sb; sourceTree = "<group>"; };
 		E1967E37150AB5E200C73169 /* com.apple.WebProcess.sb */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = com.apple.WebProcess.sb; sourceTree = "<group>"; };
 		E199875A142BF9B800BB2DE7 /* BuiltInPDFView.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = BuiltInPDFView.h; path = PDF/BuiltInPDFView.h; sourceTree = "<group>"; };
-		E199875C142BFC9700BB2DE7 /* BuiltInPDFView.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = BuiltInPDFView.cpp; path = PDF/BuiltInPDFView.cpp; sourceTree = "<group>"; };
+		E199875C142BFC9700BB2DE7 /* BuiltInPDFView.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; name = BuiltInPDFView.mm; path = PDF/BuiltInPDFView.mm; sourceTree = "<group>"; };
 		E1A31731134CEA6C007C9A4F /* AttributedString.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = AttributedString.h; sourceTree = "<group>"; };
 		E1A31734134CEA80007C9A4F /* AttributedString.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = AttributedString.mm; sourceTree = "<group>"; };
 		E1AEA22D14687BDB00804569 /* WKFullKeyboardAccessWatcher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = WKFullKeyboardAccessWatcher.h; sourceTree = "<group>"; };
@@ -2217,7 +2228,6 @@
 			children = (
 				512DF6D6138C181A00A22FC6 /* KeychainItemShimMethods.h */,
 				512DF6D7138C181A00A22FC6 /* KeychainItemShimMethods.mm */,
-				1AB42E8614BBBBB2004272F7 /* KeychainShimResponseMap.h */,
 				511F8A7D138B46FE00A95F44 /* SecItemShimMethods.h */,
 				511F8A7E138B46FE00A95F44 /* SecItemShimMethods.mm */,
 				BC3065C312592F8900E71278 /* WebProcessMac.mm */,
@@ -2333,6 +2343,7 @@
 				5D51845413BCF9CC00C7FF4A /* APIClientTraits.h */,
 				B63403F814910D57001070B5 /* APIObject.cpp */,
 				BCF04C8C11FF9B7D00F86A58 /* APIObject.h */,
+				4F601430155C5A32001FBDE0 /* BlockingResponseMap.h */,
 				BC3065F91259344E00E71278 /* CacheModel.h */,
 				1A2D956E12848564001EB962 /* ChildProcess.cpp */,
 				1A2D956D12848564001EB962 /* ChildProcess.h */,
@@ -3172,6 +3183,8 @@
 				C02BFF1D1251502E009CCBEA /* NativeWebKeyboardEventMac.mm */,
 				31EA25D0134F78B2005B1452 /* NativeWebMouseEventMac.mm */,
 				DF58C6351371ACA000F9A37C /* NativeWebWheelEventMac.mm */,
+				E19582D2153CBFD700B60875 /* PDFKitImports.h */,
+				E19582D4153CC05300B60875 /* PDFKitImports.mm */,
 				C574A57F12E66681002DFE98 /* PasteboardTypes.h */,
 				C574A58012E66681002DFE98 /* PasteboardTypes.mm */,
 				BCF505E51243047B005955AE /* PlatformCertificateInfo.h */,
@@ -3228,6 +3241,8 @@
 				935EEB921277615D003322B8 /* InjectedBundleBackForwardListItem.h */,
 				BCEE7DC4128B645D009827DA /* InjectedBundleClient.cpp */,
 				BCEE7DC3128B645D009827DA /* InjectedBundleClient.h */,
+				51FA2D5C15211A5000C1BA0B /* InjectedBundleDOMWindowExtension.cpp */,
+				51FA2D5A15211A1E00C1BA0B /* InjectedBundleDOMWindowExtension.h */,
 				BC498617124D10E200D834E1 /* InjectedBundleHitTestResult.cpp */,
 				BC498616124D10E200D834E1 /* InjectedBundleHitTestResult.h */,
 				BC8147D412F66D31007B2C32 /* InjectedBundleNavigationAction.cpp */,
@@ -3281,6 +3296,8 @@
 				935EEB961277616D003322B8 /* WKBundleBackForwardList.h */,
 				935EEB971277616D003322B8 /* WKBundleBackForwardListItem.cpp */,
 				935EEB981277616D003322B8 /* WKBundleBackForwardListItem.h */,
+				51FA2D7515212E1E00C1BA0B /* WKBundleDOMWindowExtension.cpp */,
+				51FA2D541521118600C1BA0B /* WKBundleDOMWindowExtension.h */,
 				BCD25F1611D6BDE100169B0E /* WKBundleFrame.cpp */,
 				BCD25F1511D6BDE100169B0E /* WKBundleFrame.h */,
 				BCF049E411FE20F600F86A58 /* WKBundleFramePrivate.h */,
@@ -3707,7 +3724,7 @@
 		E199875B142BF9CF00BB2DE7 /* PDF */ = {
 			isa = PBXGroup;
 			children = (
-				E199875C142BFC9700BB2DE7 /* BuiltInPDFView.cpp */,
+				E199875C142BFC9700BB2DE7 /* BuiltInPDFView.mm */,
 				E199875A142BF9B800BB2DE7 /* BuiltInPDFView.h */,
 			);
 			name = PDF;
@@ -3872,6 +3889,7 @@
 				1AEFCC1211D01F96008219D3 /* PluginInfoStore.h in Headers */,
 				1A3D610213A7CC2A00F95D4E /* PluginModuleInfo.h in Headers */,
 				1A043976124D034800FFBFB5 /* PluginProcess.h in Headers */,
+				4F601432155C5AA2001FBDE0 /* BlockingResponseMap.h in Headers */,
 				1A0EC906124C0AB8007EF4A5 /* PluginProcessConnection.h in Headers */,
 				1A0EC90F124C0AF5007EF4A5 /* PluginProcessConnectionManager.h in Headers */,
 				1A2BB6D114117B4D000F35D4 /* PluginProcessConnectionMessages.h in Headers */,
@@ -4176,7 +4194,6 @@
 				BC8699B7116AADAA002A925B /* WKViewInternal.h in Headers */,
 				BFA6179F12F0B99D0033E0CA /* WKViewPrivate.h in Headers */,
 				BC2E6E8E1141971500A63B1E /* WorkQueue.h in Headers */,
-				1AB42E8714BBBBB2004272F7 /* KeychainShimResponseMap.h in Headers */,
 				E17BF99614D0A73E00A5A069 /* NetscapeSandboxFunctions.h in Headers */,
 				BCE0937814FB128C001138D9 /* LayerHostingContext.h in Headers */,
 				296BD85D15019BC30071F424 /* StringUtilities.h in Headers */,
@@ -4185,6 +4202,8 @@
 				37948404150C350600E52CE9 /* WebRenderLayer.h in Headers */,
 				37948409150C4B9700E52CE9 /* WKRenderLayer.h in Headers */,
 				CEDA12E3152CD1B300D9E08D /* WebAlternativeTextClient.h in Headers */,
+				E19582D3153CBFD700B60875 /* PDFKitImports.h in Headers */,
+				51EFC1CF1524E62500C9A938 /* WKBundleDOMWindowExtension.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -4454,7 +4473,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "mkdir -p \"${BUILT_PRODUCTS_DIR}/DerivedSources/WebKit2\"\ncd \"${BUILT_PRODUCTS_DIR}/DerivedSources/WebKit2\"\n\nexport WebKit2=\"${SRCROOT}\"\n\nif [ \"${ACTION}\" = \"build\" -o \"${ACTION}\" = \"install\" -o \"${ACTION}\" = \"installhdrs\" ]; then\n    make --no-builtin-rules -f \"${WebKit2}/DerivedSources.make\" -j `/usr/sbin/sysctl -n hw.availcpu`\nfi\n";
+			shellScript = "mkdir -p \"${BUILT_PRODUCTS_DIR}/DerivedSources/WebKit2\"\ncd \"${BUILT_PRODUCTS_DIR}/DerivedSources/WebKit2\"\n\nexport WebKit2=\"${SRCROOT}\"\n\nif [ ! $CC ]; then\n    case $TARGET_GCC_VERSION in\n        (LLVM_GCC_42)\n            export CC=\"`xcrun -find llvm-gcc-4.2`\";;\n        (LLVM_COMPILER)\n            export CC=\"`xcrun -find clang`\";;\n    esac\nfi\n\nif [ \"${ACTION}\" = \"build\" -o \"${ACTION}\" = \"install\" -o \"${ACTION}\" = \"installhdrs\" ]; then\n    make --no-builtin-rules -f \"${WebKit2}/DerivedSources.make\" -j `/usr/sbin/sysctl -n hw.availcpu`\nfi\n";
 		};
 		E14E99FA14D879DB001D221F /* Add Entitlements */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -4519,7 +4538,7 @@
 				1A64256912DE42EC00CAAE2C /* BackingStore.cpp in Sources */,
 				1A64292D12DE5F9800CAAE2C /* BackingStoreMac.mm in Sources */,
 				1AC41AC81263C88300054E94 /* BinarySemaphore.cpp in Sources */,
-				E199875E142C045400BB2DE7 /* BuiltInPDFView.cpp in Sources */,
+				E199875E142C045400BB2DE7 /* BuiltInPDFView.mm in Sources */,
 				1AA2E51E12E4C05E00BC4966 /* CGUtilities.cpp in Sources */,
 				1A2D957012848564001EB962 /* ChildProcess.cpp in Sources */,
 				1A6F9FB711E1408500DB1371 /* CommandLineMac.cpp in Sources */,
@@ -4929,6 +4948,9 @@
 				37948403150C350600E52CE9 /* WebRenderLayer.cpp in Sources */,
 				37948408150C4B9700E52CE9 /* WKRenderLayer.cpp in Sources */,
 				CEDA12E2152CD1AE00D9E08D /* WebAlternativeTextClient.cpp in Sources */,
+				E19582D6153CC05400B60875 /* PDFKitImports.mm in Sources */,
+				51FA2D7415212DF100C1BA0B /* InjectedBundleDOMWindowExtension.cpp in Sources */,
+				51FA2D7715212E2600C1BA0B /* WKBundleDOMWindowExtension.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

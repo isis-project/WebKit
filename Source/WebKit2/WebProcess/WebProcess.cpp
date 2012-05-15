@@ -135,6 +135,9 @@ WebProcess::WebProcess()
 #if USE(ACCELERATED_COMPOSITING) && PLATFORM(MAC)
     , m_compositingRenderServerPort(MACH_PORT_NULL)
 #endif
+#if PLATFORM(MAC)
+    , m_clearResourceCachesDispatchGroup(0)
+#endif
     , m_fullKeyboardAccessEnabled(false)
 #if PLATFORM(QT)
     , m_networkAccessManager(0)
@@ -147,6 +150,9 @@ WebProcess::WebProcess()
     , m_iconDatabaseProxy(this)
 #if ENABLE(PLUGIN_PROCESS)
     , m_disablePluginProcessMessageTimeout(false)
+#endif
+#if USE(SOUP)
+    , m_soupRequestManager(this)
 #endif
 {
 #if USE(PLATFORM_STRATEGIES)
@@ -650,6 +656,13 @@ void WebProcess::didReceiveMessage(CoreIPC::Connection* connection, CoreIPC::Mes
         return;
     }
 
+#if USE(SOUP)
+    if (messageID.is<CoreIPC::MessageClassWebSoupRequestManager>()) {
+        m_soupRequestManager.didReceiveMessage(connection, messageID, arguments);
+        return;
+    }
+#endif
+
     if (messageID.is<CoreIPC::MessageClassInjectedBundle>()) {
         if (!m_injectedBundle)
             return;
@@ -683,7 +696,7 @@ void WebProcess::didClose(CoreIPC::Connection*)
         pages[i]->close();
     pages.clear();
 
-    gcController().garbageCollectNow();
+    gcController().garbageCollectSoon();
     memoryCache()->setDisabled(true);
 #endif    
 
@@ -751,11 +764,12 @@ WebPageGroupProxy* WebProcess::webPageGroup(const WebPageGroupData& pageGroupDat
 static bool canPluginHandleResponse(const ResourceResponse& response)
 {
     String pluginPath;
+    bool blocked;
 
-    if (!WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPluginPath(response.mimeType(), response.url().string()), Messages::WebContext::GetPluginPath::Reply(pluginPath), 0))
+    if (!WebProcess::shared().connection()->sendSync(Messages::WebContext::GetPluginPath(response.mimeType(), response.url().string()), Messages::WebContext::GetPluginPath::Reply(pluginPath, blocked), 0))
         return false;
 
-    return !pluginPath.isEmpty();
+    return !blocked && !pluginPath.isEmpty();
 }
 
 bool WebProcess::shouldUseCustomRepresentationForResponse(const ResourceResponse& response) const
@@ -948,6 +962,11 @@ void WebProcess::garbageCollectJavaScriptObjects()
     gcController().garbageCollectNow();
 }
 
+void WebProcess::setJavaScriptGarbageCollectorTimerEnabled(bool flag)
+{
+    gcController().setJavaScriptGarbageCollectorTimerEnabled(flag);
+}
+
 #if ENABLE(PLUGIN_PROCESS)
 void WebProcess::pluginProcessCrashed(CoreIPC::Connection*, const String& pluginPath)
 {
@@ -1015,6 +1034,12 @@ void WebProcess::setTextCheckerState(const TextCheckerState& textCheckerState)
         if (grammarCheckingTurnedOff)
             page->unmarkAllBadGrammar();
     }
+}
+
+void WebProcess::didGetPlugins(CoreIPC::Connection*, uint64_t requestID, const Vector<WebCore::PluginInfo>& plugins)
+{
+    // Pass this to WebPlatformStrategies.cpp.
+    handleDidGetPlugins(requestID, plugins);
 }
 
 } // namespace WebKit

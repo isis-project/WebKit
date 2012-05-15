@@ -178,9 +178,9 @@ void WebDocument::insertUserStyleSheet(const WebString& sourceCode, UserStyleLev
 {
     RefPtr<Document> document = unwrap<Document>();
 
-    RefPtr<CSSStyleSheet> parsedSheet = CSSStyleSheet::create(document.get());
+    RefPtr<StyleSheetInternal> parsedSheet = StyleSheetInternal::create(document.get());
     parsedSheet->setIsUserStyleSheet(level == UserStyleUserLevel);
-    parsedSheet->parseString(sourceCode, strictToCSSParserMode(!document->inQuirksMode()));
+    parsedSheet->parseString(sourceCode);
     document->addUserSheet(parsedSheet.release());
 }
 
@@ -207,6 +207,11 @@ WebDOMEvent WebDocument::createEvent(const WebString& eventType)
     if (ec)
         return WebDOMEvent();
     return event;
+}
+
+WebReferrerPolicy WebDocument::referrerPolicy() const
+{
+    return static_cast<WebReferrerPolicy>(constUnwrap<Document>()->referrerPolicy());
 }
 
 WebAccessibilityObject WebDocument::accessibilityObject() const

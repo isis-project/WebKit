@@ -44,9 +44,9 @@ function setVersionSuccess()
 function openCursor()
 {
     debug("openCursor1");
-    evalAndLog("trans = db.transaction(['test'], IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['test'], 'readwrite')");
     keyRange = IDBKeyRange.lowerBound("myKey1");
-    request = evalAndLog("trans.objectStore('test').openCursor({range: keyRange})");
+    request = evalAndLog("trans.objectStore('test').openCursor(keyRange)");
     request.onsuccess = cursorSuccess;
     request.onerror = unexpectedErrorCallback;
     counter = 1;
@@ -74,7 +74,7 @@ function cursorEmpty()
 
 function addObject()
 {
-    evalAndLog("trans = db.transaction(['test'], IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction(['test'], 'readwrite')");
     objectStore = evalAndLog("objectStore = trans.objectStore('test')");
     request = evalAndLog("objectStore.add('myValue1', 'myKey1')");
     request.onsuccess = openCursor2;

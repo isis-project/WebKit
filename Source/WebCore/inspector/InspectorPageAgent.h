@@ -49,6 +49,7 @@ class DocumentLoader;
 class Frame;
 class Frontend;
 class InjectedScriptManager;
+class InspectorAgent;
 class InspectorArray;
 class InspectorClient;
 class InspectorObject;
@@ -76,7 +77,7 @@ public:
         OtherResource
     };
 
-    static PassOwnPtr<InspectorPageAgent> create(InstrumentingAgents*, Page*, InspectorState*, InjectedScriptManager*, InspectorClient*);
+    static PassOwnPtr<InspectorPageAgent> create(InstrumentingAgents*, Page*, InspectorAgent*, InspectorState*, InjectedScriptManager*, InspectorClient*);
 
     static bool cachedResourceContent(CachedResource*, String* result, bool* base64Encoded);
     static bool sharedBufferContent(PassRefPtr<SharedBuffer>, const String& textEncodingName, bool withBase64Encode, String* result);
@@ -103,8 +104,10 @@ public:
     virtual void searchInResources(ErrorString*, const String&, const bool* caseSensitive, const bool* isRegex, RefPtr<TypeBuilder::Array<TypeBuilder::Page::SearchResult> >&);
     virtual void setDocumentContent(ErrorString*, const String& frameId, const String& html);
     virtual void canOverrideDeviceMetrics(ErrorString*, bool*);
-    virtual void setDeviceMetricsOverride(ErrorString*, int width, int height, double fontScaleFactor);
+    virtual void setDeviceMetricsOverride(ErrorString*, int width, int height, double fontScaleFactor, bool fitWindow);
     virtual void setShowPaintRects(ErrorString*, bool show);
+    virtual void getScriptExecutionStatus(ErrorString*, PageCommandHandler::Result::Enum*);
+    virtual void setScriptExecutionDisabled(ErrorString*, bool);
 
     // InspectorInstrumentation API
     void didClearWindowObjectInWorld(Frame*, DOMWrapperWorld*);
@@ -134,12 +137,13 @@ public:
     static DocumentLoader* assertDocumentLoader(ErrorString*, Frame*);
 
 private:
-    InspectorPageAgent(InstrumentingAgents*, Page*, InspectorState*, InjectedScriptManager*, InspectorClient*);
-    void updateViewMetrics(int, int, double);
+    InspectorPageAgent(InstrumentingAgents*, Page*, InspectorAgent*, InspectorState*, InjectedScriptManager*, InspectorClient*);
+    void updateViewMetrics(int, int, double, bool);
 
     PassRefPtr<TypeBuilder::Page::Frame> buildObjectForFrame(Frame*);
     PassRefPtr<TypeBuilder::Page::FrameResourceTree> buildObjectForFrameTree(Frame*);
     Page* m_page;
+    InspectorAgent* m_inspectorAgent;
     InjectedScriptManager* m_injectedScriptManager;
     InspectorClient* m_client;
     InspectorFrontend::Page* m_frontend;

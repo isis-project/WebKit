@@ -307,16 +307,18 @@ void InspectorDOMDebuggerAgent::descriptionForDOMEvent(Node* target, int breakpo
     if ((1 << breakpointType) & inheritableDOMBreakpointTypesMask) {
         // For inheritable breakpoint types, target node isn't always the same as the node that owns a breakpoint.
         // Target node may be unknown to frontend, so we need to push it first.
-        RefPtr<InspectorObject> targetNodeObject = m_domAgent->resolveNode(target, InspectorDebuggerAgent::backtraceObjectGroup);
-        description->setObject("targetNode", targetNodeObject);
+        RefPtr<TypeBuilder::Runtime::RemoteObject> targetNodeObject = m_domAgent->resolveNode(target, InspectorDebuggerAgent::backtraceObjectGroup);
+        description->setValue("targetNode", targetNodeObject);
 
         // Find breakpoint owner node.
         if (!insertion)
             breakpointOwner = InspectorDOMAgent::innerParentNode(target);
         ASSERT(breakpointOwner);
         while (!(m_domBreakpoints.get(breakpointOwner) & (1 << breakpointType))) {
-            breakpointOwner = InspectorDOMAgent::innerParentNode(breakpointOwner);
-            ASSERT(breakpointOwner);
+            Node* parentNode = InspectorDOMAgent::innerParentNode(breakpointOwner);
+            if (!parentNode)
+                break;
+            breakpointOwner = parentNode;
         }
 
         if (breakpointType == SubtreeModified)

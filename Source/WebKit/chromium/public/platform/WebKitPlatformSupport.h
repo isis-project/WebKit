@@ -31,6 +31,7 @@
 #ifndef WebKitPlatformSupport_h
 #define WebKitPlatformSupport_h
 
+#include "../WebIDBKeyPath.h" // FIXME: Remove with: http://webkit.org/b/84207
 #include "WebCommon.h"
 #include "WebGraphicsContext3D.h"
 #include "WebLocalizedString.h"
@@ -50,9 +51,7 @@ namespace WebKit {
 class WebApplicationCacheHost; // FIXME: Does this belong in platform?
 class WebApplicationCacheHostClient; // FIXME: Does this belong in platform?
 class WebBlobRegistry;
-class WebClipboard;
 class WebCookieJar;
-class WebFileSystem;
 class WebFileUtilities;
 class WebIDBFactory; // FIXME: Does this belong in platform?
 class WebIDBKey; // FIXME: Does this belong in platform?
@@ -67,9 +66,6 @@ class WebWorkerRunLoop;
 // FIXME: Eventually all these API will need to move to WebKit::Platform.
 class WebKitPlatformSupport : public Platform {
 public:
-    // Must return non-null.
-    virtual WebClipboard* clipboard() { return 0; }
-
     // Must return non-null.
     virtual WebFileUtilities* fileUtilities() { return 0; }
 
@@ -92,7 +88,7 @@ public:
     // Return a LocalStorage namespace that corresponds to the following path.
     virtual WebStorageNamespace* createLocalStorageNamespace(const WebString& path, unsigned quota) { return 0; }
 
-    // Called when storage events fire.
+    // DEPRECATED
     virtual void dispatchStorageEvent(const WebString& key, const WebString& oldValue,
                                       const WebString& newValue, const WebString& origin,
                                       const WebURL& url, bool isLocalStorage) { }
@@ -126,8 +122,14 @@ public:
     // Indexed Database ----------------------------------------------------
 
     virtual WebIDBFactory* idbFactory() { return 0; }
-    virtual void createIDBKeysFromSerializedValuesAndKeyPath(const WebVector<WebSerializedScriptValue>& values,  const WebString& keyPath, WebVector<WebIDBKey>& keys) { }
-    virtual WebSerializedScriptValue injectIDBKeyIntoSerializedValue(const WebIDBKey& key, const WebSerializedScriptValue& value, const WebString& keyPath) { return WebSerializedScriptValue(); }
+    // FIXME: Remove WebString keyPath overload once callers are updated.
+    // http://webkit.org/b/84207
+    virtual void createIDBKeysFromSerializedValuesAndKeyPath(const WebVector<WebSerializedScriptValue>& values,  const WebString& keyPath, WebVector<WebIDBKey>& keys) { createIDBKeysFromSerializedValuesAndKeyPath(values, WebIDBKeyPath(keyPath), keys); }
+    virtual void createIDBKeysFromSerializedValuesAndKeyPath(const WebVector<WebSerializedScriptValue>& values,  const WebIDBKeyPath& keyPath, WebVector<WebIDBKey>& keys) { }
+    // FIXME: Remove WebString keyPath overload once callers are updated.
+    // http://webkit.org/b/84207
+    virtual WebSerializedScriptValue injectIDBKeyIntoSerializedValue(const WebIDBKey& key, const WebSerializedScriptValue& value, const WebString& keyPath) { return injectIDBKeyIntoSerializedValue(key, value, WebIDBKeyPath(keyPath)); }
+    virtual WebSerializedScriptValue injectIDBKeyIntoSerializedValue(const WebIDBKey& key, const WebSerializedScriptValue& value, const WebIDBKeyPath& keyPath) { return WebSerializedScriptValue(); }
 
 
     // Message Ports -------------------------------------------------------
@@ -169,11 +171,6 @@ public:
     // This value must be checked again after a context loss event as the platform's capabilities may have changed.
     virtual bool canAccelerate2dCanvas() { return false; }
 
-
-    // FileSystem ----------------------------------------------------------
-
-    // Must return non-null.
-    virtual WebFileSystem* fileSystem() { return 0; }
 
     // WebWorker ----------------------------------------------------------
 

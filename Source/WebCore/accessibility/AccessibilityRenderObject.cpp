@@ -1523,12 +1523,6 @@ LayoutRect AccessibilityRenderObject::elementRect() const
     return boundingBoxRect();
 }
 
-LayoutSize AccessibilityRenderObject::size() const
-{
-    LayoutRect rect = elementRect();
-    return rect.size();
-}
-
 IntPoint AccessibilityRenderObject::clickPoint()
 {
     // Headings are usually much wider than their textual content. If the mid point is used, often it can be wrong.
@@ -2712,7 +2706,7 @@ VisiblePosition AccessibilityRenderObject::visiblePositionForPoint(const IntPoin
         HitTestRequest request(HitTestRequest::ReadOnly |
                                HitTestRequest::Active);
         HitTestResult result(ourpoint);
-        renderView->layer()->hitTest(request, result);
+        renderView->hitTest(request, result);
         innerNode = result.innerNode();
         if (!innerNode)
             return VisiblePosition();
@@ -3558,7 +3552,8 @@ void AccessibilityRenderObject::addAttachmentChildren()
     if (!axWidget->accessibilityIsIgnored())
         m_children.append(axWidget);
 }
-    
+
+#if PLATFORM(MAC)
 void AccessibilityRenderObject::updateAttachmentViewParents()
 {
     // Only the unignored parent should set the attachment parent, because that's what is reflected in the AX 
@@ -3572,7 +3567,8 @@ void AccessibilityRenderObject::updateAttachmentViewParents()
             m_children[k]->overrideAttachmentParent(this);
     }
 }
-    
+#endif
+
 void AccessibilityRenderObject::addChildren()
 {
     // If the need to add more children in addition to existing children arises, 
@@ -3610,7 +3606,10 @@ void AccessibilityRenderObject::addChildren()
     addAttachmentChildren();
     addImageMapChildren();
     addTextFieldChildren();
+
+#if PLATFORM(MAC)
     updateAttachmentViewParents();
+#endif
 }
         
 const AtomicString& AccessibilityRenderObject::ariaLiveRegionStatus() const

@@ -148,12 +148,12 @@ PassRefPtr<QtInstance> QtInstance::getQtInstance(QObject* o, PassRefPtr<RootObje
     return ret.release();
 }
 
-bool QtInstance::getOwnPropertySlot(JSObject* object, ExecState* exec, const Identifier& propertyName, PropertySlot& slot)
+bool QtInstance::getOwnPropertySlot(JSObject* object, ExecState* exec, PropertyName propertyName, PropertySlot& slot)
 {
     return JSObject::getOwnPropertySlot(object, exec, propertyName, slot);
 }
 
-void QtInstance::put(JSObject* object, ExecState* exec, const Identifier& propertyName, JSValue value, PutPropertySlot& slot)
+void QtInstance::put(JSObject* object, ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
 {
     JSObject::put(object, exec, propertyName, value, slot);
 }
@@ -236,18 +236,24 @@ void QtInstance::getPropertyNames(ExecState* exec, PropertyNameArray& array)
         const int methodCount = meta->methodCount();
         for (i = 0; i < methodCount; i++) {
             QMetaMethod method = meta->method(i);
-            if (method.access() != QMetaMethod::Private)
+            if (method.access() != QMetaMethod::Private) {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+                QString sig = QString::fromLatin1(method.methodSignature());
+                array.add(Identifier(exec, UString(sig.utf16(), sig.length())));
+#else
                 array.add(Identifier(exec, method.signature()));
+#endif
+            }
         }
     }
 }
 
-JSValue QtInstance::getMethod(ExecState* exec, const Identifier& propertyName)
+JSValue QtInstance::getMethod(ExecState* exec, PropertyName propertyName)
 {
     if (!getClass())
         return jsNull();
     MethodList methodList = m_class->methodsNamed(propertyName, this);
-    return RuntimeMethod::create(exec, exec->lexicalGlobalObject(), WebCore::deprecatedGetDOMStructure<RuntimeMethod>(exec), propertyName, methodList);
+    return RuntimeMethod::create(exec, exec->lexicalGlobalObject(), WebCore::deprecatedGetDOMStructure<RuntimeMethod>(exec), propertyName.ustring(), methodList);
 }
 
 JSValue QtInstance::invokeMethod(ExecState*, RuntimeMethod*)
@@ -283,6 +289,18 @@ JSValue QtInstance::stringValue(ExecState* exec) const
             // Check to see how much we can call it
             if (m.access() != QMetaMethod::Private
                 && m.methodType() != QMetaMethod::Signal
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+                && m.parameterCount() == 0
+                && m.returnType() != QMetaType::Void) {
+                QVariant ret(m.returnType(), (void*)0);
+                void * qargs[1];
+                qargs[0] = ret.data();
+
+                if (QMetaObject::metacall(obj, QMetaObject::InvokeMetaMethod, index, qargs) < 0) {
+                    if (ret.isValid() && ret.canConvert(QVariant::String)) {
+                        buf = ret.toString().toLatin1().constData(); // ### Latin 1? Ascii?
+                        useDefault = false;
+#else
                 && m.parameterTypes().isEmpty()) {
                 const char* retsig = m.typeName();
                 if (retsig && *retsig) {
@@ -295,6 +313,7 @@ JSValue QtInstance::stringValue(ExecState* exec) const
                             buf = ret.toString().toLatin1().constData(); // ### Latin 1? Ascii?
                             useDefault = false;
                         }
+#endif
                     }
                 }
             }
@@ -384,7 +403,11 @@ void QtField::setValueToInstance(ExecState* exec, const Instance* inst, JSValue 
     if (obj) {
         QMetaType::Type argtype = QMetaType::Void;
         if (m_type == MetaProperty)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+            argtype = (QMetaType::Type) m_property.userType();
+#else
             argtype = (QMetaType::Type) QMetaType::type(m_property.typeName());
+#endif
 
         // dynamic properties just get any QVariant
         QVariant val = convertValueToQVariant(exec, aValue, argtype, 0);

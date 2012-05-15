@@ -39,10 +39,12 @@
 #include "RenderTableRow.h"
 #include "RenderTextControl.h"
 #include "RenderTextFragment.h"
+#include "ShadowRoot.h"
 #include "TextBoundaries.h"
 #include "TextBreakIterator.h"
 #include "VisiblePosition.h"
 #include "visible_units.h"
+#include <wtf/text/CString.h>
 #include <wtf/unicode/CharacterNames.h>
 
 #if USE(ICU_UNICODE) && !UCONFIG_NO_COLLATION
@@ -2401,7 +2403,7 @@ PassRefPtr<Range> TextIterator::subrange(Range* entireRange, int characterOffset
     return characterSubrange(entireRangeIterator, characterOffset, characterCount);
 }
 
-PassRefPtr<Range> TextIterator::rangeFromLocationAndLength(Element* scope, int rangeLocation, int rangeLength, bool forSelectionPreservation)
+PassRefPtr<Range> TextIterator::rangeFromLocationAndLength(ContainerNode* scope, int rangeLocation, int rangeLength, bool forSelectionPreservation)
 {
     RefPtr<Range> resultRange = scope->document()->createRange();
 

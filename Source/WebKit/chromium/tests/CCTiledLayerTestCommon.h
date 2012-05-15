@@ -32,6 +32,7 @@
 #include "Region.h"
 #include "TextureCopier.h"
 #include "TextureManager.h"
+#include "TextureUploader.h"
 #include "TiledLayerChromium.h"
 #include "cc/CCTextureUpdater.h"
 #include "cc/CCTiledLayerImpl.h"
@@ -60,7 +61,7 @@ public:
     virtual PassOwnPtr<WebCore::LayerTextureUpdater::Texture> createTexture(WebCore::TextureManager*);
     virtual SampledTexelFormat sampledTexelFormat(GC3Denum) { return SampledTexelFormatRGBA; }
 
-    virtual void prepareToUpdate(const WebCore::IntRect& contentRect, const WebCore::IntSize&, int, float, WebCore::IntRect* resultingOpaqueRect);
+    virtual void prepareToUpdate(const WebCore::IntRect& contentRect, const WebCore::IntSize&, int, float, WebCore::IntRect& resultingOpaqueRect);
     // Sets the rect to invalidate during the next call to prepareToUpdate(). After the next
     // call to prepareToUpdate() the rect is reset.
     void setRectToInvalidate(const WebCore::IntRect&, FakeTiledLayerChromium*);
@@ -110,26 +111,26 @@ public:
     static WebCore::IntSize tileSize() { return WebCore::IntSize(100, 100); }
 
     using WebCore::TiledLayerChromium::invalidateRect;
-    using WebCore::TiledLayerChromium::prepareToUpdate;
-    using WebCore::TiledLayerChromium::prepareToUpdateIdle;
+    using WebCore::TiledLayerChromium::updateLayerRect;
+    using WebCore::TiledLayerChromium::idleUpdateLayerRect;
     using WebCore::TiledLayerChromium::needsIdlePaint;
     using WebCore::TiledLayerChromium::skipsDraw;
     using WebCore::TiledLayerChromium::numPaintedTiles;
     using WebCore::TiledLayerChromium::idlePaintRect;
 
-    virtual void setNeedsDisplayRect(const WebCore::FloatRect&);
+    virtual void setNeedsDisplayRect(const WebCore::FloatRect&) OVERRIDE;
     const WebCore::FloatRect& lastNeedsDisplayRect() const { return m_lastNeedsDisplayRect; }
 
     // Updates the visibleLayerRect().
-    virtual void paintContentsIfDirty(const WebCore::CCOcclusionTracker*);
+    virtual void update(WebCore::CCTextureUpdater&, const WebCore::CCOcclusionTracker*) OVERRIDE;
 
-    virtual WebCore::TextureManager* textureManager() const { return m_textureManager; }
+    virtual WebCore::TextureManager* textureManager() const OVERRIDE { return m_textureManager; }
     FakeLayerTextureUpdater* fakeLayerTextureUpdater() { return m_fakeTextureUpdater.get(); }
     WebCore::FloatRect updateRect() { return m_updateRect; }
 
 private:
-    virtual WebCore::LayerTextureUpdater* textureUpdater() const { return m_fakeTextureUpdater.get(); }
-    virtual void createTextureUpdaterIfNeeded() { }
+    virtual WebCore::LayerTextureUpdater* textureUpdater() const OVERRIDE { return m_fakeTextureUpdater.get(); }
+    virtual void createTextureUpdaterIfNeeded() OVERRIDE { }
 
     RefPtr<FakeLayerTextureUpdater> m_fakeTextureUpdater;
     WebCore::TextureManager* m_textureManager;
@@ -141,7 +142,7 @@ public:
     explicit FakeTiledLayerWithScaledBounds(WebCore::TextureManager*);
 
     void setContentBounds(const WebCore::IntSize& contentBounds) { m_forcedContentBounds = contentBounds; }
-    virtual WebCore::IntSize contentBounds() const { return m_forcedContentBounds; }
+    virtual WebCore::IntSize contentBounds() const OVERRIDE { return m_forcedContentBounds; }
 
 protected:
     WebCore::IntSize m_forcedContentBounds;
@@ -158,15 +159,12 @@ public:
     virtual void copyTexture(WebCore::GraphicsContext3D*, unsigned, unsigned, const WebCore::IntSize&) { }
 };
 
-class FakeCCTextureUpdater : public WebCore::CCTextureUpdater {
+class FakeTextureUploader : public WebCore::TextureUploader {
 public:
-    explicit FakeCCTextureUpdater();
-
-    FakeTextureAllocator& textureAllocator() { return m_textureAllocator; }
-
-protected:
-    FakeTextureAllocator m_textureAllocator;
-    FakeTextureCopier m_textureCopier;
+    virtual bool isBusy() { return false; }
+    virtual void beginUploads() { }
+    virtual void endUploads() { }
+    virtual void uploadTexture(WebCore::GraphicsContext3D* context, WebCore::LayerTextureUpdater::Texture* texture, WebCore::TextureAllocator* allocator, const WebCore::IntRect sourceRect, const WebCore::IntRect destRect) { texture->updateRect(context, allocator, sourceRect, destRect); }
 };
 
 }

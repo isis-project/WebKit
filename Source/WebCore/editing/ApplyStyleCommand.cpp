@@ -30,7 +30,6 @@
 #include "CSSParser.h"
 #include "CSSProperty.h"
 #include "CSSPropertyNames.h"
-#include "CSSStyleSelector.h"
 #include "CSSValueKeywords.h"
 #include "CSSValueList.h"
 #include "Document.h"
@@ -45,6 +44,7 @@
 #include "RenderObject.h"
 #include "RenderText.h"
 #include "StylePropertySet.h"
+#include "StyleResolver.h"
 #include "Text.h"
 #include "TextIterator.h"
 #include "htmlediting.h"
@@ -320,11 +320,18 @@ void ApplyStyleCommand::applyRelativeFontStyleChange(EditingStyle* style)
         start = startPosition();
         end = endPosition();
     }
+    
+    if (start.isNull() || end.isNull())
+        return;
+
     if (end.deprecatedNode()->isTextNode() && start.deprecatedNode()->parentNode() != end.deprecatedNode()->parentNode()) {
         joinChildTextNodes(end.deprecatedNode()->parentNode(), start, end);
         start = startPosition();
         end = endPosition();
     }
+
+    if (start.isNull() || end.isNull())
+        return;
 
     // Split the start text nodes if needed to apply style.
     if (isValidCaretPositionInTextNode(start)) {
@@ -542,6 +549,10 @@ void ApplyStyleCommand::applyInlineStyle(EditingStyle* style)
     // adjust to the positions we want to use for applying style
     Position start = startPosition();
     Position end = endPosition();
+
+    if (start.isNull() || end.isNull())
+        return;
+
     if (comparePositions(end, start) < 0) {
         Position swap = start;
         start = end;
@@ -1063,8 +1074,7 @@ void ApplyStyleCommand::removeInlineStyle(EditingStyle* style, const Position &s
                     // Since elem must have been fully selected, and it is at the end
                     // of the selection, it is clear we can set the new e offset to
                     // the max range offset of prev.
-                    ASSERT(s.anchorType() == Position::PositionIsAfterAnchor
-                           || s.offsetInContainerNode() >= lastOffsetInNode(s.containerNode()));
+                    ASSERT(s.anchorType() == Position::PositionIsAfterAnchor || !offsetIsBeforeLastNodeOffset(s.offsetInContainerNode(), s.containerNode()));
                     e = lastPositionInOrAfterNode(prev.get());
                 }
             }
@@ -1227,7 +1237,7 @@ bool ApplyStyleCommand::mergeEndWithNextIfIdentical(const Position& start, const
     int endOffset = end.computeOffsetInContainerNode();
 
     if (isAtomicNode(endNode)) {
-        if (endOffset < lastOffsetInNode(endNode))
+        if (offsetIsBeforeLastNodeOffset(endOffset, endNode))
             return false;
 
         unsigned parentLastOffset = end.deprecatedNode()->parentNode()->childNodes()->length() - 1;
@@ -1428,24 +1438,29 @@ void ApplyStyleCommand::joinChildTextNodes(Node* node, const Position& start, co
     Position newStart = start;
     Position newEnd = end;
 
-    Node* child = node->firstChild();
-    while (child) {
-        Node* next = child->nextSibling();
-        if (child->isTextNode() && next && next->isTextNode()) {
-            Text* childText = toText(child);
-            Text* nextText = toText(next);
-            if (start.anchorType() == Position::PositionIsOffsetInAnchor && next == start.containerNode())
-                newStart = Position(childText, childText->length() + start.offsetInContainerNode());
-            if (end.anchorType() == Position::PositionIsOffsetInAnchor && next == end.containerNode())
-                newEnd = Position(childText, childText->length() + end.offsetInContainerNode());
-            String textToMove = nextText->data();
-            insertTextIntoNode(childText, childText->length(), textToMove);
-            removeNode(next);
-            // don't move child node pointer. it may want to merge with more text nodes.
-        }
-        else {
-            child = child->nextSibling();
-        }
+    Vector<RefPtr<Text> > textNodes;
+    for (Node* curr = node->firstChild(); curr; curr = curr->nextSibling()) {
+        if (!curr->isTextNode())
+            continue;
+        
+        textNodes.append(toText(curr));
+    }
+
+    for (size_t i = 0; i < textNodes.size(); ++i) {
+        Text* childText = textNodes[i].get();
+        Node* next = childText->nextSibling();
+        if (!next || !next->isTextNode())
+            continue;
+    
+        Text* nextText = toText(next);
+        if (start.anchorType() == Position::PositionIsOffsetInAnchor && next == start.containerNode())
+            newStart = Position(childText, childText->length() + start.offsetInContainerNode());
+        if (end.anchorType() == Position::PositionIsOffsetInAnchor && next == end.containerNode())
+            newEnd = Position(childText, childText->length() + end.offsetInContainerNode());
+        String textToMove = nextText->data();
+        insertTextIntoNode(childText, childText->length(), textToMove);
+        removeNode(next);
+        // don't move child node pointer. it may want to merge with more text nodes.
     }
 
     updateStartEnd(newStart, newEnd);

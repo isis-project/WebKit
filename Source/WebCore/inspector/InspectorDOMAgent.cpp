@@ -41,7 +41,6 @@
 #include "CSSRule.h"
 #include "CSSRuleList.h"
 #include "CSSStyleRule.h"
-#include "CSSStyleSelector.h"
 #include "CSSStyleSheet.h"
 #include "CharacterData.h"
 #include "ContainerNode.h"
@@ -54,6 +53,7 @@
 #include "Document.h"
 #include "DocumentFragment.h"
 #include "DocumentType.h"
+#include "ElementShadow.h"
 #include "Event.h"
 #include "EventContext.h"
 #include "EventListener.h"
@@ -83,8 +83,8 @@
 #include "ScriptEventListener.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
-#include "ShadowTree.h"
 #include "StylePropertySet.h"
+#include "StyleResolver.h"
 #include "StyleSheetList.h"
 #include "Text.h"
 #include "XPathResult.h"
@@ -307,7 +307,6 @@ void InspectorDOMAgent::setDocument(Document* doc)
 
 void InspectorDOMAgent::releaseDanglingNodes()
 {
-    deleteAllValues(m_danglingNodeToIdMaps);
     m_danglingNodeToIdMaps.clear();
 }
 
@@ -333,14 +332,18 @@ void InspectorDOMAgent::unbind(Node* node, NodeToIdMap* nodesMap)
 
     if (node->isFrameOwnerElement()) {
         const HTMLFrameOwnerElement* frameOwner = static_cast<const HTMLFrameOwnerElement*>(node);
+        Document* contentDocument = frameOwner->contentDocument();
         if (m_domListener)
-            m_domListener->didRemoveDocument(frameOwner->contentDocument());
-        unbind(frameOwner->contentDocument(), nodesMap);
+            m_domListener->didRemoveDocument(contentDocument);
+        if (contentDocument)
+            unbind(contentDocument, nodesMap);
     }
 
-    if (node->isElementNode() && toElement(node)->hasShadowRoot()) {
-        for (ShadowRoot* root = toElement(node)->shadowTree()->youngestShadowRoot(); root; root = root->olderShadowRoot())
-            unbind(root, nodesMap);
+    if (node->isElementNode()) {
+        if (ElementShadow* shadow = toElement(node)->shadow()) {
+            for (ShadowRoot* root = shadow->youngestShadowRoot(); root; root = root->olderShadowRoot())
+                unbind(root, nodesMap);
+        }
     }
 
     nodesMap->remove(node);
@@ -503,7 +506,7 @@ void InspectorDOMAgent::querySelectorAll(ErrorString* errorString, int nodeId, c
     result = TypeBuilder::Array<int>::create();
 
     for (unsigned i = 0; i < nodes->length(); ++i)
-        result->pushNumber(pushNodePathToFrontend(nodes->item(i)));
+        result->addItem(pushNodePathToFrontend(nodes->item(i)));
 }
 
 int InspectorDOMAgent::pushNodePathToFrontend(Node* nodeToPush)
@@ -528,8 +531,9 @@ int InspectorDOMAgent::pushNodePathToFrontend(Node* nodeToPush)
         Node* parent = innerParentNode(node);
         if (!parent) {
             // Node being pushed is detached -> push subtree root.
-            danglingMap = new NodeToIdMap();
-            m_danglingNodeToIdMaps.append(danglingMap);
+            OwnPtr<NodeToIdMap> newMap = adoptPtr(new NodeToIdMap);
+            danglingMap = newMap.get();
+            m_danglingNodeToIdMaps.append(newMap.release());
             RefPtr<TypeBuilder::Array<TypeBuilder::DOM::Node> > children = TypeBuilder::Array<TypeBuilder::DOM::Node>::create();
             children->addItem(buildObjectForNode(node, 0, danglingMap));
             m_frontend->setChildNodes(0, children);
@@ -744,7 +748,7 @@ void InspectorDOMAgent::getEventListenersForNode(ErrorString* errorString, int n
         for (size_t j = 0; j < vector.size(); ++j) {
             const RegisteredEventListener& listener = vector[j];
             if (listener.useCapture)
-                listenersArray->pushObject(buildObjectForEventListener(listener, info.eventType, info.node));
+                listenersArray->addItem(buildObjectForEventListener(listener, info.eventType, info.node));
         }
     }
 
@@ -755,7 +759,7 @@ void InspectorDOMAgent::getEventListenersForNode(ErrorString* errorString, int n
         for (size_t j = 0; j < vector.size(); ++j) {
             const RegisteredEventListener& listener = vector[j];
             if (!listener.useCapture)
-                listenersArray->pushObject(buildObjectForEventListener(listener, info.eventType, info.node));
+                listenersArray->addItem(buildObjectForEventListener(listener, info.eventType, info.node));
         }
     }
 }
@@ -817,6 +821,8 @@ void InspectorDOMAgent::performSearch(ErrorString*, const String& whitespaceTrim
     for (Vector<Document*>::iterator it = docs.begin(); it != docs.end(); ++it) {
         Document* document = *it;
         Node* node = document->documentElement();
+        if (!node)
+            continue;
 
         // Manual plain text search.
         while ((node = node->traverseNextNode(document->documentElement()))) {
@@ -877,6 +883,19 @@ void InspectorDOMAgent::performSearch(ErrorString*, const String& whitespaceTrim
                     node = static_cast<Attr*>(node)->ownerElement();
                 resultCollector.add(node);
             }
+        }
+
+        // Selector evaluation
+        for (Vector<Document*>::iterator it = docs.begin(); it != docs.end(); ++it) {
+            Document* document = *it;
+            ExceptionCode ec = 0;
+            RefPtr<NodeList> nodeList = document->querySelectorAll(whitespaceTrimmedQuery, ec);
+            if (ec || !nodeList)
+                continue;
+
+            unsigned size = nodeList->length();
+            for (unsigned i = 0; i < size; ++i)
+                resultCollector.add(nodeList->item(i));
         }
     }
 
@@ -1222,9 +1241,11 @@ PassRefPtr<TypeBuilder::DOM::Node> InspectorDOMAgent::buildObjectForNode(Node* n
             if (doc)
                 value->setContentDocument(buildObjectForNode(doc, 0, nodesMap));
         }
-        if (element->hasShadowRoot()) {
+
+        ElementShadow* shadow = element->shadow();
+        if (shadow) {
             RefPtr<TypeBuilder::Array<TypeBuilder::DOM::Node> > shadowRoots = TypeBuilder::Array<TypeBuilder::DOM::Node>::create();
-            for (ShadowRoot* root = element->shadowTree()->youngestShadowRoot(); root; root = root->olderShadowRoot())
+            for (ShadowRoot* root = shadow->youngestShadowRoot(); root; root = root->olderShadowRoot())
                 shadowRoots->addItem(buildObjectForNode(root, 0, nodesMap));
             value->setShadowRoots(shadowRoots);
         }
@@ -1283,7 +1304,7 @@ PassRefPtr<TypeBuilder::Array<TypeBuilder::DOM::Node> > InspectorDOMAgent::build
     return children.release();
 }
 
-PassRefPtr<InspectorObject> InspectorDOMAgent::buildObjectForEventListener(const RegisteredEventListener& registeredEventListener, const AtomicString& eventType, Node* node)
+PassRefPtr<TypeBuilder::DOM::EventListener> InspectorDOMAgent::buildObjectForEventListener(const RegisteredEventListener& registeredEventListener, const AtomicString& eventType, Node* node)
 {
     RefPtr<EventListener> eventListener = registeredEventListener.listener;
     RefPtr<TypeBuilder::DOM::EventListener> value = TypeBuilder::DOM::EventListener::create()
@@ -1391,6 +1412,9 @@ void InspectorDOMAgent::didInsertDOMNode(Node* node)
     unbind(node, &m_documentNodeToIdMap);
 
     ContainerNode* parent = node->parentNode();
+    if (!parent)
+        return;
+
     int parentId = m_documentNodeToIdMap.get(parent);
     // Return if parent is not mapped yet.
     if (!parentId)
@@ -1414,10 +1438,12 @@ void InspectorDOMAgent::didRemoveDOMNode(Node* node)
         return;
 
     ContainerNode* parent = node->parentNode();
-    int parentId = m_documentNodeToIdMap.get(parent);
+
     // If parent is not mapped yet -> ignore the event.
-    if (!parentId)
+    if (!m_documentNodeToIdMap.contains(parent))
         return;
+
+    int parentId = m_documentNodeToIdMap.get(parent);
 
     if (m_domListener)
         m_domListener->didRemoveDOMNode(node);

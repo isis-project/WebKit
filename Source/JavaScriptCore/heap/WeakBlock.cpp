@@ -36,7 +36,7 @@ namespace JSC {
 
 WeakBlock* WeakBlock::create()
 {
-    PageAllocationAligned allocation = PageAllocationAligned::allocate(blockSize, blockSize, OSAllocator::JSGCHeapPages);
+    PageAllocation allocation = PageAllocation::allocate(blockSize, OSAllocator::JSGCHeapPages);
     if (!static_cast<bool>(allocation))
         CRASH();
     return new (NotNull, allocation.base()) WeakBlock(allocation);
@@ -47,8 +47,8 @@ void WeakBlock::destroy(WeakBlock* block)
     block->m_allocation.deallocate();
 }
 
-WeakBlock::WeakBlock(PageAllocationAligned& allocation)
-    : HeapBlock(allocation)
+WeakBlock::WeakBlock(PageAllocation& allocation)
+    : m_allocation(allocation)
 {
     for (size_t i = 0; i < weakImplCount(); ++i) {
         WeakImpl* weakImpl = &weakImpls()[i];
@@ -104,11 +104,7 @@ void WeakBlock::visitLiveWeakImpls(HeapRootVisitor& heapRootVisitor)
             continue;
 
         const JSValue& jsValue = weakImpl->jsValue();
-        if (!jsValue || !jsValue.isCell())
-            continue;
-
-        JSCell* jsCell = jsValue.asCell();
-        if (Heap::isMarked(jsCell))
+        if (Heap::isMarked(jsValue.asCell()))
             continue;
 
         WeakHandleOwner* weakHandleOwner = weakImpl->weakHandleOwner();
@@ -133,12 +129,7 @@ void WeakBlock::visitDeadWeakImpls(HeapRootVisitor&)
         if (weakImpl->state() > WeakImpl::Dead)
             continue;
 
-        const JSValue& jsValue = weakImpl->jsValue();
-        if (!jsValue || !jsValue.isCell())
-            continue;
-
-        JSCell* jsCell = jsValue.asCell();
-        if (Heap::isMarked(jsCell))
+        if (Heap::isMarked(weakImpl->jsValue().asCell()))
             continue;
 
         weakImpl->setState(WeakImpl::Dead);

@@ -177,12 +177,25 @@ ViewportAttributes computeViewportAttributes(ViewportArguments args, int desktop
     // Extend width and height to fill the visual viewport for the resolved initial-scale.
     width = max<float>(width, availableWidth / result.initialScale);
     height = max<float>(height, availableHeight / result.initialScale);
-    result.layoutSize.setWidth(static_cast<int>(roundf(width)));
-    result.layoutSize.setHeight(static_cast<int>(roundf(height)));
+    result.layoutSize.setWidth(width);
+    result.layoutSize.setHeight(height);
 
     result.userScalable = args.userScalable;
 
     return result;
+}
+
+float computeMinimumScaleFactorForContentContained(const ViewportAttributes& result, const IntSize& viewportSize, const IntSize& contentsSize)
+{
+    float availableWidth = viewportSize.width();
+    float availableHeight = viewportSize.height();
+
+    if (result.devicePixelRatio != 1.0) {
+        availableWidth /= result.devicePixelRatio;
+        availableHeight /= result.devicePixelRatio;
+    }
+
+    return max<float>(result.minimumScale, max(availableWidth / contentsSize.width(), availableHeight / contentsSize.height()));
 }
 
 void restrictMinimumScaleFactorToViewportSize(ViewportAttributes& result, IntSize visibleViewport)

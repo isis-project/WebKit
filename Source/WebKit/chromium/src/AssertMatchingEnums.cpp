@@ -36,13 +36,14 @@
 #include "AXObjectCache.h"
 #include "AccessibilityObject.h"
 #include "ApplicationCacheHost.h"
-#include "AsyncFileSystem.h"
 #include "ContentSecurityPolicy.h"
 #include "DocumentMarker.h"
 #include "EditorInsertAction.h"
 #include "ExceptionCode.h"
 #include "FileError.h"
 #include "FileMetadata.h"
+#include "FileSystemType.h"
+#include "FilterOperation.h"
 #include "FontDescription.h"
 #include "FontSmoothingMode.h"
 #include "GeolocationError.h"
@@ -60,8 +61,9 @@
 #include "PasteboardPrivate.h"
 #include "PeerConnection00.h"
 #include "PlatformCursor.h"
-#include "SecurityPolicy.h"
+#include "ReferrerPolicy.h"
 #include "Settings.h"
+#include "SpeechRecognitionError.h"
 #include "StorageInfo.h"
 #include "TextAffinity.h"
 #include "TextChecking.h"
@@ -69,7 +71,6 @@
 #include "UserContentTypes.h"
 #include "UserScriptTypes.h"
 #include "UserStyleSheetTypes.h"
-#include "VideoFrameChromium.h"
 #include "WebAccessibilityNotification.h"
 #include "WebAccessibilityObject.h"
 #include "WebApplicationCacheHost.h"
@@ -87,25 +88,27 @@
 #include "WebIconURL.h"
 #include "WebInputElement.h"
 #include "WebMediaPlayer.h"
+#include "WebMediaPlayerClient.h"
 #include "WebNotificationPresenter.h"
 #include "WebPageVisibilityState.h"
-#include "WebReferrerPolicy.h"
 #include "WebScrollbar.h"
 #include "WebSettings.h"
+#include "WebSpeechRecognizerClient.h"
 #include "WebStorageQuotaError.h"
 #include "WebStorageQuotaType.h"
 #include "WebTextAffinity.h"
 #include "WebTextCaseSensitivity.h"
 #include "WebTextCheckingResult.h"
 #include "WebTextCheckingType.h"
-#include "WebVideoFrame.h"
 #include "WebView.h"
-#include "platform/WebClipboard.h"
-#include "platform/WebFileSystem.h"
 #include "platform/WebICEOptions.h"
 #include "platform/WebMediaStreamSource.h"
 #include "platform/WebPeerConnection00Handler.h"
 #include "platform/WebPeerConnection00HandlerClient.h"
+#include <public/WebClipboard.h>
+#include <public/WebFileSystem.h>
+#include <public/WebFilterOperation.h>
+#include <public/WebReferrerPolicy.h>
 #include <wtf/Assertions.h>
 #include <wtf/text/StringImpl.h>
 
@@ -318,6 +321,15 @@ COMPILE_ASSERT_MATCHING_ENUM(WebEditingActionTyped, EditorInsertActionTyped);
 COMPILE_ASSERT_MATCHING_ENUM(WebEditingActionPasted, EditorInsertActionPasted);
 COMPILE_ASSERT_MATCHING_ENUM(WebEditingActionDropped, EditorInsertActionDropped);
 
+COMPILE_ASSERT_MATCHING_ENUM(WebBasicColorMatrixFilterOperation::BasicColorMatrixFilterTypeGrayscale, FilterOperation::GRAYSCALE);
+COMPILE_ASSERT_MATCHING_ENUM(WebBasicColorMatrixFilterOperation::BasicColorMatrixFilterTypeSepia, FilterOperation::SEPIA);
+COMPILE_ASSERT_MATCHING_ENUM(WebBasicColorMatrixFilterOperation::BasicColorMatrixFilterTypeSaturate, FilterOperation::SATURATE);
+COMPILE_ASSERT_MATCHING_ENUM(WebBasicColorMatrixFilterOperation::BasicColorMatrixFilterTypeHueRotate, FilterOperation::HUE_ROTATE);
+
+COMPILE_ASSERT_MATCHING_ENUM(WebBasicComponentTransferFilterOperation::BasicComponentTransferFilterTypeInvert, FilterOperation::INVERT);
+COMPILE_ASSERT_MATCHING_ENUM(WebBasicComponentTransferFilterOperation::BasicComponentTransferFilterTypeBrightness, FilterOperation::BRIGHTNESS);
+COMPILE_ASSERT_MATCHING_ENUM(WebBasicComponentTransferFilterOperation::BasicComponentTransferFilterTypeContrast, FilterOperation::CONTRAST);
+
 COMPILE_ASSERT_MATCHING_ENUM(WebFontDescription::GenericFamilyNone, FontDescription::NoFamily);
 COMPILE_ASSERT_MATCHING_ENUM(WebFontDescription::GenericFamilyStandard, FontDescription::StandardFamily);
 COMPILE_ASSERT_MATCHING_ENUM(WebFontDescription::GenericFamilySerif, FontDescription::SerifFamily);
@@ -369,36 +381,54 @@ COMPILE_ASSERT_MATCHING_ENUM(WebNode::NotationNode, Node::NOTATION_NODE);
 COMPILE_ASSERT_MATCHING_ENUM(WebNode::XPathNamespaceNode, Node::XPATH_NAMESPACE_NODE);
 
 #if ENABLE(VIDEO)
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::Empty, MediaPlayer::Empty);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::Idle, MediaPlayer::Idle);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::Loading, MediaPlayer::Loading);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::Loaded, MediaPlayer::Loaded);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::FormatError, MediaPlayer::FormatError);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::NetworkError, MediaPlayer::NetworkError);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::DecodeError, MediaPlayer::DecodeError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::NetworkStateEmpty, MediaPlayer::Empty);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::NetworkStateIdle, MediaPlayer::Idle);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::NetworkStateLoading, MediaPlayer::Loading);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::NetworkStateLoaded, MediaPlayer::Loaded);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::NetworkStateFormatError, MediaPlayer::FormatError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::NetworkStateNetworkError, MediaPlayer::NetworkError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::NetworkStateDecodeError, MediaPlayer::DecodeError);
 
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::HaveNothing, MediaPlayer::HaveNothing);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::HaveMetadata, MediaPlayer::HaveMetadata);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::HaveCurrentData, MediaPlayer::HaveCurrentData);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::HaveFutureData, MediaPlayer::HaveFutureData);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::HaveEnoughData, MediaPlayer::HaveEnoughData);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::ReadyStateHaveNothing, MediaPlayer::HaveNothing);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::ReadyStateHaveMetadata, MediaPlayer::HaveMetadata);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::ReadyStateHaveCurrentData, MediaPlayer::HaveCurrentData);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::ReadyStateHaveFutureData, MediaPlayer::HaveFutureData);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::ReadyStateHaveEnoughData, MediaPlayer::HaveEnoughData);
 
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::Unknown, MediaPlayer::Unknown);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::Download, MediaPlayer::Download);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::StoredStream, MediaPlayer::StoredStream);
-COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::LiveStream, MediaPlayer::LiveStream);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::MovieLoadTypeUnknown, MediaPlayer::Unknown);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::MovieLoadTypeDownload, MediaPlayer::Download);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::MovieLoadTypeStoredStream, MediaPlayer::StoredStream);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::MovieLoadTypeLiveStream, MediaPlayer::LiveStream);
 
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatInvalid, VideoFrameChromium::Invalid);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatRGB555, VideoFrameChromium::RGB555);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatRGB565, VideoFrameChromium::RGB565);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatRGB24, VideoFrameChromium::RGB24);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatRGB32, VideoFrameChromium::RGB32);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatRGBA, VideoFrameChromium::RGBA);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatYV12, VideoFrameChromium::YV12);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatYV16, VideoFrameChromium::YV16);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatNV12, VideoFrameChromium::NV12);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatEmpty, VideoFrameChromium::Empty);
-COMPILE_ASSERT_MATCHING_ENUM(WebVideoFrame::FormatASCII, VideoFrameChromium::ASCII);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::PreloadNone, MediaPlayer::None);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::PreloadMetaData, MediaPlayer::MetaData);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::PreloadAuto, MediaPlayer::Auto);
+
+#if ENABLE(MEDIA_SOURCE)
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::AddIdStatusOk, MediaPlayer::Ok);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::AddIdStatusNotSupported, MediaPlayer::NotSupported);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::AddIdStatusReachedIdLimit, MediaPlayer::ReachedIdLimit);
+#endif
+
+#if ENABLE(ENCRYPTED_MEDIA)
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::EndOfStreamStatusNoError, MediaPlayer::EosNoError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::EndOfStreamStatusNetworkError, MediaPlayer::EosNetworkError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::EndOfStreamStatusDecodeError, MediaPlayer::EosDecodeError);
+#endif
+
+#if ENABLE(ENCRYPTED_MEDIA)
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::MediaKeyExceptionNoError, MediaPlayer::NoError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::MediaKeyExceptionInvalidPlayerState, MediaPlayer::InvalidPlayerState);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::MediaKeyExceptionKeySystemNotSupported, MediaPlayer::KeySystemNotSupported);
+
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayerClient::MediaKeyErrorCodeUnknown, MediaPlayerClient::UnknownError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayerClient::MediaKeyErrorCodeClient, MediaPlayerClient::ClientError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayerClient::MediaKeyErrorCodeService, MediaPlayerClient::ServiceError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayerClient::MediaKeyErrorCodeOutput, MediaPlayerClient::OutputError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayerClient::MediaKeyErrorCodeHardwareChange, MediaPlayerClient::HardwareChangeError);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayerClient::MediaKeyErrorCodeDomain, MediaPlayerClient::DomainError);
+#endif
+
 #endif
 
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
@@ -442,8 +472,10 @@ COMPILE_ASSERT_MATCHING_ENUM(WebIDBKey::DateType, IDBKey::DateType);
 COMPILE_ASSERT_MATCHING_ENUM(WebIDBKey::NumberType, IDBKey::NumberType);
 
 #if ENABLE(FILE_SYSTEM)
-COMPILE_ASSERT_MATCHING_ENUM(WebFileSystem::TypeTemporary, AsyncFileSystem::Temporary);
-COMPILE_ASSERT_MATCHING_ENUM(WebFileSystem::TypePersistent, AsyncFileSystem::Persistent);
+COMPILE_ASSERT_MATCHING_ENUM(WebFileSystem::TypeTemporary, FileSystemTypeTemporary);
+COMPILE_ASSERT_MATCHING_ENUM(WebFileSystem::TypePersistent, FileSystemTypePersistent);
+COMPILE_ASSERT_MATCHING_ENUM(WebFileSystem::TypeExternal, FileSystemTypeExternal);
+COMPILE_ASSERT_MATCHING_ENUM(WebFileSystem::TypeIsolated, FileSystemTypeIsolated);
 COMPILE_ASSERT_MATCHING_ENUM(WebFileInfo::TypeUnknown, FileMetadata::TypeUnknown);
 COMPILE_ASSERT_MATCHING_ENUM(WebFileInfo::TypeFile, FileMetadata::TypeFile);
 COMPILE_ASSERT_MATCHING_ENUM(WebFileInfo::TypeDirectory, FileMetadata::TypeDirectory);
@@ -519,7 +551,8 @@ COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00Handler::ActionSDPPRanswer, Peer
 COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00Handler::ActionSDPAnswer, PeerConnection00::SDP_ANSWER);
 
 COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00HandlerClient::ReadyStateNew, PeerConnection00::NEW);
-COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00HandlerClient::ReadyStateNegotiating, PeerConnection00::NEGOTIATING);
+COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00HandlerClient::ReadyStateOpening, PeerConnection00::OPENING);
+COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00HandlerClient::ReadyStateNegotiating, PeerConnection00::OPENING);
 COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00HandlerClient::ReadyStateActive, PeerConnection00::ACTIVE);
 COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00HandlerClient::ReadyStateClosed, PeerConnection00::CLOSED);
 
@@ -532,10 +565,22 @@ COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00HandlerClient::ICEStateFailed, P
 COMPILE_ASSERT_MATCHING_ENUM(WebPeerConnection00HandlerClient::ICEStateClosed, PeerConnection00::ICE_CLOSED);
 #endif
 
-COMPILE_ASSERT_MATCHING_ENUM(WebReferrerPolicyAlways, SecurityPolicy::ReferrerPolicyAlways);
-COMPILE_ASSERT_MATCHING_ENUM(WebReferrerPolicyDefault, SecurityPolicy::ReferrerPolicyDefault);
-COMPILE_ASSERT_MATCHING_ENUM(WebReferrerPolicyNever, SecurityPolicy::ReferrerPolicyNever);
-COMPILE_ASSERT_MATCHING_ENUM(WebReferrerPolicyOrigin, SecurityPolicy::ReferrerPolicyOrigin);
+#if ENABLE(SCRIPTED_SPEECH)
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::OtherError, SpeechRecognitionError::OTHER);
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::NoSpeechError, SpeechRecognitionError::NO_SPEECH);
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::AbortedError, SpeechRecognitionError::ABORTED);
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::AudioCaptureError, SpeechRecognitionError::AUDIO_CAPTURE);
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::NetworkError, SpeechRecognitionError::NETWORK);
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::NotAllowedError, SpeechRecognitionError::NOT_ALLOWED);
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::ServiceNotAllowedError, SpeechRecognitionError::SERVICE_NOT_ALLOWED);
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::BadGrammarError, SpeechRecognitionError::BAD_GRAMMAR);
+COMPILE_ASSERT_MATCHING_ENUM(WebSpeechRecognizerClient::LanguageNotSupportedError, SpeechRecognitionError::LANGUAGE_NOT_SUPPORTED);
+#endif
+
+COMPILE_ASSERT_MATCHING_ENUM(WebReferrerPolicyAlways, ReferrerPolicyAlways);
+COMPILE_ASSERT_MATCHING_ENUM(WebReferrerPolicyDefault, ReferrerPolicyDefault);
+COMPILE_ASSERT_MATCHING_ENUM(WebReferrerPolicyNever, ReferrerPolicyNever);
+COMPILE_ASSERT_MATCHING_ENUM(WebReferrerPolicyOrigin, ReferrerPolicyOrigin);
 
 COMPILE_ASSERT_MATCHING_ENUM(WebContentSecurityPolicyTypeReportOnly, ContentSecurityPolicy::ReportOnly);
 COMPILE_ASSERT_MATCHING_ENUM(WebContentSecurityPolicyTypeEnforcePolicy, ContentSecurityPolicy::EnforcePolicy);

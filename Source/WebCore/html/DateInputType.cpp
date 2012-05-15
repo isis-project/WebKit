@@ -35,6 +35,8 @@
 #include "DateComponents.h"
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
+#include "KeyboardEvent.h"
+#include "LocalizedDate.h"
 #include <wtf/PassOwnPtr.h>
 
 #if ENABLE(INPUT_TYPE_DATE)
@@ -104,6 +106,11 @@ bool DateInputType::setMillisecondToDateComponents(double value, DateComponents*
     return date->setMillisecondsSinceEpochForDate(value);
 }
 
+bool DateInputType::isDateField() const
+{
+    return true;
+}
+
 #if ENABLE(CALENDAR_PICKER)
 void DateInputType::createShadowSubtree()
 {
@@ -128,13 +135,46 @@ bool DateInputType::shouldHaveSpinButton() const
     return false;
 }
 
+void DateInputType::handleKeydownEvent(KeyboardEvent* event)
+{
+    if (element()->disabled() || element()->readOnly())
+        return;
+    if (event->keyIdentifier() == "Down") {
+        if (m_pickerElement)
+            m_pickerElement->openPopup();
+        event->setDefaultHandled();
+        return;
+    }
+    BaseDateAndTimeInputType::handleKeydownEvent(event);
+}
+
 void DateInputType::handleBlurEvent()
 {
     if (m_pickerElement)
         m_pickerElement->closePopup();
+
+    // Reset the renderer value, which might be unmatched with the element value.
+    element()->setFormControlValueMatchesRenderer(false);
+    // We need to reset the renderer value explicitly because an unacceptable
+    // renderer value should be purged before style calculation.
+    element()->updateInnerTextValue();
+}
+
+bool DateInputType::supportsPlaceholder() const
+{
+    return true;
+}
+
+bool DateInputType::usesFixedPlaceholder() const
+{
+    return true;
+}
+
+String DateInputType::fixedPlaceholder()
+{
+    return localizedDateFormatText();
 }
 #endif // ENABLE(CALENDAR_PICKER)
 
 } // namespace WebCore
-
 #endif

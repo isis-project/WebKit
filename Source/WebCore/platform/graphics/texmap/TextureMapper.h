@@ -52,7 +52,6 @@ class TextureMapper;
 // A 2D texture that can be the target of software or GL rendering.
 class BitmapTexture  : public RefCounted<BitmapTexture> {
 public:
-    enum PixelFormat { BGRAFormat, RGBAFormat, BGRFormat, RGBFormat };
     enum Flag {
         SupportsAlpha = 0x01
     };
@@ -65,10 +64,11 @@ public:
     }
 
     virtual ~BitmapTexture() { }
+    virtual bool isBackedByOpenGL() const { return false; }
 
     virtual IntSize size() const = 0;
-    virtual void updateContents(Image*, const IntRect&, const IntRect&, BitmapTexture::PixelFormat) = 0;
-    virtual void updateContents(const void*, const IntRect&) = 0;
+    virtual void updateContents(Image*, const IntRect&, const IntPoint& offset) = 0;
+    virtual void updateContents(const void*, const IntRect& target, const IntPoint& offset, int bytesPerLine) = 0;
     virtual bool isValid() const = 0;
     inline Flags flags() const { return m_flags; }
 
@@ -87,7 +87,7 @@ public:
     inline bool isOpaque() const { return !(m_flags & SupportsAlpha); }
 
 #if ENABLE(CSS_FILTERS)
-    virtual void applyFilters(const BitmapTexture& contentTexture, const FilterOperations&) { }
+    virtual PassRefPtr<BitmapTexture> applyFilters(const BitmapTexture& contentTexture, const FilterOperations&) { return this; }
 #endif
 
 protected:
@@ -104,9 +104,15 @@ class TextureMapper {
 
 public:
     enum AccelerationMode { SoftwareMode, OpenGLMode };
+    enum PaintFlag {
+        PaintingMirrored = 1 << 0,
+    };
+    typedef unsigned PaintFlags;
+
     static PassOwnPtr<TextureMapper> create(AccelerationMode newMode = SoftwareMode);
     virtual ~TextureMapper() { }
 
+    virtual void drawBorder(const Color&, float borderWidth, const FloatRect& targetRect, const TransformationMatrix& modelViewMatrix = TransformationMatrix()) = 0;
     virtual void drawTexture(const BitmapTexture&, const FloatRect& target, const TransformationMatrix& modelViewMatrix = TransformationMatrix(), float opacity = 1.0f, const BitmapTexture* maskTexture = 0) = 0;
 
     // makes a surface the target for the following drawTexture calls.
@@ -124,7 +130,7 @@ public:
     TextDrawingModeFlags textDrawingMode() const { return m_textDrawingMode; }
     virtual AccelerationMode accelerationMode() const = 0;
 
-    virtual void beginPainting() { }
+    virtual void beginPainting(PaintFlags flags = 0) { }
     virtual void endPainting() { }
 
     virtual IntSize maxTextureSize() const { return IntSize(INT_MAX, INT_MAX); }

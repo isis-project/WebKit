@@ -40,7 +40,6 @@
 #include "JSActivation.h"
 #include "JSAPIValueWrapper.h"
 #include "JSArray.h"
-#include "JSByteArray.h"
 #include "JSClassRef.h"
 #include "JSFunction.h"
 #include "JSLock.h"
@@ -89,8 +88,34 @@ extern const HashTable regExpPrototypeTable;
 extern const HashTable stringTable;
 extern const HashTable stringConstructorTable;
 
+#if ENABLE(ASSEMBLER) && (ENABLE(CLASSIC_INTERPRETER) || ENABLE(LLINT))
+static bool enableAssembler(ExecutableAllocator& executableAllocator)
+{
+    if (!executableAllocator.isValid() || !Options::useJIT)
+        return false;
+
+#if USE(CF)
+    CFStringRef canUseJITKey = CFStringCreateWithCString(0 , "JavaScriptCoreUseJIT", kCFStringEncodingMacRoman);
+    CFBooleanRef canUseJIT = (CFBooleanRef)CFPreferencesCopyAppValue(canUseJITKey, kCFPreferencesCurrentApplication);
+    if (canUseJIT) {
+        return kCFBooleanTrue == canUseJIT;
+        CFRelease(canUseJIT);
+    }
+    CFRelease(canUseJITKey);
+#endif
+
+#if USE(CF) || OS(UNIX)
+    char* canUseJITString = getenv("JavaScriptCoreUseJIT");
+    return !canUseJITString || atoi(canUseJITString);
+#else
+    return true;
+#endif
+}
+#endif
+
 JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType threadStackType, HeapSize heapSize)
-    : globalDataType(globalDataType)
+    : heap(this, heapSize)
+    , globalDataType(globalDataType)
     , clientData(0)
     , topCallFrame(CallFrame::noCaller())
     , arrayConstructorTable(fastNew<HashTable>(JSC::arrayConstructorTable))
@@ -120,7 +145,6 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
     , parserArena(adoptPtr(new ParserArena))
     , keywords(adoptPtr(new Keywords(this)))
     , interpreter(0)
-    , heap(this, heapSize)
     , jsArrayClassInfo(&JSArray::s_info)
     , jsFinalObjectClassInfo(&JSFinalObject::s_info)
 #if ENABLE(DFG_JIT)
@@ -139,12 +163,18 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
 #if CPU(X86) && ENABLE(JIT)
     , m_timeoutCount(512)
 #endif
+#if ENABLE(ASSEMBLER) && (ENABLE(CLASSIC_INTERPRETER) || ENABLE(LLINT))
+    , m_canUseAssembler(enableAssembler(executableAllocator))
+#endif
 #if ENABLE(GC_VALIDATION)
     , m_initializingObjectClass(0)
 #endif
     , m_inDefineOwnProperty(false)
 {
     interpreter = new Interpreter;
+
+    if (isSharedInstance())
+        turnOffVerifier();
 
     // Need to be careful to keep everything consistent here
     IdentifierTable* existingEntryIdentifierTable = wtfThreadData().setCurrentIdentifierTable(identifierTable);
@@ -172,33 +202,7 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
 
     wtfThreadData().setCurrentIdentifierTable(existingEntryIdentifierTable);
 
-#if ENABLE(JIT) && (ENABLE(CLASSIC_INTERPRETER) || ENABLE(LLINT))
-#if USE(CF)
-    CFStringRef canUseJITKey = CFStringCreateWithCString(0 , "JavaScriptCoreUseJIT", kCFStringEncodingMacRoman);
-    CFBooleanRef canUseJIT = (CFBooleanRef)CFPreferencesCopyAppValue(canUseJITKey, kCFPreferencesCurrentApplication);
-    if (canUseJIT) {
-        m_canUseJIT = kCFBooleanTrue == canUseJIT;
-        CFRelease(canUseJIT);
-    } else {
-      char* canUseJITString = getenv("JavaScriptCoreUseJIT");
-      m_canUseJIT = !canUseJITString || atoi(canUseJITString);
-    }
-    CFRelease(canUseJITKey);
-#elif OS(UNIX)
-    char* canUseJITString = getenv("JavaScriptCoreUseJIT");
-    m_canUseJIT = !canUseJITString || atoi(canUseJITString);
-#else
-    m_canUseJIT = true;
-#endif
-#endif
 #if ENABLE(JIT)
-#if ENABLE(CLASSIC_INTERPRETER) || ENABLE(LLINT)
-    if (m_canUseJIT)
-        m_canUseJIT = executableAllocator.isValid();
-    
-    if (!Options::useJIT)
-        m_canUseJIT = false;
-#endif
     jitStubs = adoptPtr(new JITThunks(this));
 #endif
     
@@ -211,38 +215,13 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
     llintData.performAssertions(*this);
 }
 
-void JSGlobalData::clearBuiltinStructures()
-{
-    structureStructure.clear();
-    debuggerActivationStructure.clear();
-    activationStructure.clear();
-    interruptedExecutionErrorStructure.clear();
-    terminatedExecutionErrorStructure.clear();
-    staticScopeStructure.clear();
-    strictEvalActivationStructure.clear();
-    stringStructure.clear();
-    notAnObjectStructure.clear();
-    propertyNameIteratorStructure.clear();
-    getterSetterStructure.clear();
-    apiWrapperStructure.clear();
-    scopeChainNodeStructure.clear();
-    executableStructure.clear();
-    nativeExecutableStructure.clear();
-    evalExecutableStructure.clear();
-    programExecutableStructure.clear();
-    functionExecutableStructure.clear();
-    regExpStructure.clear();
-    structureChainStructure.clear();
-}
-
 JSGlobalData::~JSGlobalData()
 {
-    // By the time this is destroyed, heap.destroy() must already have been called.
+    heap.lastChanceToFinalize();
 
     delete interpreter;
 #ifndef NDEBUG
-    // Zeroing out to make the behavior more predictable when someone attempts to use a deleted instance.
-    interpreter = 0;
+    interpreter = reinterpret_cast<Interpreter*>(0xbbadbeef);
 #endif
 
     arrayPrototypeTable->deleteTable();

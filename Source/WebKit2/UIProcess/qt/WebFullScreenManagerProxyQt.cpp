@@ -26,7 +26,7 @@
 #include "WebFullScreenManagerMessages.h"
 #include "WebFullScreenManagerProxyMessages.h"
 #include "WebProcess.h"
-
+#include "qquickwebview_p.h"
 #include <WebCore/NotImplemented.h>
 
 using namespace WebCore;
@@ -51,12 +51,16 @@ bool WebFullScreenManagerProxy::isFullScreen()
 
 void WebFullScreenManagerProxy::enterFullScreen()
 {
-    notImplemented();
+    willEnterFullScreen();
+    emit m_webView->experimental()->enterFullScreenRequested();
+    didEnterFullScreen();
 }
 
 void WebFullScreenManagerProxy::exitFullScreen()
 {
-    notImplemented();
+    willExitFullScreen();
+    emit m_webView->experimental()->exitFullScreenRequested();
+    didExitFullScreen();
 }
 
 void WebFullScreenManagerProxy::beganEnterFullScreen(const IntRect& initialFrame, const IntRect& finalFrame)

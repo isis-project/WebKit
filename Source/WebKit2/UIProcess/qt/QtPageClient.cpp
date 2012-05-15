@@ -21,8 +21,11 @@
 #include "config.h"
 #include "QtPageClient.h"
 
+#include "DrawingAreaProxy.h"
+#include "LayerTreeContext.h"
 #include "QtWebPageEventHandler.h"
 #include "QtWebUndoController.h"
+#include "ShareableBitmap.h"
 #include "WebContextMenuProxyQt.h"
 #include "WebEditCommandProxy.h"
 #include "WebPopupMenuProxyQt.h"
@@ -35,8 +38,9 @@
 #include <WebCore/FloatRect.h>
 #include <WebCore/NotImplemented.h>
 
-using namespace WebKit;
 using namespace WebCore;
+
+namespace WebKit {
 
 QtPageClient::QtPageClient()
     : m_webView(0)
@@ -86,9 +90,9 @@ void QtPageClient::didChangeContentsSize(const IntSize& newSize)
     QQuickWebViewPrivate::get(m_webView)->didChangeContentsSize(newSize);
 }
 
-void QtPageClient::didChangeViewportProperties(const WebCore::ViewportArguments& args)
+void QtPageClient::didChangeViewportProperties(const WebCore::ViewportAttributes& attr)
 {
-    QQuickWebViewPrivate::get(m_webView)->didChangeViewportProperties(args);
+    QQuickWebViewPrivate::get(m_webView)->didChangeViewportProperties(attr);
 }
 
 void QtPageClient::startDrag(const WebCore::DragData& dragData, PassRefPtr<ShareableBitmap> dragImage)
@@ -300,3 +304,4 @@ void QtPageClient::updateAcceleratedCompositingMode(const LayerTreeContext&)
     // FIXME: Implement.
 }
 
+} // namespace WebKit

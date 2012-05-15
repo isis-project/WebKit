@@ -78,21 +78,35 @@ IDBTransaction* IDBObjectStore::transaction() const
     return m_transaction.get();
 }
 
-PassRefPtr<IDBRequest> IDBObjectStore::get(ScriptExecutionContext* context, PassRefPtr<IDBKey> key, ExceptionCode& ec)
+PassRefPtr<IDBRequest> IDBObjectStore::get(ScriptExecutionContext* context, PassRefPtr<IDBKeyRange> keyRange, ExceptionCode& ec)
 {
     IDB_TRACE("IDBObjectStore::get");
-    if (key && (key->type() == IDBKey::InvalidType)) {
+
+    if (!keyRange) {
         ec = IDBDatabaseException::DATA_ERR;
         return 0;
     }
-
     RefPtr<IDBRequest> request = IDBRequest::create(context, IDBAny::create(this), m_transaction.get());
-    m_backend->get(key, request, m_transaction->backend(), ec);
+    m_backend->get(keyRange, request, m_transaction->backend(), ec);
     if (ec) {
         request->markEarlyDeath();
         return 0;
     }
     return request.release();
+}
+
+PassRefPtr<IDBRequest> IDBObjectStore::get(ScriptExecutionContext* context, PassRefPtr<IDBKey> key, ExceptionCode& ec)
+{
+    IDB_TRACE("IDBObjectStore::get");
+    if (!key || (key->type() == IDBKey::InvalidType)) {
+        ec = IDBDatabaseException::DATA_ERR;
+        return 0;
+    }
+
+    RefPtr<IDBKeyRange> keyRange = IDBKeyRange::only(key, ec);
+    if (ec)
+        return 0;
+    return get(context, keyRange.release(), ec);
 }
 
 PassRefPtr<IDBRequest> IDBObjectStore::add(ScriptExecutionContext* context, PassRefPtr<SerializedScriptValue> prpValue, PassRefPtr<IDBKey> key, ExceptionCode& ec)
@@ -241,14 +255,12 @@ void IDBObjectStore::deleteIndex(const String& name, ExceptionCode& ec)
     m_backend->deleteIndex(name, m_transaction->backend(), ec);
 }
 
-PassRefPtr<IDBRequest> IDBObjectStore::openCursor(ScriptExecutionContext* context, PassRefPtr<IDBKeyRange> range, unsigned short direction, ExceptionCode& ec)
+PassRefPtr<IDBRequest> IDBObjectStore::openCursor(ScriptExecutionContext* context, PassRefPtr<IDBKeyRange> range, const String& directionString, ExceptionCode& ec)
 {
     IDB_TRACE("IDBObjectStore::openCursor");
-    if (direction != IDBCursor::NEXT && direction != IDBCursor::NEXT_NO_DUPLICATE && direction != IDBCursor::PREV && direction != IDBCursor::PREV_NO_DUPLICATE) {
-        // FIXME: May need to change when specced: http://www.w3.org/Bugs/Public/show_bug.cgi?id=11406
-        ec = IDBDatabaseException::CONSTRAINT_ERR;
+    unsigned short direction = IDBCursor::stringToDirection(directionString, ec);
+    if (ec)
         return 0;
-    }
 
     RefPtr<IDBRequest> request = IDBRequest::create(context, IDBAny::create(this), m_transaction.get());
     request->setCursorType(IDBCursorBackendInterface::ObjectStoreCursor);
@@ -258,6 +270,35 @@ PassRefPtr<IDBRequest> IDBObjectStore::openCursor(ScriptExecutionContext* contex
         return 0;
     }
     return request.release();
+}
+
+PassRefPtr<IDBRequest> IDBObjectStore::openCursor(ScriptExecutionContext* context, PassRefPtr<IDBKeyRange> range, unsigned short direction, ExceptionCode& ec)
+{
+    IDB_TRACE("IDBObjectStore::openCursor");
+    DEFINE_STATIC_LOCAL(String, consoleMessage, ("Numeric direction values are deprecated in IDBObjectStore.openCursor. Use\"next\", \"nextunique\", \"prev\", or \"prevunique\"."));
+    context->addConsoleMessage(JSMessageSource, LogMessageType, WarningMessageLevel, consoleMessage);
+    const String& directionString = IDBCursor::directionToString(direction, ec);
+    if (ec)
+        return 0;
+    return openCursor(context, range, directionString, ec);
+}
+
+PassRefPtr<IDBRequest> IDBObjectStore::openCursor(ScriptExecutionContext* context, PassRefPtr<IDBKey> key, const String& direction, ExceptionCode& ec)
+{
+    IDB_TRACE("IDBObjectStore::openCursor");
+    RefPtr<IDBKeyRange> keyRange = IDBKeyRange::only(key, ec);
+    if (ec)
+        return 0;
+    return openCursor(context, keyRange.release(), ec);
+}
+
+PassRefPtr<IDBRequest> IDBObjectStore::openCursor(ScriptExecutionContext* context, PassRefPtr<IDBKey> key, unsigned short direction, ExceptionCode& ec)
+{
+    IDB_TRACE("IDBObjectStore::openCursor");
+    RefPtr<IDBKeyRange> keyRange = IDBKeyRange::only(key, ec);
+    if (ec)
+        return 0;
+    return openCursor(context, key, direction, ec);
 }
 
 PassRefPtr<IDBRequest> IDBObjectStore::count(ScriptExecutionContext* context, PassRefPtr<IDBKeyRange> range, ExceptionCode& ec)

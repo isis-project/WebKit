@@ -96,13 +96,19 @@ public:
     // This returns false for other layers, and when the document layer actually needs to paint into its backing store
     // for some reason.
     bool paintsIntoWindow() const;
+    
+    // Returns true for a composited layer that has no backing store of its own, so
+    // paints into some ancestor layer.
+    bool paintsIntoCompositedAncestor() const { return !m_requiresOwnBackingStore; }
+
+    void setRequiresOwnBackingStore(bool flag) { m_requiresOwnBackingStore = flag; }
 
     void setContentsNeedDisplay();
     // r is in the coordinate space of the layer's render object
     void setContentsNeedDisplayInRect(const IntRect&);
 
     // Notification from the renderer that its content changed.
-    void contentChanged(RenderLayer::ContentChangeType);
+    void contentChanged(ContentChangeType);
 
     // Interface to start, finish, suspend and resume animations and transitions
     bool startTransition(double, CSSPropertyID, const RenderStyle* fromStyle, const RenderStyle* toStyle);
@@ -152,6 +158,11 @@ public:
 #if ENABLE(CSS_FILTERS)
     bool canCompositeFilters() const { return m_canCompositeFilters; }
 #endif
+
+    // Return an estimate of the backing store area (in pixels) allocated by this object's GraphicsLayers.
+    double backingStoreArea() const;
+
+    String nameForLayer() const;
     
 private:
     void createPrimaryGraphicsLayer();
@@ -214,10 +225,6 @@ private:
     static CSSPropertyID graphicsLayerToCSSProperty(AnimatedPropertyID);
     static AnimatedPropertyID cssToGraphicsLayerProperty(CSSPropertyID);
 
-#ifndef NDEBUG
-    String nameForLayer() const;
-#endif
-
     RenderLayer* m_owningLayer;
 
     OwnPtr<GraphicsLayer> m_ancestorClippingLayer; // only used if we are clipped by an ancestor which is not a stacking context
@@ -235,6 +242,7 @@ private:
     bool m_artificiallyInflatedBounds;      // bounds had to be made non-zero to make transform-origin work
     bool m_isMainFrameRenderViewLayer;
     bool m_usingTiledCacheLayer;
+    bool m_requiresOwnBackingStore;
 #if ENABLE(CSS_FILTERS)
     bool m_canCompositeFilters;
 #endif

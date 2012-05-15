@@ -47,9 +47,9 @@ PassRefPtr<HTMLScriptElement> HTMLScriptElement::create(const QualifiedName& tag
     return adoptRef(new HTMLScriptElement(tagName, document, wasInsertedByParser, false));
 }
 
-bool HTMLScriptElement::isURLAttribute(Attribute* attr) const
+bool HTMLScriptElement::isURLAttribute(const Attribute& attribute) const
 {
-    return attr->name() == srcAttr || HTMLElement::isURLAttribute(attr);
+    return attribute.name() == srcAttr || HTMLElement::isURLAttribute(attribute);
 }
 
 void HTMLScriptElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
@@ -74,10 +74,11 @@ void HTMLScriptElement::parseAttribute(Attribute* attr)
         HTMLElement::parseAttribute(attr);
 }
 
-void HTMLScriptElement::insertedIntoDocument()
+Node::InsertionNotificationRequest HTMLScriptElement::insertedInto(Node* insertionPoint)
 {
-    HTMLElement::insertedIntoDocument();
-    ScriptElement::insertedIntoDocument();
+    HTMLElement::insertedInto(insertionPoint);
+    ScriptElement::insertedInto(insertionPoint);
+    return InsertionDone;
 }
 
 void HTMLScriptElement::setText(const String &value)

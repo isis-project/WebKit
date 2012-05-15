@@ -77,28 +77,22 @@ void ObjectPrototype::finishCreation(JSGlobalData& globalData, JSGlobalObject*)
     ASSERT(inherits(&s_info));
 }
 
-void ObjectPrototype::put(JSCell* cell, ExecState* exec, const Identifier& propertyName, JSValue value, PutPropertySlot& slot)
+void ObjectPrototype::put(JSCell* cell, ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
 {
     ObjectPrototype* thisObject = jsCast<ObjectPrototype*>(cell);
     Base::put(cell, exec, propertyName, value, slot);
 
-    if (thisObject->m_hasNoPropertiesWithUInt32Names) {
-        bool isUInt32;
-        propertyName.toUInt32(isUInt32);
-        thisObject->m_hasNoPropertiesWithUInt32Names = !isUInt32;
-    }
+    if (thisObject->m_hasNoPropertiesWithUInt32Names && propertyName.asIndex() != PropertyName::NotAnIndex)
+        thisObject->m_hasNoPropertiesWithUInt32Names = false;
 }
 
-bool ObjectPrototype::defineOwnProperty(JSObject* object, ExecState* exec, const Identifier& propertyName, PropertyDescriptor& descriptor, bool shouldThrow)
+bool ObjectPrototype::defineOwnProperty(JSObject* object, ExecState* exec, PropertyName propertyName, PropertyDescriptor& descriptor, bool shouldThrow)
 {
     ObjectPrototype* thisObject = jsCast<ObjectPrototype*>(object);
     bool result = Base::defineOwnProperty(object, exec, propertyName, descriptor, shouldThrow);
 
-    if (thisObject->m_hasNoPropertiesWithUInt32Names) {
-        bool isUInt32;
-        propertyName.toUInt32(isUInt32);
-        thisObject->m_hasNoPropertiesWithUInt32Names = !isUInt32;
-    }
+    if (thisObject->m_hasNoPropertiesWithUInt32Names && propertyName.asIndex() != PropertyName::NotAnIndex)
+        thisObject->m_hasNoPropertiesWithUInt32Names = false;
 
     return result;
 }
@@ -111,12 +105,12 @@ bool ObjectPrototype::getOwnPropertySlotByIndex(JSCell* cell, ExecState* exec, u
     return Base::getOwnPropertySlotByIndex(thisObject, exec, propertyName, slot);
 }
 
-bool ObjectPrototype::getOwnPropertySlot(JSCell* cell, ExecState* exec, const Identifier& propertyName, PropertySlot &slot)
+bool ObjectPrototype::getOwnPropertySlot(JSCell* cell, ExecState* exec, PropertyName propertyName, PropertySlot &slot)
 {
     return getStaticFunctionSlot<JSNonFinalObject>(exec, ExecState::objectPrototypeTable(exec), jsCast<ObjectPrototype*>(cell), propertyName, slot);
 }
 
-bool ObjectPrototype::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, const Identifier& propertyName, PropertyDescriptor& descriptor)
+bool ObjectPrototype::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, PropertyName propertyName, PropertyDescriptor& descriptor)
 {
     return getStaticFunctionDescriptor<JSNonFinalObject>(exec, ExecState::objectPrototypeTable(exec), jsCast<ObjectPrototype*>(object), propertyName, descriptor);
 }
@@ -255,7 +249,17 @@ EncodedJSValue JSC_HOST_CALL objectProtoFuncToString(ExecState* exec)
     if (thisValue.isUndefinedOrNull())
         return JSValue::encode(jsNontrivialString(exec, thisValue.isUndefined() ? "[object Undefined]" : "[object Null]"));
     JSObject* thisObject = thisValue.toObject(exec);
-    return JSValue::encode(jsMakeNontrivialString(exec, "[object ", thisObject->methodTable()->className(thisObject), "]"));
+
+    JSString* result = thisObject->structure()->objectToStringValue();
+    if (!result) {
+        RefPtr<StringImpl> newString = WTF::tryMakeString("[object ", thisObject->methodTable()->className(thisObject), "]");
+        if (!newString)
+            return JSValue::encode(throwOutOfMemoryError(exec));
+
+        result = jsNontrivialString(exec, newString.release());
+        thisObject->structure()->setObjectToStringValue(exec->globalData(), thisObject, result);
+    }
+    return JSValue::encode(result);
 }
 
 } // namespace JSC

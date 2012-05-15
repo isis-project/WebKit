@@ -259,21 +259,12 @@ contains(DEFINES, ENABLE_ICONDATABASE=1) {
 }
 
 contains(DEFINES, ENABLE_DEVICE_ORIENTATION=1) || contains(DEFINES, ENABLE_ORIENTATION_EVENTS=1) {
-    haveQt(5): QT += sensors
-}
-
-contains(DEFINES, ENABLE_DEVICE_ORIENTATION=1) {
-    HEADERS += \
-        $$PWD/WebKit/qt/WebCoreSupport/DeviceMotionClientQt.h \
-        $$PWD/WebKit/qt/WebCoreSupport/DeviceMotionProviderQt.h \
-        $$PWD/WebKit/qt/WebCoreSupport/DeviceOrientationClientQt.h \
-        $$PWD/WebKit/qt/WebCoreSupport/DeviceOrientationProviderQt.h
-
-    SOURCES += \
-        $$PWD/WebKit/qt/WebCoreSupport/DeviceMotionClientQt.cpp \
-        $$PWD/WebKit/qt/WebCoreSupport/DeviceMotionProviderQt.cpp \
-        $$PWD/WebKit/qt/WebCoreSupport/DeviceOrientationClientQt.cpp \
-        $$PWD/WebKit/qt/WebCoreSupport/DeviceOrientationProviderQt.cpp
+    haveQt(5) {
+        QT += sensors
+    } else {
+        CONFIG *= mobility
+        MOBILITY *= sensors
+    }
 }
 
 contains(DEFINES, ENABLE_GEOLOCATION=1) {

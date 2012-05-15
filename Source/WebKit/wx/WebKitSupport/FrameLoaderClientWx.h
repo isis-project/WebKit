@@ -121,7 +121,7 @@ namespace WebCore {
         virtual void dispatchShow();
         virtual void cancelPolicyCheck();
 
-        virtual void dispatchWillSendSubmitEvent(HTMLFormElement*) { }
+        virtual void dispatchWillSendSubmitEvent(PassRefPtr<FormState>) { }
         virtual void dispatchWillSubmitForm(FramePolicyFunction, PassRefPtr<FormState>);
 
         virtual void revertToProvisionalState(DocumentLoader*);
@@ -241,7 +241,6 @@ namespace WebCore {
         PluginView* m_pluginView;
         bool m_hasSentResponseToPlugin;
         ResourceResponse m_response;
-        bool m_firstData;
     };
 
 }

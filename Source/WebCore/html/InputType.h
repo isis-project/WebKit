@@ -1,6 +1,7 @@
 /*
  * Copyright (C) 2010 Google Inc. All rights reserved.
  * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2012 Samsung Electronics. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
@@ -80,6 +81,8 @@ public:
     static PassOwnPtr<InputType> createText(HTMLInputElement*);
     virtual ~InputType();
 
+    static bool themeSupportsDataListUI(InputType*);
+
     virtual const AtomicString& formControlType() const = 0;
     virtual bool canChangeFromAnotherType() const;
 
@@ -96,11 +99,15 @@ public:
     virtual bool isColorControl() const;
 #endif
     virtual bool isCheckbox() const;
+    virtual bool isDateField() const;
+    virtual bool isDateTimeField() const;
+    virtual bool isDateTimeLocalField() const;
     virtual bool isEmailField() const;
     virtual bool isFileUpload() const;
     virtual bool isHiddenType() const;
     virtual bool isImageButton() const;
     virtual bool supportLabels() const;
+    virtual bool isMonthField() const;
     virtual bool isNumberField() const;
     virtual bool isPasswordField() const;
     virtual bool isRadioButton() const;
@@ -111,7 +118,9 @@ public:
     virtual bool isTextButton() const;
     virtual bool isTextField() const;
     virtual bool isTextType() const;
+    virtual bool isTimeField() const;
     virtual bool isURLField() const;
+    virtual bool isWeekField() const;
 
     // Form value functions
 
@@ -131,7 +140,7 @@ public:
     virtual void setValueAsNumber(double, TextFieldEventBehavior, ExceptionCode&) const;
 
     // Validation functions
-
+    virtual String validationMessage() const;
     virtual bool supportsValidation() const;
     virtual bool typeMismatchFor(const String&) const;
     // Type check for the current input value. We do nothing for some types
@@ -148,9 +157,13 @@ public:
     virtual double minimum() const;
     virtual double maximum() const;
     virtual bool sizeShouldIncludeDecoration(int defaultSize, int& preferredSize) const;
+    bool stepMismatch(const String&) const;
     virtual bool stepMismatch(const String&, double step) const;
     virtual double stepBase() const;
     virtual double stepBaseWithDecimalPlaces(unsigned*) const;
+    virtual bool getAllowedValueStep(double*) const;
+    virtual void stepUp(int, ExceptionCode&);
+    virtual void stepUpFromRenderer(int);
     virtual double defaultStep() const;
     virtual double stepScaleFactor() const;
     virtual bool parsedStepValueShouldBeInteger() const;
@@ -235,7 +248,14 @@ public:
     virtual bool isCheckable();
     virtual bool isSteppable() const;
     virtual bool shouldRespectHeightAndWidthAttributes();
+    // If supportsPlaceholder() && !usesFixedPlaceholder(), it means a type
+    // supports the 'placeholder' attribute.
+    // If supportsPlaceholder() && usesFixedPlaceholder(), it means a type
+    // doesn't support the 'placeholder' attribute, but shows
+    // fixedPlaceholder() string as a placeholder.
     virtual bool supportsPlaceholder() const;
+    virtual bool usesFixedPlaceholder() const;
+    virtual String fixedPlaceholder();
     virtual void updatePlaceholderText();
     virtual void multipleAttributeChanged();
     virtual void disabledAttributeChanged();
@@ -266,6 +286,11 @@ public:
 
     virtual bool supportsIndeterminateAppearance() const;
 
+    // Gets width and height of the input element if the type of the
+    // element is image. It returns 0 if the element is not image type.
+    virtual unsigned height() const;
+    virtual unsigned width() const;
+
 protected:
     InputType(HTMLInputElement* element) : m_element(element) { }
     HTMLInputElement* element() const { return m_element; }
@@ -275,6 +300,13 @@ protected:
     Chrome* chrome() const;
 
 private:
+    enum AnyStepHandling { RejectAny, AnyIsDefaultStep };
+
+    // Helper for stepUp()/stepDown(). Adds step value * count to the current value.
+    void applyStep(double count, AnyStepHandling, TextFieldEventBehavior, ExceptionCode&);
+    double alignValueForStep(double value, double step, unsigned currentDecimalPlaces, unsigned stepDecimalPlaces);
+    bool getAllowedValueStepWithDecimalPlaces(AnyStepHandling, double*, unsigned*) const;
+
     // Raw pointer because the HTMLInputElement object owns this InputType object.
     HTMLInputElement* m_element;
 };

@@ -28,7 +28,7 @@
 
 #import <WebCore/SoftLinking.h>
 
-SOFT_LINK_STAGED_FRAMEWORK_OPTIONAL(WebInspector, PrivateFrameworks)
+SOFT_LINK_STAGED_FRAMEWORK_OPTIONAL(WebInspector, PrivateFrameworks, A)
 
 namespace WebKit {
 
@@ -41,6 +41,9 @@ static bool inspectorReallyUsesWebKitUserInterface(bool preference)
 
     if (![[NSBundle bundleWithIdentifier:@"com.apple.WebInspector"] pathForResource:@"Main" ofType:@"html"])
         return true;
+
+    if (![[NSBundle bundleWithIdentifier:@"com.apple.WebCore"] pathForResource:@"inspector" ofType:@"html" inDirectory:@"inspector"])
+        return false;
 
     return preference;
 }

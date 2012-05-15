@@ -777,13 +777,6 @@ static inline bool equalIgnoringCase(const UChar* a, const UChar* b, int length)
     return umemcasecmp(a, b, length) == 0;
 }
 
-size_t StringImpl::find(UChar c, unsigned start)
-{
-    if (is8Bit())
-        return WTF::find(characters8(), m_length, c, start);
-    return WTF::find(characters16(), m_length, c, start);
-}
-
 size_t StringImpl::find(CharacterMatchFunctionPtr matchFunction, unsigned start)
 {
     if (is8Bit())
@@ -901,21 +894,61 @@ ALWAYS_INLINE static size_t findInner(const CharType* searchCharacters, const Ch
     return index + i;        
 }
 
-size_t StringImpl::find(StringImpl* matchString, unsigned index)
+size_t StringImpl::find(StringImpl* matchString)
 {
-    // Check for null or empty string to match against
-    if (!matchString)
+    // Check for null string to match against
+    if (UNLIKELY(!matchString))
         return notFound;
     unsigned matchLength = matchString->length();
-    if (!matchLength)
-        return min(index, length());
 
     // Optimization 1: fast case for strings of length 1.
     if (matchLength == 1) {
-        if (is8Bit() && matchString->is8Bit())
-            return WTF::find(characters8(), length(), matchString->characters8()[0], index);
-        return WTF::find(characters(), length(), matchString->characters()[0], index);
+        if (is8Bit()) {
+            if (matchString->is8Bit())
+                return WTF::find(characters8(), length(), matchString->characters8()[0]);
+            return WTF::find(characters8(), length(), matchString->characters16()[0]);
+        }
+        if (matchString->is8Bit())
+            return WTF::find(characters16(), length(), matchString->characters8()[0]);
+        return WTF::find(characters16(), length(), matchString->characters16()[0]);
     }
+
+    // Check matchLength is in range.
+    if (matchLength > length())
+        return notFound;
+
+    // Check for empty string to match against
+    if (UNLIKELY(!matchLength))
+        return 0;
+
+    if (is8Bit() && matchString->is8Bit())
+        return findInner(characters8(), matchString->characters8(), 0, length(), matchLength);
+
+    return findInner(characters(), matchString->characters(), 0, length(), matchLength);
+}
+
+size_t StringImpl::find(StringImpl* matchString, unsigned index)
+{
+    // Check for null or empty string to match against
+    if (UNLIKELY(!matchString))
+        return notFound;
+
+    unsigned matchLength = matchString->length();
+
+    // Optimization 1: fast case for strings of length 1.
+    if (matchLength == 1) {
+        if (is8Bit()) {
+            if (matchString->is8Bit())
+                return WTF::find(characters8(), length(), matchString->characters8()[0], index);
+            return WTF::find(characters8(), length(), matchString->characters16()[0], index);
+        }
+        if (matchString->is8Bit())
+            return WTF::find(characters16(), length(), matchString->characters8()[0], index);
+        return WTF::find(characters16(), length(), matchString->characters16()[0], index);
+    }
+
+    if (UNLIKELY(!matchLength))
+        return min(index, length());
 
     // Check index & matchLength are in range.
     if (index > length())
@@ -928,7 +961,6 @@ size_t StringImpl::find(StringImpl* matchString, unsigned index)
         return findInner(characters8() + index, matchString->characters8(), index, searchLength, matchLength);
 
     return findInner(characters() + index, matchString->characters(), index, searchLength, matchLength);
-
 }
 
 size_t StringImpl::findIgnoringCase(StringImpl* matchString, unsigned index)
@@ -1063,6 +1095,35 @@ size_t StringImpl::reverseFindIgnoringCase(StringImpl* matchString, unsigned ind
     return delta;
 }
 
+ALWAYS_INLINE static bool equalInner(const StringImpl* stringImpl, unsigned startOffset, const char* matchString, unsigned matchLength, bool caseSensitive)
+{
+    ASSERT(stringImpl);
+    ASSERT(matchLength <= stringImpl->length());
+    ASSERT(startOffset + matchLength <= stringImpl->length());
+
+    if (caseSensitive) {
+        if (stringImpl->is8Bit())
+            return equal(stringImpl->characters8() + startOffset, reinterpret_cast<const LChar*>(matchString), matchLength);
+        return equal(stringImpl->characters16() + startOffset, reinterpret_cast<const LChar*>(matchString), matchLength);
+    }
+    if (stringImpl->is8Bit())
+        return equalIgnoringCase(stringImpl->characters8() + startOffset, reinterpret_cast<const LChar*>(matchString), matchLength);
+    return equalIgnoringCase(stringImpl->characters16() + startOffset, reinterpret_cast<const LChar*>(matchString), matchLength);
+}
+
+bool StringImpl::startsWith(UChar character) const
+{
+    return m_length && (*this)[0] == character;
+}
+
+bool StringImpl::startsWith(const char* matchString, unsigned matchLength, bool caseSensitive) const
+{
+    ASSERT(matchLength);
+    if (matchLength > length())
+        return false;
+    return equalInner(this, 0, matchString, matchLength, caseSensitive);
+}
+
 bool StringImpl::endsWith(StringImpl* matchString, bool caseSensitive)
 {
     ASSERT(matchString);
@@ -1071,6 +1132,20 @@ bool StringImpl::endsWith(StringImpl* matchString, bool caseSensitive)
         return (caseSensitive ? find(matchString, start) : findIgnoringCase(matchString, start)) == start;
     }
     return false;
+}
+
+bool StringImpl::endsWith(UChar character) const
+{
+    return m_length && (*this)[m_length - 1] == character;
+}
+
+bool StringImpl::endsWith(const char* matchString, unsigned matchLength, bool caseSensitive) const
+{
+    ASSERT(matchLength);
+    if (matchLength > length())
+        return false;
+    unsigned startOffset = length() - matchLength;
+    return equalInner(this, startOffset, matchString, matchLength, caseSensitive);
 }
 
 PassRefPtr<StringImpl> StringImpl::replace(UChar oldC, UChar newC)

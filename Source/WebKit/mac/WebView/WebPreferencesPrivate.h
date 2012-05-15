@@ -277,12 +277,11 @@ extern NSString *WebPreferencesChangedInternalNotification;
 - (void)setRegionBasedColumnsEnabled:(BOOL)flag;
 - (BOOL)regionBasedColumnsEnabled;
 
-// Deprecated. You should use [setS|s]uppressesIncrementalRendering in WebPreferences.h instead.
-- (void)setSuppressIncrementalRendering:(BOOL)flag;
-- (BOOL)suppressIncrementalRendering;
-
 - (void)setBackspaceKeyNavigationEnabled:(BOOL)flag;
 - (BOOL)backspaceKeyNavigationEnabled;
+
+- (void)setWantsBalancedSetDefersLoadingBehavior:(BOOL)flag;
+- (BOOL)wantsBalancedSetDefersLoadingBehavior;
 
 - (void)setShouldDisplaySubtitles:(BOOL)flag;
 - (BOOL)shouldDisplaySubtitles;
@@ -298,5 +297,11 @@ extern NSString *WebPreferencesChangedInternalNotification;
 
 - (void)setShouldRespectImageOrientation:(BOOL)flag;
 - (BOOL)shouldRespectImageOrientation;
+
+- (BOOL)requestAnimationFrameEnabled;
+- (void)setRequestAnimationFrameEnabled:(BOOL)enabled;
+
+- (void)setIncrementalRenderingSuppressionTimeoutInSeconds:(NSTimeInterval)timeout;
+- (NSTimeInterval)incrementalRenderingSuppressionTimeoutInSeconds;
 
 @end

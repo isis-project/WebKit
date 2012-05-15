@@ -101,7 +101,7 @@ InspectorTest.addIDBValue = function(frameId, databaseName, objectStoreName, val
 };
 
 var indexedDB = window.indexeddb || window.webkitIndexedDB;
-var IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction;
+window.IDBTransaction = window.IDBTransaction || window.webkitIDBTransaction;
 
 function dispatchCallback(callbackId)
 {
@@ -153,7 +153,7 @@ function doWithReadWriteTransaction(databaseName, objectStoreName, callback, com
 
     function step2(db)
     {
-        var transaction = db.transaction([objectStoreName], IDBTransaction.READ_WRITE);
+        var transaction = db.transaction([objectStoreName], 'readwrite');
         var objectStore = transaction.objectStore(objectStoreName);
         callback(objectStore, innerCommitCallback);
 

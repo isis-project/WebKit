@@ -80,17 +80,14 @@
 #import <WebCore/PlatformEventFactoryMac.h>
 #import <WebCore/PluginData.h>
 #import <WebCore/PrintContext.h>
-#import <WebCore/RenderLayer.h>
 #import <WebCore/RenderPart.h>
 #import <WebCore/RenderView.h>
-#import <WebCore/ReplaceSelectionCommand.h>
 #import <WebCore/RuntimeApplicationChecks.h>
 #import <WebCore/ScriptValue.h>
 #import <WebCore/SecurityOrigin.h>
 #import <WebCore/SmartReplace.h>
 #import <WebCore/TextIterator.h>
 #import <WebCore/ThreadCheck.h>
-#import <WebCore/TypingCommand.h>
 #import <WebCore/htmlediting.h>
 #import <WebCore/markup.h>
 #import <WebCore/visible_units.h>
@@ -632,11 +629,8 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
     NSRect rangeRect = [self _firstRectForDOMRange:range];    
     Node *startNode = core([range startContainer]);
         
-    if (startNode && startNode->renderer()) {
-        RenderLayer *layer = startNode->renderer()->enclosingLayer();
-        if (layer)
-            layer->scrollRectToVisible(enclosingIntRect(rangeRect), ScrollAlignment::alignToEdgeIfNeeded, ScrollAlignment::alignToEdgeIfNeeded);
-    }
+    if (startNode && startNode->renderer())
+        startNode->renderer()->scrollRectToVisible(enclosingIntRect(rangeRect), ScrollAlignment::alignToEdgeIfNeeded, ScrollAlignment::alignToEdgeIfNeeded);
 }
 
 - (BOOL)_needsLayout
@@ -770,9 +764,8 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
 {
     if (_private->coreFrame->selection()->isNone())
         return;
-    
-    TypingCommand::insertParagraphSeparatorInQuotedContent(_private->coreFrame->document());
-    _private->coreFrame->selection()->revealSelection(ScrollAlignment::alignToEdgeIfNeeded);
+
+    _private->coreFrame->editor()->insertParagraphSeparatorInQuotedContent();
 }
 
 - (VisiblePosition)_visiblePositionForPoint:(NSPoint)point
@@ -1003,24 +996,6 @@ static inline WebDataSource *dataSource(DocumentLoader* loader)
         return false;
 
     return controller->numberOfActiveAnimations(frame->document());
-}
-
-- (void) _suspendAnimations
-{
-    Frame* frame = core(self);
-    if (!frame)
-        return;
-        
-    frame->animation()->suspendAnimations();
-}
-
-- (void) _resumeAnimations
-{
-    Frame* frame = core(self);
-    if (!frame)
-        return;
-
-    frame->animation()->resumeAnimations();
 }
 
 - (void)_replaceSelectionWithFragment:(DOMDocumentFragment *)fragment selectReplacement:(BOOL)selectReplacement smartReplace:(BOOL)smartReplace matchStyle:(BOOL)matchStyle
@@ -1402,10 +1377,14 @@ static bool needsMicrosoftMessengerDOMDocumentWorkaround()
         return;
 
     ResourceRequest resourceRequest(request);
-    // Modifying the original request here breaks -[WebDataSource initialRequest], but we don't want
-    // to implement this "path as URL" quirk anywhere except for API boundary.
-    if (!resourceRequest.url().isValid())
-        resourceRequest.setURL([NSURL fileURLWithPath:[[request URL] absoluteString]]);
+    
+    // Some users of WebKit API incorrectly use "file path as URL" style requests which are invalid.
+    // By re-writing those URLs here we technically break the -[WebDataSource initialRequest] API
+    // but that is necessary to implement this quirk only at the API boundary.
+    // Note that other users of WebKit API use nil requests or requests with nil URLs, so we
+    // only implement this workaround when the request had a non-nil URL.
+    if (!resourceRequest.url().isValid() && [request URL])
+        resourceRequest.setURL([NSURL URLWithString:[@"file:" stringByAppendingString:[[request URL] absoluteString]]]);
 
     coreFrame->loader()->load(resourceRequest, false);
 }
@@ -1448,7 +1427,7 @@ static NSURL *createUniqueWebDataURL()
     
     if (!MIMEType)
         MIMEType = @"text/html";
-    [self _loadData:data MIMEType:MIMEType textEncodingName:encodingName baseURL:[baseURL _webkit_URLFromURLOrPath] unreachableURL:nil];
+    [self _loadData:data MIMEType:MIMEType textEncodingName:encodingName baseURL:[baseURL _webkit_URLFromURLOrSchemelessFileURL] unreachableURL:nil];
 }
 
 - (void)_loadHTMLString:(NSString *)string baseURL:(NSURL *)baseURL unreachableURL:(NSURL *)unreachableURL
@@ -1461,14 +1440,14 @@ static NSURL *createUniqueWebDataURL()
 {
     WebCoreThreadViolationCheckRoundTwo();
 
-    [self _loadHTMLString:string baseURL:[baseURL _webkit_URLFromURLOrPath] unreachableURL:nil];
+    [self _loadHTMLString:string baseURL:[baseURL _webkit_URLFromURLOrSchemelessFileURL] unreachableURL:nil];
 }
 
 - (void)loadAlternateHTMLString:(NSString *)string baseURL:(NSURL *)baseURL forUnreachableURL:(NSURL *)unreachableURL
 {
     WebCoreThreadViolationCheckRoundTwo();
 
-    [self _loadHTMLString:string baseURL:[baseURL _webkit_URLFromURLOrPath] unreachableURL:[unreachableURL _webkit_URLFromURLOrPath]];
+    [self _loadHTMLString:string baseURL:[baseURL _webkit_URLFromURLOrSchemelessFileURL] unreachableURL:[unreachableURL _webkit_URLFromURLOrSchemelessFileURL]];
 }
 
 - (void)loadArchive:(WebArchive *)archive

@@ -228,6 +228,7 @@ JIT::Label JIT::privateCompileCTINativeCall(JSGlobalData* globalData, bool isCon
     Label nativeCallThunk = align();
 
     emitPutImmediateToCallFrameHeader(0, RegisterFile::CodeBlock);
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
 
 #if CPU(X86)
     // Load caller frame's scope chain into this callframe so that whatever we call can
@@ -362,6 +363,7 @@ JIT::CodeRef JIT::privateCompileCTINativeCall(JSGlobalData* globalData, NativeFu
     Call nativeCall;
 
     emitPutImmediateToCallFrameHeader(0, RegisterFile::CodeBlock);
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
 
 #if CPU(X86)
     // Load caller frame's scope chain into this callframe so that whatever we call can
@@ -629,6 +631,65 @@ void JIT::emitSlow_op_instanceof(Instruction* currentInstruction, Vector<SlowCas
     stubCall.addArgument(baseVal);
     stubCall.addArgument(proto);
     stubCall.call(dst);
+}
+
+void JIT::emit_op_is_undefined(Instruction* currentInstruction)
+{
+    unsigned dst = currentInstruction[1].u.operand;
+    unsigned value = currentInstruction[2].u.operand;
+    
+    emitLoad(value, regT1, regT0);
+    Jump isCell = branch32(Equal, regT1, TrustedImm32(JSValue::CellTag));
+
+    compare32(Equal, regT1, TrustedImm32(JSValue::UndefinedTag), regT0);
+    Jump done = jump();
+    
+    isCell.link(this);
+    loadPtr(Address(regT0, JSCell::structureOffset()), regT1);
+    test8(NonZero, Address(regT1, Structure::typeInfoFlagsOffset()), TrustedImm32(MasqueradesAsUndefined), regT0);
+    
+    done.link(this);
+    emitStoreBool(dst, regT0);
+}
+
+void JIT::emit_op_is_boolean(Instruction* currentInstruction)
+{
+    unsigned dst = currentInstruction[1].u.operand;
+    unsigned value = currentInstruction[2].u.operand;
+    
+    emitLoadTag(value, regT0);
+    compare32(Equal, regT0, TrustedImm32(JSValue::BooleanTag), regT0);
+    emitStoreBool(dst, regT0);
+}
+
+void JIT::emit_op_is_number(Instruction* currentInstruction)
+{
+    unsigned dst = currentInstruction[1].u.operand;
+    unsigned value = currentInstruction[2].u.operand;
+    
+    emitLoadTag(value, regT0);
+    add32(TrustedImm32(1), regT0);
+    compare32(Below, regT0, TrustedImm32(JSValue::LowestTag + 1), regT0);
+    emitStoreBool(dst, regT0);
+}
+
+void JIT::emit_op_is_string(Instruction* currentInstruction)
+{
+    unsigned dst = currentInstruction[1].u.operand;
+    unsigned value = currentInstruction[2].u.operand;
+    
+    emitLoad(value, regT1, regT0);
+    Jump isNotCell = branch32(NotEqual, regT1, TrustedImm32(JSValue::CellTag));
+    
+    loadPtr(Address(regT0, JSCell::structureOffset()), regT1);
+    compare8(Equal, Address(regT1, Structure::typeInfoTypeOffset()), TrustedImm32(StringType), regT0);
+    Jump done = jump();
+    
+    isNotCell.link(this);
+    move(TrustedImm32(0), regT0);
+    
+    done.link(this);
+    emitStoreBool(dst, regT0);
 }
 
 void JIT::emit_op_tear_off_activation(Instruction* currentInstruction)
@@ -1462,44 +1523,24 @@ void JIT::emit_op_init_lazy_reg(Instruction* currentInstruction)
     emitStore(dst, JSValue());
 }
 
-void JIT::emit_op_get_callee(Instruction* currentInstruction)
-{
-    int dst = currentInstruction[1].u.operand;
-    emitGetFromCallFrameHeaderPtr(RegisterFile::Callee, regT0);
-    emitStoreCell(dst, regT0);
-}
-
 void JIT::emit_op_create_this(Instruction* currentInstruction)
 {
-    emitLoad(currentInstruction[2].u.operand, regT1, regT0);
-    emitJumpSlowCaseIfNotJSCell(currentInstruction[2].u.operand, regT1);
-    loadPtr(Address(regT0, JSCell::structureOffset()), regT1);
-    addSlowCase(emitJumpIfNotObject(regT1));
-    
-    // now we know that the prototype is an object, but we don't know if it's got an
-    // inheritor ID
-    
-    loadPtr(Address(regT0, JSObject::offsetOfInheritorID()), regT2);
+    emitGetFromCallFrameHeaderPtr(RegisterFile::Callee, regT0);
+    loadPtr(Address(regT0, JSFunction::offsetOfCachedInheritorID()), regT2);
     addSlowCase(branchTestPtr(Zero, regT2));
     
     // now regT2 contains the inheritorID, which is the structure that the newly
     // allocated object will have.
     
     emitAllocateJSFinalObject(regT2, regT0, regT1);
-
     emitStoreCell(currentInstruction[1].u.operand, regT0);
 }
 
 void JIT::emitSlow_op_create_this(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
-    linkSlowCaseIfNotJSCell(iter, currentInstruction[2].u.operand); // not a cell
-    linkSlowCase(iter); // not an object
     linkSlowCase(iter); // doesn't have an inheritor ID
     linkSlowCase(iter); // allocation failed
-    unsigned protoRegister = currentInstruction[2].u.operand;
-    emitLoad(protoRegister, regT1, regT0);
     JITStubCall stubCall(this, cti_op_create_this);
-    stubCall.addArgument(regT1, regT0);
     stubCall.call(currentInstruction[1].u.operand);
 }
 

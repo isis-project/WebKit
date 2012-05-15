@@ -28,7 +28,6 @@
 
 #if ENABLE(DFG_JIT)
 
-#include "JSByteArray.h"
 #include "LinkBuffer.h"
 
 namespace JSC { namespace DFG {
@@ -60,39 +59,27 @@ GPRReg SpeculativeJIT::fillStorage(NodeIndex nodeIndex)
     
     switch (info.registerFormat()) {
     case DataFormatNone: {
-        GPRReg gpr = allocate();
-        ASSERT(info.spillFormat() == DataFormatStorage);
-        m_gprs.retain(gpr, virtualRegister, SpillOrderSpilled);
-        m_jit.loadPtr(JITCompiler::addressFor(virtualRegister), gpr);
-        info.fillStorage(gpr);
-        return gpr;
+        if (info.spillFormat() == DataFormatStorage) {
+            GPRReg gpr = allocate();
+            m_gprs.retain(gpr, virtualRegister, SpillOrderSpilled);
+            m_jit.loadPtr(JITCompiler::addressFor(virtualRegister), gpr);
+            info.fillStorage(gpr);
+            return gpr;
+        }
+        
+        // Must be a cell; fill it as a cell and then return the pointer.
+        return fillSpeculateCell(nodeIndex);
     }
         
-    case DataFormatStorage:
-    case DataFormatCell: {
+    case DataFormatStorage: {
         GPRReg gpr = info.gpr();
         m_gprs.lock(gpr);
         return gpr;
     }
         
-    case DataFormatJS:
-    case DataFormatJSCell: {
-#if USE(JSVALUE64)
-        GPRReg gpr = info.gpr();
-        m_gprs.lock(gpr);
-        return gpr;
-#else
-        GPRReg gpr = info.payloadGPR();
-        m_gprs.lock(gpr);
-        return gpr;
-#endif
-    }
-
     default:
-        ASSERT_NOT_REACHED();
+        return fillSpeculateCell(nodeIndex);
     }
-    
-    return InvalidGPRReg;
 }
 
 void SpeculativeJIT::useChildren(Node& node)
@@ -763,6 +750,9 @@ void ValueSource::dump(FILE* out) const
     case SourceNotSet:
         fprintf(out, "NotSet");
         break;
+    case SourceIsDead:
+        fprintf(out, "IsDead");
+        break;
     case ValueInRegisterFile:
         fprintf(out, "InRegFile");
         break;
@@ -943,6 +933,8 @@ void SpeculativeJIT::compile(BasicBlock& block)
 #if DFG_ENABLE(JIT_BREAK_ON_EVERY_BLOCK)
     m_jit.breakpoint();
 #endif
+    
+    m_jit.jitAssertHasValidCallFrame();
 
     ASSERT(m_arguments.size() == block.variablesAtHead.numberOfArguments());
     for (size_t i = 0; i < m_arguments.size(); ++i) {
@@ -959,7 +951,9 @@ void SpeculativeJIT::compile(BasicBlock& block)
     ASSERT(m_variables.size() == block.variablesAtHead.numberOfLocals());
     for (size_t i = 0; i < m_variables.size(); ++i) {
         NodeIndex nodeIndex = block.variablesAtHead.local(i);
-        if (nodeIndex == NoNode || m_jit.graph().localIsCaptured(i))
+        if ((nodeIndex == NoNode || !at(nodeIndex).refCount()) && !m_jit.graph().localIsCaptured(i))
+            m_variables[i] = ValueSource(SourceIsDead);
+        else if (m_jit.graph().localIsCaptured(i))
             m_variables[i] = ValueSource(ValueInRegisterFile);
         else if (at(nodeIndex).variableAccessData()->shouldUseDoubleFormat())
             m_variables[i] = ValueSource(DoubleInRegisterFile);
@@ -1000,6 +994,10 @@ void SpeculativeJIT::compile(BasicBlock& block)
                     // since the Arguments code isn't smart enough to handle anything else.
                     // The exception is the this argument, which we don't really need to be
                     // able to recover.
+#if DFG_ENABLE(DEBUG_VERBOSE)
+                    dataLog("\nRecovery for argument %d: ", i);
+                    recovery.dump(WTF::dataFile());
+#endif
                     ASSERT(!i || (recovery.isAlreadyInRegisterFile() || recovery.isConstant()));
                     inlineCallFrame->arguments[i] = recovery;
                 }
@@ -1114,11 +1112,6 @@ void SpeculativeJIT::checkArgumentTypes()
             m_jit.loadPtr(JITCompiler::addressFor(virtualRegister), temp.gpr());
             speculationCheck(BadType, valueSource, nodeIndex, m_jit.branchTestPtr(MacroAssembler::NonZero, temp.gpr(), GPRInfo::tagMaskRegister));
             speculationCheck(BadType, valueSource, nodeIndex, m_jit.branchPtr(MacroAssembler::NotEqual, MacroAssembler::Address(temp.gpr(), JSCell::classInfoOffset()), MacroAssembler::TrustedImmPtr(&JSArray::s_info)));
-        } else if (isByteArrayPrediction(predictedType)) {
-            GPRTemporary temp(this);
-            m_jit.loadPtr(JITCompiler::addressFor(virtualRegister), temp.gpr());
-            speculationCheck(BadType, valueSource, nodeIndex, m_jit.branchTestPtr(MacroAssembler::NonZero, temp.gpr(), GPRInfo::tagMaskRegister));
-            speculationCheck(BadType, valueSource, nodeIndex, m_jit.branchPtr(MacroAssembler::NotEqual, MacroAssembler::Address(temp.gpr(), JSCell::classInfoOffset()), MacroAssembler::TrustedImmPtr(&JSByteArray::s_info)));
         } else if (isBooleanPrediction(predictedType)) {
             GPRTemporary temp(this);
             m_jit.loadPtr(JITCompiler::addressFor(virtualRegister), temp.gpr());
@@ -1179,12 +1172,6 @@ void SpeculativeJIT::checkArgumentTypes()
             speculationCheck(BadType, valueSource, nodeIndex, m_jit.branch32(MacroAssembler::NotEqual, temp.gpr(), TrustedImm32(JSValue::CellTag)));
             m_jit.load32(JITCompiler::payloadFor(virtualRegister), temp.gpr());
             speculationCheck(BadType, valueSource, nodeIndex, m_jit.branchPtr(MacroAssembler::NotEqual, MacroAssembler::Address(temp.gpr(), JSCell::classInfoOffset()), MacroAssembler::TrustedImmPtr(&JSArray::s_info)));
-        } else if (isByteArrayPrediction(predictedType)) {
-            GPRTemporary temp(this);
-            m_jit.load32(JITCompiler::tagFor(virtualRegister), temp.gpr());
-            speculationCheck(BadType, valueSource, nodeIndex, m_jit.branch32(MacroAssembler::NotEqual, temp.gpr(), TrustedImm32(JSValue::CellTag)));
-            m_jit.load32(JITCompiler::payloadFor(virtualRegister), temp.gpr());
-            speculationCheck(BadType, valueSource, nodeIndex, m_jit.branchPtr(MacroAssembler::NotEqual, MacroAssembler::Address(temp.gpr(), JSCell::classInfoOffset()), MacroAssembler::TrustedImmPtr(&JSByteArray::s_info)));
         } else if (isBooleanPrediction(predictedType))
             speculationCheck(BadType, valueSource, nodeIndex, m_jit.branch32(MacroAssembler::NotEqual, JITCompiler::tagFor(virtualRegister), TrustedImm32(JSValue::BooleanTag)));
         else if (isInt8ArrayPrediction(predictedType)) {
@@ -1296,6 +1283,9 @@ void SpeculativeJIT::linkOSREntries(LinkBuffer& linkBuffer)
 ValueRecovery SpeculativeJIT::computeValueRecoveryFor(const ValueSource& valueSource)
 {
     switch (valueSource.kind()) {
+    case SourceIsDead:
+        return ValueRecovery::constant(jsUndefined());
+        
     case ValueInRegisterFile:
         return ValueRecovery::alreadyInRegisterFile();
         
@@ -1341,10 +1331,13 @@ ValueRecovery SpeculativeJIT::computeValueRecoveryFor(const ValueSource& valueSo
             // The reverse of the above: This node could be a UInt32ToNumber, but its
             //    alternative is still alive. This means that the only remaining uses of
             //    the number would be fine with a UInt32 intermediate.
+            //
+            // DoubleAsInt32: Same as UInt32ToNumber.
+            //
         
             bool found = false;
         
-            if (nodePtr->op() == UInt32ToNumber) {
+            if (nodePtr->op() == UInt32ToNumber || nodePtr->op() == DoubleAsInt32) {
                 NodeIndex nodeIndex = nodePtr->child1().index();
                 nodePtr = &at(nodeIndex);
                 infoPtr = &m_generationInfo[nodePtr->virtualRegister()];
@@ -1356,6 +1349,7 @@ ValueRecovery SpeculativeJIT::computeValueRecoveryFor(const ValueSource& valueSo
                 NodeIndex int32ToDoubleIndex = NoNode;
                 NodeIndex valueToInt32Index = NoNode;
                 NodeIndex uint32ToNumberIndex = NoNode;
+                NodeIndex doubleAsInt32Index = NoNode;
             
                 for (unsigned virtualRegister = 0; virtualRegister < m_generationInfo.size(); ++virtualRegister) {
                     GenerationInfo& info = m_generationInfo[virtualRegister];
@@ -1376,13 +1370,17 @@ ValueRecovery SpeculativeJIT::computeValueRecoveryFor(const ValueSource& valueSo
                     case UInt32ToNumber:
                         uint32ToNumberIndex = info.nodeIndex();
                         break;
+                    case DoubleAsInt32:
+                        doubleAsInt32Index = info.nodeIndex();
                     default:
                         break;
                     }
                 }
             
                 NodeIndex nodeIndexToUse;
-                if (int32ToDoubleIndex != NoNode)
+                if (doubleAsInt32Index != NoNode)
+                    nodeIndexToUse = doubleAsInt32Index;
+                else if (int32ToDoubleIndex != NoNode)
                     nodeIndexToUse = int32ToDoubleIndex;
                 else if (valueToInt32Index != NoNode)
                     nodeIndexToUse = valueToInt32Index;
@@ -1727,6 +1725,23 @@ void SpeculativeJIT::compileUInt32ToNumber(Node& node)
     integerResult(result.gpr(), m_compileIndex, op1.format());
 }
 
+void SpeculativeJIT::compileDoubleAsInt32(Node& node)
+{
+    SpeculateDoubleOperand op1(this, node.child1());
+    FPRTemporary scratch(this);
+    GPRTemporary result(this);
+    
+    FPRReg valueFPR = op1.fpr();
+    FPRReg scratchFPR = scratch.fpr();
+    GPRReg resultGPR = result.gpr();
+
+    JITCompiler::JumpList failureCases;
+    m_jit.branchConvertDoubleToInt32(valueFPR, resultGPR, failureCases, scratchFPR);
+    forwardSpeculationCheck(Overflow, JSValueRegs(), NoNode, failureCases, ValueRecovery::inFPR(valueFPR));
+
+    integerResult(resultGPR, m_compileIndex);
+}
+
 void SpeculativeJIT::compileInt32ToDouble(Node& node)
 {
 #if USE(JSVALUE64)
@@ -1855,85 +1870,6 @@ static void compileClampDoubleToByte(JITCompiler& jit, GPRReg result, FPRReg sou
 
 }
 
-void SpeculativeJIT::compilePutByValForByteArray(GPRReg base, GPRReg property, Node& node)
-{
-    Edge baseUse = node.child1();
-    Edge valueUse = node.child3();
-    
-    if (!isByteArrayPrediction(m_state.forNode(baseUse).m_type))
-        speculationCheck(BadType, JSValueSource::unboxedCell(base), baseUse.index(), m_jit.branchPtr(MacroAssembler::NotEqual, MacroAssembler::Address(base, JSCell::classInfoOffset()), MacroAssembler::TrustedImmPtr(&JSByteArray::s_info)));
-    GPRTemporary value;
-    GPRReg valueGPR;
-
-    if (at(valueUse).isConstant()) {
-        JSValue jsValue = valueOfJSConstant(valueUse.index());
-        if (!jsValue.isNumber()) {
-            terminateSpeculativeExecution(Uncountable, JSValueRegs(), NoNode);
-            noResult(m_compileIndex);
-            return;
-        }
-        int clampedValue = clampDoubleToByte(jsValue.asNumber());
-        GPRTemporary scratch(this);
-        GPRReg scratchReg = scratch.gpr();
-        m_jit.move(Imm32(clampedValue), scratchReg);
-        value.adopt(scratch);
-        valueGPR = scratchReg;
-    } else if (at(valueUse).shouldSpeculateInteger()) {
-        SpeculateIntegerOperand valueOp(this, valueUse);
-        GPRTemporary scratch(this);
-        GPRReg scratchReg = scratch.gpr();
-        m_jit.move(valueOp.gpr(), scratchReg);
-        compileClampIntegerToByte(m_jit, scratchReg);
-        value.adopt(scratch);
-        valueGPR = scratchReg;
-    } else {
-        SpeculateDoubleOperand valueOp(this, valueUse);
-        GPRTemporary result(this);
-        FPRTemporary floatScratch(this);
-        FPRReg fpr = valueOp.fpr();
-        GPRReg gpr = result.gpr();
-        compileClampDoubleToByte(m_jit, gpr, fpr, floatScratch.fpr());
-        value.adopt(result);
-        valueGPR = gpr;
-    }
-    ASSERT_UNUSED(valueGPR, valueGPR != property);
-    ASSERT(valueGPR != base);
-    GPRTemporary storage(this);
-    GPRReg storageReg = storage.gpr();
-    ASSERT(valueGPR != storageReg);
-    m_jit.loadPtr(MacroAssembler::Address(base, JSByteArray::offsetOfStorage()), storageReg);
-    MacroAssembler::Jump outOfBounds = m_jit.branch32(MacroAssembler::AboveOrEqual, property, MacroAssembler::Address(storageReg, ByteArray::offsetOfSize()));
-    m_jit.store8(value.gpr(), MacroAssembler::BaseIndex(storageReg, property, MacroAssembler::TimesOne, ByteArray::offsetOfData()));
-    outOfBounds.link(&m_jit);
-    noResult(m_compileIndex);
-}
-
-void SpeculativeJIT::compileGetByValOnByteArray(Node& node)
-{
-    SpeculateCellOperand base(this, node.child1());
-    SpeculateStrictInt32Operand property(this, node.child2());
-
-    GPRReg baseReg = base.gpr();
-    GPRReg propertyReg = property.gpr();
-
-    if (!isByteArrayPrediction(m_state.forNode(node.child1()).m_type)) {
-        terminateSpeculativeExecution(Uncountable, JSValueRegs(), NoNode);
-        noResult(m_compileIndex);
-        return;
-    }
-
-    // Load the character into scratchReg
-    GPRTemporary storage(this);
-    GPRReg storageReg = storage.gpr();
-    m_jit.loadPtr(MacroAssembler::Address(baseReg, JSByteArray::offsetOfStorage()), storageReg);
-    
-    // unsigned comparison so we can filter out negative indices and indices that are too large
-    speculationCheck(Uncountable, JSValueRegs(), NoNode, m_jit.branch32(MacroAssembler::AboveOrEqual, propertyReg, MacroAssembler::Address(storageReg, ByteArray::offsetOfSize())));
-
-    m_jit.load8(MacroAssembler::BaseIndex(storageReg, propertyReg, MacroAssembler::TimesOne, ByteArray::offsetOfData()), storageReg);
-    integerResult(storageReg, m_compileIndex);
-}
-
 void SpeculativeJIT::compileGetTypedArrayLength(const TypedArrayDescriptor& descriptor, Node& node, bool needsSpeculationCheck)
 {
     SpeculateCellOperand base(this, node.child1());
@@ -2038,7 +1974,7 @@ void SpeculativeJIT::compilePutByValForIntTypedArray(const TypedArrayDescriptor&
         }
         GPRTemporary scratch(this);
         GPRReg scratchReg = scratch.gpr();
-        m_jit.move(Imm32(static_cast<int>(d)), scratchReg);
+        m_jit.move(Imm32(toInt32(d)), scratchReg);
         value.adopt(scratch);
         valueGPR = scratchReg;
     } else if (at(valueUse).shouldSpeculateInteger()) {
@@ -3014,10 +2950,6 @@ void SpeculativeJIT::compileGetIndexedPropertyStorage(Node& node)
         speculationCheck(Uncountable, JSValueRegs(), NoNode, m_jit.branchTest32(MacroAssembler::Zero, storageReg));
 
         m_jit.loadPtr(MacroAssembler::Address(storageReg, StringImpl::dataOffset()), storageReg);
-    } else if (at(node.child1()).shouldSpeculateByteArray()) {
-        if (!isByteArrayPrediction(m_state.forNode(node.child1()).m_type))
-            speculationCheck(BadType, JSValueSource::unboxedCell(baseReg), node.child1(), m_jit.branchPtr(MacroAssembler::NotEqual, MacroAssembler::Address(baseReg, JSCell::classInfoOffset()), MacroAssembler::TrustedImmPtr(&JSByteArray::s_info)));
-        m_jit.loadPtr(MacroAssembler::Address(baseReg, JSByteArray::offsetOfStorage()), storageReg);
     } else if (at(node.child1()).shouldSpeculateInt8Array()) {
         const TypedArrayDescriptor& descriptor = m_jit.globalData()->int8ArrayDescriptor();
         if (!isInt8ArrayPrediction(m_state.forNode(node.child1()).m_type))

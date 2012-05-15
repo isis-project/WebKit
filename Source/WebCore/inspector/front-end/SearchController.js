@@ -36,11 +36,14 @@ WebInspector.SearchController = function()
 {
     this.element = document.getElementById("search");
     this._matchesElement = document.getElementById("search-results-matches");
-    this._toolbarLabelElement = document.getElementById("search-toolbar-label");
+    this._searchItemElement = document.getElementById("toolbar-search-item");
+    this._searchControlBoxElement = document.getElementById("toolbar-search-navigation-control");
 
     this.element.addEventListener("search", this._onSearch.bind(this), false); // when the search is emptied
     this.element.addEventListener("mousedown", this._onSearchFieldManualFocus.bind(this), false); // when the search field is manually selected
     this.element.addEventListener("keydown", this._onKeyDown.bind(this), true);
+   
+    this._populateSearchNavigationButtons();
 }
 
 WebInspector.SearchController.prototype = {
@@ -67,12 +70,7 @@ WebInspector.SearchController.prototype = {
         if (!panelName)
             return;
         var newLabel = WebInspector.UIString("Search %s", panelName);
-        if (WebInspector.isCompactMode())
-            this.element.setAttribute("placeholder", newLabel);
-        else {
-            this.element.removeAttribute("placeholder");
-            this._toolbarLabelElement.textContent = newLabel;
-        }
+        this.element.setAttribute("placeholder", newLabel);
     },
 
     cancelSearch: function()
@@ -151,6 +149,14 @@ WebInspector.SearchController.prototype = {
         }
     },
 
+    _updateSearchNavigationButtonState: function(visible)
+    {
+        if (visible)
+            this._searchItemElement.addStyleClass("with-navigation-buttons");
+        else
+            this._searchItemElement.removeStyleClass("with-navigation-buttons");
+    },
+
     /**
      * @param {?number=} matches
      * @param {number=} currentMatchIndex
@@ -159,6 +165,8 @@ WebInspector.SearchController.prototype = {
     {
         if (matches == null) {
             this._matchesElement.addStyleClass("hidden");
+            // Make Search Nav key non-accessible when there is no active search.
+            this._updateSearchNavigationButtonState(false); 
             return;
         }
 
@@ -173,9 +181,14 @@ WebInspector.SearchController.prototype = {
                     var matchesString = WebInspector.UIString("%d of %d matches", currentMatchIndex + 1, matches);
                 else
                     var matchesString = WebInspector.UIString("%d matches", matches);
+                // Make search nav key accessible when there are more than 1 search results found.    
+                this._updateSearchNavigationButtonState(true);
             }
-        } else
+        } else {
             var matchesString = WebInspector.UIString("Not Found");
+            // Make search nav key non-accessible when there is no match found.
+            this._updateSearchNavigationButtonState(false);
+        }
 
         this._matchesElement.removeStyleClass("hidden");
         this._matchesElement.textContent = matchesString;
@@ -232,6 +245,18 @@ WebInspector.SearchController.prototype = {
     {
         var forceSearch = event.keyIdentifier === "Enter";
         this._performSearch(event.target.value, forceSearch, event.shiftKey, false);
+    },
+
+    _onNextButtonSearch: function(event)
+    {
+        // Simulate next search on search-navigation-button click.
+        this._performSearch(this.element.value, true, false, false);
+    },
+
+    _onPrevButtonSearch: function(event)
+    {
+        // Simulate previous search on search-navigation-button click.
+        this._performSearch(this.element.value, true, true, false);
     },
 
     /**
@@ -295,6 +320,44 @@ WebInspector.SearchController.prototype = {
 
         currentPanel.currentQuery = query;
         currentPanel.performSearch(query);
+    },
+
+    /**
+     * @param {string=} direction
+     */ 
+    _createSearchNavigationButton: function(direction) 
+    {
+        var searchNavigationControlElement = document.createElement("div");
+        var searchNavigationIconElement = document.createElement("div");
+        
+        searchNavigationControlElement.className = "toolbar-search-navigation-label";
+        
+        switch (direction) {
+        case "prev":
+            var searchTitle = WebInspector.UIString("Search Previous");
+            searchNavigationIconElement.className = "toolbar-search-navigation-icon-prev";
+            this._searchNavigationPrev = searchNavigationControlElement;
+            this._searchNavigationPrev.addEventListener("mousedown", this._onPrevButtonSearch.bind(this), false);
+            break;
+             
+        case "next":
+            var searchTitle = WebInspector.UIString("Search Next");
+            searchNavigationIconElement.className = "toolbar-search-navigation-icon-next";
+            this._searchNavigationNext = searchNavigationControlElement;
+            this._searchNavigationNext.addEventListener("mousedown", this._onNextButtonSearch.bind(this), false); 
+            break;
+        }
+
+        searchNavigationControlElement.setAttribute("title" , searchTitle);
+        searchNavigationControlElement.appendChild(searchNavigationIconElement);  
+        this._searchControlBoxElement.appendChild(searchNavigationControlElement);
+    },
+
+    _populateSearchNavigationButtons: function() 
+    {
+        // Lazily adding search navigation keys to dom.
+        this._createSearchNavigationButton("prev");
+        this._createSearchNavigationButton("next");
     }
 }
 

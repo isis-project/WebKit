@@ -84,7 +84,7 @@ public:
 
     virtual bool hasWebView() const; // mainly for assertions
 
-    virtual void makeRepresentation(DocumentLoader*);
+    virtual void makeRepresentation(DocumentLoader*) { }
     virtual void forceLayout();
     virtual void forceLayoutForNonHTML();
 
@@ -136,10 +136,10 @@ public:
 
     virtual void dispatchUnableToImplementPolicy(const WebCore::ResourceError&);
 
-    virtual void dispatchWillSendSubmitEvent(HTMLFormElement*) { }
+    virtual void dispatchWillSendSubmitEvent(PassRefPtr<FormState>) { }
     virtual void dispatchWillSubmitForm(FramePolicyFunction, PassRefPtr<FormState>);
 
-    virtual void revertToProvisionalState(DocumentLoader*);
+    virtual void revertToProvisionalState(DocumentLoader*) { }
     virtual void setMainDocumentError(DocumentLoader*, const ResourceError&);
 
     virtual void postProgressStartedNotification();
@@ -225,7 +225,7 @@ public:
     virtual void willReleaseScriptContext(v8::Handle<v8::Context>, int worldId);
 #else // !PLATFORM(WEBOS)
     // A frame's V8 context was created or destroyed.
-    virtual void didCreateScriptContext(v8::Handle<v8::Context>, int);
+    virtual void didCreateScriptContext(v8::Handle<v8::Context>, int, int);
     virtual void willReleaseScriptContext(v8::Handle<v8::Context>, int);
 
     // A context untied to a frame was created (through evaluateInIsolatedWorld).
@@ -236,7 +236,7 @@ public:
 
     // Returns true if we should allow the given V8 extension to be added to
     // the script context at the currently loading page and given extension group.
-    virtual bool allowScriptExtension(const String& extensionName, int extensionGroup) { return false; }
+    virtual bool allowScriptExtension(const String& extensionName, int extensionGroup, int worldID) { return false; }
 #endif
 
     virtual void registerForIconNotification(bool);
@@ -277,11 +277,6 @@ private:
     // Plugin view to redirect data to
     WebCore::PluginView* m_pluginView;
     bool m_hasSentResponseToPlugin;
-
-    // True if makeRepresentation was called.  We don't actually have a concept
-    // of a "representation", but we need to know when we're expected to have one.
-    // See finishedLoading().
-    bool m_hasRepresentation;
 
     KURL m_lastRequestedUrl;
     bool m_isOriginatingLoad;

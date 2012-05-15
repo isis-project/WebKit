@@ -243,16 +243,16 @@ public:
     void enableAutoResizeMode(const CppArgumentList&, CppVariant*);
     void disableAutoResizeMode(const CppArgumentList&, CppVariant*);
     void numberOfActiveAnimations(const CppArgumentList&, CppVariant*);
-    void suspendAnimations(const CppArgumentList&, CppVariant*);
-    void resumeAnimations(const CppArgumentList&, CppVariant*);
     void disableImageLoading(const CppArgumentList&, CppVariant*);
     void setIconDatabaseEnabled(const CppArgumentList&, CppVariant*);
     void dumpSelectionRect(const CppArgumentList&, CppVariant*);
 
+#if ENABLE(NOTIFICATIONS)
     // Grants permission for desktop notifications to an origin
     void grantDesktopNotificationPermission(const CppArgumentList&, CppVariant*);
     // Simulates a click on a desktop notification.
     void simulateDesktopNotificationClick(const CppArgumentList&, CppVariant*);
+#endif
 
     void setDomainRelaxationForbiddenForURLScheme(const CppArgumentList&, CppVariant*);
     void setDeferMainResourceDataLoad(const CppArgumentList&, CppVariant*);
@@ -289,6 +289,7 @@ public:
     void setAllowFileAccessFromFileURLs(const CppArgumentList&, CppVariant*);
     void setAllowRunningOfInsecureContent(const CppArgumentList&, CppVariant*);
 
+    void evaluateScriptInIsolatedWorldAndReturnValue(const CppArgumentList&, CppVariant*);
     void evaluateScriptInIsolatedWorld(const CppArgumentList&, CppVariant*);
     void setIsolatedWorldSecurityOrigin(const CppArgumentList&, CppVariant*);
 
@@ -339,9 +340,6 @@ public:
     // printing.
     void hasCustomPageSizeStyle(const CppArgumentList&, CppVariant*);
 
-    // Returns the visibililty status of a page box for printing
-    void isPageBoxVisible(const CppArgumentList&, CppVariant*);
-
     // Gets the page-related property for printed content
     void pageProperty(const CppArgumentList&, CppVariant*);
 
@@ -376,8 +374,10 @@ public:
     void abortModal(const CppArgumentList&, CppVariant*);
 
     // Speech input related functions.
+#if ENABLE(INPUT_SPEECH)
     void addMockSpeechInputResult(const CppArgumentList&, CppVariant*);
     void setMockSpeechInputDumpRect(const CppArgumentList&, CppVariant*);
+#endif
     void startSpeechInput(const CppArgumentList&, CppVariant*);
 
     void layerTreeAsText(const CppArgumentList& args, CppVariant* result);
@@ -491,6 +491,9 @@ public:
     bool testRepaint() const { return m_testRepaint; }
     bool sweepHorizontally() const { return m_sweepHorizontally; }
 
+    void setHasCustomFullScreenBehavior(const CppArgumentList&, CppVariant*);
+    bool hasCustomFullScreenBehavior() const { return m_hasCustomFullScreenBehavior; }
+
     // Called by the webview delegate when the toplevel frame load is done.
     void locationChangeDone();
 
@@ -569,8 +572,6 @@ private:
     bool pauseTransitionAtTimeOnElementWithId(const WebKit::WebString& propertyName, double time, const WebKit::WebString& elementId);
     bool elementDoesAutoCompleteForElementWithId(const WebKit::WebString&);
     int numberOfActiveAnimations();
-    void suspendAnimations();
-    void resumeAnimations();
 
     // Used for test timeouts.
     TaskList m_taskList;
@@ -705,6 +706,10 @@ private:
     WebKit::WebArrayBufferView m_audioData;
 
     bool m_shouldStayOnPageAfterHandlingBeforeUnload;
+
+    // If true, calls to WebViewHost::enter/exitFullScreenNow will not result in 
+    // calls to Document::will/did/Enter/ExitFullScreen.
+    bool m_hasCustomFullScreenBehavior;
 };
 
 #endif // LayoutTestController_h

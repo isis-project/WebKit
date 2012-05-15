@@ -177,6 +177,7 @@ private:
 #endif
 };
 
+#if ENABLE(INSPECTOR)
 void V8BindingPerIsolateData::visitJSExternalStrings(DOMWrapperVisitor* visitor)
 {
     v8::HandleScope handleScope;
@@ -195,6 +196,7 @@ void V8BindingPerIsolateData::visitJSExternalStrings(DOMWrapperVisitor* visitor)
     } v8Visitor(visitor);
     v8::V8::VisitExternalResources(&v8Visitor);
 }
+#endif
 
 String v8ValueToWebCoreString(v8::Handle<v8::Value> value)
 {
@@ -549,7 +551,7 @@ v8::Handle<v8::Value> getElementStringAttr(const v8::AccessorInfo& info,
                                            const QualifiedName& name) 
 {
     Element* imp = V8Element::toNative(info.Holder());
-    return v8ExternalString(imp->getAttribute(name));
+    return v8ExternalString(imp->getAttribute(name), info.GetIsolate());
 }
 
 void setElementStringAttr(const v8::AccessorInfo& info,

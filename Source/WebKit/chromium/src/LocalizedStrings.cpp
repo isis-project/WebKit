@@ -206,17 +206,19 @@ String AXMenuListActionVerb()
     
 String missingPluginText()
 {
-    String text = query(WebLocalizedString::MissingPluginText);
-    if (!text.isEmpty())
-        return text;
-    notImplemented();
-    return String("Missing Plug-in");
+    return query(WebLocalizedString::MissingPluginText);
 }
 
 String crashedPluginText()
 {
     notImplemented();
     return String("Plug-in Failure");
+}
+
+String insecurePluginVersionText()
+{
+    notImplemented();
+    return String();
 }
 
 String multipleFileUploadText(unsigned numberOfFiles)
@@ -409,6 +411,21 @@ String calendarTodayText()
 String calendarClearText()
 {
     return query(WebLocalizedString::CalendarClear);
+}
+
+String dateFormatYearText()
+{
+    return query(WebLocalizedString::DateFormatYearLabel);
+}
+
+String dateFormatMonthText()
+{
+    return query(WebLocalizedString::DateFormatMonthLabel);
+}
+
+String dateFormatDayInMonthText()
+{
+    return query(WebLocalizedString::DateFormatDayInMonthLabel);
 }
 #endif
 

@@ -64,5 +64,20 @@ FloatRect RenderSurfaceChromium::drawableContentRect() const
     return drawableContentRect;
 }
 
+bool RenderSurfaceChromium::hasReplica() const
+{
+    return m_owningLayer->replicaLayer();
+}
+
+bool RenderSurfaceChromium::hasMask() const
+{
+    return m_maskLayer;
+}
+
+bool RenderSurfaceChromium::replicaHasMask() const
+{
+    return hasReplica() && (m_maskLayer || m_owningLayer->replicaLayer()->maskLayer());
+}
+
 }
 #endif // USE(ACCELERATED_COMPOSITING)

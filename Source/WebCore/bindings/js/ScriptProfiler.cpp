@@ -43,12 +43,17 @@ namespace WebCore {
 
 void ScriptProfiler::collectGarbage()
 {
-    gcController().garbageCollectNow();
+    gcController().garbageCollectSoon();
 }
 
 ScriptObject ScriptProfiler::objectByHeapObjectId(unsigned)
 {
     return ScriptObject();
+}
+
+unsigned ScriptProfiler::getHeapObjectId(ScriptValue)
+{
+    return 0;
 }
 
 void ScriptProfiler::start(ScriptState* state, const String& title)

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2003 Apple Computer, Inc.  All rights reserved.
+ * Copyright (C) 2003, 2012 Apple Inc.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,6 +27,7 @@
 #define KJS_BINDINGS_OBJC_CLASS_H
 
 #include "objc_runtime.h"
+#include <wtf/text/WTFString.h>
 
 namespace JSC {
 namespace Bindings {
@@ -40,17 +41,17 @@ public:
     // Return the cached ObjC of the specified name.
     static ObjcClass *classForIsA(ClassStructPtr);
     
-    virtual MethodList methodsNamed(const Identifier&, Instance *instance) const;
-    virtual Field *fieldNamed(const Identifier&, Instance *instance) const;
+    virtual MethodList methodsNamed(PropertyName, Instance*) const;
+    virtual Field *fieldNamed(PropertyName, Instance*) const;
 
-    virtual JSValue fallbackObject(ExecState *exec, Instance *instance, const Identifier &propertyName);
+    virtual JSValue fallbackObject(ExecState*, Instance*, PropertyName);
     
     ClassStructPtr isa() { return _isa; }
     
 private:
     ClassStructPtr _isa;
-    RetainPtr<CFMutableDictionaryRef> _methods;
-    RetainPtr<CFMutableDictionaryRef> _fields;
+    mutable HashMap<String, OwnPtr<Method> > m_methodCache;
+    mutable HashMap<String, OwnPtr<Field> > m_fieldCache;
 };
 
 } // namespace Bindings

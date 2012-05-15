@@ -2,14 +2,20 @@ Tests RawSourceCode class.
 
 
 Running: testScriptWithoutResource
+UISourceCode: foo.js
+UISourceCode is content script: true
+Mime type: undefined
+Script source: <script source>
 
 Running: testHTMLWithPendingResource
+UISourceCode: index.html
+UISourceCode is content script: false
+Mime type: text/html
+Script source: <resource content>
 
 Running: testHTMLWithFinishedResource
-
-Running: testForceUpdateSourceMapping
-
-Running: testFormattingWithFinishedResource
-
-Running: testFormattingWithPendingResource
+UISourceCode: index.html
+UISourceCode is content script: false
+Mime type: text/html
+Script source: <resource content>
 

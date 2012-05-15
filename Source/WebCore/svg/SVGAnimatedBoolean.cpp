@@ -31,71 +31,59 @@ SVGAnimatedBooleanAnimator::SVGAnimatedBooleanAnimator(SVGAnimationElement* anim
 {
 }
 
-PassOwnPtr<SVGAnimatedType> SVGAnimatedBooleanAnimator::constructFromString(const String& string)
+static inline bool isTrueString(const String& string)
 {
     DEFINE_STATIC_LOCAL(const String, trueString, ("true"));
+    return string == trueString;
+}
+
+PassOwnPtr<SVGAnimatedType> SVGAnimatedBooleanAnimator::constructFromString(const String& string)
+{
     OwnPtr<SVGAnimatedType> animtedType = SVGAnimatedType::createBoolean(new bool);
-    animtedType->boolean() = string == trueString;
+    animtedType->boolean() = isTrueString(string);
     return animtedType.release();
 }
 
-PassOwnPtr<SVGAnimatedType> SVGAnimatedBooleanAnimator::startAnimValAnimation(const Vector<SVGAnimatedProperty*>& properties)
+PassOwnPtr<SVGAnimatedType> SVGAnimatedBooleanAnimator::startAnimValAnimation(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    return SVGAnimatedType::createBoolean(constructFromBaseValue<SVGAnimatedBoolean>(properties));
+    return SVGAnimatedType::createBoolean(constructFromBaseValue<SVGAnimatedBoolean>(animatedTypes));
 }
 
-void SVGAnimatedBooleanAnimator::stopAnimValAnimation(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedBooleanAnimator::stopAnimValAnimation(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    stopAnimValAnimationForType<SVGAnimatedBoolean>(properties);
+    stopAnimValAnimationForType<SVGAnimatedBoolean>(animatedTypes);
 }
 
-void SVGAnimatedBooleanAnimator::resetAnimValToBaseVal(const Vector<SVGAnimatedProperty*>& properties, SVGAnimatedType* type)
+void SVGAnimatedBooleanAnimator::resetAnimValToBaseVal(const SVGElementAnimatedPropertyList& animatedTypes, SVGAnimatedType* type)
 {
-    resetFromBaseValue<SVGAnimatedBoolean>(properties, type, &SVGAnimatedType::boolean);
+    resetFromBaseValue<SVGAnimatedBoolean>(animatedTypes, type, &SVGAnimatedType::boolean);
 }
 
-void SVGAnimatedBooleanAnimator::animValWillChange(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedBooleanAnimator::animValWillChange(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    animValWillChangeForType<SVGAnimatedBoolean>(properties);
+    animValWillChangeForType<SVGAnimatedBoolean>(animatedTypes);
 }
 
-void SVGAnimatedBooleanAnimator::animValDidChange(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedBooleanAnimator::animValDidChange(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    animValDidChangeForType<SVGAnimatedBoolean>(properties);
+    animValDidChangeForType<SVGAnimatedBoolean>(animatedTypes);
 }
 
-void SVGAnimatedBooleanAnimator::calculateFromAndToValues(OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, const String& fromString, const String& toString)
+void SVGAnimatedBooleanAnimator::addAnimatedTypes(SVGAnimatedType*, SVGAnimatedType*)
 {
-    ASSERT(m_contextElement);
-    ASSERT(m_animationElement);
-    
-    from = constructFromString(fromString);
-    to = constructFromString(toString);
+    ASSERT_NOT_REACHED();
 }
 
-void SVGAnimatedBooleanAnimator::calculateFromAndByValues(OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, const String& fromString, const String& byString)
-{
-    ASSERT(m_contextElement);
-    ASSERT(m_animationElement);
-    
-    // Not specified what to do on 'by'-animations with boolean. Fallback to 'to'-animation right now. 
-    from = constructFromString(fromString);
-    to = constructFromString(byString);
-}
-
-void SVGAnimatedBooleanAnimator::calculateAnimatedValue(float percentage, unsigned,
-                                                        OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, OwnPtr<SVGAnimatedType>& animated)
+void SVGAnimatedBooleanAnimator::calculateAnimatedValue(float percentage, unsigned, SVGAnimatedType* from, SVGAnimatedType* to, SVGAnimatedType*, SVGAnimatedType* animated)
 {
     ASSERT(m_animationElement);
     ASSERT(m_contextElement);
-    SVGAnimateElement* animationElement = static_cast<SVGAnimateElement*>(m_animationElement);
-    
-    AnimationMode animationMode = animationElement->animationMode();
-    bool& animateString = animated->boolean();
-    if ((animationMode == FromToAnimation && percentage > 0.5) || animationMode == ToAnimation || percentage == 1)
-        animateString = to->boolean();
-    else
-        animateString = from->boolean();
+
+    bool fromBoolean = m_animationElement->animationMode() == ToAnimation ? animated->boolean() : from->boolean();
+    bool toBoolean = to->boolean();
+    bool& animatedBoolean = animated->boolean();
+
+    m_animationElement->animateDiscreteType<bool>(percentage, fromBoolean, toBoolean, animatedBoolean);
 }
 
 float SVGAnimatedBooleanAnimator::calculateDistance(const String&, const String&)

@@ -153,9 +153,17 @@ void HTMLFrameElementBase::setNameAndOpenURL()
     openURL();
 }
 
-void HTMLFrameElementBase::insertedIntoDocument()
+Node::InsertionNotificationRequest HTMLFrameElementBase::insertedInto(Node* insertionPoint)
 {
-    HTMLFrameOwnerElement::insertedIntoDocument();
+    HTMLFrameOwnerElement::insertedInto(insertionPoint);
+    if (insertionPoint->inDocument())
+        return InsertionShouldCallDidNotifyDescendantInseretions;
+    return InsertionDone;
+}
+
+void HTMLFrameElementBase::didNotifyDescendantInseretions(Node* insertionPoint)
+{
+    ASSERT_UNUSED(insertionPoint, insertionPoint->inDocument());
 
     // DocumentFragments don't kick of any loads.
     if (!document()->frame())
@@ -165,7 +173,7 @@ void HTMLFrameElementBase::insertedIntoDocument()
     // during attribute parsing *before* the normal parser machinery would
     // attach the element. To support this, we lazyAttach here, but only
     // if we don't already have a renderer (if we're inserted
-    // as part of a DocumentFragment, insertedIntoDocument from an earlier element
+    // as part of a DocumentFragment, insertedInto from an earlier element
     // could have forced a style resolve and already attached us).
     if (!renderer())
         lazyAttach(DoNotSetAttached);
@@ -217,9 +225,9 @@ void HTMLFrameElementBase::setFocus(bool received)
     }
 }
 
-bool HTMLFrameElementBase::isURLAttribute(Attribute *attr) const
+bool HTMLFrameElementBase::isURLAttribute(const Attribute& attribute) const
 {
-    return attr->name() == srcAttr || HTMLFrameOwnerElement::isURLAttribute(attr);
+    return attribute.name() == srcAttr || HTMLFrameOwnerElement::isURLAttribute(attribute);
 }
 
 int HTMLFrameElementBase::width()

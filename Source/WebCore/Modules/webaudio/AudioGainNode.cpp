@@ -39,8 +39,7 @@ AudioGainNode::AudioGainNode(AudioContext* context, float sampleRate)
     , m_lastGain(1.0)
     , m_sampleAccurateGainValues(AudioNode::ProcessingSizeInFrames) // FIXME: can probably share temp buffer in context
 {
-    m_gain = AudioGain::create("gain", 1.0, 0.0, 1.0);
-    m_gain->setContext(context);
+    m_gain = AudioGain::create(context, "gain", 1.0, 0.0, 1.0);
 
     addInput(adoptPtr(new AudioNodeInput(this)));
     addOutput(adoptPtr(new AudioNodeOutput(this, 1)));
@@ -64,7 +63,7 @@ void AudioGainNode::process(size_t framesToProcess)
     else {
         AudioBus* inputBus = input(0)->bus();
 
-        if (gain()->hasTimelineValues()) {
+        if (gain()->hasSampleAccurateValues()) {
             // Apply sample-accurate gain scaling for precise envelopes, grain windows, etc.
             ASSERT(framesToProcess <= m_sampleAccurateGainValues.size());
             if (framesToProcess <= m_sampleAccurateGainValues.size()) {

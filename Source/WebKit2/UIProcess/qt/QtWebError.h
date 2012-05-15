@@ -22,7 +22,6 @@
 #define QtWebError_h
 
 #include "qwebdownloaditem_p.h"
-#include "qwebkitglobal.h"
 #include <QtNetwork/QNetworkReply>
 #include <WKError.h>
 #include <WKRetainPtr.h>
@@ -30,6 +29,8 @@
 QT_BEGIN_NAMESPACE
 class QUrl;
 QT_END_NAMESPACE
+
+namespace WebKit {
 
 class QtWebError {
 public:
@@ -45,6 +46,7 @@ public:
     QUrl url() const;
     int errorCode() const;
     QString description() const;
+    bool isCancellation() const;
 
     int errorCodeAsHttpStatusCode() const { return errorCode(); }
     QNetworkReply::NetworkError errorCodeAsNetworkError() const { return static_cast<QNetworkReply::NetworkError>(errorCode()); }
@@ -57,5 +59,7 @@ public:
 private:
     WKRetainPtr<WKErrorRef> error;
 };
+
+} // namespace WebKit
 
 #endif /* QtWebError_h */

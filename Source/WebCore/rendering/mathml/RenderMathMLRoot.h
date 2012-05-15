@@ -32,19 +32,26 @@
 
 namespace WebCore {
     
-// Render base^(1/index), using radical notation.
+// Render base^(1/index), or sqrt(base) via the derived class RenderMathMLSquareRoot, using radical notation.
 class RenderMathMLRoot : public RenderMathMLBlock {
 public:
     RenderMathMLRoot(Element*);
-    virtual void addChild(RenderObject* child, RenderObject* beforeChild = 0);
-    
-    virtual void paint(PaintInfo&, const LayoutPoint&);
     
 protected:
-    virtual void layout();
+    virtual void layout() OVERRIDE;
+    
+    virtual void paint(PaintInfo&, const LayoutPoint&) OVERRIDE;
 
 private:
     virtual const char* renderName() const { return "RenderMathMLRoot"; }
+    
+    virtual void computePreferredLogicalWidths() OVERRIDE;
+    
+    // This may return 0 for a non-MathML index (which won't occur in valid MathML).
+    RenderBoxModelObject* index() const;
+    
+    int m_overbarLeftPointShift;
+    int m_indexTop;
 };
     
 }

@@ -88,6 +88,10 @@ static String cocoaTypeFromHTMLClipboardType(const String& type)
         // special case because UTI doesn't work with Cocoa's URL type
         return String(NSURLPboardType); // note special case in getData to read NSFilenamesType
 
+    // Blacklist types that might contain subframe information
+    if (qType == "text/rtf" || qType == "public.rtf" || qType == "com.apple.traditional-mac-plain-text")
+        return String();
+
     // Try UTI now
     String mimeType = qType;
     RetainPtr<CFStringRef> utiType(AdoptCF, UTTypeCreatePreferredIdentifierForTag(kUTTagClassMIMEType, mimeType.createCFString(), NULL));
@@ -103,7 +107,8 @@ static String cocoaTypeFromHTMLClipboardType(const String& type)
 
 static String utiTypeFromCocoaType(const String& type)
 {
-    RetainPtr<CFStringRef> utiType(AdoptCF, UTTypeCreatePreferredIdentifierForTag(kUTTagClassNSPboardType, type.createCFString(), NULL));
+    RetainPtr<CFStringRef> typeCF = adoptCF(type.createCFString());
+    RetainPtr<CFStringRef> utiType(AdoptCF, UTTypeCreatePreferredIdentifierForTag(kUTTagClassNSPboardType, typeCF.get(), 0));
     if (utiType) {
         RetainPtr<CFStringRef> mimeType(AdoptCF, UTTypeCopyPreferredTagWithClass(utiType.get(), kUTTagClassMIMEType));
         if (mimeType)
@@ -249,23 +254,16 @@ bool ClipboardMac::setData(const String &type, const String &data)
     const String& cocoaType = cocoaTypeFromHTMLClipboardType(type);
     String cocoaData = data;
 
-    if (cocoaType == String(NSURLPboardType)) {
+    if (cocoaType == String(NSURLPboardType) || cocoaType == String(kUTTypeFileURL)) {
+        NSURL *url = [NSURL URLWithString:cocoaData];
+        if ([url isFileURL])
+            return false;
+
         Vector<String> types;
-        types.append(String(NSURLPboardType));
+        types.append(cocoaType);
+        platformStrategies()->pasteboardStrategy()->setTypes(types, m_pasteboardName);
+        platformStrategies()->pasteboardStrategy()->setStringForType(cocoaData, cocoaType, m_pasteboardName);
 
-        platformStrategies()->pasteboardStrategy()->addTypes(types, m_pasteboardName);
-        platformStrategies()->pasteboardStrategy()->setStringForType(cocoaData, String(NSURLPboardType), m_pasteboardName);
-        NSURL *url = [[NSURL alloc] initWithString:cocoaData];
-
-        if ([url isFileURL] && m_frame->document()->securityOrigin()->canLoadLocalResources()) {
-            types.append(String(NSFilenamesPboardType));
-            platformStrategies()->pasteboardStrategy()->addTypes(types, m_pasteboardName);
-            Vector<String> fileList;
-            fileList.append(String([url path]));
-            platformStrategies()->pasteboardStrategy()->setPathnamesForType(fileList, String(NSFilenamesPboardType), m_pasteboardName);
-        }
-
-        [url release];
         return true;
     }
 

@@ -27,10 +27,7 @@
 #include "SMILTimeContainer.h"
 
 #if ENABLE(SVG)
-#include "CSSComputedStyleDeclaration.h"
-#include "CSSParser.h"
 #include "Document.h"
-#include "SVGAnimationElement.h"
 #include "SVGNames.h"
 #include "SVGSMILElement.h"
 #include "SVGSVGElement.h"
@@ -92,8 +89,10 @@ void SMILTimeContainer::begin()
     ASSERT(!m_beginTime);
     double now = currentTime();
 
+    // If 'm_presetStartTime' is set, the timeline was modified via setElapsed() before the document began.
+    // In this case pass on 'seekToTime=true' to updateAnimations().
     m_beginTime = now - m_presetStartTime;
-    updateAnimations(SMILTime(m_presetStartTime));
+    updateAnimations(SMILTime(m_presetStartTime), m_presetStartTime ? true : false);
     m_presetStartTime = 0;
 
     if (m_pauseTime) {
@@ -129,6 +128,9 @@ void SMILTimeContainer::setElapsed(SMILTime time)
         return;
     }
 
+    if (m_beginTime)
+        m_timer.stop();
+
     m_beginTime = currentTime() - time.value();
     m_accumulatedPauseTime = 0;
 
@@ -137,7 +139,7 @@ void SMILTimeContainer::setElapsed(SMILTime time)
     for (unsigned n = 0; n < toReset.size(); ++n)
         toReset[n]->reset();
 
-    updateAnimations(time);
+    updateAnimations(time, true);
 }
 
 void SMILTimeContainer::startTimer(SMILTime fireTime, SMILTime minimumDelay)
@@ -205,28 +207,7 @@ static void sortByApplyOrder(Vector<SVGSMILElement*>& smilElements)
     std::sort(smilElements.begin(), smilElements.end(), applyOrderSortFunction);
 }
 
-String SMILTimeContainer::baseValueFor(ElementAttributePair key)
-{
-    // FIXME: We wouldn't need to do this if we were keeping base values around properly in DOM.
-    // Currently animation overwrites them so we need to save them somewhere.
-    BaseValueMap::iterator it = m_savedBaseValues.find(key);
-    if (it != m_savedBaseValues.end())
-        return it->second;
-    
-    SVGElement* targetElement = key.first;
-    QualifiedName attributeName = key.second;
-    ASSERT(targetElement);
-    ASSERT(attributeName != anyQName());
-    String baseValue;
-    if (SVGAnimationElement::isTargetAttributeCSSProperty(targetElement, attributeName))
-        baseValue = CSSComputedStyleDeclaration::create(targetElement)->getPropertyValue(cssPropertyID(attributeName.localName()));
-    else
-        baseValue = targetElement->getAttribute(attributeName);
-    m_savedBaseValues.add(key, baseValue);
-    return baseValue;
-}
-
-void SMILTimeContainer::updateAnimations(SMILTime elapsed)
+void SMILTimeContainer::updateAnimations(SMILTime elapsed, bool seekToTime)
 {
     SMILTime earliersFireTime = SMILTime::unresolved();
 
@@ -240,8 +221,10 @@ void SMILTimeContainer::updateAnimations(SMILTime elapsed)
     sortByPriority(toAnimate, elapsed);
     
     // Calculate animation contributions.
+    typedef pair<SVGElement*, QualifiedName> ElementAttributePair;
     typedef HashMap<ElementAttributePair, RefPtr<SVGSMILElement> > ResultElementMap;
     ResultElementMap resultsElements;
+    HashSet<SVGSMILElement*> contributingElements;
     for (unsigned n = 0; n < toAnimate.size(); ++n) {
         SVGSMILElement* animation = toAnimate[n];
         ASSERT(animation->timeContainer() == this);
@@ -265,16 +248,12 @@ void SMILTimeContainer::updateAnimations(SMILTime elapsed)
             if (!animation->hasValidAttributeType())
                 continue;
             resultElement = animation;
-            // FIXME: As soon as we stop mutating the DOM, we can stop passing the cached baseValue here.
-            // Caching the baseValue results in wrong additive="sum" behaviour. Reason: the m_savedBaseValues
-            // is NEVER reset, it always contains the state of the baseValue, at the point where we first
-            // called baseValueFor(), typically at the beginning of the animation.
-            resultElement->resetToBaseValue(baseValueFor(key));
             resultsElements.add(key, resultElement);
         }
 
         // This will calculate the contribution from the animation and add it to the resultsElement.
-        animation->progress(elapsed, resultElement);
+        if (animation->progress(elapsed, resultElement, seekToTime))
+            contributingElements.add(resultElement);
 
         SMILTime nextFireTime = animation->nextProgressTime();
         if (nextFireTime.isFinite())
@@ -283,19 +262,27 @@ void SMILTimeContainer::updateAnimations(SMILTime elapsed)
     
     Vector<SVGSMILElement*> animationsToApply;
     ResultElementMap::iterator end = resultsElements.end();
-    for (ResultElementMap::iterator it = resultsElements.begin(); it != end; ++it)
-        animationsToApply.append(it->second.get());
+    for (ResultElementMap::iterator it = resultsElements.begin(); it != end; ++it) {
+        SVGSMILElement* animation = it->second.get();
+        if (contributingElements.contains(animation))
+            animationsToApply.append(animation);
+    }
+
+    unsigned animationsToApplySize = animationsToApply.size();
+    if (!animationsToApplySize) {
+        startTimer(earliersFireTime, animationFrameDelay);
+        return;
+    }
 
     // Sort <animateTranform> to be the last one to be applied. <animate> may change transform attribute as
     // well (directly or indirectly by modifying <use> x/y) and this way transforms combine properly.
     sortByApplyOrder(animationsToApply);
-    
+
     // Apply results to target elements.
-    for (unsigned n = 0; n < animationsToApply.size(); ++n)
-        animationsToApply[n]->applyResultsToTarget();
+    for (unsigned i = 0; i < animationsToApplySize; ++i)
+        animationsToApply[i]->applyResultsToTarget();
 
     startTimer(earliersFireTime, animationFrameDelay);
-    
     Document::updateStyleForAllDocuments();
 }
 

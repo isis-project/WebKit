@@ -26,7 +26,7 @@ InspectorTest.completeDebuggerTest = function()
 {
     var scriptsPanel = WebInspector.panels.scripts;
 
-    WebInspector.debuggerPresentationModel.setBreakpointsActive(true);
+    WebInspector.debuggerModel.setBreakpointsActive(true);
     InspectorTest.resumeExecution(disableDebugger);
 
     function disableDebugger()
@@ -105,7 +105,7 @@ InspectorTest.captureStackTrace = function(callFrames, dropLineNumbers)
     InspectorTest.addResult("Call stack:");
     for (var i = 0; i < callFrames.length; i++) {
         var frame = callFrames[i];
-        var script = WebInspector.debuggerModel.scriptForSourceID(frame.location.scriptId);
+        var script = WebInspector.debuggerModel.scriptForId(frame.location.scriptId);
         var url;
         var lineNumber;
         if (script) {
@@ -157,7 +157,7 @@ InspectorTest.showScriptSourceOnScriptsPanel = function(panel, scriptName, callb
 {
     var uiSourceCodes = panel._presentationModel.uiSourceCodes();
     for (var i = 0; i < uiSourceCodes.length; ++i) {
-        if (uiSourceCodes[i].fileName === scriptName) {
+        if (uiSourceCodes[i].parsedURL.lastPathComponent === scriptName) {
             panel.showUISourceCode(uiSourceCodes[i]);
             var sourceFrame = panel.visibleView;
             if (sourceFrame.loaded)
@@ -178,9 +178,9 @@ InspectorTest.showScriptSource = function(scriptName, callback)
 InspectorTest.dumpScriptsNavigator = function(navigator)
 {
     InspectorTest.addResult("Dumping ScriptsNavigator 'Scripts' tab:");
-    dumpNavigatorTreeOutline(navigator._scriptsTree);
+    dumpNavigatorTreeOutline(navigator._scriptsView._scriptsTree);
     InspectorTest.addResult("Dumping ScriptsNavigator 'Content scripts' tab:");
-    dumpNavigatorTreeOutline(navigator._contentScriptsTree);
+    dumpNavigatorTreeOutline(navigator._contentScriptsView._scriptsTree);
 
     function dumpNavigatorTreeElement(prefix, treeElement)
     {
@@ -217,7 +217,7 @@ InspectorTest.setBreakpoint = function(sourceFrame, lineNumber, condition, enabl
 
 InspectorTest.removeBreakpoint = function(sourceFrame, lineNumber)
 {
-    sourceFrame._model.removeBreakpoint(sourceFrame._uiSourceCode, lineNumber);
+    sourceFrame._breakpointManager.findBreakpoint(sourceFrame._uiSourceCode, lineNumber).remove();
 };
 
 
@@ -289,8 +289,8 @@ InspectorTest.createScriptMock = function(url, startLine, startColumn, isContent
     var endLine = startLine + lineCount - 1;
     var endColumn = lineCount === 1 ? startColumn + source.length : source.length - source.lineEndings()[lineCount - 2];
     var script = new WebInspector.Script(scriptId, url, startLine, startColumn, endLine, endColumn, isContentScript);
-    script.requestSource = function(callback) { callback(source); };
-    WebInspector.debuggerModel._scripts[scriptId] = script;
+    script.requestContent = function(callback) { callback(source); };
+    WebInspector.debuggerModel._registerScript(script);
     return script;
 }
 

@@ -63,27 +63,27 @@ public:
     CachedResourceLoader(Document*);
     ~CachedResourceLoader();
 
-    CachedImage* requestImage(ResourceRequest&);
-    CachedCSSStyleSheet* requestCSSStyleSheet(ResourceRequest&, const String& charset, ResourceLoadPriority = ResourceLoadPriorityUnresolved);
-    CachedCSSStyleSheet* requestUserCSSStyleSheet(ResourceRequest&, const String& charset);
-    CachedScript* requestScript(ResourceRequest&, const String& charset);
-    CachedFont* requestFont(ResourceRequest&);
-    CachedRawResource* requestRawResource(ResourceRequest&, const ResourceLoaderOptions&);
+    CachedResourceHandle<CachedImage> requestImage(ResourceRequest&);
+    CachedResourceHandle<CachedCSSStyleSheet> requestCSSStyleSheet(ResourceRequest&, const String& charset, ResourceLoadPriority = ResourceLoadPriorityUnresolved);
+    CachedResourceHandle<CachedCSSStyleSheet> requestUserCSSStyleSheet(ResourceRequest&, const String& charset);
+    CachedResourceHandle<CachedScript> requestScript(ResourceRequest&, const String& charset);
+    CachedResourceHandle<CachedFont> requestFont(ResourceRequest&);
+    CachedResourceHandle<CachedRawResource> requestRawResource(ResourceRequest&, const ResourceLoaderOptions&);
 
 #if ENABLE(SVG)
-    CachedSVGDocument* requestSVGDocument(ResourceRequest&);
+    CachedResourceHandle<CachedSVGDocument> requestSVGDocument(ResourceRequest&);
 #endif
 #if ENABLE(XSLT)
-    CachedXSLStyleSheet* requestXSLStyleSheet(ResourceRequest&);
+    CachedResourceHandle<CachedXSLStyleSheet> requestXSLStyleSheet(ResourceRequest&);
 #endif
 #if ENABLE(LINK_PREFETCH)
-    CachedResource* requestLinkResource(CachedResource::Type, ResourceRequest&, ResourceLoadPriority = ResourceLoadPriorityUnresolved);
+    CachedResourceHandle<CachedResource> requestLinkResource(CachedResource::Type, ResourceRequest&, ResourceLoadPriority = ResourceLoadPriorityUnresolved);
 #endif
 #if ENABLE(VIDEO_TRACK)
-    CachedTextTrack* requestTextTrack(ResourceRequest&);
+    CachedResourceHandle<CachedTextTrack> requestTextTrack(ResourceRequest&);
 #endif
 #if ENABLE(CSS_SHADERS)
-    CachedShader* requestShader(ResourceRequest&);
+    CachedResourceHandle<CachedShader> requestShader(ResourceRequest&);
 #endif
 
     // Logs an access denied message to the console for the specified URL.
@@ -104,13 +104,11 @@ public:
     Document* document() const { return m_document; }
 
     void removeCachedResource(CachedResource*) const;
-
-    void loadFinishing() { m_loadFinishing = true; }
     void loadDone();
     
     void incrementRequestCount(const CachedResource*);
     void decrementRequestCount(const CachedResource*);
-    int requestCount();
+    int requestCount() const { return m_requestCount; }
 
     bool isPreloaded(const String& urlString) const;
     void clearPreloads();
@@ -121,9 +119,9 @@ public:
     bool canRequest(CachedResource::Type, const KURL&, bool forPreload = false);
     
 private:
-    CachedResource* requestResource(CachedResource::Type, ResourceRequest&, const String& charset, const ResourceLoaderOptions&, ResourceLoadPriority = ResourceLoadPriorityUnresolved, bool isPreload = false);
-    CachedResource* revalidateResource(CachedResource*, ResourceLoadPriority, const ResourceLoaderOptions&);
-    CachedResource* loadResource(CachedResource::Type, ResourceRequest&, const String& charset, ResourceLoadPriority, const ResourceLoaderOptions&);
+    CachedResourceHandle<CachedResource> requestResource(CachedResource::Type, ResourceRequest&, const String& charset, const ResourceLoaderOptions&, ResourceLoadPriority = ResourceLoadPriorityUnresolved, bool isPreload = false);
+    CachedResourceHandle<CachedResource> revalidateResource(CachedResource*, ResourceLoadPriority, const ResourceLoaderOptions&);
+    CachedResourceHandle<CachedResource> loadResource(CachedResource::Type, ResourceRequest&, const String& charset, ResourceLoadPriority, const ResourceLoaderOptions&);
     void requestPreload(CachedResource::Type, ResourceRequest&, const String& charset);
 
     enum RevalidationPolicy { Use, Revalidate, Reload, Load };
@@ -151,9 +149,8 @@ private:
 
     Timer<CachedResourceLoader> m_garbageCollectDocumentResourcesTimer;
 
-    //29 bits left
+    // 30 bits left
     bool m_autoLoadImages : 1;
-    bool m_loadFinishing : 1;
     bool m_allowStaleResources : 1;
 };
 

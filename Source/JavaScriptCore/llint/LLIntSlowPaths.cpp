@@ -37,7 +37,6 @@
 #include "JIT.h"
 #include "JITDriver.h"
 #include "JSActivation.h"
-#include "JSByteArray.h"
 #include "JSGlobalObjectFunctions.h"
 #include "JSPropertyNameIterator.h"
 #include "JSStaticScopeObject.h"
@@ -459,13 +458,7 @@ LLINT_SLOW_PATH_DECL(slow_path_create_this)
     ASSERT(constructor->methodTable()->getConstructData(constructor, constructData) == ConstructTypeJS);
 #endif
     
-    Structure* structure;
-    JSValue proto = LLINT_OP(2).jsValue();
-    if (proto.isObject())
-        structure = asObject(proto)->inheritorID(globalData);
-    else
-        structure = constructor->scope()->globalObject->emptyObjectStructure();
-    
+    Structure* structure = constructor->cachedInheritorID(exec);
     LLINT_RETURN(constructEmptyObject(exec, structure));
 }
 
@@ -700,31 +693,6 @@ LLINT_SLOW_PATH_DECL(slow_path_typeof)
 {
     LLINT_BEGIN();
     LLINT_RETURN(jsTypeStringForValue(exec, LLINT_OP_C(2).jsValue()));
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_is_undefined)
-{
-    LLINT_BEGIN();
-    JSValue v = LLINT_OP_C(2).jsValue();
-    LLINT_RETURN(jsBoolean(v.isCell() ? v.asCell()->structure()->typeInfo().masqueradesAsUndefined() : v.isUndefined()));
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_is_boolean)
-{
-    LLINT_BEGIN();
-    LLINT_RETURN(jsBoolean(LLINT_OP_C(2).jsValue().isBoolean()));
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_is_number)
-{
-    LLINT_BEGIN();
-    LLINT_RETURN(jsBoolean(LLINT_OP_C(2).jsValue().isNumber()));
-}
-
-LLINT_SLOW_PATH_DECL(slow_path_is_string)
-{
-    LLINT_BEGIN();
-    LLINT_RETURN(jsBoolean(isJSString(LLINT_OP_C(2).jsValue())));
 }
 
 LLINT_SLOW_PATH_DECL(slow_path_is_object)
@@ -982,9 +950,6 @@ inline JSValue getByVal(ExecState* exec, JSValue baseValue, JSValue subscript)
         if (isJSString(baseValue) && asString(baseValue)->canGetIndex(i))
             return asString(baseValue)->getIndex(exec, i);
         
-        if (isJSByteArray(baseValue) && asByteArray(baseValue)->canAccessIndex(i))
-            return asByteArray(baseValue)->getIndex(exec, i);
-        
         return baseValue.get(exec, i);
     }
     
@@ -1035,18 +1000,6 @@ LLINT_SLOW_PATH_DECL(slow_path_put_by_val)
             else
                 JSArray::putByIndex(jsArray, exec, i, value, exec->codeBlock()->isStrictMode());
             LLINT_END();
-        }
-        if (isJSByteArray(baseValue)
-            && asByteArray(baseValue)->canAccessIndex(i)) {
-            JSByteArray* jsByteArray = asByteArray(baseValue);
-            if (value.isInt32()) {
-                jsByteArray->setIndex(i, value.asInt32());
-                LLINT_END();
-            }
-            if (value.isNumber()) {
-                jsByteArray->setIndex(i, value.asNumber());
-                LLINT_END();
-            }
         }
         baseValue.putByIndex(exec, i, value, exec->codeBlock()->isStrictMode());
         LLINT_END();
@@ -1208,6 +1161,20 @@ LLINT_SLOW_PATH_DECL(slow_path_switch_imm)
     LLINT_END();
 }
 
+LLINT_SLOW_PATH_DECL(slow_path_switch_char)
+{
+    LLINT_BEGIN();
+    JSValue scrutinee = LLINT_OP_C(3).jsValue();
+    ASSERT(scrutinee.isString());
+    JSString* string = asString(scrutinee);
+    ASSERT(string->length() == 1);
+    int defaultOffset = pc[2].u.operand;
+    StringImpl* impl = string->value(exec).impl();
+    CodeBlock* codeBlock = exec->codeBlock();
+    pc += codeBlock->characterSwitchJumpTable(pc[1].u.operand).offsetForValue((*impl)[0], defaultOffset);
+    LLINT_END();
+}
+
 LLINT_SLOW_PATH_DECL(slow_path_switch_string)
 {
     LLINT_BEGIN();
@@ -1254,7 +1221,7 @@ static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc,
 {
     ExecState* exec = execCallee->callerFrame();
     JSGlobalData& globalData = exec->globalData();
-    
+
     execCallee->setScopeChain(exec->scopeChain());
     execCallee->setCodeBlock(0);
     execCallee->clearReturnPC();
@@ -1266,6 +1233,8 @@ static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc,
         ASSERT(callType != CallTypeJS);
     
         if (callType == CallTypeHost) {
+            NativeCallFrameTracer tracer(&globalData, execCallee);
+            execCallee->setCallee(asObject(callee));
             globalData.hostCallReturnValue = JSValue::decode(callData.native.function(execCallee));
             
             LLINT_CALL_RETURN(execCallee, pc, reinterpret_cast<void*>(getHostCallReturnValue));
@@ -1287,6 +1256,8 @@ static SlowPathReturnType handleHostCall(ExecState* execCallee, Instruction* pc,
     ASSERT(constructType != ConstructTypeJS);
     
     if (constructType == ConstructTypeHost) {
+        NativeCallFrameTracer tracer(&globalData, execCallee);
+        execCallee->setCallee(asObject(callee));
         globalData.hostCallReturnValue = JSValue::decode(constructData.native.function(execCallee));
 
         LLINT_CALL_RETURN(execCallee, pc, reinterpret_cast<void*>(getHostCallReturnValue));

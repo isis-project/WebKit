@@ -52,6 +52,7 @@
 #include "IntRect.h"
 #include "NotificationPresenterImpl.h"
 #include "PageOverlayList.h"
+#include "PageWidgetDelegate.h"
 #include "PlatformGestureCurveTarget.h"
 #include "UserMediaClientImpl.h"
 #include <wtf/OwnPtr.h>
@@ -60,6 +61,7 @@
 namespace WebCore {
 class ActivePlatformGestureAnimation;
 class ChromiumDataObject;
+class Color;
 class DocumentLoader;
 class Frame;
 class GraphicsContext3D;
@@ -67,6 +69,8 @@ class HistoryItem;
 class HitTestResult;
 class KeyboardEvent;
 class Page;
+class PagePopup;
+class PagePopupClient;
 class PlatformGestureCurveTarget;
 class PlatformKeyboardEvent;
 class PopupContainer;
@@ -80,11 +84,13 @@ class Widget;
 namespace WebKit {
 class AutocompletePopupMenuClient;
 class AutofillPopupMenuClient;
+class BatteryClientImpl;
 class ContextMenuClientImpl;
 class DeviceOrientationClientProxy;
 class DragScrollTimer;
 class GeolocationClientProxy;
 class NonCompositedContentHost;
+class PrerendererClientImpl;
 class SpeechInputClientImpl;
 class SpeechRecognitionClientProxy;
 class UserMediaClientImpl;
@@ -94,6 +100,8 @@ class WebDevToolsAgentClient;
 class WebDevToolsAgentPrivate;
 class WebFrameImpl;
 class WebGestureEvent;
+class WebPagePopupImpl;
+class WebPrerendererClient;
 class WebImage;
 class WebKeyboardEvent;
 class WebMouseEvent;
@@ -101,7 +109,7 @@ class WebMouseWheelEvent;
 class WebSettingsImpl;
 class WebTouchEvent;
 
-class WebViewImpl : public WebView, public WebLayerTreeViewClient, public RefCounted<WebViewImpl>, public WebCore::PlatformGestureCurveTarget {
+class WebViewImpl : public WebView, public WebLayerTreeViewClient, public RefCounted<WebViewImpl>, public WebCore::PlatformGestureCurveTarget, public PageWidgetEventHandler {
 public:
     enum AutoZoomType {
         DoubleTap,
@@ -118,8 +126,9 @@ public:
     virtual void didEnterFullScreen();
     virtual void willExitFullScreen();
     virtual void didExitFullScreen();
+    virtual void setCompositorSurfaceReady();
     virtual void animate(double);
-    virtual void layout(); // Also implements CCLayerTreeHostClient::layout()
+    virtual void layout(); // Also implements WebLayerTreeViewClient::layout()
     virtual void paint(WebCanvas*, const WebRect&);
     virtual void themeChanged();
     virtual void composite(bool finish);
@@ -153,6 +162,7 @@ public:
     virtual void setAutofillClient(WebAutofillClient*);
     virtual void setDevToolsAgentClient(WebDevToolsAgentClient*);
     virtual void setPermissionClient(WebPermissionClient*);
+    virtual void setPrerendererClient(WebPrerendererClient*) OVERRIDE;
     virtual void setSpellCheckClient(WebSpellCheckClient*);
     virtual void addTextFieldDecoratorClient(WebTextFieldDecoratorClient*) OVERRIDE;
     virtual WebSettings* settings();
@@ -243,7 +253,7 @@ public:
         const WebVector<WebString>& names,
         const WebVector<WebString>& labels,
         const WebVector<WebString>& icons,
-        const WebVector<int>& uniqueIDs,
+        const WebVector<int>& itemIDs,
         int separatorIndex);
     virtual void hidePopups();
     virtual void setScrollbarColors(unsigned inactiveColor,
@@ -256,6 +266,9 @@ public:
     virtual void performCustomContextMenuAction(unsigned action);
     virtual void addPageOverlay(WebPageOverlay*, int /* zOrder */);
     virtual void removePageOverlay(WebPageOverlay*);
+#if ENABLE(BATTERY_STATUS)
+    virtual void updateBatteryStatus(const WebBatteryStatus&);
+#endif
     virtual void transferActiveWheelFlingAnimation(const WebActiveWheelFlingParameters&);
 
     // WebLayerTreeViewClient
@@ -329,18 +342,9 @@ public:
     void observeNewNavigation();
 
     // Event related methods:
-    void mouseMove(const WebMouseEvent&);
-    void mouseLeave(const WebMouseEvent&);
-    void mouseDown(const WebMouseEvent&);
-    void mouseUp(const WebMouseEvent&);
     void mouseContextMenu(const WebMouseEvent&);
     void mouseDoubleClick(const WebMouseEvent&);
-    bool mouseWheel(const WebMouseWheelEvent&);
-    bool gestureEvent(const WebGestureEvent&);
     void startPageScaleAnimation(const WebCore::IntPoint& targetPosition, bool useAnchor, float newScale, double durationSec);
-    bool keyEvent(const WebKeyboardEvent&);
-    bool charEvent(const WebKeyboardEvent&);
-    bool touchEvent(const WebTouchEvent&);
 
     void numberOfWheelEventHandlersChanged(unsigned);
     void numberOfTouchEventHandlersChanged(unsigned);
@@ -450,6 +454,10 @@ public:
     // Notification that a popup was opened/closed.
     void popupOpened(WebCore::PopupContainer* popupContainer);
     void popupClosed(WebCore::PopupContainer* popupContainer);
+#if ENABLE(PAGE_POPUP)
+    WebCore::PagePopup* openPagePopup(WebCore::PagePopupClient*, const WebCore::IntRect& originBoundsInRootView);
+    void closePagePopup(WebCore::PagePopup*);
+#endif
 
     void hideAutofillPopup();
 
@@ -468,6 +476,7 @@ public:
     void scrollRootLayerRect(const WebCore::IntSize& scrollDelta, const WebCore::IntRect& clipRect);
     void invalidateRootLayerRect(const WebCore::IntRect&);
     NonCompositedContentHost* nonCompositedContentHost();
+    void setBackgroundColor(const WebCore::Color&);
 #endif
 #if ENABLE(REQUEST_ANIMATION_FRAME)
     void scheduleAnimation();
@@ -487,6 +496,11 @@ public:
     virtual void setVisibilityState(WebPageVisibilityState, bool);
 
     WebCore::PopupContainer* selectPopup() const { return m_selectPopup.get(); }
+#if ENABLE(PAGE_POPUP)
+    bool hasOpenedPopup() const { return m_selectPopup || m_pagePopup; }
+#else
+    bool hasOpenedPopup() const { return m_selectPopup; }
+#endif
 
     // Returns true if the event leads to scrolling.
     static bool mapKeyCodeForScroll(int keyCode,
@@ -589,6 +603,16 @@ private:
     void pointerLockMouseEvent(const WebInputEvent&);
 #endif
 
+    // PageWidgetEventHandler functions
+    virtual void handleMouseLeave(WebCore::Frame&, const WebMouseEvent&) OVERRIDE;
+    virtual void handleMouseDown(WebCore::Frame&, const WebMouseEvent&) OVERRIDE;
+    virtual void handleMouseUp(WebCore::Frame&, const WebMouseEvent&) OVERRIDE;
+    virtual bool handleGestureEvent(const WebGestureEvent&) OVERRIDE;
+    virtual bool handleKeyEvent(const WebKeyboardEvent&) OVERRIDE;
+    virtual bool handleCharEvent(const WebKeyboardEvent&) OVERRIDE;
+
+    WebSettingsImpl* settingsImpl();
+
     WebViewClient* m_client;
     WebAutofillClient* m_autofillClient;
     WebPermissionClient* m_permissionClient;
@@ -609,7 +633,6 @@ private:
     // The upper bound on the size when auto-resizing.
     WebCore::IntSize m_maxAutoSize;
 
-    WebPoint m_lastMousePosition;
     OwnPtr<WebCore::Page> m_page;
 
     // This flag is set when a new navigation is detected. It is used to satisfy
@@ -691,6 +714,11 @@ private:
     // The popup associated with a select element.
     RefPtr<WebCore::PopupContainer> m_selectPopup;
 
+#if ENABLE(PAGE_POPUP)
+    // The popup associated with an input element.
+    RefPtr<WebPagePopupImpl> m_pagePopup;
+#endif
+
     OwnPtr<WebDevToolsAgentPrivate> m_devToolsAgent;
     OwnPtr<PageOverlayList> m_pageOverlays;
 
@@ -732,6 +760,7 @@ private:
     bool m_compositorCreationFailed;
     // If true, the graphics context is being restored.
     bool m_recreatingGraphicsContext;
+    bool m_compositorSurfaceReady;
 #endif
     static const WebInputEvent* m_currentInputEvent;
 
@@ -748,6 +777,9 @@ private:
     OwnPtr<WebGraphicsContext3D> m_temporaryOnscreenGraphicsContext3D;
     OwnPtr<DeviceOrientationClientProxy> m_deviceOrientationClientProxy;
     OwnPtr<GeolocationClientProxy> m_geolocationClientProxy;
+#if ENABLE(BATTERY_STATUS)
+    OwnPtr<BatteryClientImpl> m_batteryClient;
+#endif
 
     float m_emulatedTextZoomFactor;
 

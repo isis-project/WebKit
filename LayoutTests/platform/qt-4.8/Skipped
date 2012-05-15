@@ -78,3 +78,6 @@ fast/events/page-visibility-iframe-move-test.html
 fast/events/page-visibility-iframe-propagation-test.html
 fast/events/page-visibility-transition-test.html
 
+# Fullscreen API is not supported with WK1 therefore not supported with Qt 4.8
+fullscreen
+plugins/fullscreen-plugins-dont-reload.html

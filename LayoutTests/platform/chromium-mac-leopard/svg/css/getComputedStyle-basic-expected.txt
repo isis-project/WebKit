@@ -164,6 +164,8 @@ rect: style.getPropertyValue(speak) : normal
 rect: style.getPropertyCSSValue(speak) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(table-layout) : auto
 rect: style.getPropertyCSSValue(table-layout) : [object CSSPrimitiveValue]
+rect: style.getPropertyValue(tab-size) : 8
+rect: style.getPropertyCSSValue(tab-size) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(text-align) : -webkit-auto
 rect: style.getPropertyCSSValue(text-align) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(text-decoration) : none
@@ -282,6 +284,8 @@ rect: style.getPropertyValue(-webkit-column-span) : 1
 rect: style.getPropertyCSSValue(-webkit-column-span) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-column-width) : auto
 rect: style.getPropertyCSSValue(-webkit-column-width) : [object CSSPrimitiveValue]
+rect: style.getPropertyValue(-webkit-filter) : none
+rect: style.getPropertyCSSValue(-webkit-filter) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-flex) : 0 0 auto
 rect: style.getPropertyCSSValue(-webkit-flex) : [object CSSValueList]
 rect: style.getPropertyValue(-webkit-flex-order) : 0
@@ -690,6 +694,8 @@ g: style.getPropertyValue(speak) : normal
 g: style.getPropertyCSSValue(speak) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(table-layout) : auto
 g: style.getPropertyCSSValue(table-layout) : [object CSSPrimitiveValue]
+g: style.getPropertyValue(tab-size) : 8
+g: style.getPropertyCSSValue(tab-size) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(text-align) : -webkit-auto
 g: style.getPropertyCSSValue(text-align) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(text-decoration) : none
@@ -808,6 +814,8 @@ g: style.getPropertyValue(-webkit-column-span) : 1
 g: style.getPropertyCSSValue(-webkit-column-span) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-column-width) : auto
 g: style.getPropertyCSSValue(-webkit-column-width) : [object CSSPrimitiveValue]
+g: style.getPropertyValue(-webkit-filter) : none
+g: style.getPropertyCSSValue(-webkit-filter) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-flex) : 0 0 auto
 g: style.getPropertyCSSValue(-webkit-flex) : [object CSSValueList]
 g: style.getPropertyValue(-webkit-flex-order) : 0

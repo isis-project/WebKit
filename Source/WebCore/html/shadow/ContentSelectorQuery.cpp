@@ -30,6 +30,7 @@
 #include "CSSParser.h"
 #include "CSSSelectorList.h"
 #include "InsertionPoint.h"
+#include "ShadowRoot.h"
 
 namespace WebCore {
 
@@ -37,15 +38,15 @@ ContentSelectorQuery::ContentSelectorQuery(const InsertionPoint* insertionPoint)
     : m_insertionPoint(insertionPoint)
     , m_selectorChecker(insertionPoint->document(), !insertionPoint->document()->inQuirksMode())
 {
-    m_selectorChecker.setCollectingRulesOnly(true);
+    m_selectorChecker.setMode(SelectorChecker::CollectingRules);
 
     if (insertionPoint->select().isNull() || insertionPoint->select().isEmpty()) {
         m_isValidSelector = true;
         return;
     }
 
-    CSSParser parser(CSSStrictMode);
-    parser.parseSelector(insertionPoint->select(), insertionPoint->document(), m_selectorList);
+    CSSParser parser(insertionPoint->document());
+    parser.parseSelector(insertionPoint->select(), m_selectorList);
 
     m_isValidSelector = ContentSelectorQuery::validateSelectorList();
     if (m_isValidSelector)

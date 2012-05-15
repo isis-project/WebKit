@@ -245,6 +245,17 @@ void DrawingAreaProxyImpl::exitAcceleratedCompositingMode(uint64_t backingStoreS
     incorporateUpdate(updateInfo);
 }
 
+void DrawingAreaProxyImpl::updateAcceleratedCompositingMode(uint64_t backingStoreStateID, const LayerTreeContext& layerTreeContext)
+{
+    ASSERT_ARG(backingStoreStateID, backingStoreStateID <= m_currentBackingStoreStateID);
+    if (backingStoreStateID < m_currentBackingStoreStateID)
+        return;
+
+#if USE(ACCELERATED_COMPOSITING)
+    updateAcceleratedCompositingMode(layerTreeContext);
+#endif
+}
+
 void DrawingAreaProxyImpl::incorporateUpdate(const UpdateInfo& updateInfo)
 {
     ASSERT(!isInAcceleratedCompositingMode());
@@ -353,23 +364,12 @@ void DrawingAreaProxyImpl::didReceiveLayerTreeHostProxyMessage(CoreIPC::Connecti
         m_layerTreeHostProxy->didReceiveLayerTreeHostProxyMessage(connection, messageID, arguments);
 }
 
-void DrawingAreaProxyImpl::setVisibleContentsRect(const WebCore::IntRect& visibleContentsRect, float scale, const WebCore::FloatPoint& trajectoryVector)
+void DrawingAreaProxyImpl::setVisibleContentsRect(const WebCore::IntRect& visibleContentsRect, float scale, const WebCore::FloatPoint& trajectoryVector, const WebCore::FloatPoint& accurateVisibleContentsPosition)
 {
     if (m_layerTreeHostProxy)
-        m_layerTreeHostProxy->setVisibleContentsRect(visibleContentsRect, scale, trajectoryVector);
+        m_layerTreeHostProxy->setVisibleContentsRect(visibleContentsRect, scale, trajectoryVector, accurateVisibleContentsPosition);
 }
 
-void DrawingAreaProxyImpl::paintLayerTree(BackingStore::PlatformGraphicsContext context)
-{
-    if (m_layerTreeHostProxy)
-        m_layerTreeHostProxy->paintToGraphicsContext(context);
-}
-
-void DrawingAreaProxyImpl::paintToCurrentGLContext(const TransformationMatrix& matrix, float opacity, const FloatRect& clipRect)
-{
-    if (m_layerTreeHostProxy)
-        m_layerTreeHostProxy->paintToCurrentGLContext(matrix, opacity, clipRect);
-}
 #endif
 
 void DrawingAreaProxyImpl::exitAcceleratedCompositingMode()
@@ -378,6 +378,14 @@ void DrawingAreaProxyImpl::exitAcceleratedCompositingMode()
 
     m_layerTreeContext = LayerTreeContext();    
     m_webPageProxy->exitAcceleratedCompositingMode();
+}
+
+void DrawingAreaProxyImpl::updateAcceleratedCompositingMode(const LayerTreeContext& layerTreeContext)
+{
+    ASSERT(isInAcceleratedCompositingMode());
+
+    m_layerTreeContext = layerTreeContext;
+    m_webPageProxy->updateAcceleratedCompositingMode(layerTreeContext);
 }
 #endif
 

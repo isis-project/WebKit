@@ -216,11 +216,16 @@ void V8LazyEventListener::prepareListenerObject(ScriptExecutionContext* context)
 
     wrappedFunction->SetName(v8::String::New(fromWebCoreString(m_functionName), m_functionName.length()));
 
-    // Since we only parse once, there's no need to keep data used for parsing around anymore.
-    m_functionName = String();
-    m_code = String();
-    m_eventParameterName = String();
-    m_sourceURL = String();
+    // FIXME: Remove the following comment-outs.
+    // See https://bugs.webkit.org/show_bug.cgi?id=85152 for more details.
+    //
+    // For the time being, we comment out the following code since the
+    // second parsing can happen.
+    // // Since we only parse once, there's no need to keep data used for parsing around anymore.
+    // m_functionName = String();
+    // m_code = String();
+    // m_eventParameterName = String();
+    // m_sourceURL = String();
 
     setListenerObject(wrappedFunction);
 }

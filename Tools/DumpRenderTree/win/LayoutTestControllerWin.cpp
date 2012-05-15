@@ -1122,24 +1122,6 @@ unsigned LayoutTestController::numberOfActiveAnimations() const
     return number;
 }
 
-void LayoutTestController::suspendAnimations() const
-{
-    COMPtr<IWebFramePrivate> framePrivate(Query, frame);
-    if (!framePrivate)
-        return;
-
-    framePrivate->suspendAnimations();
-}
-
-void LayoutTestController::resumeAnimations() const
-{
-    COMPtr<IWebFramePrivate> framePrivate(Query, frame);
-    if (!framePrivate)
-        return;
-
-    framePrivate->resumeAnimations();
-}
-
 static _bstr_t bstrT(JSStringRef jsString)
 {
     // The false parameter tells the _bstr_t constructor to adopt the BSTR we pass it.
@@ -1289,6 +1271,11 @@ unsigned worldIDForWorld(IWebScriptWorld* world)
     return 0;
 }
 
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
+{
+    // FIXME: Implement this.
+}
+
 void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
 {
     COMPtr<IWebFramePrivate> framePrivate(Query, frame);
@@ -1386,12 +1373,6 @@ JSRetainPtr<JSStringRef> LayoutTestController::pageProperty(const char* property
 void LayoutTestController::apiTestNewWindowDataLoadBaseURL(JSStringRef utf8Data, JSStringRef baseURL)
 {
 
-}
-
-bool LayoutTestController::isPageBoxVisible(int pageNumber) const
-{
-    // FIXME: implement
-    return false;
 }
 
 JSRetainPtr<JSStringRef> LayoutTestController::pageSizeAndMarginsInPixels(int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft) const
@@ -1536,4 +1517,14 @@ void LayoutTestController::setBackingScaleFactor(double)
 void LayoutTestController::simulateDesktopNotificationClick(JSStringRef title)
 {
     // FIXME: Implement.
+}
+
+void LayoutTestController::resetPageVisibility()
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::setPageVisibility(const char*)
+{
+    // FIXME: Implement this.
 }

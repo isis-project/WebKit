@@ -65,6 +65,7 @@ private:
     virtual void didUpdateBackingStoreState(uint64_t backingStoreStateID, const UpdateInfo&, const LayerTreeContext&);
     virtual void enterAcceleratedCompositingMode(uint64_t backingStoreStateID, const LayerTreeContext&);
     virtual void exitAcceleratedCompositingMode(uint64_t backingStoreStateID, const UpdateInfo&);
+    virtual void updateAcceleratedCompositingMode(uint64_t backingStoreStateID, const LayerTreeContext&);
 
     void incorporateUpdate(const UpdateInfo&);
 
@@ -76,13 +77,12 @@ private:
 #if USE(ACCELERATED_COMPOSITING)
     void enterAcceleratedCompositingMode(const LayerTreeContext&);
     void exitAcceleratedCompositingMode();
+    void updateAcceleratedCompositingMode(const LayerTreeContext&);
 
     bool isInAcceleratedCompositingMode() const { return !m_layerTreeContext.isEmpty(); }
 
 #if USE(UI_SIDE_COMPOSITING)
-    virtual void setVisibleContentsRect(const WebCore::IntRect& visibleContentsRect, float scale, const WebCore::FloatPoint& trajectory);
-    virtual void paintToCurrentGLContext(const WebCore::TransformationMatrix&, float opacity, const WebCore::FloatRect&);
-    virtual void paintLayerTree(BackingStore::PlatformGraphicsContext);
+    virtual void setVisibleContentsRect(const WebCore::IntRect& visibleContentsRect, float scale, const WebCore::FloatPoint& trajectory, const WebCore::FloatPoint& accurateVisibleContentsPosition = WebCore::FloatPoint());
     void didReceiveLayerTreeHostProxyMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*);
 #endif
 #else

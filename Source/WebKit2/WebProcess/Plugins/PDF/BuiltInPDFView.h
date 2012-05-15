@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -77,6 +77,7 @@ private:
     virtual PlatformLayer* pluginLayer();
 #endif
     virtual bool isTransparent();
+    virtual bool wantsWheelEvents() OVERRIDE;
     virtual void geometryDidChange(const WebCore::IntSize& pluginSize, const WebCore::IntRect& clipRect, const WebCore::AffineTransform& pluginToRootViewTransform);
     virtual void visibilityDidChange();
     virtual void frameDidFinishLoading(uint64_t requestID);
@@ -114,11 +115,12 @@ private:
     virtual WebCore::Scrollbar* horizontalScrollbar();
     virtual WebCore::Scrollbar* verticalScrollbar();
 
-    virtual RetainPtr<CGPDFDocumentRef> pdfDocumentForPrinting() const OVERRIDE { return m_pdfDocument; }
+    virtual RetainPtr<PDFDocument> pdfDocumentForPrinting() const OVERRIDE { return m_pdfDocument; }
 
     // ScrollableArea methods.
     virtual WebCore::IntRect scrollCornerRect() const;
     virtual WebCore::ScrollableArea* enclosingScrollableArea() const;
+    virtual WebCore::IntRect scrollableAreaBoundingBox() const OVERRIDE;
     virtual void setScrollOffset(const WebCore::IntPoint&);
     virtual int scrollSize(WebCore::ScrollbarOrientation) const;
     virtual bool isActive() const;
@@ -151,7 +153,7 @@ private:
     String m_suggestedFilename;
     RetainPtr<CFMutableDataRef> m_dataBuffer;
 
-    RetainPtr<CGPDFDocumentRef> m_pdfDocument;
+    RetainPtr<PDFDocument> m_pdfDocument;
     Vector<WebCore::IntRect> m_pageBoxes;
     WebCore::IntSize m_pdfDocumentSize; // All pages, including gaps.
 

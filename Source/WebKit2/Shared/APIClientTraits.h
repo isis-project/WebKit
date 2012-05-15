@@ -60,6 +60,10 @@ template<> struct APIClientTraits<WKPageUIClient> {
     static const size_t interfaceSizesByVersion[2];
 };
 
+template<> struct APIClientTraits<WKBundlePageFormClient> {
+    static const size_t interfaceSizesByVersion[2];
+};
+
 } // namespace WebKit
 
 #endif // APIClientTraits_h

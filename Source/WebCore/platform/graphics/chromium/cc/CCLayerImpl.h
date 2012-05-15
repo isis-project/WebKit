@@ -58,12 +58,12 @@ public:
     virtual ~CCLayerImpl();
 
     // CCLayerAnimationControllerClient implementation.
-    virtual int id() const { return m_layerId; }
-    virtual void setOpacityFromAnimation(float);
-    virtual float opacity() const { return m_opacity; }
-    virtual void setTransformFromAnimation(const TransformationMatrix&);
-    virtual const TransformationMatrix& transform() const { return m_transform; }
-    virtual const IntSize& bounds() const { return m_bounds; }
+    virtual int id() const OVERRIDE { return m_layerId; }
+    virtual void setOpacityFromAnimation(float) OVERRIDE;
+    virtual float opacity() const OVERRIDE { return m_opacity; }
+    virtual void setTransformFromAnimation(const TransformationMatrix&) OVERRIDE;
+    virtual const TransformationMatrix& transform() const OVERRIDE { return m_transform; }
+    virtual const IntSize& bounds() const OVERRIDE { return m_bounds; }
 
     // Tree structure.
     CCLayerImpl* parent() const { return m_parent; }
@@ -78,17 +78,16 @@ public:
     void setReplicaLayer(PassOwnPtr<CCLayerImpl>);
     CCLayerImpl* replicaLayer() const { return m_replicaLayer.get(); }
 
-#ifndef NDEBUG
-    int debugID() const { return m_debugID; }
-#endif
-
     PassOwnPtr<CCSharedQuadState> createSharedQuadState() const;
-    virtual void willDraw(LayerRendererChromium*) { }
-    virtual void appendQuads(CCQuadCuller&, const CCSharedQuadState*, bool& usedCheckerboard);
-    virtual void didDraw() { }
+    // willDraw must be called before appendQuads. If willDraw is called,
+    // didDraw is guaranteed to be called before another willDraw or before
+    // the layer is destroyed. To enforce this, any class that overrides
+    // willDraw/didDraw must call the base class version.
+    virtual void willDraw(LayerRendererChromium*);
+    virtual void appendQuads(CCQuadCuller&, const CCSharedQuadState*, bool& hadMissingTiles) { }
+    virtual void didDraw();
     void appendDebugBorderQuad(CCQuadCuller&, const CCSharedQuadState*) const;
 
-    void unreserveContentsTexture();
     virtual void bindContentsTexture(LayerRendererChromium*);
 
     // Returns true if this layer has content to draw.
@@ -107,11 +106,11 @@ public:
     void setBackgroundColor(const Color&);
     Color backgroundColor() const { return m_backgroundColor; }
 
-    void setBackgroundCoversViewport(bool);
-    bool backgroundCoversViewport() const { return m_backgroundCoversViewport; }
-
     void setFilters(const FilterOperations&);
     const FilterOperations& filters() const { return m_filters; }
+
+    void setBackgroundFilters(const FilterOperations&);
+    const FilterOperations& backgroundFilters() const { return m_backgroundFilters; }
 
     void setMasksToBounds(bool);
     bool masksToBounds() const { return m_masksToBounds; }
@@ -198,6 +197,9 @@ public:
     const Region& nonFastScrollableRegion() const { return m_nonFastScrollableRegion; }
     void setNonFastScrollableRegion(const Region& region) { m_nonFastScrollableRegion = region; }
 
+    void setDrawCheckerboardForMissingTiles(bool checkerboard) { m_drawCheckerboardForMissingTiles = checkerboard; }
+    bool drawCheckerboardForMissingTiles() const { return m_drawCheckerboardForMissingTiles; }
+
     const IntRect& visibleLayerRect() const { return m_visibleLayerRect; }
     void setVisibleLayerRect(const IntRect& visibleLayerRect) { m_visibleLayerRect = visibleLayerRect; }
 
@@ -227,12 +229,14 @@ public:
 
     String layerTreeAsText() const;
 
+    void setStackingOrderChanged(bool);
+
     bool layerPropertyChanged() const { return m_layerPropertyChanged; }
     void resetAllChangeTrackingForSubtree();
 
     CCLayerAnimationController* layerAnimationController() { return m_layerAnimationController.get(); }
 
-    virtual Region visibleContentOpaqueRegion() const { return Region(); };
+    virtual Region visibleContentOpaqueRegion() const;
 
     // Indicates that the context previously used to render this layer
     // was lost and that a new one has been created. Won't be called
@@ -247,8 +251,6 @@ protected:
 
     // Transformation used to transform quads provided in appendQuads.
     virtual TransformationMatrix quadTransform() const;
-
-    void appendGutterQuads(CCQuadCuller&, const CCSharedQuadState*);
 
 private:
     void setParent(CCLayerImpl* parent) { m_parent = parent; }
@@ -285,7 +287,6 @@ private:
     bool m_haveWheelEventHandlers;
     Region m_nonFastScrollableRegion;
     Color m_backgroundColor;
-    bool m_backgroundCoversViewport;
 
     // Whether the "back" of this layer should draw.
     bool m_doubleSided;
@@ -299,6 +300,7 @@ private:
     float m_opacity;
     FloatPoint m_position;
     bool m_preserves3D;
+    bool m_drawCheckerboardForMissingTiles;
     TransformationMatrix m_sublayerTransform;
     TransformationMatrix m_transform;
     bool m_usesLayerClipping;
@@ -310,12 +312,6 @@ private:
     IntSize m_sentScrollDelta;
     IntSize m_maxScrollPosition;
     float m_pageScaleDelta;
-
-    // Properties owned exclusively by this CCLayerImpl.
-    // Debugging.
-#ifndef NDEBUG
-    int m_debugID;
-#endif
 
     // Render surface this layer draws into. This is a surface that can belong
     // either to this layer (if m_targetRenderSurface == m_renderSurface) or
@@ -337,11 +333,16 @@ private:
     String m_debugName;
 
     FilterOperations m_filters;
+    FilterOperations m_backgroundFilters;
 
     TransformationMatrix m_drawTransform;
     TransformationMatrix m_screenSpaceTransform;
     bool m_drawTransformIsAnimating;
     bool m_screenSpaceTransformIsAnimating;
+
+#ifndef NDEBUG
+    bool m_betweenWillDrawAndDidDraw;
+#endif
 
     // The rect that contributes to the scissor when this layer is drawn.
     // Inherited by the parent layer and further restricted if this layer masks

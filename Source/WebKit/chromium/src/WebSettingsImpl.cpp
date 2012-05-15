@@ -47,9 +47,9 @@ namespace WebKit {
 
 WebSettingsImpl::WebSettingsImpl(Settings* settings)
     : m_settings(settings)
-    , m_compositeToTextureEnabled(false)
     , m_showFPSCounter(false)
     , m_showPlatformLayerTree(false)
+    , m_showPaintRects(false)
     , m_viewportEnabled(false)
 {
     ASSERT(settings);
@@ -334,6 +334,11 @@ void WebSettingsImpl::setShowPlatformLayerTree(bool show)
     m_showPlatformLayerTree = show;
 }
 
+void WebSettingsImpl::setShowPaintRects(bool show)
+{
+    m_showPaintRects = show;
+}
+
 void WebSettingsImpl::setEditingBehavior(EditingBehavior behavior)
 {
     m_settings->setEditingBehaviorType(static_cast<WebCore::EditingBehaviorType>(behavior));
@@ -353,11 +358,6 @@ void WebSettingsImpl::setForceCompositingMode(bool enabled)
 void WebSettingsImpl::setMockScrollbarsEnabled(bool enabled)
 {
     m_settings->setMockScrollbarsEnabled(enabled);
-}
-
-void WebSettingsImpl::setCompositeToTextureEnabled(bool enabled)
-{
-    m_compositeToTextureEnabled = enabled;
 }
 
 void WebSettingsImpl::setAcceleratedCompositingFor3DTransformsEnabled(bool enabled)

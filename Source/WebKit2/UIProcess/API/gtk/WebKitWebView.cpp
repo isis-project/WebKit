@@ -24,6 +24,7 @@
 #include "WebKitBackForwardListPrivate.h"
 #include "WebKitEnumTypes.h"
 #include "WebKitError.h"
+#include "WebKitFullscreenClient.h"
 #include "WebKitHitTestResultPrivate.h"
 #include "WebKitJavascriptResultPrivate.h"
 #include "WebKitLoaderClient.h"
@@ -69,6 +70,11 @@ enum {
     PRINT_REQUESTED,
 
     RESOURCE_LOAD_STARTED,
+
+    ENTER_FULLSCREEN,
+    LEAVE_FULLSCREEN,
+
+    RUN_FILE_CHOOSER,
 
     LAST_SIGNAL
 };
@@ -202,6 +208,49 @@ static void webkitWebViewSetSettings(WebKitWebView* webView, WebKitSettings* set
     g_signal_connect(settings, "notify::zoom-text-only", G_CALLBACK(zoomTextOnlyChanged), webView);
 }
 
+static void fileChooserDialogResponseCallback(GtkDialog* dialog, gint responseID, WebKitFileChooserRequest* request)
+{
+    GRefPtr<WebKitFileChooserRequest> adoptedRequest = adoptGRef(request);
+    if (responseID == GTK_RESPONSE_ACCEPT) {
+        GOwnPtr<GSList> filesList(gtk_file_chooser_get_filenames(GTK_FILE_CHOOSER(dialog)));
+        GRefPtr<GPtrArray> filesArray = adoptGRef(g_ptr_array_new());
+        for (GSList* file = filesList.get(); file; file = g_slist_next(file))
+            g_ptr_array_add(filesArray.get(), file->data);
+        g_ptr_array_add(filesArray.get(), 0);
+        webkit_file_chooser_request_select_files(adoptedRequest.get(), reinterpret_cast<const gchar* const*>(filesArray->pdata));
+    } else
+        webkit_file_chooser_request_cancel(adoptedRequest.get());
+
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+}
+
+static gboolean webkitWebViewRunFileChooser(WebKitWebView* webView, WebKitFileChooserRequest* request)
+{
+    GtkWidget* toplevel = gtk_widget_get_toplevel(GTK_WIDGET(webView));
+    if (!widgetIsOnscreenToplevelWindow(toplevel))
+        toplevel = 0;
+
+    gboolean allowsMultipleSelection = webkit_file_chooser_request_get_select_multiple(request);
+    GtkWidget* dialog = gtk_file_chooser_dialog_new(allowsMultipleSelection ? _("Select Files") : _("Select File"),
+                                                    toplevel ? GTK_WINDOW(toplevel) : 0,
+                                                    GTK_FILE_CHOOSER_ACTION_OPEN,
+                                                    GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
+                                                    GTK_STOCK_OPEN, GTK_RESPONSE_ACCEPT,
+                                                    NULL);
+
+    if (GtkFileFilter* filter = webkit_file_chooser_request_get_mime_types_filter(request))
+        gtk_file_chooser_set_filter(GTK_FILE_CHOOSER(dialog), filter);
+    gtk_file_chooser_set_select_multiple(GTK_FILE_CHOOSER(dialog), allowsMultipleSelection);
+
+    if (const gchar* const* selectedFiles = webkit_file_chooser_request_get_selected_files(request))
+        gtk_file_chooser_select_filename(GTK_FILE_CHOOSER(dialog), selectedFiles[0]);
+
+    g_signal_connect(dialog, "response", G_CALLBACK(fileChooserDialogResponseCallback), g_object_ref(request));
+    gtk_widget_show(dialog);
+
+    return TRUE;
+}
+
 static void webkitWebViewConstructed(GObject* object)
 {
     if (G_OBJECT_CLASS(webkit_web_view_parent_class)->constructed)
@@ -217,6 +266,7 @@ static void webkitWebViewConstructed(GObject* object)
     attachUIClientToView(webView);
     attachPolicyClientToPage(webView);
     attachResourceLoadClientToView(webView);
+    attachFullScreenClientToView(webView);
 
     WebPageProxy* page = webkitWebViewBaseGetPage(webViewBase);
     priv->backForwardList = adoptGRef(webkitBackForwardListCreate(WKPageGetBackForwardList(toAPI(page))));
@@ -308,6 +358,7 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
     webViewClass->create = webkitWebViewCreate;
     webViewClass->script_dialog = webkitWebViewScriptDialog;
     webViewClass->decide_policy = webkitWebViewDecidePolicy;
+    webViewClass->run_file_chooser = webkitWebViewRunFileChooser;
 
     g_type_class_add_private(webViewClass, sizeof(WebKitWebViewPrivate));
 
@@ -706,6 +757,82 @@ static void webkit_web_view_class_init(WebKitWebViewClass* webViewClass)
                      G_TYPE_NONE, 2,
                      WEBKIT_TYPE_WEB_RESOURCE,
                      WEBKIT_TYPE_URI_REQUEST);
+
+    /**
+     * WebKitWebView::enter-fullscreen:
+     * @web_view: the #WebKitWebView on which the signal is emitted.
+     *
+     * Emitted when JavaScript code calls
+     * <function>element.webkitRequestFullScreen</function>. If the
+     * signal is not handled the #WebKitWebView will proceed to full screen
+     * its top level window. This signal can be used by client code to
+     * request permission to the user prior doing the full screen
+     * transition and eventually prepare the top-level window
+     * (e.g. hide some widgets that would otherwise be part of the
+     * full screen window).
+     *
+     * Returns: %TRUE to stop other handlers from being invoked for the event.
+     *    %FALSE to continue emission of the event.
+     */
+    signals[ENTER_FULLSCREEN] =
+        g_signal_new("enter-fullscreen",
+                     G_TYPE_FROM_CLASS(webViewClass),
+                     G_SIGNAL_RUN_LAST,
+                     G_STRUCT_OFFSET(WebKitWebViewClass, enter_fullscreen),
+                     g_signal_accumulator_true_handled, 0,
+                     webkit_marshal_BOOLEAN__VOID,
+                     G_TYPE_BOOLEAN, 0);
+
+    /**
+     * WebKitWebView::leave-fullscreen:
+     * @web_view: the #WebKitWebView on which the signal is emitted.
+     *
+     * Emitted when the #WebKitWebView is about to restore its top level
+     * window out of its full screen state. This signal can be used by
+     * client code to restore widgets hidden during the
+     * #WebKitWebView::enter-fullscreen stage for instance.
+     *
+     * Returns: %TRUE to stop other handlers from being invoked for the event.
+     *    %FALSE to continue emission of the event.
+     */
+    signals[LEAVE_FULLSCREEN] =
+        g_signal_new("leave-fullscreen",
+                     G_TYPE_FROM_CLASS(webViewClass),
+                     G_SIGNAL_RUN_LAST,
+                     G_STRUCT_OFFSET(WebKitWebViewClass, leave_fullscreen),
+                     g_signal_accumulator_true_handled, 0,
+                     webkit_marshal_BOOLEAN__VOID,
+                     G_TYPE_BOOLEAN, 0);
+     /**
+     * WebKitWebView::run-file-chooser:
+     * @web_view: the #WebKitWebView on which the signal is emitted
+     * @request: a #WebKitFileChooserRequest
+     *
+     * This signal is emitted when the user interacts with a &lt;input
+     * type='file' /&gt; HTML element, requesting from WebKit to show
+     * a dialog to select one or more files to be uploaded. To let the
+     * application know the details of the file chooser, as well as to
+     * allow the client application to either cancel the request or
+     * perform an actual selection of files, the signal will pass an
+     * instance of the #WebKitFileChooserRequest in the @request
+     * argument.
+     *
+     * The default signal handler will asynchronously run a regular
+     * #GtkFileChooserDialog for the user to interact with.
+     *
+     * Returns: %TRUE to stop other handlers from being invoked for the event.
+     *   %FALSE to propagate the event further.
+     *
+     */
+    signals[RUN_FILE_CHOOSER] =
+        g_signal_new("run-file-chooser",
+                     G_TYPE_FROM_CLASS(webViewClass),
+                     G_SIGNAL_RUN_LAST,
+                     G_STRUCT_OFFSET(WebKitWebViewClass, run_file_chooser),
+                     g_signal_accumulator_true_handled, 0 /* accumulator data */,
+                     webkit_marshal_BOOLEAN__OBJECT,
+                     G_TYPE_BOOLEAN, 1, /* number of parameters */
+                     WEBKIT_TYPE_FILE_CHOOSER_REQUEST);
 }
 
 static bool updateReplaceContentStatus(WebKitWebView* webView, WebKitLoadEvent loadEvent)
@@ -729,13 +856,14 @@ static bool updateReplaceContentStatus(WebKitWebView* webView, WebKitLoadEvent l
 
 void webkitWebViewLoadChanged(WebKitWebView* webView, WebKitLoadEvent loadEvent)
 {
+    if (loadEvent == WEBKIT_LOAD_STARTED) {
+        webView->priv->loadingResourcesMap.clear();
+        webView->priv->mainResource = 0;
+    } else if (loadEvent == WEBKIT_LOAD_COMMITTED)
+        webView->priv->subresourcesMap.clear();
+
     if (updateReplaceContentStatus(webView, loadEvent))
         return;
-
-    if (loadEvent == WEBKIT_LOAD_STARTED)
-        webView->priv->loadingResourcesMap.clear();
-    else if (loadEvent == WEBKIT_LOAD_COMMITTED)
-        webView->priv->subresourcesMap.clear();
 
     if (loadEvent != WEBKIT_LOAD_FINISHED)
         webkitWebViewUpdateURI(webView);
@@ -867,11 +995,18 @@ void webkitWebViewPrintFrame(WebKitWebView* webView, WKFrameRef wkFrame)
     g_signal_connect(printOperation.leakRef(), "finished", G_CALLBACK(g_object_unref), 0);
 }
 
+static inline bool webkitWebViewIsReplacingContentOrDidReplaceContent(WebKitWebView* webView)
+{
+    return (webView->priv->replaceContentStatus == ReplacingContent || webView->priv->replaceContentStatus == DidReplaceContent);
+}
+
 void webkitWebViewResourceLoadStarted(WebKitWebView* webView, WKFrameRef wkFrame, uint64_t resourceIdentifier, WebKitURIRequest* request, bool isMainResource)
 {
-    // FIXME: ignore resources when replacing content.
-    WebKitWebResource* resource = webkitWebResourceCreate(wkFrame, request, isMainResource);
+    if (webkitWebViewIsReplacingContentOrDidReplaceContent(webView))
+        return;
+
     WebKitWebViewPrivate* priv = webView->priv;
+    WebKitWebResource* resource = webkitWebResourceCreate(wkFrame, request, isMainResource);
     if (WKFrameIsMainFrame(wkFrame) && isMainResource)
         priv->mainResource = resource;
     priv->loadingResourcesMap.set(resourceIdentifier, adoptGRef(resource));
@@ -880,23 +1015,55 @@ void webkitWebViewResourceLoadStarted(WebKitWebView* webView, WKFrameRef wkFrame
 
 WebKitWebResource* webkitWebViewGetLoadingWebResource(WebKitWebView* webView, uint64_t resourceIdentifier)
 {
+    if (webkitWebViewIsReplacingContentOrDidReplaceContent(webView))
+        return 0;
+
     GRefPtr<WebKitWebResource> resource = webView->priv->loadingResourcesMap.get(resourceIdentifier);
+    ASSERT(resource.get());
     return resource.get();
 }
 
 void webkitWebViewRemoveLoadingWebResource(WebKitWebView* webView, uint64_t resourceIdentifier)
 {
-    webView->priv->loadingResourcesMap.remove(resourceIdentifier);
+    if (webkitWebViewIsReplacingContentOrDidReplaceContent(webView))
+        return;
+
+    WebKitWebViewPrivate* priv = webView->priv;
+    ASSERT(priv->loadingResourcesMap.contains(resourceIdentifier));
+    priv->loadingResourcesMap.remove(resourceIdentifier);
 }
 
 WebKitWebResource* webkitWebViewResourceLoadFinished(WebKitWebView* webView, uint64_t resourceIdentifier)
 {
-    WebKitWebResource* resource = webkitWebViewGetLoadingWebResource(webView, resourceIdentifier);
+    if (webkitWebViewIsReplacingContentOrDidReplaceContent(webView))
+        return 0;
+
     WebKitWebViewPrivate* priv = webView->priv;
+    WebKitWebResource* resource = webkitWebViewGetLoadingWebResource(webView, resourceIdentifier);
     if (resource != priv->mainResource)
         priv->subresourcesMap.set(String::fromUTF8(webkit_web_resource_get_uri(resource)), resource);
     webkitWebViewRemoveLoadingWebResource(webView, resourceIdentifier);
     return resource;
+}
+
+bool webkitWebViewEnterFullScreen(WebKitWebView* webView)
+{
+    gboolean returnValue;
+    g_signal_emit(webView, signals[ENTER_FULLSCREEN], 0, &returnValue);
+    return !returnValue;
+}
+
+bool webkitWebViewLeaveFullScreen(WebKitWebView* webView)
+{
+    gboolean returnValue;
+    g_signal_emit(webView, signals[LEAVE_FULLSCREEN], 0, &returnValue);
+    return !returnValue;
+}
+
+void webkitWebViewRunFileChooserRequest(WebKitWebView* webView, WebKitFileChooserRequest* request)
+{
+    gboolean returnValue;
+    g_signal_emit(webView, signals[RUN_FILE_CHOOSER], 0, request, &returnValue);
 }
 
 /**

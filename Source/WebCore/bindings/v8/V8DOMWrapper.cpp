@@ -36,7 +36,6 @@
 #include "EventTargetHeaders.h"
 #include "EventTargetInterfaces.h"
 #include "FrameLoaderClient.h"
-#include "SVGElementInstance.h"
 #include "SafeAllocation.h"
 #include "StylePropertySet.h"
 #include "V8AbstractEventListener.h"
@@ -69,13 +68,18 @@
 
 namespace WebCore {
 
-void V8DOMWrapper::setJSWrapperForDOMNode(PassRefPtr<Node> node, v8::Persistent<v8::Object> wrapper)
+void V8DOMWrapper::setJSWrapperForDOMNode(PassRefPtr<Node> node, v8::Persistent<v8::Object> wrapper, v8::Isolate* isolate)
 {
     ASSERT(maybeDOMWrapper(wrapper));
-    if (node->isActiveNode())
-        getActiveDOMNodeMap().set(node.leakRef(), wrapper);
-    else
-        getDOMNodeMap().set(node.leakRef(), wrapper);
+    ASSERT(!node->isActiveNode());
+    getDOMNodeMap(isolate).set(node.leakRef(), wrapper);
+}
+
+void V8DOMWrapper::setJSWrapperForActiveDOMNode(PassRefPtr<Node> node, v8::Persistent<v8::Object> wrapper, v8::Isolate* isolate)
+{
+    ASSERT(maybeDOMWrapper(wrapper));
+    ASSERT(node->isActiveNode());
+    getActiveDOMNodeMap(isolate).set(node.leakRef(), wrapper);
 }
 
 v8::Local<v8::Function> V8DOMWrapper::constructorForType(WrapperTypeInfo* type, DOMWindow* window)
@@ -83,7 +87,11 @@ v8::Local<v8::Function> V8DOMWrapper::constructorForType(WrapperTypeInfo* type, 
     Frame* frame = window->frame();
     if (!frame)
         return v8::Local<v8::Function>();
-    return V8Proxy::retrievePerContextData(frame)->constructorForType(type);
+
+    if (V8BindingPerContextData* contextData = V8Proxy::retrievePerContextData(frame))
+        return contextData->constructorForType(type);
+
+    return v8::Local<v8::Function>();
 }
 
 #if ENABLE(WORKERS)

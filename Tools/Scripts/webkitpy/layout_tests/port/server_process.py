@@ -29,36 +29,49 @@
 
 """Package that implements the ServerProcess wrapper class"""
 
+import errno
 import logging
-import os
-import select
 import signal
 import subprocess
 import sys
 import time
-if sys.platform != 'win32':
-    import fcntl
 
-from webkitpy.common.system.executive import Executive, ScriptError
+# Note that although win32 python does provide an implementation of
+# the win32 select API, it only works on sockets, and not on the named pipes
+# used by subprocess, so we have to use the native APIs directly.
+if sys.platform == 'win32':
+    import msvcrt
+    import win32pipe
+    import win32file
+else:
+    import fcntl
+    import os
+    import select
+
+from webkitpy.common.system.executive import ScriptError
 
 
 _log = logging.getLogger(__name__)
 
 
-class ServerProcess:
+class ServerProcess(object):
     """This class provides a wrapper around a subprocess that
     implements a simple request/response usage model. The primary benefit
     is that reading responses takes a deadline, so that we don't ever block
     indefinitely. The class also handles transparently restarting processes
     as necessary to keep issuing commands."""
 
-    def __init__(self, port_obj, name, cmd, env=None, executive=Executive()):
+    def __init__(self, port_obj, name, cmd, env=None):
         self._port = port_obj
         self._name = name  # Should be the command name (e.g. DumpRenderTree, ImageDiff)
         self._cmd = cmd
         self._env = env
+        self._host = self._port.host
         self._reset()
-        self._executive = executive
+
+        # See comment in imports for why we need the win32 APIs and can't just use select.
+        # FIXME: there should be a way to get win32 vs. cygwin from platforminfo.
+        self._use_win32_apis = sys.platform == 'win32'
 
     def name(self):
         return self._name
@@ -81,18 +94,19 @@ class ServerProcess:
             raise ValueError("%s already running" % self._name)
         self._reset()
         # close_fds is a workaround for http://bugs.python.org/issue2320
-        close_fds = sys.platform not in ('win32', 'cygwin')
+        close_fds = not self._host.platform.is_win()
         self._proc = subprocess.Popen(self._cmd, stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE,
                                       close_fds=close_fds,
                                       env=self._env)
         fd = self._proc.stdout.fileno()
-        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
-        fd = self._proc.stderr.fileno()
-        fl = fcntl.fcntl(fd, fcntl.F_GETFL)
-        fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+        if not self._use_win32_apis:
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+            fd = self._proc.stderr.fileno()
+            fl = fcntl.fcntl(fd, fcntl.F_GETFL)
+            fcntl.fcntl(fd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
     def _handle_possible_interrupt(self):
         """This routine checks to see if the process crashed or exited
@@ -179,25 +193,9 @@ class ServerProcess:
         _log.info('')
         _log.info(message)
 
-    def _sample(self):
-        if sys.platform != "darwin":
-            return
-        try:
-            hang_report = os.path.join(self._port.results_directory(), "%s-%s.sample.txt" % (self._name, self._proc.pid))
-            self._executive.run_command([
-                "/usr/bin/sample",
-                self._proc.pid,
-                10,
-                10,
-                "-file",
-                hang_report,
-            ])
-        except ScriptError, e:
-            self._log('Unable to sample process.')
-
     def _handle_timeout(self):
         self.timed_out = True
-        self._sample()
+        self._port.sample_process(self._name, self._proc.pid)
 
     def _split_string_after_index(self, string, index):
         return string[:index], string[index:]
@@ -210,19 +208,59 @@ class ServerProcess:
         output, self._error = self._split_string_after_index(self._error, bytes_count)
         return output
 
-    def _wait_for_data_and_update_buffers(self, deadline):
+    def _wait_for_data_and_update_buffers_using_select(self, deadline):
         out_fd = self._proc.stdout.fileno()
         err_fd = self._proc.stderr.fileno()
         select_fds = (out_fd, err_fd)
-        read_fds, _, _ = select.select(select_fds, [], select_fds, deadline - time.time())
+        try:
+            read_fds, _, _ = select.select(select_fds, [], select_fds, deadline - time.time())
+        except select.error, e:
+            # We can ignore EINVAL since it's likely the process just crashed and we'll
+            # figure that out the next time through the loop in _read().
+            if e.args[0] == errno.EINVAL:
+                return
+            raise
+
         try:
             if out_fd in read_fds:
                 self._output += self._proc.stdout.read()
             if err_fd in read_fds:
                 self._error += self._proc.stderr.read()
         except IOError, e:
-            # FIXME: Why do we ignore all IOErrors here?
+            # We can ignore the IOErrors because we will detect if the subporcess crashed
+            # the next time through the loop in _read()
             pass
+
+    def _wait_for_data_and_update_buffers_using_win32_apis(self, deadline):
+        # See http://code.activestate.com/recipes/440554-module-to-allow-asynchronous-subprocess-use-on-win/
+        # and http://docs.activestate.com/activepython/2.6/pywin32/modules.html
+        # for documentation on all of these win32-specific modules.
+        now = time.time()
+        out_fh = msvcrt.get_osfhandle(self._proc.stdout.fileno())
+        err_fh = msvcrt.get_osfhandle(self._proc.stderr.fileno())
+        while (self._proc.poll() is None) and (now < deadline):
+            output = self._non_blocking_read_win32(out_fh)
+            error = self._non_blocking_read_win32(err_fh)
+            if output or error:
+                if output:
+                    self._output += output
+                if error:
+                    self._error += error
+                return
+            time.sleep(0.01)
+            now = time.time()
+        return
+
+    def _non_blocking_read_win32(self, handle):
+        try:
+            _, avail, _ = win32pipe.PeekNamedPipe(handle, 0)
+            if avail > 0:
+                _, buf = win32file.ReadFile(handle, avail, None)
+                return buf
+        except Exception, e:
+            if e[0] not in (109, errno.ESHUTDOWN):  # 109 == win32 ERROR_BROKEN_PIPE
+                raise
+        return None
 
     def has_crashed(self):
         if not self._crashed and self.poll():
@@ -246,7 +284,10 @@ class ServerProcess:
             if bytes is not None:
                 return bytes
 
-            self._wait_for_data_and_update_buffers(deadline)
+            if self._use_win32_apis:
+                self._wait_for_data_and_update_buffers_using_win32_apis(deadline)
+            else:
+                self._wait_for_data_and_update_buffers_using_select(deadline)
 
     def start(self):
         if not self._proc:
@@ -265,7 +306,7 @@ class ServerProcess:
         self._proc.stdout.close()
         if self._proc.stderr:
             self._proc.stderr.close()
-        if sys.platform not in ('win32', 'cygwin'):
+        if not self._host.platform.is_win():
             # Closing stdin/stdout/stderr hangs sometimes on OS X,
             # (see restart(), above), and anyway we don't want to hang
             # the harness if DumpRenderTree is buggy, so we wait a couple
@@ -277,6 +318,13 @@ class ServerProcess:
                 time.sleep(0.01)
             if self._proc.poll() is None:
                 _log.warning('stopping %s timed out, killing it' % self._name)
-                self._executive.kill_process(self._proc.pid)
+                self.kill()
                 _log.warning('killed')
         self._reset()
+
+    def kill(self):
+        if self._proc:
+            self._host.executive.kill_process(self._proc.pid)
+            if self._proc.poll() is not None:
+                self._proc.wait()
+            self._reset()

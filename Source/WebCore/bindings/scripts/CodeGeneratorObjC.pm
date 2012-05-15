@@ -466,6 +466,11 @@ sub SkipAttribute
 
     return 1 if $codeGenerator->GetArrayType($attribute->signature->type);
 
+    # This is for DynamicsCompressorNode.idl
+    if ($attribute->signature->name eq "release") {
+        return 1;
+    }
+
     return 0;
 }
 
@@ -629,7 +634,7 @@ sub AddIncludesForType
     $implIncludes{"NameNodeList.h"} = 1 if $type eq "NodeList";
 
     # Default, include the same named file (the implementation) and the same name prefixed with "DOM". 
-    $implIncludes{"$type.h"} = 1 if not $codeGenerator->AvoidInclusionOfType($type);
+    $implIncludes{"$type.h"} = 1 if not $codeGenerator->SkipIncludeHeader($type);
     $implIncludes{"DOM${type}Internal.h"} = 1;
 }
 
@@ -779,6 +784,7 @@ sub GenerateHeader
     # - Add attribute getters/setters.
     if ($numAttributes > 0) {
         foreach my $attribute (@{$dataNode->attributes}) {
+            next if SkipAttribute($attribute);
             my $attributeName = $attribute->signature->name;
 
             if ($attributeName eq "id" or $attributeName eq "hash" or $attributeName eq "description") {
@@ -1127,7 +1133,7 @@ sub GenerateImplementation
     if ($interfaceName =~ /(\w+)(Abs|Rel)$/) {
         $implIncludes{"$1.h"} = 1;
     } else {
-        if (!$codeGenerator->AvoidInclusionOfType($implClassName)) {
+        if (!$codeGenerator->SkipIncludeHeader($implClassName)) {
             $implIncludes{"$implClassName.h"} = 1 ;
         } elsif ($codeGenerator->IsSVGTypeNeedingTearOff($implClassName)) {
             my $includeType = $codeGenerator->GetSVGWrappedTypeNeedingTearOff($implClassName);
@@ -1339,7 +1345,7 @@ sub GenerateImplementation
                 my $type = $attribute->signature->type;
                 if ($codeGenerator->IsSVGTypeNeedingTearOff($type) and not $implClassName =~ /List$/) {
                     my $idlTypeWithNamespace = GetSVGTypeWithNamespace($type);
-                    $implIncludes{"$type.h"} = 1 if not $codeGenerator->AvoidInclusionOfType($type);
+                    $implIncludes{"$type.h"} = 1 if not $codeGenerator->SkipIncludeHeader($type);
                     if ($codeGenerator->IsSVGTypeWithWritablePropertiesNeedingTearOff($type) and not defined $attribute->signature->extendedAttributes->{"Immutable"}) {
                         $idlTypeWithNamespace =~ s/SVGPropertyTearOff</SVGStaticPropertyTearOff<$implClassNameWithNamespace, /;
                         $implIncludes{"SVGStaticPropertyTearOff.h"} = 1;

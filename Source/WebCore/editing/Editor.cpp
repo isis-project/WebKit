@@ -33,7 +33,6 @@
 #include "CSSComputedStyleDeclaration.h"
 #include "CSSProperty.h"
 #include "CSSPropertyNames.h"
-#include "CSSStyleSelector.h"
 #include "CSSValueKeywords.h"
 #include "CachedResourceLoader.h"
 #include "ClipboardEvent.h"
@@ -41,6 +40,8 @@
 #include "CreateLinkCommand.h"
 #include "DeleteButtonController.h"
 #include "DeleteSelectionCommand.h"
+#include "DictationAlternative.h"
+#include "DictationCommand.h"
 #include "DocumentFragment.h"
 #include "DocumentMarkerController.h"
 #include "EditingText.h"
@@ -68,17 +69,18 @@
 #include "TextCheckingHelper.h"
 #include "RemoveFormatCommand.h"
 #include "RenderBlock.h"
-#include "RenderLayer.h"
 #include "RenderPart.h"
 #include "RenderTextControl.h"
 #include "RenderedPosition.h"
 #include "ReplaceSelectionCommand.h"
 #include "Settings.h"
+#include "ShadowRoot.h"
 #include "SimplifyMarkupCommand.h"
 #include "Sound.h"
 #include "SpellChecker.h"
 #include "SpellingCorrectionCommand.h"
 #include "StylePropertySet.h"
+#include "StyleResolver.h"
 #include "Text.h"
 #include "TextCheckerClient.h"
 #include "TextCheckingHelper.h"
@@ -875,6 +877,11 @@ bool Editor::insertTextForConfirmedComposition(const String& text)
     return m_frame->eventHandler()->handleTextInputEvent(text, 0, TextEventInputComposition);
 }
 
+bool Editor::insertDictatedText(const String& text, const Vector<DictationAlternative>& dictationAlternatives, Event* triggeringEvent)
+{
+    return m_alternativeTextController->insertDictatedText(text, dictationAlternatives, triggeringEvent);
+}
+
 bool Editor::insertTextWithoutSendingTextEvent(const String& text, bool selectInsertedText, TextEvent* triggeringEvent)
 {
     if (text.isEmpty())
@@ -909,12 +916,16 @@ bool Editor::insertTextWithoutSendingTextEvent(const String& text, bool selectIn
             RefPtr<Document> document = selectionStart->document();
 
             // Insert the text
-            TypingCommand::Options options = 0;
-            if (selectInsertedText)
-                options |= TypingCommand::SelectInsertedText;
-            if (autocorrectionWasApplied)
-                options |= TypingCommand::RetainAutocorrectionIndicator;
-            TypingCommand::insertText(document.get(), text, selection, options, triggeringEvent && triggeringEvent->isComposition() ? TypingCommand::TextCompositionConfirm : TypingCommand::TextCompositionNone);
+            if (triggeringEvent && triggeringEvent->isDictation())
+                DictationCommand::insertText(document.get(), text, triggeringEvent->dictationAlternatives(), selection);
+            else {
+                TypingCommand::Options options = 0;
+                if (selectInsertedText)
+                    options |= TypingCommand::SelectInsertedText;
+                if (autocorrectionWasApplied)
+                    options |= TypingCommand::RetainAutocorrectionIndicator;
+                TypingCommand::insertText(document.get(), text, selection, options, triggeringEvent && triggeringEvent->isComposition() ? TypingCommand::TextCompositionConfirm : TypingCommand::TextCompositionNone);
+            }
 
             // Reveal the current selection
             if (Frame* editedFrame = document->frame())
@@ -1349,7 +1360,7 @@ void Editor::setComposition(const String& text, SetCompositionMode mode)
 
     // If text is empty, then delete the old composition here.  If text is non-empty, InsertTextCommand::input
     // will delete the old composition with an optimized replace operation.
-    if (text.isEmpty())
+    if (text.isEmpty() && mode != CancelComposition)
         TypingCommand::deleteSelection(m_frame->document(), 0);
 
     m_compositionNode = 0;
@@ -2247,7 +2258,7 @@ void Editor::updateMarkersForWordsAffectedByEditing(bool doNotRemoveIfSelectionA
     Document* document = m_frame->document();
     RefPtr<Range> wordRange = Range::create(document, startOfFirstWord.deepEquivalent(), endOfLastWord.deepEquivalent());
 
-    document->markers()->removeMarkers(wordRange.get(), DocumentMarker::Spelling | DocumentMarker::CorrectionIndicator | DocumentMarker::SpellCheckingExemption, DocumentMarkerController::RemovePartiallyOverlappingMarker);
+    document->markers()->removeMarkers(wordRange.get(), DocumentMarker::Spelling | DocumentMarker::CorrectionIndicator | DocumentMarker::SpellCheckingExemption | DocumentMarker::DictationAlternatives, DocumentMarkerController::RemovePartiallyOverlappingMarker);
     document->markers()->clearDescriptionOnMarkersIntersectingRange(wordRange.get(), DocumentMarker::Replacement);
 }
 
@@ -2575,11 +2586,11 @@ IntRect Editor::firstRectForRange(Range* range) const
     ASSERT(range->startContainer());
     ASSERT(range->endContainer());
 
-    LayoutRect startCaretRect = RenderedPosition(VisiblePosition(range->startPosition()).deepEquivalent(), DOWNSTREAM).absoluteRect(extraWidthToEndOfLine);
+    IntRect startCaretRect = RenderedPosition(VisiblePosition(range->startPosition()).deepEquivalent(), DOWNSTREAM).absoluteRect(&extraWidthToEndOfLine);
     if (startCaretRect == LayoutRect())
         return IntRect();
 
-    LayoutRect endCaretRect = RenderedPosition(VisiblePosition(range->endPosition()).deepEquivalent(), UPSTREAM).absoluteRect();
+    IntRect endCaretRect = RenderedPosition(VisiblePosition(range->endPosition()).deepEquivalent(), UPSTREAM).absoluteRect();
     if (endCaretRect == LayoutRect())
         return IntRect();
 
@@ -2719,7 +2730,7 @@ PassRefPtr<Range> Editor::findStringAndScrollToVisible(const String& target, Ran
     if (!nextMatch)
         return 0;
 
-    nextMatch->firstNode()->renderer()->enclosingLayer()->scrollRectToVisible(nextMatch->boundingBox(),
+    nextMatch->firstNode()->renderer()->scrollRectToVisible(nextMatch->boundingBox(),
         ScrollAlignment::alignCenterIfNeeded, ScrollAlignment::alignCenterIfNeeded);
 
     return nextMatch.release();

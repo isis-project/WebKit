@@ -254,12 +254,15 @@ function shouldBeTrueQuiet(_a) { shouldBe(_a, "true", true); }
 function shouldBeFalse(_a) { shouldBe(_a, "false"); }
 function shouldBeNaN(_a) { shouldBe(_a, "NaN"); }
 function shouldBeNull(_a) { shouldBe(_a, "null"); }
+function shouldBeZero(_a) { shouldBe(_a, "0"); }
 
 function shouldBeEqualToString(a, b)
 {
   var unevaledString = '"' + b.replace(/\\/g, "\\\\").replace(/"/g, "\"").replace(/\n/g, "\\n").replace(/\r/g, "\\r") + '"';
   shouldBe(a, unevaledString);
 }
+
+function shouldBeEmptyString(_a) { shouldBeEqualToString(_a, ""); }
 
 function shouldEvaluateTo(actual, expected) {
   // A general-purpose comparator.  'actual' should be a string to be
@@ -389,6 +392,15 @@ function shouldBeGreaterThanOrEqual(_a, _b) {
         testFailed(_a + " should be >= " + _b + ". Was " + _av + " (of type " + typeof _av + ").");
     else
         testPassed(_a + " is >= " + _b);
+}
+
+function shouldNotThrow(_a) {
+    try {
+        eval(_a);
+        testPassed(_a + " did not throw exception.");
+    } catch (e) {
+        testFailed(_a + " should not throw exception. Threw exception " + e + ".");
+    }
 }
 
 function shouldThrow(_a, _e)

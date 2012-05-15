@@ -74,6 +74,15 @@ void WebGraphicsLayer::didChangeChildren()
         client()->notifySyncRequired(this);
 }
 
+#if ENABLE(CSS_FILTERS)
+void WebGraphicsLayer::didChangeFilters()
+{
+    m_shouldSyncFilters = true;
+    if (client())
+        client()->notifySyncRequired(this);
+}
+#endif
+
 void WebGraphicsLayer::setShouldUpdateVisibleRect()
 {
     if (!transform().isAffine())
@@ -99,6 +108,7 @@ WebGraphicsLayer::WebGraphicsLayer(GraphicsLayerClient* client)
     , m_shouldUpdateVisibleRect(true)
     , m_shouldSyncLayerState(true)
     , m_shouldSyncChildren(true)
+    , m_fixedToViewport(false)
     , m_webGraphicsLayerClient(0)
     , m_contentsScale(1)
 {
@@ -308,6 +318,17 @@ void WebGraphicsLayer::setContentsNeedsDisplay()
     setContentsToImage(image.get());
 }
 
+#if ENABLE(CSS_FILTERS)
+bool WebGraphicsLayer::setFilters(const FilterOperations& newFilters)
+{
+    if (filters() == newFilters)
+        return true;
+    didChangeFilters();
+    return GraphicsLayer::setFilters(newFilters);
+}
+#endif
+
+
 void WebGraphicsLayer::setContentsToImage(Image* image)
 {
     if (image == m_image)
@@ -387,6 +408,8 @@ void WebGraphicsLayer::syncCompositingState(const FloatRect& rect)
     if (WebGraphicsLayer* replica = toWebGraphicsLayer(replicaLayer()))
         replica->syncCompositingStateForThisLayerOnly();
 
+    m_webGraphicsLayerClient->syncFixedLayers();
+
     syncCompositingStateForThisLayerOnly();
 
     for (size_t i = 0; i < children().size(); ++i)
@@ -410,11 +433,22 @@ void WebGraphicsLayer::syncChildren()
     m_webGraphicsLayerClient->syncLayerChildren(m_id, childIDs);
 }
 
+#if ENABLE(CSS_FILTERS)
+void WebGraphicsLayer::syncFilters()
+{
+    if (!m_shouldSyncFilters)
+        return;
+    m_shouldSyncFilters = false;
+    m_webGraphicsLayerClient->syncLayerFilters(m_id, filters());
+}
+#endif
+
 void WebGraphicsLayer::syncLayerState()
  {
     if (!m_shouldSyncLayerState)
         return;
     m_shouldSyncLayerState = false;
+    m_layerInfo.fixedToViewport = fixedToViewport();
 
     m_layerInfo.anchorPoint = anchorPoint();
     m_layerInfo.backfaceVisible = backfaceVisibility();
@@ -448,6 +482,9 @@ void WebGraphicsLayer::syncCompositingStateForThisLayerOnly()
     computeTransformedVisibleRect();
     syncChildren();
     syncLayerState();
+#if ENABLE(CSS_FILTERS)
+    syncFilters();
+#endif
     updateContentBuffers();
 }
 
@@ -545,7 +582,7 @@ IntRect WebGraphicsLayer::tiledBackingStoreVisibleRect()
     // Return a projection of the visible rect (surface coordinates) onto the layer's plane (layer coordinates).
     // The resulting quad might be squewed and the visible rect is the bounding box of this quad,
     // so it might spread further than the real visible area (and then even more amplified by the cover rect multiplier).
-    return m_layerTransform.combined().inverse().clampedBoundsOfProjectedQuad(FloatQuad(FloatRect(m_webGraphicsLayerClient->visibleContentsRect())));
+    return enclosingIntRect(m_layerTransform.combined().inverse().clampedBoundsOfProjectedQuad(FloatQuad(FloatRect(m_webGraphicsLayerClient->visibleContentsRect()))));
 }
 
 Color WebGraphicsLayer::tiledBackingStoreBackgroundColor() const
@@ -553,14 +590,19 @@ Color WebGraphicsLayer::tiledBackingStoreBackgroundColor() const
     return contentsOpaque() ? Color::white : Color::transparent;
 }
 
-void WebGraphicsLayer::createTile(int tileID, const UpdateInfo& updateInfo)
+PassOwnPtr<WebCore::GraphicsContext> WebGraphicsLayer::beginContentUpdate(const WebCore::IntSize& size, ShareableSurface::Handle& handle, WebCore::IntPoint& offset)
 {
-    m_webGraphicsLayerClient->createTile(id(), tileID, updateInfo);
+    return m_webGraphicsLayerClient->beginContentUpdate(size, contentsOpaque() ? 0 : ShareableBitmap::SupportsAlpha, handle, offset);
 }
 
-void WebGraphicsLayer::updateTile(int tileID, const UpdateInfo& updateInfo)
+void WebGraphicsLayer::createTile(int tileID, const SurfaceUpdateInfo& updateInfo, const IntRect& targetRect)
 {
-    m_webGraphicsLayerClient->updateTile(id(), tileID, updateInfo);
+    m_webGraphicsLayerClient->createTile(id(), tileID, updateInfo, targetRect);
+}
+
+void WebGraphicsLayer::updateTile(int tileID, const SurfaceUpdateInfo& updateInfo, const IntRect& targetRect)
+{
+    m_webGraphicsLayerClient->updateTile(id(), tileID, updateInfo, targetRect);
 }
 
 void WebGraphicsLayer::removeTile(int tileID)
@@ -600,6 +642,9 @@ void WebGraphicsLayer::purgeBackingStores()
         m_webGraphicsLayerClient->releaseImageBackingStore(m_layerInfo.imageBackingStoreID);
         m_layerInfo.imageBackingStoreID = 0;
     }
+
+    didChangeLayerState();
+    didChangeChildren();
 }
 
 void WebGraphicsLayer::setWebGraphicsLayerClient(WebKit::WebGraphicsLayerClient* client)

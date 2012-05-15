@@ -34,47 +34,24 @@ import subprocess
 from webkitpy.layout_tests.models.test_configuration import TestConfiguration
 from webkitpy.layout_tests.port.server_process import ServerProcess
 from webkitpy.layout_tests.port.webkit import WebKitDriver, WebKitPort
+from webkitpy.layout_tests.port.pulseaudio_sanitizer import PulseAudioSanitizer
+from webkitpy.layout_tests.port.xvfbdriver import XvfbDriver
+from webkitpy.common.system.executive import Executive
 
-
-_log = logging.getLogger(__name__)
-
-
-class GtkDriver(WebKitDriver):
-    def _start(self, pixel_tests, per_test_args):
-        # Use even displays for pixel tests and odd ones otherwise. When pixel tests are disabled,
-        # DriverProxy creates two drivers, one for normal and the other for ref tests. Both have
-        # the same worker number, so this prevents them from using the same Xvfb instance.
-        display_id = self._worker_number * 2 + 1
-        if self._pixel_tests:
-            display_id += 1
-        run_xvfb = ["Xvfb", ":%d" % (display_id), "-screen",  "0", "800x600x24", "-nolisten", "tcp"]
-        with open(os.devnull, 'w') as devnull:
-            self._xvfb_process = subprocess.Popen(run_xvfb, stderr=devnull)
-        server_name = self._port.driver_name()
-        environment = self._port.setup_environ_for_server(server_name)
-        # We must do this here because the DISPLAY number depends on _worker_number
-        environment['DISPLAY'] = ":%d" % (display_id)
-        self._crashed_process_name = None
-        self._crashed_pid = None
-        self._server_process = ServerProcess(self._port, server_name, self.cmd_line(pixel_tests, per_test_args), environment)
-
-    def stop(self):
-        WebKitDriver.stop(self)
-        if getattr(self, '_xvfb_process', None):
-            # FIXME: This should use Executive.kill_process
-            os.kill(self._xvfb_process.pid, signal.SIGTERM)
-            self._xvfb_process.wait()
-            self._xvfb_process = None
-
-
-class GtkPort(WebKitPort):
+class GtkPort(WebKitPort, PulseAudioSanitizer):
     port_name = "gtk"
 
     def _port_flag_for_scripts(self):
         return "--gtk"
 
     def _driver_class(self):
-        return GtkDriver
+        return XvfbDriver
+
+    def setup_test_run(self):
+        self._unload_pulseaudio_module()
+
+    def clean_up_test_run(self):
+        self._restore_pulseaudio_module()
 
     def setup_environ_for_server(self, server_name=None):
         environment = WebKitPort.setup_environ_for_server(self, server_name)
@@ -148,10 +125,11 @@ class GtkPort(WebKitPort):
         cmd = ['gdb', '-ex', 'thread apply all bt', '--batch', str(self._path_to_driver()), coredump_path]
         proc = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         proc.wait()
-        errors = [l.strip() for l in proc.stderr.readlines()]
-        return (proc.stdout.read(), errors)
+        errors = [l.strip().decode('utf8', 'ignore') for l in proc.stderr.readlines()]
+        trace = proc.stdout.read().decode('utf8', 'ignore')
+        return (trace, errors)
 
-    def _get_crash_log(self, name, pid, stdout, stderr):
+    def _get_crash_log(self, name, pid, stdout, stderr, newer_than):
         pid_representation = str(pid or '<unknown>')
         log_directory = os.environ.get("WEBKIT_CORE_DUMPS_DIRECTORY")
         errors = []
@@ -168,7 +146,8 @@ class GtkPort(WebKitPort):
             if dumps:
                 # Get the most recent coredump matching the pid and/or process name.
                 coredump_path = list(reversed(sorted(dumps)))[0]
-                crash_log, errors = self._get_gdb_output(coredump_path)
+                if not newer_than or self._filesystem.mtime(coredump_path) > newer_than:
+                    crash_log, errors = self._get_gdb_output(coredump_path)
 
         stderr_lines = errors + (stderr or '<empty>').decode('utf8', 'ignore').splitlines()
         errors_str = '\n'.join(('STDERR: ' + l) for l in stderr_lines)

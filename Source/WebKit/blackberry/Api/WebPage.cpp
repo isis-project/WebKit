@@ -20,6 +20,7 @@
 #include "WebPage.h"
 
 #include "ApplicationCacheStorage.h"
+#include "AutofillManager.h"
 #include "BackForwardController.h"
 #include "BackForwardListImpl.h"
 #include "BackingStoreClient.h"
@@ -35,6 +36,7 @@
 #include "ContextMenuClientBlackBerry.h"
 #include "CookieManager.h"
 #include "CredentialManager.h"
+#include "CredentialStorage.h"
 #include "CredentialTransformData.h"
 #include "DOMSupport.h"
 #include "Database.h"
@@ -82,6 +84,7 @@
 #include "Page.h"
 #include "PageCache.h"
 #include "PageGroup.h"
+#include "PagePopupBlackBerry.h"
 #include "PlatformTouchEvent.h"
 #include "PlatformWheelEvent.h"
 #include "PluginDatabase.h"
@@ -115,6 +118,7 @@
 #include "WebKitVersion.h"
 #include "WebPageClient.h"
 #include "WebSocket.h"
+#include "WebViewportArguments.h"
 #include "npapi.h"
 #include "runtime_root.h"
 
@@ -278,6 +282,36 @@ static inline WebPage::BackForwardId backForwardIdFromHistoryItem(HistoryItem* i
     return reinterpret_cast<WebPage::BackForwardId>(item);
 }
 
+void WebPage::setUserViewportArguments(const WebViewportArguments& viewportArguments)
+{
+    d->m_userViewportArguments = *(viewportArguments.d);
+}
+
+void WebPage::resetUserViewportArguments()
+{
+    d->m_userViewportArguments = ViewportArguments();
+}
+
+template <bool WebPagePrivate::* isActive>
+class DeferredTask: public WebPagePrivate::DeferredTaskBase {
+public:
+    static void finishOrCancel(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->*isActive = false;
+    }
+protected:
+    DeferredTask(WebPagePrivate* webPagePrivate)
+        : DeferredTaskBase(webPagePrivate, isActive)
+    {
+    }
+    typedef DeferredTask<isActive> DeferredTaskType;
+};
+
+void WebPage::autofillTextField(const string& item)
+{
+    d->m_autofillManager->autofillTextField(item.c_str());
+}
+
 WebPagePrivate::WebPagePrivate(WebPage* webPage, WebPageClient* client, const IntRect& rect)
     : m_webPage(webPage)
     , m_client(client)
@@ -345,6 +379,10 @@ WebPagePrivate::WebPagePrivate(WebPage* webPage, WebPageClient* client, const In
     , m_fullscreenVideoNode(0)
     , m_hasInRegionScrollableAreas(false)
     , m_updateDelegatedOverlaysDispatched(false)
+    , m_deferredTasksTimer(this, &WebPagePrivate::deferredTasksTimerFired)
+    , m_selectPopup(0)
+    , m_parentPopup(0)
+    , m_autofillManager(AutofillManager::create(this))
 {
     static bool isInitialized = false;
     if (!isInitialized) {
@@ -401,7 +439,7 @@ WebPagePrivate::~WebPagePrivate()
 
 WebPage::~WebPage()
 {
-    delete d;
+    deleteGuardedObject(d);
     d = 0;
 }
 
@@ -516,9 +554,24 @@ void WebPagePrivate::init(const WebString& pageGroupName)
 #endif
 }
 
-void WebPagePrivate::load(const char* url, const char* networkToken, const char* method, Platform::NetworkRequest::CachePolicy cachePolicy, const char* data, size_t dataLength, const char* const* headers, size_t headersLength, bool isInitial, bool mustHandleInternally, bool forceDownload, const char* overrideContentType)
+class DeferredTaskLoadManualScript: public DeferredTask<&WebPagePrivate::m_wouldLoadManualScript> {
+public:
+    explicit DeferredTaskLoadManualScript(WebPagePrivate* webPagePrivate, const KURL& url)
+        : DeferredTaskType(webPagePrivate)
+    {
+        webPagePrivate->m_cachedManualScript = url;
+    }
+private:
+    virtual void performInternal(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->m_mainFrame->script()->executeIfJavaScriptURL(webPagePrivate->m_cachedManualScript, DoNotReplaceDocumentIfJavaScriptURL);
+    }
+};
+
+void WebPagePrivate::load(const char* url, const char* networkToken, const char* method, Platform::NetworkRequest::CachePolicy cachePolicy, const char* data, size_t dataLength, const char* const* headers, size_t headersLength, bool isInitial, bool mustHandleInternally, bool forceDownload, const char* overrideContentType, const char* suggestedSaveName)
 {
     stopCurrentLoad();
+    DeferredTaskLoadManualScript::finishOrCancel(this);
 
     String urlString(url);
     if (urlString.startsWith("vs:", false)) {
@@ -530,10 +583,9 @@ void WebPagePrivate::load(const char* url, const char* networkToken, const char*
     KURL kurl = parseUrl(urlString);
     if (protocolIs(kurl, "javascript")) {
         // Never run javascript while loading is deferred.
-        if (m_page->defersLoading()) {
-            FrameLoaderClientBlackBerry* frameLoaderClient = static_cast<FrameLoaderClientBlackBerry*>(m_mainFrame->loader()->client());
-            frameLoaderClient->setDeferredManualScript(kurl);
-        } else
+        if (m_page->defersLoading())
+            m_deferredTasks.append(adoptPtr(new DeferredTaskLoadManualScript(this, kurl)));
+        else
             m_mainFrame->script()->executeIfJavaScriptURL(kurl, DoNotReplaceDocumentIfJavaScriptURL);
         return;
     }
@@ -558,6 +610,8 @@ void WebPagePrivate::load(const char* url, const char* networkToken, const char*
 
     if (forceDownload)
         request.setForceDownload(true);
+
+    request.setSuggestedSaveName(suggestedSaveName);
 
     m_mainFrame->loader()->load(request, "" /* name */, false);
 }
@@ -585,7 +639,7 @@ void WebPage::loadFile(const char* path, const char* overrideContentType)
 
 void WebPage::download(const Platform::NetworkRequest& request)
 {
-    d->load(request.getUrlRef().c_str(), 0, "GET", Platform::NetworkRequest::UseProtocolCachePolicy, 0, 0, 0, 0, false, false, true, "");
+    d->load(request.getUrlRef().c_str(), 0, "GET", Platform::NetworkRequest::UseProtocolCachePolicy, 0, 0, 0, 0, false, false, true, "", request.getSuggestedSaveName().c_str());
 }
 
 void WebPagePrivate::loadString(const char* string, const char* baseURL, const char* contentType, const char* failingURL)
@@ -740,8 +794,7 @@ void WebPagePrivate::stopCurrentLoad()
     m_mainFrame->loader()->stopAllLoaders();
 
     // Cancel any deferred script that hasn't been processed yet.
-    FrameLoaderClientBlackBerry* frameLoaderClient = static_cast<FrameLoaderClientBlackBerry*>(m_mainFrame->loader()->client());
-    frameLoaderClient->setDeferredManualScript(KURL());
+    DeferredTaskLoadManualScript::finishOrCancel(this);
 }
 
 void WebPage::stopLoading()
@@ -842,6 +895,12 @@ void WebPagePrivate::setLoadState(LoadState state)
             // Check if we have already process the meta viewport tag, this only happens on history navigation
             if (!m_didRestoreFromPageCache) {
                 m_viewportArguments = ViewportArguments();
+
+                // At the moment we commit a new load, set the viewport arguments
+                // to any fallback values. If there is a meta viewport in the
+                // content it will overwrite the fallback arguments soon.
+                dispatchViewportPropertiesDidChange(m_userViewportArguments);
+
                 m_userScalable = m_webSettings->isUserScalable();
                 resetScales();
             } else {
@@ -1203,12 +1262,30 @@ bool WebPagePrivate::shouldSendResizeEvent()
 
 void WebPagePrivate::willDeferLoading()
 {
+    m_deferredTasksTimer.stop();
     m_client->willDeferLoading();
 }
 
 void WebPagePrivate::didResumeLoading()
 {
+    if (!m_deferredTasks.isEmpty())
+        m_deferredTasksTimer.startOneShot(0);
     m_client->didResumeLoading();
+}
+
+void WebPagePrivate::deferredTasksTimerFired(WebCore::Timer<WebPagePrivate>*)
+{
+    ASSERT(!m_deferredTasks.isEmpty());
+    if (!m_deferredTasks.isEmpty())
+        return;
+
+    OwnPtr<DeferredTaskBase> task = m_deferredTasks[0].release();
+    m_deferredTasks.remove(0);
+
+    if (!m_deferredTasks.isEmpty())
+        m_deferredTasksTimer.startOneShot(0);
+
+    task->perform(this);
 }
 
 bool WebPagePrivate::scrollBy(int deltaX, int deltaY, bool scrollMainFrame)
@@ -1573,6 +1650,11 @@ void WebPage::initializeIconDataBase()
 bool WebPage::isUserScalable() const
 {
     return d->isUserScalable();
+}
+
+void WebPage::setUserScalable(bool userScalable)
+{
+    d->setUserScalable(userScalable);
 }
 
 double WebPage::currentScale() const
@@ -2023,7 +2105,7 @@ bool WebPagePrivate::isActive() const
     return m_client->isActive();
 }
 
-bool WebPagePrivate::authenticationChallenge(const KURL& url, const ProtectionSpace& protectionSpace, Credential& inputCredential)
+Credential WebPagePrivate::authenticationChallenge(const KURL& url, const ProtectionSpace& protectionSpace)
 {
     WebString username;
     WebString password;
@@ -2033,22 +2115,29 @@ bool WebPagePrivate::authenticationChallenge(const KURL& url, const ProtectionSp
         credentialManager().autofillAuthenticationChallenge(protectionSpace, username, password);
 #endif
 
-    bool isConfirmed = m_client->authenticationChallenge(protectionSpace.realm().characters(), protectionSpace.realm().length(), username, password);
+    m_client->authenticationChallenge(protectionSpace.realm().characters(), protectionSpace.realm().length(), username, password);
 
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
-    Credential credential(username, password, CredentialPersistencePermanent);
+    Credential inputCredential(username, password, CredentialPersistencePermanent);
     if (!m_webSettings->isPrivateBrowsingEnabled())
-        credentialManager().saveCredentialIfConfirmed(this, CredentialTransformData(url, protectionSpace, credential));
+        credentialManager().saveCredentialIfConfirmed(this, CredentialTransformData(url, protectionSpace, inputCredential));
 #else
-    Credential credential(username, password, CredentialPersistenceNone);
+    Credential inputCredential(username, password, CredentialPersistenceNone);
 #endif
-    inputCredential = credential;
-    return isConfirmed;
+    return inputCredential;
 }
 
 PageClientBlackBerry::SaveCredentialType WebPagePrivate::notifyShouldSaveCredential(bool isNew)
 {
     return static_cast<PageClientBlackBerry::SaveCredentialType>(m_client->notifyShouldSaveCredential(isNew));
+}
+
+void WebPagePrivate::notifyPopupAutofillDialog(const Vector<String>& candidates, const WebCore::IntRect& screenRect)
+{
+    vector<string> textItems;
+    for (size_t i = 0; i < candidates.size(); i++)
+        textItems.push_back(candidates[i].utf8().data());
+    m_client->notifyPopupAutofillDialog(textItems, screenRect);
 }
 
 bool WebPagePrivate::useFixedLayout() const
@@ -2428,6 +2517,8 @@ void WebPagePrivate::assignFocus(Platform::FocusDirection direction)
 
 void WebPage::assignFocus(Platform::FocusDirection direction)
 {
+    if (d->m_page->defersLoading())
+       return;
     d->assignFocus(direction);
 }
 
@@ -2590,6 +2681,17 @@ Node* WebPagePrivate::adjustedBlockZoomNodeForZoomLimits(Node* node)
         acceptableNodeSize = newScaleForBlockZoomRect(rectForNode(node), 1.0, 0) < maxBlockZoomScale();
     }
 
+    // Don't use a node if it is too close to the size of the actual contents.
+    if (initialNode != node) {
+        IntRect nodeRect = rectForNode(node);
+        nodeRect = adjustRectOffsetForFrameOffset(nodeRect, node);
+        nodeRect.intersect(IntRect(IntPoint::zero(), contentsSize()));
+        int nodeArea = nodeRect.width() * nodeRect.height();
+        int pageArea = contentsSize().width() * contentsSize().height();
+        if (static_cast<double>(pageArea - nodeArea) / pageArea < minimumExpandingRatio)
+            return initialNode;
+    }
+
     return node;
 }
 
@@ -2726,7 +2828,7 @@ IntRect WebPagePrivate::blockZoomRectForNode(Node* node)
 
     int originalArea = originalRect.width() * originalRect.height();
     int pageArea = contentsSize().width() * contentsSize().height();
-    double blockToPageRatio = static_cast<double>(1 - originalArea / pageArea);
+    double blockToPageRatio = static_cast<double>(pageArea - originalArea) / pageArea;
     double blockExpansionRatio = 5.0 * blockToPageRatio * blockToPageRatio;
 
     if (!tnode->hasTagName(HTMLNames::imgTag) && !tnode->hasTagName(HTMLNames::inputTag) && !tnode->hasTagName(HTMLNames::textareaTag)) {
@@ -2735,7 +2837,7 @@ IntRect WebPagePrivate::blockZoomRectForNode(Node* node)
             IntRect tRect = rectForNode(tnode);
             int tempBlockArea = tRect.width() * tRect.height();
             // Don't expand the block if it will be too large relative to the content.
-            if (static_cast<double>(1 - tempBlockArea / pageArea) < minimumExpandingRatio)
+            if (static_cast<double>(pageArea - tempBlockArea) / pageArea < minimumExpandingRatio)
                 break;
             if (tRect.isEmpty())
                 continue; // No renderer.
@@ -2743,7 +2845,7 @@ IntRect WebPagePrivate::blockZoomRectForNode(Node* node)
                 continue; // The size of this parent is very close to the child, no need to go to this parent.
             // Don't expand the block if the parent node size is already almost the size of actual visible size.
             IntSize actualSize = actualVisibleSize();
-            if (static_cast<double>(1 - tRect.width() / actualSize.width()) < minimumExpandingRatio)
+            if (static_cast<double>(actualSize.width() - tRect.width()) / actualSize.width() < minimumExpandingRatio)
                 break;
             if (tempBlockArea < blockExpansionRatio * originalArea) {
                 blockRect = tRect;
@@ -2906,7 +3008,7 @@ void WebPage::destroy()
     if (loader)
         loader->detachFromParent();
 
-    delete this;
+    deleteGuardedObject(this);
 }
 
 WebPageClient* WebPage::client() const
@@ -2961,12 +3063,31 @@ bool WebPage::isVisible() const
 }
 
 #if ENABLE(PAGE_VISIBILITY_API)
+class DeferredTaskSetPageVisibilityState: public DeferredTask<&WebPagePrivate::m_wouldSetPageVisibilityState> {
+public:
+    explicit DeferredTaskSetPageVisibilityState(WebPagePrivate* webPagePrivate)
+        : DeferredTaskType(webPagePrivate)
+    {
+    }
+private:
+    virtual void performInternal(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->setPageVisibilityState();
+    }
+};
+
 void WebPagePrivate::setPageVisibilityState()
 {
-    static bool s_initialVisibilityState = true;
+    if (m_page->defersLoading())
+        m_deferredTasks.append(adoptPtr(new DeferredTaskSetPageVisibilityState(this)));
+    else {
+        DeferredTaskSetPageVisibilityState::finishOrCancel(this);
 
-    m_page->setVisibilityState(m_visible && m_activationState == ActivationActive ? PageVisibilityStateVisible : PageVisibilityStateHidden, s_initialVisibilityState);
-    s_initialVisibilityState = false;
+        static bool s_initialVisibilityState = true;
+
+        m_page->setVisibilityState(m_visible && m_activationState == ActivationActive ? PageVisibilityStateVisible : PageVisibilityStateHidden, s_initialVisibilityState);
+        s_initialVisibilityState = false;
+    }
 }
 #endif
 
@@ -3072,6 +3193,8 @@ bool WebPage::setBatchEditingActive(bool active)
 
 bool WebPage::setInputSelection(unsigned start, unsigned end)
 {
+    if (d->m_page->defersLoading())
+        return false;
     return d->m_inputHandler->setSelection(start, end);
 }
 
@@ -3080,23 +3203,101 @@ int WebPage::inputCaretPosition() const
     return d->m_inputHandler->caretPosition();
 }
 
-void WebPage::popupListClosed(int size, bool* selecteds)
+class DeferredTaskPopupListSelectMultiple: public DeferredTask<&WebPagePrivate::m_wouldPopupListSelectMultiple> {
+public:
+    DeferredTaskPopupListSelectMultiple(WebPagePrivate* webPagePrivate, int size, const bool* selecteds) 
+        : DeferredTaskType(webPagePrivate)
+    {
+        webPagePrivate->m_cachedPopupListSelecteds.append(selecteds, size);
+    }
+private:
+    virtual void performInternal(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->m_webPage->popupListClosed(webPagePrivate->m_cachedPopupListSelecteds.size(), webPagePrivate->m_cachedPopupListSelecteds.data());
+    }
+};
+
+class DeferredTaskPopupListSelectSingle: public DeferredTask<&WebPagePrivate::m_wouldPopupListSelectSingle> {
+public:
+    explicit DeferredTaskPopupListSelectSingle(WebPagePrivate* webPagePrivate, int index)
+        : DeferredTaskType(webPagePrivate)
+    {
+        webPagePrivate->m_cachedPopupListSelectedIndex = index;
+    }
+private:
+    virtual void performInternal(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->m_webPage->popupListClosed(webPagePrivate->m_cachedPopupListSelectedIndex);
+    }
+};
+
+void WebPage::popupListClosed(int size, const bool* selecteds)
 {
+    DeferredTaskPopupListSelectSingle::finishOrCancel(d);
+    if (d->m_page->defersLoading()) {
+        d->m_deferredTasks.append(adoptPtr(new DeferredTaskPopupListSelectMultiple(d, size, selecteds)));
+        return;
+    }
+    DeferredTaskPopupListSelectMultiple::finishOrCancel(d);
     d->m_inputHandler->setPopupListIndexes(size, selecteds);
 }
 
 void WebPage::popupListClosed(int index)
 {
+    DeferredTaskPopupListSelectMultiple::finishOrCancel(d);
+    if (d->m_page->defersLoading()) {
+        d->m_deferredTasks.append(adoptPtr(new DeferredTaskPopupListSelectSingle(d, index)));
+        return;
+    }
+    DeferredTaskPopupListSelectSingle::finishOrCancel(d);
     d->m_inputHandler->setPopupListIndex(index);
 }
 
+class DeferredTaskSetDateTimeInput: public DeferredTask<&WebPagePrivate::m_wouldSetDateTimeInput> {
+public:
+    explicit DeferredTaskSetDateTimeInput(WebPagePrivate* webPagePrivate, WebString value)
+        : DeferredTaskType(webPagePrivate)
+    {
+        webPagePrivate->m_cachedDateTimeInput = value;
+    }
+private:
+    virtual void performInternal(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->m_webPage->setDateTimeInput(webPagePrivate->m_cachedDateTimeInput);
+    }
+};
+
 void WebPage::setDateTimeInput(const WebString& value)
 {
+    if (d->m_page->defersLoading()) {
+        d->m_deferredTasks.append(adoptPtr(new DeferredTaskSetDateTimeInput(d, value)));
+        return;
+    }
+    DeferredTaskSetDateTimeInput::finishOrCancel(d);
     d->m_inputHandler->setInputValue(String(value.impl()));
 }
 
+class DeferredTaskSetColorInput: public DeferredTask<&WebPagePrivate::m_wouldSetColorInput> {
+public:
+    explicit DeferredTaskSetColorInput(WebPagePrivate* webPagePrivate, WebString value)
+        : DeferredTaskType(webPagePrivate)
+    {
+        webPagePrivate->m_cachedColorInput = value;
+    }
+private:
+    virtual void performInternal(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->m_webPage->setColorInput(webPagePrivate->m_cachedColorInput);
+    }
+};
+
 void WebPage::setColorInput(const WebString& value)
 {
+    if (d->m_page->defersLoading()) {
+        d->m_deferredTasks.append(adoptPtr(new DeferredTaskSetColorInput(d, value)));
+        return;
+    }
+    DeferredTaskSetColorInput::finishOrCancel(d);
     d->m_inputHandler->setInputValue(String(value.impl()));
 }
 
@@ -3113,7 +3314,7 @@ void WebPage::resetVirtualViewportOnCommitted(bool reset)
 
 IntSize WebPagePrivate::recomputeVirtualViewportFromViewportArguments()
 {
-    static ViewportArguments defaultViewportArguments;
+    static const ViewportArguments defaultViewportArguments;
     if (m_viewportArguments == defaultViewportArguments)
         return IntSize();
 
@@ -3532,6 +3733,9 @@ bool WebPage::mouseEvent(const Platform::MouseEvent& mouseEvent, bool* wheelDelt
     if (!d->m_mainFrame->view())
         return false;
 
+    if (d->m_page->defersLoading())
+        return false;
+
     PluginView* pluginView = d->m_fullScreenPluginView.get();
     if (pluginView)
         return d->dispatchMouseEventToFullScreenPlugin(pluginView, mouseEvent);
@@ -3621,6 +3825,9 @@ bool WebPagePrivate::handleMouseEvent(PlatformMouseEvent& mouseEvent)
     if (mouseEvent.type() == WebCore::PlatformEvent::MouseScroll)
         return true;
 
+    if (m_parentPopup)
+        m_parentPopup->handleMouseEvent(mouseEvent);
+
     Node* node = 0;
     if (mouseEvent.inputMethod() == TouchScreen) {
         const FatFingersResult lastFatFingersResult = m_touchEventHandler->lastFatFingersResult();
@@ -3708,12 +3915,15 @@ bool WebPage::touchEvent(const Platform::TouchEvent& event)
 #endif
 
 #if ENABLE(TOUCH_EVENTS)
+    if (!d->m_mainFrame)
+        return false;
+
+    if (d->m_page->defersLoading())
+        return false;
+
     PluginView* pluginView = d->m_fullScreenPluginView.get();
     if (pluginView)
         return d->dispatchTouchEventToFullScreenPlugin(pluginView, event);
-
-    if (!d->m_mainFrame)
-        return false;
 
     Platform::TouchEvent tEvent = event;
     for (unsigned i = 0; i < event.m_points.size(); i++) {
@@ -3832,6 +4042,9 @@ bool WebPagePrivate::dispatchTouchEventToFullScreenPlugin(PluginView* plugin, co
 
 bool WebPage::touchPointAsMouseEvent(const Platform::TouchPoint& point)
 {
+    if (d->m_page->defersLoading())
+        return false;
+
     PluginView* pluginView = d->m_fullScreenPluginView.get();
     if (pluginView)
         return d->dispatchTouchPointAsMouseEventToFullScreenPlugin(pluginView, point);
@@ -3877,11 +4090,15 @@ bool WebPagePrivate::dispatchTouchPointAsMouseEventToFullScreenPlugin(PluginView
 void WebPage::touchEventCancel()
 {
     d->m_pluginMayOpenNewTab = false;
+    if (d->m_page->defersLoading())
+        return;
     d->m_touchEventHandler->touchEventCancel();
 }
 
 void WebPage::touchEventCancelAndClearFocusedNode()
 {
+    if (d->m_page->defersLoading())
+        return;
     d->m_touchEventHandler->touchEventCancelAndClearFocusedNode();
 }
 
@@ -4100,6 +4317,9 @@ bool WebPage::keyEvent(const Platform::KeyboardEvent& keyboardEvent)
     if (!d->m_mainFrame->view())
         return false;
 
+    if (d->m_page->defersLoading())
+        return false;
+
     ASSERT(d->m_page->focusController());
 
     bool handled = d->m_inputHandler->handleKeyboardInput(keyboardEvent);
@@ -4115,6 +4335,9 @@ bool WebPage::keyEvent(const Platform::KeyboardEvent& keyboardEvent)
 
 bool WebPage::deleteTextRelativeToCursor(unsigned int leftOffset, unsigned int rightOffset)
 {
+    if (d->m_page->defersLoading())
+        return false;
+
     return d->m_inputHandler->deleteTextRelativeToCursor(leftOffset, rightOffset);
 }
 
@@ -4150,11 +4373,15 @@ int32_t WebPage::finishComposition()
 
 int32_t WebPage::setComposingText(spannable_string_t* spannableString, int32_t relativeCursorPosition)
 {
+    if (d->m_page->defersLoading())
+        return -1;
     return d->m_inputHandler->setComposingText(spannableString, relativeCursorPosition);
 }
 
 int32_t WebPage::commitText(spannable_string_t* spannableString, int32_t relativeCursorPosition)
 {
+    if (d->m_page->defersLoading())
+        return -1;
     return d->m_inputHandler->commitText(spannableString, relativeCursorPosition);
 }
 
@@ -4163,8 +4390,26 @@ void WebPage::setSpellCheckingEnabled(bool enabled)
     static_cast<EditorClientBlackBerry*>(d->m_page->editorClient())->enableSpellChecking(enabled);
 }
 
+class DeferredTaskSelectionCancelled: public DeferredTask<&WebPagePrivate::m_wouldCancelSelection> {
+public:
+    explicit DeferredTaskSelectionCancelled(WebPagePrivate* webPagePrivate)
+        : DeferredTaskType(webPagePrivate)
+    {
+    }
+private:
+    virtual void performInternal(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->m_webPage->selectionCancelled();
+    }
+};
+
 void WebPage::selectionCancelled()
 {
+    if (d->m_page->defersLoading()) {
+        d->m_deferredTasks.append(adoptPtr(new DeferredTaskSelectionCancelled(d)));
+        return;
+    }
+    DeferredTaskSelectionCancelled::finishOrCancel(d);
     d->m_selectionHandler->cancelSelection();
 }
 
@@ -4188,23 +4433,29 @@ WebString WebPage::selectedText() const
 WebString WebPage::cutSelectedText()
 {
     WebString selectedText = d->m_selectionHandler->selectedText();
-    if (!selectedText.isEmpty())
+    if (!d->m_page->defersLoading() && !selectedText.isEmpty())
         d->m_inputHandler->deleteSelection();
     return selectedText;
 }
 
 void WebPage::insertText(const WebString& string)
 {
+    if (d->m_page->defersLoading())
+        return;
     d->m_inputHandler->insertText(string);
 }
 
 void WebPage::clearCurrentInputField()
 {
+    if (d->m_page->defersLoading())
+        return;
     d->m_inputHandler->clearField();
 }
 
 void WebPage::cut()
 {
+    if (d->m_page->defersLoading())
+        return;
     d->m_inputHandler->cut();
 }
 
@@ -4215,11 +4466,15 @@ void WebPage::copy()
 
 void WebPage::paste()
 {
+    if (d->m_page->defersLoading())
+        return;
     d->m_inputHandler->paste();
 }
 
 void WebPage::setSelection(const Platform::IntPoint& startPoint, const Platform::IntPoint& endPoint)
 {
+    if (d->m_page->defersLoading())
+        return;
     // Transform this events coordinates to webkit content coordinates.
     // FIXME: Don't transform the sentinel, because it may be transformed to a floating number
     // which could be rounded to 0 or other numbers. This workaround should be removed after
@@ -4234,6 +4489,8 @@ void WebPage::setSelection(const Platform::IntPoint& startPoint, const Platform:
 
 void WebPage::setCaretPosition(const Platform::IntPoint& position)
 {
+    if (d->m_page->defersLoading())
+        return;
     // Handled by selection handler as it's point based.
     // Transform this events coordinates to webkit content coordinates.
     d->m_selectionHandler->setCaretPosition(d->mapFromTransformed(position));
@@ -4241,6 +4498,8 @@ void WebPage::setCaretPosition(const Platform::IntPoint& position)
 
 void WebPage::selectAtPoint(const Platform::IntPoint& location)
 {
+    if (d->m_page->defersLoading())
+        return;
     // Transform this events coordinates to webkit content coordinates if it
     // is not the sentinel value.
     IntPoint selectionLocation =
@@ -4465,7 +4724,7 @@ bool WebPage::blockZoom(int x, int y)
             IntRect tRect = d->mapFromTransformed(blockRect);
             int blockArea = tRect.width() * tRect.height();
             int pageArea = d->contentsSize().width() * d->contentsSize().height();
-            double blockToPageRatio = static_cast<double>(1 - blockArea / pageArea);
+            double blockToPageRatio = static_cast<double>(pageArea - blockArea) / pageArea;
             if (blockToPageRatio < minimumExpandingRatio) {
                 // Restore old adjust node because zoom was canceled.
                 d->m_currentBlockZoomAdjustedNode = tempBlockZoomAdjustedNode;
@@ -4674,8 +4933,27 @@ bool WebPage::zoomToOneOne()
     return d->zoomAboutPoint(scale, d->centerOfVisibleContentsRect());
 }
 
+class DeferredTaskSetFocused: public DeferredTask<&WebPagePrivate::m_wouldSetFocused> {
+public:
+    explicit DeferredTaskSetFocused(WebPagePrivate* webPagePrivate, bool focused)
+        : DeferredTaskType(webPagePrivate)
+    {
+        webPagePrivate->m_cachedFocused = focused;
+    }
+private:
+    virtual void performInternal(WebPagePrivate* webPagePrivate)
+    {
+        webPagePrivate->m_webPage->setFocused(webPagePrivate->m_cachedFocused);
+    }
+};
+
 void WebPage::setFocused(bool focused)
 {
+    if (d->m_page->defersLoading()) {
+        d->m_deferredTasks.append(adoptPtr(new DeferredTaskSetFocused(d, focused)));
+        return;
+    }
+    DeferredTaskSetFocused::finishOrCancel(d);
     FocusController* focusController = d->m_page->focusController();
     focusController->setActive(focused);
     if (focused) {
@@ -4915,6 +5193,11 @@ void WebPage::clearCredentials()
 #endif
 }
 
+void WebPage::clearAutofillData()
+{
+    AutofillManager::clear();
+}
+
 void WebPage::clearNeverRememberSites()
 {
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
@@ -5020,6 +5303,11 @@ bool WebPage::nodeHasHover(const WebDOMNode& node)
     return false;
 }
 #endif
+
+void WebPage::initPopupWebView(BlackBerry::WebKit::WebPage* webPage)
+{
+    d->m_selectPopup->init(webPage);
+}
 
 String WebPagePrivate::findPatternStringForUrl(const KURL& url) const
 {
@@ -5198,8 +5486,14 @@ void WebPage::disablePasswordEcho()
 
 void WebPage::dispatchInspectorMessage(const std::string& message)
 {
-    String stringMessage(message.c_str(), message.length());
+    String stringMessage = String::fromUTF8(message.data(), message.length());
     d->m_page->inspectorController()->dispatchMessageFromFrontend(stringMessage);
+}
+
+void WebPage::inspectCurrentContextElement()
+{
+    if (isWebInspectorEnabled() && d->m_currentContextNode.get())
+        d->m_page->inspectorController()->inspect(d->m_currentContextNode.get());
 }
 
 bool WebPagePrivate::compositorDrawsRootLayer() const
@@ -5422,7 +5716,7 @@ void WebPagePrivate::rootLayerCommitTimerFired(Timer<WebPagePrivate>*)
     // backing store, doing a one shot drawing synchronization with the
     // backing store is never necessary, because the backing store draws
     // nothing.
-    if (compositorDrawsRootLayer()) {
+    if (!compositorDrawsRootLayer()) {
         bool isSingleTargetWindow = SurfacePool::globalSurfacePool()->compositingSurface()
             || m_backingStore->d->isOpenGLCompositing();
 
@@ -5683,9 +5977,6 @@ void WebPagePrivate::didChangeSettings(WebSettings* webSettings)
     coreSettings->setDownloadableBinaryFontsEnabled(webSettings->downloadableBinaryFontsEnabled());
     coreSettings->setSpatialNavigationEnabled(m_webSettings->isSpatialNavigationEnabled());
 
-    // UserScalable should be reset by new settings.
-    setUserScalable(webSettings->isUserScalable());
-
     WebString stylesheetURL = webSettings->userStyleSheetString();
     if (stylesheetURL.isEmpty())
         stylesheetURL = webSettings->userStyleSheetLocation();
@@ -5740,6 +6031,8 @@ void WebPagePrivate::didChangeSettings(WebSettings* webSettings)
     coreSettings->setShouldUseCrossOriginProtocolCheck(!webSettings->allowCrossSiteRequests());
 
     cookieManager().setPrivateMode(webSettings->isPrivateBrowsingEnabled());
+
+    CredentialStorage::setPrivateMode(webSettings->isPrivateBrowsingEnabled());
 
     if (m_mainFrame && m_mainFrame->view()) {
         Color backgroundColor(webSettings->backgroundColor());
@@ -5822,6 +6115,33 @@ const String& WebPagePrivate::defaultUserAgent()
     }
 
     return *defaultUserAgent;
+}
+
+void WebPage::popupOpened(PagePopupBlackBerry* webPopup)
+{
+    ASSERT(!d->m_selectPopup);
+    d->m_selectPopup = webPopup;
+}
+
+void WebPage::popupClosed()
+{
+    ASSERT(d->m_selectPopup);
+    d->m_selectPopup = 0;
+}
+
+bool WebPage::hasOpenedPopup() const
+{
+    return d->m_selectPopup;
+}
+
+PagePopupBlackBerry* WebPage::popup()
+{
+    return d->m_selectPopup;
+}
+
+void WebPagePrivate::setParentPopup(PagePopupBlackBerry* webPopup)
+{
+    m_parentPopup = webPopup;
 }
 
 }

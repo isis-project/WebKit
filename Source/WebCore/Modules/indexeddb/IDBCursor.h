@@ -53,6 +53,15 @@ public:
         PREV = 2,
         PREV_NO_DUPLICATE = 3,
     };
+
+    static const AtomicString& directionNext();
+    static const AtomicString& directionNextUnique();
+    static const AtomicString& directionPrev();
+    static const AtomicString& directionPrevUnique();
+
+    static unsigned short stringToDirection(const String& modeString, ExceptionCode&);
+    static const AtomicString& directionToString(unsigned short mode, ExceptionCode&);
+
     static PassRefPtr<IDBCursor> create(PassRefPtr<IDBCursorBackendInterface>, IDBRequest*, IDBAny* source, IDBTransaction*);
     virtual ~IDBCursor();
 
@@ -60,18 +69,20 @@ public:
     void continueFunction(ExceptionCode& ec) { continueFunction(0, ec); }
 
     // Implement the IDL
-    unsigned short direction() const;
+    const String& direction() const;
     PassRefPtr<IDBKey> key() const;
     PassRefPtr<IDBKey> primaryKey() const;
     PassRefPtr<IDBAny> value() const;
     IDBAny* source() const;
 
     PassRefPtr<IDBRequest> update(ScriptExecutionContext*, PassRefPtr<SerializedScriptValue>, ExceptionCode&);
+    void advance(unsigned long, ExceptionCode&);
     void continueFunction(PassRefPtr<IDBKey>, ExceptionCode&);
     PassRefPtr<IDBRequest> deleteFunction(ScriptExecutionContext*, ExceptionCode&);
 
     void postSuccessHandlerCallback();
     void close();
+    void setValueReady();
 
 protected:
     IDBCursor(PassRefPtr<IDBCursorBackendInterface>, IDBRequest*, IDBAny* source, IDBTransaction*);
@@ -82,6 +93,12 @@ private:
     RefPtr<IDBAny> m_source;
     RefPtr<IDBTransaction> m_transaction;
     IDBTransaction::OpenCursorNotifier m_transactionNotifier;
+    bool m_gotValue;
+    // These values are held because m_backend may advance while they
+    // are still valid for the current success handlers.
+    RefPtr<IDBKey> m_currentKey;
+    RefPtr<IDBKey> m_currentPrimaryKey;
+    RefPtr<IDBAny> m_currentValue;
 };
 
 } // namespace WebCore

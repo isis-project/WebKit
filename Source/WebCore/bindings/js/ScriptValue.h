@@ -31,7 +31,6 @@
 #ifndef ScriptValue_h
 #define ScriptValue_h
 
-#include "JSDOMBinding.h"
 #include "PlatformString.h"
 #include "SerializedScriptValue.h"
 #include "ScriptState.h"
@@ -64,9 +63,8 @@ public:
     bool operator==(const ScriptValue& other) const { return m_value == other.m_value; }
 
     PassRefPtr<SerializedScriptValue> serialize(ScriptState*, SerializationErrorMode = Throwing);
+    PassRefPtr<SerializedScriptValue> serialize(ScriptState*, MessagePortArray*, ArrayBufferArray*, bool&);
     static ScriptValue deserialize(ScriptState*, SerializedScriptValue*, SerializationErrorMode = Throwing);
-
-    static ScriptValue undefined();
 
 #if ENABLE(INSPECTOR)
     PassRefPtr<InspectorValue> toInspectorValue(ScriptState*) const;

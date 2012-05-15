@@ -76,8 +76,7 @@ void RenderMathMLSubSup::addChild(RenderObject* child, RenderObject* beforeChild
             
         // Make sure we have a script block for rendering.
         if (m_kind == SubSup && !m_scripts) {
-            RefPtr<RenderStyle> scriptsStyle = RenderStyle::createAnonymousStyle(style());
-            scriptsStyle->setDisplay(INLINE_BLOCK);
+            RefPtr<RenderStyle> scriptsStyle = RenderStyle::createAnonymousStyleWithDisplay(style(), INLINE_BLOCK);
             scriptsStyle->setVerticalAlign(TOP);
             scriptsStyle->setMarginLeft(Length(gSubsupScriptMargin, Fixed));
             scriptsStyle->setTextAlign(LEFT);
@@ -115,13 +114,6 @@ RenderMathMLOperator* RenderMathMLSubSup::unembellishedOperator()
     if (!base || !base->isRenderMathMLBlock())
         return 0;
     return toRenderMathMLBlock(base)->unembellishedOperator();
-}
-
-void RenderMathMLSubSup::stretchToHeight(int height)
-{
-    RenderBoxModelObject* base = this->base();
-    if (base && base->isRenderMathMLBlock())
-        toRenderMathMLBlock(base)->stretchToHeight(height);
 }
 
 void RenderMathMLSubSup::layout()

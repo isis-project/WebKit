@@ -26,6 +26,7 @@
 #include "config.h"
 #include "APIClientTraits.h"
 
+#include "WKBundle.h"
 #include "WKBundlePage.h"
 
 namespace WebKit {
@@ -51,7 +52,7 @@ const size_t APIClientTraits<WKPageContextMenuClient>::interfaceSizesByVersion[]
 };
 
 const size_t APIClientTraits<WKPageLoaderClient>::interfaceSizesByVersion[] = {
-    offsetof(WKPageLoaderClient, didFailToInitializePlugin),
+    offsetof(WKPageLoaderClient, didFailToInitializePlugin_deprecatedForUseWithV0),
     sizeof(WKPageLoaderClient)
 };
 
@@ -60,4 +61,9 @@ const size_t APIClientTraits<WKPageUIClient>::interfaceSizesByVersion[] = {
     sizeof(WKPageUIClient)
 };
     
+const size_t APIClientTraits<WKBundlePageFormClient>::interfaceSizesByVersion[] = {
+    offsetof(WKBundlePageFormClient, willSendSubmitEvent),
+    sizeof(WKBundlePageFormClient)
+};
+
 } // namespace WebKit

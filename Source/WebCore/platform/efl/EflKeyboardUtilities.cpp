@@ -77,6 +77,18 @@ static void createKeyMap()
     keyMap().set("Tab", "U+0009");
     keyMap().set("ISO_Left_Tab", "U+0009");
     keyMap().set("BackSpace", "U+0008");
+    keyMap().set("space", "U+0020");
+    // Keypad location
+    keyMap().set("KP_Left", "Left");
+    keyMap().set("KP_Right", "Right");
+    keyMap().set("KP_Up", "Up");
+    keyMap().set("KP_Down", "Down");
+    keyMap().set("KP_Prior", "PageUp");
+    keyMap().set("KP_Next", "PageDown");
+    keyMap().set("KP_Home", "Home");
+    keyMap().set("KP_End", "End");
+    keyMap().set("KP_Insert", "Insert");
+    keyMap().set("KP_Delete", "U+007F");
 }
 
 static void createWindowsKeyMap()
@@ -99,7 +111,7 @@ static void createWindowsKeyMap()
     windowsKeyMap().set("Tab", VK_TAB);
     windowsKeyMap().set("ISO_Left_Tab", VK_TAB);
     windowsKeyMap().set("BackSpace", VK_BACK);
-    windowsKeyMap().set("Space", VK_SPACE);
+    windowsKeyMap().set("space", VK_SPACE);
     windowsKeyMap().set("Next", VK_NEXT);
     windowsKeyMap().set("Prior", VK_PRIOR);
     windowsKeyMap().set("Home", VK_HOME);
@@ -130,6 +142,17 @@ static void createWindowsKeyMap()
     windowsKeyMap().set("braceright", VK_OEM_6);
     windowsKeyMap().set("apostrophe", VK_OEM_7);
     windowsKeyMap().set("quotedbl", VK_OEM_7);
+    // Keypad location
+    windowsKeyMap().set("KP_Left", VK_LEFT);
+    windowsKeyMap().set("KP_Right", VK_RIGHT);
+    windowsKeyMap().set("KP_Up", VK_UP);
+    windowsKeyMap().set("KP_Down", VK_DOWN);
+    windowsKeyMap().set("KP_Prior", VK_PRIOR);
+    windowsKeyMap().set("KP_Next", VK_NEXT);
+    windowsKeyMap().set("KP_Home", VK_HOME);
+    windowsKeyMap().set("KP_End", VK_END);
+    windowsKeyMap().set("KP_Insert", VK_INSERT);
+    windowsKeyMap().set("KP_Delete", VK_DELETE);
 
     // Set alphabet to the windowsKeyMap.
     const char* alphabet = "abcdefghijklmnopqrstuvwxyz";

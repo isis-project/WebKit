@@ -33,10 +33,10 @@
 
 #include "WebIconURL.h"
 #include "WebNode.h"
-#include "WebReferrerPolicy.h"
 #include "WebURLLoaderOptions.h"
 #include "platform/WebCanvas.h"
 #include "platform/WebFileSystem.h"
+#include "platform/WebReferrerPolicy.h"
 #include "platform/WebURL.h"
 
 struct NPObject;
@@ -142,9 +142,6 @@ public:
     // WebIconURL::Type values, used to select from the available set of icon
     // URLs
     virtual WebVector<WebIconURL> iconURLs(int iconTypes) const = 0;
-
-    // The referrer policy of the document associated with this frame.
-    virtual WebReferrerPolicy referrerPolicy() const = 0;
 
 
     // Geometry -----------------------------------------------------------
@@ -275,6 +272,10 @@ public:
     // that the script evaluated to.
     virtual v8::Handle<v8::Value> executeScriptAndReturnValue(
         const WebScriptSource&) = 0;
+
+    virtual void executeScriptInIsolatedWorld(
+        int worldID, const WebScriptSource* sourcesIn, unsigned numSources,
+        int extensionGroup, WebVector<v8::Local<v8::Value> >* results) = 0;
 
     // Call the function with the given receiver and arguments, bypassing
     // canExecute().
@@ -446,6 +447,8 @@ public:
 
     virtual void selectRange(const WebPoint& start, const WebPoint& end) = 0;
 
+    virtual void selectRange(const WebRange&) = 0;
+
 
     // Printing ------------------------------------------------------------
 
@@ -559,6 +562,13 @@ public:
     // of matches found during the scoping effort.
     virtual void resetMatchCount() = 0;
 
+    // OrientationChange event ---------------------------------------------
+
+    // Orientation is the interface orientation in degrees.
+    // Some examples are:
+    //  0 is straight up; -90 is when the device is rotated 90 clockwise;
+    //  90 is when rotated counter clockwise.
+    virtual void sendOrientationChangeEvent(int orientation) = 0;
 
     // Events --------------------------------------------------------------
 
@@ -571,6 +581,9 @@ public:
     virtual void removeEventListener(const WebString& eventType,
                                      WebDOMEventListener*, bool useCapture) = 0;
     virtual bool dispatchEvent(const WebDOMEvent&) = 0;
+    virtual void dispatchMessageEventWithOriginCheck(
+        const WebSecurityOrigin& intendedTargetOrigin,
+        const WebDOMEvent&) = 0;
 
 
     // Web Intents ---------------------------------------------------------

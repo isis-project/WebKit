@@ -318,7 +318,7 @@ WebNavigationPolicy ChromeClientImpl::getNavigationPolicy()
         policy = WebNavigationPolicyNewBackgroundTab;
     return policy;
 }
- 
+
 void ChromeClientImpl::show()
 {
     if (!m_webView->client())
@@ -645,11 +645,13 @@ void ChromeClientImpl::dispatchViewportPropertiesDidChange(const ViewportArgumen
     if (!m_webView->settings()->viewportEnabled() || !m_webView->isFixedLayoutModeEnabled() || !m_webView->client() || !m_webView->page())
         return;
 
+    bool useDefaultDeviceScaleFactor = false;
     ViewportArguments args;
-    if (arguments == args)
+    if (arguments == args) {
         // Default viewport arguments passed in. This is a signal to reset the viewport.
         args.width = ViewportArguments::ValueDesktopWidth;
-    else
+        useDefaultDeviceScaleFactor = true;
+    } else
         args = arguments;
 
     FrameView* frameView = m_webView->mainFrameImpl()->frameView();
@@ -674,7 +676,10 @@ void ChromeClientImpl::dispatchViewportPropertiesDidChange(const ViewportArgumen
 
     // FIXME: Investigate the impact this has on layout/rendering if any.
     // This exposes the correct device scale to javascript and media queries.
-    m_webView->setDeviceScaleFactor(computed.devicePixelRatio);
+    if (useDefaultDeviceScaleFactor && settings->defaultDeviceScaleFactor())
+        m_webView->setDeviceScaleFactor(settings->defaultDeviceScaleFactor());
+    else
+        m_webView->setDeviceScaleFactor(computed.devicePixelRatio);
     m_webView->setPageScaleFactorLimits(computed.minimumScale, computed.maximumScale);
     m_webView->setPageScaleFactorPreservingScrollOffset(computed.initialScale * computed.devicePixelRatio);
 #endif
@@ -733,6 +738,11 @@ void ChromeClientImpl::runOpenPanel(Frame* frame, PassRefPtr<FileChooser> fileCh
     params.selectedFiles = fileChooser->settings().selectedFiles;
     if (params.selectedFiles.size() > 0)
         params.initialValue = params.selectedFiles[0];
+#if ENABLE(MEDIA_CAPTURE)
+    params.capture = fileChooser->settings().capture;
+#else
+    params.capture = WebString();
+#endif
     WebFileChooserCompletionImpl* chooserCompletion =
         new WebFileChooserCompletionImpl(fileChooser);
 
@@ -774,6 +784,22 @@ void ChromeClientImpl::popupOpened(PopupContainer* popupContainer,
                                    const IntRect& bounds,
                                    bool handleExternally)
 {
+    // For Autofill popups, if the popup will not be fully visible, we shouldn't
+    // show it at all. Among other things, this prevents users from being able
+    // to interact via the keyboard with an invisible popup.
+    if (popupContainer->popupType() == PopupContainer::Suggestion) {
+        FrameView* view = m_webView->page()->mainFrame()->view();
+        IntRect visibleRect = view->visibleContentRect(true /* include scrollbars */);
+        // |bounds| is in screen coordinates, so make sure to convert it to
+        // content coordinates prior to comparing to |visibleRect|.
+        IntRect screenRect = bounds;
+        screenRect.setLocation(view->screenToContents(bounds.location()));
+        if (!visibleRect.contains(screenRect)) {
+            m_webView->hideAutofillPopup();
+            return;
+        }
+    }
+
     if (!m_webView->client())
         return;
 
@@ -972,7 +998,7 @@ bool ChromeClientImpl::selectItemAlignmentFollowsMenuWritingDirection()
 
 bool ChromeClientImpl::hasOpenedPopup() const
 {
-    return !!m_webView->selectPopup();
+    return m_webView->hasOpenedPopup();
 }
 
 PassRefPtr<PopupMenu> ChromeClientImpl::createPopupMenu(PopupMenuClient* client) const
@@ -989,15 +1015,14 @@ PassRefPtr<SearchPopupMenu> ChromeClientImpl::createSearchPopupMenu(PopupMenuCli
 }
 
 #if ENABLE(PAGE_POPUP)
-PagePopup* ChromeClientImpl::openPagePopup(PagePopupClient*, const IntRect&)
+PagePopup* ChromeClientImpl::openPagePopup(PagePopupClient* client, const IntRect& originBoundsInRootView)
 {
-    // FIXME: Impelement this.
-    return 0;
+    return m_webView->openPagePopup(client, originBoundsInRootView);
 }
 
-void ChromeClientImpl::closePagePopup(PagePopup*)
+void ChromeClientImpl::closePagePopup(PagePopup* popup)
 {
-    // FIXME: Implement this.
+    m_webView->closePagePopup(popup);
 }
 #endif
 

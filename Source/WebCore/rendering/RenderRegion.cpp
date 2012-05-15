@@ -30,7 +30,6 @@
 #include "config.h"
 #include "RenderRegion.h"
 
-#include "CSSStyleSelector.h"
 #include "GraphicsContext.h"
 #include "HitTestResult.h"
 #include "IntRect.h"
@@ -38,6 +37,7 @@
 #include "RenderBoxRegionInfo.h"
 #include "RenderNamedFlowThread.h"
 #include "RenderView.h"
+#include "StyleResolver.h"
 
 namespace WebCore {
 
@@ -175,7 +175,7 @@ void RenderRegion::styleDidChange(StyleDifference diff, const RenderStyle* oldSt
     bool customRegionStyle = false;
     if (node()) {
         Element* regionElement = static_cast<Element*>(node());
-        customRegionStyle = view()->document()->styleSelector()->checkRegionStyle(regionElement);
+        customRegionStyle = view()->document()->styleResolver()->checkRegionStyle(regionElement);
     }
     setHasCustomRegionStyle(customRegionStyle);
 }
@@ -300,7 +300,7 @@ PassRefPtr<RenderStyle> RenderRegion::computeStyleInRegion(const RenderBox* box)
     ASSERT(box->node() && box->node()->isElementNode());
 
     Element* element = toElement(box->node());
-    RefPtr<RenderStyle> renderBoxRegionStyle = box->view()->document()->styleSelector()->styleForElement(element, 0, DisallowStyleSharing, MatchAllRules, this);
+    RefPtr<RenderStyle> renderBoxRegionStyle = box->view()->document()->styleResolver()->styleForElement(element, 0, DisallowStyleSharing, MatchAllRules, this);
     m_renderBoxRegionStyle.add(box, renderBoxRegionStyle);
 
     if (!box->hasBoxDecorations()) {

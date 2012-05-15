@@ -34,8 +34,13 @@
 #endif
 
 #include <wtf/ExportMacros.h>
-#include <runtime/JSExportMacros.h>
 #include "PlatformExportMacros.h"
+
+#if PLATFORM(QT) && USE(V8)
+#include <JavaScriptCore/runtime/JSExportMacros.h>
+#else
+#include <runtime/JSExportMacros.h>
+#endif
 
 #ifdef __APPLE__
 #define HAVE_FUNC_USLEEP 1
@@ -121,10 +126,6 @@
 // New theme
 #define WTF_USE_NEW_THEME 1
 #endif // PLATFORM(MAC)
-
-#if OS(UNIX) || OS(WINDOWS)
-#define WTF_USE_OS_RANDOMNESS 1
-#endif
 
 #if PLATFORM(CHROMIUM)
 

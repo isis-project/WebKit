@@ -75,7 +75,6 @@ public:
     ShadowRootIfShadowDOMEnabledOrNode* oldestShadowRoot(Element* host, ExceptionCode&);
     ShadowRootIfShadowDOMEnabledOrNode* youngerShadowRoot(Node* shadow, ExceptionCode&);
     ShadowRootIfShadowDOMEnabledOrNode* olderShadowRoot(Node* shadow, ExceptionCode&);
-    void removeShadowRoot(Element* host, ExceptionCode&);
     Element* includerFor(Node*, ExceptionCode&);
     String shadowPseudoId(Element*, ExceptionCode&);
     PassRefPtr<Element> createContentElement(Document*, ExceptionCode&);
@@ -92,6 +91,7 @@ public:
     Node* nextNodeByWalker(Node*, ExceptionCode&);
     Node* previousNodeByWalker(Node*, ExceptionCode&);
 
+    String visiblePlaceholder(Element*);
 #if ENABLE(INPUT_TYPE_COLOR)
     void selectColorInColorChooser(Element*, const String& colorValue);
 #endif
@@ -99,6 +99,8 @@ public:
     PassRefPtr<ClientRect> boundingBox(Element*, ExceptionCode&);
 
     PassRefPtr<ClientRectList> inspectorHighlightRects(Document*, ExceptionCode&);
+
+    void setBackgroundBlurOnNode(Node*, int blurLength, ExceptionCode&);
 
     unsigned markerCountForNode(Node*, const String&, ExceptionCode&);
     PassRefPtr<Range> markerRangeForNode(Node*, const String& markerType, unsigned index, ExceptionCode&);
@@ -120,6 +122,7 @@ public:
     unsigned lengthFromRange(Element* scope, const Range*, ExceptionCode&);
     String rangeAsText(const Range*, ExceptionCode&);
 
+    void setDelegatesScrolling(bool enabled, Document*, ExceptionCode&);
 #if ENABLE(TOUCH_ADJUSTMENT)
     PassRefPtr<WebKitPoint> touchPositionAdjustedToBestClickableNode(long x, long y, long width, long height, Document*, ExceptionCode&);
     Node* touchNodeAdjustedToBestClickableNode(long x, long y, long width, long height, Document*, ExceptionCode&);
@@ -129,8 +132,6 @@ public:
     int lastSpellCheckRequestSequence(Document*, ExceptionCode&);
     int lastSpellCheckProcessedSequence(Document*, ExceptionCode&);
     
-    void setMediaPlaybackRequiresUserGesture(Document*, bool enabled, ExceptionCode&);
-
     Vector<String> userPreferredLanguages() const;
     void setUserPreferredLanguages(const Vector<String>&);
 
@@ -149,6 +150,10 @@ public:
     bool hasSpellingMarker(Document*, int from, int length, ExceptionCode&);
     bool hasGrammarMarker(Document*, int from, int length, ExceptionCode&);
 
+    unsigned numberOfScrollableAreas(Document*, ExceptionCode&);
+
+    bool isPageBoxVisible(Document*, int pageNumber, ExceptionCode&);
+
     static const char* internalsId;
 
     InternalSettings* settings() const { return m_settings.get(); }
@@ -157,9 +162,20 @@ public:
 
     void setNetworkInformation(Document*, const String& eventType, long bandwidth, bool metered, ExceptionCode&);
 
+    void suspendAnimations(Document*, ExceptionCode&) const;
+    void resumeAnimations(Document*, ExceptionCode&) const;
+
 #if ENABLE(INSPECTOR)
     unsigned numberOfLiveNodes() const;
     unsigned numberOfLiveDocuments() const;
+    Vector<String> consoleMessageArgumentCounts(Document*) const;
+#endif
+
+#if ENABLE(FULLSCREEN_API)
+    void webkitWillEnterFullScreenForElement(Document*, Element*);
+    void webkitDidEnterFullScreenForElement(Document*, Element*);
+    void webkitWillExitFullScreenForElement(Document*, Element*);
+    void webkitDidExitFullScreenForElement(Document*, Element*);
 #endif
 
 private:

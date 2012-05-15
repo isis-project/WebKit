@@ -32,11 +32,15 @@
 #include "WebRange.h"
 
 #include "Document.h"
+#include "Element.h"
 #include "Frame.h"
+#include "FrameView.h"
 #include "Range.h"
+#include "ShadowRoot.h"
 #include "TextIterator.h"
 #include "WebFrameImpl.h"
 #include "WebNode.h"
+#include "platform/WebFloatQuad.h"
 #include "platform/WebString.h"
 #include <wtf/PassRefPtr.h>
 
@@ -95,8 +99,29 @@ WebRange WebRange::fromDocumentRange(WebFrame* frame, int start, int length)
 {
     WebCore::Frame* webFrame = static_cast<WebFrameImpl*>(frame)->frame();
     Element* selectionRoot = webFrame->selection()->rootEditableElement();
-    Element* scope = selectionRoot ? selectionRoot : webFrame->document()->documentElement();
+    ContainerNode* scope = selectionRoot ? selectionRoot : webFrame->document()->documentElement();
     return TextIterator::rangeFromLocationAndLength(scope, start, length);
+}
+
+WebVector<WebFloatQuad> WebRange::textQuads() const
+{
+    if (isNull())
+        return WebVector<WebFloatQuad>();
+
+    Frame* frame = m_private->ownerDocument() ? m_private->ownerDocument()->frame() : 0;
+    if (!frame)
+        return WebVector<WebFloatQuad>();
+
+    Vector<FloatQuad> quads;
+    m_private->textQuads(quads);
+    for (unsigned i = 0; i < quads.size(); ++i) {
+        quads[i].setP1(frame->view()->contentsToWindow(roundedIntPoint(quads[i].p1())));
+        quads[i].setP2(frame->view()->contentsToWindow(roundedIntPoint(quads[i].p2())));
+        quads[i].setP3(frame->view()->contentsToWindow(roundedIntPoint(quads[i].p3())));
+        quads[i].setP4(frame->view()->contentsToWindow(roundedIntPoint(quads[i].p4())));
+    }
+
+    return quads;
 }
 
 WebRange::WebRange(const WTF::PassRefPtr<WebCore::Range>& range)

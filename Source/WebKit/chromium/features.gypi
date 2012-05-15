@@ -33,17 +33,22 @@
   'variables': {
     'feature_defines': [
       'ENABLE_3D_PLUGIN=1',
+      'ENABLE_BATTERY_STATUS=0',
       'ENABLE_BLOB=1',
       'ENABLE_BLOB_SLICE=1',
       'ENABLE_CHANNEL_MESSAGING=1',
       'ENABLE_CSS_FILTERS=1',
+      'ENABLE_CSS_IMAGE_SET=1',
       'ENABLE_CSS_SHADERS=1',
+      'ENABLE_CSS_VARIABLES=0',
+      'ENABLE_DATALIST=1',
       'ENABLE_DASHBOARD_SUPPORT=0',
       'ENABLE_DATA_TRANSFER_ITEMS=1',
       'ENABLE_DETAILS=1',
       'ENABLE_DEVICE_ORIENTATION=1',
       'ENABLE_DIRECTORY_UPLOAD=1',
       'ENABLE_DOWNLOAD_ATTRIBUTE=1',
+      'ENABLE_ENCRYPTED_MEDIA=1',
       'ENABLE_FILE_SYSTEM=1',
       'ENABLE_FILTERS=1',
       'ENABLE_FULLSCREEN_API=1',
@@ -51,9 +56,10 @@
       'ENABLE_GEOLOCATION=1',
       'ENABLE_GESTURE_EVENTS=1',
       'ENABLE_ICONDATABASE=0',
+      'ENABLE_IFRAME_SEAMLESS=1',
       'ENABLE_INDEXED_DATABASE=1',
       'ENABLE_INPUT_SPEECH=1',
-      'ENABLE_INPUT_TYPE_DATE=0',
+      'ENABLE_INPUT_TYPE_DATE=1',
       'ENABLE_INPUT_TYPE_DATETIME=0',
       'ENABLE_INPUT_TYPE_DATETIMELOCAL=0',
       'ENABLE_INPUT_TYPE_MONTH=0',
@@ -61,8 +67,11 @@
       'ENABLE_INPUT_TYPE_WEEK=0',
       'ENABLE_JAVASCRIPT_DEBUGGER=1',
       'ENABLE_JAVASCRIPT_I18N_API=1',
+      'ENABLE_LEGACY_CSS_VENDOR_PREFIXES=0',
       'ENABLE_LEGACY_NOTIFICATIONS=1',
+      'ENABLE_LEGACY_WEBKIT_BLOB_BUILDER=1',
       'ENABLE_LINK_PREFETCH=1',
+      'ENABLE_LINK_PRERENDER=1',
       'ENABLE_MEDIA_SOURCE=1',
       'ENABLE_MEDIA_STATISTICS=1',
       'ENABLE_MEDIA_STREAM=1',
@@ -77,6 +86,7 @@
       'ENABLE_POINTER_LOCK=1',
       'ENABLE_PROGRESS_TAG=1',
       'ENABLE_QUOTA=1',
+      'ENABLE_REGISTER_PROTOCOL_HANDLER=1',
       'ENABLE_REQUEST_ANIMATION_FRAME=1',
       'ENABLE_RUBY=1',
       'ENABLE_SANDBOX=1',
@@ -130,17 +140,20 @@
       ['OS=="android"', {
         'feature_defines': [
           'ENABLE_CALENDAR_PICKER=0',
+          'ENABLE_MEDIA_CAPTURE=1',
           'ENABLE_PAGE_POPUP=0',
           'ENABLE_WEB_AUDIO=0',
+          'WTF_USE_NATIVE_FULLSCREEN_VIDEO=1',
         ],
       }, {
         'feature_defines': [
           'ENABLE_CALENDAR_PICKER=1',
+          'ENABLE_MEDIA_CAPTURE=0',
           'ENABLE_PAGE_POPUP=1',
           'ENABLE_WEB_AUDIO=1',
         ],
       }],
-      ['OS=="android" or use_aura==1', {
+      ['OS=="android" or chromeos==1', {
         'feature_defines': [
           'ENABLE_INPUT_TYPE_COLOR=0',
         ],
@@ -166,14 +179,14 @@
           'WTF_USE_WEBAUDIO_FFMPEG=1',
         ],
       }],
-      ['enable_register_protocol_handler==1', {
-        'feature_defines': [
-          'ENABLE_REGISTER_PROTOCOL_HANDLER=1',
-        ],
-      }],
       ['enable_web_intents==1', {
         'feature_defines': [
           'ENABLE_WEB_INTENTS=1',
+        ],
+      }],
+      ['enable_web_intents_tag==1', {
+        'feature_defines': [
+          'ENABLE_WEB_INTENTS_TAG=1',
         ],
       }],
       ['OS=="mac"', {

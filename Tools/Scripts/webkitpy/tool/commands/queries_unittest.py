@@ -28,6 +28,7 @@
 
 import unittest
 
+from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.common.net.bugzilla import Bugzilla
 from webkitpy.common.system.outputcapture import OutputCapture
 from webkitpy.thirdparty.mock import Mock
@@ -90,19 +91,6 @@ class QueryCommandsTest(CommandsTest):
         expected_stdout = "ok   : Builder1\nok   : Builder2\n"
         self.assert_execute_outputs(TreeStatus(), None, expected_stdout)
 
-    def test_skipped_ports(self):
-        tool = MockTool()
-        tool.port_factory = MockPortFactory()
-
-        expected_stdout = "Ports skipping test 'media/foo/bar.html': test_port1, test_port2\n"
-        self.assert_execute_outputs(SkippedPorts(), ("media/foo/bar.html",), expected_stdout, tool=tool)
-
-        expected_stdout = "Ports skipping test 'foo': test_port1\n"
-        self.assert_execute_outputs(SkippedPorts(), ("foo",), expected_stdout, tool=tool)
-
-        expected_stdout = "Test 'media' is not skipped by any port.\n"
-        self.assert_execute_outputs(SkippedPorts(), ("media",), expected_stdout, tool=tool)
-
 
 class FailureReasonTest(unittest.TestCase):
     def test_blame_line_for_revision(self):
@@ -110,12 +98,60 @@ class FailureReasonTest(unittest.TestCase):
         command = FailureReason()
         command.bind_to_tool(tool)
         # This is an artificial example, mostly to test the CommitInfo lookup failure case.
-        self.assertEquals(command._blame_line_for_revision(None), "FAILED to fetch CommitInfo for rNone, likely missing ChangeLog")
+        self.assertEquals(command._blame_line_for_revision(0), "FAILED to fetch CommitInfo for r0, likely missing ChangeLog")
 
         def raising_mock(self):
             raise Exception("MESSAGE")
         tool.checkout().commit_info_for_revision = raising_mock
-        self.assertEquals(command._blame_line_for_revision(None), "FAILED to fetch CommitInfo for rNone, exception: MESSAGE")
+        self.assertEquals(command._blame_line_for_revision(0), "FAILED to fetch CommitInfo for r0, exception: MESSAGE")
+
+
+class PrintExpectationsTest(unittest.TestCase):
+    def run_test(self, tests, expected_stdout, **args):
+        options = MockOptions(all=False, csv=False, full=False, platform='test-win-xp',
+                              include_keyword=[], exclude_keyword=[]).update(**args)
+        tool = MockTool()
+        command = PrintExpectations()
+        command.bind_to_tool(tool)
+
+        oc = OutputCapture()
+        try:
+            oc.capture_output()
+            command.execute(options, tests, tool)
+        finally:
+            stdout, _, _ = oc.restore_output()
+        self.assertEquals(stdout, expected_stdout)
+
+    def test_basic(self):
+        self.run_test(['failures/expected/text.html', 'failures/expected/image.html'],
+                      ('// For test-win-xp\n'
+                       'failures/expected/image.html = IMAGE\n'
+                       'failures/expected/text.html = TEXT\n'))
+
+    def test_full(self):
+        self.run_test(['failures/expected/text.html', 'failures/expected/image.html'],
+                      ('// For test-win-xp\n'
+                       'WONTFIX : failures/expected/image.html = IMAGE\n'
+                       'WONTFIX : failures/expected/text.html = TEXT\n'),
+                      full=True)
+
+    def test_exclude(self):
+        self.run_test(['failures/expected/text.html', 'failures/expected/image.html'],
+                      ('// For test-win-xp\n'
+                       'failures/expected/text.html = TEXT\n'),
+                      exclude_keyword=['image'])
+
+    def test_include(self):
+        self.run_test(['failures/expected/text.html', 'failures/expected/image.html'],
+                      ('// For test-win-xp\n'
+                       'failures/expected/image.html\n'),
+                      include_keyword=['image'])
+
+    def test_csv(self):
+        self.run_test(['failures/expected/text.html', 'failures/expected/image.html'],
+                      ('test-win-xp,failures/expected/image.html,wontfix,image\n'
+                       'test-win-xp,failures/expected/text.html,wontfix,text\n'),
+                      csv=True)
 
 
 class PrintBaselinesTest(unittest.TestCase):

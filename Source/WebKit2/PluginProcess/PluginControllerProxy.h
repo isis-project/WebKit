@@ -62,6 +62,8 @@ public:
     void didReceivePluginControllerProxyMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*);
     void didReceiveSyncPluginControllerProxyMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, OwnPtr<CoreIPC::ArgumentEncoder>&);
 
+    bool wantsWheelEvents() const;
+
 #if PLATFORM(MAC)
     uint32_t remoteLayerClientID() const;
 #endif
@@ -103,6 +105,10 @@ private:
     virtual bool getAuthenticationInfo(const WebCore::ProtectionSpace&, String& username, String& password);
     virtual void protectPluginFromDestruction();
     virtual void unprotectPluginFromDestruction();
+#if PLUGIN_ARCHITECTURE(X11)
+    virtual uint64_t createPluginContainer();
+    virtual void windowedPluginGeometryDidChange(const WebCore::IntRect& frameRect, const WebCore::IntRect& clipRect, uint64_t windowID);
+#endif
     
     // Message handlers.
     void frameDidFinishLoading(uint64_t requestID);

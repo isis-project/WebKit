@@ -145,6 +145,7 @@ public:
     // which usually will happen when panning, pinching and rotation ends, or when scale or position are changed manually.
     virtual IntRect visibleContentRect(bool includeScrollbars = false) const;
     virtual void setFixedVisibleContentRect(const IntRect& visibleContentRect) { m_fixedVisibleContentRect = visibleContentRect; }
+    IntRect fixedVisibleContentRect() const { return m_fixedVisibleContentRect; }
     int visibleWidth() const { return visibleContentRect().width(); }
     int visibleHeight() const { return visibleContentRect().height(); }
 
@@ -294,9 +295,6 @@ protected:
 
     virtual void visibleContentsResized() = 0;
     virtual void delegatesScrollingDidChange() { }
-
-    IntRect fixedVisibleContentRect() const { return m_fixedVisibleContentRect; }
-
     // These functions are used to create/destroy scrollbars.
     void setHasHorizontalScrollbar(bool);
     void setHasVerticalScrollbar(bool);
@@ -314,6 +312,9 @@ protected:
     // Subclassed by FrameView to check the writing-mode of the document.
     virtual bool isVerticalDocument() const { return true; }
     virtual bool isFlippedDocument() const { return false; }
+
+    // Called to update the scrollbars to accurately reflect the state of the view.
+    void updateScrollbars(const IntSize& desiredOffset);
 
 private:
     RefPtr<Scrollbar> m_horizontalScrollbar;
@@ -357,8 +358,6 @@ private:
     void init();
     void destroy();
 
-    // Called to update the scrollbars to accurately reflect the state of the view.
-    void updateScrollbars(const IntSize& desiredOffset);
     IntRect rectToCopyOnScroll() const;
 
     // Called when the scroll position within this view changes.  FrameView overrides this to generate repaint invalidations.

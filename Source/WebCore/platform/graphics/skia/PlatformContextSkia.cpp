@@ -248,7 +248,7 @@ void PlatformContextSkia::restoreLayer()
 {
     m_canvas->restore();
     if (m_trackOpaqueRegion)
-        m_opaqueRegion.popCanvasLayer();
+        m_opaqueRegion.popCanvasLayer(this);
 }
 
 void PlatformContextSkia::beginLayerClippedToImage(const FloatRect& rect,
@@ -639,25 +639,47 @@ void PlatformContextSkia::applyClipFromImage(const SkRect& rect, const SkBitmap&
 void PlatformContextSkia::didDrawRect(const SkRect& rect, const SkPaint& paint, const SkBitmap* bitmap)
 {
     if (m_trackOpaqueRegion)
-        m_opaqueRegion.didDrawRect(this, m_opaqueRegionTransform, rect, paint, bitmap);
+        m_opaqueRegion.didDrawRect(this, rect, paint, bitmap);
 }
 
 void PlatformContextSkia::didDrawPath(const SkPath& path, const SkPaint& paint)
 {
     if (m_trackOpaqueRegion)
-        m_opaqueRegion.didDrawPath(this, m_opaqueRegionTransform, path, paint);
+        m_opaqueRegion.didDrawPath(this, path, paint);
 }
 
 void PlatformContextSkia::didDrawPoints(SkCanvas::PointMode mode, int numPoints, const SkPoint points[], const SkPaint& paint)
 {
     if (m_trackOpaqueRegion)
-        m_opaqueRegion.didDrawPoints(this, m_opaqueRegionTransform, mode, numPoints, points, paint);
+        m_opaqueRegion.didDrawPoints(this, mode, numPoints, points, paint);
 }
 
 void PlatformContextSkia::didDrawBounded(const SkRect& rect, const SkPaint& paint)
 {
     if (m_trackOpaqueRegion)
-        m_opaqueRegion.didDrawBounded(this, m_opaqueRegionTransform, rect, paint);
+        m_opaqueRegion.didDrawBounded(this, rect, paint);
+}
+
+void PlatformContextSkia::adjustTextRenderMode(SkPaint* paint)
+{
+    if (!paint->isLCDRenderText())
+        return;
+
+    paint->setLCDRenderText(couldUseLCDRenderedText());
+}
+
+bool PlatformContextSkia::couldUseLCDRenderedText()
+{
+    // Our layers only have a single alpha channel. This means that subpixel
+    // rendered text cannot be composited correctly when the layer is
+    // collapsed. Therefore, subpixel text is disabled when we are drawing
+    // onto a layer.
+    if (canvas()->isDrawingToLayer())
+        return false;
+
+    // If this text is not in an image buffer and so won't be externally
+    // composited, then subpixel antialiasing is fine.
+    return !isDrawingToImageBuffer();
 }
 
 } // namespace WebCore

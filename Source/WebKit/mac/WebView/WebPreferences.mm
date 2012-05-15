@@ -397,10 +397,13 @@ static WebCacheModel cacheModelForMainBundle(void)
         [NSNumber numberWithBool:NO],   WebKitShouldDisplayTextDescriptionsPreferenceKey,
         [NSNumber numberWithBool:YES],  WebKitNotificationsEnabledKey,
         [NSNumber numberWithBool:NO],   WebKitShouldRespectImageOrientationKey,
+        [NSNumber numberWithBool:YES],  WebKitRequestAnimationFrameEnabledPreferenceKey,
+        [NSNumber numberWithBool:NO],   WebKitWantsBalancedSetDefersLoadingBehaviorKey,
 
         [NSNumber numberWithLongLong:ApplicationCacheStorage::noQuota()], WebKitApplicationCacheTotalQuota,
         [NSNumber numberWithLongLong:ApplicationCacheStorage::noQuota()], WebKitApplicationCacheDefaultOriginQuota,
         nil];
+
 
     // This value shouldn't ever change, which is assumed in the initialization of WebKitPDFDisplayModePreferenceKey above
     ASSERT(kPDFDisplaySinglePageContinuous == 1);
@@ -1606,16 +1609,6 @@ static NSString *classIBCreatorID = nil;
 
 }
 
-- (void)setSuppressIncrementalRendering:(BOOL)flag
-{
-    [self _setBoolValue:flag forKey:WebKitSuppressesIncrementalRenderingKey];
-}
-
-- (BOOL)suppressIncrementalRendering
-{
-    return [self _boolValueForKey:WebKitSuppressesIncrementalRenderingKey];
-}
-
 - (void)setBackspaceKeyNavigationEnabled:(BOOL)flag
 {
     [self _setBoolValue:flag forKey:WebKitBackspaceKeyNavigationEnabledKey];
@@ -1624,6 +1617,16 @@ static NSString *classIBCreatorID = nil;
 - (BOOL)backspaceKeyNavigationEnabled
 {
     return [self _boolValueForKey:WebKitBackspaceKeyNavigationEnabledKey];
+}
+
+- (void)setWantsBalancedSetDefersLoadingBehavior:(BOOL)flag
+{
+    [self _setBoolValue:flag forKey:WebKitWantsBalancedSetDefersLoadingBehaviorKey];
+}
+
+- (BOOL)wantsBalancedSetDefersLoadingBehavior
+{
+    return [self _boolValueForKey:WebKitWantsBalancedSetDefersLoadingBehaviorKey];
 }
 
 - (void)setShouldDisplaySubtitles:(BOOL)flag
@@ -1684,6 +1687,26 @@ static NSString *classIBCreatorID = nil;
 - (BOOL)shouldRespectImageOrientation
 {
     return [self _boolValueForKey:WebKitShouldRespectImageOrientationKey];
+}
+
+- (BOOL)requestAnimationFrameEnabled
+{
+    return [self _boolValueForKey:WebKitRequestAnimationFrameEnabledPreferenceKey];
+}
+
+- (void)setRequestAnimationFrameEnabled:(BOOL)enabled
+{
+    [self _setBoolValue:enabled forKey:WebKitRequestAnimationFrameEnabledPreferenceKey];
+}
+
+- (void)setIncrementalRenderingSuppressionTimeoutInSeconds:(NSTimeInterval)timeout
+{
+    [self _setFloatValue:timeout forKey:WebKitIncrementalRenderingSuppressionTimeoutInSecondsKey];
+}
+
+- (NSTimeInterval)incrementalRenderingSuppressionTimeoutInSeconds
+{
+    return [self _floatValueForKey:WebKitIncrementalRenderingSuppressionTimeoutInSecondsKey];
 }
 
 @end

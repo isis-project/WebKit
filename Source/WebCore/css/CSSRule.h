@@ -23,12 +23,15 @@
 #ifndef CSSRule_h
 #define CSSRule_h
 
-#include "CSSStyleSheet.h"
 #include "KURLHash.h"
 #include <wtf/ListHashSet.h>
+#include <wtf/RefCounted.h>
 
 namespace WebCore {
 
+class CSSStyleSheet;
+class StyleRuleBase;
+struct CSSParserContext;
 typedef int ExceptionCode;
 
 class CSSRule : public RefCounted<CSSRule> {
@@ -69,15 +72,6 @@ public:
     bool isRegionRule() const { return type() == WEBKIT_REGION_RULE; }
     bool isImportRule() const { return type() == IMPORT_RULE; }
 
-    CSSParserMode cssParserMode() const
-    {
-        if (parentRule())
-            return parentRule()->cssParserMode();
-        if (parentStyleSheet())
-            return parentStyleSheet()->cssParserMode();
-        return CSSStrictMode;
-    }
-
     void setParentStyleSheet(CSSStyleSheet* styleSheet)
     {
         m_parentIsRule = false;
@@ -102,12 +96,7 @@ public:
     String cssText() const;
     void setCssText(const String&, ExceptionCode&);
 
-    KURL baseURL() const
-    {
-        if (CSSStyleSheet* parentSheet = parentStyleSheet())
-            return parentSheet->baseURL();
-        return KURL();
-    }
+    void reattach(StyleRuleBase*);
 
 protected:
     CSSRule(CSSStyleSheet* parent, Type type)
@@ -125,6 +114,8 @@ protected:
 
     bool hasCachedSelectorText() const { return m_hasCachedSelectorText; }
     void setHasCachedSelectorText(bool hasCachedSelectorText) const { m_hasCachedSelectorText = hasCachedSelectorText; }
+
+    const CSSParserContext& parserContext() const;
 
 private:
     mutable unsigned m_hasCachedSelectorText : 1;

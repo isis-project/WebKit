@@ -42,12 +42,14 @@
 #include "WebDOMMessageEvent.h"
 #include "WebDataSource.h"
 #include "WebDeviceOrientationClientMock.h"
+#include "WebDocument.h"
 #include "platform/WebDragData.h"
 #include "WebElement.h"
 #include "WebFrame.h"
 #include "WebGeolocationClientMock.h"
 #include "WebHistoryItem.h"
 #include "WebIntent.h"
+#include "WebIntentServiceInfo.h"
 #include "WebKit.h"
 #include "WebNode.h"
 #include "WebPluginParams.h"
@@ -455,7 +457,7 @@ void WebViewHost::requestCheckingOfText(const WebString& text, WebTextCheckingCo
 {
     if (text.isEmpty()) {
         if (completion)
-            completion->didFinishCheckingText(Vector<WebTextCheckingResult>());
+            completion->didCancelCheckingText();
         return;
     }
 
@@ -1198,7 +1200,7 @@ void WebViewHost::removeIdentifierForRequest(unsigned identifier)
     m_resourceIdentifierMap.remove(identifier);
 }
 
-void WebViewHost::willSendRequest(WebFrame*, unsigned identifier, WebURLRequest& request, const WebURLResponse& redirectResponse)
+void WebViewHost::willSendRequest(WebFrame* frame, unsigned identifier, WebURLRequest& request, const WebURLResponse& redirectResponse)
 {
     // Need to use GURL for host() and SchemeIs()
     GURL url = request.url();
@@ -1215,6 +1217,8 @@ void WebViewHost::willSendRequest(WebFrame*, unsigned identifier, WebURLRequest&
         printResponseDescription(redirectResponse);
         fputs("\n", stdout);
     }
+
+    request.setExtraData(webkit_support::CreateWebURLRequestExtraData(frame->document().referrerPolicy()));
 
     if (!redirectResponse.isNull() && m_blocksRedirects) {
         fputs("Returning null for this redirect\n", stdout);
@@ -1322,12 +1326,32 @@ bool WebViewHost::willCheckAndDispatchMessageEvent(WebFrame* source, WebSecurity
     return false;
 }
 
+void WebViewHost::registerIntentService(WebKit::WebFrame*, const WebKit::WebIntentServiceInfo& service)
+{
+    printf("Registered Web Intent Service: action=%s type=%s title=%s url=%s disposition=%s\n",
+           service.action().utf8().data(), service.type().utf8().data(), service.title().utf8().data(), service.url().spec().data(), service.disposition().utf8().data());
+}
+
 void WebViewHost::dispatchIntent(WebFrame* source, const WebIntentRequest& request)
 {
     printf("Received Web Intent: action=%s type=%s\n",
            request.intent().action().utf8().data(),
            request.intent().type().utf8().data());
+    WebMessagePortChannelArray* ports = request.intent().messagePortChannelsRelease();
     m_currentRequest = request;
+    if (ports) {
+        printf("Have %d ports\n", static_cast<int>(ports->size()));
+        for (size_t i = 0; i < ports->size(); ++i)
+            (*ports)[i]->destroy();
+        delete ports;
+    }
+    if (!request.intent().service().isEmpty())
+        printf("Explicit intent service: %s\n", request.intent().service().spec().data());
+    WebVector<WebString> extras = request.intent().extrasNames();
+    for (size_t i = 0; i < extras.size(); ++i) {
+        printf("Extras[%s] = %s\n", extras[i].utf8().data(),
+               request.intent().extrasValue(extras[i]).utf8().data());
+    }
 }
 
 // Public functions -----------------------------------------------------------
@@ -1363,6 +1387,7 @@ void WebViewHost::setWebWidget(WebKit::WebWidget* widget)
 {
     m_webWidget = widget;
     webView()->setSpellCheckClient(this);
+    webView()->setCompositorSurfaceReady();
 }
 
 WebView* WebViewHost::webView() const
@@ -1662,26 +1687,27 @@ void WebViewHost::setAddressBarURL(const WebURL&)
 
 void WebViewHost::enterFullScreenNow()
 {
+    if (layoutTestController()->hasCustomFullScreenBehavior())
+        return;
+
     webView()->willEnterFullScreen();
     webView()->didEnterFullScreen();
 }
 
 void WebViewHost::exitFullScreenNow()
 {
+    if (layoutTestController()->hasCustomFullScreenBehavior())
+        return;
+
     webView()->willExitFullScreen();
     webView()->didExitFullScreen();
 }
 
 #if ENABLE(MEDIA_STREAM)
-webkit_support::MediaStreamUtil* WebViewHost::mediaStreamUtil()
-{
-    return userMediaClientMock();
-}
-
 webkit_support::TestMediaStreamClient* WebViewHost::testMediaStreamClient()
 {
     if (!m_testMediaStreamClient.get())
-        m_testMediaStreamClient = adoptPtr(new webkit_support::TestMediaStreamClient(mediaStreamUtil()));
+        m_testMediaStreamClient = adoptPtr(new webkit_support::TestMediaStreamClient());
     return m_testMediaStreamClient.get();
 }
 #endif

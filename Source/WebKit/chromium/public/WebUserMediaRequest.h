@@ -41,6 +41,7 @@ class UserMediaRequest;
 
 namespace WebKit {
 
+class WebMediaStreamDescriptor;
 class WebMediaStreamSource;
 class WebString;
 template <typename T> class WebVector;
@@ -64,14 +65,14 @@ public:
 
     WEBKIT_EXPORT bool audio() const;
     WEBKIT_EXPORT bool video() const;
-    WEBKIT_EXPORT bool cameraPreferenceUser() const;
-    WEBKIT_EXPORT bool cameraPreferenceEnvironment() const;
+
     WEBKIT_EXPORT WebSecurityOrigin securityOrigin() const;
 
     // DEPRECATED
-    WEBKIT_EXPORT void requestSucceeded(const WebVector<WebMediaStreamSource>&);
-
     WEBKIT_EXPORT void requestSucceeded(const WebVector<WebMediaStreamSource>& audioSources, const WebVector<WebMediaStreamSource>& videoSources);
+
+    WEBKIT_EXPORT void requestSucceeded(const WebMediaStreamDescriptor&);
+
     WEBKIT_EXPORT void requestFailed();
 
 #if WEBKIT_IMPLEMENTATION

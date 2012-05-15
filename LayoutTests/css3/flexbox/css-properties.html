@@ -82,6 +82,7 @@ shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexPack', '
 shouldBeEqualToString('flexbox.style.webkitFlexItemAlign', '');
 // The initial value is 'stretch'.
 shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexItemAlign', 'stretch');
+shouldBeEqualToString('window.getComputedStyle(document.documentElement, null).webkitFlexItemAlign', 'stretch');
 
 flexbox.style.webkitFlexItemAlign = 'foo';
 shouldBeEqualToString('flexbox.style.webkitFlexItemAlign', '');
@@ -249,6 +250,7 @@ flexbox.style.webkitFlexFlow = '';
 shouldBeEqualToString('flexbox.style.webkitFlexFlow', '');
 shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'row none');
 flexbox.style.webkitFlexDirection = 'column';
+flexbox.style.webkitFlexWrap = 'initial';
 shouldBeEqualToString('flexbox.style.webkitFlexFlow', 'column');
 shouldBeEqualToString('window.getComputedStyle(flexbox, null).webkitFlexFlow', 'column none');
 flexbox.style.webkitFlexWrap = 'wrap';

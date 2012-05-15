@@ -232,6 +232,7 @@ JIT::Label JIT::privateCompileCTINativeCall(JSGlobalData* globalData, bool isCon
     Label nativeCallThunk = align();
     
     emitPutImmediateToCallFrameHeader(0, RegisterFile::CodeBlock);
+    storePtr(callFrameRegister, &m_globalData->topCallFrame);
 
 #if CPU(X86_64)
     // Load caller frame's scope chain into this callframe so that whatever we call can
@@ -462,6 +463,69 @@ void JIT::emit_op_instanceof(Instruction* currentInstruction)
 
     // isInstance jumps right down to here, to skip setting the result to false (it has already set true).
     isInstance.link(this);
+    emitPutVirtualRegister(dst);
+}
+
+void JIT::emit_op_is_undefined(Instruction* currentInstruction)
+{
+    unsigned dst = currentInstruction[1].u.operand;
+    unsigned value = currentInstruction[2].u.operand;
+    
+    emitGetVirtualRegister(value, regT0);
+    Jump isCell = emitJumpIfJSCell(regT0);
+
+    comparePtr(Equal, regT0, TrustedImm32(ValueUndefined), regT0);
+    Jump done = jump();
+    
+    isCell.link(this);
+    loadPtr(Address(regT0, JSCell::structureOffset()), regT1);
+    test8(NonZero, Address(regT1, Structure::typeInfoFlagsOffset()), TrustedImm32(MasqueradesAsUndefined), regT0);
+    
+    done.link(this);
+    emitTagAsBoolImmediate(regT0);
+    emitPutVirtualRegister(dst);
+}
+
+void JIT::emit_op_is_boolean(Instruction* currentInstruction)
+{
+    unsigned dst = currentInstruction[1].u.operand;
+    unsigned value = currentInstruction[2].u.operand;
+    
+    emitGetVirtualRegister(value, regT0);
+    xorPtr(TrustedImm32(static_cast<int32_t>(ValueFalse)), regT0);
+    testPtr(Zero, regT0, TrustedImm32(static_cast<int32_t>(~1)), regT0);
+    emitTagAsBoolImmediate(regT0);
+    emitPutVirtualRegister(dst);
+}
+
+void JIT::emit_op_is_number(Instruction* currentInstruction)
+{
+    unsigned dst = currentInstruction[1].u.operand;
+    unsigned value = currentInstruction[2].u.operand;
+    
+    emitGetVirtualRegister(value, regT0);
+    testPtr(NonZero, regT0, tagTypeNumberRegister, regT0);
+    emitTagAsBoolImmediate(regT0);
+    emitPutVirtualRegister(dst);
+}
+
+void JIT::emit_op_is_string(Instruction* currentInstruction)
+{
+    unsigned dst = currentInstruction[1].u.operand;
+    unsigned value = currentInstruction[2].u.operand;
+    
+    emitGetVirtualRegister(value, regT0);
+    Jump isNotCell = emitJumpIfNotJSCell(regT0);
+    
+    loadPtr(Address(regT0, JSCell::structureOffset()), regT1);
+    compare8(Equal, Address(regT1, Structure::typeInfoTypeOffset()), TrustedImm32(StringType), regT0);
+    emitTagAsBoolImmediate(regT0);
+    Jump done = jump();
+    
+    isNotCell.link(this);
+    move(TrustedImm32(ValueFalse), regT0);
+    
+    done.link(this);
     emitPutVirtualRegister(dst);
 }
 
@@ -1199,42 +1263,24 @@ void JIT::emit_op_convert_this(Instruction* currentInstruction)
     addSlowCase(branchPtr(Equal, Address(regT0, JSCell::classInfoOffset()), TrustedImmPtr(&JSString::s_info)));
 }
 
-void JIT::emit_op_get_callee(Instruction* currentInstruction)
-{
-    unsigned result = currentInstruction[1].u.operand;
-    emitGetFromCallFrameHeaderPtr(RegisterFile::Callee, regT0);
-    emitPutVirtualRegister(result);
-}
-
 void JIT::emit_op_create_this(Instruction* currentInstruction)
 {
-    emitGetVirtualRegister(currentInstruction[2].u.operand, regT2);
-    emitJumpSlowCaseIfNotJSCell(regT2, currentInstruction[2].u.operand);
-    loadPtr(Address(regT2, JSCell::structureOffset()), regT1);
-    addSlowCase(emitJumpIfNotObject(regT1));
-    
-    // now we know that the prototype is an object, but we don't know if it's got an
-    // inheritor ID
-    
-    loadPtr(Address(regT2, JSObject::offsetOfInheritorID()), regT2);
+    emitGetFromCallFrameHeaderPtr(RegisterFile::Callee, regT0);
+    loadPtr(Address(regT0, JSFunction::offsetOfCachedInheritorID()), regT2);
     addSlowCase(branchTestPtr(Zero, regT2));
     
     // now regT2 contains the inheritorID, which is the structure that the newly
     // allocated object will have.
     
     emitAllocateJSFinalObject(regT2, regT0, regT1);
-    
     emitPutVirtualRegister(currentInstruction[1].u.operand);
 }
 
 void JIT::emitSlow_op_create_this(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
-    linkSlowCaseIfNotJSCell(iter, currentInstruction[2].u.operand); // not a cell
-    linkSlowCase(iter); // not an object
     linkSlowCase(iter); // doesn't have an inheritor ID
     linkSlowCase(iter); // allocation failed
     JITStubCall stubCall(this, cti_op_create_this);
-    stubCall.addArgument(currentInstruction[2].u.operand, regT1);
     stubCall.call(currentInstruction[1].u.operand);
 }
 
@@ -1646,11 +1692,14 @@ void JIT::emit_op_new_array(Instruction* currentInstruction)
 
 void JIT::emitSlow_op_new_array(Instruction* currentInstruction, Vector<SlowCaseEntry>::iterator& iter)
 {
+    // If the allocation would be oversize, we will already make the proper stub call above in 
+    // emit_op_new_array.
     int length = currentInstruction[3].u.operand;
     if (CopiedSpace::isOversize(JSArray::storageSize(length)))
         return;
-    linkSlowCase(iter); // Not enough space in MarkedSpace for cell.
     linkSlowCase(iter); // Not enough space in CopiedSpace for storage.
+    linkSlowCase(iter); // Not enough space in MarkedSpace for cell.
+
     JITStubCall stubCall(this, cti_op_new_array);
     stubCall.addArgument(TrustedImm32(currentInstruction[2].u.operand));
     stubCall.addArgument(TrustedImm32(currentInstruction[3].u.operand));

@@ -45,17 +45,6 @@ LayerTreeHostProxy::~LayerTreeHostProxy()
     m_renderer->detach();
 }
 
-void LayerTreeHostProxy::paintToCurrentGLContext(const WebCore::TransformationMatrix& matrix, float opacity, const WebCore::FloatRect& rect)
-{
-    m_renderer->syncRemoteContent();
-    m_renderer->paintToCurrentGLContext(matrix, opacity, rect);
-}
-
-void LayerTreeHostProxy::paintToGraphicsContext(BackingStore::PlatformGraphicsContext context)
-{
-    m_renderer->paintToGraphicsContext(context);
-}
-
 void LayerTreeHostProxy::updateViewport()
 {
     m_drawingAreaProxy->updateViewport();
@@ -66,19 +55,27 @@ void LayerTreeHostProxy::dispatchUpdate(const Function<void()>& function)
     m_renderer->appendUpdate(function);
 }
 
-void LayerTreeHostProxy::createTileForLayer(int layerID, int tileID, const WebKit::UpdateInfo& updateInfo)
+void LayerTreeHostProxy::createTileForLayer(int layerID, int tileID, const IntRect& targetRect, const WebKit::SurfaceUpdateInfo& updateInfo)
 {
-    dispatchUpdate(bind(&WebLayerTreeRenderer::createTile, m_renderer.get(), layerID, tileID, updateInfo.updateScaleFactor));
-    updateTileForLayer(layerID, tileID, updateInfo);
+    dispatchUpdate(bind(&WebLayerTreeRenderer::createTile, m_renderer.get(), layerID, tileID, updateInfo.scaleFactor));
+    updateTileForLayer(layerID, tileID, targetRect, updateInfo);
 }
 
-void LayerTreeHostProxy::updateTileForLayer(int layerID, int tileID, const WebKit::UpdateInfo& updateInfo)
+void LayerTreeHostProxy::updateTileForLayer(int layerID, int tileID, const IntRect& targetRect, const WebKit::SurfaceUpdateInfo& updateInfo)
 {
-    ASSERT(updateInfo.updateRects.size() == 1);
-    IntRect sourceRect = updateInfo.updateRects.first();
-    IntRect targetRect = updateInfo.updateRectBounds;
-    RefPtr<ShareableBitmap> bitmap = ShareableBitmap::create(updateInfo.bitmapHandle);
-    dispatchUpdate(bind(&WebLayerTreeRenderer::updateTile, m_renderer.get(), layerID, tileID, sourceRect, targetRect, bitmap));
+    RefPtr<ShareableSurface> surface;
+#if USE(GRAPHICS_SURFACE)
+    uint32_t token = updateInfo.surfaceHandle.graphicsSurfaceToken();
+    HashMap<uint32_t, RefPtr<ShareableSurface> >::iterator it = m_surfaces.find(token);
+    if (it == m_surfaces.end()) {
+        surface = ShareableSurface::create(updateInfo.surfaceHandle);
+        m_surfaces.add(token, surface);
+    } else
+        surface = it->second;
+#else
+    surface = ShareableSurface::create(updateInfo.surfaceHandle);
+#endif
+    dispatchUpdate(bind(&WebLayerTreeRenderer::updateTile, m_renderer.get(), layerID, tileID, WebLayerTreeRenderer::TileUpdate(updateInfo.updateRect, targetRect, surface, updateInfo.surfaceOffset)));
 }
 
 void LayerTreeHostProxy::removeTileForLayer(int layerID, int tileID)
@@ -108,6 +105,13 @@ void LayerTreeHostProxy::setCompositingLayerChildren(WebLayerID id, const Vector
     dispatchUpdate(bind(&WebLayerTreeRenderer::setLayerChildren, m_renderer.get(), id, children));
 }
 
+#if ENABLE(CSS_FILTERS)
+void LayerTreeHostProxy::setCompositingLayerFilters(WebLayerID id, const FilterOperations& filters)
+{
+    dispatchUpdate(bind(&WebLayerTreeRenderer::setLayerFilters, m_renderer.get(), id, filters));
+}
+#endif
+
 void LayerTreeHostProxy::didRenderFrame()
 {
     dispatchUpdate(bind(&WebLayerTreeRenderer::flushLayerChanges, m_renderer.get()));
@@ -125,9 +129,14 @@ void LayerTreeHostProxy::destroyDirectlyCompositedImage(int64_t key)
     dispatchUpdate(bind(&WebLayerTreeRenderer::destroyImage, m_renderer.get(), key));
 }
 
-void LayerTreeHostProxy::setVisibleContentsRect(const IntRect& rect, float scale, const FloatPoint& trajectoryVector)
+void LayerTreeHostProxy::setContentsSize(const FloatSize& contentsSize)
 {
-    m_renderer->setVisibleContentsRect(rect, scale);
+    m_renderer->setContentsSize(contentsSize);
+}
+
+void LayerTreeHostProxy::setVisibleContentsRect(const IntRect& rect, float scale, const FloatPoint& trajectoryVector, const WebCore::FloatPoint& accurateVisibleContentsPosition)
+{
+    dispatchUpdate(bind(&WebLayerTreeRenderer::setVisibleContentsRect, m_renderer.get(), rect, scale, accurateVisibleContentsPosition));
     m_drawingAreaProxy->page()->process()->send(Messages::LayerTreeHost::SetVisibleContentsRect(rect, scale, trajectoryVector), m_drawingAreaProxy->page()->pageID());
 }
 
@@ -136,8 +145,14 @@ void LayerTreeHostProxy::renderNextFrame()
     m_drawingAreaProxy->page()->process()->send(Messages::LayerTreeHost::RenderNextFrame(), m_drawingAreaProxy->page()->pageID());
 }
 
+void LayerTreeHostProxy::didChangeScrollPosition(const IntPoint& position)
+{
+    dispatchUpdate(bind(&WebLayerTreeRenderer::didChangeScrollPosition, m_renderer.get(), position));
+}
+
 void LayerTreeHostProxy::purgeBackingStores()
 {
+    m_renderer->setActive(false);
     m_drawingAreaProxy->page()->process()->send(Messages::LayerTreeHost::PurgeBackingStores(), m_drawingAreaProxy->page()->pageID());
 }
 

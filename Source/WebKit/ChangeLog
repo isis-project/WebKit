@@ -1,3 +1,159 @@
+2012-05-15  Tomasz Morawski  <t.morawski@samsung.com>
+
+        [EFL] Split ewk_private.h file to multiple private files.
+        https://bugs.webkit.org/show_bug.cgi?id=84572
+
+        Reviewed by Antonio Gomes.
+
+        * PlatformEfl.cmake: Removed ewk_logging.h file from EWebKit_HEADERS.
+
+2012-05-10  Sam D  <dsam2912@gmail.com>
+
+        Web Inspector: rename InspectorBackendStub.js to InspectorBackendCommands.js
+        https://bugs.webkit.org/show_bug.cgi?id=72306
+
+        Changed name for InspectorBackendStub.js to
+        InspectorBackendCommands.js
+
+        Reviewed by Yury Semikhatsky.
+
+        * PlatformBlackBerry.cmake:
+
+2012-05-08  Crystal Zhang  <haizhang@rim.com>
+
+        [BlackBerry] Implement a popup client for HTML controls
+        https://bugs.webkit.org/show_bug.cgi?id=85670
+
+        Reviewed by Rob Buis.
+
+        Add popup client file to build system.
+        
+        * PlatformBlackBerry.cmake:
+
+2012-05-08  Raphael Kubo da Costa  <rakuco@webkit.org>
+
+        [CMake] Rewrite FindGStreamer.cmake.
+        https://bugs.webkit.org/show_bug.cgi?id=85857
+
+        Reviewed by Daniel Bates.
+
+        We are currently kind of duplicating the same
+        FindGStreamer-Foo.cmake file whenever a new GStreamer plugin needs
+        to be found. Besides this approach not scaling very well, it
+        relies on pkg-config for version checking, uses the LibFindMacros
+        package that we should deprecate and all the find files could be
+        merged into one, with users using the COMPONENTS feature of the
+        FIND_PACKAGE() call to find the desired plugins.
+
+        FindGStreamer.cmake has then been rewritten to take all that into
+        account:
+        - The LibFindMacros.cmake package is not used anymore.
+        - Version check is performed in the CMake file itself by parsing
+        the gstversion.h header.
+        - All GStreamer plugins are searched and the COMPONENTS keyword
+        used in the FIND_PACKAGE() call is used to check which plugins are
+        required.
+        - The plugins-base and base GStreamer plugins are not searched, as
+        they were not used anywhere in the build system.
+
+        * PlatformEfl.cmake: Update GStreamer-related variable names.
+
+2012-05-08  Jonathan Dong  <jonathan.dong@torchmobile.com.cn>
+
+        [BlackBerry] AutofillManager implementation upstream
+        https://bugs.webkit.org/show_bug.cgi?id=85576
+
+        Reviewed by Rob Buis.
+
+        Added WebKit/blackberry/WebCoreSupport/AutofillManager.cpp
+        into building system of BlackBerry porting.
+
+        * PlatformBlackBerry.cmake:
+
+2012-05-03  Jer Noble  <jer.noble@apple.com>
+
+        Move WebKitFullScreenListener into its own file.
+        https://bugs.webkit.org/show_bug.cgi?id=85640
+
+        Reviewed by Maciej Stachowiak .
+
+        Pull WebKitFullScreenListener into its own file.
+
+        * WebKit.xcodeproj/project.pbxproj:
+
+2012-05-03  Raphael Kubo da Costa  <rakuco@webkit.org>
+
+        [CMake] Rewrite FindCairo.cmake.
+        https://bugs.webkit.org/show_bug.cgi?id=84895
+
+        Reviewed by Daniel Bates.
+
+        The old approach relied on pkg-config for finding Cairo (which
+        introduced a dependency on pkg-config that could be avoided), used
+        the LibFindMacros code that we should probably remove in the
+        future and did not use the FindPackageHandleStandardArguments
+        module.
+
+        Change all that by rewriting the module.
+        - Use the pkg-config output optionally instead of requiring it
+        like LibFindMacros did.
+        - Remove the implicit dependency on FreeType which often found it
+        the wrong way via pkg-config and without considering
+        CMAKE_PREFIX_PATH.
+        - Retrieve the Cairo version by looking at cairo-version.h instead
+        of relying on pkg-config. It requires some additional code for
+        checking if the desired version has been found, but that will not
+        be needed once we start depending on CMake 2.8.3 or later.
+
+        The only downside is that FPHSA sets <UPPERCASED_NAME>_FOUND
+        instead of <Name>_FOUND, and to keep things consistent
+        Cairo_LIBRARIES and Cairo_INCLUDE_DIRS have become CAIRO_LIBRARIES
+        and CAIRO_INCLUDE_DIRS.
+
+        * PlatformEfl.cmake: Use CAIRO_FOO instead of Cairo_FOO.
+
+2012-04-26  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Enable VIDEO_TRACK feature
+        https://bugs.webkit.org/show_bug.cgi?id=84830
+
+        Reviewed by Gustavo Noronha Silva.
+
+        Enable VIDEO_TRACK feature by default for EFL port.
+
+        * PlatformEfl.cmake:
+
+2012-04-20  Mike Lattanzio  <mlattanzio@rim.com>
+
+        [BlackBerry] Expose WebViewportArguments to WebPageClient
+        https://bugs.webkit.org/show_bug.cgi?id=84471
+
+        Reviewed by Antonio Gomes.
+
+        * PlatformBlackBerry.cmake:
+
+2012-04-20  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [EFL] Add Security Origin API
+        https://bugs.webkit.org/show_bug.cgi?id=84023
+
+        Reviewed by Antonio Gomes.
+
+        * PlatformEfl.cmake:
+
+2012-04-10  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake] Enable USE_FOLDERS property
+        https://bugs.webkit.org/show_bug.cgi?id=83571
+
+        Reviewed by Daniel Bates.
+
+        Setting the FOLDER property on targets gives more structure 
+        to the generated Visual Studio solutions.
+        This does not affect other CMake generators.
+
+        * CMakeLists.txt:
+
 2012-04-07  Patrick Gansterer  <paroga@webkit.org>
 
         [CMake] Cleanup WTF include directories

@@ -172,7 +172,7 @@ void RenderScrollbarPart::paintIntoRect(GraphicsContext* graphicsContext, const 
         return;
 
     // Now do the paint.
-    PaintInfo paintInfo(graphicsContext, rect, PaintPhaseBlockBackground, false, 0, 0, 0);
+    PaintInfo paintInfo(graphicsContext, pixelSnappedIntRect(rect), PaintPhaseBlockBackground, false, 0, 0, 0);
     paint(paintInfo, paintOffset);
     paintInfo.phase = PaintPhaseChildBlockBackgrounds;
     paint(paintInfo, paintOffset);
@@ -182,6 +182,13 @@ void RenderScrollbarPart::paintIntoRect(GraphicsContext* graphicsContext, const 
     paint(paintInfo, paintOffset);
     paintInfo.phase = PaintPhaseOutline;
     paint(paintInfo, paintOffset);
+}
+
+RenderObject* RenderScrollbarPart::rendererOwningScrollbar() const
+{
+    if (!m_scrollbar)
+        return 0;
+    return m_scrollbar->owningRenderer();
 }
 
 }

@@ -227,7 +227,7 @@ private:
     PassRefPtr<TypeBuilder::DOM::Node> buildObjectForNode(Node*, int depth, NodeToIdMap*);
     PassRefPtr<TypeBuilder::Array<String> > buildArrayForElementAttributes(Element*);
     PassRefPtr<TypeBuilder::Array<TypeBuilder::DOM::Node> > buildArrayForContainerChildren(Node* container, int depth, NodeToIdMap* nodesMap);
-    PassRefPtr<InspectorObject> buildObjectForEventListener(const RegisteredEventListener&, const AtomicString& eventType, Node*);
+    PassRefPtr<TypeBuilder::DOM::EventListener> buildObjectForEventListener(const RegisteredEventListener&, const AtomicString& eventType, Node*);
 
     Node* nodeForPath(const String& path);
 
@@ -244,7 +244,7 @@ private:
     DOMListener* m_domListener;
     NodeToIdMap m_documentNodeToIdMap;
     // Owns node mappings for dangling nodes.
-    Vector<NodeToIdMap*> m_danglingNodeToIdMaps;
+    Vector<OwnPtr<NodeToIdMap> > m_danglingNodeToIdMaps;
     HashMap<int, Node*> m_idToNode;
     HashMap<int, NodeToIdMap*> m_idToNodesMap;
     HashSet<int> m_childrenRequested;

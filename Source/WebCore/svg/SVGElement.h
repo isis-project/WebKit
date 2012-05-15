@@ -109,8 +109,12 @@ public:
 
     StylePropertySet* animatedSMILStyleProperties() const;
     StylePropertySet* ensureAnimatedSMILStyleProperties();
+    void setUseOverrideComputedStyle(bool);
 
     virtual bool haveLoadedRequiredResources();
+
+    virtual bool addEventListener(const AtomicString& eventType, PassRefPtr<EventListener>, bool useCapture) OVERRIDE;
+    virtual bool removeEventListener(const AtomicString& eventType, EventListener*, bool useCapture) OVERRIDE;
 
 protected:
     SVGElement(const QualifiedName&, Document*, ConstructionType = CreateSVGElement);
@@ -121,7 +125,7 @@ protected:
     virtual void attributeChanged(Attribute*) OVERRIDE;
     virtual bool childShouldCreateRenderer(const NodeRenderingContext&) const;
     
-    virtual void removedFromDocument();
+    virtual void removedFrom(Node*) OVERRIDE;
 
     SVGElementRareData* rareSVGData() const;
     SVGElementRareData* ensureRareSVGData();
@@ -130,6 +134,10 @@ protected:
 
 private:
     friend class SVGElementInstance;
+
+    RenderStyle* computedStyle(PseudoId = NOPSEUDO);
+    virtual RenderStyle* virtualComputedStyle(PseudoId pseudoElementSpecifier = NOPSEUDO) { return computedStyle(pseudoElementSpecifier); }
+    virtual bool willRecalcStyle(StyleChange);
 
     virtual bool rendererIsNeeded(const NodeRenderingContext&) { return false; }
 

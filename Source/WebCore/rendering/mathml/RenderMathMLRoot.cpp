@@ -31,31 +31,32 @@
 #include "RenderMathMLRoot.h"
 
 #include "GraphicsContext.h"
-#include "MathMLNames.h"
 #include "PaintInfo.h"
+
+using namespace std;
 
 namespace WebCore {
     
-using namespace MathMLNames;
+// FIXME: This whole file should be changed to work with various writing modes. See https://bugs.webkit.org/show_bug.cgi?id=48951.
 
-// Extra space on the left for the radical sign (px)
-const int gRadicalLeftExtra = 3;
-// Lower the radical sign's bottom point (px)
-const int gRadicalBottomPointLower = 3;
 // Threshold above which the radical shape is modified to look nice with big bases (em)
 const float gThresholdBaseHeightEms = 1.5f;
-// Front width (em)
+// Normal width of the front of the radical sign, before the base & overbar (em)
 const float gFrontWidthEms = 0.75f;
+// Gap between the base and overbar (em)
+const float gSpaceAboveEms = 0.2f;
 // Horizontal position of the bottom point of the radical (* frontWidth)
 const float gRadicalBottomPointXFront = 0.5f;
+// Lower the radical sign's bottom point (px)
+const int gRadicalBottomPointLower = 3;
 // Horizontal position of the top left point of the radical "dip" (* frontWidth)
 const float gRadicalDipLeftPointXFront = 0.8f;
-// Vertical position of the top left point of the radical "dip" (* baseHeight)
-const float gRadicalDipLeftPointYPos = 0.625f; 
+// Vertical position of the top left point of a sqrt radical "dip" (* baseHeight)
+const float gSqrtRadicalDipLeftPointYPos = 0.5f;
+// Vertical position of the top left point of an nth root radical "dip" (* baseHeight)
+const float gRootRadicalDipLeftPointYPos = 0.625f;
 // Vertical shift of the left end point of the radical (em)
 const float gRadicalLeftEndYShiftEms = 0.05f;
-// Root padding around the base (em) (mroot padding-top/left from mathml.css)
-const float gRootPaddingEms = 0.2f;
 // Additional bottom root padding if baseHeight > threshold (em)
 const float gBigRootBottomPaddingEms = 0.2f;
 
@@ -69,25 +70,75 @@ RenderMathMLRoot::RenderMathMLRoot(Element* element)
 {
 }
 
-void RenderMathMLRoot::addChild(RenderObject* child, RenderObject* )
+RenderBoxModelObject* RenderMathMLRoot::index() const
 {
-    if (isEmpty()) {
-        // Add a block for the index
-        RenderBlock* indexWrapper = createAlmostAnonymousBlock(INLINE_BLOCK);
-        RenderBlock::addChild(indexWrapper);
-        
-        // FIXME: the wrapping does not seem to be needed anymore.
-        // this is the base, so wrap it so we can pad it
-        RenderBlock* baseWrapper = createAlmostAnonymousBlock(INLINE_BLOCK);
-        baseWrapper->style()->setPaddingLeft(Length(5 * gFrontWidthEms, Percent));
-        RenderBlock::addChild(baseWrapper);
-        baseWrapper->addChild(child);
-    } else {
-        // always add to the index
-        firstChild()->addChild(child);
-    }
+    if (!firstChild())
+        return 0;
+    RenderObject* index = firstChild()->nextSibling();
+    if (!index || !index->isBoxModelObject())
+        return 0;
+    return toRenderBoxModelObject(index);
 }
+
+void RenderMathMLRoot::computePreferredLogicalWidths()
+{
+    ASSERT(preferredLogicalWidthsDirty() && needsLayout());
     
+    computeChildrenPreferredLogicalHeights();
+    
+    int baseHeight = firstChild() ? roundToInt(preferredLogicalHeightAfterSizing(firstChild())) : 0;
+    
+    int frontWidth = lroundf(gFrontWidthEms * style()->fontSize());
+    
+    // Base height above which the shape of the root changes
+    float thresholdHeight = gThresholdBaseHeightEms * style()->fontSize();
+    if (baseHeight > thresholdHeight && thresholdHeight) {
+        float shift = min<float>((baseHeight - thresholdHeight) / thresholdHeight, 1.0f);
+        m_overbarLeftPointShift = static_cast<int>(shift * gRadicalBottomPointXFront * frontWidth);
+        m_intrinsicPaddingAfter = lroundf(gBigRootBottomPaddingEms * style()->fontSize());
+    } else {
+        m_overbarLeftPointShift = 0;
+        m_intrinsicPaddingAfter = 0;
+    }
+    
+    int rootPad = lroundf(gSpaceAboveEms * style()->fontSize());
+    m_intrinsicPaddingBefore = rootPad;
+    m_indexTop = 0;
+    if (RenderBoxModelObject* index = this->index()) {
+        m_intrinsicPaddingStart = roundToInt(index->maxPreferredLogicalWidth()) + m_overbarLeftPointShift;
+        
+        int indexHeight = roundToInt(preferredLogicalHeightAfterSizing(index));
+        int partDipHeight = lroundf((1 - gRootRadicalDipLeftPointYPos) * baseHeight);
+        int rootExtraTop = partDipHeight + indexHeight - (baseHeight + rootPad);
+        if (rootExtraTop > 0)
+            m_intrinsicPaddingBefore += rootExtraTop;
+        else
+            m_indexTop = - rootExtraTop;
+    } else
+        m_intrinsicPaddingStart = frontWidth;
+    
+    RenderMathMLBlock::computePreferredLogicalWidths();
+    
+    // Shrink our logical width to its probable value now without triggering unnecessary relayout of our children.
+    ASSERT(needsLayout() && logicalWidth() >= maxPreferredLogicalWidth());
+    setLogicalWidth(maxPreferredLogicalWidth());
+}
+
+void RenderMathMLRoot::layout()
+{
+    // Our computePreferredLogicalWidths() may change our logical width and then layout our children, which
+    // RenderBlock::layout()'s relayoutChildren logic isn't expecting.
+    if (preferredLogicalWidthsDirty())
+        computePreferredLogicalWidths();
+    
+    RenderMathMLBlock::layout();
+    
+    RenderBoxModelObject* index = this->index();
+    // If |index|, it should be a RenderBlock here, unless the user has overriden its { position: absolute }.
+    if (index && index->isBox())
+        toRenderBox(index)->setLogicalTop(m_indexTop);
+}
+
 void RenderMathMLRoot::paint(PaintInfo& info, const LayoutPoint& paintOffset)
 {
     RenderMathMLBlock::paint(info, paintOffset);
@@ -95,50 +146,21 @@ void RenderMathMLRoot::paint(PaintInfo& info, const LayoutPoint& paintOffset)
     if (info.context->paintingDisabled())
         return;
     
-    if (!firstChild() || !lastChild())
-        return;
+    IntPoint adjustedPaintOffset = roundedIntPoint(paintOffset + location() + contentBoxRect().location());
     
-    IntPoint adjustedPaintOffset = roundedIntPoint(paintOffset + location());
+    int startX = adjustedPaintOffset.x();
+    int frontWidth = lroundf(gFrontWidthEms * style()->fontSize());
+    int overbarWidth = roundToInt(getBoxModelObjectWidth(firstChild())) + m_overbarLeftPointShift;
     
-    RenderBoxModelObject* baseWrapper = toRenderBoxModelObject(lastChild());
+    int baseHeight = roundToInt(getBoxModelObjectHeight(firstChild()));
+    int rootPad = lroundf(gSpaceAboveEms * style()->fontSize());
+    adjustedPaintOffset.setY(adjustedPaintOffset.y() - rootPad);
     
-    int baseHeight = baseWrapper->pixelSnappedOffsetHeight();
-    // default to the font size in pixels if we're empty
-    if (!baseHeight)
-        baseHeight = style()->fontSize();
-    int overbarWidth = baseWrapper->pixelSnappedOffsetWidth();
+    float radicalDipLeftPointYPos = (index() ? gRootRadicalDipLeftPointYPos : gSqrtRadicalDipLeftPointYPos) * baseHeight;
     
-    int indexWidth = 0;
-    RenderObject* current = firstChild();
-    while (current != lastChild()) {
-        if (current->isBoxModelObject()) {
-            RenderBoxModelObject* box = toRenderBoxModelObject(current);
-            indexWidth += box->pixelSnappedOffsetWidth();
-        }
-        current = current->nextSibling();
-    }
-    
-    int frontWidth = static_cast<int>(style()->fontSize() * gFrontWidthEms);
-    int overbarLeftPointShift = 0;
-    // Base height above which the shape of the root changes
-    int thresholdHeight = static_cast<int>(gThresholdBaseHeightEms * style()->fontSize());
-    
-    if (baseHeight > thresholdHeight && thresholdHeight) {
-        float shift = (baseHeight - thresholdHeight) / static_cast<float>(thresholdHeight);
-        if (shift > 1.)
-            shift = 1.0f;
-        overbarLeftPointShift = static_cast<int>(gRadicalBottomPointXFront * frontWidth * shift);
-    }
-    
-    overbarWidth += overbarLeftPointShift;
-    
-    int rootPad = static_cast<int>(gRootPaddingEms * style()->fontSize());
-    int startX = adjustedPaintOffset.x() + indexWidth + gRadicalLeftExtra + style()->paddingLeft().value() - rootPad;
-    adjustedPaintOffset.setY(adjustedPaintOffset.y() + style()->paddingTop().value() - rootPad);
-    
-    FloatPoint overbarLeftPoint(startX - overbarLeftPointShift, adjustedPaintOffset.y());
+    FloatPoint overbarLeftPoint(startX - m_overbarLeftPointShift, adjustedPaintOffset.y());
     FloatPoint bottomPoint(startX - gRadicalBottomPointXFront * frontWidth, adjustedPaintOffset.y() + baseHeight + gRadicalBottomPointLower);
-    FloatPoint dipLeftPoint(startX - gRadicalDipLeftPointXFront * frontWidth, adjustedPaintOffset.y() + gRadicalDipLeftPointYPos * baseHeight);
+    FloatPoint dipLeftPoint(startX - gRadicalDipLeftPointXFront * frontWidth, adjustedPaintOffset.y() + radicalDipLeftPointYPos);
     FloatPoint leftEnd(startX - frontWidth, dipLeftPoint.y() + gRadicalLeftEndYShiftEms * style()->fontSize());
     
     GraphicsContextStateSaver stateSaver(*info.context);
@@ -186,64 +208,6 @@ void RenderMathMLRoot::paint(PaintInfo& info, const LayoutPoint& paintOffset)
     info.context->strokePath(line);
 }
 
-void RenderMathMLRoot::layout()
-{
-    RenderBlock::layout();
-
-    if (!firstChild() || !lastChild())
-        return;
-
-    int baseHeight = toRenderBoxModelObject(lastChild())->pixelSnappedOffsetHeight();
-    if (!baseHeight)
-        baseHeight = style()->fontSize();
-    
-    RenderObject* base = lastChild()->firstChild();
-    if (base)
-        base->style()->setVerticalAlign(BASELINE); // FIXME: Can this style be modified?
-    
-    // Base height above which the shape of the root changes
-    int thresholdHeight = static_cast<int>(gThresholdBaseHeightEms * style()->fontSize());
-    int overbarLeftPointShift = 0;
-    
-    // FIXME: Can style() and indexBox->style() be modified (4 times below)?
-    if (baseHeight > thresholdHeight && thresholdHeight) {
-        float shift = (baseHeight - thresholdHeight) / static_cast<float>(thresholdHeight);
-        if (shift > 1.)
-            shift = 1.0f;
-        int frontWidth = static_cast<int>(style()->fontSize() * gFrontWidthEms);
-        overbarLeftPointShift = static_cast<int>(gRadicalBottomPointXFront * frontWidth * shift);
-        
-        style()->setPaddingBottom(Length(static_cast<int>(gBigRootBottomPaddingEms * style()->fontSize()), Fixed));
-    }
-    
-    // Positioning of the index
-    RenderObject* possibleIndex = firstChild()->firstChild();
-    while (possibleIndex && !possibleIndex->isBoxModelObject())
-        possibleIndex = possibleIndex->nextSibling();
-    RenderBoxModelObject* indexBox = toRenderBoxModelObject(possibleIndex);
-    if (!indexBox)
-        return;
-    
-    int shiftForIndex = indexBox->pixelSnappedOffsetWidth() + overbarLeftPointShift;
-    int partDipHeight = static_cast<int>((1 - gRadicalDipLeftPointYPos) * baseHeight);
-    int rootExtraTop = partDipHeight + style()->paddingBottom().value() + indexBox->pixelSnappedOffsetHeight()
-        - (baseHeight + static_cast<int>(gRootPaddingEms * style()->fontSize()));
-    
-    style()->setPaddingLeft(Length(shiftForIndex, Fixed));
-    if (rootExtraTop > 0)
-        style()->setPaddingTop(Length(rootExtraTop + static_cast<int>(gRootPaddingEms * style()->fontSize()), Fixed));
-    
-    setNeedsLayout(true);
-    setPreferredLogicalWidthsDirty(true, MarkOnlyThis); // FIXME: Can this really be right?
-    RenderBlock::layout();
-
-    indexBox->style()->setBottom(Length(partDipHeight + style()->paddingBottom().value(), Fixed));
-
-    // Now that we've potentially changed its position, we need layout the index again.
-    indexBox->setNeedsLayout(true);
-    indexBox->layout();
-}
-    
 }
 
 #endif // ENABLE(MATHML)

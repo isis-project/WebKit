@@ -29,8 +29,8 @@
 
 #include "Attribute.h"
 #include "CachedResourceLoader.h"
-#include "CSSStyleSelector.h"
 #include "Document.h"
+#include "ElementShadow.h"
 #include "Event.h"
 #include "EventListener.h"
 #include "HTMLNames.h"
@@ -39,7 +39,6 @@
 #include "RenderSVGResource.h"
 #include "RenderSVGTransformableContainer.h"
 #include "ShadowRoot.h"
-#include "ShadowTree.h"
 #include "SVGElementInstance.h"
 #include "SVGElementRareData.h"
 #include "SVGElementInstanceList.h"
@@ -49,6 +48,7 @@
 #include "SVGSMILElement.h"
 #include "SVGSVGElement.h"
 #include "SVGSymbolElement.h"
+#include "StyleResolver.h"
 #include "XLinkNames.h"
 #include "XMLDocumentParser.h"
 #include "XMLSerializer.h"
@@ -175,21 +175,25 @@ static inline bool isWellFormedDocument(Document* document)
     return true;
 }
 
-void SVGUseElement::insertedIntoDocument()
+Node::InsertionNotificationRequest SVGUseElement::insertedInto(Node* rootParent)
 {
     // This functions exists to assure assumptions made in the code regarding SVGElementInstance creation/destruction are satisfied.
-    SVGStyledTransformableElement::insertedIntoDocument();
+    SVGStyledTransformableElement::insertedInto(rootParent);
+    if (!rootParent->inDocument())
+        return InsertionDone;
     ASSERT(!m_targetElementInstance || !isWellFormedDocument(document()));
     ASSERT(!hasPendingResources() || !isWellFormedDocument(document()));
     if (!m_wasInsertedByParser)
         buildPendingResource();
     SVGExternalResourcesRequired::insertedIntoDocument(this);
+    return InsertionDone;
 }
 
-void SVGUseElement::removedFromDocument()
+void SVGUseElement::removedFrom(Node* rootParent)
 {
-    SVGStyledTransformableElement::removedFromDocument();
-    clearResourceReferences();
+    SVGStyledTransformableElement::removedFrom(rootParent);
+    if (rootParent->inDocument())
+        clearResourceReferences();
 }
 
 Document* SVGUseElement::referencedDocument() const
@@ -389,7 +393,7 @@ static bool subtreeContainsDisallowedElement(Node* start)
 void SVGUseElement::clearResourceReferences()
 {
     // FIXME: We should try to optimize this, to at least allow partial reclones.
-    if (ShadowRoot* shadowTreeRootElement =  shadowTree()->oldestShadowRoot())
+    if (ShadowRoot* shadowTreeRootElement =  shadow()->oldestShadowRoot())
         shadowTreeRootElement->removeAllChildren();
 
     if (m_targetElementInstance) {
@@ -476,7 +480,7 @@ void SVGUseElement::buildShadowAndInstanceTree(SVGElement* target)
     ASSERT(m_targetElementInstance->directUseElement() == this);
     ASSERT(m_targetElementInstance->correspondingElement() == target);
 
-    ShadowRoot* shadowTreeRootElement = shadowTree()->oldestShadowRoot();
+    ShadowRoot* shadowTreeRootElement = shadow()->oldestShadowRoot();
     ASSERT(shadowTreeRootElement);
 
     // Build shadow tree from instance tree
@@ -591,6 +595,9 @@ void SVGUseElement::buildInstanceTree(SVGElement* target, SVGElementInstance* ta
         foundProblem = hasCycleUseReferencing(static_cast<SVGUseElement*>(target), targetInstance, newTarget);
         if (foundProblem)
             return;
+    } else if (isDisallowedElement(target)) {
+        foundProblem = true;
+        return;
     }
 
     // A general description from the SVG spec, describing what buildInstanceTree() actually does.
@@ -688,7 +695,7 @@ void SVGUseElement::buildShadowTree(SVGElement* target, SVGElementInstance* targ
     if (subtreeContainsDisallowedElement(newChild.get()))
         removeDisallowedElementsFromSubtree(newChild.get());
 
-    shadowTree()->oldestShadowRoot()->appendChild(newChild.release());
+    shadow()->oldestShadowRoot()->appendChild(newChild.release());
 }
 
 void SVGUseElement::expandUseElementsInShadowTree(Node* element)

@@ -42,7 +42,7 @@
 #import <WebCore/SoftLinking.h>
 #import <wtf/text/WTFString.h>
 
-SOFT_LINK_STAGED_FRAMEWORK_OPTIONAL(WebInspector, PrivateFrameworks)
+SOFT_LINK_STAGED_FRAMEWORK_OPTIONAL(WebInspector, PrivateFrameworks, A)
 
 using namespace WebCore;
 using namespace WebKit;
@@ -113,6 +113,9 @@ static bool inspectorReallyUsesWebKitUserInterface(WebPreferences* preferences)
 
     if (![[NSBundle bundleWithIdentifier:@"com.apple.WebInspector"] pathForResource:@"Main" ofType:@"html"])
         return true;
+
+    if (![[NSBundle bundleWithIdentifier:@"com.apple.WebCore"] pathForResource:@"inspector" ofType:@"html" inDirectory:@"inspector"])
+        return false;
 
     return preferences->inspectorUsesWebKitUserInterface();
 }
@@ -268,6 +271,7 @@ void WebInspectorProxy::platformAttach()
     [m_inspectorView.get() setHidden:!m_isVisible];
 
     [[inspectedView superview] addSubview:m_inspectorView.get() positioned:NSWindowBelow relativeTo:inspectedView];
+    [[inspectedView window] makeFirstResponder:m_inspectorView.get()];
 
     if (m_inspectorWindow) {
         [m_inspectorWindow.get() setDelegate:nil];

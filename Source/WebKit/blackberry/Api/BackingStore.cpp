@@ -37,12 +37,18 @@
 #include "WebPage_p.h"
 #include "WebSettings.h"
 
+#include <BlackBerryPlatformClient.h>
 #include <BlackBerryPlatformExecutableMessage.h>
+#include <BlackBerryPlatformGraphics.h>
 #include <BlackBerryPlatformIntRectRegion.h>
 #include <BlackBerryPlatformLog.h>
 #include <BlackBerryPlatformMessage.h>
 #include <BlackBerryPlatformMessageClient.h>
+#include <BlackBerryPlatformScreen.h>
+#include <BlackBerryPlatformSettings.h>
 #include <BlackBerryPlatformWindow.h>
+
+#include <SkImageDecoder.h>
 
 #include <wtf/CurrentTime.h>
 #include <wtf/MathExtras.h>
@@ -58,8 +64,6 @@
 #define DEBUG_TILEMATRIX 0
 #define DEBUG_COMPOSITING_DIRTY_REGION 0
 
-#include <BlackBerryPlatformScreen.h>
-
 using namespace WebCore;
 using namespace std;
 
@@ -73,6 +77,9 @@ namespace WebKit {
 
 const int s_renderTimerTimeout = 1.0;
 WebPage* BackingStorePrivate::s_currentBackingStoreOwner = 0;
+Platform::Graphics::Buffer* BackingStorePrivate::s_overScrollImage = 0;
+std::string BackingStorePrivate::s_overScrollImagePath;
+Platform::IntSize BackingStorePrivate::s_overScrollImageSize;
 
 typedef std::pair<int, int> Divisor;
 typedef Vector<Divisor> DivisorList;
@@ -1192,6 +1199,52 @@ void BackingStorePrivate::copyPreviousContentsToBackSurfaceOfTile(const Platform
     }
 }
 
+bool BackingStorePrivate::ensureOverScrollImage()
+{
+    std::string path = m_webPage->settings()->overScrollImagePath().utf8();
+    if (path == "")
+        return false;
+
+    if (s_overScrollImage && path == s_overScrollImagePath)
+        return true;
+
+    std::string imagePath = Platform::Client::get()->getApplicationLocalDirectory() + path;
+
+    SkBitmap bitmap;
+    if (!SkImageDecoder::DecodeFile(imagePath.c_str(), &bitmap)) {
+        BlackBerry::Platform::log(BlackBerry::Platform::LogLevelCritical,
+                    "BackingStorePrivate::ensureOverScrollImage could not decode overscroll image: %s", imagePath.c_str());
+        return false;
+    }
+
+    destroyBuffer(s_overScrollImage);
+    s_overScrollImage = createBuffer(Platform::IntSize(bitmap.width(), bitmap.height()), Platform::Graphics::TemporaryBuffer);
+
+    SkCanvas* canvas = Platform::Graphics::lockBufferDrawable(s_overScrollImage);
+    if (!canvas) {
+        destroyBuffer(s_overScrollImage);
+        s_overScrollImage = 0;
+        return false;
+    }
+
+    SkPaint paint;
+    paint.setXfermodeMode(SkXfermode::kSrc_Mode);
+    paint.setFlags(SkPaint::kAntiAlias_Flag);
+    paint.setFilterBitmap(true);
+
+    SkRect rect = SkRect::MakeXYWH(0, 0, bitmap.width(), bitmap.height());
+    canvas->save();
+    canvas->drawBitmapRect(bitmap, 0, rect, &paint);
+    canvas->restore();
+
+    Platform::Graphics::releaseBufferDrawable(s_overScrollImage);
+
+    s_overScrollImageSize = Platform::IntSize(bitmap.width(), bitmap.height());
+    s_overScrollImagePath = path;
+
+    return true;
+}
+
 void BackingStorePrivate::paintDefaultBackground(const Platform::IntRect& contents,
                                                  const WebCore::TransformationMatrix& transformation,
                                                  bool flush)
@@ -1199,6 +1252,7 @@ void BackingStorePrivate::paintDefaultBackground(const Platform::IntRect& conten
     const Platform::IntRect contentsRect = Platform::IntRect(Platform::IntPoint(0, 0), m_webPage->d->transformedContentsSize());
     Platform::IntPoint origin = contents.location();
     Platform::IntRect contentsClipped = contents;
+
 
     // We have to paint the default background in the case of overzoom and
     // make sure it is invalidated.
@@ -1220,7 +1274,21 @@ void BackingStorePrivate::paintDefaultBackground(const Platform::IntRect& conten
             overScrollRect.intersect(Platform::IntRect(Platform::IntPoint(0, 0), surfaceSize()));
         }
 
-        clearWindow(overScrollRect, color.red(), color.green(), color.blue(), color.alpha());
+        if (ensureOverScrollImage()) {
+            // Tile the image on the window region.
+            Platform::IntRect dstRect;
+            for (int y = overScrollRect.y(); y < overScrollRect.y() + overScrollRect.height(); y += dstRect.height()) {
+                for (int x = overScrollRect.x(); x < overScrollRect.x() + overScrollRect.width(); x += dstRect.width()) {
+                    Platform::IntRect imageRect = Platform::IntRect(Platform::IntPoint(x - (x % s_overScrollImageSize.width()),
+                            y - (y % s_overScrollImageSize.height())), s_overScrollImageSize);
+                    dstRect = imageRect;
+                    dstRect.intersect(overScrollRect);
+                    Platform::IntRect srcRect = Platform::IntRect(x - imageRect.x(), y - imageRect.y(), dstRect.width(), dstRect.height());
+                    blitToWindow(dstRect, s_overScrollImage, srcRect, false, 255);
+                }
+            }
+        } else
+            clearWindow(overScrollRect, color.red(), color.green(), color.blue(), color.alpha());
     }
 }
 
@@ -1258,7 +1326,7 @@ void BackingStorePrivate::blitContents(const Platform::IntRect& dstRect,
         // If there's a WebPageCompositorClient, let it schedule the blit.
         if (WebPageCompositorPrivate* compositor = m_webPage->d->compositor()) {
             if (WebPageCompositorClient* client = compositor->client()) {
-                client->invalidate(compositor->animationFrameTimestamp());
+                client->invalidate(0);
                 return;
             }
         }
@@ -2146,6 +2214,41 @@ Platform::IntRect BackingStorePrivate::tileRect()
     return Platform::IntRect(0, 0, tileWidth(), tileHeight());
 }
 
+void BackingStorePrivate::renderContents(BlackBerry::Platform::Graphics::Drawable* drawable,
+                                         double scale,
+                                         const Platform::IntRect& contentsRect) const
+{
+    if (!drawable || contentsRect.isEmpty())
+        return;
+
+    requestLayoutIfNeeded();
+
+    PlatformGraphicsContext* platformGraphicsContext = SurfacePool::globalSurfacePool()->createPlatformGraphicsContext(drawable);
+    GraphicsContext graphicsContext(platformGraphicsContext);
+
+    graphicsContext.translate(-contentsRect.x(), -contentsRect.y());
+
+    WebCore::IntRect transformedContentsRect(contentsRect.x(), contentsRect.y(), contentsRect.width(), contentsRect.height());
+
+    if (scale != 1.0) {
+        TransformationMatrix matrix;
+        matrix.scale(1.0 / scale);
+        transformedContentsRect = matrix.mapRect(transformedContentsRect);
+
+        // We extract from the contentsRect but draw a slightly larger region than
+        // we were told to, in order to avoid pixels being rendered only partially.
+        const int atLeastOneDevicePixel = static_cast<int>(ceilf(1.0 / scale));
+        transformedContentsRect.inflate(atLeastOneDevicePixel);
+
+        graphicsContext.scale(FloatSize(scale, scale));
+    }
+
+    graphicsContext.clip(transformedContentsRect);
+    m_client->frame()->view()->paintContents(&graphicsContext, transformedContentsRect);
+
+    delete platformGraphicsContext;
+}
+
 void BackingStorePrivate::renderContents(BlackBerry::Platform::Graphics::Buffer* tileBuffer,
                                          const Platform::IntPoint& surfaceOffset,
                                          const Platform::IntRect& contentsRect) const
@@ -2587,7 +2690,7 @@ BackingStore::BackingStore(WebPage* webPage, BackingStoreClient* client)
 
 BackingStore::~BackingStore()
 {
-    delete d;
+    deleteGuardedObject(d);
     d = 0;
 }
 
@@ -2732,6 +2835,11 @@ Platform::Graphics::Buffer* BackingStorePrivate::buffer() const
 #endif
 
     return 0;
+}
+
+void BackingStore::drawContents(BlackBerry::Platform::Graphics::Drawable* drawable, double scale, const Platform::IntRect& contentsRect)
+{
+    d->renderContents(drawable, scale, contentsRect);
 }
 
 }

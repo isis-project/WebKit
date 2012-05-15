@@ -31,9 +31,11 @@
 
 #include <Eina.h>
 #include <Evas.h>
+#include <wtf/HashMap.h>
 #include <wtf/OwnPtr.h>
 #include <wtf/PassOwnPtr.h>
 #include <wtf/Vector.h>
+#include <wtf/text/CString.h>
 
 class DumpRenderTreeChrome {
 public:
@@ -45,6 +47,8 @@ public:
     void removeWindow(Evas_Object*);
 
     Vector<Evas_Object*> extraViews() const;
+    void clearExtraViews();
+
     Evas_Object* mainFrame() const;
     Evas_Object* mainView() const;
 
@@ -61,6 +65,7 @@ private:
     Evas* m_evas;
     OwnPtr<GCController> m_gcController;
     Vector<Evas_Object*> m_extraViews;
+    static HashMap<unsigned long, CString> m_dumpAssignedUrls;
 
     // Smart callbacks
     static void onWindowObjectCleared(void*, Evas_Object*, void*);
@@ -68,7 +73,7 @@ private:
 
     static Eina_Bool processWork(void*);
 
-    static void onLoadFinished(void*, Evas_Object*, void*);
+    static void topLoadingFrameLoadFinished();
 
     static void onStatusbarTextSet(void*, Evas_Object*, void*);
 
@@ -77,6 +82,37 @@ private:
     static void onDocumentLoadFinished(void*, Evas_Object*, void*);
 
     static void onWillSendRequest(void*, Evas_Object*, void*);
+
+    static void onWebViewOnloadEvent(void*, Evas_Object*, void*);
+
+    static void onInsecureContentRun(void*, Evas_Object*, void*);
+
+    static void onInsecureContentDisplayed(void*, Evas_Object*, void*);
+
+    static void onFrameCreated(void*, Evas_Object*, void*);
+
+    static void onFrameIconChanged(void*, Evas_Object*, void*);
+
+    static void onFrameProvisionalLoad(void*, Evas_Object*, void*);
+
+    static void onFrameLoadCommitted(void*, Evas_Object*, void*);
+
+    static void onFrameLoadFinished(void*, Evas_Object*, void*);
+
+    static void onFrameRedirectCancelled(void*, Evas_Object*, void*);
+    static void onFrameRedirectForProvisionalLoad(void*, Evas_Object*, void*);
+    static void onFrameRedirectRequested(void*, Evas_Object*, void*);
+
+    static void onFrameLoadError(void*, Evas_Object*, void*);
+    static void onDidDetectXSS(void*, Evas_Object*, void*);
+
+    static void onResponseReceived(void*, Evas_Object*, void*);
+
+    static void onResourceLoadFinished(void*, Evas_Object*, void*);
+
+    static void onResourceLoadFailed(void*, Evas_Object*, void*);
+
+    static void onNewResourceRequest(void*, Evas_Object*, void*);
 };
 
 #endif // DumpRenderTreeChrome_h

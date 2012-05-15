@@ -512,15 +512,9 @@ void CodeBlock::dump(ExecState* exec, const Vector<Instruction>::const_iterator&
             dataLog("[%4d] init_lazy_reg\t %s\n", location, registerName(exec, r0).data());
             break;
         }
-        case op_get_callee: {
-            int r0 = (++it)->u.operand;
-            dataLog("[%4d] op_get_callee %s\n", location, registerName(exec, r0).data());
-            break;
-        }
         case op_create_this: {
             int r0 = (++it)->u.operand;
-            int r1 = (++it)->u.operand;
-            dataLog("[%4d] create_this %s %s\n", location, registerName(exec, r0).data(), registerName(exec, r1).data());
+            dataLog("[%4d] create_this %s\n", location, registerName(exec, r0).data());
             break;
         }
         case op_convert_this: {
@@ -1926,7 +1920,7 @@ void CodeBlock::stronglyVisitStrongReferences(SlotVisitor& visitor)
     for (size_t i = 0; i < m_functionDecls.size(); ++i)
         visitor.append(&m_functionDecls[i]);
 #if ENABLE(CLASSIC_INTERPRETER)
-    if (m_globalData->interpreter->classicEnabled()) {
+    if (m_globalData->interpreter->classicEnabled() && !!numberOfInstructions()) {
         for (size_t size = m_propertyAccessInstructions.size(), i = 0; i < size; ++i)
             visitStructures(visitor, &instructions()[m_propertyAccessInstructions[i]]);
         for (size_t size = m_globalResolveInstructions.size(), i = 0; i < size; ++i)

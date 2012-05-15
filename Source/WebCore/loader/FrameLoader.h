@@ -131,7 +131,6 @@ public:
     void cancelAndClear();
     void clear(bool clearWindowProperties = true, bool clearScriptObjects = true, bool clearFrameView = true);
 
-    bool isLoadingMainResource() const { return m_isLoadingMainResource; }
     bool isLoading() const;
     bool frameHasLoaded() const;
 
@@ -160,7 +159,6 @@ public:
     bool isHostedByObjectElement() const;
     bool isLoadingMainFrame() const;
 
-    void finishedLoadingDocument(DocumentLoader*);
     bool isReplacing() const;
     void setReplacing();
     bool subframeIsLoading() const;
@@ -201,8 +199,8 @@ public:
 
     // Callbacks from DocumentWriter
     void didBeginDocument(bool dispatchWindowObjectAvailable);
-    void didEndDocument();
-    void willSetEncoding();
+
+    void receivedFirstData();
 
     void handledOnloadEvents();
     String userAgent(const KURL&) const;
@@ -246,7 +244,7 @@ public:
 
     FrameLoaderStateMachine* stateMachine() const { return &m_stateMachine; }
 
-    Frame* findFrameForNavigation(const AtomicString& name);
+    Frame* findFrameForNavigation(const AtomicString& name, Document* activeDocument = 0);
 
     void applyUserAgent(ResourceRequest&);
 
@@ -284,10 +282,6 @@ public:
 
     NetworkingContext* networkingContext() const;
 
-#if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
-    Archive* archive() const { return m_archive.get(); }
-#endif
-
 private:
     bool allChildrenAreComplete() const; // immediate children, not all descendants
 
@@ -297,8 +291,6 @@ private:
     void loadDifferentDocumentItem(HistoryItem*, FrameLoadType);
     
     void loadProvisionalItemFromCachedPage();
-
-    void receivedFirstData();
 
     void updateFirstPartyForCookies();
     void setFirstPartyForCookies(const KURL&);
@@ -322,7 +314,7 @@ private:
     void continueFragmentScrollAfterNavigationPolicy(const ResourceRequest&, bool shouldContinue);
 
     bool shouldPerformFragmentNavigation(bool isFormSubmission, const String& httpMethod, FrameLoadType, const KURL&);
-    void scrollToFragmentIfAllowed(const KURL&);
+    void scrollToFragmentWithParentBoundary(const KURL&);
 
     void checkLoadCompleteForThisFrame();
 
@@ -372,6 +364,8 @@ private:
 
     bool shouldTreatURLAsSameAsCurrent(const KURL&) const;
 
+    void dispatchGlobalObjectAvailableInAllWorlds();
+
     Frame* m_frame;
     FrameLoaderClient* m_client;
 
@@ -407,11 +401,8 @@ private:
     bool m_wasUnloadEventEmitted;
     PageDismissalType m_pageDismissalEventBeingDispatched;
     bool m_isComplete;
-    bool m_isLoadingMainResource;
 
     RefPtr<SerializedScriptValue> m_pendingStateObject;
-
-    bool m_hasReceivedFirstData;
 
     bool m_needsClear;
 
@@ -431,10 +422,6 @@ private:
     SandboxFlags m_forcedSandboxFlags;
 
     RefPtr<FrameNetworkingContext> m_networkingContext;
-
-#if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
-    RefPtr<Archive> m_archive;
-#endif
 
     KURL m_previousUrl;
     RefPtr<HistoryItem> m_requestedHistoryItem;

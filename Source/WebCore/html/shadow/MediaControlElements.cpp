@@ -32,7 +32,6 @@
 
 #include "MediaControlElements.h"
 
-#include "CSSStyleSelector.h"
 #include "CSSValueKeywords.h"
 #include "DOMTokenList.h"
 #include "EventNames.h"
@@ -53,6 +52,7 @@
 #include "RenderView.h"
 #include "ScriptController.h"
 #include "Settings.h"
+#include "StyleResolver.h"
 #include "Text.h"
 
 namespace WebCore {
@@ -108,6 +108,7 @@ inline MediaControlPanelElement::MediaControlPanelElement(Document* document)
     : MediaControlElement(document)
     , m_canBeDragged(false)
     , m_isBeingDragged(false)
+    , m_isDisplayed(false)
     , m_opaque(true)
     , m_transitionTimer(this, &MediaControlPanelElement::transitionTimerFired)
 {
@@ -145,7 +146,6 @@ void MediaControlPanelElement::startDrag(const LayoutPoint& eventLocation)
     if (!frame)
         return;
 
-    m_dragStartPosition = toRenderBox(renderer)->location();
     m_dragStartEventLocation = eventLocation;
 
     frame->eventHandler()->setCapturingMouseEventsNode(this);
@@ -159,7 +159,7 @@ void MediaControlPanelElement::continueDrag(const LayoutPoint& eventLocation)
         return;
 
     LayoutSize distanceDragged = eventLocation - m_dragStartEventLocation;
-    setPosition(m_dragStartPosition + distanceDragged);
+    setPosition(LayoutPoint(distanceDragged.width(), distanceDragged.height()));
 }
 
 void MediaControlPanelElement::endDrag()
@@ -242,9 +242,8 @@ void MediaControlPanelElement::makeOpaque()
 
     m_opaque = true;
 
-    // FIXME(BUG 79347): The display:none property should be toggled below only
-    // when display logic is introduced.
-    // show();
+    if (m_isDisplayed)
+        show();
 }
 
 void MediaControlPanelElement::makeTransparent()
@@ -257,10 +256,6 @@ void MediaControlPanelElement::makeTransparent()
     setInlineStyleProperty(CSSPropertyOpacity, 0.0, CSSPrimitiveValue::CSS_NUMBER);
 
     m_opaque = false;
-
-    // FIXME(BUG 79347): The display:none property should be toggled below
-    // (through the timer start) when display logic is introduced.
-    // startTimer();
 }
 
 void MediaControlPanelElement::defaultEventHandler(Event* event)
@@ -291,6 +286,11 @@ void MediaControlPanelElement::setCanBeDragged(bool canBeDragged)
 
     if (!canBeDragged)
         endDrag();
+}
+
+void MediaControlPanelElement::setIsDisplayed(bool isDisplayed)
+{
+    m_isDisplayed = isDisplayed;
 }
 
 // ----------------------------
@@ -336,16 +336,18 @@ RenderMediaVolumeSliderContainer::RenderMediaVolumeSliderContainer(Node* node)
 void RenderMediaVolumeSliderContainer::layout()
 {
     RenderBlock::layout();
-    if (style()->display() == NONE || !previousSibling() || !previousSibling()->isBox())
+
+    if (style()->display() == NONE || !nextSibling() || !nextSibling()->isBox())
         return;
 
-    RenderBox* buttonBox = toRenderBox(previousSibling());
+    RenderBox* buttonBox = toRenderBox(nextSibling());
+    int absoluteOffsetTop = buttonBox->localToAbsolute(FloatPoint(0, -size().height())).y();
 
     LayoutStateDisabler layoutStateDisabler(view());
 
-    LayoutPoint offset = theme()->volumeSliderOffsetFromMuteButton(buttonBox, size());
-    setX(offset.x() + buttonBox->offsetLeft());
-    setY(offset.y() + buttonBox->offsetTop());
+    // If the slider would be rendered outside the page, it should be moved below the controls.
+    if (UNLIKELY(absoluteOffsetTop < 0))
+        setY(buttonBox->offsetTop() + theme()->volumeSliderOffsetFromMuteButton(buttonBox, pixelSnappedSize()).y());
 }
 
 inline MediaControlVolumeSliderContainerElement::MediaControlVolumeSliderContainerElement(Document* document)
@@ -1291,10 +1293,11 @@ void MediaControlTextTrackContainerElement::updateDisplay()
         if (displayTree->hasChildNodes() && !contains(displayTree.get()))
             appendChild(displayTree, ASSERT_NO_EXCEPTION, true);
 
-        // The display tree of a cue is removed when the active flag of the cue is unset.
+        // Note: the display tree of a cue is removed when the active flag of the cue is unset.
 
-        // FIXME(BUG 79750): Render the TextTrackCue when snap-to-lines is set.
-        // FIXME(BUG 79751): Render the TextTrackCue when snap-to-lines is not set.
+        // FIXME(BUG 79751): Render the TextTrackCue when snap-to-lines is set.
+
+        // FIXME(BUG 84296): Implement overlapping detection for cue boxes when snap-to-lines is not set.
     }
 
     // 11. Return output.

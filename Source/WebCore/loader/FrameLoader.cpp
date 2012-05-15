@@ -122,7 +122,6 @@
 
 #if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
 #include "Archive.h"
-#include "ArchiveFactory.h"
 #endif
 
 namespace WebCore {
@@ -185,8 +184,6 @@ FrameLoader::FrameLoader(Frame* frame, FrameLoaderClient* client)
     , m_wasUnloadEventEmitted(false)
     , m_pageDismissalEventBeingDispatched(NoDismissal)
     , m_isComplete(false)
-    , m_isLoadingMainResource(false)
-    , m_hasReceivedFirstData(false)
     , m_needsClear(false)
     , m_checkTimer(this, &FrameLoader::checkTimerFired)
     , m_shouldCallCheckCompleted(false)
@@ -312,9 +309,7 @@ void FrameLoader::submitForm(PassRefPtr<FormSubmission> submission)
         return;
     }
 
-    Frame* targetFrame = m_frame->tree()->find(submission->target());
-    if (!submission->state()->sourceDocument()->canNavigate(targetFrame))
-        return;
+    Frame* targetFrame = findFrameForNavigation(submission->target(), submission->state()->sourceDocument());
     if (!targetFrame) {
         if (!DOMWindow::allowPopUp(m_frame) && !ScriptController::processingUserGesture())
             return;
@@ -403,15 +398,12 @@ void FrameLoader::stopLoading(UnloadEventPolicy unloadEventPolicy)
     }
 
     m_isComplete = true; // to avoid calling completed() in finishedParsing()
-    m_isLoadingMainResource = false;
     m_didCallImplicitClose = true; // don't want that one either
 
     if (m_frame->document() && m_frame->document()->parsing()) {
         finishedParsing();
         m_frame->document()->setParsing(false);
     }
-
-    m_hasReceivedFirstData = true;
 
     if (Document* doc = m_frame->document()) {
         // FIXME: HTML5 doesn't tell us to set the state to complete when aborting, but we do anyway to match legacy behavior.
@@ -466,7 +458,6 @@ bool FrameLoader::didOpenURL()
     m_frame->editor()->clearLastEditCommand();
 
     m_isComplete = false;
-    m_isLoadingMainResource = true;
     m_didCallImplicitClose = false;
 
     // If we are still in the process of initializing an empty document then
@@ -478,7 +469,6 @@ bool FrameLoader::didOpenURL()
             window->setDefaultStatus(String());
         }
     }
-    m_hasReceivedFirstData = false;
 
     started();
 
@@ -525,9 +515,7 @@ void FrameLoader::clear(bool clearWindowProperties, bool clearScriptObjects, boo
         m_frame->document()->cancelParsing();
         m_frame->document()->stopActiveDOMObjects();
         if (m_frame->document()->attached()) {
-            m_frame->document()->willRemove();
-            m_frame->document()->detach();
-            
+            m_frame->document()->prepareForDestruction();
             m_frame->document()->removeFocusedNodeOfSubtree(m_frame->document());
         }
     }
@@ -564,28 +552,9 @@ void FrameLoader::clear(bool clearWindowProperties, bool clearScriptObjects, boo
 
 void FrameLoader::receivedFirstData()
 {
-    KURL workingURL = activeDocumentLoader()->documentURL();
-#if ENABLE(WEB_ARCHIVE)
-    // FIXME: The document loader, not the frame loader, should be in charge of loading web archives.
-    // Once this is done, we can just make DocumentLoader::documentURL() return the right URL
-    // based on whether it has a non-null archive or not.
-    if (m_archive && activeDocumentLoader()->parsedArchiveData())
-        workingURL = m_archive->mainResource()->url();
-#endif
-
-    activeDocumentLoader()->writer()->begin(workingURL, false);
-    activeDocumentLoader()->writer()->setDocumentWasLoadedAsPartOfNavigation();
-
-#if ENABLE(MHTML)
-    if (m_archive) {
-        // The origin is the MHTML file, we need to set the base URL to the document encoded in the MHTML so
-        // relative URLs are resolved properly.
-        m_frame->document()->setBaseURLOverride(m_archive->mainResource()->url());
-    }
-#endif
-
     dispatchDidCommitLoad();
     dispatchDidClearWindowObjectsInAllWorlds();
+    dispatchGlobalObjectAvailableInAllWorlds();
 
     if (m_documentLoader) {
         StringWithDirection ptitle = m_documentLoader->title();
@@ -593,8 +562,6 @@ void FrameLoader::receivedFirstData()
         if (!ptitle.isNull())
             m_client->dispatchDidReceiveTitle(ptitle);
     }
-
-    m_hasReceivedFirstData = true;
 
     if (!m_documentLoader)
         return;
@@ -623,7 +590,6 @@ void FrameLoader::didBeginDocument(bool dispatch)
     m_needsClear = true;
     m_isComplete = false;
     m_didCallImplicitClose = false;
-    m_isLoadingMainResource = true;
     m_frame->document()->setReadyState(Document::Loading);
 
     if (m_pendingStateObject) {
@@ -635,6 +601,7 @@ void FrameLoader::didBeginDocument(bool dispatch)
         dispatchDidClearWindowObjectsInAllWorlds();
 
     updateFirstPartyForCookies();
+    m_frame->document()->initContentSecurityPolicy();
 
     Settings* settings = m_frame->document()->settings();
     m_frame->document()->cachedResourceLoader()->setAutoLoadImages(settings && settings->loadsImagesAutomatically());
@@ -654,11 +621,6 @@ void FrameLoader::didBeginDocument(bool dispatch)
     }
 
     history()->restoreDocumentState();
-}
-
-void FrameLoader::didEndDocument()
-{
-    m_isLoadingMainResource = false;
 }
 
 void FrameLoader::finishedParsing()
@@ -683,7 +645,7 @@ void FrameLoader::finishedParsing()
     // Check if the scrollbars are really needed for the content.
     // If not, remove them, relayout, and repaint.
     m_frame->view()->restoreScrollbar();
-    scrollToFragmentIfAllowed(m_frame->document()->url());
+    scrollToFragmentWithParentBoundary(m_frame->document()->url());
 }
 
 void FrameLoader::loadDone()
@@ -823,15 +785,13 @@ void FrameLoader::loadURLIntoChildFrame(const KURL& url, const String& referer, 
         }
     }
 
-    childFrame->loader()->loadURL(url, referer, String(), false, FrameLoadTypeRedirectWithLockedBackForwardList, 0, 0);
+    childFrame->loader()->loadURL(url, referer, "_self", false, FrameLoadTypeRedirectWithLockedBackForwardList, 0, 0);
 }
 
 #if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
 void FrameLoader::loadArchive(PassRefPtr<Archive> archive)
 {
-    m_archive = archive;
-    
-    ArchiveResource* mainResource = m_archive->mainResource();
+    ArchiveResource* mainResource = archive->mainResource();
     ASSERT(mainResource);
     if (!mainResource)
         return;
@@ -844,7 +804,7 @@ void FrameLoader::loadArchive(PassRefPtr<Archive> archive)
 #endif
 
     RefPtr<DocumentLoader> documentLoader = m_client->createDocumentLoader(request, substituteData);
-    documentLoader->addAllArchiveResources(m_archive.get());
+    documentLoader->setArchive(archive.get());
     load(documentLoader.get());
 }
 #endif // ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
@@ -992,12 +952,6 @@ void FrameLoader::resetMultipleFormSubmissionProtection()
     m_submittedFormURL = KURL();
 }
 
-void FrameLoader::willSetEncoding()
-{
-    if (!m_hasReceivedFirstData)
-        receivedFirstData();
-}
-
 void FrameLoader::updateFirstPartyForCookies()
 {
     if (m_frame->tree()->parent())
@@ -1022,6 +976,7 @@ void FrameLoader::loadInSameDocument(const KURL& url, SerializedScriptValue* sta
     // Update the data source's request with the new URL to fake the URL change
     KURL oldURL = m_frame->document()->url();
     m_frame->document()->setURL(url);
+    setOutgoingReferrer(url);
     documentLoader()->replaceRequestURLForSameDocumentNavigation(url);
     if (isNewNavigation && !shouldTreatURLAsSameAsCurrent(url) && !stateObject) {
         // NB: must happen after replaceRequestURLForSameDocumentNavigation(), since we add 
@@ -1052,7 +1007,7 @@ void FrameLoader::loadInSameDocument(const KURL& url, SerializedScriptValue* sta
 
     // We need to scroll to the fragment whether or not a hash change occurred, since
     // the user might have scrolled since the previous navigation.
-    scrollToFragmentIfAllowed(url);
+    scrollToFragmentWithParentBoundary(url);
     
     m_isComplete = false;
     checkCompleted();
@@ -1214,7 +1169,7 @@ void FrameLoader::loadURL(const KURL& newURL, const String& referrer, const Stri
     // The search for a target frame is done earlier in the case of form submission.
     Frame* targetFrame = isFormSubmission ? 0 : findFrameForNavigation(frameName);
     if (targetFrame && targetFrame != m_frame) {
-        targetFrame->loader()->loadURL(newURL, referrer, String(), lockHistory, newLoadType, event, formState.release());
+        targetFrame->loader()->loadURL(newURL, referrer, "_self", lockHistory, newLoadType, event, formState.release());
         return;
     }
 
@@ -1545,11 +1500,6 @@ void FrameLoader::stopAllLoaders(ClearProvisionalItemPolicy clearProvisionalItem
         m_documentLoader->stopLoading();
 
     setProvisionalDocumentLoader(0);
-    
-#if ENABLE(WEB_ARCHIVE) || ENABLE(MHTML)
-    if (m_documentLoader)
-        m_documentLoader->clearArchiveResources();
-#endif
 
     m_checkTimer.stop();
 
@@ -1863,9 +1813,6 @@ void FrameLoader::transitionToCommitted(PassRefPtr<CachedPage> cachedPage)
 
     if (!m_stateMachine.committedFirstRealDocumentLoad())
         m_stateMachine.advanceTo(FrameLoaderStateMachine::DisplayingInitialEmptyDocumentPostCommit);
-
-    if (!m_client->hasHTMLView())
-        receivedFirstData();
 }
 
 void FrameLoader::clientRedirectCancelledOrFinished(bool cancelWithLoadInProgress)
@@ -1953,8 +1900,6 @@ void FrameLoader::open(CachedFrameBase& cachedFrame)
     if (url.protocolIsInHTTPFamily() && !url.host().isEmpty() && url.path().isEmpty())
         url.setPath("/");
 
-    m_hasReceivedFirstData = false;
-
     started();
     clear(true, true, cachedFrame.isMainFrame());
 
@@ -1999,41 +1944,6 @@ bool FrameLoader::isLoadingMainFrame() const
 {
     Page* page = m_frame->page();
     return page && m_frame == page->mainFrame();
-}
-
-void FrameLoader::finishedLoadingDocument(DocumentLoader* loader)
-{
-    if (m_stateMachine.creatingInitialEmptyDocument())
-        return;
-
-#if !ENABLE(WEB_ARCHIVE) && !ENABLE(MHTML)
-    m_client->finishedLoading(loader);
-#else
-    // Give archive machinery a crack at this document. If the MIME type is not an archive type, it will return 0.
-    m_archive = ArchiveFactory::create(loader->response().url(), loader->mainResourceData().get(), loader->responseMIMEType());
-    if (!m_archive) {
-        m_client->finishedLoading(loader);
-        return;
-    }
-
-    // FIXME: The remainder of this function should be moved to DocumentLoader.
-
-    loader->addAllArchiveResources(m_archive.get());
-
-    ArchiveResource* mainResource = m_archive->mainResource();
-    loader->setParsedArchiveData(mainResource->data());
-
-    loader->writer()->setMIMEType(mainResource->mimeType());
-
-    closeURL();
-    didOpenURL();
-
-    ASSERT(m_frame->document());
-    String userChosenEncoding = documentLoader()->overrideEncoding();
-    bool encodingIsUserChosen = !userChosenEncoding.isNull();
-    loader->writer()->setEncoding(encodingIsUserChosen ? userChosenEncoding : mainResource->textEncoding(), encodingIsUserChosen);
-    loader->writer()->addData(mainResource->data()->data(), mainResource->data()->size());
-#endif // ENABLE(WEB_ARCHIVE)
 }
 
 bool FrameLoader::isReplacing() const
@@ -2181,8 +2091,12 @@ void FrameLoader::checkLoadCompleteForThisFrame()
             if (m_stateMachine.creatingInitialEmptyDocument() || !m_stateMachine.committedFirstRealDocumentLoad())
                 return;
 
-            if (Page* page = m_frame->page())
+            if (Page* page = m_frame->page()) {
                 page->progress()->progressCompleted(m_frame);
+
+                if (m_frame == page->mainFrame())
+                    page->resetRelevantPaintedObjectCounter();
+            }
 
             const ResourceError& error = dl->mainDocumentError();
 
@@ -2203,6 +2117,7 @@ void FrameLoader::checkLoadCompleteForThisFrame()
         }
         
         case FrameStateComplete:
+            m_loadType = FrameLoadTypeStandard;
             frameLoadCompleted();
             return;
     }
@@ -2681,20 +2596,22 @@ bool FrameLoader::shouldPerformFragmentNavigation(bool isFormSubmission, const S
         && !m_frame->document()->isFrameSet();
 }
 
-void FrameLoader::scrollToFragmentIfAllowed(const KURL& url)
+void FrameLoader::scrollToFragmentWithParentBoundary(const KURL& url)
 {
     FrameView* view = m_frame->view();
     if (!view)
         return;
 
     // Leaking scroll position to a cross-origin ancestor would permit the so-called "framesniffing" attack.
-    if (url.hasFragmentIdentifier() && !m_frame->document()->canBeAccessedByEveryAncestorFrame()) {
-        DEFINE_STATIC_LOCAL(String, consoleMessage, ("Fragment navigation not allowed with cross-origin frames."));
-        m_frame->domWindow()->console()->addMessage(JSMessageSource, LogMessageType, ErrorMessageLevel, consoleMessage);
-        return;
-    }
+    RefPtr<Frame> boundaryFrame(url.hasFragmentIdentifier() ? m_frame->document()->findUnsafeParentScrollPropagationBoundary() : 0);
+
+    if (boundaryFrame)
+        boundaryFrame->view()->setSafeToPropagateScrollToParent(false);
 
     view->scrollToFragment(url);
+
+    if (boundaryFrame)
+        boundaryFrame->view()->setSafeToPropagateScrollToParent(true);
 }
 
 void FrameLoader::callContinueLoadAfterNavigationPolicy(void* argument,
@@ -2857,8 +2774,10 @@ void FrameLoader::continueLoadAfterNewWindowPolicy(const ResourceRequest& reques
 
     mainFrame->page()->setOpenedByDOM();
     mainFrame->loader()->m_client->dispatchShow();
-    if (!m_suppressOpenerInNewFrame)
+    if (!m_suppressOpenerInNewFrame) {
         mainFrame->loader()->setOpener(frame.get());
+        mainFrame->document()->setReferrerPolicy(frame->document()->referrerPolicy());
+    }
     mainFrame->loader()->loadWithNavigationAction(request, NavigationAction(request), false, FrameLoadTypeStandard, formState);
 }
 
@@ -2987,14 +2906,39 @@ void FrameLoader::checkDidPerformFirstNavigation()
     }
 }
 
-Frame* FrameLoader::findFrameForNavigation(const AtomicString& name)
+Frame* FrameLoader::findFrameForNavigation(const AtomicString& name, Document* activeDocument)
 {
     Frame* frame = m_frame->tree()->find(name);
-    // FIXME: We calling canNavigate on the Document that's requesting the
-    // navigation, not based on the document that happens to be displayed in
-    // this Frame.
-    if (!m_frame->document()->canNavigate(frame))
-        return 0;
+
+    // From http://www.whatwg.org/specs/web-apps/current-work/#seamlessLinks:
+    //
+    // If the source browsing context is the same as the browsing context
+    // being navigated, and this browsing context has its seamless browsing
+    // context flag set, and the browsing context being navigated was not
+    // chosen using an explicit self-navigation override, then find the
+    // nearest ancestor browsing context that does not have its seamless
+    // browsing context flag set, and continue these steps as if that
+    // browsing context was the one that was going to be navigated instead.
+    if (frame == m_frame && name != "_self" && m_frame->document()->shouldDisplaySeamlesslyWithParent()) {
+        for (Frame* ancestor = m_frame; ancestor; ancestor = ancestor->tree()->parent(true)) {
+            if (!ancestor->document()->shouldDisplaySeamlesslyWithParent()) {
+                frame = ancestor;
+                break;
+            }
+        }
+        ASSERT(frame != m_frame);
+    }
+
+    if (activeDocument) {
+        if (!activeDocument->canNavigate(frame))
+            return 0;
+    } else {
+        // FIXME: Eventually all callers should supply the actual activeDocument
+        // so we can call canNavigate with the right document.
+        if (!m_frame->document()->canNavigate(frame))
+            return 0;
+    }
+
     return frame;
 }
 
@@ -3144,10 +3088,10 @@ void FrameLoader::dispatchDidClearWindowObjectsInAllWorlds()
     if (!m_frame->script()->canExecuteScripts(NotAboutToExecuteScript))
         return;
 
-    Vector<DOMWrapperWorld*> worlds;
+    Vector<RefPtr<DOMWrapperWorld> > worlds;
     ScriptController::getAllWorlds(worlds);
     for (size_t i = 0; i < worlds.size(); ++i)
-        dispatchDidClearWindowObjectInWorld(worlds[i]);
+        dispatchDidClearWindowObjectInWorld(worlds[i].get());
 }
 
 void FrameLoader::dispatchDidClearWindowObjectInWorld(DOMWrapperWorld* world)
@@ -3163,6 +3107,14 @@ void FrameLoader::dispatchDidClearWindowObjectInWorld(DOMWrapperWorld* world)
 #endif
 
     InspectorInstrumentation::didClearWindowObjectInWorld(m_frame, world);
+}
+
+void FrameLoader::dispatchGlobalObjectAvailableInAllWorlds()
+{
+    Vector<RefPtr<DOMWrapperWorld> > worlds;
+    ScriptController::getAllWorlds(worlds);
+    for (size_t i = 0; i < worlds.size(); ++i)
+        m_client->dispatchGlobalObjectAvailable(worlds[i].get());
 }
 
 SandboxFlags FrameLoader::effectiveSandboxFlags() const
@@ -3246,8 +3198,7 @@ Frame* createWindow(Frame* openerFrame, Frame* lookupFrame, const FrameLoadReque
     ASSERT(!features.dialog || request.frameName().isEmpty());
 
     if (!request.frameName().isEmpty() && request.frameName() != "_blank") {
-        Frame* frame = lookupFrame->tree()->find(request.frameName());
-        if (frame && openerFrame->document()->canNavigate(frame)) {
+        if (Frame* frame = lookupFrame->loader()->findFrameForNavigation(request.frameName(), openerFrame->document())) {
             if (Page* page = frame->page())
                 page->chrome()->focus();
             created = false;

@@ -49,7 +49,7 @@ JSCallbackFunction::JSCallbackFunction(JSGlobalObject* globalObject, JSObjectCal
 {
 }
 
-void JSCallbackFunction::finishCreation(JSGlobalData& globalData, const Identifier& name)
+void JSCallbackFunction::finishCreation(JSGlobalData& globalData, const UString& name)
 {
     Base::finishCreation(globalData, name);
     ASSERT(inherits(&s_info));
@@ -77,7 +77,7 @@ EncodedJSValue JSCallbackFunction::call(ExecState* exec)
 
     // result must be a valid JSValue.
     if (!result)
-        return throwVMTypeError(exec);
+        return JSValue::encode(jsUndefined());
 
     return JSValue::encode(toJS(exec, result));
 }

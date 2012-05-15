@@ -29,6 +29,7 @@
 # Module to share code to get to WebKit directories.
 
 use strict;
+use version;
 use warnings;
 use Config;
 use Digest::MD5 qw(md5_hex);
@@ -102,6 +103,7 @@ my $forceChromiumUpdate;
 my $isInspectorFrontend;
 my $isWK2;
 my $shouldTargetWebProcess;
+my $shouldUseGuardMalloc;
 my $xcodeVersion;
 
 # Variables for Win32 support
@@ -313,13 +315,9 @@ sub determineArchitecture
         if ($architecture) {
             chomp $architecture;
         } else {
-            if (isLeopard()) {
-                $architecture = `arch`;
-            } else {
-                my $supports64Bit = `sysctl -n hw.optional.x86_64`;
-                chomp $supports64Bit;
-                $architecture = $supports64Bit ? 'x86_64' : `arch`;
-            }
+            my $supports64Bit = `sysctl -n hw.optional.x86_64`;
+            chomp $supports64Bit;
+            $architecture = $supports64Bit ? 'x86_64' : `arch`;
             chomp $architecture;
         }
     }
@@ -340,7 +338,7 @@ sub determineNumberOfCPUs
     } elsif (isWindows() || isCygwin()) {
         # Assumes cygwin
         $numberOfCPUs = `ls /proc/registry/HKEY_LOCAL_MACHINE/HARDWARE/DESCRIPTION/System/CentralProcessor | wc -w`;
-    } elsif (isDarwin()) {
+    } elsif (isDarwin() || isFreeBSD()) {
         chomp($numberOfCPUs = `sysctl -n hw.ncpu`);
     }
 }
@@ -1156,7 +1154,7 @@ sub determineIsChromiumNinja()
 
     my $hasUpToDateNinjabuild = 0;
     if (-e "out/$config/build.ninja") {
-        my $statNinja = stat("out/$config/build.ninja");
+        my $statNinja = stat("out/$config/build.ninja")->mtime;
 
         my $statXcode = 0;
         if (-e 'Source/WebKit/chromium/WebKit.xcodeproj') {
@@ -1165,7 +1163,7 @@ sub determineIsChromiumNinja()
 
         my $statMake = 0;
         if (-e 'Makefile.chromium') {
-          $statXcode = stat('Makefile.chromium')->mtime;
+          $statMake = stat('Makefile.chromium')->mtime;
         }
 
         $hasUpToDateNinjabuild = $statNinja > $statXcode && $statNinja > $statMake;
@@ -1261,6 +1259,11 @@ sub isLinux()
     return ($^O eq "linux") || 0;
 }
 
+sub isFreeBSD()
+{
+    return ($^O eq "freebsd") || 0;
+}
+
 sub isARM()
 {
     return $Config{archname} =~ /^arm-/;
@@ -1354,11 +1357,6 @@ sub osXVersion()
     return $osXVersion;
 }
 
-sub isLeopard()
-{
-    return isDarwin() && osXVersion()->{"minor"} == 5;
-}
-
 sub isSnowLeopard()
 {
     return isDarwin() && osXVersion()->{"minor"} == 6;
@@ -1384,6 +1382,32 @@ sub determineShouldTargetWebProcess
 {
     return if defined($shouldTargetWebProcess);
     $shouldTargetWebProcess = checkForArgumentAndRemoveFromARGV("--target-web-process");
+}
+
+sub appendToEnvironmentVariableList
+{
+    my ($environmentVariableName, $value) = @_;
+
+    if (defined($ENV{$environmentVariableName})) {
+        $ENV{$environmentVariableName} .= ":" . $value;
+    } else {
+        $ENV{$environmentVariableName} = $value;
+    }
+}
+
+sub setUpGuardMallocIfNeeded
+{
+    if (!isDarwin()) {
+        return;
+    }
+
+    if (!defined($shouldUseGuardMalloc)) {
+        $shouldUseGuardMalloc = checkForArgumentAndRemoveFromARGV("--guard-malloc");
+    }
+
+    if ($shouldUseGuardMalloc) {
+        appendToEnvironmentVariableList("DYLD_INSERT_LIBRARIES", "/usr/lib/libgmalloc.dylib");
+    }
 }
 
 sub relativeScriptsDir()
@@ -1491,9 +1515,15 @@ sub setupAppleWinEnv()
         my $restartNeeded = 0;
         my %variablesToSet = ();
 
-        # Setting the environment variable 'CYGWIN' to 'tty' makes cygwin enable extra support (i.e., termios)
-        # for UNIX-like ttys in the Windows console
-        $variablesToSet{CYGWIN} = "tty" unless $ENV{CYGWIN};
+        # FIXME: We should remove this explicit version check for cygwin once we stop supporting Cygwin 1.7.9 or older versions. 
+        # https://bugs.webkit.org/show_bug.cgi?id=85791
+        my $currentCygwinVersion = version->parse(`uname -r`);
+        my $firstCygwinVersionWithoutTTYSupport = version->parse("1.7.10");
+        if ($currentCygwinVersion < $firstCygwinVersionWithoutTTYSupport) {
+            # Setting the environment variable 'CYGWIN' to 'tty' makes cygwin enable extra support (i.e., termios)
+            # for UNIX-like ttys in the Windows console
+            $variablesToSet{CYGWIN} = "tty" unless $ENV{CYGWIN};
+        }
         
         # Those environment variables must be set to be able to build inside Visual Studio.
         $variablesToSet{WEBKITLIBRARIESDIR} = windowsLibrariesDir() unless $ENV{WEBKITLIBRARIESDIR};
@@ -1841,10 +1871,15 @@ sub runAutogenForAutotoolsProjectIfNecessary($@)
     }
 }
 
+sub getJhbuildPath()
+{
+    return join('/', baseProductDir(), "Dependencies");
+}
+
 sub jhbuildConfigurationChanged()
 {
     foreach my $file (qw(jhbuildrc.md5sum jhbuild.modules.md5sum)) {
-        my $path = join('/', $sourceDir, "WebKitBuild", "Dependencies", $file);
+        my $path = join('/', getJhbuildPath(), $file);
         if (! -e $path) {
             return 1;
         }
@@ -1957,7 +1992,8 @@ sub buildAutotoolsProject($@)
         # If the configuration changed, dependencies may have been removed.
         # Since we lack a granular way of uninstalling those we wipe out the
         # jhbuild root and start from scratch.
-        if (system("rm -rf $baseProductDir/Dependencies/Root") ne 0) {
+        my $jhbuildPath = getJhbuildPath();
+        if (system("rm -rf $jhbuildPath/Root") ne 0) {
             die "Cleaning jhbuild root failed!";
         }
 
@@ -1982,7 +2018,7 @@ sub buildAutotoolsProject($@)
     # Save md5sum for jhbuild-related files.
     foreach my $file (qw(jhbuildrc jhbuild.modules)) {
         my $source = join('/', $sourceDir, "Tools", "gtk", $file);
-        my $destination = join('/', $sourceDir, "WebKitBuild", "Dependencies", $file);
+        my $destination = join('/', getJhbuildPath(), $file);
         open(SUM, ">$destination" . ".md5sum");
         print SUM getMD5HashForFile($source);
         close(SUM);
@@ -2475,6 +2511,7 @@ sub printHelpAndExitForRunAndDebugWebKitAppIfNeeded()
 Usage: @{[basename($0)]} [options] [args ...]
   --help                Show this help message
   --no-saved-state      Disable application resume for the session on Mac OS 10.7
+  --guard-malloc        Enable Guard Malloc (Mac OS X only)
 EOF
     exit(1);
 }
@@ -2482,7 +2519,7 @@ EOF
 sub argumentsForRunAndDebugMacWebKitApp()
 {
     my @args = @ARGV;
-    push @args, ("-ApplePersistenceIgnoreState", "YES") if !isLeopard() && !isSnowLeopard() && checkForArgumentAndRemoveFromArrayRef("--no-saved-state", \@args);
+    push @args, ("-ApplePersistenceIgnoreState", "YES") if !isSnowLeopard() && checkForArgumentAndRemoveFromArrayRef("--no-saved-state", \@args);
     return @args;
 }
 
@@ -2493,6 +2530,9 @@ sub runMacWebKitApp($;$)
     print "Starting @{[basename($appPath)]} with DYLD_FRAMEWORK_PATH set to point to built WebKit in $productDir.\n";
     $ENV{DYLD_FRAMEWORK_PATH} = $productDir;
     $ENV{WEBKIT_UNSET_DYLD_FRAMEWORK_PATH} = "YES";
+
+    setUpGuardMallocIfNeeded();
+
     if (defined($useOpenCommand) && $useOpenCommand == USE_OPEN_COMMAND) {
         return system("open", "-W", "-a", $appPath, "--args", argumentsForRunAndDebugMacWebKitApp());
     }
@@ -2512,6 +2552,9 @@ sub execMacWebKitAppForDebugging($)
     my $productDir = productDir();
     $ENV{DYLD_FRAMEWORK_PATH} = $productDir;
     $ENV{WEBKIT_UNSET_DYLD_FRAMEWORK_PATH} = "YES";
+
+    setUpGuardMallocIfNeeded();
+
     my @architectureFlags = ("-arch", architecture());
     if (!shouldTargetWebProcess()) {
         print "Starting @{[basename($appPath)]} under gdb with DYLD_FRAMEWORK_PATH set to point to built WebKit in $productDir.\n";
@@ -2520,7 +2563,8 @@ sub execMacWebKitAppForDebugging($)
         my $webProcessShimPath = File::Spec->catfile($productDir, "WebProcessShim.dylib");
         my $webProcessPath = File::Spec->catdir($productDir, "WebProcess.app");
         my $webKit2ExecutablePath = File::Spec->catfile($productDir, "WebKit2.framework", "WebKit2");
-        $ENV{DYLD_INSERT_LIBRARIES} = $webProcessShimPath;
+
+        appendToEnvironmentVariableList("DYLD_INSERT_LIBRARIES", $webProcessShimPath);
 
         print "Starting WebProcess under gdb with DYLD_FRAMEWORK_PATH set to point to built WebKit in $productDir.\n";
         exec { $gdbPath } $gdbPath, @architectureFlags, "--args", $webProcessPath, $webKit2ExecutablePath, "-type", "webprocess", "-client-executable", $appPath or die;

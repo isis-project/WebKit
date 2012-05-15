@@ -49,6 +49,9 @@ WebInspector.ResourceView.prototype = {
 
 WebInspector.ResourceView.prototype.__proto__ = WebInspector.View.prototype;
 
+/**
+ * @param {WebInspector.Resource} resource
+ */
 WebInspector.ResourceView.hasTextContent = function(resource)
 {
     if (resource.type.isTextType())
@@ -58,6 +61,9 @@ WebInspector.ResourceView.hasTextContent = function(resource)
     return false;
 }
 
+/**
+ * @param {WebInspector.Resource} resource
+ */
 WebInspector.ResourceView.nonSourceViewForResource = function(resource)
 {
     switch (resource.type) {
@@ -81,38 +87,32 @@ WebInspector.ResourceSourceFrame = function(resource)
     this._resource.addEventListener(WebInspector.Resource.Events.RevisionAdded, this._contentChanged, this);
 }
 
-//This is a map from resource.type to mime types
-//found in WebInspector.SourceTokenizer.Registry.
-WebInspector.ResourceSourceFrame.DefaultMIMETypeForResourceType = {
-    0: "text/html",
-    1: "text/css",
-    4: "text/javascript"
-}
-
-WebInspector.ResourceSourceFrame.mimeTypeForResource = function(resource) {
-    return WebInspector.ResourceSourceFrame.DefaultMIMETypeForResourceType[resource.type] || resource.mimeType;
-}
-
 WebInspector.ResourceSourceFrame.prototype = {
     get resource()
     {
         return this._resource;
     },
 
+    /**
+     * @param {function(?string,boolean,string)} callback
+     */
     requestContent: function(callback)
     {
-        function contentLoaded(text)
+        /**
+         * @param {?string} content
+         * @param {boolean} contentEncoded
+         * @param {string} mimeType
+         */
+        function callbackWrapper(content, contentEncoded, mimeType)
         {
-            var mimeType = WebInspector.ResourceSourceFrame.mimeTypeForResource(this.resource);
-            callback(mimeType, text);
+            callback(content, contentEncoded, mimeType);
         }
-
-        this.resource.requestContent(contentLoaded.bind(this));
+        this.resource.requestContent(callbackWrapper.bind(this));
     },
 
     _contentChanged: function(event)
     {
-        this.setContent(WebInspector.ResourceSourceFrame.mimeTypeForResource[this._resource], this._resource.content);
+        this.setContent(this._resource.content, false, this._resource.canonicalMimeType());
     }
 }
 
@@ -132,25 +132,31 @@ WebInspector.EditableResourceSourceFrame.Events = {
 }
 
 WebInspector.EditableResourceSourceFrame.prototype = {
+    /**
+     * @return {boolean}
+     */
     canEditSource: function()
     {
         //FIXME: make live edit stop using resource content binding.
         return this._resource.isEditable() && this._resource.type === WebInspector.resourceTypes.Stylesheet;
     },
 
-    editContent: function(newText, callback)
+    /**
+     * @param {string} text
+     */
+    commitEditing: function(text)
     {
         this._clearIncrementalUpdateTimer();
         var majorChange = true;
         this._settingContent = true;
         function callbackWrapper(text)
         {
-            callback(text);
             delete this._settingContent;
+            this.dispatchEventToListeners(WebInspector.EditableResourceSourceFrame.Events.TextEdited, this);
         }
-        this.resource.setContent(newText, majorChange, callbackWrapper.bind(this));
+        this.resource.setContent(text, majorChange, callbackWrapper.bind(this));
     },
-
+    
     afterTextChanged: function(oldRange, newRange)
     {
         function commitIncrementalEdit()
@@ -200,15 +206,12 @@ WebInspector.ResourceRevisionSourceFrame.prototype = {
         return this._revision.resource;
     },
 
+    /**
+     * @param {function(?string,boolean,string)} callback
+     */
     requestContent: function(callback)
     {
-        function contentLoaded(text)
-        {
-            var mimeType = WebInspector.ResourceSourceFrame.mimeTypeForResource(this.resource);
-            callback(mimeType, text);
-        }
-
-        this._revision.requestContent(contentLoaded.bind(this));
+        this._revision.requestContent(callback);
     },
 }
 

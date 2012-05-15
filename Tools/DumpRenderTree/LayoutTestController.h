@@ -76,7 +76,6 @@ public:
     int pageNumberForElementById(JSStringRef id, float pageWidthInPixels, float pageHeightInPixels);
     JSRetainPtr<JSStringRef> pageProperty(const char* propertyName, int pageNumber) const;
     JSRetainPtr<JSStringRef> pageSizeAndMarginsInPixels(int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft) const;
-    bool isPageBoxVisible(int pageNumber) const;
     JSStringRef pathToLocalResource(JSContextRef, JSStringRef url);
     void queueBackNavigation(int howFarBackward);
     void queueForwardNavigation(int howFarForward);
@@ -126,9 +125,8 @@ public:
     void setScrollbarPolicy(JSStringRef orientation, JSStringRef policy);
     void setEditingBehavior(const char* editingBehavior);
     void startSpeechInput(JSContextRef inputElement);
-
-    void setPageVisibility(const char* visibility) { }
-    void resetPageVisibility() { }
+    void setPageVisibility(const char*);
+    void resetPageVisibility();
 
     void waitForPolicyDelegate();
     size_t webHistoryItemCount();
@@ -292,8 +290,6 @@ public:
     bool pauseAnimationAtTimeOnElementWithId(JSStringRef animationName, double time, JSStringRef elementId);
     bool pauseTransitionAtTimeOnElementWithId(JSStringRef propertyName, double time, JSStringRef elementId);
     unsigned numberOfActiveAnimations() const;
-    void suspendAnimations() const;
-    void resumeAnimations() const;
 
     void addOriginAccessWhitelistEntry(JSStringRef sourceOrigin, JSStringRef destinationProtocol, JSStringRef destinationHost, bool allowDestinationSubdomains);
     void removeOriginAccessWhitelistEntry(JSStringRef sourceOrigin, JSStringRef destinationProtocol, JSStringRef destinationHost, bool allowDestinationSubdomains);
@@ -311,6 +307,7 @@ public:
     void closeWebInspector();
     void evaluateInWebInspector(long callId, JSStringRef script);
     void evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script);
+    void evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script);
     void allowRoundingHacks();
 
     bool shouldStayOnPageAfterHandlingBeforeUnload() const { return m_shouldStayOnPageAfterHandlingBeforeUnload; }
@@ -360,6 +357,10 @@ public:
     void setMinimumTimerInterval(double);
 
     void setTextDirection(JSStringRef);
+
+    // Custom full screen behavior.
+    void setHasCustomFullScreenBehavior(bool value) { m_customFullScreenBehavior = value; }
+    bool hasCustomFullScreenBehavior() const { return m_customFullScreenBehavior; }
 
 private:
     LayoutTestController(const std::string& testPathOrURL, const std::string& expectedPixelHash);
@@ -413,6 +414,7 @@ private:
     bool m_shouldPaintBrokenImage;
     bool m_shouldStayOnPageAfterHandlingBeforeUnload;
     bool m_areDesktopNotificationPermissionRequestsIgnored;
+    bool m_customFullScreenBehavior;
 
     std::string m_authenticationUsername;
     std::string m_authenticationPassword; 

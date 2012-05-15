@@ -46,30 +46,55 @@
 
 namespace WebCore {
 
-PassRefPtr<Canvas2DLayerChromium> Canvas2DLayerChromium::create(PassRefPtr<GraphicsContext3D> context, const IntSize& size)
+PassRefPtr<Canvas2DLayerChromium> Canvas2DLayerChromium::create(PassRefPtr<GraphicsContext3D> context, const IntSize& size, DeferralMode deferralMode)
 {
-    return adoptRef(new Canvas2DLayerChromium(context, size));
+    return adoptRef(new Canvas2DLayerChromium(context, size, deferralMode));
 }
 
-Canvas2DLayerChromium::Canvas2DLayerChromium(PassRefPtr<GraphicsContext3D> context, const IntSize& size)
+Canvas2DLayerChromium::Canvas2DLayerChromium(PassRefPtr<GraphicsContext3D> context, const IntSize& size, DeferralMode deferralMode)
     : CanvasLayerChromium()
     , m_context(context)
     , m_contextLost(false)
     , m_size(size)
     , m_backTextureId(0)
-    , m_useDoubleBuffering(CCProxy::hasImplThread())
     , m_canvas(0)
+    , m_deferralMode(deferralMode)
 {
+    // FIXME: We currently turn off double buffering when canvas rendering is
+    // deferred. What we should be doing is to use a smarter heuristic based
+    // on GPU resource monitoring and other factors to chose between single
+    // and double buffering.
+    m_useDoubleBuffering = CCProxy::hasImplThread() && deferralMode == NonDeferred;
+
+    // The threaded compositor is self rate-limiting when rendering
+    // to a single buffered canvas layer.
+    m_useRateLimiter = !CCProxy::hasImplThread() || m_useDoubleBuffering;
 }
 
 Canvas2DLayerChromium::~Canvas2DLayerChromium()
 {
-    if (m_context && layerTreeHost())
+    setTextureId(0);
+    if (m_context && m_useRateLimiter && layerTreeHost())
         layerTreeHost()->stopRateLimiter(m_context.get());
+}
+
+bool Canvas2DLayerChromium::drawingIntoImplThreadTexture() const
+{
+    return !m_useDoubleBuffering && CCProxy::hasImplThread() && layerTreeHost();
 }
 
 void Canvas2DLayerChromium::setTextureId(unsigned textureId)
 {
+    if (m_backTextureId == textureId)
+        return;
+
+    if (m_backTextureId && drawingIntoImplThreadTexture()) {
+        // The impl tree may be referencing the old m_backTexture, which may
+        // soon be deleted. We must make sure the layer tree on the impl thread
+        // is not drawn until the next commit, which will re-synchronize the
+        // layer trees.
+        layerTreeHost()->acquireLayerTextures();
+    }
     m_backTextureId = textureId;
     setNeedsCommit();
 }
@@ -78,7 +103,7 @@ void Canvas2DLayerChromium::setNeedsDisplayRect(const FloatRect& dirtyRect)
 {
     LayerChromium::setNeedsDisplayRect(dirtyRect);
 
-    if (layerTreeHost())
+    if (m_useRateLimiter && layerTreeHost())
         layerTreeHost()->startRateLimiter(m_context.get());
 }
 
@@ -93,9 +118,9 @@ void Canvas2DLayerChromium::setCanvas(SkCanvas* canvas)
     m_canvas = canvas;
 }
 
-void Canvas2DLayerChromium::paintContentsIfDirty(const CCOcclusionTracker* /* occlusion */)
+void Canvas2DLayerChromium::update(CCTextureUpdater& updater, const CCOcclusionTracker*)
 {
-    TRACE_EVENT("Canvas2DLayerChromium::paintContentsIfDirty", this, 0);
+    TRACE_EVENT0("cc", "Canvas2DLayerChromium::update");
     if (!drawsContent())
         return;
 
@@ -105,7 +130,8 @@ void Canvas2DLayerChromium::paintContentsIfDirty(const CCOcclusionTracker* /* oc
             m_frontTexture->setTextureManager(textureManager);
         else
             m_frontTexture = ManagedTexture::create(textureManager);
-        m_frontTexture->reserve(m_size, GraphicsContext3D::RGBA);
+        if (m_frontTexture->reserve(m_size, GraphicsContext3D::RGBA))
+            updater.appendManagedCopy(m_backTextureId, m_frontTexture.get(), m_size);
     }
 
     if (!needsDisplay())
@@ -121,22 +147,22 @@ void Canvas2DLayerChromium::paintContentsIfDirty(const CCOcclusionTracker* /* oc
         return;
 
     if (m_canvas) {
-        TRACE_EVENT("SkCanvas::flush", m_canvas, 0);
+        TRACE_EVENT0("cc", "SkCanvas::flush");
         m_canvas->flush();
     }
 
-    TRACE_EVENT("GraphicsContext3D::flush", m_context, 0);
+    TRACE_EVENT0("cc", "GraphicsContext3D::flush");
     m_context->flush();
 }
 
-void Canvas2DLayerChromium::updateCompositorResources(GraphicsContext3D* context, CCTextureUpdater& updater)
+void Canvas2DLayerChromium::layerWillDraw(WillDrawCondition condition) const
 {
-    if (!m_backTextureId || !m_frontTexture || !m_frontTexture->isValid(m_size, GraphicsContext3D::RGBA))
-        return;
-
-    m_frontTexture->allocate(updater.allocator());
-    updater.appendCopy(m_backTextureId, m_frontTexture->textureId(), m_size);
+    if (drawingIntoImplThreadTexture()) {
+        if (condition == WillDrawUnconditionally || m_deferralMode == NonDeferred)
+            layerTreeHost()->acquireLayerTextures();
+    }
 }
+
 
 void Canvas2DLayerChromium::pushPropertiesTo(CCLayerImpl* layer)
 {
@@ -150,12 +176,6 @@ void Canvas2DLayerChromium::pushPropertiesTo(CCLayerImpl* layer)
             textureLayer->setTextureId(0);
     } else
         textureLayer->setTextureId(m_backTextureId);
-}
-
-void Canvas2DLayerChromium::unreserveContentsTexture()
-{
-    if (m_useDoubleBuffering)
-        m_frontTexture->unreserve();
 }
 
 }

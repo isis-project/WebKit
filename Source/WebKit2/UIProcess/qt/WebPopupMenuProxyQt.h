@@ -28,12 +28,11 @@
 #define WebPopupMenuProxyQt_h
 
 #include "WebPopupMenuProxy.h"
-
 #include <QtCore/QObject>
 #include <wtf/OwnPtr.h>
 
-class QDeclarativeComponent;
-class QDeclarativeContext;
+class QQmlComponent;
+class QQmlContext;
 class QQuickWebView;
 class QQuickItem;
 
@@ -60,11 +59,11 @@ private Q_SLOTS:
 private:
     WebPopupMenuProxyQt(WebPopupMenuProxy::Client*, QQuickWebView*);
     void createItem(QObject*);
-    void createContext(QDeclarativeComponent*, QObject*);
+    void createContext(QQmlComponent*, QObject*);
 
     void notifyValueChanged();
 
-    OwnPtr<QDeclarativeContext> m_context;
+    OwnPtr<QQmlContext> m_context;
     OwnPtr<QQuickItem> m_itemSelector;
 
     QQuickWebView* m_webView;

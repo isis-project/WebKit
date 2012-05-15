@@ -40,6 +40,7 @@
 
 namespace WebCore {
 
+class InjectedScript;
 class InjectedScriptManager;
 class InspectorArray;
 class InspectorFrontend;
@@ -61,8 +62,8 @@ public:
                   const String& expression,
                   const String* objectGroup,
                   const bool* includeCommandLineAPI,
-                  const bool* doNotPauseOnExceptions,
-                  const String* frameId,
+                  const bool* doNotPauseOnExceptionsAndMuteConsole,
+                  const int* executionContextId,
                   const bool* returnByValue,
                   RefPtr<TypeBuilder::Runtime::RemoteObject>& result,
                   TypeBuilder::OptOutput<bool>* wasThrown);
@@ -70,6 +71,7 @@ public:
                         const String& objectId,
                         const String& expression,
                         const RefPtr<InspectorArray>* optionalArguments,
+                        const bool* doNotPauseOnExceptionsAndMuteConsole,
                         const bool* returnByValue,
                         RefPtr<TypeBuilder::Runtime::RemoteObject>& result,
                         TypeBuilder::OptOutput<bool>* wasThrown);
@@ -87,8 +89,12 @@ public:
 
 protected:
     InspectorRuntimeAgent(InstrumentingAgents*, InspectorState*, InjectedScriptManager*);
-    virtual ScriptState* scriptStateForFrameId(const String& frameId) = 0;
-    virtual ScriptState* getDefaultInspectedState() = 0;
+    virtual InjectedScript injectedScriptForEval(ErrorString*, const int* executionContextId) = 0;
+
+    virtual void muteConsole() = 0;
+    virtual void unmuteConsole() = 0;
+
+    InjectedScriptManager* injectedScriptManager() { return m_injectedScriptManager; }
 
 private:
     InjectedScriptManager* m_injectedScriptManager;

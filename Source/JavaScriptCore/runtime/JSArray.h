@@ -139,7 +139,13 @@ namespace JSC {
         friend class JIT;
 
     protected:
-        JS_EXPORT_PRIVATE explicit JSArray(JSGlobalData&, Structure*);
+        explicit JSArray(JSGlobalData& globalData, Structure* structure)
+            : JSNonFinalObject(globalData, structure)
+            , m_indexBias(0)
+            , m_storage(0)
+            , m_sparseValueMap(0)
+        {
+        }
 
         JS_EXPORT_PRIVATE void finishCreation(JSGlobalData&, unsigned initialLength = 0);
         JS_EXPORT_PRIVATE JSArray* tryFinishCreationUninitialized(JSGlobalData&, unsigned initialLength);
@@ -158,11 +164,11 @@ namespace JSC {
         //   - called 'completeInitialization' after all properties have been initialized.
         static JSArray* tryCreateUninitialized(JSGlobalData&, Structure*, unsigned initialLength);
 
-        JS_EXPORT_PRIVATE static bool defineOwnProperty(JSObject*, ExecState*, const Identifier&, PropertyDescriptor&, bool throwException);
+        JS_EXPORT_PRIVATE static bool defineOwnProperty(JSObject*, ExecState*, PropertyName, PropertyDescriptor&, bool throwException);
 
-        static bool getOwnPropertySlot(JSCell*, ExecState*, const Identifier&, PropertySlot&);
+        static bool getOwnPropertySlot(JSCell*, ExecState*, PropertyName, PropertySlot&);
         JS_EXPORT_PRIVATE static bool getOwnPropertySlotByIndex(JSCell*, ExecState*, unsigned propertyName, PropertySlot&);
-        static bool getOwnPropertyDescriptor(JSObject*, ExecState*, const Identifier&, PropertyDescriptor&);
+        static bool getOwnPropertyDescriptor(JSObject*, ExecState*, PropertyName, PropertyDescriptor&);
         static void putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
         // This is similar to the JSObject::putDirect* methods:
         //  - the prototype chain is not consulted
@@ -275,9 +281,9 @@ namespace JSC {
 
     protected:
         static const unsigned StructureFlags = OverridesGetOwnPropertySlot | OverridesVisitChildren | OverridesGetPropertyNames | JSObject::StructureFlags;
-        static void put(JSCell*, ExecState*, const Identifier& propertyName, JSValue, PutPropertySlot&);
+        static void put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
 
-        static bool deleteProperty(JSCell*, ExecState*, const Identifier& propertyName);
+        static bool deleteProperty(JSCell*, ExecState*, PropertyName);
         static bool deletePropertyByIndex(JSCell*, ExecState*, unsigned propertyName);
         static void getOwnPropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode);
 
@@ -317,10 +323,8 @@ namespace JSC {
 
         // FIXME: Maybe SparseArrayValueMap should be put into its own JSCell?
         SparseArrayValueMap* m_sparseValueMap;
-        void* m_subclassData; // A JSArray subclass can use this to fill the vector lazily.
 
         static ptrdiff_t sparseValueMapOffset() { return OBJECT_OFFSETOF(JSArray, m_sparseValueMap); }
-        static ptrdiff_t subclassDataOffset() { return OBJECT_OFFSETOF(JSArray, m_subclassData); }
         static ptrdiff_t indexBiasOffset() { return OBJECT_OFFSETOF(JSArray, m_indexBias); }
     };
 
@@ -352,16 +356,6 @@ namespace JSC {
 
     inline bool isJSArray(JSCell* cell) { return cell->classInfo() == &JSArray::s_info; }
     inline bool isJSArray(JSValue v) { return v.isCell() && isJSArray(v.asCell()); }
-
-    // Rule from ECMA 15.2 about what an array index is.
-    // Must exactly match string form of an unsigned integer, and be less than 2^32 - 1.
-    inline unsigned Identifier::toArrayIndex(bool& ok) const
-    {
-        unsigned i = toUInt32(ok);
-        if (ok && i >= 0xFFFFFFFFU)
-            ok = false;
-        return i;
-    }
 
 // The definition of MAX_STORAGE_VECTOR_LENGTH is dependant on the definition storageSize
 // function below - the MAX_STORAGE_VECTOR_LENGTH limit is defined such that the storage

@@ -27,7 +27,7 @@
 
 #include "AudioBus.h"
 #include "AudioParam.h"
-#include "AudioSourceNode.h"
+#include "AudioScheduledSourceNode.h"
 #include <wtf/OwnArrayPtr.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefPtr.h>
@@ -40,7 +40,7 @@ class WaveTable;
 
 // Oscillator is an audio generator of periodic waveforms.
 
-class Oscillator : public AudioSourceNode {
+class Oscillator : public AudioScheduledSourceNode {
 public:
     // The waveform type.
     // These must be defined as in the .idl file.
@@ -74,6 +74,8 @@ private:
     // Returns true if there are sample-accurate timeline parameter changes.
     bool calculateSampleAccuratePhaseIncrements(size_t framesToProcess);
 
+    virtual bool propagatesSilence() const OVERRIDE;
+
     // One of the waveform types defined in the enum.
     unsigned short m_type;
     
@@ -82,6 +84,8 @@ private:
 
     // Detune value (deviating from the frequency) in Cents.
     RefPtr<AudioParam> m_detune;
+
+    bool m_firstRender;
 
     // m_virtualReadIndex is a sample-frame index into our buffer representing the current playback position.
     // Since it's floating-point, it has sub-sample accuracy.

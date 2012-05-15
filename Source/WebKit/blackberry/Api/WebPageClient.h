@@ -146,10 +146,10 @@ public:
     virtual void checkSpellingOfString(const unsigned short* text, int length, int& misspellingLocation, int& misspellingLength) = 0;
     virtual void requestSpellingSuggestionsForString(unsigned start, unsigned end) = 0;
 
-    virtual void notifySelectionDetailsChanged(const Platform::IntRect& start, const Platform::IntRect& end, const Platform::IntRectRegion&) = 0;
+    virtual void notifySelectionDetailsChanged(const Platform::IntRect& start, const Platform::IntRect& end, const Platform::IntRectRegion&, bool overrideTouchHandling = false) = 0;
     virtual void cancelSelectionVisuals() = 0;
     virtual void notifySelectionHandlesReversed() = 0;
-    virtual void notifyCaretChanged(const Platform::IntRect& caret, bool userTouchTriggered) = 0;
+    virtual void notifyCaretChanged(const Platform::IntRect& caret, bool userTouchTriggered, bool singleLineInput = false, const Platform::IntRect& singleLineBoundingBox = Platform::IntRect()) = 0;
 
     virtual void cursorChanged(Platform::CursorType, const char* url, int x, int y) = 0;
 
@@ -211,8 +211,9 @@ public:
     virtual void animateBlockZoom(const Platform::FloatPoint& finalPoint, double finalScale) = 0;
 
     virtual void setPreventsScreenIdleDimming(bool noDimming) = 0;
-    virtual bool authenticationChallenge(const unsigned short* realm, unsigned int realmLength, WebString& username, WebString& password) = 0;
+    virtual void authenticationChallenge(const unsigned short* realm, unsigned int realmLength, WebString& username, WebString& password) = 0;
     virtual SaveCredentialType notifyShouldSaveCredential(bool isNew) = 0;
+    virtual void notifyPopupAutofillDialog(const std::vector<std::string>&, const Platform::IntRect&) = 0;
 
     virtual bool shouldPluginEnterFullScreen() = 0;
     virtual void didPluginEnterFullScreen() = 0;
@@ -222,6 +223,7 @@ public:
     virtual bool lockOrientation(bool landscape) = 0;
     virtual void unlockOrientation() = 0;
     virtual bool isActive() const = 0;
+    virtual bool isVisible() const = 0;
     virtual void requestWebGLPermission(const WebString&) = 0;
 
     virtual void setToolTip(WebString) = 0;
@@ -250,6 +252,8 @@ public:
     virtual void clearCache() = 0;
 
     virtual bool hasKeyboardFocus() = 0;
+    virtual void createPopupWebView(const Platform::IntRect& webViewRect) = 0;
+    virtual void closePopupWebView() = 0;
 };
 } // namespace WebKit
 } // namespace BlackBerry

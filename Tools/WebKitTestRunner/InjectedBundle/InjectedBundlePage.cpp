@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -235,6 +235,11 @@ InjectedBundlePage::InjectedBundlePage(WKBundlePageRef page)
         0, // didLayoutForFrame
         0, // didNewFirstVisuallyNonEmptyLayoutForFrame
         didDetectXSSForFrame,
+        0, // shouldGoToBackForwardListItem
+        0, // didCreateGlobalObjectForFrame
+        0, // willDisconnectDOMWindowExtensionFromGlobalObject
+        0, // didReconnectDOMWindowExtensionToGlobalObject
+        0, // willDestroyGlobalObjectForDOMWindowExtension
     };
     WKBundlePageSetPageLoaderClient(m_page, &loaderClient);
 
@@ -308,6 +313,7 @@ InjectedBundlePage::InjectedBundlePage(WKBundlePageRef page)
         exitFullScreenForElement,
         beganEnterFullScreen,
         beganExitFullScreen,
+        closeFullScreen,
     };
     WKBundlePageSetFullScreenClient(m_page, &fullScreenClient);
 #endif
@@ -340,6 +346,32 @@ void InjectedBundlePage::reset()
 }
 
 // Loader Client Callbacks
+
+// String output must be identical to -[WebFrame _drt_descriptionSuitableForTestResult].
+static void dumpFrameDescriptionSuitableForTestResult(WKBundleFrameRef frame)
+{
+    WKRetainPtr<WKStringRef> name(AdoptWK, WKBundleFrameCopyName(frame));
+    if (WKBundleFrameIsMainFrame(frame)) {
+        if (WKStringIsEmpty(name.get())) {
+            InjectedBundle::shared().stringBuilder()->append("main frame");
+            return;
+        }
+
+        InjectedBundle::shared().stringBuilder()->append("main frame \"");
+        InjectedBundle::shared().stringBuilder()->append(toWTFString(name));
+        InjectedBundle::shared().stringBuilder()->append("\"");
+        return;
+    }
+
+    if (WKStringIsEmpty(name.get())) {
+        InjectedBundle::shared().stringBuilder()->append("frame (anonymous)");
+        return;
+    }
+
+    InjectedBundle::shared().stringBuilder()->append("frame \"");
+    InjectedBundle::shared().stringBuilder()->append(toWTFString(name));
+    InjectedBundle::shared().stringBuilder()->append("\"");
+}
 
 void InjectedBundlePage::didStartProvisionalLoadForFrame(WKBundlePageRef page, WKBundleFrameRef frame, WKTypeRef*, const void *clientInfo)
 {
@@ -456,6 +488,11 @@ void InjectedBundlePage::didStartProvisionalLoadForFrame(WKBundleFrameRef frame)
     if (!InjectedBundle::shared().isTestRunning())
         return;
 
+    if (InjectedBundle::shared().layoutTestController()->shouldDumpFrameLoadCallbacks()) {
+        dumpFrameDescriptionSuitableForTestResult(frame);
+        InjectedBundle::shared().stringBuilder()->append(" - didStartProvisionalLoadForFrame\n");
+    }
+
     if (InjectedBundle::shared().topLoadingFrame())
         return;
     InjectedBundle::shared().setTopLoadingFrame(frame);
@@ -482,6 +519,14 @@ void InjectedBundlePage::didFailProvisionalLoadWithErrorForFrame(WKBundleFrameRe
 
 void InjectedBundlePage::didCommitLoadForFrame(WKBundleFrameRef frame)
 {
+    if (!InjectedBundle::shared().isTestRunning())
+        return;
+
+    if (!InjectedBundle::shared().layoutTestController()->shouldDumpFrameLoadCallbacks())
+        return;
+
+    dumpFrameDescriptionSuitableForTestResult(frame);
+    InjectedBundle::shared().stringBuilder()->append(" - didCommitLoadForFrame\n");
 }
 
 enum FrameNamePolicy { ShouldNotIncludeFrameName, ShouldIncludeFrameName };
@@ -633,6 +678,11 @@ void InjectedBundlePage::didFinishLoadForFrame(WKBundleFrameRef frame)
     if (!InjectedBundle::shared().isTestRunning())
         return;
 
+    if (InjectedBundle::shared().layoutTestController()->shouldDumpFrameLoadCallbacks()) {
+        dumpFrameDescriptionSuitableForTestResult(frame);
+        InjectedBundle::shared().stringBuilder()->append(" - didFinishLoadForFrame\n");
+    }
+
     if (frame != InjectedBundle::shared().topLoadingFrame())
         return;
     InjectedBundle::shared().setTopLoadingFrame(0);
@@ -662,6 +712,13 @@ void InjectedBundlePage::didReceiveTitleForFrame(WKStringRef title, WKBundleFram
 {
     if (!InjectedBundle::shared().isTestRunning())
         return;
+
+    if (InjectedBundle::shared().layoutTestController()->shouldDumpFrameLoadCallbacks()) {
+        dumpFrameDescriptionSuitableForTestResult(frame);
+        InjectedBundle::shared().stringBuilder()->append(" - didReceiveTitle: ");
+        InjectedBundle::shared().stringBuilder()->append(toWTFString(title));
+        InjectedBundle::shared().stringBuilder()->append("\n");
+    }
 
     if (!InjectedBundle::shared().layoutTestController()->shouldDumpTitleChanges())
         return;
@@ -700,10 +757,28 @@ void InjectedBundlePage::didClearWindowForFrame(WKBundleFrameRef frame, WKBundle
 
 void InjectedBundlePage::didCancelClientRedirectForFrame(WKBundleFrameRef frame)
 {
+    if (!InjectedBundle::shared().isTestRunning())
+        return;
+
+    if (!InjectedBundle::shared().layoutTestController()->shouldDumpFrameLoadCallbacks())
+        return;
+
+    dumpFrameDescriptionSuitableForTestResult(frame);
+    InjectedBundle::shared().stringBuilder()->append(" - didCancelClientRedirectForFrame\n");
 }
 
 void InjectedBundlePage::willPerformClientRedirectForFrame(WKBundleFrameRef frame, WKURLRef url, double delay, double date)
 {
+    if (!InjectedBundle::shared().isTestRunning())
+        return;
+
+    if (!InjectedBundle::shared().layoutTestController()->shouldDumpFrameLoadCallbacks())
+        return;
+
+    dumpFrameDescriptionSuitableForTestResult(frame);
+    InjectedBundle::shared().stringBuilder()->append(" - willPerformClientRedirectToURL: ");
+    InjectedBundle::shared().stringBuilder()->append(toWTFString(adoptWK(WKURLCopyString(url))));
+    InjectedBundle::shared().stringBuilder()->append(" \n");
 }
 
 void InjectedBundlePage::didSameDocumentNavigationForFrame(WKBundleFrameRef frame, WKSameDocumentNavigationType type)
@@ -714,6 +789,11 @@ void InjectedBundlePage::didFinishDocumentLoadForFrame(WKBundleFrameRef frame)
 {
     if (!InjectedBundle::shared().isTestRunning())
         return;
+
+    if (InjectedBundle::shared().layoutTestController()->shouldDumpFrameLoadCallbacks()) {
+        dumpFrameDescriptionSuitableForTestResult(frame);
+        InjectedBundle::shared().stringBuilder()->append(" - didFinishDocumentLoadForFrame\n");
+    }
 
     unsigned pendingFrameUnloadEvents = WKBundleFrameGetPendingUnloadCount(frame);
     if (pendingFrameUnloadEvents) {
@@ -726,6 +806,13 @@ void InjectedBundlePage::didFinishDocumentLoadForFrame(WKBundleFrameRef frame)
 
 void InjectedBundlePage::didHandleOnloadEventsForFrame(WKBundleFrameRef frame)
 {
+    if (!InjectedBundle::shared().isTestRunning())
+        return;
+
+    if (InjectedBundle::shared().layoutTestController()->shouldDumpFrameLoadCallbacks()) {
+        dumpFrameDescriptionSuitableForTestResult(frame);
+        InjectedBundle::shared().stringBuilder()->append(" - didHandleOnloadEventsForFrame\n");
+    }
 }
 
 void InjectedBundlePage::didDisplayInsecureContentForFrame(WKBundleFrameRef frame)
@@ -1209,16 +1296,22 @@ void InjectedBundlePage::enterFullScreenForElement(WKBundlePageRef pageRef, WKBu
 {
     if (InjectedBundle::shared().layoutTestController()->shouldDumpFullScreenCallbacks())
         InjectedBundle::shared().stringBuilder()->append("enterFullScreenForElement()\n");
-    WKBundlePageWillEnterFullScreen(pageRef);
-    WKBundlePageDidEnterFullScreen(pageRef);
+
+    if (!InjectedBundle::shared().layoutTestController()->hasCustomFullScreenBehavior()) {
+        WKBundlePageWillEnterFullScreen(pageRef);
+        WKBundlePageDidEnterFullScreen(pageRef);
+    }
 }
 
 void InjectedBundlePage::exitFullScreenForElement(WKBundlePageRef pageRef, WKBundleNodeHandleRef elementRef)
 {
     if (InjectedBundle::shared().layoutTestController()->shouldDumpFullScreenCallbacks())
         InjectedBundle::shared().stringBuilder()->append("exitFullScreenForElement()\n");
-    WKBundlePageWillExitFullScreen(pageRef);
-    WKBundlePageDidExitFullScreen(pageRef);
+
+    if (!InjectedBundle::shared().layoutTestController()->hasCustomFullScreenBehavior()) {
+        WKBundlePageWillExitFullScreen(pageRef);
+        WKBundlePageDidExitFullScreen(pageRef);
+    }
 }
 
 void InjectedBundlePage::beganEnterFullScreen(WKBundlePageRef, WKRect, WKRect)
@@ -1231,6 +1324,17 @@ void InjectedBundlePage::beganExitFullScreen(WKBundlePageRef, WKRect, WKRect)
 {
     if (InjectedBundle::shared().layoutTestController()->shouldDumpFullScreenCallbacks())
         InjectedBundle::shared().stringBuilder()->append("beganExitFullScreen()\n");
+}
+
+void InjectedBundlePage::closeFullScreen(WKBundlePageRef pageRef)
+{
+    if (InjectedBundle::shared().layoutTestController()->shouldDumpFullScreenCallbacks())
+        InjectedBundle::shared().stringBuilder()->append("closeFullScreen()\n");
+
+    if (!InjectedBundle::shared().layoutTestController()->hasCustomFullScreenBehavior()) {
+        WKBundlePageWillExitFullScreen(pageRef);
+        WKBundlePageDidExitFullScreen(pageRef);
+    }
 }
 #endif
 

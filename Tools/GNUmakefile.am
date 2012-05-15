@@ -12,6 +12,8 @@ Programs_GtkLauncher_CPPFLAGS = \
 	$(javascriptcore_cppflags)
 
 Programs_GtkLauncher_SOURCES = \
+	Tools/GtkLauncher/LauncherInspectorWindow.c \
+	Tools/GtkLauncher/LauncherInspectorWindow.h \
 	Tools/GtkLauncher/main.c
 
 Programs_GtkLauncher_CFLAGS = \
@@ -199,6 +201,11 @@ if !TARGET_WIN32
 TestNetscapePlugin_libtestnetscapeplugin_la_CPPFLAGS += -DXP_UNIX
 endif
 
+# Add MOZ_X11 only for X11 targets
+if TARGET_X11
+TestNetscapePlugin_libtestnetscapeplugin_la_CPPFLAGS += -DMOZ_X11
+endif
+
 TestNetscapePlugin_libtestnetscapeplugin_la_SOURCES = \
 	Tools/DumpRenderTree/TestNetscapePlugIn/Tests/DocumentOpenInDestroyStream.cpp \
 	Tools/DumpRenderTree/TestNetscapePlugIn/Tests/EvaluateJSAfterRemovingPluginElement.cpp \
@@ -243,6 +250,7 @@ EXTRA_DIST += \
 	Tools/gtk/common.py \
 	Tools/gtk/generate-gtkdoc \
 	Tools/gtk/gtkdoc.py \
+	Tools/gtk/run-api-tests \
 	Tools/Scripts/VCSUtils.pm \
 	Tools/Scripts/run-gtk-tests \
 	Tools/Scripts/webkit-build-directory \

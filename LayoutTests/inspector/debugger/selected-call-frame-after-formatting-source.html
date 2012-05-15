@@ -20,6 +20,7 @@ var test = function()
 {
     InspectorTest.startDebuggerTest(step1);
     var panel = WebInspector.panels.scripts;
+    var sourceFrame;
 
     function step1()
     {
@@ -28,18 +29,27 @@ var test = function()
         InspectorTest.showScriptSource(testName, step2);
     }
 
-    function step2(callFrames)
+    function step2(frame)
     {
+        sourceFrame = frame; 
         InspectorTest.runTestFunctionAndWaitUntilPaused(step3);
     }
 
-    function step3(callFrames)
+    function step3()
     {
-        WebInspector.debuggerPresentationModel.selectedCallFrame = WebInspector.debuggerPresentationModel._presentationCallFrames[1];
-        panel._toggleFormatSource();
-        InspectorTest.assertEquals("testFunction", WebInspector.debuggerPresentationModel.selectedCallFrame._callFrame.functionName);
-        panel._toggleFormatSource();
-        InspectorTest.assertEquals("testFunction", WebInspector.debuggerPresentationModel.selectedCallFrame._callFrame.functionName);
+        InspectorTest.completeDebuggerTest(); return;
+        WebInspector.debuggerModel.setSelectedCallFrame(WebInspector.debuggerModel.debuggerPausedDetails().callFrames[1]);
+        sourceFrame._toggleFormatSource(step4);
+    }
+
+    function step4()
+    {
+        InspectorTest.assertEquals("testFunction", WebInspector.debuggerModel.selectedCallFrame().functionName);
+        sourceFrame._toggleFormatSource(step5);
+    }
+
+    function step5()
+    {
         InspectorTest.completeDebuggerTest();
     }
 }

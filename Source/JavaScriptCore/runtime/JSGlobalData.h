@@ -152,6 +152,8 @@ namespace JSC {
 
         void makeUsableFromMultipleThreads() { heap.machineThreads().makeUsableFromMultipleThreads(); }
 
+        Heap heap; // The heap is our first data member to ensure that it's destructed after all the objects that reference it.
+
         GlobalDataType globalDataType;
         ClientData* clientData;
         CallFrame* topCallFrame;
@@ -234,7 +236,15 @@ namespace JSC {
 #elif !ENABLE(CLASSIC_INTERPRETER) && !ENABLE(LLINT)
         bool canUseJIT() { return true; } // jit only
 #else
-        bool canUseJIT() { return m_canUseJIT; }
+        bool canUseJIT() { return m_canUseAssembler; }
+#endif
+
+#if !ENABLE(YARR_JIT)
+        bool canUseRegExpJIT() { return false; } // interpreter only
+#elif !ENABLE(CLASSIC_INTERPRETER) && !ENABLE(LLINT)
+        bool canUseRegExpJIT() { return true; } // jit only
+#else
+        bool canUseRegExpJIT() { return m_canUseAssembler; }
 #endif
 
         OwnPtr<ParserArena> parserArena;
@@ -252,7 +262,6 @@ namespace JSC {
 
         TimeoutChecker timeoutChecker;
         Terminator terminator;
-        Heap heap;
 
         JSValue exception;
 
@@ -329,7 +338,6 @@ namespace JSC {
         void addRegExpToTrace(PassRefPtr<RegExp> regExp);
 #endif
         JS_EXPORT_PRIVATE void dumpRegExpTrace();
-        JS_EXPORT_PRIVATE void clearBuiltinStructures();
 
         bool isCollectorBusy() { return heap.isBusy(); }
         JS_EXPORT_PRIVATE void releaseExecutableMemory();
@@ -368,8 +376,8 @@ namespace JSC {
         JSGlobalData(GlobalDataType, ThreadStackType, HeapSize);
         static JSGlobalData*& sharedInstanceInternal();
         void createNativeThunk();
-#if ENABLE(JIT) && (ENABLE(CLASSIC_INTERPRETER) || ENABLE(LLINT))
-        bool m_canUseJIT;
+#if ENABLE(ASSEMBLER) && (ENABLE(CLASSIC_INTERPRETER) || ENABLE(LLINT))
+        bool m_canUseAssembler;
 #endif
 #if ENABLE(GC_VALIDATION)
         const ClassInfo* m_initializingObjectClass;

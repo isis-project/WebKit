@@ -431,7 +431,11 @@ template<> unsigned CSSPrimitiveValue::computeLength(RenderStyle* style, RenderS
 
 template<> Length CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
 {
-    return Length(roundForImpreciseConversion<int>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize)), Fixed);
+#if ENABLE(SUBPIXEL_LAYOUT)
+    return Length(static_cast<float>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize)), Fixed);
+#else
+    return Length(roundForImpreciseConversion<float>(computeLengthDouble(style, rootStyle, multiplier, computingFontSize)), Fixed);
+#endif
 }
 
 template<> short CSSPrimitiveValue::computeLength(RenderStyle* style, RenderStyle* rootStyle, float multiplier, bool computingFontSize)
@@ -1060,7 +1064,7 @@ String CSSPrimitiveValue::customCssText() const
     return text;
 }
 
-void CSSPrimitiveValue::addSubresourceStyleURLs(ListHashSet<KURL>& urls, const CSSStyleSheet* styleSheet)
+void CSSPrimitiveValue::addSubresourceStyleURLs(ListHashSet<KURL>& urls, const StyleSheetInternal* styleSheet)
 {
     if (m_primitiveUnitType == CSS_URI)
         addSubresourceURL(urls, styleSheet->completeURL(m_value.string));

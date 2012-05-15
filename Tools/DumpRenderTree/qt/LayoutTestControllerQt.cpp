@@ -569,20 +569,6 @@ unsigned LayoutTestController::numberOfActiveAnimations() const
     return DumpRenderTreeSupportQt::numberOfActiveAnimations(frame);
 }
 
-void LayoutTestController::suspendAnimations() const
-{
-    QWebFrame* frame = m_drt->webPage()->mainFrame();
-    Q_ASSERT(frame);
-    DumpRenderTreeSupportQt::suspendAnimations(frame);
-}
-
-void LayoutTestController::resumeAnimations() const
-{
-    QWebFrame* frame = m_drt->webPage()->mainFrame();
-    Q_ASSERT(frame);
-    DumpRenderTreeSupportQt::resumeAnimations(frame);
-}
-
 void LayoutTestController::disableImageLoading()
 {
     m_drt->webPage()->settings()->setAttribute(QWebSettings::AutoLoadImages, false);
@@ -910,14 +896,14 @@ void LayoutTestController::startSpeechInput(const QString& inputElement)
     // See https://bugs.webkit.org/show_bug.cgi?id=39485.
 }
 
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(int worldID, const QString& script)
+{
+    // FIXME: Implement.
+}
+
 void LayoutTestController::evaluateScriptInIsolatedWorld(int worldID, const QString& script)
 {
     DumpRenderTreeSupportQt::evaluateScriptInIsolatedWorld(m_drt->webPage()->mainFrame(), worldID, script);
-}
-
-bool LayoutTestController::isPageBoxVisible(int pageIndex)
-{
-    return DumpRenderTreeSupportQt::isPageBoxVisible(m_drt->webPage()->mainFrame(), pageIndex);
 }
 
 QString LayoutTestController::pageSizeAndMarginsInPixels(int pageIndex, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft)
@@ -976,6 +962,16 @@ void LayoutTestController::observeStorageTrackerNotifications(unsigned number)
 void LayoutTestController::syncLocalStorage()
 {
     // FIXME: Implement.
+}
+
+void LayoutTestController::resetPageVisibility()
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::setPageVisibility(const char*)
+{
+    // FIXME: Implement this.
 }
 
 QString LayoutTestController::layerTreeAsText()

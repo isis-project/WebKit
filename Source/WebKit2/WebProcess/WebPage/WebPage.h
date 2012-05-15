@@ -32,7 +32,9 @@
 #include "GeolocationPermissionRequestManager.h"
 #include "ImageOptions.h"
 #include "ImmutableArray.h"
+#if ENABLE(CONTEXT_MENUS)
 #include "InjectedBundlePageContextMenuClient.h"
+#endif
 #include "InjectedBundlePageEditorClient.h"
 #include "InjectedBundlePageFormClient.h"
 #include "InjectedBundlePageFullScreenClient.h"
@@ -50,6 +52,9 @@
 #include <WebCore/Editor.h>
 #include <WebCore/FrameLoaderTypes.h>
 #include <WebCore/IntRect.h>
+#if ENABLE(PAGE_VISIBILITY_API)
+#include <WebCore/PageVisibilityState.h>
+#endif
 #include <WebCore/PlatformScreen.h>
 #include <WebCore/ScrollTypes.h>
 #include <WebCore/WebCoreKeyboardUIMode.h>
@@ -98,6 +103,7 @@ namespace WebCore {
     class GraphicsContext;
     class Frame;
     class FrameView;
+    class HTMLPlugInElement;
     class KeyboardEvent;
     class Page;
     class PrintContext;
@@ -216,7 +222,9 @@ public:
     void didReceiveSyncMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, OwnPtr<CoreIPC::ArgumentEncoder>&);
 
     // -- InjectedBundle methods
+#if ENABLE(CONTEXT_MENUS)
     void initializeInjectedBundleContextMenuClient(WKBundlePageContextMenuClient*);
+#endif
     void initializeInjectedBundleEditorClient(WKBundlePageEditorClient*);
     void initializeInjectedBundleFormClient(WKBundlePageFormClient*);
     void initializeInjectedBundleLoaderClient(WKBundlePageLoaderClient*);
@@ -227,7 +235,9 @@ public:
     void initializeInjectedBundleFullScreenClient(WKBundlePageFullScreenClient*);
 #endif
 
+#if ENABLE(CONTEXT_MENUS)
     InjectedBundlePageContextMenuClient& injectedBundleContextMenuClient() { return m_contextMenuClient; }
+#endif
     InjectedBundlePageEditorClient& injectedBundleEditorClient() { return m_editorClient; }
     InjectedBundlePageFormClient& injectedBundleFormClient() { return m_formClient; }
     InjectedBundlePageLoaderClient& injectedBundleLoaderClient() { return m_loaderClient; }
@@ -247,7 +257,7 @@ public:
     WebCore::Frame* mainFrame() const; // May return 0.
     WebCore::FrameView* mainFrameView() const; // May return 0.
 
-    PassRefPtr<Plugin> createPlugin(WebFrame*, const Plugin::Parameters&);
+    PassRefPtr<Plugin> createPlugin(WebFrame*, WebCore::HTMLPlugInElement*, const Plugin::Parameters&);
 
     EditorState editorState() const;
 
@@ -342,11 +352,14 @@ public:
     void setFixedVisibleContentRect(const WebCore::IntRect&);
     void setResizesToContentsUsingLayoutSize(const WebCore::IntSize&);
     void resizeToContentsIfNeeded();
+    void sendViewportAttributesChanged();
     void setViewportSize(const WebCore::IntSize&);
     WebCore::IntSize viewportSize() const { return m_viewportSize; }
 #endif
 
+#if ENABLE(CONTEXT_MENUS)
     WebContextMenu* contextMenu();
+#endif
     
     bool hasLocalDataForURL(const WebCore::KURL&);
     String cachedResponseMIMETypeForURL(const WebCore::KURL&);
@@ -400,8 +413,9 @@ public:
     void characterIndexForPoint(const WebCore::IntPoint point, uint64_t& result);
     void firstRectForCharacterRange(uint64_t location, uint64_t length, WebCore::IntRect& resultRect);
     void executeKeypressCommands(const Vector<WebCore::KeypressCommand>&, bool& handled, EditorState& newState);
-    void writeSelectionToPasteboard(const WTF::String& pasteboardName, const WTF::Vector<WTF::String>& pasteboardTypes, bool& result);
     void readSelectionFromPasteboard(const WTF::String& pasteboardName, bool& result);
+    void getStringSelectionForPasteboard(WTF::String& stringValue);
+    void getDataSelectionForPasteboard(const WTF::String pasteboardType, SharedMemory::Handle& handle, uint64_t& size);
     void shouldDelayWindowOrderingEvent(const WebKit::WebMouseEvent&, bool& result);
     void acceptsFirstMouse(int eventNumber, const WebKit::WebMouseEvent&, bool& result);
     bool performNonEditingBehaviorForSelector(const String&);
@@ -450,7 +464,7 @@ public:
     void dragEnded(WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t operation);
 
     void willPerformLoadDragDestinationAction();
-    void performUploadDragDestinationAction();
+    void mayPerformUploadDragDestinationAction();
 
     void beginPrinting(uint64_t frameID, const PrintInfo&);
     void endPrinting();
@@ -498,7 +512,9 @@ public:
     void simulateMouseMotion(WebCore::IntPoint, double time);
     String viewportConfigurationAsText(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight);
 
+#if ENABLE(CONTEXT_MENUS)
     void contextMenuShowing() { m_isShowingContextMenu = true; }
+#endif
 
 #if PLATFORM(QT)
     void registerApplicationScheme(const String& scheme);
@@ -578,7 +594,9 @@ private:
     void highlightPotentialActivation(const WebCore::IntPoint&, const WebCore::IntSize& area);
 #endif
 #endif
+#if ENABLE(CONTEXT_MENUS)
     void contextMenuHidden() { m_isShowingContextMenu = false; }
+#endif
 
     static void scroll(WebCore::Page*, WebCore::ScrollDirection, WebCore::ScrollGranularity);
     static void logicalScroll(WebCore::Page*, WebCore::ScrollLogicalDirection, WebCore::ScrollGranularity);
@@ -622,6 +640,11 @@ private:
 
     void setWindowIsVisible(bool windowIsVisible);
     void windowAndViewFramesChanged(const WebCore::IntRect& windowFrameInScreenCoordinates, const WebCore::IntRect& viewFrameInWindowCoordinates, const WebCore::IntPoint& accessibilityViewCoordinates);
+
+    RetainPtr<PDFDocument> pdfDocumentForPrintingFrame(WebCore::Frame*);
+    void computePagesForPrintingPDFDocument(uint64_t frameID, const PrintInfo&, Vector<WebCore::IntRect>& resultPageRects);
+    void drawRectToPDFFromPDFDocument(CGContextRef, PDFDocument *, const PrintInfo&, const WebCore::IntRect&);
+    void drawPagesToPDFFromPDFDocument(CGContextRef, PDFDocument *, const PrintInfo&, uint32_t first, uint32_t count);
 #endif
 
     void unapplyEditCommand(uint64_t commandID);
@@ -732,7 +755,9 @@ private:
 
     WebCore::IntSize m_windowResizerSize;
 
+#if ENABLE(CONTEXT_MENUS)
     InjectedBundlePageContextMenuClient m_contextMenuClient;
+#endif
     InjectedBundlePageEditorClient m_editorClient;
     InjectedBundlePageFormClient m_formClient;
     InjectedBundlePageLoaderClient m_loaderClient;
@@ -762,7 +787,9 @@ private:
     RefPtr<WebFullScreenManager> m_fullScreenManager;
 #endif
     RefPtr<WebPopupMenu> m_activePopupMenu;
+#if ENABLE(CONTEXT_MENUS)
     RefPtr<WebContextMenu> m_contextMenu;
+#endif
     RefPtr<WebOpenPanelResultListener> m_activeOpenPanelResultListener;
     RefPtr<NotificationPermissionRequestManager> m_notificationPermissionRequestManager;
 
@@ -793,7 +820,9 @@ private:
 
     unsigned m_cachedPageCount;
 
+#if ENABLE(CONTEXT_MENUS)
     bool m_isShowingContextMenu;
+#endif
     
     bool m_willGoToBackForwardItemCallbackEnabled;
 
@@ -802,6 +831,9 @@ private:
 #endif
 #if PLATFORM(QT)
     HashMap<String, QtNetworkReply*> m_applicationSchemeReplies;
+#endif
+#if ENABLE(PAGE_VISIBILITY_API)
+    WebCore::PageVisibilityState m_visibilityState;
 #endif
 };
 

@@ -109,7 +109,7 @@ bool WebNotificationManager::show(Notification* notification, WebPage* page)
 {
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     if (!notification || !page->corePage()->settings()->notificationsEnabled())
-        return true;
+        return false;
     
     uint64_t notificationID = generateNotificationID();
     m_notificationMap.set(notification, notificationID);
@@ -117,8 +117,12 @@ bool WebNotificationManager::show(Notification* notification, WebPage* page)
     
     NotificationContextMap::iterator it = m_notificationContextMap.add(notification->scriptExecutionContext(), Vector<uint64_t>()).iterator;
     it->second.append(notificationID);
-    
+
+#if ENABLE(NOTIFICATIONS)
+    m_process->connection()->send(Messages::WebPageProxy::ShowNotification(notification->title(), notification->body(), notification->iconURL().string(), notification->tag(), notification->scriptExecutionContext()->securityOrigin()->toString(), notificationID), page->pageID());
+#else
     m_process->connection()->send(Messages::WebPageProxy::ShowNotification(notification->title(), notification->body(), notification->iconURL().string(), notification->replaceId(), notification->scriptExecutionContext()->securityOrigin()->toString(), notificationID), page->pageID());
+#endif
     return true;
 #else
     return false;
@@ -153,6 +157,7 @@ void WebNotificationManager::clearNotifications(WebCore::ScriptExecutionContext*
         RefPtr<Notification> notification = m_notificationIDMap.take(notificationIDs[i]);
         if (!notification)
             continue;
+        notification->finalize();
         m_notificationMap.remove(notification);
     }
     

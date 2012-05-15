@@ -43,4 +43,5 @@ GestureEvent conditional=IOS_GESTURE_EVENTS
 DeviceMotionEvent conditional=DEVICE_ORIENTATION
 DeviceOrientationEvent conditional=DEVICE_ORIENTATION
 OrientationEvent interfaceName=Event, conditional=ORIENTATION_EVENTS
+MediaKeyEvent conditional=ENCRYPTED_MEDIA
 TrackEvent conditional=VIDEO_TRACK

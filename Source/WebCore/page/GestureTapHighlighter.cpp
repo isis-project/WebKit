@@ -39,7 +39,6 @@
 #include "Page.h"
 #include "RenderBoxModelObject.h"
 #include "RenderInline.h"
-#include "RenderLayer.h"
 #include "RenderObject.h"
 
 namespace WebCore {
@@ -55,7 +54,7 @@ inline LayoutPoint ownerFrameToMainFrameOffset(const RenderObject* o)
 
     Frame* mainFrame = containingFrame->page()->mainFrame();
 
-    LayoutPoint mainFramePoint = mainFrame->view()->rootViewToContents(containingFrame->view()->contentsToRootView(IntPoint()));
+    LayoutPoint mainFramePoint = mainFrame->view()->windowToContents(containingFrame->view()->contentsToWindow(IntPoint()));
     return mainFramePoint;
 }
 

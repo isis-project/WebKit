@@ -53,7 +53,7 @@ function unexpectedErrorCallback(event)
     finishJSTest();
 }
 
-function unexpectedAbortCallback()
+function unexpectedAbortCallback(e)
 {
     testFailed("Abort function called unexpectedly!");
     finishJSTest();
@@ -97,6 +97,13 @@ function evalAndExpectExceptionClass(cmd, expected)
 		else
 			testFailed("Expected " + expected + " but saw " + e);
     }
+}
+
+function evalAndLogCallback(cmd) {
+  function callback() {
+    evalAndLog(cmd);
+  }
+  return callback;
 }
 
 function deleteAllObjectStores(db)

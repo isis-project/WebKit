@@ -21,9 +21,9 @@
 #define qwebiconimageprovider_p_h
 
 #include "qwebkitglobal.h"
-#include <QtQml/QQmlImageProvider>
+#include <QtQuick/QQuickImageProvider>
 
-class QWEBKIT_EXPORT QWebIconImageProvider : public QDeclarativeImageProvider {
+class QWEBKIT_EXPORT QWebIconImageProvider : public QQuickImageProvider {
 public:
     QWebIconImageProvider();
     ~QWebIconImageProvider();

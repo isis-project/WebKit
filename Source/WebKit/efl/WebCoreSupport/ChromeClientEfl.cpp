@@ -37,6 +37,7 @@
 #include "FileChooser.h"
 #include "FileIconLoader.h"
 #include "FloatRect.h"
+#include "Frame.h"
 #include "FrameLoader.h"
 #include "FrameLoaderClientEfl.h"
 #include "HitTestResult.h"
@@ -50,7 +51,9 @@
 #include "SecurityOrigin.h"
 #include "ViewportArguments.h"
 #include "WindowFeatures.h"
+#include "ewk_frame_private.h"
 #include "ewk_private.h"
+#include "ewk_view_private.h"
 #include <Ecore_Evas.h>
 #include <Evas.h>
 #include <wtf/text/CString.h>
@@ -62,6 +65,10 @@
 #if ENABLE(SQL_DATABASE)
 #include "DatabaseDetails.h"
 #include "DatabaseTracker.h"
+#endif
+
+#if ENABLE(INPUT_TYPE_COLOR)
+#include "ColorChooserEfl.h"
 #endif
 
 using namespace WebCore;
@@ -145,7 +152,7 @@ Page* ChromeClientEfl::createWindow(Frame*, const FrameLoadRequest& frameLoadReq
     if (!newView)
         return 0;
 
-    return ewk_view_core_page_get(newView);
+    return EWKPrivate::corePage(newView);
 }
 
 void ChromeClientEfl::show()
@@ -302,7 +309,7 @@ bool ChromeClientEfl::shouldInterruptJavaScript()
 
 KeyboardUIMode ChromeClientEfl::keyboardUIMode()
 {
-    return KeyboardAccessTabsToLinks;
+    return ewk_view_setting_include_links_in_focus_chain_get(m_view) ? KeyboardAccessTabsToLinks : KeyboardAccessDefault;
 }
 
 IntRect ChromeClientEfl::windowResizerRect() const
@@ -422,6 +429,25 @@ NotificationClient* ChromeClientEfl::notificationPresenter() const
 {
     notImplemented();
     return 0;
+}
+#endif
+
+#if ENABLE(INPUT_TYPE_COLOR)
+PassOwnPtr<ColorChooser> ChromeClientEfl::createColorChooser(ColorChooserClient* colorChooserClient, const Color& initialColor)
+{
+    ewk_view_color_chooser_new(m_view, colorChooserClient, initialColor);
+
+    return adoptPtr(new ColorChooserEfl(this));
+}
+
+void ChromeClientEfl::removeColorChooser()
+{
+    ewk_view_color_chooser_destroy(m_view);
+}
+
+void ChromeClientEfl::updateColorChooser(const Color& color)
+{
+    ewk_view_color_chooser_changed(m_view, color);
 }
 #endif
 

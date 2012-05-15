@@ -25,6 +25,7 @@
 #include "NativeWebMouseEvent.h"
 #include "NativeWebWheelEvent.h"
 #include "QtViewportInteractionEngine.h"
+#include "WebPageProxy.h"
 #include "qquickwebpage_p.h"
 #include "qquickwebview_p.h"
 #include <QCursor>
@@ -40,8 +41,9 @@
 #include <WebCore/DragData.h>
 #include <WebCore/Editor.h>
 
-using namespace WebKit;
 using namespace WebCore;
+
+namespace WebKit {
 
 static inline Qt::DropAction dragOperationToDropAction(unsigned dragOperation)
 {
@@ -152,9 +154,6 @@ void QtWebPageEventHandler::handleWheelEvent(QWheelEvent* ev)
 {
     QTransform fromItemTransform = m_webPage->transformFromItem();
     m_webPageProxy->handleWheelEvent(NativeWebWheelEvent(ev, fromItemTransform));
-    // FIXME: Handle whether the page used the wheel event or not.
-    if (m_interactionEngine)
-        m_interactionEngine->wheelEvent(ev);
 }
 
 void QtWebPageEventHandler::handleHoverLeaveEvent(QHoverEvent* ev)
@@ -373,9 +372,9 @@ void QtWebPageEventHandler::handleTouchEvent(QTouchEvent* event)
 
 void QtWebPageEventHandler::resetGestureRecognizers()
 {
-    m_panGestureRecognizer.reset();
-    m_pinchGestureRecognizer.reset();
-    m_tapGestureRecognizer.reset();
+    m_panGestureRecognizer.cancel();
+    m_pinchGestureRecognizer.cancel();
+    m_tapGestureRecognizer.cancel();
 }
 
 static void setInputPanelVisible(bool visible)
@@ -392,7 +391,7 @@ void QtWebPageEventHandler::inputPanelVisibleChanged()
         return;
 
     // We only respond to the input panel becoming visible.
-    if (!m_webView->hasFocus() || !qApp->inputPanel()->visible())
+    if (!m_webView->hasActiveFocus() || !qApp->inputPanel()->visible())
         return;
 
     const EditorState& editor = m_webPageProxy->editorState();
@@ -407,12 +406,14 @@ void QtWebPageEventHandler::updateTextInputState()
 
     const EditorState& editor = m_webPageProxy->editorState();
 
-    if (!m_webView->hasFocus())
+    m_webView->setFlag(QQuickItem::ItemAcceptsInputMethod, editor.isContentEditable);
+
+    if (!m_webView->hasActiveFocus())
         return;
 
-    // Ignore input method requests not due to a tap gesture.
-    if (!editor.isContentEditable)
-        setInputPanelVisible(false);
+    qApp->inputPanel()->update(Qt::ImQueryInput | Qt::ImEnabled);
+
+    setInputPanelVisible(editor.isContentEditable);
 }
 
 void QtWebPageEventHandler::doneWithGestureEvent(const WebGestureEvent& event, bool wasEventHandled)
@@ -422,13 +423,10 @@ void QtWebPageEventHandler::doneWithGestureEvent(const WebGestureEvent& event, b
 
     m_postponeTextInputStateChanged = false;
 
-    if (!wasEventHandled || !m_webView->hasFocus())
+    if (!wasEventHandled || !m_webView->hasActiveFocus())
         return;
 
-    const EditorState& editor = m_webPageProxy->editorState();
-    bool newVisible = editor.isContentEditable;
-
-    setInputPanelVisible(newVisible);
+    updateTextInputState();
 }
 
 #if ENABLE(TOUCH_EVENTS)
@@ -472,16 +470,45 @@ void QtWebPageEventHandler::doneWithTouchEvent(const NativeWebTouchEvent& event,
     if (m_interactionEngine->scaleAnimationActive())
         return;
 
-    m_panGestureRecognizer.recognize(ev);
-    m_pinchGestureRecognizer.recognize(ev);
+    const QList<QTouchEvent::TouchPoint>& touchPoints = ev->touchPoints();
+    const int touchPointCount = touchPoints.size();
+    qint64 eventTimestampMillis = ev->timestamp();
+    QList<QTouchEvent::TouchPoint> activeTouchPoints;
+    activeTouchPoints.reserve(touchPointCount);
 
-    if (m_panGestureRecognizer.isRecognized() || m_pinchGestureRecognizer.isRecognized())
-        m_tapGestureRecognizer.reset();
-    else {
-        // Convert the event timestamp from second to millisecond.
-        qint64 eventTimestampMillis = static_cast<qint64>(event.timestamp() * 1000);
-        m_tapGestureRecognizer.recognize(ev, eventTimestampMillis);
+    for (int i = 0; i < touchPointCount; ++i) {
+        if (touchPoints[i].state() != Qt::TouchPointReleased)
+            activeTouchPoints << touchPoints[i];
     }
+
+    const int activeTouchPointCount = activeTouchPoints.size();
+
+    if (!activeTouchPointCount) {
+        if (touchPointCount == 1) {
+            // No active touch points, one finger released.
+            if (!m_panGestureRecognizer.isRecognized())
+                m_tapGestureRecognizer.update(ev->type(), touchPoints.first());
+            m_panGestureRecognizer.finish(touchPoints.first(), eventTimestampMillis);
+        } else
+            m_pinchGestureRecognizer.finish();
+
+        // Early return since this was a touch-end event.
+        return;
+    } else if (activeTouchPointCount == 1) {
+        // If the pinch gesture recognizer was previously in active state the content might
+        // be out of valid zoom boundaries, thus we need to finish the pinch gesture here.
+        // This will resume the content to valid zoom levels before the pan gesture is started.
+        m_pinchGestureRecognizer.finish();
+        m_panGestureRecognizer.update(activeTouchPoints.first(), eventTimestampMillis);
+    } else if (activeTouchPointCount == 2) {
+        m_panGestureRecognizer.cancel();
+        m_pinchGestureRecognizer.update(activeTouchPoints.first(), activeTouchPoints.last());
+    }
+
+    if (m_panGestureRecognizer.isRecognized() || m_pinchGestureRecognizer.isRecognized() || m_webView->isMoving())
+        m_tapGestureRecognizer.cancel();
+    else if (touchPointCount == 1)
+        m_tapGestureRecognizer.update(ev->type(), touchPoints.first());
 }
 #endif
 
@@ -523,4 +550,7 @@ void QtWebPageEventHandler::startDrag(const WebCore::DragData& dragData, PassRef
     m_webPageProxy->dragEnded(clientPosition, globalPosition, dropActionToDragOperation(actualDropAction));
 }
 
+} // namespace WebKit
+
 #include "moc_QtWebPageEventHandler.cpp"
+

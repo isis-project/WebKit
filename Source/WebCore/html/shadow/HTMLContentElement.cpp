@@ -27,13 +27,13 @@
 #include "config.h"
 #include "HTMLContentElement.h"
 
+#include "ContentDistributor.h"
 #include "ContentSelectorQuery.h"
-#include "HTMLContentSelector.h"
+#include "ElementShadow.h"
 #include "HTMLNames.h"
 #include "QualifiedName.h"
 #include "RuntimeEnabledFeatures.h"
 #include "ShadowRoot.h"
-#include "ShadowTree.h"
 #include <wtf/StdLibExtras.h>
 
 namespace WebCore {
@@ -89,8 +89,8 @@ void HTMLContentElement::setSelect(const AtomicString& selectValue)
 void HTMLContentElement::parseAttribute(Attribute* attr)
 {
     if (attr->name() == selectAttr) {
-        if (ShadowRoot* root = toShadowRoot(shadowTreeRootNode()))
-            root->tree()->setNeedsReattachHostChildrenAndShadow();
+        if (ShadowRoot* root = shadowTreeRootNode())
+            root->owner()->setNeedsRedistributing();
     } else
         InsertionPoint::parseAttribute(attr);
 }

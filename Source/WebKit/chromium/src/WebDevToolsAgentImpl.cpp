@@ -47,6 +47,7 @@
 #include "PageScriptDebugServer.h"
 #include "painting/GraphicsContextBuilder.h"
 #include "PlatformString.h"
+#include "RenderView.h"
 #include "ResourceError.h"
 #include "ResourceRequest.h"
 #include "ResourceResponse.h"
@@ -65,10 +66,12 @@
 #include "WebViewClient.h"
 #include "WebViewImpl.h"
 #include <wtf/CurrentTime.h>
+#include <wtf/MathExtras.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/OwnPtr.h>
 
 using namespace WebCore;
+using namespace std;
 
 namespace OverlayZOrders {
 static const int viewportGutter = 97;
@@ -186,6 +189,8 @@ class DeviceMetricsSupport : public WebPageOverlay {
 public:
     DeviceMetricsSupport(WebViewImpl* webView)
         : m_webView(webView)
+        , m_fitWindow(false)
+        , m_originalZoomFactor(0)
     {
         m_webView->addPageOverlay(this, OverlayZOrders::viewportGutter);
     }
@@ -196,18 +201,29 @@ public:
         m_webView->removePageOverlay(this);
     }
 
-    void setDeviceMetrics(int width, int height, float textZoomFactor)
+    void setDeviceMetrics(int width, int height, float textZoomFactor, bool fitWindow)
     {
         WebCore::FrameView* view = frameView();
         if (!view)
             return;
 
         m_emulatedFrameSize = WebSize(width, height);
+        m_fitWindow = fitWindow;
+        m_originalZoomFactor = 0;
         m_webView->setEmulatedTextZoomFactor(textZoomFactor);
-        applySizeOverrideInternal(view, width, height);
+        applySizeOverrideInternal(view, FitWindowAllowed);
         autoZoomPageToFitWidth(view->frame());
 
         m_webView->sendResizeEventAndRepaint();
+    }
+
+    void autoZoomPageToFitWidthOnNavigation(Frame* frame)
+    {
+        FrameView* frameView = frame->view();
+        applySizeOverrideInternal(frameView, FitWindowNotAllowed);
+        m_originalZoomFactor = 0;
+        applySizeOverrideInternal(frameView, FitWindowAllowed);
+        autoZoomPageToFitWidth(frame);
     }
 
     void autoZoomPageToFitWidth(Frame* frame)
@@ -215,10 +231,23 @@ public:
         if (!frame)
             return;
 
-        m_webView->setZoomLevel(false, 0);
+        frame->setTextZoomFactor(m_webView->emulatedTextZoomFactor());
+        WebSize scaledFrameSize = scaledEmulatedFrameSize(frame->view());
+        ensureOriginalZoomFactor(frame->view());
+        double sizeRatio = static_cast<double>(scaledFrameSize.width) / m_emulatedFrameSize.width;
+        frame->setPageAndTextZoomFactors(sizeRatio * m_originalZoomFactor, m_webView->emulatedTextZoomFactor());
+        Document* doc = frame->document();
+        doc->styleResolverChanged(RecalcStyleImmediately);
+        doc->updateLayout();
+    }
 
-        float zoomFactor = static_cast<float>(m_emulatedFrameSize.width) / frame->view()->contentsWidth();
-        frame->setPageAndTextZoomFactors(zoomFactor, m_webView->emulatedTextZoomFactor());
+    void webViewResized()
+    {
+        if (!m_fitWindow)
+            return;
+
+        applySizeOverrideIfNecessary();
+        autoZoomPageToFitWidth(m_webView->mainFrameImpl()->frame());
     }
 
     void applySizeOverrideIfNecessary()
@@ -227,39 +256,91 @@ public:
         if (!view)
             return;
 
-        applySizeOverrideInternal(view, m_emulatedFrameSize.width, m_emulatedFrameSize.height);
+        applySizeOverrideInternal(view, FitWindowAllowed);
     }
 
 private:
+    enum FitWindowFlag { FitWindowAllowed, FitWindowNotAllowed };
+
+    void ensureOriginalZoomFactor(FrameView* frameView)
+    {
+        if (m_originalZoomFactor)
+            return;
+
+        m_webView->setPageScaleFactor(1, WebPoint());
+        m_webView->setZoomLevel(false, 0);
+        WebSize scaledEmulatedSize = scaledEmulatedFrameSize(frameView);
+        Document* document = frameView->frame()->document();
+        double denominator = document->renderView() ? document->renderView()->viewWidth() : frameView->contentsWidth();
+        if (!denominator)
+            denominator = 1;
+        m_originalZoomFactor = static_cast<double>(scaledEmulatedSize.width) / denominator;
+    }
+
     void restore()
     {
-        m_webView->setZoomLevel(false, 0);
-        m_webView->sendResizeEventAndRepaint();
-        m_webView->setEmulatedTextZoomFactor(1);
-
         WebCore::FrameView* view = frameView();
         if (!view)
             return;
 
+        m_webView->setZoomLevel(false, 0);
+        m_webView->setEmulatedTextZoomFactor(1);
         view->setHorizontalScrollbarLock(false);
         view->setVerticalScrollbarLock(false);
         view->setScrollbarModes(ScrollbarAuto, ScrollbarAuto, false, false);
         view->resize(IntSize(m_webView->size()));
+        m_webView->sendResizeEventAndRepaint();
     }
 
-    void applySizeOverrideInternal(FrameView* frameView, int overrideWidth, int overrideHeight)
+    WebSize scaledEmulatedFrameSize(FrameView* frameView)
+    {
+        if (!m_fitWindow)
+            return m_emulatedFrameSize;
+
+        WebSize scrollbarDimensions = forcedScrollbarDimensions(frameView);
+
+        int overrideWidth = m_emulatedFrameSize.width;
+        int overrideHeight = m_emulatedFrameSize.height;
+
+        WebSize webViewSize = m_webView->size();
+        int availableViewWidth = max(webViewSize.width - scrollbarDimensions.width, 1);
+        int availableViewHeight = max(webViewSize.height - scrollbarDimensions.height, 1);
+
+        double widthRatio = static_cast<double>(overrideWidth) / availableViewWidth;
+        double heightRatio = static_cast<double>(overrideHeight) / availableViewHeight;
+        double dimensionRatio = max(widthRatio, heightRatio);
+        overrideWidth = static_cast<int>(ceil(static_cast<double>(overrideWidth) / dimensionRatio));
+        overrideHeight = static_cast<int>(ceil(static_cast<double>(overrideHeight) / dimensionRatio));
+
+        return WebSize(overrideWidth, overrideHeight);
+    }
+
+    WebSize forcedScrollbarDimensions(FrameView* frameView)
     {
         frameView->setScrollbarModes(ScrollbarAlwaysOn, ScrollbarAlwaysOn, true, true);
+
+        int verticalScrollbarWidth = 0;
+        int horizontalScrollbarHeight = 0;
         if (Scrollbar* verticalBar = frameView->verticalScrollbar())
-            overrideWidth += !verticalBar->isOverlayScrollbar() ? verticalBar->width() : 0;
+            verticalScrollbarWidth = !verticalBar->isOverlayScrollbar() ? verticalBar->width() : 0;
         if (Scrollbar* horizontalBar = frameView->horizontalScrollbar())
-            overrideHeight += !horizontalBar->isOverlayScrollbar() ? horizontalBar->height() : 0;
+            horizontalScrollbarHeight = !horizontalBar->isOverlayScrollbar() ? horizontalBar->height() : 0;
+        return WebSize(verticalScrollbarWidth, horizontalScrollbarHeight);
+    }
+
+    void applySizeOverrideInternal(FrameView* frameView, FitWindowFlag fitWindowFlag)
+    {
+        WebSize scrollbarDimensions = forcedScrollbarDimensions(frameView);
+
+        WebSize effectiveEmulatedSize = (fitWindowFlag == FitWindowAllowed) ? scaledEmulatedFrameSize(frameView) : m_emulatedFrameSize;
+        int overrideWidth = effectiveEmulatedSize.width + scrollbarDimensions.width;
+        int overrideHeight = effectiveEmulatedSize.height + scrollbarDimensions.height;
 
         if (IntSize(overrideWidth, overrideHeight) != frameView->size())
             frameView->resize(overrideWidth, overrideHeight);
 
         Document* doc = frameView->frame()->document();
-        doc->recalcStyle(Node::Force);
+        doc->styleResolverChanged(RecalcStyleImmediately);
         doc->updateLayout();
     }
 
@@ -283,6 +364,8 @@ private:
 
     WebViewImpl* m_webView;
     WebSize m_emulatedFrameSize;
+    bool m_fitWindow;
+    double m_originalZoomFactor;
 };
 
 
@@ -337,10 +420,12 @@ void WebDevToolsAgentImpl::didNavigate()
     ClientMessageLoopAdapter::didNavigate();
 }
 
-void WebDevToolsAgentImpl::didClearWindowObject(WebFrameImpl* webframe)
+void WebDevToolsAgentImpl::didCreateScriptContext(WebFrameImpl* webframe, int worldId)
 {
-    WebCore::V8Proxy* proxy = WebCore::V8Proxy::retrieve(webframe->frame());
-    if (proxy && webframe->frame()->script()->canExecuteScripts(NotAboutToExecuteScript))
+    // Skip non main world contexts.
+    if (worldId)
+        return;
+    if (WebCore::V8Proxy* proxy = WebCore::V8Proxy::retrieve(webframe->frame()))
         proxy->setContextDebugId(m_hostId);
 }
 
@@ -355,7 +440,13 @@ bool WebDevToolsAgentImpl::metricsOverridden()
     return !!m_metricsSupport;
 }
 
-void WebDevToolsAgentImpl::overrideDeviceMetrics(int width, int height, float fontScaleFactor)
+void WebDevToolsAgentImpl::webViewResized()
+{
+    if (m_metricsSupport)
+        m_metricsSupport->webViewResized();
+}
+
+void WebDevToolsAgentImpl::overrideDeviceMetrics(int width, int height, float fontScaleFactor, bool fitWindow)
 {
     if (!width && !height) {
         if (m_metricsSupport)
@@ -365,13 +456,13 @@ void WebDevToolsAgentImpl::overrideDeviceMetrics(int width, int height, float fo
 
     if (!m_metricsSupport)
         m_metricsSupport = adoptPtr(new DeviceMetricsSupport(m_webViewImpl));
-    m_metricsSupport->setDeviceMetrics(width, height, fontScaleFactor);
+    m_metricsSupport->setDeviceMetrics(width, height, fontScaleFactor, fitWindow);
 }
 
 void WebDevToolsAgentImpl::autoZoomPageToFitWidth()
 {
     if (m_metricsSupport)
-        m_metricsSupport->autoZoomPageToFitWidth(m_webViewImpl->mainFrameImpl()->frame());
+        m_metricsSupport->autoZoomPageToFitWidthOnNavigation(m_webViewImpl->mainFrameImpl()->frame());
 }
 
 void WebDevToolsAgentImpl::dispatchOnInspectorBackend(const WebString& message)

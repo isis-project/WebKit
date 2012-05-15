@@ -102,6 +102,7 @@
 
 #include <QAction>
 #include <QMenu>
+#include <QPainter>
 
 using namespace WebCore;
 
@@ -385,32 +386,6 @@ int DumpRenderTreeSupportQt::numberOfActiveAnimations(QWebFrame *frame)
     return controller->numberOfActiveAnimations(coreFrame->document());
 }
 
-void DumpRenderTreeSupportQt::suspendAnimations(QWebFrame *frame)
-{
-    Frame* coreFrame = QWebFramePrivate::core(frame);
-    if (!coreFrame)
-        return;
-
-    AnimationController* controller = coreFrame->animation();
-    if (!controller)
-        return;
-
-    controller->suspendAnimations();
-}
-
-void DumpRenderTreeSupportQt::resumeAnimations(QWebFrame *frame)
-{
-    Frame* coreFrame = QWebFramePrivate::core(frame);
-    if (!coreFrame)
-        return;
-
-    AnimationController* controller = coreFrame->animation();
-    if (!controller)
-        return;
-
-    controller->resumeAnimations();
-}
-
 void DumpRenderTreeSupportQt::clearFrameName(QWebFrame* frame)
 {
     Frame* coreFrame = QWebFramePrivate::core(frame);
@@ -532,7 +507,7 @@ void DumpRenderTreeSupportQt::setMediaType(QWebFrame* frame, const QString& type
     WebCore::Frame* coreFrame = QWebFramePrivate::core(frame);
     WebCore::FrameView* view = coreFrame->view();
     view->setMediaType(type);
-    coreFrame->document()->styleSelectorChanged(RecalcStyleImmediately);
+    coreFrame->document()->styleResolverChanged(RecalcStyleImmediately);
     view->layout();
 }
 
@@ -812,8 +787,8 @@ QString DumpRenderTreeSupportQt::viewportAsText(QWebPage* page, int deviceDPI, c
 
     QString res;
     res = res.sprintf("viewport size %dx%d scale %f with limits [%f, %f] and userScalable %f\n",
-            conf.layoutSize.width(),
-            conf.layoutSize.height(),
+            static_cast<int>(conf.layoutSize.width()),
+            static_cast<int>(conf.layoutSize.height()),
             conf.initialScale,
             conf.minimumScale,
             conf.maximumScale,
@@ -1004,12 +979,6 @@ void DumpRenderTreeSupportQt::evaluateScriptInIsolatedWorld(QWebFrame* frame, in
     sources.append(source);
     proxy->evaluateInIsolatedWorld(0, sources, true);
 #endif
-}
-
-bool DumpRenderTreeSupportQt::isPageBoxVisible(QWebFrame* frame, int pageIndex)
-{
-    WebCore::Frame* coreFrame = QWebFramePrivate::core(frame);
-    return coreFrame->document()->isPageBoxVisible(pageIndex);
 }
 
 QString DumpRenderTreeSupportQt::pageSizeAndMarginsInPixels(QWebFrame* frame, int pageIndex, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft)
@@ -1256,6 +1225,49 @@ void DumpRenderTreeSupportQt::setHixie76WebSocketProtocolEnabled(QWebPage* page,
     UNUSED_PARAM(page);
     UNUSED_PARAM(enabled);
 #endif
+}
+
+QImage DumpRenderTreeSupportQt::paintPagesWithBoundaries(QWebFrame* qframe)
+{
+    Frame* frame = QWebFramePrivate::core(qframe);
+    PrintContext printContext(frame);
+
+    QRect rect = frame->view()->frameRect();
+
+    IntRect pageRect(0, 0, rect.width(), rect.height());
+
+    printContext.begin(pageRect.width(), pageRect.height());
+    float pageHeight = 0;
+    printContext.computePageRects(pageRect, /* headerHeight */ 0, /* footerHeight */ 0, /* userScaleFactor */ 1.0, pageHeight);
+
+    QPainter painter;
+    int pageCount = printContext.pageCount();
+    // pages * pageHeight and 1px line between each page
+    int totalHeight = pageCount * (pageRect.height() + 1) - 1;
+    QImage image(pageRect.width(), totalHeight, QImage::Format_ARGB32);
+    image.fill(Qt::white);
+    painter.begin(&image);
+
+    GraphicsContext ctx(&painter);
+    for (int i = 0; i < printContext.pageCount(); ++i) {
+        printContext.spoolPage(ctx, i, pageRect.width());
+        // translate to next page coordinates
+        ctx.translate(0, pageRect.height() + 1);
+
+        // if there is a next page, draw a blue line between these two
+        if (i + 1 < printContext.pageCount()) {
+            ctx.save();
+            ctx.setStrokeColor(Color(0, 0, 255), ColorSpaceDeviceRGB);
+            ctx.setFillColor(Color(0, 0, 255), ColorSpaceDeviceRGB);
+            ctx.drawLine(IntPoint(0, -1), IntPoint(pageRect.width(), -1));
+            ctx.restore();
+        }
+    }
+
+    painter.end();
+    printContext.end();
+
+    return image;
 }
 
 // Provide a backward compatibility with previously exported private symbols as of QtWebKit 4.6 release

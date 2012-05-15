@@ -67,29 +67,22 @@ void ScrollingTreeNodeMac::update(ScrollingTreeState* state)
     if ((state->changedProperties() & ScrollingTreeState::ShouldUpdateScrollLayerPositionOnMainThread) && shouldUpdateScrollLayerPositionOnMainThread()) {
         // We're transitioning to the slow "update scroll layer position on the main thread" mode.
         // Initialize the probable main thread scroll position with the current scroll layer position.
-        CGPoint scrollLayerPosition = m_scrollLayer.get().position;
-        m_probableMainThreadScrollPosition = IntPoint(-scrollLayerPosition.x, -scrollLayerPosition.y);
+        if (state->changedProperties() & ScrollingTreeState::RequestedScrollPosition)
+            m_probableMainThreadScrollPosition = state->requestedScrollPosition();
+        else {
+            CGPoint scrollLayerPosition = m_scrollLayer.get().position;
+            m_probableMainThreadScrollPosition = IntPoint(-scrollLayerPosition.x, -scrollLayerPosition.y);
+        }
     }
 }
 
 void ScrollingTreeNodeMac::handleWheelEvent(const PlatformWheelEvent& wheelEvent)
 {
+    if (!canHaveScrollbars())
+        return;
+
     m_scrollElasticityController.handleWheelEvent(wheelEvent);
     scrollingTree()->handleWheelEventPhase(wheelEvent.phase());
-}
-
-void ScrollingTreeNodeMac::setScrollPosition(const IntPoint& scrollPosition)
-{
-    updateMainFramePinState(scrollPosition);
-
-    if (shouldUpdateScrollLayerPositionOnMainThread()) {
-        m_probableMainThreadScrollPosition = scrollPosition;
-        scrollingTree()->updateMainFrameScrollPositionAndScrollLayerPosition(scrollPosition);
-        return;
-    }
-
-    setScrollLayerPosition(scrollPosition);
-    scrollingTree()->updateMainFrameScrollPosition(scrollPosition);
 }
 
 bool ScrollingTreeNodeMac::allowsHorizontalStretching()
@@ -230,24 +223,45 @@ IntPoint ScrollingTreeNodeMac::scrollPosition() const
         return m_probableMainThreadScrollPosition;
 
     CGPoint scrollLayerPosition = m_scrollLayer.get().position;
-    return IntPoint(-scrollLayerPosition.x, -scrollLayerPosition.y);
+    return IntPoint(-scrollLayerPosition.x + scrollOrigin().x(), -scrollLayerPosition.y + scrollOrigin().y());
+}
+
+void ScrollingTreeNodeMac::setScrollPosition(const IntPoint& scrollPosition)
+{
+    IntPoint newScrollPosition = scrollPosition;
+    newScrollPosition = newScrollPosition.shrunkTo(maximumScrollPosition());
+    newScrollPosition = newScrollPosition.expandedTo(minimumScrollPosition());
+
+    setScrollPositionWithoutContentEdgeConstraints(newScrollPosition);
+}
+
+void ScrollingTreeNodeMac::setScrollPositionWithoutContentEdgeConstraints(const IntPoint& scrollPosition)
+{
+    updateMainFramePinState(scrollPosition);
+
+    if (shouldUpdateScrollLayerPositionOnMainThread()) {
+        m_probableMainThreadScrollPosition = scrollPosition;
+        scrollingTree()->updateMainFrameScrollPositionAndScrollLayerPosition(scrollPosition);
+        return;
+    }
+
+    setScrollLayerPosition(scrollPosition);
+    scrollingTree()->updateMainFrameScrollPosition(scrollPosition);
 }
 
 void ScrollingTreeNodeMac::setScrollLayerPosition(const IntPoint& position)
 {
     ASSERT(!shouldUpdateScrollLayerPositionOnMainThread());
-    m_scrollLayer.get().position = CGPointMake(-position.x(), -position.y());
+    m_scrollLayer.get().position = CGPointMake(-position.x() + scrollOrigin().x(), -position.y() + scrollOrigin().y());
 }
 
 IntPoint ScrollingTreeNodeMac::minimumScrollPosition() const
 {
-    // FIXME: This should take the scroll origin into account.
     return IntPoint(0, 0);
 }
 
 IntPoint ScrollingTreeNodeMac::maximumScrollPosition() const
 {
-    // FIXME: This should take the scroll origin into account.
     IntPoint position(contentsSize().width() - viewportRect().width(),
                       contentsSize().height() - viewportRect().height());
 
@@ -258,16 +272,12 @@ IntPoint ScrollingTreeNodeMac::maximumScrollPosition() const
 
 void ScrollingTreeNodeMac::scrollBy(const IntSize& offset)
 {
-    IntPoint newScrollPosition = scrollPosition() + offset;
-    newScrollPosition = newScrollPosition.shrunkTo(maximumScrollPosition());
-    newScrollPosition = newScrollPosition.expandedTo(minimumScrollPosition());
-
-    setScrollPosition(newScrollPosition);
+    setScrollPosition(scrollPosition() + offset);
 }
 
 void ScrollingTreeNodeMac::scrollByWithoutContentEdgeConstraints(const IntSize& offset)
 {
-    setScrollPosition(scrollPosition() + offset);
+    setScrollPositionWithoutContentEdgeConstraints(scrollPosition() + offset);
 }
 
 void ScrollingTreeNodeMac::updateMainFramePinState(const IntPoint& scrollPosition)

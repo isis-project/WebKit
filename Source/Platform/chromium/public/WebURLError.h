@@ -34,7 +34,7 @@
 #include "WebString.h"
 #include "WebURL.h"
 
-#if defined(WEBKIT_IMPLEMENTATION)
+#if WEBKIT_IMPLEMENTATION
 namespace WebCore { class ResourceError; }
 #endif
 
@@ -59,9 +59,12 @@ struct WebURLError {
     // The url that failed to load.
     WebURL unreachableURL;
 
+    // A description for the error.
+    WebString localizedDescription;
+
     WebURLError() : reason(0), isCancellation(false) { }
 
-#if defined(WEBKIT_IMPLEMENTATION)
+#if WEBKIT_IMPLEMENTATION
     WebURLError(const WebCore::ResourceError&);
     WebURLError& operator=(const WebCore::ResourceError&);
     operator WebCore::ResourceError() const;

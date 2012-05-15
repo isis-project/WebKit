@@ -84,7 +84,7 @@ InspectorController::InspectorController(Page* page, InspectorClient* inspectorC
     m_inspectorAgent = inspectorAgentPtr.get();
     m_agents.append(inspectorAgentPtr.release());
 
-    OwnPtr<InspectorPageAgent> pageAgentPtr(InspectorPageAgent::create(m_instrumentingAgents.get(), page, m_state.get(), m_injectedScriptManager.get(), inspectorClient));
+    OwnPtr<InspectorPageAgent> pageAgentPtr(InspectorPageAgent::create(m_instrumentingAgents.get(), page, m_inspectorAgent, m_state.get(), m_injectedScriptManager.get(), inspectorClient));
     InspectorPageAgent* pageAgent = pageAgentPtr.get();
     m_pageAgent = pageAgentPtr.get();
     m_agents.append(pageAgentPtr.release());
@@ -112,7 +112,8 @@ InspectorController::InspectorController(Page* page, InspectorClient* inspectorC
     InspectorDOMStorageAgent* domStorageAgent = domStorageAgentPtr.get();
     m_agents.append(domStorageAgentPtr.release());
     m_agents.append(InspectorMemoryAgent::create(m_instrumentingAgents.get(), m_state.get(), m_page, m_domAgent));
-    m_agents.append(InspectorTimelineAgent::create(m_instrumentingAgents.get(), m_state.get(), InspectorTimelineAgent::PageInspector));
+    m_agents.append(InspectorTimelineAgent::create(m_instrumentingAgents.get(), m_state.get(), InspectorTimelineAgent::PageInspector,
+       inspectorClient->supportsFrameInstrumentation() ? InspectorTimelineAgent::FrameInstrumentationSupported : InspectorTimelineAgent::FrameInstrumentationNotSupported));
     m_agents.append(InspectorApplicationCacheAgent::create(m_instrumentingAgents.get(), m_state.get(), pageAgent));
 
     OwnPtr<InspectorResourceAgent> resourceAgentPtr(InspectorResourceAgent::create(m_instrumentingAgents.get(), pageAgent, inspectorClient, m_state.get()));
@@ -273,7 +274,6 @@ void InspectorController::restoreInspectorStateFromCookie(const String& inspecto
 
     for (Agents::iterator it = m_agents.begin(); it != m_agents.end(); ++it)
         (*it)->restore();
-    m_inspectorAgent->emitCommitLoadIfNeeded();
 }
 
 void InspectorController::setProcessId(long processId)

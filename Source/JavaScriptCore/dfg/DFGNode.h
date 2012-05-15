@@ -476,6 +476,7 @@ struct Node {
         case ArrayPush:
         case RegExpExec:
         case RegExpTest:
+        case GetGlobalVar:
             return true;
         default:
             return false;
@@ -699,27 +700,14 @@ struct Node {
         return isArrayPrediction(prediction());
     }
     
-    bool shouldSpeculateByteArray()
-    {
-        return !!(prediction() & PredictByteArray);
-    }
-    
     bool shouldSpeculateInt8Array()
     {
-#if CPU(X86) || CPU(X86_64)
         return isInt8ArrayPrediction(prediction());
-#else
-        return false;
-#endif
     }
     
     bool shouldSpeculateInt16Array()
     {
-#if CPU(X86) || CPU(X86_64)
         return isInt16ArrayPrediction(prediction());
-#else
-        return false;
-#endif
     }
     
     bool shouldSpeculateInt32Array()
@@ -749,11 +737,7 @@ struct Node {
     
     bool shouldSpeculateFloat32Array()
     {
-#if CPU(X86) || CPU(X86_64)
         return isFloat32ArrayPrediction(prediction());
-#else
-        return false;
-#endif
     }
     
     bool shouldSpeculateFloat64Array()

@@ -35,14 +35,14 @@
  * @param {string} source
  * @param {string} level
  * @param {string} message
- * @param {WebInspector.DebuggerPresentationModel.Linkifier} linkifier
+ * @param {WebInspector.Linkifier} linkifier
  * @param {string=} type
  * @param {string=} url
  * @param {number=} line
  * @param {number=} repeatCount
  * @param {Array.<RuntimeAgent.RemoteObject>=} parameters
  * @param {ConsoleAgent.StackTrace=} stackTrace
- * @param {WebInspector.Resource=} request
+ * @param {WebInspector.NetworkRequest=} request
  */
 WebInspector.ConsoleMessageImpl = function(source, level, message, linkifier, type, url, line, repeatCount, parameters, stackTrace, request)
 {
@@ -91,7 +91,7 @@ WebInspector.ConsoleMessageImpl.prototype = {
             }
         } else if (this.source === WebInspector.ConsoleMessage.MessageSource.Network) {
             if (this._request) {
-                this._stackTrace = this._request.stackTrace;
+                this._stackTrace = this._request.initiator.stackTrace;
                 if (this._request.initiator && this._request.initiator.url) {
                     this.url = this._request.initiator.url;
                     this.line = this._request.initiator.lineNumber;
@@ -264,7 +264,9 @@ WebInspector.ConsoleMessageImpl.prototype = {
 
     _formatParameterAsObject: function(obj, elem)
     {
-        elem.appendChild(new WebInspector.ObjectPropertiesSection(obj, obj.description).element);
+        var section = new WebInspector.ObjectPropertiesSection(obj, obj.description);
+        section.enableContextMenu();
+        elem.appendChild(section.element);
     },
 
     _formatParameterAsNode: function(object, elem)
@@ -436,7 +438,7 @@ WebInspector.ConsoleMessageImpl.prototype = {
             matchRanges.push({ offset: match.index, length: match[0].length });
             match = regexObject.exec(text);
         }
-        highlightSearchResults(element, matchRanges);
+        WebInspector.highlightSearchResults(element, matchRanges);
     },
 
     matchesRegex: function(regexObject)
@@ -602,7 +604,7 @@ WebInspector.ConsoleMessageImpl.prototype = {
     {
         // FIXME(62725): stack trace line/column numbers are one-based.
         var lineNumber = this.stackTrace ? this.stackTrace[0].lineNumber - 1 : this.line - 1;
-        var columnNumber = this.stackTrace ? this.stackTrace[0].columnNumber - 1 : 0;
+        var columnNumber = this.stackTrace && this.stackTrace[0].columnNumber ? this.stackTrace[0].columnNumber - 1 : 0;
         return WebInspector.debuggerModel.createRawLocationByURL(this.url, lineNumber, columnNumber);
     },
 

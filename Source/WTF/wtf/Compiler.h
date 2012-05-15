@@ -66,7 +66,7 @@
 #endif
 
 /* Specific compiler features */
-#if _MSC_VER >= 1600
+#if !COMPILER(CLANG) && _MSC_VER >= 1600
 #define WTF_COMPILER_SUPPORTS_CXX_NULLPTR 1
 #endif
 
@@ -250,6 +250,11 @@
 #else
 #define OBJC_CLASS class
 #endif
+#endif
+
+/* ABI */
+#if defined(__ARM_EABI__) || defined(__EABI__)
+#define WTF_COMPILER_SUPPORTS_EABI 1
 #endif
 
 #endif /* WTF_Compiler_h */

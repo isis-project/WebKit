@@ -37,10 +37,9 @@
 namespace WebCore {
 
 class Document;
-class HTMLContentElement;
-class HTMLContentSelector;
+class DOMSelection;
 class InsertionPoint;
-class ShadowTree;
+class ElementShadow;
 
 class ShadowRoot : public DocumentFragment, public TreeScope, public DoublyLinkedListNode<ShadowRoot> {
     friend class WTF::DoublyLinkedListNode<ShadowRoot>;
@@ -59,23 +58,25 @@ public:
 
     void recalcShadowTreeStyle(StyleChange);
 
-    void setNeedsReattachHostChildrenAndShadow();
-    void clearNeedsReattachHostChildrenAndShadow();
-    bool needsReattachHostChildrenAndShadow();
+    void setNeedsRedistributing();
+    void clearNeedsRedistributing();
+    bool needsRedistributing();
 
     InsertionPoint* insertionPointFor(Node*) const;
     void hostChildrenChanged();
 
-    virtual bool applyAuthorSheets() const;
-    void setApplyAuthorSheets(bool);
+    virtual bool applyAuthorStyles() const OVERRIDE;
+    void setApplyAuthorStyles(bool);
 
     Element* host() const { return shadowHost(); }
-    ShadowTree* tree() const;
+    ElementShadow* owner() const;
 
     String innerHTML() const;
     void setInnerHTML(const String&, ExceptionCode&);
 
     Element* activeElement() const;
+
+    DOMSelection* selection();
 
     ShadowRoot* youngerShadowRoot() const { return prev(); }
     ShadowRoot* olderShadowRoot() const { return next(); }
@@ -101,7 +102,7 @@ private:
 
     ShadowRoot* m_prev;
     ShadowRoot* m_next;
-    bool m_applyAuthorSheets : 1;
+    bool m_applyAuthorStyles : 1;
     InsertionPoint* m_insertionPointAssignedTo;
 };
 

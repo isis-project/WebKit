@@ -72,7 +72,6 @@ class Color;
 class Cursor;
 class Document;
 class Frame;
-class GamepadList;
 class GeolocationServiceBridge;
 class GeolocationServiceChromium;
 class GraphicsContext;
@@ -94,9 +93,6 @@ struct FontRenderStyle;
 
 class PlatformSupport {
 public:
-    // Cache --------------------------------------------------------------
-    static void cacheMetadata(const KURL&, double responseTime, const Vector<char>&);
-
     // Clipboard ----------------------------------------------------------
     static uint64_t clipboardSequenceNumber(PasteboardPrivate::ClipboardBuffer);
 
@@ -125,9 +121,6 @@ public:
     static void deleteCookie(const Document*, const KURL&, const String& cookieName);
     static bool cookiesEnabled(const Document*);
 
-    // DNS ----------------------------------------------------------------
-    static void prefetchDNS(const String& hostname);
-
     // File ---------------------------------------------------------------
     static void revealFolderInOS(const String&);
     static bool fileExists(const String&);
@@ -149,8 +142,7 @@ public:
     static int writeToFile(PlatformFileHandle, const char* data, int length);
 
 #if ENABLE(FILE_SYSTEM)
-    static String createIsolatedFileSystemName(const String& storageIdentifier, const String& filesystemId);
-    static PassOwnPtr<AsyncFileSystem> createIsolatedFileSystem(const String& originString, const String& filesystemId);
+    static PassOwnPtr<AsyncFileSystem> createAsyncFileSystem();
 #endif
 
     // Font ---------------------------------------------------------------
@@ -191,43 +183,12 @@ public:
     // Injects key via keyPath into value. Returns true on success.
     static PassRefPtr<SerializedScriptValue> injectIDBKeyIntoSerializedValue(PassRefPtr<IDBKey>, PassRefPtr<SerializedScriptValue>, const String& keyPath);
 
-    // Gamepad -----------------------------------------------------------
-    static void sampleGamepads(GamepadList* into);
-
     // JavaScript ---------------------------------------------------------
     static void notifyJSOutOfMemory(Frame*);
     static bool allowScriptDespiteSettings(const KURL& documentURL);
 
-    // Keygen -------------------------------------------------------------
-    static String signedPublicKeyAndChallengeString(unsigned keySizeIndex, const String& challenge, const KURL&);
-
-    // Language -----------------------------------------------------------
-    static String computedDefaultLanguage();
-
     // LayoutTestMode -----------------------------------------------------
     static bool layoutTestMode();
-
-    // Memory -------------------------------------------------------------
-    // Returns the current space allocated for the pagefile, in MB.
-    // That is committed size for Windows and virtual memory size for POSIX
-    static int memoryUsageMB();
-    // Same as above, but always returns actual value, without any caches.
-    static int actualMemoryUsageMB();
-    // If memory usage is below this threshold, do not bother forcing GC.
-    static int lowMemoryUsageMB();
-    // If memory usage is above this threshold, force GC more aggressively.
-    static int highMemoryUsageMB();
-    // Delta of memory usage growth (vs. last actualMemoryUsageMB()) to force GC when memory usage is high.
-    static int highUsageDeltaMB();
-
-    // MimeType -----------------------------------------------------------
-    static bool isSupportedImageMIMEType(const String& mimeType);
-    static bool isSupportedJavaScriptMIMEType(const String& mimeType);
-    static bool isSupportedNonImageMIMEType(const String& mimeType);
-    static String mimeTypeForExtension(const String& fileExtension);
-    static String wellKnownMimeTypeForExtension(const String& fileExtension);
-    static String mimeTypeFromFile(const String& filePath);
-    static String preferredExtensionForMIMEType(const String& mimeType);
 
     // Plugin -------------------------------------------------------------
     static bool plugins(bool refresh, Vector<PluginInfo>*);
@@ -235,10 +196,7 @@ public:
     static bool popupsAllowed(NPP);
 
     // Resources ----------------------------------------------------------
-    static PassRefPtr<Image> loadPlatformImageResource(const char* name);
-
 #if ENABLE(WEB_AUDIO)
-    static PassOwnPtr<AudioBus> loadPlatformAudioResource(const char* name, double sampleRate);
     static PassOwnPtr<AudioBus> decodeAudioFileData(const char* data, size_t, double sampleRate);
 #endif
 
@@ -254,7 +212,6 @@ public:
     // SharedTimers -------------------------------------------------------
     static void setSharedTimerFiredFunction(void (*func)());
     static void setSharedTimerFireInterval(double);
-    static void stopSharedTimer();
 
     // Theming ------------------------------------------------------------
 #if OS(WINDOWS)
@@ -408,24 +365,9 @@ public:
     static void paintThemePart(GraphicsContext*, ThemePart, ThemePaintState, const IntRect&, const ThemePaintExtraParams*);
 #endif
 
-    // Trace Event --------------------------------------------------------
-    static const unsigned char* getTraceCategoryEnabledFlag(const char* categoryName);
-    static int addTraceEvent(char phase,
-                             const unsigned char* categoryEnabledFlag,
-                             const char* name,
-                             unsigned long long id,
-                             int numArgs,
-                             const char** argNames,
-                             const unsigned char* argTypes,
-                             const unsigned long long* argValues,
-                             int thresholdBeginId,
-                             long long threshold,
-                             unsigned char flags);
-
     // Visited links ------------------------------------------------------
     static LinkHash visitedLinkHash(const UChar* url, unsigned length);
     static LinkHash visitedLinkHash(const KURL& base, const AtomicString& attributeURL);
-    static bool isLinkVisited(LinkHash);
 
     static void didStartWorkerRunLoop(WorkerRunLoop*);
     static void didStopWorkerRunLoop(WorkerRunLoop*);

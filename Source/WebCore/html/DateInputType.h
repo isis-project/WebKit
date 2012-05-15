@@ -55,10 +55,15 @@ private:
     virtual bool parsedStepValueShouldBeInteger() const OVERRIDE;
     virtual bool parseToDateComponentsInternal(const UChar*, unsigned length, DateComponents*) const OVERRIDE;
     virtual bool setMillisecondToDateComponents(double, DateComponents*) const OVERRIDE;
+    virtual bool isDateField() const OVERRIDE;
 #if ENABLE(CALENDAR_PICKER)
     virtual void createShadowSubtree() OVERRIDE;
     virtual void destroyShadowSubtree() OVERRIDE;
+    virtual void handleKeydownEvent(KeyboardEvent*) OVERRIDE;
     virtual void handleBlurEvent() OVERRIDE;
+    virtual bool supportsPlaceholder() const OVERRIDE;
+    virtual bool usesFixedPlaceholder() const OVERRIDE;
+    virtual String fixedPlaceholder() OVERRIDE;
 
     // TextFieldInputType functions
     virtual bool needsContainer() const OVERRIDE;
@@ -69,6 +74,5 @@ private:
 };
 
 } // namespace WebCore
-
 #endif
 #endif // DateInputType_h

@@ -113,7 +113,7 @@ void SpeechRecognitionClientProxy::didReceiveResult(const WebSpeechRecognitionHa
 
     Vector<RefPtr<SpeechRecognitionResult> > resultHistoryVector(resultHistory.size());
     for (size_t i = 0; i < resultHistory.size(); ++i)
-        resultHistoryVector.append(static_cast<PassRefPtr<SpeechRecognitionResult> >(resultHistory[i]));
+        resultHistoryVector[i] = static_cast<PassRefPtr<SpeechRecognitionResult> >(resultHistory[i]);
 
     recognition->didReceiveResult(result, resultIndex, SpeechRecognitionResultList::create(resultHistoryVector));
 
@@ -131,12 +131,12 @@ void SpeechRecognitionClientProxy::didDeleteResult(const WebSpeechRecognitionHan
 
     Vector<RefPtr<SpeechRecognitionResult> > resultHistoryVector(resultHistory.size());
     for (size_t i = 0; i < resultHistory.size(); ++i)
-        resultHistoryVector.append(static_cast<PassRefPtr<SpeechRecognitionResult> >(resultHistory[i]));
+        resultHistoryVector[i] = static_cast<PassRefPtr<SpeechRecognitionResult> >(resultHistory[i]);
 
     recognition->didDeleteResult(resultIndex, SpeechRecognitionResultList::create(resultHistoryVector));
 }
 
-void SpeechRecognitionClientProxy::didReceiveError(const WebSpeechRecognitionHandle& handle, const WebString& message, unsigned short code)
+void SpeechRecognitionClientProxy::didReceiveError(const WebSpeechRecognitionHandle& handle, const WebString& message, WebSpeechRecognizerClient::ErrorCode code)
 {
     RefPtr<SpeechRecognition> recognition = PassRefPtr<SpeechRecognition>(handle);
     SpeechRecognitionError::Code errorCode = static_cast<SpeechRecognitionError::Code>(code);

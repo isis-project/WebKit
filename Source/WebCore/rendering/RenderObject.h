@@ -35,11 +35,13 @@
 #include "PaintPhase.h"
 #include "RenderObjectChildList.h"
 #include "RenderStyle.h"
+#include "ScrollBehavior.h"
 #include "TextAffinity.h"
 #include "TransformationMatrix.h"
+#include <wtf/HashSet.h>
 #include <wtf/UnusedParam.h>
 
-#if USE(CG) || USE(CAIRO) || USE(SKIA) || PLATFORM(QT)
+#if USE(CG) || USE(CAIRO) || USE(SKIA) || PLATFORM(QT) || PLATFORM(WX)
 #define HAVE_PATH_BASED_BORDER_RADIUS_DRAWING 1
 #endif
 
@@ -122,6 +124,8 @@ struct DashboardRegionValue {
 };
 #endif
 
+typedef WTF::HashSet<const RenderObject*> RenderObjectAncestorLineboxDirtySet;
+
 #ifndef NDEBUG
 const int showTreeCharacterOffset = 39;
 #endif
@@ -200,6 +204,9 @@ public:
     void removeLayers(RenderLayer* parentLayer);
     void moveLayers(RenderLayer* oldParent, RenderLayer* newParent);
     RenderLayer* findNextLayer(RenderLayer* parentLayer, RenderObject* startPoint, bool checkParent = true);
+
+    // Scrolling is a RenderBox concept, however some code just cares about recursively scrolling our enclosing ScrollableArea(s).
+    bool scrollRectToVisible(const LayoutRect&, const ScrollAlignment& alignX = ScrollAlignment::alignCenterIfNeeded, const ScrollAlignment& alignY = ScrollAlignment::alignCenterIfNeeded);
 
     // Convenience function for getting to the nearest enclosing box of a RenderObject.
     RenderBox* enclosingBox() const;
@@ -348,6 +355,7 @@ public:
 
     virtual bool isRenderFlowThread() const { return false; }
     virtual bool isRenderNamedFlowThread() const { return false; }
+    virtual bool isRenderScrollbarPart() const { return false; }
     bool canHaveRegionStyle() const { return isRenderBlock() && !isAnonymous() && !isRenderFlowThread(); }
 
     bool isRoot() const { return document()->documentElement() == m_node; }
@@ -375,6 +383,23 @@ public:
     bool hasColumns() const { return m_bitfields.hasColumns(); }
     void setHasColumns(bool b = true) { m_bitfields.setHasColumns(b); }
 
+    bool ancestorLineBoxDirty() const { return s_ancestorLineboxDirtySet && s_ancestorLineboxDirtySet->contains(this); }
+    void setAncestorLineBoxDirty(bool b = true)
+    {
+        if (b) {
+            if (!s_ancestorLineboxDirtySet)
+                s_ancestorLineboxDirtySet = new RenderObjectAncestorLineboxDirtySet;
+            s_ancestorLineboxDirtySet->add(this);
+            setNeedsLayout(true);
+        } else if (s_ancestorLineboxDirtySet) {
+            s_ancestorLineboxDirtySet->remove(this);
+            if (s_ancestorLineboxDirtySet->isEmpty()) {
+                delete s_ancestorLineboxDirtySet;
+                s_ancestorLineboxDirtySet = 0;
+            }
+        }
+    }
+
     bool inRenderFlowThread() const { return m_bitfields.inRenderFlowThread(); }
     void setInRenderFlowThread(bool b = true) { m_bitfields.setInRenderFlowThread(b); }
 
@@ -394,7 +419,6 @@ public:
     virtual bool isSVGGradientStop() const { return false; }
     virtual bool isSVGHiddenContainer() const { return false; }
     virtual bool isSVGPath() const { return false; }
-    virtual bool isSVGRect() const { return false; }
     virtual bool isSVGShape() const { return false; }
     virtual bool isSVGText() const { return false; }
     virtual bool isSVGTextPath() const { return false; }
@@ -611,6 +635,8 @@ public:
     void collectDashboardRegions(Vector<DashboardRegionValue>&);
 #endif
 
+    bool isComposited() const;
+
     bool hitTest(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestFilter = HitTestAll);
     virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
     virtual void updateHitTestResult(HitTestResult&, const LayoutPoint&);
@@ -688,7 +714,7 @@ public:
     
     virtual CursorDirective getCursor(const LayoutPoint&, Cursor&) const;
 
-    void getTextDecorationColors(int decorations, Color& underline, Color& overline, Color& linethrough, bool quirksMode = false);
+    void getTextDecorationColors(int decorations, Color& underline, Color& overline, Color& linethrough, bool quirksMode = false, bool firstlineStyle = false);
 
     // Return the RenderBox in the container chain which is responsible for painting this object, or 0
     // if painting is root-relative. This is the container that should be passed to the 'forRepaint'
@@ -740,6 +766,12 @@ public:
     // If multiple-column layout results in applying an offset to the given point, add the same
     // offset to the given size.
     virtual void adjustForColumns(LayoutSize&, const LayoutPoint&) const { }
+    LayoutSize offsetForColumns(const LayoutPoint& point) const
+    {
+        LayoutSize offset;
+        adjustForColumns(offset, point);
+        return offset;
+    }
 
     virtual unsigned int length() const { return 1; }
 
@@ -751,7 +783,7 @@ public:
     bool hasReflection() const { return m_bitfields.hasReflection(); }
 
     // Applied as a "slop" to dirty rect checks during the outline painting phase's dirty-rect checks.
-    LayoutUnit maximalOutlineSize(PaintPhase) const;
+    int maximalOutlineSize(PaintPhase) const;
 
     enum SelectionState {
         SelectionNone, // The object is not selected.
@@ -840,7 +872,8 @@ public:
 
     // Map points and quads through elements, potentially via 3d transforms. You should never need to call these directly; use
     // localToAbsolute/absoluteToLocal methods instead.
-    virtual void mapLocalToContainer(RenderBoxModelObject* repaintContainer, bool useTransforms, bool fixed, TransformState&, bool* wasFixed = 0) const;
+    enum ApplyContainerFlipOrNot { DoNotApplyContainerFlip, ApplyContainerFlip };
+    virtual void mapLocalToContainer(RenderBoxModelObject* repaintContainer, bool useTransforms, bool fixed, TransformState&, ApplyContainerFlipOrNot = ApplyContainerFlip, bool* wasFixed = 0) const;
     virtual void mapAbsoluteToLocalPoint(bool fixed, bool useTransforms, TransformState&) const;
 
     bool shouldUseTransformFromContainer(const RenderObject* container) const;
@@ -897,6 +930,8 @@ private:
     RenderObject* m_parent;
     RenderObject* m_previous;
     RenderObject* m_next;
+
+    static RenderObjectAncestorLineboxDirtySet* s_ancestorLineboxDirtySet;
 
 #ifndef NDEBUG
     bool m_hasAXObject             : 1;
@@ -1058,6 +1093,7 @@ inline void RenderObject::setNeedsLayout(bool needsLayout, MarkingBehavior markP
         setNeedsSimplifiedNormalFlowLayout(false);
         setNormalChildNeedsLayout(false);
         setNeedsPositionedMovementLayout(false);
+        setAncestorLineBoxDirty(false);
     }
 }
 
@@ -1147,11 +1183,6 @@ inline void makeMatrixRenderable(TransformationMatrix& matrix, bool has3DRenderi
 inline int adjustForAbsoluteZoom(int value, RenderObject* renderer)
 {
     return adjustForAbsoluteZoom(value, renderer->style());
-}
-
-inline int adjustForAbsoluteZoom(FractionalLayoutUnit value, RenderObject* renderer)
-{
-    return adjustForAbsoluteZoom(value.floor(), renderer->style());
 }
 
 inline void adjustFloatQuadForAbsoluteZoom(FloatQuad& quad, RenderObject* renderer)

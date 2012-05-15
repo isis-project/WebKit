@@ -53,7 +53,7 @@ WebInspector.TextRange.prototype = {
     },
 
     /**
-     * @type {number}
+     * @return {number}
      */
     get linesCount()
     {
@@ -125,7 +125,7 @@ WebInspector.TextEditorModel.endsWithBracketRegex = /[{(\[]\s*$/;
 
 WebInspector.TextEditorModel.prototype = {
     /**
-     * @type {number}
+     * @return {number}
      */
     get linesCount()
     {
@@ -133,7 +133,7 @@ WebInspector.TextEditorModel.prototype = {
     },
 
     /**
-     * @type {string}
+     * @return {string}
      */
     get text()
     {
@@ -141,7 +141,7 @@ WebInspector.TextEditorModel.prototype = {
     },
 
     /**
-     * @type {string}
+     * @return {string}
      */
     get lineBreak()
     {
@@ -400,10 +400,13 @@ WebInspector.TextEditorModel.prototype = {
     /**
      * @param {function()=} beforeCallback
      * @param {function(WebInspector.TextRange, WebInspector.TextRange)=} afterCallback
-     * @return {WebInspector.TextRange}
+     * @return {?WebInspector.TextRange}
      */
     undo: function(beforeCallback, afterCallback)
     {
+        if (!this._undoStack.length)
+            return null;
+
         this._markRedoableState();
 
         this._inUndo = true;
@@ -420,6 +423,8 @@ WebInspector.TextEditorModel.prototype = {
      */
     redo: function(beforeCallback, afterCallback)
     {
+        if (!this._redoStack || !this._redoStack.length)
+            return null;
         this.markUndoableState();
 
         this._inRedo = true;

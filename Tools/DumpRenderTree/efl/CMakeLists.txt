@@ -15,6 +15,7 @@ SET(DumpRenderTree_SOURCES
     ${TOOLS_DIR}/DumpRenderTree/efl/JSStringUtils.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/LayoutTestControllerEfl.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/PixelDumpSupportEfl.cpp
+    ${TOOLS_DIR}/DumpRenderTree/efl/TextInputController.cpp
     ${TOOLS_DIR}/DumpRenderTree/efl/WorkQueueItemEfl.cpp
 )
 
@@ -27,7 +28,7 @@ SET(DumpRenderTree_LIBRARIES
     ${WebCoreTestSupport_LIBRARY_NAME}
     ${WebCore_LIBRARY_NAME}
     ${WebKit_LIBRARY_NAME}
-    ${Cairo_LIBRARIES}
+    ${CAIRO_LIBRARIES}
     ${ECORE_X_LIBRARIES}
     ${EDJE_LIBRARIES}
     ${EFLDEPS_LIBRARIES}
@@ -88,7 +89,7 @@ SET(DumpRenderTree_INCLUDE_DIRECTORIES
     ${DERIVED_SOURCES_WEBCORE_DIR}
     ${WEBCORE_DIR}/bindings/js
     ${WEBCORE_DIR}/testing/js
-    ${Cairo_INCLUDE_DIRS}
+    ${CAIRO_INCLUDE_DIRS}
     ${EDJE_INCLUDE_DIRS}
     ${EFLDEPS_INCLUDE_DIRS}
     ${EVAS_INCLUDE_DIRS}
@@ -108,7 +109,7 @@ SET(DumpRenderTree_LINK_FLAGS
 # FIXME: DOWNLOADED_FONTS_DIR should not hardcode the directory
 # structure. See <https://bugs.webkit.org/show_bug.cgi?id=81475>.
 ADD_DEFINITIONS(-DFONTS_CONF_DIR="${TOOLS_DIR}/DumpRenderTree/gtk/fonts"
-                -DDOWNLOADED_FONTS_DIR="${CMAKE_SOURCE_DIR}/WebKitBuild/Dependencies/Source/webkitgtk-test-fonts-0.0.1"
+                -DDOWNLOADED_FONTS_DIR="${CMAKE_SOURCE_DIR}/WebKitBuild/Dependencies/Source/webkitgtk-test-fonts-0.0.3"
                 -DDATA_DIR="${THEME_BINARY_DIR}")
 
 INCLUDE_DIRECTORIES(${DumpRenderTree_INCLUDE_DIRECTORIES})
@@ -116,9 +117,11 @@ INCLUDE_DIRECTORIES(${DumpRenderTree_INCLUDE_DIRECTORIES})
 ADD_EXECUTABLE(bin/DumpRenderTree ${DumpRenderTree_SOURCES})
 TARGET_LINK_LIBRARIES(bin/DumpRenderTree ${DumpRenderTree_LIBRARIES})
 ADD_TARGET_PROPERTIES(bin/DumpRenderTree LINK_FLAGS "${DumpRenderTree_LINK_FLAGS}")
+SET_TARGET_PROPERTIES(bin/DumpRenderTree PROPERTIES FOLDER "Tools")
 SET_TARGET_PROPERTIES(bin/DumpRenderTree PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 ADD_EXECUTABLE(bin/ImageDiff ${ImageDiff_SOURCES})
 TARGET_LINK_LIBRARIES(bin/ImageDiff ${DumpRenderTree_LIBRARIES})
 ADD_TARGET_PROPERTIES(bin/ImageDiff LINK_FLAGS "${DumpRenderTree_LINK_FLAGS}")
+SET_TARGET_PROPERTIES(bin/ImageDiff PROPERTIES FOLDER "Tools")
 SET_TARGET_PROPERTIES(bin/ImageDiff PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")

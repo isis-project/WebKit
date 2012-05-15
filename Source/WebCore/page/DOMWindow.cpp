@@ -34,7 +34,6 @@
 #include "BeforeUnloadEvent.h"
 #include "CSSComputedStyleDeclaration.h"
 #include "CSSRuleList.h"
-#include "CSSStyleSelector.h"
 #include "Chrome.h"
 #include "Console.h"
 #include "Crypto.h"
@@ -45,6 +44,7 @@
 #include "DOMTimer.h"
 #include "DOMTokenList.h"
 #include "DOMURL.h"
+#include "DOMWindowExtension.h"
 #include "DOMWindowNotifications.h"
 #include "Database.h"
 #include "DatabaseCallback.h"
@@ -90,6 +90,7 @@
 #include "StorageInfo.h"
 #include "StorageNamespace.h"
 #include "StyleMedia.h"
+#include "StyleResolver.h"
 #include "SuddenTermination.h"
 #include "WebKitPoint.h"
 #include "WindowFeatures.h"
@@ -398,7 +399,6 @@ DOMWindow::~DOMWindow()
 #ifndef NDEBUG
     if (!m_suspendedForPageCache) {
         ASSERT(!m_screen);
-        ASSERT(!m_selection);
         ASSERT(!m_history);
         ASSERT(!m_crypto);
         ASSERT(!m_locationbar);
@@ -425,6 +425,11 @@ DOMWindow::~DOMWindow()
 #endif
     }
 #endif
+
+    if (m_suspendedForPageCache)
+        willDestroyCachedFrame();
+    else
+        willDestroyDocumentInFrame();
 
     // As the ASSERTs above indicate, this clear should only be necesary if this DOMWindow is suspended for the page cache.
     // But we don't want to risk any of these objects hanging around after we've been destroyed.
@@ -466,6 +471,7 @@ Page* DOMWindow::page()
 
 void DOMWindow::frameDestroyed()
 {
+    willDestroyDocumentInFrame();
     FrameDestructionObserver::frameDestroyed();
     clearDOMWindowProperties();
 }
@@ -473,10 +479,36 @@ void DOMWindow::frameDestroyed()
 void DOMWindow::willDetachPage()
 {
     InspectorInstrumentation::frameWindowDiscarded(m_frame, this);
+}
 
-    HashSet<DOMWindowProperty*>::iterator stop = m_properties.end();
-    for (HashSet<DOMWindowProperty*>::iterator it = m_properties.begin(); it != stop; ++it)
-        (*it)->willDetachPage();
+void DOMWindow::willDestroyCachedFrame()
+{
+    // It is necessary to copy m_properties to a separate vector because the DOMWindowProperties may
+    // unregister themselves from the DOMWindow as a result of the call to willDestroyGlobalObjectInCachedFrame.
+    Vector<DOMWindowProperty*> properties;
+    copyToVector(m_properties, properties);
+    for (size_t i = 0; i < properties.size(); ++i)
+        properties[i]->willDestroyGlobalObjectInCachedFrame();
+}
+
+void DOMWindow::willDestroyDocumentInFrame()
+{
+    // It is necessary to copy m_properties to a separate vector because the DOMWindowProperties may
+    // unregister themselves from the DOMWindow as a result of the call to willDestroyGlobalObjectInFrame.
+    Vector<DOMWindowProperty*> properties;
+    copyToVector(m_properties, properties);
+    for (size_t i = 0; i < properties.size(); ++i)
+        properties[i]->willDestroyGlobalObjectInFrame();
+}
+
+void DOMWindow::willDetachDocumentFromFrame()
+{
+    // It is necessary to copy m_properties to a separate vector because the DOMWindowProperties may
+    // unregister themselves from the DOMWindow as a result of the call to willDetachGlobalObjectFromFrame.
+    Vector<DOMWindowProperty*> properties;
+    copyToVector(m_properties, properties);
+    for (size_t i = 0; i < properties.size(); ++i)
+        properties[i]->willDetachGlobalObjectFromFrame();
 }
 
 void DOMWindow::registerProperty(DOMWindowProperty* property)
@@ -497,6 +529,7 @@ void DOMWindow::clear()
     if (m_suspendedForPageCache)
         return;
     
+    willDestroyDocumentInFrame();
     clearDOMWindowProperties();
 }
 
@@ -514,26 +547,30 @@ void DOMWindow::resumeFromPageCache()
 
 void DOMWindow::disconnectDOMWindowProperties()
 {
-    HashSet<DOMWindowProperty*>::iterator stop = m_properties.end();
-    for (HashSet<DOMWindowProperty*>::iterator it = m_properties.begin(); it != stop; ++it)
-        (*it)->disconnectFrame();
+    // It is necessary to copy m_properties to a separate vector because the DOMWindowProperties may
+    // unregister themselves from the DOMWindow as a result of the call to disconnectFrameForPageCache.
+    Vector<DOMWindowProperty*> properties;
+    copyToVector(m_properties, properties);
+    for (size_t i = 0; i < properties.size(); ++i)
+        properties[i]->disconnectFrameForPageCache();
 }
 
 void DOMWindow::reconnectDOMWindowProperties()
 {
     ASSERT(m_suspendedForPageCache);
-    HashSet<DOMWindowProperty*>::iterator stop = m_properties.end();
-    for (HashSet<DOMWindowProperty*>::iterator it = m_properties.begin(); it != stop; ++it)
-        (*it)->reconnectFrame(m_frame);
+    // It is necessary to copy m_properties to a separate vector because the DOMWindowProperties may
+    // unregister themselves from the DOMWindow as a result of the call to reconnectFromPageCache.
+    Vector<DOMWindowProperty*> properties;
+    copyToVector(m_properties, properties);
+    for (size_t i = 0; i < properties.size(); ++i)
+        properties[i]->reconnectFrameFromPageCache(m_frame);
 }
 
 void DOMWindow::clearDOMWindowProperties()
 {
-    disconnectDOMWindowProperties();
     m_properties.clear();
 
     m_screen = 0;
-    m_selection = 0;
     m_history = 0;
     m_crypto = 0;
     m_locationbar = 0;
@@ -827,12 +864,17 @@ void DOMWindow::postMessageTimerFired(PassOwnPtr<PostMessageTimer> t)
     if (m_frame->loader()->client()->willCheckAndDispatchMessageEvent(timer->targetOrigin(), event.get()))
         return;
 
-    if (timer->targetOrigin()) {
+    dispatchMessageEventWithOriginCheck(timer->targetOrigin(), event, timer->stackTrace());
+}
+
+void DOMWindow::dispatchMessageEventWithOriginCheck(SecurityOrigin* intendedTargetOrigin, PassRefPtr<Event> event, PassRefPtr<ScriptCallStack> stackTrace)
+{
+    if (intendedTargetOrigin) {
         // Check target origin now since the target document may have changed since the timer was scheduled.
-        if (!timer->targetOrigin()->isSameSchemeHostPort(document()->securityOrigin())) {
-            String message = "Unable to post message to " + timer->targetOrigin()->toString() +
+        if (!intendedTargetOrigin->isSameSchemeHostPort(document()->securityOrigin())) {
+            String message = "Unable to post message to " + intendedTargetOrigin->toString() +
                              ". Recipient has origin " + document()->securityOrigin()->toString() + ".\n";
-            console()->addMessage(JSMessageSource, LogMessageType, ErrorMessageLevel, message, timer->stackTrace());
+            console()->addMessage(JSMessageSource, LogMessageType, ErrorMessageLevel, message, stackTrace);
             return;
         }
     }
@@ -842,11 +884,10 @@ void DOMWindow::postMessageTimerFired(PassOwnPtr<PostMessageTimer> t)
 
 DOMSelection* DOMWindow::getSelection()
 {
-    if (!isCurrentlyDisplayedInFrame())
+    if (!isCurrentlyDisplayedInFrame() || !m_frame)
         return 0;
-    if (!m_selection)
-        m_selection = DOMSelection::create(m_frame);
-    return m_selection.get();
+
+    return m_frame->document()->getSelection();
 }
 
 Element* DOMWindow::frameElement() const
@@ -1077,9 +1118,9 @@ int DOMWindow::innerHeight() const
     if (!view)
         return 0;
 
-    long height = view->visibleContentRect(/* includeScrollbars */ true).height();
-    InspectorInstrumentation::applyScreenHeightOverride(m_frame, &height);
-    return view->mapFromLayoutToCSSUnits(static_cast<int>(height));
+    // If the device height is overridden, do not include the horizontal scrollbar into the innerHeight (since it is absent on the real device).
+    bool includeScrollbars = !InspectorInstrumentation::shouldApplyScreenHeightOverride(m_frame);
+    return view->mapFromLayoutToCSSUnits(static_cast<int>(view->visibleContentRect(includeScrollbars).height()));
 }
 
 int DOMWindow::innerWidth() const
@@ -1091,9 +1132,9 @@ int DOMWindow::innerWidth() const
     if (!view)
         return 0;
 
-    long width = view->visibleContentRect(/* includeScrollbars */ true).width();
-    InspectorInstrumentation::applyScreenWidthOverride(m_frame, &width);
-    return view->mapFromLayoutToCSSUnits(static_cast<int>(width));
+    // If the device width is overridden, do not include the vertical scrollbar into the innerWidth (since it is absent on the real device).
+    bool includeScrollbars = !InspectorInstrumentation::shouldApplyScreenWidthOverride(m_frame);
+    return view->mapFromLayoutToCSSUnits(static_cast<int>(view->visibleContentRect(includeScrollbars).width()));
 }
 
 int DOMWindow::screenX() const
@@ -1283,17 +1324,22 @@ PassRefPtr<CSSRuleList> DOMWindow::getMatchedCSSRules(Element* element, const St
     if (!isCurrentlyDisplayedInFrame())
         return 0;
 
-    unsigned rulesToInclude = CSSStyleSelector::AuthorCSSRules;
+    unsigned colonStart = pseudoElement[0] == ':' ? (pseudoElement[1] == ':' ? 2 : 1) : 0;
+    CSSSelector::PseudoType pseudoType = CSSSelector::parsePseudoType(AtomicString(pseudoElement.substring(colonStart)));
+    if (pseudoType == CSSSelector::PseudoUnknown && !pseudoElement.isEmpty())
+        return 0;
+
+    unsigned rulesToInclude = StyleResolver::AuthorCSSRules;
     if (!authorOnly)
-        rulesToInclude |= CSSStyleSelector::UAAndUserCSSRules;
+        rulesToInclude |= StyleResolver::UAAndUserCSSRules;
     if (Settings* settings = m_frame->settings()) {
         if (settings->crossOriginCheckInGetMatchedCSSRulesDisabled())
-            rulesToInclude |= CSSStyleSelector::CrossOriginCSSRules;
+            rulesToInclude |= StyleResolver::CrossOriginCSSRules;
     }
-    
-    PseudoId pseudoId = CSSSelector::pseudoId(CSSSelector::parsePseudoType(pseudoElement));
- 
-    return m_frame->document()->styleSelector()->pseudoStyleRulesForElement(element, pseudoId, rulesToInclude);
+
+    PseudoId pseudoId = CSSSelector::pseudoId(pseudoType);
+
+    return m_frame->document()->styleResolver()->pseudoStyleRulesForElement(element, pseudoId, rulesToInclude);
 }
 
 PassRefPtr<WebKitPoint> DOMWindow::webkitConvertPointFromNodeToPage(Node* node, const WebKitPoint* p) const

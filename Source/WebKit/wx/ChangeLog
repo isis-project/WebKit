@@ -1,3 +1,58 @@
+2012-05-14  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix. Add a couple missing headers.
+
+        * WebFrame.cpp:
+
+2012-05-12  Robin Dunn  <robin@alldunn.com>
+
+        [wx] Fix a bug with CanDecreaseTextSize and handling page breaks.
+        https://bugs.webkit.org/show_bug.cgi?id=86311
+
+        Reviewed by Kevin Ollivier.
+
+        * WebFrame.cpp:
+        (WebKit::wxWebFramePrintout::InitializeWithPageSize):
+        * WebView.cpp:
+        (WebKit::WebView::CanDecreaseTextSize):
+
+2012-05-11  Robin Dunn  <robin@alldunn.com>
+
+        [wx] Fix backing bitmap creation under wxMSW.
+        https://bugs.webkit.org/show_bug.cgi?id=86304
+
+        Reviewed by Kevin Ollivier.
+
+        * WebView.cpp:
+        (WebKit::WebView::OnPaint):
+
+2012-05-04  Nate Chapin  <japhet@chromium.org>
+
+        Don't require FrameLoaderClient to manufacture a commitData() call for empty documents.
+        https://bugs.webkit.org/show_bug.cgi?id=85533
+
+        Reviewed by Alexey Proskuryakov.
+
+        * WebKitSupport/FrameLoaderClientWx.cpp:
+        (WebCore::FrameLoaderClientWx::finishedLoading):
+        (WebCore::FrameLoaderClientWx::setMainDocumentError):
+        (WebCore::FrameLoaderClientWx::dispatchDidReceiveResponse):
+        (WebCore::FrameLoaderClientWx::dispatchDidFailLoading):
+        * WebKitSupport/FrameLoaderClientWx.h:
+        (FrameLoaderClientWx):
+
+2012-04-18  Jon Honeycutt  <jhoneycutt@apple.com>
+
+        FrameLoaderClient::dispatchWillSendSubmitEvent() should be given more
+        information about the form being submitted
+        https://bugs.webkit.org/show_bug.cgi?id=84297
+
+        Reviewed by Andy Estes.
+
+        * WebKitSupport/FrameLoaderClientWx.h:
+        (WebCore::FrameLoaderClientWx::dispatchWillSendSubmitEvent):
+        Updated method declaration.
+
 2012-03-30  Malcolm MacLeod  <malcolm.macleod@tshwanedje.com>
 
         [wx] Move wxWebKit API into WebKit namespace.

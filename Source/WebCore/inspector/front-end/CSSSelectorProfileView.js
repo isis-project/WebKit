@@ -146,18 +146,18 @@ WebInspector.CSSSelectorProfileView.prototype = {
 
     rebuildGridItems: function()
     {
-        this.dataGrid.removeChildren();
+        this.dataGrid.rootNode().removeChildren();
 
         var children = this.profile.children;
         var count = children.length;
 
         for (var index = 0; index < count; ++index)
-            this.dataGrid.appendChild(children[index]);
+            this.dataGrid.rootNode().appendChild(children[index]);
     },
 
     refreshData: function()
     {
-        var child = this.dataGrid.children[0];
+        var child = this.dataGrid.rootNode().children[0];
         while (child) {
             child.refresh();
             child = child.traverseNextNode(false, null, true);
@@ -265,6 +265,7 @@ WebInspector.CSSSelectorProfileView.prototype.__proto__ = WebInspector.View.prot
 
 /**
  * @constructor
+ * @extends {WebInspector.ProfileType}
  */
 WebInspector.CSSSelectorProfileType = function()
 {
@@ -282,12 +283,19 @@ WebInspector.CSSSelectorProfileType.prototype = {
         return this._recording ? WebInspector.UIString("Stop CSS selector profiling.") : WebInspector.UIString("Start CSS selector profiling.");
     },
 
+    /**
+     * @override
+     * @return {boolean}
+     */
     buttonClicked: function()
     {
-        if (this._recording)
+        if (this._recording) {
             this.stopRecordingProfile();
-        else
+            return false;
+        } else {
             this.startRecordingProfile();
+            return true;
+        }
     },
 
     get treeItemTitle()
@@ -348,6 +356,27 @@ WebInspector.CSSSelectorProfileType.prototype = {
     createView: function(profile)
     {
         return new WebInspector.CSSSelectorProfileView(profile);
+    },
+
+    /**
+     * @override
+     * @param {string=} title
+     * @return {WebInspector.ProfileHeader}
+     */
+    createTemporaryProfile: function(title)
+    {
+        title = title || WebInspector.UIString("Recording\u2026");
+        return new WebInspector.ProfileHeader(WebInspector.CSSSelectorProfileType.TypeId, title);
+    },
+
+    /**
+     * @override
+     * @param {ProfilerAgent.ProfileHeader} profile
+     * @return {WebInspector.ProfileHeader}
+     */
+    createProfile: function(profile)
+    {
+        return new WebInspector.ProfileHeader(profile.typeId, profile.title, profile.uid);
     }
 }
 

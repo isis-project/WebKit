@@ -75,9 +75,10 @@ class WebCoreSynchronousLoader : public ResourceHandleClient {
     WTF_MAKE_NONCOPYABLE(WebCoreSynchronousLoader);
 public:
 
-    WebCoreSynchronousLoader(ResourceError& error, ResourceResponse& response, Vector<char>& data)
+    WebCoreSynchronousLoader(ResourceError& error, ResourceResponse& response, SoupSession* session, Vector<char>& data)
         : m_error(error)
         , m_response(response)
+        , m_session(session)
         , m_data(data)
         , m_finished(false)
     {
@@ -88,12 +89,31 @@ public:
         GRefPtr<GMainContext> innerMainContext = adoptGRef(g_main_context_new());
         g_main_context_push_thread_default(innerMainContext.get());
         m_mainLoop = g_main_loop_new(innerMainContext.get(), false);
+
+        adjustMaxConnections(1);
     }
 
     ~WebCoreSynchronousLoader()
     {
+        adjustMaxConnections(-1);
         g_main_context_pop_thread_default(g_main_context_get_thread_default());
         loadingSynchronousRequest = false;
+    }
+
+    void adjustMaxConnections(int adjustment)
+    {
+        int maxConnections, maxConnectionsPerHost;
+        g_object_get(m_session,
+                     SOUP_SESSION_MAX_CONNS, &maxConnections,
+                     SOUP_SESSION_MAX_CONNS_PER_HOST, &maxConnectionsPerHost,
+                     NULL);
+        maxConnections += adjustment;
+        maxConnectionsPerHost += adjustment;
+        g_object_set(m_session,
+                     SOUP_SESSION_MAX_CONNS, maxConnections,
+                     SOUP_SESSION_MAX_CONNS_PER_HOST, maxConnectionsPerHost,
+                     NULL);
+
     }
 
     virtual bool isSynchronousClient()
@@ -133,6 +153,7 @@ public:
 private:
     ResourceError& m_error;
     ResourceResponse& m_response;
+    SoupSession* m_session;
     Vector<char>& m_data;
     bool m_finished;
     GRefPtr<GMainLoop> m_mainLoop;
@@ -143,14 +164,22 @@ static void sendRequestCallback(GObject*, GAsyncResult*, gpointer);
 static void readCallback(GObject*, GAsyncResult*, gpointer);
 static void closeCallback(GObject*, GAsyncResult*, gpointer);
 static bool startNonHTTPRequest(ResourceHandle*, KURL);
+#if ENABLE(WEB_TIMING)
+static int  milisecondsSinceRequest(double requestTime);
+#endif
 
 ResourceHandleInternal::~ResourceHandleInternal()
 {
 }
 
+static SoupSession* sessionFromContext(NetworkingContext* context)
+{
+    return (context && context->isValid()) ? context->soupSession() : ResourceHandle::defaultSession();
+}
+
 SoupSession* ResourceHandleInternal::soupSession()
 {
-    return (m_context && m_context->isValid()) ? m_context->soupSession() : ResourceHandle::defaultSession();
+    return sessionFromContext(m_context.get());
 }
 
 ResourceHandle::~ResourceHandle()
@@ -186,6 +215,29 @@ static void ensureSessionIsInitialized(SoupSession* session)
     g_object_set_data(G_OBJECT(session), "webkit-init", reinterpret_cast<void*>(0xdeadbeef));
 }
 
+static void gotHeadersCallback(SoupMessage* msg, gpointer data)
+{
+    ResourceHandle* handle = static_cast<ResourceHandle*>(data);
+    if (!handle)
+        return;
+    ResourceHandleInternal* d = handle->getInternal();
+    if (d->m_cancelled)
+        return;
+
+#if ENABLE(WEB_TIMING)
+    if (d->m_response.resourceLoadTiming())
+        d->m_response.resourceLoadTiming()->receiveHeadersEnd = milisecondsSinceRequest(d->m_response.resourceLoadTiming()->requestTime);
+#endif
+
+    // The original response will be needed later to feed to willSendRequest in
+    // restartedCallback() in case we are redirected. For this reason, so we store it
+    // here.
+    ResourceResponse response;
+    response.updateFromSoupMessage(msg);
+
+    d->m_response = response;
+}
+
 // Called each time the message is going to be sent again except the first time.
 // It's used mostly to let webkit know about redirects.
 static void restartedCallback(SoupMessage* msg, gpointer data)
@@ -202,10 +254,8 @@ static void restartedCallback(SoupMessage* msg, gpointer data)
     KURL newURL = KURL(handle->firstRequest().url(), location);
 
     ResourceRequest request = handle->firstRequest();
-    ResourceResponse response;
     request.setURL(newURL);
     request.setHTTPMethod(msg->method);
-    response.updateFromSoupMessage(msg);
 
     // Should not set Referer after a redirect from a secure resource to non-secure one.
     if (!request.url().protocolIs("https") && protocolIs(request.httpReferrer(), "https")) {
@@ -214,10 +264,15 @@ static void restartedCallback(SoupMessage* msg, gpointer data)
     }
 
     if (d->client())
-        d->client()->willSendRequest(handle, request, response);
+        d->client()->willSendRequest(handle, request, d->m_response);
 
     if (d->m_cancelled)
         return;
+
+#if ENABLE(WEB_TIMING)
+    d->m_response.setResourceLoadTiming(ResourceLoadTiming::create());
+    d->m_response.resourceLoadTiming()->requestTime = monotonicallyIncreasingTime();
+#endif
 
     // Update the first party in case the base URL changed with the redirect
     String firstPartyString = request.firstPartyForCookies().string();
@@ -306,6 +361,11 @@ static void sendRequestCallback(GObject* source, GAsyncResult* res, gpointer dat
         return;
     }
 
+    if (d->m_defersLoading) {
+        d->m_deferredResult = res;
+        return;
+    }
+
     GOwnPtr<GError> error;
     GInputStream* in = soup_request_send_finish(d->m_soupRequest.get(), res, &error.outPtr());
     if (error) {
@@ -323,9 +383,6 @@ static void sendRequestCallback(GObject* source, GAsyncResult* res, gpointer dat
             d->m_response.setSniffedContentType(sniffedType);
         }
         d->m_response.updateFromSoupMessage(soupMessage);
-
-        if (d->m_defersLoading)
-            soup_session_pause_message(d->soupSession(), soupMessage);
     } else {
         d->m_response.setURL(handle->firstRequest().url());
         const gchar* contentType = soup_request_get_content_type(d->m_soupRequest.get());
@@ -444,6 +501,101 @@ static bool addFormElementsToSoupMessage(SoupMessage* message, const char* conte
     return true;
 }
 
+#if ENABLE(WEB_TIMING)
+static int milisecondsSinceRequest(double requestTime)
+{
+    return static_cast<int>((monotonicallyIncreasingTime() - requestTime) * 1000.0);
+}
+
+static void wroteBodyCallback(SoupMessage*, gpointer data)
+{
+    RefPtr<ResourceHandle> handle = static_cast<ResourceHandle*>(data);
+    if (!handle)
+        return;
+
+    ResourceHandleInternal* d = handle->getInternal();
+    if (!d->m_response.resourceLoadTiming())
+        return;
+
+    d->m_response.resourceLoadTiming()->sendEnd = milisecondsSinceRequest(d->m_response.resourceLoadTiming()->requestTime);
+}
+
+static void requestStartedCallback(SoupSession*, SoupMessage* soupMessage, SoupSocket*, gpointer data)
+{
+    RefPtr<ResourceHandle> handle = static_cast<ResourceHandle*>(g_object_get_data(G_OBJECT(soupMessage), "handle"));
+    if (!handle)
+        return;
+
+    ResourceHandleInternal* d = handle->getInternal();
+    if (!d->m_response.resourceLoadTiming())
+        return;
+
+    d->m_response.resourceLoadTiming()->sendStart = milisecondsSinceRequest(d->m_response.resourceLoadTiming()->requestTime);
+    if (d->m_response.resourceLoadTiming()->sslStart != -1) {
+        // WebCore/inspector/front-end/RequestTimingView.js assumes
+        // that SSL time is included in connection time so must
+        // substract here the SSL delta that will be added later (see
+        // WebInspector.RequestTimingView.createTimingTable in the
+        // file above for more details).
+        d->m_response.resourceLoadTiming()->sendStart -=
+            d->m_response.resourceLoadTiming()->sslEnd - d->m_response.resourceLoadTiming()->sslStart;
+    }
+}
+
+static void networkEventCallback(SoupMessage*, GSocketClientEvent event, GIOStream*, gpointer data)
+{
+    ResourceHandle* handle = static_cast<ResourceHandle*>(data);
+    if (!handle)
+        return;
+    ResourceHandleInternal* d = handle->getInternal();
+    if (d->m_cancelled)
+        return;
+
+    int deltaTime = milisecondsSinceRequest(d->m_response.resourceLoadTiming()->requestTime);
+    switch (event) {
+    case G_SOCKET_CLIENT_RESOLVING:
+        d->m_response.resourceLoadTiming()->dnsStart = deltaTime;
+        break;
+    case G_SOCKET_CLIENT_RESOLVED:
+        d->m_response.resourceLoadTiming()->dnsEnd = deltaTime;
+        break;
+    case G_SOCKET_CLIENT_CONNECTING:
+        d->m_response.resourceLoadTiming()->connectStart = deltaTime;
+        if (d->m_response.resourceLoadTiming()->dnsStart != -1)
+            // WebCore/inspector/front-end/RequestTimingView.js assumes
+            // that DNS time is included in connection time so must
+            // substract here the DNS delta that will be added later (see
+            // WebInspector.RequestTimingView.createTimingTable in the
+            // file above for more details).
+            d->m_response.resourceLoadTiming()->connectStart -=
+                d->m_response.resourceLoadTiming()->dnsEnd - d->m_response.resourceLoadTiming()->dnsStart;
+        break;
+    case G_SOCKET_CLIENT_CONNECTED:
+        // Web Timing considers that connection time involves dns, proxy & TLS negotiation...
+        // so we better pick G_SOCKET_CLIENT_COMPLETE for connectEnd
+        break;
+    case G_SOCKET_CLIENT_PROXY_NEGOTIATING:
+        d->m_response.resourceLoadTiming()->proxyStart = deltaTime;
+        break;
+    case G_SOCKET_CLIENT_PROXY_NEGOTIATED:
+        d->m_response.resourceLoadTiming()->proxyEnd = deltaTime;
+        break;
+    case G_SOCKET_CLIENT_TLS_HANDSHAKING:
+        d->m_response.resourceLoadTiming()->sslStart = deltaTime;
+        break;
+    case G_SOCKET_CLIENT_TLS_HANDSHAKED:
+        d->m_response.resourceLoadTiming()->sslEnd = deltaTime;
+        break;
+    case G_SOCKET_CLIENT_COMPLETE:
+        d->m_response.resourceLoadTiming()->connectEnd = deltaTime;
+        break;
+    default:
+        ASSERT_NOT_REACHED();
+        break;
+    }
+}
+#endif
+
 static bool startHTTPRequest(ResourceHandle* handle)
 {
     ASSERT(handle);
@@ -476,8 +628,15 @@ static bool startHTTPRequest(ResourceHandle* handle)
     if (!handle->shouldContentSniff())
         soup_message_disable_feature(soupMessage, SOUP_TYPE_CONTENT_SNIFFER);
 
+    g_signal_connect(soupMessage, "got-headers", G_CALLBACK(gotHeadersCallback), handle);
     g_signal_connect(soupMessage, "restarted", G_CALLBACK(restartedCallback), handle);
     g_signal_connect(soupMessage, "wrote-body-data", G_CALLBACK(wroteBodyDataCallback), handle);
+
+#if ENABLE(WEB_TIMING)
+    g_signal_connect(soupMessage, "network-event", G_CALLBACK(networkEventCallback), handle);
+    g_signal_connect(soupMessage, "wrote-body", G_CALLBACK(wroteBodyCallback), handle);
+    g_object_set_data(G_OBJECT(soupMessage), "handle", handle);
+#endif
 
     String firstPartyString = request.firstPartyForCookies().string();
     if (!firstPartyString.isEmpty()) {
@@ -498,6 +657,10 @@ static bool startHTTPRequest(ResourceHandle* handle)
     // balanced by a deref() in cleanupSoupRequestOperation, which should always run
     handle->ref();
 
+#if ENABLE(WEB_TIMING)
+    d->m_response.setResourceLoadTiming(ResourceLoadTiming::create());
+#endif
+
     // Make sure we have an Accept header for subresources; some sites
     // want this to serve some of their subresources
     if (!soup_message_headers_get_one(soupMessage->request_headers, "Accept"))
@@ -514,6 +677,9 @@ static bool startHTTPRequest(ResourceHandle* handle)
 
     // Send the request only if it's not been explicitly deferred.
     if (!d->m_defersLoading) {
+#if ENABLE(WEB_TIMING)
+        d->m_response.resourceLoadTiming()->requestTime = monotonicallyIncreasingTime();
+#endif
         d->m_cancellable = adoptGRef(g_cancellable_new());
         soup_request_send_async(d->m_soupRequest.get(), d->m_cancellable.get(), sendRequestCallback, handle);
     }
@@ -593,6 +759,10 @@ void ResourceHandle::platformSetDefersLoading(bool defersLoading)
     // simply check for d->m_scheduledFailure because it's cleared as
     // soon as the failure event is fired.
     if (!hasBeenSent(this) && d->m_soupRequest) {
+#if ENABLE(WEB_TIMING)
+        if (d->m_response.resourceLoadTiming())
+            d->m_response.resourceLoadTiming()->requestTime = monotonicallyIncreasingTime();
+#endif
         d->m_cancellable = adoptGRef(g_cancellable_new());
         soup_request_send_async(d->m_soupRequest.get(), d->m_cancellable.get(), sendRequestCallback, this);
         return;
@@ -600,7 +770,11 @@ void ResourceHandle::platformSetDefersLoading(bool defersLoading)
 
     if (d->m_deferredResult) {
         GRefPtr<GAsyncResult> asyncResult = adoptGRef(d->m_deferredResult.leakRef());
-        readCallback(G_OBJECT(d->m_inputStream.get()), asyncResult.get(), this);
+
+        if (d->m_inputStream)
+            readCallback(G_OBJECT(d->m_inputStream.get()), asyncResult.get(), this);
+        else
+            sendRequestCallback(G_OBJECT(d->m_soupRequest.get()), asyncResult.get(), this);
     }
 }
 
@@ -625,8 +799,12 @@ void ResourceHandle::loadResourceSynchronously(NetworkingContext* context, const
         return;
     }
 #endif
+ 
+    ASSERT(!loadingSynchronousRequest);
+    if (loadingSynchronousRequest) // In practice this cannot happen, but if for some reason it does,
+        return;                    // we want to avoid accidentally going into an infinite loop of requests.
 
-    WebCoreSynchronousLoader syncLoader(error, response, data);
+    WebCoreSynchronousLoader syncLoader(error, response, sessionFromContext(context), data);
     RefPtr<ResourceHandle> handle = create(context, request, &syncLoader, false /*defersLoading*/, false /*shouldContentSniff*/);
     if (!handle)
         return;
@@ -760,6 +938,9 @@ SoupSession* ResourceHandle::defaultSession()
                      SOUP_SESSION_ADD_FEATURE_BY_TYPE, SOUP_TYPE_PROXY_RESOLVER_DEFAULT,
                      SOUP_SESSION_USE_THREAD_CONTEXT, TRUE,
                      NULL);
+#if ENABLE(WEB_TIMING)
+        g_signal_connect(G_OBJECT(session), "request-started", G_CALLBACK(requestStartedCallback), 0);
+#endif
     }
 
     return session;

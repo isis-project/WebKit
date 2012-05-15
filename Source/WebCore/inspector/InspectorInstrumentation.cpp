@@ -61,6 +61,7 @@
 #include "InspectorTimelineAgent.h"
 #include "InspectorWorkerAgent.h"
 #include "InstrumentingAgents.h"
+#include "PageRuntimeAgent.h"
 #include "ScriptArguments.h"
 #include "ScriptCallStack.h"
 #include "ScriptProfile.h"
@@ -112,6 +113,10 @@ void InspectorInstrumentation::didClearWindowObjectInWorldImpl(InstrumentingAgen
             debuggerAgent->didClearMainFrameWindowObject();
     }
 #endif
+    if (PageRuntimeAgent* pageRuntimeAgent = instrumentingAgents->pageRuntimeAgent()) {
+        if (world == mainThreadNormalWorld())
+            pageRuntimeAgent->didClearWindowObject(frame);
+    }
 }
 
 bool InspectorInstrumentation::isDebuggerPausedImpl(InstrumentingAgents* instrumentingAgents)
@@ -363,6 +368,12 @@ void InspectorInstrumentation::didEvaluateScriptImpl(const InspectorInstrumentat
         timelineAgent->didEvaluateScript();
 }
 
+void InspectorInstrumentation::didCreateIsolatedContextImpl(InstrumentingAgents* instrumentingAgents, Frame* frame, ScriptState* scriptState, SecurityOrigin* origin)
+{
+    if (PageRuntimeAgent* runtimeAgent = instrumentingAgents->pageRuntimeAgent())
+        runtimeAgent->didCreateIsolatedContext(frame, scriptState, origin);
+}
+
 InspectorInstrumentationCookie InspectorInstrumentation::willFireTimerImpl(InstrumentingAgents* instrumentingAgents, int timerId)
 {
     pauseOnNativeEventIfNeeded(instrumentingAgents, false, timerFiredEventName, false);
@@ -538,6 +549,26 @@ void InspectorInstrumentation::applyScreenHeightOverrideImpl(InstrumentingAgents
 {
     if (InspectorPageAgent* pageAgent = instrumentingAgents->inspectorPageAgent())
         pageAgent->applyScreenHeightOverride(height);
+}
+
+bool InspectorInstrumentation::shouldApplyScreenWidthOverrideImpl(InstrumentingAgents* instrumentingAgents)
+{
+    if (InspectorPageAgent* pageAgent = instrumentingAgents->inspectorPageAgent()) {
+        long width = 0;
+        pageAgent->applyScreenWidthOverride(&width);
+        return !!width;
+    }
+    return false;
+}
+
+bool InspectorInstrumentation::shouldApplyScreenHeightOverrideImpl(InstrumentingAgents* instrumentingAgents)
+{
+    if (InspectorPageAgent* pageAgent = instrumentingAgents->inspectorPageAgent()) {
+        long height = 0;
+        pageAgent->applyScreenHeightOverride(&height);
+        return !!height;
+    }
+    return false;
 }
 
 void InspectorInstrumentation::willSendRequestImpl(InstrumentingAgents* instrumentingAgents, unsigned long identifier, DocumentLoader* loader, ResourceRequest& request, const ResourceResponse& redirectResponse)
@@ -967,6 +998,21 @@ void InspectorInstrumentation::didCloseWebSocketImpl(InstrumentingAgents* instru
 {
     if (InspectorResourceAgent* resourceAgent = instrumentingAgents->inspectorResourceAgent())
         resourceAgent->didCloseWebSocket(identifier);
+}
+void InspectorInstrumentation::didReceiveWebSocketFrameImpl(InstrumentingAgents* instrumentingAgents, unsigned long identifier, const WebSocketFrame& frame)
+{
+    if (InspectorResourceAgent* resourceAgent = instrumentingAgents->inspectorResourceAgent())
+        resourceAgent->didReceiveWebSocketFrame(identifier, frame);
+}
+void InspectorInstrumentation::didReceiveWebSocketFrameErrorImpl(InstrumentingAgents* instrumentingAgents, unsigned long identifier, const String& errorMessage)
+{
+    if (InspectorResourceAgent* resourceAgent = instrumentingAgents->inspectorResourceAgent())
+        resourceAgent->didReceiveWebSocketFrameError(identifier, errorMessage);
+}
+void InspectorInstrumentation::didSendWebSocketFrameImpl(InstrumentingAgents* instrumentingAgents, unsigned long identifier, const WebSocketFrame& frame)
+{
+    if (InspectorResourceAgent* resourceAgent = instrumentingAgents->inspectorResourceAgent())
+        resourceAgent->didSendWebSocketFrame(identifier, frame);
 }
 #endif
 

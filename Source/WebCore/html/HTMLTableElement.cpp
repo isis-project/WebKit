@@ -155,6 +155,14 @@ void HTMLTableElement::deleteTFoot()
     removeChild(tFoot(), ec);
 }
 
+PassRefPtr<HTMLElement> HTMLTableElement::createTBody()
+{
+    RefPtr<HTMLTableSectionElement> body = HTMLTableSectionElement::create(tbodyTag, document());
+    Node* referenceElement = lastBody() ? lastBody()->nextSibling() : 0;
+    insertBefore(body, referenceElement, ASSERT_NO_EXCEPTION);
+    return body.release();
+}
+
 PassRefPtr<HTMLElement> HTMLTableElement::createCaption()
 {
     if (HTMLTableCaptionElement* existingCaption = caption())
@@ -426,8 +434,18 @@ static StylePropertySet* leakBorderStyle(int value)
 
 StylePropertySet* HTMLTableElement::additionalAttributeStyle()
 {
-    if ((!m_borderAttr && !m_borderColorAttr) || m_frameAttr)
+    if (m_frameAttr)
         return 0;
+    
+    if (!m_borderAttr && !m_borderColorAttr) {
+        // Setting the border to 'hidden' allows it to win over any border
+        // set on the table's cells during border-conflict resolution.
+        if (m_rulesAttr != UnsetRules) {
+            static StylePropertySet* solidBorderStyle = leakBorderStyle(CSSValueHidden);
+            return solidBorderStyle;
+        }
+        return 0;
+    }
 
     if (m_borderColorAttr) {
         static StylePropertySet* solidBorderStyle = leakBorderStyle(CSSValueSolid);
@@ -537,9 +555,9 @@ StylePropertySet* HTMLTableElement::additionalGroupStyle(bool rows)
     return columnBorderStyle;
 }
 
-bool HTMLTableElement::isURLAttribute(Attribute *attr) const
+bool HTMLTableElement::isURLAttribute(const Attribute& attribute) const
 {
-    return attr->name() == backgroundAttr || HTMLElement::isURLAttribute(attr);
+    return attribute.name() == backgroundAttr || HTMLElement::isURLAttribute(attribute);
 }
 
 HTMLCollection* HTMLTableElement::rows()

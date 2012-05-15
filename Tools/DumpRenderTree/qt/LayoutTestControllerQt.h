@@ -187,8 +187,6 @@ public slots:
     bool elementDoesAutoCompleteForElementWithId(const QString& elementId);
 
     unsigned numberOfActiveAnimations() const;
-    void suspendAnimations() const;
-    void resumeAnimations() const;
 
     void addOriginAccessWhitelistEntry(const QString& sourceOrigin, const QString& destinationProtocol, const QString& destinationHost, bool allowDestinationSubdomains);
     void removeOriginAccessWhitelistEntry(const QString& sourceOrigin, const QString& destinationProtocol, const QString& destinationHost, bool allowDestinationSubdomains);
@@ -239,6 +237,9 @@ public slots:
     void setMockSpeechInputDumpRect(bool flag);
     void startSpeechInput(const QString& inputElement);
 
+    void setPageVisibility(const char*);
+    void resetPageVisibility();
+
     // Empty stub method to keep parity with object model exposed by global LayoutTestController.
     void abortModal() {}
 
@@ -258,8 +259,8 @@ public slots:
 
     void setEditingBehavior(const QString& editingBehavior);
 
+    void evaluateScriptInIsolatedWorldAndReturnValue(int worldID, const QString& script);
     void evaluateScriptInIsolatedWorld(int worldID, const QString& script);
-    bool isPageBoxVisible(int pageIndex);
     QString pageSizeAndMarginsInPixels(int pageIndex, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft);
     QString pageProperty(const QString& propertyName, int pageNumber);
     void addUserStyleSheet(const QString& sourceCode);

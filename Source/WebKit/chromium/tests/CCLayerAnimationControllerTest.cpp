@@ -124,6 +124,127 @@ TEST(CCLayerAnimationControllerTest, createTransformAnimation)
     expectTranslateX(4, curve->getValue(duration, boxSize));
 }
 
+TEST(CCLayerAnimationControllerTest, createReversedAnimation)
+{
+    FakeLayerAnimationControllerClient dummy;
+    OwnPtr<CCLayerAnimationController> controller(CCLayerAnimationController::create(&dummy));
+    const double duration = 1;
+    WebCore::KeyframeValueList values(AnimatedPropertyWebkitTransform);
+
+    TransformOperations operations1;
+    operations1.operations().append(TranslateTransformOperation::create(Length(2, Fixed), Length(0, Fixed), TransformOperation::TRANSLATE_X));
+    values.insert(new TransformAnimationValue(0, &operations1));
+
+    TransformOperations operations2;
+    operations2.operations().append(TranslateTransformOperation::create(Length(4, Fixed), Length(0, Fixed), TransformOperation::TRANSLATE_X));
+    values.insert(new TransformAnimationValue(duration, &operations2));
+
+    RefPtr<Animation> animation = Animation::create();
+    animation->setDuration(duration);
+    animation->setDirection(Animation::AnimationDirectionReverse);
+
+    IntSize boxSize;
+    controller->addAnimation(values, boxSize, animation.get(), 0, 0, 0);
+
+    EXPECT_TRUE(controller->hasActiveAnimation());
+
+    CCActiveAnimation* activeAnimation = controller->getActiveAnimation(0, CCActiveAnimation::Transform);
+    EXPECT_TRUE(activeAnimation);
+
+    EXPECT_EQ(1, activeAnimation->iterations());
+    EXPECT_EQ(CCActiveAnimation::Transform, activeAnimation->targetProperty());
+
+    EXPECT_EQ(CCAnimationCurve::Transform, activeAnimation->curve()->type());
+
+    const CCTransformAnimationCurve* curve = activeAnimation->curve()->toTransformAnimationCurve();
+    EXPECT_TRUE(curve);
+
+    expectTranslateX(4, curve->getValue(0, boxSize));
+    expectTranslateX(2, curve->getValue(duration, boxSize));
+}
+
+TEST(CCLayerAnimationControllerTest, createAlternatingAnimation)
+{
+    FakeLayerAnimationControllerClient dummy;
+    OwnPtr<CCLayerAnimationController> controller(CCLayerAnimationController::create(&dummy));
+    const double duration = 1;
+    WebCore::KeyframeValueList values(AnimatedPropertyWebkitTransform);
+
+    TransformOperations operations1;
+    operations1.operations().append(TranslateTransformOperation::create(Length(2, Fixed), Length(0, Fixed), TransformOperation::TRANSLATE_X));
+    values.insert(new TransformAnimationValue(0, &operations1));
+
+    TransformOperations operations2;
+    operations2.operations().append(TranslateTransformOperation::create(Length(4, Fixed), Length(0, Fixed), TransformOperation::TRANSLATE_X));
+    values.insert(new TransformAnimationValue(duration, &operations2));
+
+    RefPtr<Animation> animation = Animation::create();
+    animation->setDuration(duration);
+    animation->setDirection(Animation::AnimationDirectionAlternate);
+    animation->setIterationCount(2);
+
+    IntSize boxSize;
+    controller->addAnimation(values, boxSize, animation.get(), 0, 0, 0);
+
+    EXPECT_TRUE(controller->hasActiveAnimation());
+
+    CCActiveAnimation* activeAnimation = controller->getActiveAnimation(0, CCActiveAnimation::Transform);
+    EXPECT_TRUE(activeAnimation);
+    EXPECT_TRUE(activeAnimation->alternatesDirection());
+
+    EXPECT_EQ(2, activeAnimation->iterations());
+    EXPECT_EQ(CCActiveAnimation::Transform, activeAnimation->targetProperty());
+
+    EXPECT_EQ(CCAnimationCurve::Transform, activeAnimation->curve()->type());
+
+    const CCTransformAnimationCurve* curve = activeAnimation->curve()->toTransformAnimationCurve();
+    EXPECT_TRUE(curve);
+
+    expectTranslateX(2, curve->getValue(0, boxSize));
+    expectTranslateX(4, curve->getValue(duration, boxSize));
+}
+
+TEST(CCLayerAnimationControllerTest, createReversedAlternatingAnimation)
+{
+    FakeLayerAnimationControllerClient dummy;
+    OwnPtr<CCLayerAnimationController> controller(CCLayerAnimationController::create(&dummy));
+    const double duration = 1;
+    WebCore::KeyframeValueList values(AnimatedPropertyWebkitTransform);
+
+    TransformOperations operations1;
+    operations1.operations().append(TranslateTransformOperation::create(Length(2, Fixed), Length(0, Fixed), TransformOperation::TRANSLATE_X));
+    values.insert(new TransformAnimationValue(0, &operations1));
+
+    TransformOperations operations2;
+    operations2.operations().append(TranslateTransformOperation::create(Length(4, Fixed), Length(0, Fixed), TransformOperation::TRANSLATE_X));
+    values.insert(new TransformAnimationValue(duration, &operations2));
+
+    RefPtr<Animation> animation = Animation::create();
+    animation->setDuration(duration);
+    animation->setDirection(Animation::AnimationDirectionAlternateReverse);
+    animation->setIterationCount(2);
+
+    IntSize boxSize;
+    controller->addAnimation(values, boxSize, animation.get(), 0, 0, 0);
+
+    EXPECT_TRUE(controller->hasActiveAnimation());
+
+    CCActiveAnimation* activeAnimation = controller->getActiveAnimation(0, CCActiveAnimation::Transform);
+    EXPECT_TRUE(activeAnimation);
+    EXPECT_TRUE(activeAnimation->alternatesDirection());
+
+    EXPECT_EQ(2, activeAnimation->iterations());
+    EXPECT_EQ(CCActiveAnimation::Transform, activeAnimation->targetProperty());
+
+    EXPECT_EQ(CCAnimationCurve::Transform, activeAnimation->curve()->type());
+
+    const CCTransformAnimationCurve* curve = activeAnimation->curve()->toTransformAnimationCurve();
+    EXPECT_TRUE(curve);
+
+    expectTranslateX(4, curve->getValue(0, boxSize));
+    expectTranslateX(2, curve->getValue(duration, boxSize));
+}
+
 TEST(CCLayerAnimationControllerTest, syncNewAnimation)
 {
     FakeLayerAnimationControllerClient dummyImpl;
@@ -140,6 +261,78 @@ TEST(CCLayerAnimationControllerTest, syncNewAnimation)
     EXPECT_TRUE(controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity));
     EXPECT_EQ(CCActiveAnimation::WaitingForTargetAvailability, controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
 }
+
+// If an animation is started on the impl thread before it is ticked on the main
+// thread, we must be sure to respect the synchronized start time.
+TEST(CCLayerAnimationControllerTest, doNotClobberStartTimes)
+{
+    FakeLayerAnimationControllerClient dummyImpl;
+    OwnPtr<CCLayerAnimationController> controllerImpl(CCLayerAnimationController::create(&dummyImpl));
+    FakeLayerAnimationControllerClient dummy;
+    OwnPtr<CCLayerAnimationController> controller(CCLayerAnimationController::create(&dummy));
+
+    EXPECT_FALSE(controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity));
+
+    addOpacityTransitionToController(*controller, 1, 0, 1, false);
+
+    controller->pushAnimationUpdatesTo(controllerImpl.get());
+
+    EXPECT_TRUE(controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity));
+    EXPECT_EQ(CCActiveAnimation::WaitingForTargetAvailability, controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
+
+    CCAnimationEventsVector events;
+    controllerImpl->animate(1, &events);
+
+    // Synchronize the start times.
+    EXPECT_EQ(1u, events.size());
+    controller->notifyAnimationStarted(events[0]);
+    EXPECT_EQ(controller->getActiveAnimation(0, CCActiveAnimation::Opacity)->startTime(), controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->startTime());
+
+    // Start the animation on the main thread. Should not affect the start time.
+    controller->animate(1.5, 0);
+    EXPECT_EQ(controller->getActiveAnimation(0, CCActiveAnimation::Opacity)->startTime(), controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->startTime());
+}
+
+TEST(CCLayerAnimationControllerTest, syncPauseAndResume)
+{
+    FakeLayerAnimationControllerClient dummyImpl;
+    OwnPtr<CCLayerAnimationController> controllerImpl(CCLayerAnimationController::create(&dummyImpl));
+    FakeLayerAnimationControllerClient dummy;
+    OwnPtr<CCLayerAnimationController> controller(CCLayerAnimationController::create(&dummy));
+
+    EXPECT_FALSE(controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity));
+
+    addOpacityTransitionToController(*controller, 1, 0, 1, false);
+
+    controller->pushAnimationUpdatesTo(controllerImpl.get());
+
+    EXPECT_TRUE(controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity));
+    EXPECT_EQ(CCActiveAnimation::WaitingForTargetAvailability, controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
+
+    // Start the animations on each controller.
+    CCAnimationEventsVector events;
+    controllerImpl->animate(0, &events);
+    controller->animate(0, 0);
+    EXPECT_EQ(CCActiveAnimation::Running, controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
+    EXPECT_EQ(CCActiveAnimation::Running, controller->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
+
+    // Pause the main-thread animation.
+    controller->suspendAnimations(1);
+    EXPECT_EQ(CCActiveAnimation::Paused, controller->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
+
+    // The pause run state change should make it to the impl thread controller.
+    controller->pushAnimationUpdatesTo(controllerImpl.get());
+    EXPECT_EQ(CCActiveAnimation::Paused, controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
+
+    // Resume the main-thread animation.
+    controller->resumeAnimations(2);
+    EXPECT_EQ(CCActiveAnimation::Running, controller->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
+
+    // The pause run state change should make it to the impl thread controller.
+    controller->pushAnimationUpdatesTo(controllerImpl.get());
+    EXPECT_EQ(CCActiveAnimation::Running, controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
+}
+
 
 TEST(CCLayerAnimationControllerTest, doNotSyncFinishedAnimation)
 {
@@ -158,7 +351,8 @@ TEST(CCLayerAnimationControllerTest, doNotSyncFinishedAnimation)
     EXPECT_EQ(CCActiveAnimation::WaitingForTargetAvailability, controllerImpl->getActiveAnimation(0, CCActiveAnimation::Opacity)->runState());
 
     // Notify main thread controller that the animation has started.
-    controller->notifyAnimationStarted(CCAnimationStartedEvent(0, 0, CCActiveAnimation::Opacity, 0));
+    CCAnimationEvent animationStartedEvent(CCAnimationEvent::Started, 0, 0, CCActiveAnimation::Opacity, 0);
+    controller->notifyAnimationStarted(animationStartedEvent);
 
     // Force animation to complete on impl thread.
     controllerImpl->removeAnimation(0);
@@ -186,6 +380,36 @@ TEST(CCLayerAnimationControllerTest, TrivialTransition)
     EXPECT_TRUE(controller->hasActiveAnimation());
     EXPECT_EQ(0, dummy.opacity());
     controller->animate(1, events.get());
+    EXPECT_EQ(1, dummy.opacity());
+    EXPECT_FALSE(controller->hasActiveAnimation());
+}
+
+// Tests animations that are waiting for a synchronized start time do not finish.
+TEST(CCLayerAnimationControllerTest, AnimationsWaitingForStartTimeDoNotFinishIfTheyWaitLongerToStartThanTheirDuration)
+{
+    OwnPtr<CCAnimationEventsVector> events(adoptPtr(new CCAnimationEventsVector));
+    FakeLayerAnimationControllerClient dummy;
+    OwnPtr<CCLayerAnimationController> controller(
+        CCLayerAnimationController::create(&dummy));
+
+    OwnPtr<CCActiveAnimation> toAdd(createActiveAnimation(adoptPtr(new FakeFloatTransition(1, 0, 1)), 1, CCActiveAnimation::Opacity));
+    toAdd->setNeedsSynchronizedStartTime(true);
+
+    // We should pause at the first keyframe indefinitely waiting for that animation to start.
+    controller->add(toAdd.release());
+    controller->animate(0, events.get());
+    EXPECT_TRUE(controller->hasActiveAnimation());
+    EXPECT_EQ(0, dummy.opacity());
+    controller->animate(1, events.get());
+    EXPECT_TRUE(controller->hasActiveAnimation());
+    EXPECT_EQ(0, dummy.opacity());
+    controller->animate(2, events.get());
+    EXPECT_TRUE(controller->hasActiveAnimation());
+    EXPECT_EQ(0, dummy.opacity());
+
+    // Send the synchronized start time.
+    controller->notifyAnimationStarted(CCAnimationEvent(CCAnimationEvent::Started, 0, 1, CCActiveAnimation::Opacity, 2));
+    controller->animate(5, events.get());
     EXPECT_EQ(1, dummy.opacity());
     EXPECT_FALSE(controller->hasActiveAnimation());
 }

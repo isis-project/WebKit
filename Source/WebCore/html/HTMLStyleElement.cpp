@@ -84,7 +84,6 @@ void HTMLStyleElement::parseAttribute(Attribute* attr)
             registerWithScopingNode();
         else if (attr->isNull() && m_isRegisteredWithScopingNode)
             unregisterWithScopingNode();
-
     }
 #endif
     else
@@ -122,7 +121,7 @@ void HTMLStyleElement::registerWithScopingNode()
     scope->registerScopedHTMLStyleChild();
     scope->setNeedsStyleRecalc();
     if (inDocument() && !document()->parsing() && document()->renderer())
-        document()->styleSelectorChanged(DeferRecalcStyle);
+        document()->styleResolverChanged(DeferRecalcStyle);
 
     m_isRegisteredWithScopingNode = true;
 }
@@ -145,48 +144,40 @@ void HTMLStyleElement::unregisterWithScopingNode()
         scope->setNeedsStyleRecalc();
     }
     if (inDocument() && !document()->parsing() && document()->renderer())
-        document()->styleSelectorChanged(DeferRecalcStyle);
+        document()->styleResolverChanged(DeferRecalcStyle);
 
     m_isRegisteredWithScopingNode = false;
 }
 #endif
 
-void HTMLStyleElement::insertedIntoDocument()
+Node::InsertionNotificationRequest HTMLStyleElement::insertedInto(Node* insertionPoint)
 {
-    HTMLElement::insertedIntoDocument();
-    StyleElement::insertedIntoDocument(document(), this);
+    HTMLElement::insertedInto(insertionPoint);
+    if (insertionPoint->inDocument())
+        StyleElement::insertedIntoDocument(document(), this);
 #if ENABLE(STYLE_SCOPED)
     if (scoped() && !m_isRegisteredWithScopingNode)
         registerWithScopingNode();
 #endif
+    return InsertionDone;
 }
 
-void HTMLStyleElement::removedFromDocument()
+void HTMLStyleElement::removedFrom(Node* insertionPoint)
 {
-#if ENABLE(STYLE_SCOPED)
-    // In come cases on teardown willRemove is not called - test here for unregistering again
-    // FIXME: Do we need to bother?
-    if (m_isRegisteredWithScopingNode)
-        unregisterWithScopingNode();
-#endif
-    HTMLElement::removedFromDocument();
-    StyleElement::removedFromDocument(document(), this);
-}
-
+    HTMLElement::removedFrom(insertionPoint);
 
 #if ENABLE(STYLE_SCOPED)
-void HTMLStyleElement::willRemove()
-{
     // In the current implementation, <style scoped> is only registered if the node is in the document.
     // That is, because willRemove() is also called if an ancestor is removed from the document.
     // Now, if we want to register <style scoped> even if it's not inDocument,
     // we'd need to find a way to discern whether that is the case, or whether <style scoped> itself is about to be removed.
-    ASSERT(!scoped() || !inDocument() || m_isRegisteredWithScopingNode || !RuntimeEnabledFeatures::styleScopedEnabled());
     if (m_isRegisteredWithScopingNode)
         unregisterWithScopingNode();
-    HTMLElement::willRemove();
-}
 #endif
+
+    if (insertionPoint->inDocument())
+        StyleElement::removedFromDocument(document(), this);
+}
 
 void HTMLStyleElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
 {
@@ -259,7 +250,7 @@ void HTMLStyleElement::addSubresourceAttributeURLs(ListHashSet<KURL>& urls) cons
     HTMLElement::addSubresourceAttributeURLs(urls);
 
     if (CSSStyleSheet* styleSheet = const_cast<HTMLStyleElement*>(this)->sheet())
-        styleSheet->addSubresourceStyleURLs(urls);
+        styleSheet->internal()->addSubresourceStyleURLs(urls);
 }
 
 bool HTMLStyleElement::disabled() const

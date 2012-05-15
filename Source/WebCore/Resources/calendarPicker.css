@@ -30,7 +30,7 @@
 
 body {
     -webkit-user-select: none;
-    background-color: purple;
+    background-color: white;
     font: -webkit-small-control;
     margin: 0;
     overflow: hidden;
@@ -46,13 +46,17 @@ body {
     box-shadow: inset 2px 2px 2px white,
         inset -2px -2px 1px rgba(0,0,0,0.1);
     padding: 6px;
+    whitespace: nowrap;
+    /* width and opacity are reset in the JS code. */
+    width: 500px;
+    opacity: 0;
 }
 
 .year-month-area {
 }
 
 .year-month-upper {
-    display: -webkit-box;
+    /* display:-webkit-box; is added in the JS code. */
 }
 
 .year-selector {
@@ -61,7 +65,7 @@ body {
 }
 
 .month-selector-box {
-    display: inline-box;
+    display: inline-block;
     text-align: center;
     -webkit-box-flex: 2;
 }
@@ -92,34 +96,6 @@ body {
     width: 100%;
 }
 
-/* FIXME: We'd like to use the standard button appearance for non-Mac. */
-.year-month-button {
-    -webkit-appearance: none;
-    background: -webkit-gradient(linear, left top, left bottom, from(#eee), color-stop(0.4, #fff), color-stop(0.6, #dddddd), to(#eee));
-    border: solid 1px #444;
-    border-radius: 3px;
-    box-shadow: inset 1px 1px 1px rgba(255,255,255,0.4), inset -1px -1px 1px rgba(255,255,255,0.4);
-    padding-left: 3px;
-    padding-right: 3px;
-}
-
-.year-month-button:hover {
-    background: -webkit-gradient(linear, left top, left bottom, from(#e0f0ff), color-stop(0.4, #e0f0ff), color-stop(0.6, #b0e0ff), to(#b0e0ff));
-    border: solid 1px #448;
-}
-
-.year-month-button:active {
-    border: solid 1px black;
-    box-shadow: inset 1px 1px 1px rgba(0,0,0,0.3), inset -1px -1px 1px rgba(0,0,0,0.3);
-}
-
-.year-month-button:disabled {
-    color: #888;
-    background: -webkit-gradient(linear, left top, left bottom, from(#eee), color-stop(0.4, #fff), color-stop(0.6, #dddddd), to(#eee));
-    border: solid 1px #ccc;
-    box-shadow: inset 1px 1px 1px rgba(255,255,255,0.4), inset -1px -1px 1px rgba(255,255,255,0.4);
-}
-
 .year-month-button-left {
     display: inline-block;
 }
@@ -141,8 +117,7 @@ body {
     border-collapse: separate;
     border-spacing: 0px;
     font: -webkit-small-control;
-    table-layout: fixed;
-    width: 100%;
+    /* table-layout:fixed and width:100% are added in the JS code. */
 }
 
 .day-label { /* <th> */

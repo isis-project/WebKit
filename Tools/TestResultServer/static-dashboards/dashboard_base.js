@@ -585,10 +585,8 @@ function appendJSONScriptElements()
 
     parseParameters();
 
-    if (g_crossDashboardState.useTestData) {
-        appendScript('flakiness_dashboard_tests.js');
+    if (g_crossDashboardState.useTestData)
         return;
-    }
 
     for (var builderName in g_builders)
         appendJSONScriptElementFor(builderName);
@@ -807,7 +805,7 @@ function hidePopup()
         popup.parentNode.removeChild(popup);
 }
 
-function showPopup(e, html)
+function showPopup(target, html)
 {
     var popup = $('popup');
     if (!popup) {
@@ -819,7 +817,7 @@ function showPopup(e, html)
     // Set html first so that we can get accurate size metrics on the popup.
     popup.innerHTML = html;
 
-    var targetRect = e.target.getBoundingClientRect();
+    var targetRect = target.getBoundingClientRect();
 
     var x = Math.min(targetRect.left - 10, document.documentElement.clientWidth - popup.offsetWidth);
     x = Math.max(0, x);

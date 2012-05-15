@@ -44,7 +44,9 @@ messages -> WebPage {
     HighlightPotentialActivation(WebCore::IntPoint point, WebCore::IntSize area)
 #endif
 
+#if ENABLE(CONTEXT_MENUS)
     ContextMenuHidden()
+#endif
 
     ScrollBy(uint32_t scrollDirection, uint32_t scrollGranularity)
     CenterSelectionInVisibleArea()
@@ -157,8 +159,10 @@ messages -> WebPage {
     FailedToShowPopupMenu();
 #endif    
     
+#if ENABLE(CONTEXT_MENUS)
     # Context menu.
     DidSelectItemFromActiveContextMenu(WebKit::WebContextMenuItemData menuItem);
+#endif
 
     # Open panel.
     DidChooseFilesForOpenPanel(Vector<WTF::String> fileURLs)
@@ -225,7 +229,8 @@ messages -> WebPage {
     SetWindowIsVisible(bool windowIsVisible)
     WindowAndViewFramesChanged(WebCore::IntRect windowFrameInScreenCoordinates, WebCore::IntRect viewFrameInWindowCoordinates, WebCore::IntPoint accessibilityViewCoordinates)
     RegisterUIProcessAccessibilityTokens(CoreIPC::DataReference elemenToken, CoreIPC::DataReference windowToken)
-    WriteSelectionToPasteboard(WTF::String pasteboardName, WTF::Vector<WTF::String> pasteboardTypes) -> (bool result)
+    GetStringSelectionForPasteboard() -> (WTF::String stringValue)
+    GetDataSelectionForPasteboard(WTF::String pasteboardType) -> (WebKit::SharedMemory::Handle handle, uint64_t size)
     ReadSelectionFromPasteboard(WTF::String pasteboardName) -> (bool result)
 
     # Text input.

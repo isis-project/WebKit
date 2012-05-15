@@ -139,16 +139,13 @@ IntRect enclosingIntRect(const FractionalLayoutRect& rect)
 
 FractionalLayoutRect enclosingFractionalLayoutRect(const FloatRect& rect)
 {
+#if ENABLE(SUBPIXEL_LAYOUT)
     return FractionalLayoutRect(rect.x(), rect.y(),
                      rect.maxX() - rect.x() + FractionalLayoutUnit::epsilon(),
                      rect.maxY() - rect.y() + FractionalLayoutUnit::epsilon());
-}
-
-IntRect pixelSnappedIntRect(const FractionalLayoutRect& rect)
-{
-    IntPoint roundedLocation = roundedIntPoint(rect.location());
-    return IntRect(roundedLocation, IntSize((rect.x() + rect.width()).round() - roundedLocation.x(),
-                                            (rect.y() + rect.height()).round() - roundedLocation.y()));
+#else
+    return enclosingIntRect(rect);
+#endif
 }
 
 } // namespace WebCore

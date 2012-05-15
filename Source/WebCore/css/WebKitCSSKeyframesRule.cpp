@@ -28,6 +28,7 @@
 
 #include "CSSParser.h"
 #include "CSSRuleList.h"
+#include "CSSStyleSheet.h"
 #include "StylePropertySet.h"
 #include "StyleSheet.h"
 #include "WebKitCSSKeyframeRule.h"
@@ -39,7 +40,14 @@ StyleRuleKeyframes::StyleRuleKeyframes()
     : StyleRuleBase(Keyframes, 0)
 {
 }
-    
+
+StyleRuleKeyframes::StyleRuleKeyframes(const StyleRuleKeyframes& o)
+    : StyleRuleBase(o)
+    , m_keyframes(o.m_keyframes)
+    , m_name(o.m_name)
+{
+}
+
 StyleRuleKeyframes::~StyleRuleKeyframes()
 {
 }
@@ -97,22 +105,22 @@ WebKitCSSKeyframesRule::~WebKitCSSKeyframesRule()
 
 void WebKitCSSKeyframesRule::setName(const String& name)
 {
-    m_keyframesRule->setName(name);
+    CSSStyleSheet::RuleMutationScope mutationScope(this);
 
-    // Since the name is used in the keyframe map list in CSSStyleSelector, we need
-    // to recompute the style sheet to get the updated name.
-    if (CSSStyleSheet* styleSheet = parentStyleSheet())
-        styleSheet->styleSheetChanged();
+    m_keyframesRule->setName(name);
 }
 
 void WebKitCSSKeyframesRule::insertRule(const String& ruleText)
 {
     ASSERT(m_childRuleCSSOMWrappers.size() == m_keyframesRule->keyframes().size());
 
-    CSSParser p(cssParserMode());
-    RefPtr<StyleKeyframe> keyframe = p.parseKeyframeRule(parentStyleSheet(), ruleText);
+    CSSParser parser(parserContext());
+    CSSStyleSheet* styleSheet = parentStyleSheet();
+    RefPtr<StyleKeyframe> keyframe = parser.parseKeyframeRule(styleSheet ? styleSheet->internal() : 0, ruleText);
     if (!keyframe)
         return;
+
+    CSSStyleSheet::RuleMutationScope mutationScope(this);
 
     m_keyframesRule->wrapperAppendKeyframe(keyframe);
 
@@ -126,6 +134,8 @@ void WebKitCSSKeyframesRule::deleteRule(const String& s)
     int i = m_keyframesRule->findKeyframeIndex(s);
     if (i < 0)
         return;
+
+    CSSStyleSheet::RuleMutationScope mutationScope(this);
 
     m_keyframesRule->wrapperRemoveKeyframe(i);
 
@@ -180,6 +190,12 @@ CSSRuleList* WebKitCSSKeyframesRule::cssRules()
     if (!m_ruleListCSSOMWrapper)
         m_ruleListCSSOMWrapper = adoptPtr(new LiveCSSRuleList<WebKitCSSKeyframesRule>(this));
     return m_ruleListCSSOMWrapper.get();
+}
+
+void WebKitCSSKeyframesRule::reattach(StyleRuleKeyframes* rule)
+{
+    ASSERT(rule);
+    m_keyframesRule = rule;
 }
 
 } // namespace WebCore

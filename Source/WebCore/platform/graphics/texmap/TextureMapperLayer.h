@@ -106,6 +106,7 @@ public:
         , m_centerZ(0)
         , m_shouldUpdateBackingStoreFromLayer(true)
         , m_textureMapper(0)
+        , m_debugBorderWidth(0)
     { }
 
     virtual ~TextureMapperLayer();
@@ -126,6 +127,11 @@ public:
     PassRefPtr<TextureMapperBackingStore> backingStore() { return m_backingStore; }
     void clearBackingStoresRecursive();
 
+    void setScrollPositionDeltaIfNeeded(const IntPoint&);
+    void setFixedToViewport(bool fixed) { m_fixedToViewport = fixed; }
+
+    void setDebugBorder(const Color&, float width);
+
 private:
     TextureMapperLayer* rootLayer();
     void computeTransformsRecursive();
@@ -143,15 +149,23 @@ private:
     static void sortByZOrder(Vector<TextureMapperLayer* >& array, int first, int last);
 
     PassRefPtr<BitmapTexture> texture() { return m_backingStore ? m_backingStore->texture() : 0; }
+    bool isAncestorFixedToViewport() const;
 
     void paintRecursive(const TextureMapperPaintOptions&);
     void paintSelf(const TextureMapperPaintOptions&);
     void paintSelfAndChildren(const TextureMapperPaintOptions&);
     void paintSelfAndChildrenWithReplica(const TextureMapperPaintOptions&);
-    void updateBackingStore(TextureMapper*, GraphicsLayer*);
+    void updateBackingStore(TextureMapper*, GraphicsLayerTextureMapper*);
 
     void syncAnimations();
     bool isVisible() const;
+    enum ContentsLayerCount {
+        NoLayersWithContent,
+        SingleLayerWithContents,
+        MultipleLayersWithContents
+    };
+
+    ContentsLayerCount countPotentialLayersWithContents() const;
     bool shouldPaintToIntermediateSurface() const;
 
     LayerTransform m_transform;
@@ -217,6 +231,10 @@ private:
     State m_state;
     TextureMapper* m_textureMapper;
     TextureMapperAnimations m_animations;
+    IntPoint m_scrollPositionDelta;
+    bool m_fixedToViewport;
+    Color m_debugBorderColor;
+    float m_debugBorderWidth;
 };
 
 

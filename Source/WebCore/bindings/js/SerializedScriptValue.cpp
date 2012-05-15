@@ -63,8 +63,8 @@
 #include <runtime/RegExp.h>
 #include <runtime/RegExpObject.h>
 #include <wtf/ArrayBuffer.h>
-#include <wtf/ByteArray.h>
 #include <wtf/HashTraits.h>
+#include <wtf/Uint8ClampedArray.h>
 #include <wtf/Vector.h>
 
 using namespace JSC;
@@ -392,13 +392,13 @@ private:
     bool checkForDuplicate(JSObject* object)
     {
         // Record object for graph reconstruction
-        ObjectPool::AddResult addResult = m_objectPool.add(object, m_objectPool.size());
+        ObjectPool::const_iterator found = m_objectPool.find(object);
 
         // Handle duplicate references
-        if (!addResult.isNewEntry) {
+        if (found != m_objectPool.end()) {
             write(ObjectReferenceTag);
-            ASSERT(static_cast<int32_t>(addResult.iterator->second) < m_objectPool.size());
-            writeObjectIndex(addResult.iterator->second);
+            ASSERT(static_cast<int32_t>(found->second) < m_objectPool.size());
+            writeObjectIndex(found->second);
             return true;
         }
 
@@ -609,7 +609,7 @@ private:
                 write(data->width());
                 write(data->height());
                 write(data->data()->length());
-                write(data->data()->data()->data(), data->data()->length());
+                write(data->data()->data(), data->data()->length());
                 return true;
             }
             if (obj->inherits(&RegExpObject::s_info)) {
@@ -1430,7 +1430,7 @@ private:
                 return jsNull();
             }
             RefPtr<ImageData> result = ImageData::create(IntSize(width, height));
-            memcpy(result->data()->data()->data(), m_ptr, length);
+            memcpy(result->data()->data(), m_ptr, length);
             m_ptr += length;
             return getJSValue(result.get());
         }

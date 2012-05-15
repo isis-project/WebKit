@@ -42,12 +42,21 @@ class Heap;
 
 class GCActivityCallback {
 public:
-    virtual ~GCActivityCallback() {}
-    virtual void operator()() {}
-    virtual void synchronize() {}
+    virtual ~GCActivityCallback() { }
+    virtual void didAllocate(size_t) { }
+    virtual void willCollect() { }
+    virtual void synchronize() { }
+    virtual void cancel() { }
+    bool isEnabled() const { return m_enabled; }
+    void setEnabled(bool enabled) { m_enabled = enabled; }
 
 protected:
-    GCActivityCallback() {}
+    GCActivityCallback()
+        : m_enabled(true)
+    {
+    }
+
+    bool m_enabled;
 };
 
 struct DefaultGCActivityCallbackPlatformData;
@@ -57,10 +66,12 @@ public:
     static PassOwnPtr<DefaultGCActivityCallback> create(Heap*);
 
     DefaultGCActivityCallback(Heap*);
-    ~DefaultGCActivityCallback();
+    virtual ~DefaultGCActivityCallback();
 
-    void operator()();
-    void synchronize();
+    virtual void didAllocate(size_t);
+    virtual void willCollect();
+    virtual void synchronize();
+    virtual void cancel();
 
 #if USE(CF)
 protected:

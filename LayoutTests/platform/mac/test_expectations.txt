@@ -21,7 +21,8 @@ BUGWK57688 : fast/text/international/bidi-AN-after-empty-run.html = PASS TEXT
 BUGWK57688 : fast/text/international/bidi-CS-after-AN.html = PASS TEXT
 BUGWK57688 : fast/text/international/thai-line-breaks.html = PASS TEXT
 
-BUGWK58192 : plugins/npp-set-window-called-during-destruction.html = TEXT
+// Fails on WK1, but passes on WK2.  (No syntax available for this situation.)
+BUGWK58192 : plugins/npp-set-window-called-during-destruction.html = TEXT PASS
 
 // Flaky tests when run multi-process
 BUGWK58192 : fast/dom/frame-loading-via-document-write.html = TEXT PASS
@@ -32,17 +33,14 @@ BUGWK58192 : fast/canvas/webgl/gl-teximage.html = TEXT PASS
 BUGWK58192 : fast/frames/flattening/iframe-flattening-offscreen.html = TEXT PASS
 BUGWK58192 : svg/dom/SVGScriptElement/script-set-href.svg = TEXT PASS
 
-BUGWK67007 DEBUG : fast/ruby/after-block-doesnt-crash.html = CRASH
-BUGWK67007 DEBUG : fast/ruby/after-table-doesnt-crash.html = CRASH
-BUGWK67007 DEBUG : fast/ruby/generated-after-counter-doesnt-crash.html = CRASH
-BUGWK67007 DEBUG : fast/ruby/generated-before-and-after-counter-doesnt-crash.html = CRASH
-
 BUGWK69999 RELEASE : http/tests/security/contentSecurityPolicy/media-src-allowed.html = TEXT PASS
 
 BUGWK73766 : css3/unicode-bidi-isolate-aharon-failing.html = FAIL
 
 // Need rebaselining after 71244
 BUGWK74432 : fast/borders/border-antialiasing.html = IMAGE
+
+
 
 // Rebaseline after bug 71705. All differences are due to the fact that table captions now
 // expand to the full width of the table.
@@ -79,7 +77,6 @@ BUGWK74888 : tables/mozilla/marvin/x_caption_style.xml = TEXT
 BUGWK74888 : tables/mozilla_expected_failures/bugs/bug10140.html = TEXT
 BUGWK74888 : tables/mozilla_expected_failures/bugs/bug10216.html = TEXT
 BUGWK74888 : tables/mozilla_expected_failures/bugs/bug104898.html = TEXT
-// Needs another rebaseline after BUGWK75568
 BUGWK74888 : tables/mozilla_expected_failures/bugs/bug106966.html = TEXT
 BUGWK74888 : tables/mozilla_expected_failures/bugs/bug14007-2.html = TEXT
 BUGWK74888 : tables/mozilla_expected_failures/bugs/bug29058-2.html = TEXT
@@ -161,252 +158,59 @@ BUGWK69210: fast/inline/continuation-outlines-with-layers-2.html = TEXT
 BUGWK69210: fast/inline/continuation-outlines-with-layers.html = TEXT
 BUGWK69210: fast/repaint/transform-absolute-in-positioned-container.html = TEXT
 
-// Those tests need a text baseline after lazily allocating layers.
-// The change should only be layer removal.
-BUGWK75568 : animations/combo-transform-translate+scale.html = TEXT
-BUGWK75568 : editing/spelling/inline_spelling_markers.html = TEXT
-BUGWK75568 : fast/box-shadow/shadow-buffer-partial.html = TEXT
-BUGWK75568 : fast/forms/form-element-geometry.html = TEXT
-BUGWK75568 : fast/forms/input-value.html = TEXT
-BUGWK75568 : fast/layers/add-layer-with-nested-stacking.html = TEXT
-BUGWK75568 : fast/layers/remove-layer-with-nested-stacking.html = TEXT
-BUGWK75568 : fast/repaint/iframe-scroll-repaint.html = TEXT
-BUGWK75568 : fast/repaint/inline-relative-positioned.html = TEXT
-BUGWK75568 : fast/repaint/lines-with-layout-delta.html = TEXT
-BUGWK75568 : fast/repaint/overflow-clip-subtree-layout.html = TEXT
-BUGWK75568 : fast/repaint/repaint-resized-overflow.html = TEXT
-BUGWK75568 : fast/repaint/search-field-cancel.html = TEXT
-BUGWK75568 : fast/repaint/subtree-layoutstate-transform.html = TEXT
-BUGWK75568 : fast/repaint/subtree-root-clip-2.html = TEXT
-BUGWK75568 : fast/repaint/subtree-root-clip.html = TEXT
-BUGWK75568 : fast/repaint/subtree-root-skipped.html = TEXT
-BUGWK75568 : fast/replaced/replaced-breaking.html = TEXT
-BUGWK75568 : fast/replaced/width100percent-searchfield.html = TEXT
-BUGWK75568 : fast/text/textIteratorNilRenderer.html = TEXT
-BUGWK75568 : compositing/geometry/object-clip-rects-assertion.html = TEXT
-BUGWK75568 : compositing/overflow/ancestor-overflow.html = TEXT
-BUGWK75568 : editing/inserting/before-after-input-element.html = TEXT
-BUGWK75568 : editing/pasteboard/4806874.html = TEXT
-BUGWK75568 : editing/pasteboard/input-field-1.html = TEXT
-BUGWK75568 : editing/selection/3690703-2.html = TEXT
-BUGWK75568 : editing/selection/3690703.html = TEXT
-BUGWK75568 : editing/selection/3690719.html = TEXT
-BUGWK75568 : editing/selection/4895428-3.html = TEXT
-BUGWK75568 : editing/selection/4975120.html = TEXT
-BUGWK75568 : editing/selection/drag-select-1.html = TEXT
-BUGWK75568 : editing/selection/expanding-selections.html = TEXT
-BUGWK75568 : editing/selection/leave-requested-block.html = TEXT
-BUGWK75568 : editing/selection/select-across-readonly-input-1.html = TEXT
-BUGWK75568 : editing/selection/select-across-readonly-input-2.html = TEXT
-BUGWK75568 : editing/selection/select-across-readonly-input-3.html = TEXT
-BUGWK75568 : editing/selection/select-across-readonly-input-4.html = TEXT
-BUGWK75568 : editing/selection/select-across-readonly-input-5.html = TEXT
-BUGWK75568 : fast/block/float/032.html = TEXT
-BUGWK75568 : fast/block/float/033.html = TEXT
-BUGWK75568 : fast/block/float/avoidance-rtl.html = TEXT
-BUGWK75568 : fast/block/float/float-overflow-hidden-containing-block-width.html = TEXT
-BUGWK75568 : fast/block/float/in-margin.html = TEXT
-BUGWK75568 : fast/block/float/overlapping-floats-with-overflow-hidden.html = TEXT
-BUGWK75568 : fast/block/float/shrink-to-avoid-float-complexity.html = TEXT
-BUGWK75568 : fast/block/lineboxcontain/block-font.html = TEXT
-BUGWK75568 : fast/block/lineboxcontain/block-glyphs.html = TEXT
-BUGWK75568 : fast/block/lineboxcontain/font.html = TEXT
-BUGWK75568 : fast/block/lineboxcontain/parsing-invalid.html = TEXT
-BUGWK75568 : fast/block/margin-collapse/103.html = TEXT
-BUGWK75568 : fast/clip/017.html = TEXT
-BUGWK75568 : fast/css/input-search-padding.html = TEXT
-BUGWK75568 : fast/css/invalidation-errors-2.html = TEXT
-BUGWK75568 : fast/css/invalidation-errors.html = TEXT
-BUGWK75568 : fast/css/line-height.html = TEXT
-BUGWK75568 : fast/css/nested-layers-with-hover.html = TEXT
-BUGWK75568 : fast/css/text-input-with-webkit-border-radius.html = TEXT
-BUGWK75568 : fast/css/text-overflow-input.html = TEXT
-BUGWK75568 : fast/dom/isindex-001.html = TEXT
-BUGWK75568 : fast/dom/isindex-002.html = TEXT
-BUGWK75568 : fast/dynamic/subtree-boundary-percent-height.html = TEXT
-BUGWK75568 : fast/dynamic/subtree-no-common-root-static-y.html = TEXT
-BUGWK75568 : fast/dynamic/subtree-table-cell-height.html = TEXT
-BUGWK75568 : fast/events/autoscroll.html = TEXT
-BUGWK75568 : fast/events/context-no-deselect.html = TEXT
-BUGWK75568 : fast/events/mouse-relative-position.html = TEXT
-BUGWK75568 : fast/forms/basic-inputs.html = TEXT
-BUGWK75568 : fast/forms/box-shadow-override.html = TEXT
-BUGWK75568 : fast/forms/encoding-test.html = TEXT
-BUGWK75568 : fast/forms/fieldset-align.html = TEXT
-BUGWK75568 : fast/forms/floating-textfield-relayout.html = TEXT
-BUGWK75568 : fast/forms/input-align.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-bkcolor.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-default-bkcolor.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-disabled.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-focus.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-height.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-preventDefault.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-readonly.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-selection.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-visibility.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-width.html = TEXT
-BUGWK75568 : fast/forms/input-baseline.html = TEXT
-BUGWK75568 : fast/forms/input-double-click-selection-gap-bug.html = TEXT
-BUGWK75568 : fast/forms/input-field-text-truncated.html = TEXT
-BUGWK75568 : fast/forms/input-placeholder-visibility-1.html = TEXT
-BUGWK75568 : fast/forms/input-placeholder-visibility-3.html = TEXT
-BUGWK75568 : fast/forms/input-readonly-empty.html = TEXT
-BUGWK75568 : fast/forms/input-spaces.html = TEXT
-BUGWK75568 : fast/forms/input-table.html = TEXT
-BUGWK75568 : fast/forms/input-text-click-inside.html = TEXT
-BUGWK75568 : fast/forms/input-text-click-outside.html = TEXT
-BUGWK75568 : fast/forms/input-text-option-delete.html = TEXT
-BUGWK75568 : fast/forms/input-text-self-emptying-click.html = TEXT
-BUGWK75568 : fast/forms/input-width.html = TEXT
-BUGWK75568 : fast/forms/number/input-appearance-number-rtl.html = TEXT
-BUGWK75568 : fast/forms/number/input-appearance-spinbutton-disabled-readonly.html = TEXT
-BUGWK75568 : fast/forms/number/input-appearance-spinbutton-layer.html = TEXT
-BUGWK75568 : fast/forms/placeholder-position.html = TEXT
-BUGWK75568 : fast/forms/placeholder-pseudo-style.html = TEXT
-BUGWK75568 : fast/forms/plaintext-mode-2.html = TEXT
-BUGWK75568 : fast/forms/search-cancel-button-style-sharing.html = TEXT
-BUGWK75568 : fast/forms/search-display-none-cancel-button.html = TEXT
-BUGWK75568 : fast/forms/search-rtl.html = TEXT
-BUGWK75568 : fast/forms/search-styled.html = TEXT
-BUGWK75568 : fast/forms/search-vertical-alignment.html = TEXT
-BUGWK75568 : fast/forms/searchfield-heights.html = TEXT
-BUGWK75568 : fast/forms/tabbing-input-iframe.html = TEXT
-BUGWK75568 : fast/forms/text-style-color.html = TEXT
-BUGWK75568 : fast/forms/textfield-focus-ring.html = TEXT
-BUGWK75568 : fast/forms/validation-message-appearance.html = TEXT
-BUGWK75568 : fast/forms/visual-hebrew-text-field.html = TEXT
-BUGWK75568 : fast/frames/take-focus-from-iframe.html = TEXT
-BUGWK75568 : fast/html/details-no-summary4.html = TEXT
-BUGWK75568 : fast/html/details-open-javascript.html = TEXT
-BUGWK75568 : fast/html/details-open2.html = TEXT
-BUGWK75568 : fast/html/details-open4.html = TEXT
-BUGWK75568 : fast/invalid/residual-style.html = TEXT
-BUGWK75568 : fast/layers/self-painting-outline.html = TEXT
-BUGWK75568 : fast/lists/dynamic-marker-crash.html = TEXT
-BUGWK75568 : fast/multicol/layers-split-across-columns.html = TEXT
-BUGWK75568 : fast/overflow/004.html = TEXT
-BUGWK75568 : fast/overflow/clip-rects-fixed-ancestor.html = TEXT
-BUGWK75568 : fast/overflow/line-clamp.html = TEXT
-BUGWK75568 : fast/overflow/overflow-focus-ring.html = TEXT
-BUGWK75568 : fast/repaint/layer-outline-horizontal.html = TEXT
-BUGWK75568 : fast/repaint/layer-outline.html = TEXT
-BUGWK75568 : fast/repaint/opacity-change-on-overflow-float.html = TEXT
-BUGWK75568 : fast/repaint/renderer-destruction-by-invalidateSelection-crash.html = TEXT
-BUGWK75568 : fast/repaint/subtree-root-clip-3.html = TEXT
-BUGWK75568 : fast/replaced/replaced-breaking-mixture.html = TEXT
-BUGWK75568 : fast/text/selection-painted-separately.html = TEXT
-BUGWK75568 : fast/text/selection-rect-rounding.html = TEXT
-BUGWK75568 : fast/transforms/transformed-focused-text-input.html = TEXT
-BUGWK75568 : plugins/mouse-click-plugin-clears-selection.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/45621.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug12384.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug154780.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug18359.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug24200.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug2479-2.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug2479-3.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug2479-4.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug28928.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug4382.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug44505.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug4527.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug46368-1.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug46368-2.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug51037.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug55545.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug7342.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug99948.html = TEXT
-BUGWK75568 : tables/mozilla/dom/tableDom.html = TEXT
-BUGWK75568 : tables/mozilla/other/move_row.html = TEXT
-BUGWK75568 : tables/mozilla_expected_failures/bugs/bug45621.html = TEXT
-BUGWK75568 : tables/mozilla_expected_failures/bugs/bug92647-1.html = TEXT
-BUGWK75568 : fast/replaced/width100percent-textfield.html = TEXT
-BUGWK75568 : fast/speech/input-appearance-searchandspeech.html = TEXT
-BUGWK75568 : fast/speech/input-appearance-speechbutton.html = TEXT
-BUGWK75568 : fast/speech/speech-bidi-rendering.html = TEXT
-BUGWK75568 : fast/table/003.html = TEXT
-BUGWK75568 : fast/table/029.html = TEXT
-BUGWK75568 : fast/table/colspanMinWidth-vertical.html = TEXT
-BUGWK75568 : fast/table/colspanMinWidth.html = TEXT
-BUGWK75568 : fast/table/overflowHidden.html = TEXT
-BUGWK75568 : fast/table/spanOverlapRepaint.html = TEXT
-BUGWK75568 : fast/table/text-field-baseline.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug1188.html = TEXT
-
-// Temporary: generate platform specific IETestCenter results, then
-// remove when bots produce reference.
-BUGWK81936 : ietestcenter/css3/text/textshadow-001.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-002.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-003.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-004.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-005.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-006.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-007.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-008.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-009.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-010.htm = FAIL MISSING
-
 // Tiled-layer compositing tests are flakey.
 BUGWK82546 : compositing/tiling/crash-reparent-tiled-layer.html = PASS TEXT
 
-// Temporary: generate platform specific IETestCenter results, then
-// remove when bots produce reference.
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-attachment-local-scrolling.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-color-applied-to-rounded-inline-element.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-color-border-box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_color_padding_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_position_three_four_values.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_properties_greater_than_images.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_repeat_space_border_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_repeat_space_content_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-repeat-space-padding-box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-applies-to-block.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-aspect-ratio.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-005.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-006.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-007.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-008.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-009.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-010.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-011.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-012.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-013.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-014.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-015.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-016.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-017.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-clip-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-clip-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-content-edge-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-different-width-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-initial-value-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-not-inherited-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-shorthand-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-005.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-sum-of-radii-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-sum-of-radii-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-with-three-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-with-two-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-right-radius-values-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/color-behind-images.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/none-as-image-layer.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/order-of-images.htm = FAIL MISSING
+BUGWK84604 FUTURE : fast/js/global-constructors.html = TEXT
 
-BUGWK83124 : http/tests/websocket/tests/hybi/workers/worker-reload.html = PASS FAIL
+// Requires rebaseline after bug 83978
+BUGWK83978 : tables/mozilla_expected_failures/collapsing_borders/bug41262-5.html = IMAGE+TEXT
+
+BUGWK84759 : ietestcenter/css3/multicolumn/column-containing-block-001.htm = IMAGE
+BUGWK84760 : ietestcenter/css3/multicolumn/column-containing-block-002.htm = IMAGE
+BUGWK84761 : ietestcenter/css3/multicolumn/column-filling-001.htm = IMAGE
+BUGWK84764 : ietestcenter/css3/multicolumn/column-width-applies-to-001.htm = IMAGE
+BUGWK84767 : ietestcenter/css3/multicolumn/column-width-applies-to-002.htm = IMAGE
+BUGWK84768 : ietestcenter/css3/multicolumn/column-width-applies-to-003.htm = IMAGE
+BUGWK84769 : ietestcenter/css3/multicolumn/column-width-applies-to-004.htm = IMAGE
+BUGWK84770 : ietestcenter/css3/multicolumn/column-width-applies-to-007.htm = IMAGE
+BUGWK84771 : ietestcenter/css3/multicolumn/column-width-applies-to-009.htm = IMAGE
+BUGWK84772 : ietestcenter/css3/multicolumn/column-width-applies-to-010.htm = IMAGE
+BUGWK84773 : ietestcenter/css3/multicolumn/column-width-applies-to-012.htm = IMAGE
+BUGWK84775 : ietestcenter/css3/multicolumn/column-width-applies-to-013.htm = IMAGE
+BUGWK84776 : ietestcenter/css3/multicolumn/column-width-applies-to-014.htm = IMAGE
+BUGWK84777 : ietestcenter/css3/multicolumn/column-width-applies-to-015.htm = IMAGE
+BUGWK84778 : ietestcenter/css3/multicolumn/column-width-negative-001.htm = IMAGE
+
+// Fails after r115379
+BUGWK85038 : http/tests/inspector/network/network-initiator.html = TEXT TIMEOUT
+
+BUGWK85401 : media/video-colorspace-yuv420.html = TEXT
+BUGWK85401 : media/video-colorspace-yuv422.html = TEXT
+
+BUGWK85404 : fast/loader/javascript-url-in-embed.html = TEXT PASS
+
+BUGWK85408 : svg/batik/text/longTextOnPath.svg = TEXT PASS
+
+// IETC flexbox failures
+BUGWK85211 : ietestcenter/css3/flexbox/flexbox-align-stretch-001.htm = IMAGE
+BUGWK85212 : ietestcenter/css3/flexbox/flexbox-layout-002.htm = IMAGE
+BUGWK85213 BUGWK85832 : ietestcenter/css3/flexbox/flexbox-ordinal-group-001.htm = CRASH IMAGE
+
+// Requires rebaseline after bug 85031
+BUGWK85565 : fast/block/float/016.html = IMAGE
+BUGWK85565 : fast/css/border-solid-single-edge-antialias.html = IMAGE
+
+// Interferes with the tests that should pass
+BUGWK85689 SKIP : fast/animation/request-animation-frame-disabled.html = TEXT
+
+BUGWK85990 : media/video-controls-rendering-toggle-display-none.html = TEXT
+BUGWK85990 : media/video-controls-toggling.html = TIMEOUT TEXT
+
+BUGWK85308 : ietestcenter/css3/valuesandunits/units-000.htm = IMAGE
+BUGWK85310 : ietestcenter/css3/valuesandunits/units-010.htm = IMAGE
+
+// IETC namespace failures
+BUGWK86137 : ietestcenter/css3/namespaces/prefix-007.xml = IMAGE
+BUGWK86139 : ietestcenter/css3/namespaces/prefix-010.xml = IMAGE
+BUGWK86142 : ietestcenter/css3/namespaces/syntax-021.xml = IMAGE

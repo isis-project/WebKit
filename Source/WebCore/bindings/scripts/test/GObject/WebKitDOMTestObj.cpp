@@ -133,15 +133,9 @@ enum {
     PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_ATTRIBUTE_RAISES,
     PROP_WITH_SCRIPT_EXECUTION_CONTEXT_AND_SCRIPT_STATE_WITH_SPACES_ATTRIBUTE,
     PROP_WITH_SCRIPT_ARGUMENTS_AND_CALL_STACK_ATTRIBUTE,
-#if ENABLE(Condition1)
     PROP_CONDITIONAL_ATTR1,
-#endif /* ENABLE(Condition1) */
-#if ENABLE(Condition1) && ENABLE(Condition2)
     PROP_CONDITIONAL_ATTR2,
-#endif /* ENABLE(Condition1) && ENABLE(Condition2) */
-#if ENABLE(Condition1) || ENABLE(Condition2)
     PROP_CONDITIONAL_ATTR3,
-#endif /* ENABLE(Condition1) || ENABLE(Condition2) */
     PROP_CONTENT_DOCUMENT,
     PROP_MUTABLE_POINT,
     PROP_IMMUTABLE_POINT,
@@ -173,8 +167,10 @@ static void webkit_dom_test_obj_finalize(GObject* object)
 static void webkit_dom_test_obj_set_property(GObject* object, guint propertyId, const GValue* value, GParamSpec* pspec)
 {
     WebCore::JSMainThreadNullState state;
+
     WebKitDOMTestObj* self = WEBKIT_DOM_TEST_OBJ(object);
     WebCore::TestObj* coreSelf = WebKit::core(self);
+
     switch (propertyId) {
     case PROP_UNSIGNED_SHORT_ATTR: {
         coreSelf->setUnsignedShortAttr((g_value_get_uint(value)));
@@ -256,24 +252,36 @@ static void webkit_dom_test_obj_set_property(GObject* object, guint propertyId, 
         coreSelf->setWithScriptStateAttribute((g_value_get_long(value)));
         break;
     }
-#if ENABLE(Condition1)
     case PROP_CONDITIONAL_ATTR1: {
+#if ENABLE(Condition1)
         coreSelf->setConditionalAttr1((g_value_get_long(value)));
-        break;
-    }
+#else
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition1")
 #endif /* ENABLE(Condition1) */
-#if ENABLE(Condition1) && ENABLE(Condition2)
+        break;
+    }
     case PROP_CONDITIONAL_ATTR2: {
+#if ENABLE(Condition1) && ENABLE(Condition2)
         coreSelf->setConditionalAttr2((g_value_get_long(value)));
-        break;
-    }
+#else
+#if !ENABLE(Condition1)
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition1")
+#endif
+#if !ENABLE(Condition2)
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition2")
+#endif
 #endif /* ENABLE(Condition1) && ENABLE(Condition2) */
-#if ENABLE(Condition1) || ENABLE(Condition2)
-    case PROP_CONDITIONAL_ATTR3: {
-        coreSelf->setConditionalAttr3((g_value_get_long(value)));
         break;
     }
+    case PROP_CONDITIONAL_ATTR3: {
+#if ENABLE(Condition1) || ENABLE(Condition2)
+        coreSelf->setConditionalAttr3((g_value_get_long(value)));
+#else
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition1")
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition2")
 #endif /* ENABLE(Condition1) || ENABLE(Condition2) */
+        break;
+    }
     case PROP_STRICT_FLOAT: {
         coreSelf->setStrictFloat((g_value_get_float(value)));
         break;
@@ -292,8 +300,10 @@ static void webkit_dom_test_obj_set_property(GObject* object, guint propertyId, 
 static void webkit_dom_test_obj_get_property(GObject* object, guint propertyId, GValue* value, GParamSpec* pspec)
 {
     WebCore::JSMainThreadNullState state;
+
     WebKitDOMTestObj* self = WEBKIT_DOM_TEST_OBJ(object);
     WebCore::TestObj* coreSelf = WebKit::core(self);
+
     switch (propertyId) {
     case PROP_READ_ONLY_INT_ATTR: {
         g_value_set_long(value, coreSelf->readOnlyIntAttr());
@@ -442,24 +452,36 @@ static void webkit_dom_test_obj_get_property(GObject* object, guint propertyId, 
         g_value_set_object(value, WebKit::kit(ptr.get()));
         break;
     }
-#if ENABLE(Condition1)
     case PROP_CONDITIONAL_ATTR1: {
+#if ENABLE(Condition1)
         g_value_set_long(value, coreSelf->conditionalAttr1());
-        break;
-    }
+#else
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition1")
 #endif /* ENABLE(Condition1) */
-#if ENABLE(Condition1) && ENABLE(Condition2)
+        break;
+    }
     case PROP_CONDITIONAL_ATTR2: {
+#if ENABLE(Condition1) && ENABLE(Condition2)
         g_value_set_long(value, coreSelf->conditionalAttr2());
-        break;
-    }
+#else
+#if !ENABLE(Condition1)
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition1")
+#endif
+#if !ENABLE(Condition2)
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition2")
+#endif
 #endif /* ENABLE(Condition1) && ENABLE(Condition2) */
-#if ENABLE(Condition1) || ENABLE(Condition2)
-    case PROP_CONDITIONAL_ATTR3: {
-        g_value_set_long(value, coreSelf->conditionalAttr3());
         break;
     }
+    case PROP_CONDITIONAL_ATTR3: {
+#if ENABLE(Condition1) || ENABLE(Condition2)
+        g_value_set_long(value, coreSelf->conditionalAttr3());
+#else
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition1")
+        WEBKIT_WARN_FEATURE_NOT_PRESENT("Condition2")
 #endif /* ENABLE(Condition1) || ENABLE(Condition2) */
+        break;
+    }
     case PROP_CONTENT_DOCUMENT: {
         RefPtr<WebCore::Document> ptr = coreSelf->contentDocument();
         g_value_set_object(value, WebKit::kit(ptr.get()));
@@ -772,7 +794,6 @@ G_MAXLONG, /* max */
                                                            "read-write  WebKitDOMTestObj* TestObj.with-script-arguments-and-call-stack-attribute", /* longer - could do with some extra doc stuff here */
                                                            WEBKIT_TYPE_DOM_TEST_OBJ, /* gobject type */
                                                            WEBKIT_PARAM_READWRITE));
-#if ENABLE(Condition1)
     g_object_class_install_property(gobjectClass,
                                     PROP_CONDITIONAL_ATTR1,
                                     g_param_spec_long("conditional-attr1", /* name */
@@ -782,8 +803,6 @@ G_MAXLONG, /* max */
 G_MAXLONG, /* max */
 0, /* default */
                                                            WEBKIT_PARAM_READWRITE));
-#endif /* ENABLE(Condition1) */
-#if ENABLE(Condition1) && ENABLE(Condition2)
     g_object_class_install_property(gobjectClass,
                                     PROP_CONDITIONAL_ATTR2,
                                     g_param_spec_long("conditional-attr2", /* name */
@@ -793,8 +812,6 @@ G_MAXLONG, /* max */
 G_MAXLONG, /* max */
 0, /* default */
                                                            WEBKIT_PARAM_READWRITE));
-#endif /* ENABLE(Condition1) && ENABLE(Condition2) */
-#if ENABLE(Condition1) || ENABLE(Condition2)
     g_object_class_install_property(gobjectClass,
                                     PROP_CONDITIONAL_ATTR3,
                                     g_param_spec_long("conditional-attr3", /* name */
@@ -804,7 +821,6 @@ G_MAXLONG, /* max */
 G_MAXLONG, /* max */
 0, /* default */
                                                            WEBKIT_PARAM_READWRITE));
-#endif /* ENABLE(Condition1) || ENABLE(Condition2) */
     g_object_class_install_property(gobjectClass,
                                     PROP_CONTENT_DOCUMENT,
                                     g_param_spec_object("content-document", /* name */

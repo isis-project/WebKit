@@ -45,10 +45,11 @@
 #include "PositionIterator.h"
 #include "RenderObject.h"
 #include "Range.h"
-#include "VisibleSelection.h"
+#include "ShadowRoot.h"
 #include "Text.h"
 #include "TextIterator.h"
 #include "VisiblePosition.h"
+#include "VisibleSelection.h"
 #include "visible_units.h"
 #include <wtf/Assertions.h>
 #include <wtf/StdLibExtras.h>
@@ -310,9 +311,10 @@ bool isInline(const Node* node)
 // FIXME: Pass a position to this function.  The enclosing block of [table, x] for example, should be the 
 // block that contains the table and not the table, and this function should be the only one responsible for 
 // knowing about these kinds of special cases.
-Node* enclosingBlock(Node* node, EditingBoundaryCrossingRule rule)
+Element* enclosingBlock(Node* node, EditingBoundaryCrossingRule rule)
 {
-    return static_cast<Element*>(enclosingNodeOfType(firstPositionInOrBeforeNode(node), isBlock, rule));
+    Node* enclosingNode = enclosingNodeOfType(firstPositionInOrBeforeNode(node), isBlock, rule);
+    return enclosingNode && enclosingNode->isElementNode() ? toElement(enclosingNode) : 0;
 }
 
 TextDirection directionOfEnclosingBlock(const Position& position)
@@ -1083,19 +1085,20 @@ VisibleSelection selectionForParagraphIteration(const VisibleSelection& original
 // opertion is unreliable. TextIterator's TextIteratorEmitsCharactersBetweenAllVisiblePositions mode needs to be fixed, 
 // or these functions need to be changed to iterate using actual VisiblePositions.
 // FIXME: Deploy these functions everywhere that TextIterators are used to convert between VisiblePositions and indices.
-int indexForVisiblePosition(const VisiblePosition& visiblePosition, RefPtr<Element>& scope)
+ 
+int indexForVisiblePosition(const VisiblePosition& visiblePosition, RefPtr<ContainerNode>& scope)
 {
     if (visiblePosition.isNull())
         return 0;
 
     Position p(visiblePosition.deepEquivalent());
     Document* document = p.anchorNode()->document();
-    Node* shadowRoot = p.anchorNode()->shadowTreeRootNode();
+    ContainerNode* shadowRoot = p.anchorNode()->shadowTreeRootNode();
 
     if (shadowRoot) {
         // Use the shadow root for form elements, since TextIterators will not enter shadow content.
-        ASSERT(shadowRoot->isElementNode());
-        scope = static_cast<Element*>(shadowRoot);
+        ASSERT(shadowRoot->isElementNode() || shadowRoot->isShadowRoot());
+        scope = shadowRoot;
     } else
         scope = document->documentElement();
 
@@ -1104,7 +1107,7 @@ int indexForVisiblePosition(const VisiblePosition& visiblePosition, RefPtr<Eleme
     return TextIterator::rangeLength(range.get(), true);
 }
 
-VisiblePosition visiblePositionForIndex(int index, Element *scope)
+VisiblePosition visiblePositionForIndex(int index, ContainerNode* scope)
 {
     RefPtr<Range> range = TextIterator::rangeFromLocationAndLength(scope, index, 0, true);
     // Check for an invalid index. Certain editing operations invalidate indices because 

@@ -6,204 +6,6 @@
 BUGWK76439 DEBUG : fast/dom/shadow/content-element-api.html = TEXT
 BUGWK76439 DEBUG : fast/dom/shadow/content-element-outside-shadow.html = TEXT
 
-// Those tests need a text baseline after lazily allocating layers.
-// The change should only be layer removal.
-BUGWK75568 : editing/spelling/inline_spelling_markers.html = TEXT
-BUGWK75568 : fast/box-shadow/shadow-buffer-partial.html = TEXT
-BUGWK75568 : fast/layers/add-layer-with-nested-stacking.html = TEXT
-BUGWK75568 : fast/layers/remove-layer-with-nested-stacking.html = TEXT
-BUGWK75568 : fast/repaint/overflow-clip-subtree-layout.html = TEXT
-BUGWK75568 : fast/repaint/repaint-resized-overflow.html = TEXT
-BUGWK75568 : fast/repaint/subtree-layoutstate-transform.html = TEXT
-BUGWK75568 : fast/repaint/subtree-root-clip-2.html = TEXT
-BUGWK75568 : fast/repaint/subtree-root-clip.html = TEXT
-BUGWK75568 : fast/repaint/subtree-root-skipped.html = TEXT
-BUGWK75568 : compositing/geometry/object-clip-rects-assertion.html = TEXT
-BUGWK75568 : compositing/overflow/ancestor-overflow.html = TEXT
-BUGWK75568 : editing/inserting/before-after-input-element.html = TEXT
-BUGWK75568 : editing/pasteboard/4806874.html = TEXT
-BUGWK75568 : editing/pasteboard/input-field-1.html = TEXT
-BUGWK75568 : editing/selection/3690703-2.html = TEXT
-BUGWK75568 : editing/selection/3690703.html = TEXT
-BUGWK75568 : editing/selection/3690719.html = TEXT
-BUGWK75568 : editing/selection/4895428-3.html = TEXT
-BUGWK75568 : editing/selection/drag-select-1.html = TEXT
-BUGWK75568 : editing/selection/expanding-selections.html = TEXT
-BUGWK75568 : editing/selection/leave-requested-block.html = TEXT
-BUGWK75568 : fast/block/float/033.html = TEXT
-BUGWK75568 : fast/block/float/avoidance-rtl.html = TEXT
-BUGWK75568 : fast/block/float/float-not-removed-from-next-sibling3.html = TEXT
-BUGWK75568 : fast/block/float/float-overflow-hidden-containing-block-width.html = TEXT
-BUGWK75568 : fast/block/float/in-margin.html = TEXT
-BUGWK75568 : fast/clip/017.html = TEXT
-BUGWK75568 : fast/css/input-search-padding.html = TEXT
-BUGWK75568 : fast/css/invalidation-errors-2.html = TEXT
-BUGWK75568 : fast/css/invalidation-errors.html = TEXT
-BUGWK75568 : fast/css/line-height.html = TEXT
-BUGWK75568 : fast/css/nested-layers-with-hover.html = TEXT
-BUGWK75568 : fast/css/text-input-with-webkit-border-radius.html = TEXT
-BUGWK75568 : fast/dom/isindex-001.html = TEXT
-BUGWK75568 : fast/dom/isindex-002.html = TEXT
-BUGWK75568 : fast/dynamic/subtree-boundary-percent-height.html = TEXT
-BUGWK75568 : fast/dynamic/subtree-no-common-root-static-y.html = TEXT
-BUGWK75568 : fast/dynamic/subtree-table-cell-height.html = TEXT
-BUGWK75568 : fast/events/autoscroll.html = TEXT
-BUGWK75568 : fast/events/mouse-relative-position.html = TEXT
-BUGWK75568 : fast/forms/box-shadow-override.html = TEXT
-BUGWK75568 : fast/forms/encoding-test.html = TEXT
-BUGWK75568 : fast/forms/fieldset-align.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-bkcolor.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-focus.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-height.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-selection.html = TEXT
-BUGWK75568 : fast/forms/input-appearance-width.html = TEXT
-BUGWK75568 : fast/forms/input-double-click-selection-gap-bug.html = TEXT
-BUGWK75568 : fast/forms/input-field-text-truncated.html = TEXT
-BUGWK75568 : fast/forms/input-readonly-empty.html = TEXT
-BUGWK75568 : fast/forms/input-table.html = TEXT
-BUGWK75568 : fast/forms/input-text-click-inside.html = TEXT
-BUGWK75568 : fast/forms/input-text-self-emptying-click.html = TEXT
-BUGWK75568 : fast/forms/input-width.html = TEXT
-BUGWK75568 : fast/forms/search-cancel-button-style-sharing.html = TEXT
-BUGWK75568 : fast/forms/search-rtl.html = TEXT
-BUGWK75568 : fast/forms/searchfield-heights.html = TEXT
-BUGWK75568 : fast/forms/tabbing-input-iframe.html = TEXT
-BUGWK75568 : fast/forms/textfield-focus-ring.html = TEXT
-BUGWK75568 : fast/frames/take-focus-from-iframe.html = TEXT
-BUGWK75568 : fast/layers/self-painting-outline.html = TEXT
-BUGWK75568 : fast/multicol/layers-split-across-columns.html = TEXT
-BUGWK75568 : fast/overflow/004.html = TEXT
-BUGWK75568 : fast/overflow/clip-rects-fixed-ancestor.html = TEXT
-BUGWK75568 : fast/overflow/overflow-focus-ring.html = TEXT
-BUGWK75568 : fast/repaint/layer-outline-horizontal.html = TEXT
-BUGWK75568 : fast/repaint/layer-outline.html = TEXT
-BUGWK75568 : fast/repaint/opacity-change-on-overflow-float.html = TEXT
-BUGWK75568 : fast/repaint/renderer-destruction-by-invalidateSelection-crash.html = TEXT
-BUGWK75568 : fast/repaint/subtree-root-clip-3.html = TEXT
-BUGWK75568 : fast/text/selection-painted-separately.html = TEXT
-BUGWK75568 : fast/text/selection-rect-rounding.html = TEXT
-BUGWK75568 : plugins/mouse-click-plugin-clears-selection.html = TEXT
-BUGWK75568 : svg/custom/inline-svg-in-xhtml.xml = TEXT
-BUGWK75568 : tables/mozilla/bugs/45621.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug12384.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug154780.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug18359.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug24200.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug2479-2.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug2479-3.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug2479-4.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug28928.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug4382.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug44505.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug4527.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug46368-1.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug46368-2.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug51037.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug55545.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug7342.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug99948.html = TEXT
-BUGWK75568 : tables/mozilla/dom/tableDom.html = TEXT
-BUGWK75568 : tables/mozilla/other/move_row.html = TEXT
-BUGWK75568 : tables/mozilla_expected_failures/bugs/bug106966.html = TEXT
-BUGWK75568 : tables/mozilla_expected_failures/bugs/bug45621.html = TEXT
-BUGWK75568 : tables/mozilla_expected_failures/bugs/bug92647-1.html = TEXT
-BUGWK75568 : fast/speech/input-appearance-searchandspeech.html = TEXT
-BUGWK75568 : fast/speech/input-appearance-speechbutton.html = TEXT
-BUGWK75568 : fast/speech/speech-bidi-rendering.html = TEXT
-BUGWK75568 : fast/table/029.html = TEXT
-BUGWK75568 : fast/table/colspanMinWidth-vertical.html = TEXT
-BUGWK75568 : fast/table/colspanMinWidth.html = TEXT
-BUGWK75568 : tables/mozilla/bugs/bug1188.html = TEXT
-
-// Temporary: generate platform specific IETestCenter results, then
-// remove when bots produce reference.
-BUGWK81936 : ietestcenter/css3/text/textshadow-001.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-002.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-003.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-004.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-005.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-006.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-007.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-008.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-009.htm = FAIL MISSING
-BUGWK81936 : ietestcenter/css3/text/textshadow-010.htm = FAIL MISSING
-
-BUGWK82886 : inspector/styles/override-screen-size.html = TEXT
-
-// Temporary: generate platform specific IETestCenter results, then
-// remove when bots produce reference.
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-attachment-local-scrolling.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-color-applied-to-rounded-inline-element.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-color-border-box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_color_padding_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_position_three_four_values.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_properties_greater_than_images.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_repeat_space_border_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background_repeat_space_content_box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-repeat-space-padding-box.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-applies-to-block.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/background-size-aspect-ratio.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-005.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-006.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-007.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-008.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-009.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-010.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-011.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-012.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-013.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-014.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-015.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-016.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-applies-to-017.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-clip-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-clip-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-content-edge-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-different-width-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-initial-value-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-not-inherited-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-shorthand-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-style-005.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-sum-of-radii-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-sum-of-radii-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-with-three-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-radius-with-two-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-left-radius-values-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/border-top-right-radius-values-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-001.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-002.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-003.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/box-shadow-004.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/color-behind-images.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/none-as-image-layer.htm = FAIL MISSING
-BUGWK82734 : ietestcenter/css3/bordersbackgrounds/order-of-images.htm = FAIL MISSING
-
-// @font-face not working. Once working, need to generate results for
-BUGWK83264 : fast/css/font-face-synthetic-bold-italic.html = FAIL MISSING
-BUGWK83264 : fast/css/font-face-weight-matching.html = FAIL MISSING
-
-BUGWK83265 : fast/css/min-width-with-spanned-cell-fixed.html = FAIL MISSING
-BUGWK83265 : fast/css/min-width-with-spanned-cell.html = FAIL MISSING
-
-BUGWK83265 : fast/css/caption-width-absolute-position-offset-top.htm = FAIL MISSING
-BUGWK83265 : fast/css/caption-width-absolute-position.htm = FAIL MISSING
-BUGWK83265 : fast/css/caption-width-fixed-position-offset-top.htm = FAIL MISSING
-BUGWK83265 : fast/css/caption-width-fixed-position.htm = FAIL MISSING
-BUGWK83265 : fast/css/caption-width-relative-position-offset-top.htm = FAIL MISSING
-BUGWK83265 : fast/css/caption-width-relative-position.htm = FAIL MISSING
-
 BUGWK83007 : fast/repaint/region-painting-invalidation.html = FAIL MISSING
 
 // Needs to have PNG generated, which currently fails for this case.
@@ -212,7 +14,461 @@ BUGWK83274 : fast/repaint/transform-rotate-and-remove.html = PASS
 // Not able to generate a meaningful expected result, since complex font rendering fails.
 BUGWK83275 : fast/text/international/text-spliced-font.html = FAIL MISSING
 
-// Keydown event fails, needs png and txt rebaseline after fixing bug 83277.
-BUGWK83277 : editing/input/caret-at-the-edge-of-contenteditable.html = FAIL MISSING
-BUGWK83277 : editing/input/reveal-caret-of-multiline-contenteditable.html = FAIL MISSING
-BUGWK83277 : editing/input/reveal-caret-of-multiline-input.html = FAIL MISSING
+// CSS Regions support not yet enabled, tracking in a separate EFL bug.
+BUGWK83897 SKIP : fast/regions = FAIL
+
+// Exclusions implementation not complete yet.
+BUGWK83898 SKIP : fast/exclusions = FAIL
+
+BUGWK83906 : ietestcenter/css3/grid/grid-column-001.htm = IMAGE
+BUGWK83907 : ietestcenter/css3/grid/grid-column-002.htm = IMAGE
+BUGWK83909 : ietestcenter/css3/grid/grid-column-003.htm = IMAGE
+BUGWK83912 : ietestcenter/css3/grid/grid-items-002.htm = IMAGE
+BUGWK83913 : ietestcenter/css3/grid/grid-items-003.htm = IMAGE
+
+// Font feature settings is not implemented.
+BUGWK84239 : css3/font-feature-settings-rendering.html = FAIL
+
+// EventSender.beginDragWithFiles is not implemented
+BUGWK84333 : fast/files/file-reader-directory-crash.html = TIMEOUT
+BUGWK84333 : fast/events/drop-handler-should-not-stop-navigate.html = TIMEOUT
+BUGWK84333 : fast/events/drop-with-file-paths.html = TEXT
+BUGWK84333 : fast/forms/file/recover-file-input-in-unposted-form.html = TEXT
+BUGWK84333 : editing/pasteboard/data-transfer-items-drag-drop-entry.html = TEXT
+BUGWK84333 : editing/pasteboard/data-transfer-items-drag-drop-file.html = TEXT
+BUGWK84333 : editing/pasteboard/drag-files-to-editable-element.html = TEXT
+BUGWK84333 : editing/pasteboard/file-drag-to-editable.html = TEXT
+BUGWK84333 : editing/pasteboard/file-input-files-access.html = TEXT
+
+// LayoutTestController.pathToLocalResource needs special handling of file URLs to /tmp.
+BUGWK84336 : fast/dom/frame-loading-via-document-write.html = TIMEOUT TEXT
+
+// Missing execCommand('copy') and execCommand('paste').
+BUGWK84338 : fast/events/clipboard-dataTransferItemList.html = TEXT
+BUGWK84338 : editing/input/paste-text-ending-with-interchange-newline.html = TEXT
+BUGWK84338 : editing/input/reveal-contenteditable-on-paste-vertically.html = TEXT
+BUGWK84338 : editing/style/apply-through-end-of-document.html = TEXT
+BUGWK84338 : editing/style/non-inheritable-styles.html = TEXT
+
+// Missing showModalDialog implementation
+BUGWK84589 : fast/animation/request-animation-frame-during-modal.html = TEXT
+BUGWK84589 : http/tests/security/cross-frame-access-call.html = TEXT
+BUGWK84589 : http/tests/security/cross-frame-access-get.html = TEXT
+
+// Issue with timing for suspend/resumeAnimations()?
+BUGWK84592 : animations/stop-animation-on-suspend.html = TEXT
+
+// Animation API not available.
+BUGWK84593 : animations/animation-api-1.html = TEXT
+
+// IndexedDB is not yet enabled.
+BUGWKEFL SKIP : storage/indexeddb = FAIL
+BUGWKEFL SKIP : http/tests/inspector/indexeddb = FAIL
+
+// Quota API is not supported.
+BUGWKEFL SKIP : storage/storageinfo-missing-arguments.html = FAIL
+BUGWKEFL SKIP : storage/storageinfo-no-callbacks.html = FAIL
+BUGWKEFL SKIP : storage/storageinfo-query-usage.html = FAIL
+BUGWKEFL SKIP : storage/storageinfo-request-quota.html = FAIL
+
+// EFL's LayoutTestController does not implement originsWithLocalStorage.
+BUGWKEFL SKIP : storage/domstorage/localstorage/storagetracker = FAIL
+
+// EFL's LayoutTestController does not implement evaluateScriptInIsolatedWorld.
+BUGWKEFL SKIP : http/tests/security/isolatedWorld = FAIL
+BUGWKEFL SKIP : storage/open-database-creation-callback-isolated-world.html = FAIL
+BUGWKEFL SKIP : storage/statement-error-callback-isolated-world.html = FAIL
+BUGWKEFL SKIP : storage/statement-success-callback-isolated-world.html = FAIL
+BUGWKEFL SKIP : storage/transaction-callback-isolated-world.html = FAIL
+BUGWKEFL SKIP : storage/transaction-error-callback-isolated-world.html = FAIL
+BUGWKEFL SKIP : storage/transaction-success-callback-isolated-world.html = FAIL
+
+// EFL's LayoutTestController does not implement layerTreeAsText
+BUGWK82294 : compositing/animation/animation-compositing.html = TEXT
+BUGWK82294 : compositing/geometry/ancestor-overflow-change.html = TEXT
+BUGWK82294 : compositing/geometry/clip.html = TEXT
+BUGWK82294 : compositing/geometry/foreground-layer.html = TEXT
+BUGWK82294 : compositing/geometry/layer-due-to-layer-children-deep-switch.html = TEXT
+BUGWK82294 : compositing/geometry/layer-due-to-layer-children-switch.html = TEXT
+BUGWK82294 : compositing/geometry/limit-layer-bounds-clipping-ancestor.html = TEXT
+BUGWK82294 : compositing/geometry/limit-layer-bounds-fixed-positioned.html = TEXT
+BUGWK82294 : compositing/geometry/limit-layer-bounds-opacity-transition.html = TEXT
+BUGWK82294 : compositing/geometry/limit-layer-bounds-overflow-root.html = TEXT
+BUGWK82294 : compositing/geometry/limit-layer-bounds-positioned-transition.html = TEXT
+BUGWK82294 : compositing/geometry/limit-layer-bounds-positioned.html = TEXT
+BUGWK82294 : compositing/geometry/limit-layer-bounds-transformed-overflow.html = TEXT
+BUGWK82294 : compositing/geometry/limit-layer-bounds-transformed.html = TEXT
+BUGWK82294 : compositing/geometry/preserve-3d-switching.html = TEXT
+BUGWK82294 : compositing/iframes/become-composited-nested-iframes.html = TEXT
+BUGWK82294 : compositing/iframes/become-overlapped-iframe.html = TEXT
+BUGWK82294 : compositing/iframes/composited-parent-iframe.html = TEXT
+BUGWK82294 : compositing/iframes/connect-compositing-iframe-delayed.html = TEXT
+BUGWK82294 : compositing/iframes/connect-compositing-iframe.html = TEXT
+BUGWK82294 : compositing/iframes/connect-compositing-iframe2.html = TEXT
+BUGWK82294 : compositing/iframes/connect-compositing-iframe3.html = TEXT
+BUGWK82294 : compositing/iframes/enter-compositing-iframe.html = TEXT
+BUGWK82294 : compositing/iframes/iframe-resize.html = TEXT
+BUGWK82294 : compositing/iframes/iframe-size-from-zero.html = TEXT
+BUGWK82294 : compositing/iframes/iframe-size-to-zero.html = TEXT
+BUGWK82294 : compositing/iframes/iframe-src-change.html = TEXT
+BUGWK82294 : compositing/iframes/invisible-nested-iframe-hide.html = TEXT
+BUGWK82294 : compositing/iframes/invisible-nested-iframe-show.html = TEXT
+BUGWK82294 : compositing/iframes/leave-compositing-iframe.html = TEXT
+BUGWK82294 : compositing/iframes/overlapped-iframe-iframe.html = TEXT
+BUGWK82294 : compositing/iframes/overlapped-iframe.html = TEXT
+BUGWK82294 : compositing/iframes/overlapped-nested-iframes.html = TEXT
+BUGWK82294 : compositing/iframes/page-cache-layer-tree.html = TEXT
+BUGWK82294 : compositing/iframes/resizer.html = TEXT
+BUGWK82294 : compositing/iframes/scrolling-iframe.html = TEXT
+BUGWK82294 : compositing/images/clip-on-directly-composited-image.html = TEXT
+BUGWK82294 : compositing/layer-creation/overflow-scroll-overlap.html = TEXT
+BUGWK82294 : compositing/layer-creation/overlap-child-layer.html = TEXT
+BUGWK82294 : compositing/layer-creation/overlap-clipping.html = TEXT
+BUGWK82294 : compositing/layer-creation/overlap-transformed-layer.html = TEXT
+BUGWK82294 : compositing/layer-creation/rotate3d-overlap.html = TEXT
+BUGWK82294 : compositing/layer-creation/scroll-partial-update.html = TEXT
+BUGWK82294 : compositing/layer-creation/spanOverlapsCanvas.html = TEXT
+BUGWK82294 : compositing/layer-creation/translatez-overlap.html = TEXT
+BUGWK82294 : compositing/overflow/clip-descendents.html = TEXT
+BUGWK82294 : compositing/overflow/content-gains-scrollbars.html = TEXT
+BUGWK82294 : compositing/overflow/content-loses-scrollbars.html = TEXT
+BUGWK82294 : compositing/overflow/overflow-scrollbar-layers.html = TEXT
+BUGWK82294 : compositing/overflow/resize-painting.html = TEXT
+BUGWK82294 : compositing/plugins/1x1-composited-plugin.html = TEXT
+BUGWK82294 : compositing/plugins/large-to-small-composited-plugin.html = TEXT
+BUGWK82294 : compositing/plugins/small-to-large-composited-plugin.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-absolute-overflow-scrolled.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-absolute-overflow.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-absolute.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-fixed-overflow-scrolled.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-fixed-overflow.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-fixed.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-iframe-absolute-overflow-scrolled.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-iframe-absolute-overflow.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-iframe-absolute.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-iframe-fixed-overflow-scrolled.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-iframe-fixed-overflow.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-iframe-fixed.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-iframe-relative.html = TEXT
+BUGWK82294 : compositing/rtl/rtl-relative.html = TEXT
+BUGWK82294 : compositing/tiling/crash-reparent-tiled-layer.html = TEXT
+BUGWK82294 : compositing/tiling/huge-layer-add-remove-child.html = TEXT
+BUGWK82294 : compositing/tiling/huge-layer-img.html = TEXT
+BUGWK82294 : compositing/tiling/huge-layer-resize.html = TEXT
+BUGWK82294 : compositing/tiling/huge-layer-with-layer-children-resize.html = TEXT
+BUGWK82294 : compositing/tiling/huge-layer-with-layer-children.html = TEXT
+BUGWK82294 : compositing/tiling/huge-layer.html = TEXT
+BUGWK82294 : compositing/video/video-poster.html = TEXT
+
+// Link prefetch is disabled by default
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/link-and-subresource-test-nonexistent.html = FAIL
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/link-and-subresource-test.html = FAIL
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/prefetch-beforeload.html = FAIL
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/prefetch-detached.html = FAIL
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/prefetch-onerror.html = FAIL
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/prefetch-onload.html = FAIL
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/prefetch-too-many-clients.html = FAIL
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/prefetch.html = FAIL
+BUGWKEFL SKIP : fast/dom/HTMLLinkElement/subresource.html = FAIL
+BUGWKEFL SKIP : http/tests/misc/link-rel-prefetch-and-subresource.html = FAIL
+BUGWKEFL SKIP : http/tests/misc/prefetch-purpose.html = FAIL
+BUGWKEFL SKIP : loader/reload-subresource-when-type-changes.html = FAIL
+
+BUGWK84759 : ietestcenter/css3/multicolumn/column-containing-block-001.htm = IMAGE
+BUGWK84760 : ietestcenter/css3/multicolumn/column-containing-block-002.htm = IMAGE
+BUGWK84761 : ietestcenter/css3/multicolumn/column-filling-001.htm = IMAGE
+BUGWK84764 : ietestcenter/css3/multicolumn/column-width-applies-to-001.htm = IMAGE
+BUGWK84767 : ietestcenter/css3/multicolumn/column-width-applies-to-002.htm = IMAGE
+BUGWK84768 : ietestcenter/css3/multicolumn/column-width-applies-to-003.htm = IMAGE
+BUGWK84769 : ietestcenter/css3/multicolumn/column-width-applies-to-004.htm = IMAGE
+BUGWK84770 : ietestcenter/css3/multicolumn/column-width-applies-to-007.htm = IMAGE
+BUGWK84771 : ietestcenter/css3/multicolumn/column-width-applies-to-009.htm = IMAGE
+BUGWK84772 : ietestcenter/css3/multicolumn/column-width-applies-to-010.htm = IMAGE
+BUGWK84773 : ietestcenter/css3/multicolumn/column-width-applies-to-012.htm = IMAGE
+BUGWK84775 : ietestcenter/css3/multicolumn/column-width-applies-to-013.htm = IMAGE
+BUGWK84776 : ietestcenter/css3/multicolumn/column-width-applies-to-014.htm = IMAGE
+BUGWK84777 : ietestcenter/css3/multicolumn/column-width-applies-to-015.htm = IMAGE
+BUGWK84778 : ietestcenter/css3/multicolumn/column-width-negative-001.htm = IMAGE
+
+// Turn on blob support for the EFL port.
+BUGWK85363 : fast/dom/DOMURL/check-instanceof-domurl-functions.html = TEXT
+BUGWK85363 : fast/dom/call-a-constructor-as-a-function.html = TEXT
+BUGWK85363 : fast/dom/constructed-objects-prototypes.html = TEXT
+
+// Expose title direction in WebKit API
+BUGWK58845 : fast/dom/title-directionality.html = FAIL
+BUGWK58845 : fast/dom/title-directionality-removeChild.html = FAIL
+
+BUGWK72363 : fast/dom/Window/window-postmessage-arrays.html = FAIL
+
+BUGWK84037 : fast/text/international/spaces-combined-in-vertical-text.html = TEXT
+
+// EventSender doesn't provide correct key string
+BUGWK84710 : fast/forms/textarea-type-spaces.html = TEXT
+
+// Requires WebP support.
+BUGWKEFL SKIP : fast/canvas/canvas-toDataURL-webp.html = FAIL
+BUGWKEFL SKIP : fast/images/webp-image-decoding.html = FAIL
+
+// This tests fails by one on 32 bits machines due to rounding issues.
+BUGWKEFL : fast/css/percentage-non-integer.html = TEXT PASS
+
+// CSS image-set support not yet enabled (needs ENABLE_CSS_IMAGE_SET).
+BUGWKEFL : fast/css/image-set-parsing.html = TEXT
+
+// Test is timeouting, passes in all other platforms.
+BUGWKEFL SKIP : fast/css/device-aspect-ratio.html = FAIL
+
+// These test -apple- prefixed CSS properties, which we don't support.
+WONTFIX SKIP : fast/css/apple-prefix.html = TEXT
+
+// CSS Filters support not yet enabled (needs ENABLE_CSS_FILTERS).
+BUGWK85465 SKIP : css3/filters = TEXT
+BUGWK85465 SKIP : fast/css/getComputedStyle/computed-style.html = TEXT
+
+BUGWK75747 : fast/css/color-correction-on-background-image.html = TEXT
+BUGWK75747 : fast/css/color-correction-on-backgrounds.html = TEXT
+BUGWK75747 : fast/css/color-correction-on-box-shadow.html = TEXT
+BUGWK75747 : fast/css/color-correction-on-text-shadow.html = TEXT
+BUGWK75747 : fast/css/color-correction-untagged-images.html = TEXT
+
+BUGWK65536 : fast/css/text-rendering.html = TEXT
+
+BUGWK49142 : fast/css/style-scoped = TEXT
+
+// ENABLE(INPUT_TYPE_*) are not enabled.
+BUGWK29359 : fast/css/pseudo-in-range.html = TEXT
+BUGWK29359 : fast/css/pseudo-out-of-range.html = TEXT
+BUGWK29359 : fast/css/pseudo-in-range-invalid-value.html = TEXT
+
+// CSS Grid Layout is not yet enabled.
+BUGWK60731 : fast/css-grid-layout = TEXT
+
+BUGWK85483 : fast/css/transformed-mask.html = TEXT
+
+BUGWK85484 : fast/css/resize-corner-tracking-transformed.html = TEXT
+BUGWK85484 : fast/css/resize-corner-tracking.html = TEXT
+
+BUGWK85493 : fast/css/square-button-appearance.html = TEXT
+
+BUGWK85494 : fast/css/button-height.html = TEXT
+
+BUGWK73766 : css3/unicode-bidi-isolate-aharon-failing.html = FAIL
+
+BUGWK85466 : css3/images/cross-fade-background-size.html = TEXT
+
+BUGWK85492 : css3/zoom-coords.xhtml = TEXT
+
+// Occasionally missing chunks of output
+BUGWK66873:  http/tests/loading/redirect-methods.html = TEXT
+
+// IETC flexbox failures
+BUGWK85211 : ietestcenter/css3/flexbox/flexbox-align-stretch-001.htm = IMAGE
+BUGWK85212 : ietestcenter/css3/flexbox/flexbox-layout-002.htm = IMAGE
+BUGWK85213 BUGWK85832 : ietestcenter/css3/flexbox/flexbox-ordinal-group-001.htm = CRASH IMAGE
+
+// Requires rebaseline after bug 85031
+BUGWK85565 : fast/block/float/016.html = IMAGE
+BUGWK85565 : fast/css/border-solid-single-edge-antialias.html = IMAGE
+
+// Issue with SVG hittesting on strokes, fails on GTK as well.
+BUGWK82628 : svg/hittest/svg-ellipse-non-scale-stroke.xhtml = FAIL
+
+// Issue related to battery status and vibration API
+BUGWK85594 : fast/dom/navigator-detached-no-crash.html = TEXT
+
+// Incorrect rendering results after r115846
+BUGWK85599 : http/tests/navigation/postredirect-basic.html = TEXT
+BUGWK85599 : http/tests/navigation/postredirect-goback1.html = TEXT
+
+// Interferes with the rAF tests that are enabled
+BUGWK85689 SKIP : fast/animation/request-animation-frame-disabled.html = TEXT
+
+// Crash shared with the GTK+ port
+BUGWK30724 : fast/loader/opaque-base-url.html = CRASH
+
+// EFL's DumpRenderTree should support LayoutTestController's dumpEditingCallbacks()
+BUGWK84835 : editing/execCommand/4128080-2.html = TEXT
+BUGWK84835 : editing/execCommand/5939887.html = TEXT
+BUGWK84835 : editing/execCommand/copy-without-selection.html = TEXT
+BUGWK84835 : editing/execCommand/createLink.html = TEXT
+BUGWK84835 : editing/execCommand/enabling-and-selection.html = TEXT
+BUGWK84835 : editing/execCommand/findString-diacriticals.html = TEXT
+BUGWK84835 : editing/execCommand/format-block-with-braces.html = TEXT
+BUGWK84835 : editing/execCommand/format-block-with-trailing-br.html = TEXT
+BUGWK84835 : editing/execCommand/format-block.html = TEXT
+BUGWK84835 : editing/execCommand/hilitecolor.html = TEXT
+BUGWK84835 : editing/execCommand/indent-nested-lists-1.html = TEXT
+BUGWK84835 : editing/execCommand/indent-nested-lists-2.html = TEXT
+BUGWK84835 : editing/execCommand/indent-nested-lists-3.html = TEXT
+BUGWK84835 : editing/execCommand/indent-nested-lists-4.html = TEXT
+BUGWK84835 : editing/execCommand/indent-nested-lists-5.html = TEXT
+BUGWK84835 : editing/execCommand/indent-nested-lists-6.html = TEXT
+BUGWK84835 : editing/execCommand/indent-nested-lists-7.html = TEXT
+BUGWK84835 : editing/execCommand/indent-paragraphs.html = TEXT
+BUGWK84835 : editing/execCommand/indent-with-style.html = TEXT
+BUGWK84835 : editing/execCommand/insertHTML.html = TEXT
+BUGWK84835 : editing/execCommand/outdent-nested-lists-1.html = TEXT
+BUGWK84835 : editing/execCommand/outdent-nested-lists-2.html = TEXT
+BUGWK84835 : editing/execCommand/outdent-nested-lists-3.html = TEXT
+BUGWK84835 : editing/execCommand/outdent-nested-lists-4.html = TEXT
+BUGWK84835 : editing/execCommand/paste-and-match-style-event.html = TEXT
+BUGWK84835 : editing/execCommand/queryCommandState-01.html = TEXT
+BUGWK84835 : editing/execCommand/remove-formatting-2.html = TEXT
+BUGWK84835 : editing/execCommand/remove-formatting.html = TEXT
+BUGWK84835 : editing/execCommand/remove-list-1.html = TEXT
+BUGWK84835 : editing/execCommand/remove-list-items.html = TEXT
+BUGWK84835 : editing/execCommand/switch-list-type.html = TEXT
+BUGWK84835 : editing/execCommand/unlink.html = TEXT
+
+// Needs baselines
+BUGWK84839 : editing/execCommand/4580583-1.html = MISSING
+BUGWK84839 : editing/execCommand/4580583-2.html = MISSING
+BUGWK84839 : editing/execCommand/4641880-1.html = MISSING
+BUGWK84839 : editing/execCommand/4641880-2.html = MISSING
+BUGWK84839 : editing/execCommand/4747450.html = MISSING
+BUGWK84839 : editing/execCommand/4916402.html = MISSING
+BUGWK84839 : editing/execCommand/4916541.html = MISSING
+BUGWK84839 : editing/execCommand/4924441.html = MISSING
+BUGWK84839 : editing/execCommand/5080333-1.html = MISSING
+BUGWK84839 : editing/execCommand/5080333-2.html = MISSING
+BUGWK84839 : editing/execCommand/5136770.html = MISSING
+BUGWK84839 : editing/execCommand/5138441.html = MISSING
+BUGWK84839 : editing/execCommand/5142012-1.html = MISSING
+BUGWK84839 : editing/execCommand/5142012-2.html = MISSING
+BUGWK84839 : editing/execCommand/5190926.html = MISSING
+BUGWK84839 : editing/execCommand/5481523.html = MISSING
+BUGWK84839 : editing/execCommand/5482023.html = MISSING
+BUGWK84839 : editing/execCommand/5569741.html = MISSING
+BUGWK84839 : editing/execCommand/create-list-with-hr.html = MISSING
+BUGWK84839 : editing/execCommand/find-after-replace.html = MISSING
+BUGWK84839 : editing/execCommand/findString-2.html = MISSING
+BUGWK84839 : editing/execCommand/findString.html = MISSING
+BUGWK84839 : editing/execCommand/indent-empty-root.html = MISSING
+BUGWK84839 : editing/execCommand/indent-list-item.html = MISSING
+BUGWK84839 : editing/execCommand/indent-selection.html = MISSING
+BUGWK84839 : editing/execCommand/insert-list-and-stitch.html = MISSING
+BUGWK84839 : editing/execCommand/insertHorizontalRule.html = MISSING
+BUGWK84839 : editing/execCommand/insertImage.html = MISSING
+BUGWK84839 : editing/execCommand/nsresponder-indent.html = MISSING
+BUGWK84839 : editing/execCommand/nsresponder-outdent.html = MISSING
+BUGWK84839 : editing/execCommand/outdent-blockquote-test1.html = MISSING
+BUGWK84839 : editing/execCommand/outdent-blockquote-test2.html = MISSING
+BUGWK84839 : editing/execCommand/outdent-blockquote-test3.html = MISSING
+BUGWK84839 : editing/execCommand/outdent-blockquote-test4.html = MISSING
+BUGWK84839 : editing/execCommand/paste-1.html = MISSING
+BUGWK84839 : editing/execCommand/paste-2.html = MISSING
+BUGWK84839 : editing/execCommand/print.html = MISSING
+BUGWK84839 : editing/execCommand/remove-list-from-range-selection.html = MISSING
+BUGWK84839 : editing/execCommand/remove-list-item-1.html = MISSING
+BUGWK84839 : editing/execCommand/selectAll.html = MISSING
+
+// EFL's DRT does not print didFailProvisionalLoadWithError messages
+BUGWK85956 : http/tests/loading/pdf-commit-load-callbacks.html = TEXT
+
+// The EFL port has no support for the Fullscreen API
+BUGWK85870 SKIP : fullscreen = FAIL
+BUGWK85870 : media/video-play-require-user-gesture.html = TEXT
+
+BUGWK79757 : fast/selectors/selection-window-inactive.html = IMAGE
+
+// Font kerning issue, fails on GTK as well.
+BUGWK76048 : fast/text/font-kerning.html = IMAGE
+
+// Ligatures rendering issue.
+BUGWK85606 : fast/text/font-variant-ligatures.html = IMAGE
+
+// Newly added test which fails on other bots too
+BUGWK85969 : http/tests/loading/post-in-iframe-with-back-navigation.html = TEXT
+
+// Off-by-few-pixels issue for this selection reftest, fails on GTK as well.
+BUGWK84701 : fast/block/line-layout/selection-highlight-overlap.html = FAIL
+
+// Times-out with debug build during heavy cpu loads
+BUGWK85902 SLOW DEBUG : fast/overflow/lots-of-sibling-inline-boxes.html = PASS
+
+BUGWK85799 : fast/css/font-face-download-error.html = TIMEOUT
+
+BUGWK85879 : fast/frames/frame-crash-with-page-cache.html = CRASH
+
+BUGWKEFL SLOW DEBUG : http/tests/incremental/slow-utf8-html.pl = PASS
+
+// Perf tests are way too slow on debug builds.
+WONTFIX DEBUG : perf/adding-radio-buttons.html = FAIL PASS
+WONTFIX DEBUG : perf/array-binary-search.html = FAIL PASS
+WONTFIX DEBUG : perf/mouse-event.html = FAIL PASS
+
+// Flaky tests.
+BUGWK85603 : fast/forms/textarea-placeholder-set-attribute.html = TEXT IMAGE PASS
+BUGWK59801 : fast/workers/storage/use-same-database-in-page-and-workers.html = FAIL PASS
+BUGWK83878 : media/track/track-mode.html = TEXT PASS
+BUGWK85180 : media/audio-delete-while-step-button-clicked.html = TEXT PASS
+BUGWK86072 : media/sources-fallback-codecs.html = FAIL PASS
+BUGWK86073 : ietestcenter/css3/flexbox/flexbox-layout-001.htm = IMAGE PASS
+BUGWK86073 : ietestcenter/css3/flexbox/flexbox-layout-003.htm = IMAGE PASS
+BUGWK86074 : media/svg-as-image-with-media-blocked.html = CRASH PASS
+BUGWK86075 : fast/events/message-port-close.html = CRASH PASS
+BUGWK86078 : http/tests/misc/favicon-loads-with-icon-loading-override.html = TEXT PASS
+BUGWK86079 : http/tests/misc/link-rel-icon-beforeload.html = TEXT PASS
+BUGWK86081 : loader/navigation-while-deferring-loads.html = TEXT PASS
+BUGWK86082 : security/block-test.html = TEXT PASS
+BUGWK86084 : svg/dom/SVGScriptElement/script-onerror-bubbling.svg = TEXT PASS
+BUGWK60103 : fast/replaced/border-radius-clip.html = TEXT PASS
+
+// Tests imported in r116658
+BUGWK85308 : ietestcenter/css3/valuesandunits/units-000.htm = CRASH
+BUGWK85310 : ietestcenter/css3/valuesandunits/units-010.htm = IMAGE
+
+// New test introduced in r116694 fails
+BUGWK86182 : fast/frames/seamless/seamless-inherited-document-style.html = TEXT
+
+// EFL's EventSender does not implement contextClick yet
+BUGWK86091 : editing/pasteboard/copy-standalone-image-crash.html = TEXT
+BUGWK86091 : editing/selection/5354455-1.html = TEXT
+BUGWK86091 : editing/selection/button-right-click.html = TEXT
+BUGWK86091 : editing/selection/context-menu-on-text.html = TEXT
+BUGWK86091 : editing/selection/context-menu-text-selection.html = TEXT
+BUGWK86091 : editing/selection/empty-cell-right-click.html = TEXT
+BUGWK86091 : editing/spelling/context-menu-suggestions.html = TEXT
+BUGWK86091 : editing/spelling/spellcheck-input-search-crash.html = TEXT
+BUGWK86091 : fast/events/context-onmousedown-event.html = TEXT
+BUGWK86091 : fast/events/contextmenu-scrolled-page-with-frame.html = TEXT
+BUGWK86091 : fast/events/right-click-focus.html = TEXT
+BUGWK86091 : fast/events/selectstart-prevent-selection-on-right-click.html = TEXT
+BUGWK86091 : media/context-menu-actions.html = TEXT
+BUGWK86091 : media/controls-right-click-on-timebar.html = TEXT
+
+// EFL's EventSender contextClick, needs baselines
+BUGWK86091 : editing/selection/5354455-2.html = MISSING
+BUGWK86091 : fast/events/context-no-deselect.html = MISSING
+
+// IETC namespace failures
+BUGWK86137 : ietestcenter/css3/namespaces/prefix-007.xml = IMAGE
+BUGWK86139 : ietestcenter/css3/namespaces/prefix-010.xml = IMAGE
+BUGWK86142 : ietestcenter/css3/namespaces/syntax-021.xml = IMAGE
+
+// New test introduced in r116858 fails
+BUGWK86322 : media/media-continues-playing-after-replace-source.html = TEXT
+
+// Seems to fail on mac as well
+BUGWK85990 : media/video-controls-rendering-toggle-display-none.html = TEXT
+BUGWK85990 : media/video-controls-toggling.html = TIMEOUT TEXT
+
+// Fullscreen API not enabled.
+BUGWK85870 : media/media-fullscreen-inline.html = TEXT
+BUGWK85870 : media/media-fullscreen-not-in-document.html = TEXT
+
+// This test is specific to QuickTime media engine.
+BUGWKEFL SKIP : media/video-does-not-loop.html = FAIL
+
+// This test assumes we cannot play RTSP, but we can.
+BUGWKEFL SKIP : media/unsupported-rtsp.html = TIMEOUT
+
+// This test fails if mixer is not at 100%
+BUGWK83704 : media/event-attributes.html = TEXT
+
+// Doesn't apply to platforms that don't enforce the CFNetwork-style 3rd party cookie policy
+BUGWK35824 SKIP : http/tests/cookies/third-party-cookie-relaxing.html = FAIL
+
+// Test fails because of absolute path in expected output
+BUGWK85057 : fast/dom/DOMException/stack-trace.html = TEXT

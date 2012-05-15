@@ -1,7 +1,7 @@
 /**
  * (C) 1999-2003 Lars Knoll (knoll@kde.org)
  * (C) 2002-2003 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2002, 2005, 2006 Apple Computer, Inc.
+ * Copyright (C) 2002, 2005, 2006, 2012 Apple Computer, Inc.
  * Copyright (C) 2006 Samuel Weinig (sam@webkit.org)
  *
  * This library is free software; you can redistribute it and/or
@@ -25,6 +25,7 @@
 
 #include "CSSParser.h"
 #include "CSSRuleList.h"
+#include "CSSStyleSheet.h"
 #include "ExceptionCode.h"
 #include "StyleRule.h"
 #include <wtf/text/StringBuilder.h>
@@ -46,6 +47,8 @@ CSSMediaRule::~CSSMediaRule()
         if (m_childRuleCSSOMWrappers[i])
             m_childRuleCSSOMWrappers[i]->setParentRule(0);
     }
+    if (m_mediaCSSOMWrapper)
+        m_mediaCSSOMWrapper->clearParentRule();
 }
 
 unsigned CSSMediaRule::insertRule(const String& ruleString, unsigned index, ExceptionCode& ec)
@@ -58,8 +61,9 @@ unsigned CSSMediaRule::insertRule(const String& ruleString, unsigned index, Exce
         return 0;
     }
 
-    CSSParser p(cssParserMode());
-    RefPtr<StyleRuleBase> newRule = p.parseRule(parentStyleSheet(), ruleString);
+    CSSParser parser(parserContext());
+    CSSStyleSheet* styleSheet = parentStyleSheet();
+    RefPtr<StyleRuleBase> newRule = parser.parseRule(styleSheet ? styleSheet->internal() : 0, ruleString);
     if (!newRule) {
         // SYNTAX_ERR: Raised if the specified rule has a syntax error and is unparsable.
         ec = SYNTAX_ERR;
@@ -77,13 +81,11 @@ unsigned CSSMediaRule::insertRule(const String& ruleString, unsigned index, Exce
         ec = HIERARCHY_REQUEST_ERR;
         return 0;
     }
+    CSSStyleSheet::RuleMutationScope mutationScope(this);
+
     m_mediaRule->wrapperInsertRule(index, newRule);
 
     m_childRuleCSSOMWrappers.insert(index, RefPtr<CSSRule>());
-
-    if (CSSStyleSheet* styleSheet = parentStyleSheet())
-        styleSheet->styleSheetChanged();
-
     return index;
 }
 
@@ -97,14 +99,14 @@ void CSSMediaRule::deleteRule(unsigned index, ExceptionCode& ec)
         ec = INDEX_SIZE_ERR;
         return;
     }
+
+    CSSStyleSheet::RuleMutationScope mutationScope(this);
+
     m_mediaRule->wrapperRemoveRule(index);
 
     if (m_childRuleCSSOMWrappers[index])
         m_childRuleCSSOMWrappers[index]->setParentRule(0);
     m_childRuleCSSOMWrappers.remove(index);
-
-    if (CSSStyleSheet* styleSheet = parentStyleSheet())
-        styleSheet->styleSheetChanged();
 }
 
 String CSSMediaRule::cssText() const
@@ -128,9 +130,13 @@ String CSSMediaRule::cssText() const
     return result.toString();
 }
 
-MediaList* CSSMediaRule::media() const 
-{ 
-    return m_mediaRule->mediaQueries() ? m_mediaRule->mediaQueries()->ensureMediaList(parentStyleSheet()) : 0; 
+MediaList* CSSMediaRule::media() const
+{
+    if (!m_mediaRule->mediaQueries())
+        return 0;
+    if (!m_mediaCSSOMWrapper)
+        m_mediaCSSOMWrapper = MediaList::create(m_mediaRule->mediaQueries(), const_cast<CSSMediaRule*>(this));
+    return m_mediaCSSOMWrapper.get();
 }
 
 unsigned CSSMediaRule::length() const
@@ -154,6 +160,18 @@ CSSRuleList* CSSMediaRule::cssRules() const
     if (!m_ruleListCSSOMWrapper)
         m_ruleListCSSOMWrapper = adoptPtr(new LiveCSSRuleList<CSSMediaRule>(const_cast<CSSMediaRule*>(this)));
     return m_ruleListCSSOMWrapper.get();
+}
+
+void CSSMediaRule::reattach(StyleRuleMedia* rule)
+{
+    ASSERT(rule);
+    m_mediaRule = rule;
+    if (m_mediaCSSOMWrapper)
+        m_mediaCSSOMWrapper->reattach(m_mediaRule->mediaQueries());
+    for (unsigned i = 0; i < m_childRuleCSSOMWrappers.size(); ++i) {
+        if (m_childRuleCSSOMWrappers[i])
+            m_childRuleCSSOMWrappers[i]->reattach(m_mediaRule->childRules()[i].get());
+    }
 }
 
 } // namespace WebCore

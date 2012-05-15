@@ -42,6 +42,7 @@
 #include "FrameLoaderClient.h"
 #include "FrameNetworkingContext.h"
 #include "InspectorClient.h"
+#include "Page.h"
 #include "PopupMenu.h"
 #include "ResourceError.h"
 #include "SearchPopupMenu.h"
@@ -302,7 +303,7 @@ public:
 
     virtual void dispatchUnableToImplementPolicy(const ResourceError&) { }
 
-    virtual void dispatchWillSendSubmitEvent(HTMLFormElement*) { }
+    virtual void dispatchWillSendSubmitEvent(PassRefPtr<FormState>) { }
     virtual void dispatchWillSubmitForm(FramePolicyFunction, PassRefPtr<FormState>) { }
 
     virtual void revertToProvisionalState(DocumentLoader*) { }
@@ -614,6 +615,8 @@ public:
     virtual DeviceOrientation* lastOrientation() const { return 0; }
     virtual void deviceOrientationControllerDestroyed() { }
 };
+
+void fillWithEmptyClients(Page::PageClients&);
 
 }
 

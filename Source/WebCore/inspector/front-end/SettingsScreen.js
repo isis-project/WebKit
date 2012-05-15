@@ -30,23 +30,28 @@
 
 /**
  * @constructor
+ * @param {!function()} onHide
  * @extends {WebInspector.HelpScreen}
  */
-WebInspector.SettingsScreen = function()
+WebInspector.SettingsScreen = function(onHide)
 {
     WebInspector.HelpScreen.call(this, WebInspector.UIString("Settings"));
 
+    /** @type {!function()} */
+    this._onHide = onHide;
+
     this._leftColumnElement = document.createElement("td");
     this._rightColumnElement = document.createElement("td");
-    var p;
-
-    if (Preferences.showDockToRight || Preferences.exposeDisableCache) {
-        p = this._appendSection(WebInspector.UIString("General"));
-        if (Preferences.showDockToRight)
-            p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Dock to right"), WebInspector.settings.dockToRight));
-        if (Preferences.exposeDisableCache)
-            p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Disable cache"), WebInspector.settings.cacheDisabled));
-    }
+    var p = this._appendSection(WebInspector.UIString("General"));
+    if (Preferences.showDockToRight)
+        p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Dock to right"), WebInspector.settings.dockToRight));
+    if (Preferences.exposeDisableCache)
+        p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Disable cache"), WebInspector.settings.cacheDisabled));
+    var disableJSElement = this._createCheckboxSetting(WebInspector.UIString("Disable JavaScript"), WebInspector.settings.javaScriptDisabled);
+    p.appendChild(disableJSElement);
+    WebInspector.settings.javaScriptDisabled.addChangeListener(this._javaScriptDisabledChanged, this);
+    this._disableJSCheckbox = disableJSElement.getElementsByTagName("input")[0];
+    this._updateScriptDisabledCheckbox();
     
     p = this._appendSection(WebInspector.UIString("Rendering"));
     p.appendChild(this._createCheckboxSetting(WebInspector.UIString("Show paint rectangles"), WebInspector.settings.showPaintRects));
@@ -113,6 +118,27 @@ WebInspector.SettingsScreen = function()
 }
 
 WebInspector.SettingsScreen.prototype = {
+
+    /**
+     * @override
+     */
+    isClosingKey: function(keyCode)
+    {
+        return [
+            WebInspector.KeyboardShortcut.Keys.Enter.code,
+            WebInspector.KeyboardShortcut.Keys.Esc.code,
+        ].indexOf(keyCode) >= 0;
+    },
+
+    /**
+     * @override
+     */
+    willHide: function()
+    {
+        this._onHide();
+        WebInspector.HelpScreen.prototype.willHide.call(this);
+    },
+
     /**
      * @param {string} name
      * @param {boolean=} right
@@ -148,22 +174,29 @@ WebInspector.SettingsScreen.prototype = {
         return right ? this._rightColumnElement : this._leftColumnElement;
     },
 
-    _createCheckboxSetting: function(name, setting)
+    /**
+     * @param {boolean=} omitParagraphElement
+     */
+    _createCheckboxSetting: function(name, setting, omitParagraphElement)
     {
         var input = document.createElement("input");
         input.type = "checkbox";
         input.name = name;
         input.checked = setting.get();
+
         function listener()
         {
             setting.set(input.checked);
         }
         input.addEventListener("click", listener, false);
 
-        var p = document.createElement("p");
         var label = document.createElement("label");
         label.appendChild(input);
         label.appendChild(document.createTextNode(name));
+        if (omitParagraphElement)
+            return label;
+
+        var p = document.createElement("p");
         p.appendChild(label);
         return p;
     },
@@ -318,6 +351,7 @@ WebInspector.SettingsScreen.prototype = {
             ["iPad \u2014 iOS 4", "Mozilla/5.0 (iPad; CPU OS 4_3_2 like Mac OS X; en-us) AppleWebKit/533.17.9 (KHTML, like Gecko) Version/5.0.2 Mobile/8H7 Safari/6533.18.5", "1024x768x1"],
 
             ["Android 2.3 \u2014 Nexus S", "Mozilla/5.0 (Linux; U; Android 2.3.6; en-us; Nexus S Build/GRK39F) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1", "480x800x1.1"],
+            ["Android 4.0.2 \u2014 Galaxy Nexus", "Mozilla/5.0 (Linux; U; Android 4.0.2; en-us; Galaxy Nexus Build/ICL53F) AppleWebKit/534.30 (KHTML, like Gecko) Version/4.0 Mobile Safari/534.30", "720x1280x1.1"],
 
             ["BlackBerry \u2014 PlayBook 1.0","Mozilla/5.0 (PlayBook; U; RIM Tablet OS 1.0.0; en-US) AppleWebKit/534.11+ (KHTML, like Gecko) Version/7.1.0.7 Safari/534.11+", "1024x600x1"],
             ["BlackBerry \u2014 PlayBook 2.0", "Mozilla/5.0 (PlayBook; U; RIM Tablet OS 2.0.0; en-US) AppleWebKit/535.8+ (KHTML, like Gecko) Version/7.2.0.0 Safari/535.8+", "1024x600x1"],
@@ -398,6 +432,36 @@ WebInspector.SettingsScreen.prototype = {
     _showPaintRectsChanged: function()
     {
         PageAgent.setShowPaintRects(WebInspector.settings.showPaintRects.get());
+    },
+
+    _updateScriptDisabledCheckbox: function()
+    {
+        function executionStatusCallback(error, status)
+        {
+            if (error || !status)
+                return;
+
+            switch (status) {
+            case "forbidden":
+                this._disableJSCheckbox.checked = true;
+                this._disableJSCheckbox.disabled = true;
+                break;
+            case "disabled":
+                this._disableJSCheckbox.checked = true;
+                break;
+            default:
+                this._disableJSCheckbox.checked = false;
+                break;
+            }
+        }
+
+        PageAgent.getScriptExecutionStatus(executionStatusCallback.bind(this));
+    },
+
+    _javaScriptDisabledChanged: function()
+    {
+        // We need to manually update the checkbox state, since enabling JavaScript in the page can actually uncover the "forbidden" state.
+        PageAgent.setScriptExecutionDisabled(WebInspector.settings.javaScriptDisabled.get(), this._updateScriptDisabledCheckbox.bind(this));
     },
 
     _createDeviceMetricsControl: function()
@@ -503,6 +567,14 @@ WebInspector.SettingsScreen.prototype = {
             return element;
         }
 
+        function swapDimensionsClicked(event)
+        {
+            var widthValue = this._widthOverrideElement.value;
+            this._widthOverrideElement.value = this._heightOverrideElement.value;
+            this._heightOverrideElement.value = widthValue;
+            this._applyDeviceMetricsUserInput();
+        }
+
         var tableElement = fieldsetElement.createChild("table");
 
         var rowElement = tableElement.createChild("tr");
@@ -510,16 +582,76 @@ WebInspector.SettingsScreen.prototype = {
         cellElement.appendChild(document.createTextNode(WebInspector.UIString("Screen resolution:")));
         cellElement = rowElement.createChild("td");
         this._widthOverrideElement = createInput.call(this, cellElement, "metrics-override-width", String(metrics.width || screen.width));
-        cellElement.appendChild(document.createTextNode(" \u00D7 "));
+        cellElement.appendChild(document.createTextNode(" \u00D7 ")); // MULTIPLICATION SIGN.
         this._heightOverrideElement = createInput.call(this, cellElement, "metrics-override-height", String(metrics.height || screen.height));
+        cellElement.appendChild(document.createTextNode(" \u2014 ")); // EM DASH.
+        var swapDimensionsElement = cellElement.createChild("button");
+        swapDimensionsElement.appendChild(document.createTextNode(" \u21C4 ")); // RIGHTWARDS ARROW OVER LEFTWARDS ARROW.
+        swapDimensionsElement.title = WebInspector.UIString("Swap dimensions");
+        swapDimensionsElement.addEventListener("click", swapDimensionsClicked.bind(this), false);
 
         rowElement = tableElement.createChild("tr");
         cellElement = rowElement.createChild("td");
         cellElement.appendChild(document.createTextNode(WebInspector.UIString("Font scale factor:")));
         cellElement = rowElement.createChild("td");
         this._fontScaleFactorOverrideElement = createInput.call(this, cellElement, "metrics-override-font-scale", String(metrics.fontScaleFactor || 1));
+
+        rowElement = tableElement.createChild("tr");
+        cellElement = rowElement.createChild("td");
+        cellElement.colspan = 2;
+        cellElement.appendChild(this._createCheckboxSetting(WebInspector.UIString("Fit window"), WebInspector.settings.deviceFitWindow, true));
+
         return fieldsetElement;
     }
 }
 
 WebInspector.SettingsScreen.prototype.__proto__ = WebInspector.HelpScreen.prototype;
+
+/**
+ * @constructor
+ */
+WebInspector.SettingsController = function()
+{
+    this._statusBarButton = new WebInspector.StatusBarButton(WebInspector.UIString("Settings"), "settings-status-bar-item");;
+    this._statusBarButton.addEventListener("click", this._buttonClicked, this);
+
+    /** @type {?WebInspector.SettingsScreen} */
+    this._settingsScreen;
+}
+
+WebInspector.SettingsController.prototype =
+{
+    get statusBarItem()
+    {
+        return this._statusBarButton.element;
+    },
+
+    _buttonClicked: function()
+    {
+        if (this._statusBarButton.toggled)
+            this._hideSettingsScreen();
+        else
+            this._showSettingsScreen();
+    },
+
+    _onHideSettingsScreen: function()
+    {
+        this._statusBarButton.toggled = false;
+        delete this._settingsScreen;
+    },
+
+    _showSettingsScreen: function()
+    {
+        if (!this._settingsScreen)
+            this._settingsScreen = new WebInspector.SettingsScreen(this._onHideSettingsScreen.bind(this));
+
+        this._settingsScreen.showModal();
+        this._statusBarButton.toggled = true;
+    },
+
+    _hideSettingsScreen: function()
+    {
+        if (this._settingsScreen)
+            this._settingsScreen.hide();
+    }
+}

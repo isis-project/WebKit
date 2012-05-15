@@ -9,7 +9,7 @@ function test()
 {
     removeVendorPrefixes();
 
-    request = evalAndLog("indexedDB.open('create-object-store-options', 'description')");
+    request = evalAndLog("indexedDB.open('create-object-store-options')");
     request.onsuccess = openSuccess;
     request.onerror = unexpectedErrorCallback;
 }
@@ -37,8 +37,8 @@ function cleanDatabase()
 
 function setVersionComplete()
 {
-    trans = evalAndLog("trans = db.transaction(['a', 'b'], IDBTransaction.READ_WRITE)");
-    shouldBe("trans.mode", "IDBTransaction.READ_WRITE");
+    trans = evalAndLog("trans = db.transaction(['a', 'b'], 'readwrite')");
+    shouldBe("trans.mode", "'readwrite'");
 
     req = evalAndLog("trans.objectStore('a').put({'a': 0})");
     req.onsuccess = putB;

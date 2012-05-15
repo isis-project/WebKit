@@ -217,7 +217,7 @@ WebInspector.StylesSidebarPane.prototype = {
     update: function(node, forceUpdate)
     {
         if (this._spectrum.visible)
-            this._spectrum.hide();
+            this._spectrum.hide(false);
 
         var refresh = false;
 
@@ -879,7 +879,7 @@ WebInspector.StylesSidebarPane.prototype = {
     willHide: function()
     {
         if (this._spectrum.visible)
-            this._spectrum.hide();
+            this._spectrum.hide(false);
     }
 }
 
@@ -959,6 +959,7 @@ WebInspector.StylePropertiesSection = function(parentPane, styleRule, editable, 
                 var refElement = mediaDataElement.createChild("div", "subtitle");
                 var lineNumber = media.sourceLine < 0 ? undefined : media.sourceLine;
                 var anchor = WebInspector.linkifyResourceAsNode(media.sourceURL, lineNumber, "subtitle", media.sourceURL + (isNaN(lineNumber) ? "" : (":" + (lineNumber + 1))));
+                anchor.preferredPanel = "styles";
                 anchor.style.float = "right";
                 refElement.appendChild(anchor);
             }
@@ -1212,6 +1213,7 @@ WebInspector.StylePropertiesSection.prototype = {
         function linkifyUncopyable(url, line)
         {
             var link = WebInspector.linkifyResourceAsNode(url, line, "", url + ":" + (line + 1));
+            link.preferredPanel = "styles";
             link.classList.add("webkit-html-resource-link");
             link.setAttribute("data-uncopyable", link.textContent);
             link.textContent = "";
@@ -1772,14 +1774,17 @@ WebInspector.StylePropertyTreeElement.prototype = {
                     self.applyStyleText(nameElement.textContent + ": " + valueElement.textContent, false, false, false);
                 }
 
-                function spectrumHidden()
+                function spectrumHidden(event)
                 {
                     scrollerElement.removeEventListener("scroll", repositionSpectrum, false);
-                    self.applyStyleText(nameElement.textContent + ": " + valueElement.textContent, true, true, false);
+                    var commitEdit = event.data;
+                    var propertyText = !commitEdit && self.originalPropertyText ? self.originalPropertyText : (nameElement.textContent + ": " + valueElement.textContent);
+                    self.applyStyleText(propertyText, true, true, false);
                     spectrum.removeEventListener(WebInspector.Spectrum.Events.ColorChanged, spectrumChanged);
                     spectrum.removeEventListener(WebInspector.Spectrum.Events.Hidden, spectrumHidden);
 
                     delete self._parentPane._isEditingStyle;
+                    delete self.originalPropertyText;
                 }
 
                 function repositionSpectrum()
@@ -1798,6 +1803,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
 
                         if (visible) {
                             spectrum.displayText = color.toString(format);
+                            self.originalPropertyText = self.property.propertyText;
                             self._parentPane._isEditingStyle = true;
                             spectrum.addEventListener(WebInspector.Spectrum.Events.ColorChanged, spectrumChanged);
                             spectrum.addEventListener(WebInspector.Spectrum.Events.Hidden, spectrumHidden);
@@ -2559,6 +2565,9 @@ WebInspector.StylesSidebarPane.CSSPropertyPrompt.prototype = {
 
         var wordRange = selectionRange.startContainer.rangeOfWord(selectionRange.startOffset, WebInspector.StylesSidebarPane.StyleValueDelimiters, this._sidebarPane.valueElement);
         var wordString = wordRange.toString();
+        if (this._isValueSuggestion(wordString))
+            return false;
+
         var replacementString;
         var prefix, suffix, number;
 
@@ -2607,6 +2616,14 @@ WebInspector.StylesSidebarPane.CSSPropertyPrompt.prototype = {
             return true;
         }
         return false;
+    },
+
+    _isValueSuggestion: function(word)
+    {
+        if (!word)
+            return false;
+        word = word.toLowerCase();
+        return this._cssCompletions.keySet().hasOwnProperty(word);
     },
 
     _buildPropertyCompletions: function(textPrompt, wordRange, force, completionsReadyCallback)

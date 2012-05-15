@@ -276,7 +276,7 @@ bool HTMLObjectElement::hasValidClassId()
 // moved down into HTMLPluginImageElement.cpp
 void HTMLObjectElement::updateWidget(PluginCreationOption pluginCreationOption)
 {
-    ASSERT(!renderEmbeddedObject()->pluginCrashedOrWasMissing());
+    ASSERT(!renderEmbeddedObject()->showsUnavailablePluginIndicator());
     ASSERT(needsWidgetUpdate());
     setNeedsWidgetUpdate(false);
     // FIXME: This should ASSERT isFinishedParsingChildren() instead.
@@ -328,16 +328,17 @@ bool HTMLObjectElement::rendererIsNeeded(const NodeRenderingContext& context)
     return HTMLPlugInImageElement::rendererIsNeeded(context);
 }
 
-void HTMLObjectElement::insertedIntoDocument()
+Node::InsertionNotificationRequest HTMLObjectElement::insertedInto(Node* insertionPoint)
 {
-    HTMLPlugInImageElement::insertedIntoDocument();
-    FormAssociatedElement::insertedIntoDocument();
+    HTMLPlugInImageElement::insertedInto(insertionPoint);
+    FormAssociatedElement::insertedInto(insertionPoint);
+    return InsertionDone;
 }
 
-void HTMLObjectElement::removedFromDocument()
+void HTMLObjectElement::removedFrom(Node* insertionPoint)
 {
-    HTMLPlugInImageElement::removedFromDocument();
-    FormAssociatedElement::removedFromDocument();
+    HTMLPlugInImageElement::removedFrom(insertionPoint);
+    FormAssociatedElement::removedFrom(insertionPoint);
 }
 
 void HTMLObjectElement::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
@@ -350,9 +351,9 @@ void HTMLObjectElement::childrenChanged(bool changedByParser, Node* beforeChange
     HTMLPlugInImageElement::childrenChanged(changedByParser, beforeChange, afterChange, childCountDelta);
 }
 
-bool HTMLObjectElement::isURLAttribute(Attribute *attr) const
+bool HTMLObjectElement::isURLAttribute(const Attribute& attribute) const
 {
-    return attr->name() == dataAttr || (attr->name() == usemapAttr && attr->value().string()[0] != '#') || HTMLPlugInImageElement::isURLAttribute(attr);
+    return attribute.name() == dataAttr || (attribute.name() == usemapAttr && attribute.value().string()[0] != '#') || HTMLPlugInImageElement::isURLAttribute(attribute);
 }
 
 const QualifiedName& HTMLObjectElement::imageSourceAttributeName() const
@@ -475,7 +476,7 @@ void HTMLObjectElement::addSubresourceAttributeURLs(ListHashSet<KURL>& urls) con
     // FIXME: Passing a string that starts with "#" to the completeURL function does
     // not seem like it would work. The image element has similar but not identical code.
     const AtomicString& useMap = getAttribute(usemapAttr);
-    if (useMap.startsWith("#"))
+    if (useMap.startsWith('#'))
         addSubresourceURL(urls, document()->completeURL(useMap));
 }
 
@@ -483,18 +484,6 @@ void HTMLObjectElement::didMoveToNewDocument(Document* oldDocument)
 {
     FormAssociatedElement::didMoveToNewDocument(oldDocument);
     HTMLPlugInImageElement::didMoveToNewDocument(oldDocument);
-}
-
-void HTMLObjectElement::insertedIntoTree(bool deep)
-{
-    FormAssociatedElement::insertedIntoTree();
-    HTMLPlugInImageElement::insertedIntoTree(deep);
-}
-
-void HTMLObjectElement::removedFromTree(bool deep)
-{
-    FormAssociatedElement::removedFromTree();
-    HTMLPlugInImageElement::removedFromTree(deep);
 }
 
 bool HTMLObjectElement::appendFormData(FormDataList& encoding, bool)

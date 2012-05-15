@@ -73,7 +73,6 @@ inline bool canCompileOpcode(OpcodeID opcodeID)
     case op_enter:
     case op_convert_this:
     case op_create_this:
-    case op_get_callee:
     case op_bitand:
     case op_bitor:
     case op_bitxor:
@@ -96,6 +95,12 @@ inline bool canCompileOpcode(OpcodeID opcodeID)
     case op_mov:
     case op_check_has_instance:
     case op_instanceof:
+    case op_is_undefined:
+    case op_is_boolean:
+    case op_is_number:
+    case op_is_string:
+    case op_is_object:
+    case op_is_function:
     case op_not:
     case op_less:
     case op_lesseq:

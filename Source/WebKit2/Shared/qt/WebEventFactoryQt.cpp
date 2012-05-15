@@ -27,9 +27,11 @@
 #include "config.h"
 #include "WebEventFactoryQt.h"
 #include <QKeyEvent>
+#include <QLineF>
 #include <QTransform>
-#include <WebCore/IntPoint.h>
 #include <WebCore/FloatPoint.h>
+#include <WebCore/FloatSize.h>
+#include <WebCore/IntPoint.h>
 #include <WebCore/PlatformKeyboardEvent.h>
 #include <wtf/ASCIICType.h>
 #include <wtf/CurrentTime.h>
@@ -133,28 +135,29 @@ WebWheelEvent WebEventFactory::createWebWheelEvent(QWheelEvent* e, const QTransf
     WebEvent::Modifiers modifiers           = modifiersForEvent(e->modifiers());
     double timestamp                        = currentTimeForEvent(e);
 
-    // A delta that is not mod 120 indicates a device that is sending
-    // fine-resolution scroll events, so use the delta as number of wheel ticks
-    // and number of pixels to scroll.See also webkit.org/b/29601
-    bool fullTick = !(e->delta() % 120);
-
     if (e->orientation() == Qt::Horizontal) {
-        deltaX = (fullTick) ? e->delta() / 120.0f : e->delta();
-        wheelTicksX = deltaX;
+        deltaX = e->delta();
+        wheelTicksX = deltaX / 120.0f;
     } else {
-        deltaY = (fullTick) ? e->delta() / 120.0f : e->delta();
-        wheelTicksY = deltaY;
+        deltaY = e->delta();
+        wheelTicksY = deltaY / 120.0f;
     }
 
-    // Use the same single scroll step as QTextEdit
-    // (in QTextEditPrivate::init [h,v]bar->setSingleStep)
+    // Since we report the scroll by the pixel, convert the delta to pixel distance using standard scroll step.
+    // Use the same single scroll step as QTextEdit (in QTextEditPrivate::init [h,v]bar->setSingleStep)
     static const float cDefaultQtScrollStep = 20.f;
     // ### FIXME: Default from QtGui. Should use Qt platform theme API once configurable.
     const int wheelScrollLines = 3;
-    deltaX *= (fullTick) ? wheelScrollLines * cDefaultQtScrollStep : 1;
-    deltaY *= (fullTick) ? wheelScrollLines * cDefaultQtScrollStep : 1;
+    deltaX = wheelTicksX * wheelScrollLines * cDefaultQtScrollStep;
+    deltaY = wheelTicksY * wheelScrollLines * cDefaultQtScrollStep;
 
-    return WebWheelEvent(WebEvent::Wheel, fromItemTransform.map(e->posF()).toPoint(), e->globalPosF().toPoint(), FloatSize(deltaX, deltaY), FloatSize(wheelTicksX, wheelTicksY), granularity, modifiers, timestamp);
+    // Transform the position and the pixel scrolling distance.
+    QLineF transformedScroll = fromItemTransform.map(QLineF(e->posF(), e->posF() + QPointF(deltaX, deltaY)));
+    IntPoint transformedPoint = transformedScroll.p1().toPoint();
+    IntPoint globalPoint = e->globalPosF().toPoint();
+    FloatSize transformedDelta(transformedScroll.dx(), transformedScroll.dy());
+    FloatSize wheelTicks(wheelTicksX, wheelTicksY);
+    return WebWheelEvent(WebEvent::Wheel, transformedPoint, globalPoint, transformedDelta, wheelTicks, granularity, modifiers, timestamp);
 }
 
 WebKeyboardEvent WebEventFactory::createWebKeyboardEvent(QKeyEvent* event)
@@ -214,7 +217,8 @@ WebTouchEvent WebEventFactory::createWebTouchEvent(const QTouchEvent* event, con
         if (type == WebEvent::TouchCancel)
             state = WebPlatformTouchPoint::TouchCancelled;
 
-        m_touchPoints.append(WebPlatformTouchPoint(id, state, touchPoint.screenPos().toPoint(), fromItemTransform.map(touchPoint.pos()).toPoint()));
+        IntSize radius(touchPoint.rect().width()/ 2, touchPoint.rect().height() / 2);
+        m_touchPoints.append(WebPlatformTouchPoint(id, state, touchPoint.screenPos().toPoint(), fromItemTransform.map(touchPoint.pos()).toPoint(), radius, 0.0, touchPoint.pressure()));
     }
 
     return WebTouchEvent(type, m_touchPoints, modifiers, timestamp);

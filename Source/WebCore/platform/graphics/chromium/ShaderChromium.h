@@ -48,23 +48,6 @@ private:
     int m_matrixLocation;
 };
 
-class VertexShaderPosTexStretch {
-public:
-    VertexShaderPosTexStretch();
-
-    void init(GraphicsContext3D*, unsigned program);
-    String getShaderString() const;
-
-    int matrixLocation() const { return m_matrixLocation; }
-    int offsetLocation() const { return m_offsetLocation; }
-    int scaleLocation() const { return m_scaleLocation; }
-
-private:
-    int m_matrixLocation;
-    int m_offsetLocation;
-    int m_scaleLocation;
-};
-
 class VertexShaderPosTexYUVStretch {
 public:
     VertexShaderPosTexYUVStretch();
@@ -357,6 +340,21 @@ public:
 
 private:
     int m_colorLocation;
+};
+
+class FragmentShaderCheckerboard {
+public:
+    FragmentShaderCheckerboard();
+    String getShaderString() const;
+
+    void init(GraphicsContext3D*, unsigned program);
+    int alphaLocation() const { return m_alphaLocation; }
+    int texTransformLocation() const { return m_texTransformLocation; }
+    int frequencyLocation() const { return m_frequencyLocation; }
+private:
+    int m_alphaLocation;
+    int m_texTransformLocation;
+    int m_frequencyLocation;
 };
 
 } // namespace WebCore

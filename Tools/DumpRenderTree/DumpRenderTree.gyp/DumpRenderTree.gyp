@@ -67,9 +67,9 @@
             ],
             'conditions': [
                 ['OS=="android"', {
-                    # FIXME: Re-enable building ImageDiff after the dependencies
-                    # for host have been fixed, as this broke per the WTF move.
-                    'type': 'none',
+                    # The Chromium Android port will compare images on host rather
+                    # than target (a device or emulator) for performance reasons.
+                    'toolsets': ['host'],
                 }],
             ],
         },
@@ -84,6 +84,7 @@
                 '<(chromium_src_dir)/build/temp_gyp/googleurl.gyp:googleurl',
                 '<(chromium_src_dir)/third_party/icu/icu.gyp:icuuc',
                 '<(chromium_src_dir)/v8/tools/gyp/v8.gyp:v8',
+                '<(chromium_src_dir)/base/base.gyp:test_support_base',
                 '<(chromium_src_dir)/webkit/support/webkit_support.gyp:blob',
                 '<(chromium_src_dir)/webkit/support/webkit_support.gyp:webkit_support',
                 '<(chromium_src_dir)/webkit/support/webkit_support.gyp:webkit_user_agent',
@@ -231,9 +232,7 @@
                 }],
                 ['OS=="android"', {
                     'dependencies': [
-                        # FIXME: Re-enable building ImageDiff on Android.
-                        # https://bugs.webkit.org/show_bug.cgi?id=82039
-                        #'ImageDiff#host',
+                        'ImageDiff#host',
                     ],
                     'sources/': [
                         ['include', 'chromium/TestShellLinux\\.cpp$'],
@@ -323,8 +322,8 @@
                         '<(tools_dir)/DumpRenderTree/TestNetscapePlugIn/win/TestNetscapePlugin.def',
                         '<(tools_dir)/DumpRenderTree/TestNetscapePlugIn/win/TestNetscapePlugin.rc',
                     ],
-                    # The .rc file requires that the name of the dll is npTestNetscapePlugin.dll.
-                    'product_name': 'npTestNetscapePlugin',
+                    # The .rc file requires that the name of the dll is npTestNetscapePlugIn.dll.
+                    'product_name': 'npTestNetscapePlugIn',
                 }],
             ],
         },

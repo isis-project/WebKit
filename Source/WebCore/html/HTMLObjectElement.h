@@ -54,9 +54,9 @@ public:
 
     // Implementations of constraint validation API.
     // Note that the object elements are always barred from constraint validation.
-    String validationMessage() { return String(); }
+    virtual String validationMessage() const OVERRIDE { return String(); }
     bool checkValidity() { return true; }
-    void setCustomValidity(const String&) { }
+    virtual void setCustomValidity(const String&) OVERRIDE { }
 
     using TreeShared<ContainerNode>::ref;
     using TreeShared<ContainerNode>::deref;
@@ -70,17 +70,15 @@ private:
     virtual bool isPresentationAttribute(const QualifiedName&) const OVERRIDE;
     virtual void collectStyleForAttribute(Attribute*, StylePropertySet*) OVERRIDE;
 
-    virtual void insertedIntoTree(bool deep);
-    virtual void removedFromTree(bool deep);
+    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
+    virtual void removedFrom(Node*) OVERRIDE;
 
     virtual bool rendererIsNeeded(const NodeRenderingContext&);
-    virtual void insertedIntoDocument();
-    virtual void removedFromDocument();
     virtual void didMoveToNewDocument(Document* oldDocument) OVERRIDE;
 
     virtual void childrenChanged(bool changedByParser = false, Node* beforeChange = 0, Node* afterChange = 0, int childCountDelta = 0);
 
-    virtual bool isURLAttribute(Attribute*) const;
+    virtual bool isURLAttribute(const Attribute&) const OVERRIDE;
     virtual const QualifiedName& imageSourceAttributeName() const;
 
     virtual RenderWidget* renderWidgetForJSBindings();

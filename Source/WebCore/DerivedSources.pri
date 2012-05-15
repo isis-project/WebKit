@@ -57,7 +57,7 @@ WALDOCSSVALUES = $$PWD/css/CSSValueKeywords.in
 
 INSPECTOR_JSON = $$PWD/inspector/Inspector.json
 
-INSPECTOR_BACKEND_STUB_QRC = $$PWD/inspector/front-end/InspectorBackendStub.qrc
+INSPECTOR_BACKEND_COMMANDS_QRC = $$PWD/inspector/front-end/InspectorBackendCommands.qrc
 
 INJECTED_SCRIPT_SOURCE = $$PWD/inspector/InjectedScriptSource.js
 
@@ -388,6 +388,7 @@ IDL_BINDINGS += \
     $$PWD/html/ImageData.idl \
     $$PWD/html/MediaController.idl \
     $$PWD/html/MediaError.idl \
+    $$PWD/html/RadioNodeList.idl \
     $$PWD/html/TextMetrics.idl \
     $$PWD/html/TimeRanges.idl \
     $$PWD/html/ValidityState.idl \
@@ -403,6 +404,7 @@ IDL_BINDINGS += \
     $$PWD/notifications/DOMWindowNotifications.idl \
     $$PWD/notifications/Notification.idl \
     $$PWD/notifications/NotificationCenter.idl \
+    $$PWD/notifications/NotificationPermissionCallback.idl \
     $$PWD/notifications/WorkerContextNotifications.idl \
     $$PWD/page/BarInfo.idl \
     $$PWD/page/Console.idl \
@@ -416,6 +418,8 @@ IDL_BINDINGS += \
     $$PWD/page/MemoryInfo.idl \
     $$PWD/page/Navigator.idl \
     $$PWD/page/Performance.idl \
+    $$PWD/page/PerformanceEntry.idl \
+    $$PWD/page/PerformanceEntryList.idl \
     $$PWD/page/PerformanceNavigation.idl \
     $$PWD/page/PerformanceTiming.idl \
     $$PWD/page/Screen.idl \
@@ -460,9 +464,8 @@ IDL_BINDINGS += \
 
 v8 {
   IDL_BINDINGS += \
-    $$PWD/html/canvas/CanvasPixelArray.idl \
-    $$PWD/storage/IDBVersionChangeEvent.idl \
-    $$PWD/storage/IDBVersionChangeRequest.idl
+    $$PWD/Modules/indexeddb/IDBVersionChangeEvent.idl \
+    $$PWD/Modules/indexeddb/IDBVersionChangeRequest.idl
 }
 
 contains(DEFINES, ENABLE_SVG=1) {
@@ -757,11 +760,11 @@ inspectorJSON.commands = python $$inspectorJSON.script $$PWD/inspector/Inspector
 inspectorJSON.depends = $$inspectorJSON.script
 GENERATORS += inspectorJSON
 
-inspectorBackendStub.output = InspectorBackendStub.qrc
-inspectorBackendStub.input = INSPECTOR_BACKEND_STUB_QRC
-inspectorBackendStub.commands = $$QMAKE_COPY $$toSystemPath($$INSPECTOR_BACKEND_STUB_QRC) ${QMAKE_FUNC_FILE_OUT_PATH}$${QMAKE_DIR_SEP}InspectorBackendStub.qrc
-inspectorBackendStub.add_output_to_sources = false
-GENERATORS += inspectorBackendStub
+inspectorBackendCommands.output = InspectorBackendCommands.qrc
+inspectorBackendCommands.input = INSPECTOR_BACKEND_COMMANDS_QRC
+inspectorBackendCommands.commands = $$QMAKE_COPY $$toSystemPath($$INSPECTOR_BACKEND_COMMANDS_QRC) ${QMAKE_FUNC_FILE_OUT_PATH}$${QMAKE_DIR_SEP}InspectorBackendCommands.qrc
+inspectorBackendCommands.add_output_to_sources = false
+GENERATORS += inspectorBackendCommands
 
 # GENERATOR 2-a: inspector injected script source compiler
 injectedScriptSource.output = InjectedScriptSource.h

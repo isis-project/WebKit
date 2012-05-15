@@ -3,11 +3,8 @@ javascriptcore_h_api += \
 	Source/JavaScriptCore/API/JSContextRef.h \
 	Source/JavaScriptCore/API/JSObjectRef.h \
 	Source/JavaScriptCore/API/JSStringRef.h \
-	Source/JavaScriptCore/API/JSStringRefBSTR.h \
-	Source/JavaScriptCore/API/JSStringRefCF.h \
 	Source/JavaScriptCore/API/JSValueRef.h \
 	Source/JavaScriptCore/API/JavaScript.h \
-	Source/JavaScriptCore/API/JavaScriptCore.h \
 	Source/JavaScriptCore/API/WebKitAvailability.h
 
 javascriptcore_built_nosources += \
@@ -122,7 +119,6 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/bytecode/PolymorphicPutByIdList.h \
 	Source/JavaScriptCore/bytecode/PredictedType.cpp \
 	Source/JavaScriptCore/bytecode/PredictedType.h \
-	Source/JavaScriptCore/bytecode/PredictionTracker.h \
 	Source/JavaScriptCore/bytecode/PutByIdStatus.cpp \
 	Source/JavaScriptCore/bytecode/PutByIdStatus.h \
 	Source/JavaScriptCore/bytecode/PutKind.h \
@@ -143,6 +139,7 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/dfg/DFGAbstractState.cpp \
 	Source/JavaScriptCore/dfg/DFGAbstractState.h \
 	Source/JavaScriptCore/dfg/DFGAbstractValue.h \
+	Source/JavaScriptCore/dfg/DFGArgumentPosition.h \
 	Source/JavaScriptCore/dfg/DFGAssemblyHelpers.cpp \
 	Source/JavaScriptCore/dfg/DFGAssemblyHelpers.h \
 	Source/JavaScriptCore/dfg/DFGBasicBlock.h \
@@ -159,6 +156,7 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/dfg/DFGCorrectableJumpPoint.h \
 	Source/JavaScriptCore/dfg/DFGCSEPhase.cpp \
 	Source/JavaScriptCore/dfg/DFGCSEPhase.h \
+	Source/JavaScriptCore/dfg/DFGDoubleFormatState.h \
 	Source/JavaScriptCore/dfg/DFGDriver.cpp \
 	Source/JavaScriptCore/dfg/DFGDriver.h \
 	Source/JavaScriptCore/dfg/DFGFPRInfo.h \
@@ -225,6 +223,8 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/heap/HandleStack.cpp \
 	Source/JavaScriptCore/heap/HandleStack.h \
 	Source/JavaScriptCore/heap/HandleTypes.h \
+	Source/JavaScriptCore/heap/BlockAllocator.cpp \
+	Source/JavaScriptCore/heap/BlockAllocator.h \
 	Source/JavaScriptCore/heap/Heap.cpp \
 	Source/JavaScriptCore/heap/Heap.h \
 	Source/JavaScriptCore/heap/ListableHandler.h \
@@ -251,8 +251,13 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/heap/VTableSpectrum.h \
 	Source/JavaScriptCore/heap/Weak.h \
 	Source/JavaScriptCore/heap/WeakBlock.cpp \
-	Source/JavaScriptCore/heap/WeakSet.cpp \
+	Source/JavaScriptCore/heap/WeakBlock.h \
 	Source/JavaScriptCore/heap/WeakHandleOwner.cpp \
+	Source/JavaScriptCore/heap/WeakHandleOwner.h \
+	Source/JavaScriptCore/heap/WeakImpl.h \
+	Source/JavaScriptCore/heap/WeakSet.cpp \
+	Source/JavaScriptCore/heap/WeakSet.h \
+	Source/JavaScriptCore/heap/WeakSetInlines.h \
 	Source/JavaScriptCore/heap/WeakReferenceHarvester.h \
 	Source/JavaScriptCore/heap/WriteBarrierSupport.cpp \
 	Source/JavaScriptCore/heap/WriteBarrierSupport.h \
@@ -265,13 +270,11 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/debugger/Debugger.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/APICast.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/APIShims.h \
-	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JavaScriptCore.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JavaScript.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JSBase.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JSContextRef.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JSObjectRef.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JSRetainPtr.h \
-	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JSStringRefCF.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JSStringRef.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/JSValueRef.h \
 	Source/JavaScriptCore/ForwardingHeaders/JavaScriptCore/OpaqueJSString.h \
@@ -445,8 +448,6 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/runtime/JSAPIValueWrapper.h \
 	Source/JavaScriptCore/runtime/JSArray.cpp \
 	Source/JavaScriptCore/runtime/JSArray.h \
-	Source/JavaScriptCore/runtime/JSByteArray.cpp \
-	Source/JavaScriptCore/runtime/JSByteArray.h \
 	Source/JavaScriptCore/runtime/JSCell.cpp \
 	Source/JavaScriptCore/runtime/JSCell.h \
 	Source/JavaScriptCore/runtime/JSDateMath.cpp \
@@ -520,6 +521,7 @@ javascriptcore_sources += \
 	Source/JavaScriptCore/runtime/PropertyDescriptor.cpp \
 	Source/JavaScriptCore/runtime/PropertyDescriptor.h \
 	Source/JavaScriptCore/runtime/PropertyMapHashTable.h \
+	Source/JavaScriptCore/runtime/PropertyName.h \
 	Source/JavaScriptCore/runtime/PropertyNameArray.cpp \
 	Source/JavaScriptCore/runtime/PropertyNameArray.h \
 	Source/JavaScriptCore/runtime/PropertySlot.cpp \

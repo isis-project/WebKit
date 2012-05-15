@@ -46,9 +46,11 @@
 #include "ContextMenu.h"
 #include "ContextMenuClientQt.h"
 #include "ContextMenuController.h"
+#if ENABLE(DEVICE_ORIENTATION)
 #include "DeviceMotionClientQt.h"
 #include "DeviceOrientationClientMock.h"
 #include "DeviceOrientationClientQt.h"
+#endif
 #include "DocumentLoader.h"
 #include "DragClientQt.h"
 #include "DragController.h"
@@ -1379,7 +1381,7 @@ bool QWebPagePrivate::touchEvent(QTouchEvent* event)
     event->setAccepted(true);
 
     // Return whether the default action was cancelled in the JS event handler
-    return frame->eventHandler()->handleTouchEvent(PlatformTouchEvent(event));
+    return frame->eventHandler()->handleTouchEvent(convertTouchEvent(event));
 #else
     event->ignore();
     return false;
@@ -1424,7 +1426,7 @@ QVariant QWebPage::inputMethodQuery(Qt::InputMethodQuery property) const
         case Qt::ImFont: {
             if (renderTextControl) {
                 RenderStyle* renderStyle = renderTextControl->style();
-                return QVariant(QFont(renderStyle->font().font()));
+                return QVariant(QFont(renderStyle->font().syntheticFont()));
             }
             return QVariant(QFont());
         }
@@ -2581,7 +2583,7 @@ QWebPage::ViewportAttributes QWebPage::viewportAttributesForSize(const QSize& av
     WebCore::restrictScaleFactorToInitialScaleIfNotUserScalable(conf);
 
     result.m_isValid = true;
-    result.m_size = conf.layoutSize;
+    result.m_size = QSizeF(conf.layoutSize.width(), conf.layoutSize.height());
     result.m_initialScaleFactor = conf.initialScale;
     result.m_minimumScaleFactor = conf.minimumScale;
     result.m_maximumScaleFactor = conf.maximumScale;
@@ -3462,7 +3464,7 @@ void QWebPage::updatePositionDependentActions(const QPoint &pos)
 
     \inmodule QtWebKit
 
-    \sa QWebPage::extension() QWebPage::ExtensionReturn
+    \sa QWebPage::extension(), QWebPage::ExtensionReturn
 */
 
 
@@ -3473,7 +3475,7 @@ void QWebPage::updatePositionDependentActions(const QPoint &pos)
 
     \inmodule QtWebKit
 
-    \sa QWebPage::extension() QWebPage::ExtensionOption
+    \sa QWebPage::extension(), QWebPage::ExtensionOption
 */
 
 /*!
@@ -3489,7 +3491,7 @@ void QWebPage::updatePositionDependentActions(const QPoint &pos)
 
     The error itself is reported by an error \a domain, the \a error code as well as \a errorString.
 
-    \sa QWebPage::extension() QWebPage::ErrorPageExtensionReturn
+    \sa QWebPage::extension(), QWebPage::ErrorPageExtensionReturn
 */
 
 /*!
@@ -3536,7 +3538,7 @@ void QWebPage::updatePositionDependentActions(const QPoint &pos)
     External objects such as stylesheets or images referenced in the HTML are located relative to
     \a baseUrl.
 
-    \sa QWebPage::extension() QWebPage::ErrorPageExtensionOption, QString::toUtf8()
+    \sa QWebPage::extension(), QWebPage::ErrorPageExtensionOption, QString::toUtf8()
 */
 
 /*!
@@ -3579,7 +3581,7 @@ void QWebPage::updatePositionDependentActions(const QPoint &pos)
     The ChooseMultipleFilesExtensionOption class holds the frame originating the request
     and the suggested filenames which might be provided.
 
-    \sa QWebPage::extension() QWebPage::chooseFile(), QWebPage::ChooseMultipleFilesExtensionReturn
+    \sa QWebPage::extension(), QWebPage::chooseFile(), QWebPage::ChooseMultipleFilesExtensionReturn
 */
 
 /*!
@@ -3608,7 +3610,7 @@ void QWebPage::updatePositionDependentActions(const QPoint &pos)
     The ChooseMultipleFilesExtensionReturn class holds the filenames selected by the user
     when the extension is invoked.
 
-    \sa QWebPage::extension() QWebPage::ChooseMultipleFilesExtensionOption
+    \sa QWebPage::extension(), QWebPage::ChooseMultipleFilesExtensionOption
 */
 
 /*!

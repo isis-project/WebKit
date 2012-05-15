@@ -30,6 +30,7 @@
 #include <limits>
 #include <wtf/Assertions.h>
 #include <wtf/MetaAllocatorHandle.h>
+#include <wtf/MetaAllocator.h>
 #include <wtf/PageAllocation.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
@@ -94,7 +95,7 @@ namespace JSC {
 
 typedef WTF::MetaAllocatorHandle ExecutableMemoryHandle;
 
-#if ENABLE(JIT) && ENABLE(ASSEMBLER)
+#if ENABLE(ASSEMBLER)
 
 #if ENABLE(EXECUTABLE_ALLOCATOR_DEMAND)
 class DemandExecutableAllocator;

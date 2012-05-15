@@ -71,6 +71,7 @@ public:
     virtual ~MarkupAccumulator();
 
     String serializeNodes(Node* targetNode, Node* nodeToSkip, EChildrenOnly);
+    String serializeNodes(Node* targetNode, Node* nodeToSkip, EChildrenOnly, Vector<QualifiedName>* tagNamesToSkip);
 
     static void appendComment(StringBuilder&, const String&);
 
@@ -89,6 +90,7 @@ protected:
     void appendNamespace(StringBuilder&, const AtomicString& prefix, const AtomicString& namespaceURI, Namespaces&);
     EntityMask entityMaskForText(Text*) const;
     virtual void appendText(StringBuilder&, Text*);
+    void appendXMLDeclaration(StringBuilder&, const Document*);
     void appendDocumentType(StringBuilder&, const DocumentType*);
     void appendProcessingInstruction(StringBuilder&, const String& target, const String& data);
     virtual void appendElement(StringBuilder&, Element*, Namespaces*);
@@ -107,7 +109,7 @@ protected:
 private:
     String resolveURLIfNeeded(const Element*, const String&) const;
     void appendQuotedURLAttributeValue(StringBuilder&, const Element*, const Attribute&);
-    void serializeNodesWithNamespaces(Node* targetNode, Node* nodeToSkip, EChildrenOnly, const Namespaces*);
+    void serializeNodesWithNamespaces(Node* targetNode, Node* nodeToSkip, EChildrenOnly, const Namespaces*, Vector<QualifiedName>* tagNamesToSkip);
 
     StringBuilder m_markup;
     const EAbsoluteURLs m_resolveURLsMethod;

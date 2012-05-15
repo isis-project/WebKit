@@ -69,13 +69,14 @@ public:
     virtual void addClient(RenderObject*);
     virtual void removeClient(RenderObject*);
     virtual PassRefPtr<Image> image(RenderObject*, const IntSize&) const;
+    virtual float imageScaleFactor() const { return m_imageScaleFactor; }
     
 private:
-    StyleCachedImageSet(CachedImage*, float imageScaleFactor, PassRefPtr<CSSImageSetValue>);
+    StyleCachedImageSet(CachedImage*, float imageScaleFactor, CSSImageSetValue*);
 
     CachedResourceHandle<CachedImage> m_bestFitImage;
     float m_imageScaleFactor;
-    RefPtr<CSSImageSetValue> m_imageSetValue;
+    CSSImageSetValue* m_imageSetValue; // Not retained; it owns us.
 };
 
 } // namespace WebCore

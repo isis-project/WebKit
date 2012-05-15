@@ -98,7 +98,13 @@ WebInspector.WorkerManager._calculateWorkerInspectorTitle = function()
     var expression = "location.href";
     if (WebInspector.queryParamsObject["isSharedWorker"])
         expression += " + (this.name ? ' (' + this.name + ')' : '')";
-    RuntimeAgent.evaluate.invoke({expression:expression, doNotPauseOnExceptions:true, returnByValue: true}, evalCallback.bind(this));
+    RuntimeAgent.evaluate.invoke({expression:expression, doNotPauseOnExceptionsAndMuteConsole:true, returnByValue: true}, evalCallback.bind(this));
+    
+    /**
+     * @param {?Protocol.Error} error
+     * @param {RuntimeAgent.RemoteObject} result
+     * @param {boolean=} wasThrown
+     */
     function evalCallback(error, result, wasThrown)
     {
         if (error || wasThrown) {
@@ -199,13 +205,9 @@ WebInspector.WorkerManager.prototype = {
 
     _disconnectedFromWorker: function()
     {
-        function onHide()
-        {
-            WebInspector.debuggerModel.removeEventListener(WebInspector.DebuggerModel.Events.GlobalObjectCleared, screen.hide, screen);
-        }
         var screen = new WebInspector.WorkerTerminatedScreen();
         WebInspector.debuggerModel.addEventListener(WebInspector.DebuggerModel.Events.GlobalObjectCleared, screen.hide, screen);
-        screen.show(onHide.bind(this));
+        screen.showModal();
     }
 }
 
@@ -264,6 +266,17 @@ WebInspector.WorkerTerminatedScreen = function()
     var p = this.contentElement.createChild("p");
     p.addStyleClass("help-section");
     p.textContent = WebInspector.UIString("Inspected worker has terminated. Once it restarts we will attach to it automatically.");
+}
+
+WebInspector.WorkerTerminatedScreen.prototype = {
+    /**
+     * @override
+     */
+    willHide: function()
+    {
+        WebInspector.debuggerModel.removeEventListener(WebInspector.DebuggerModel.Events.GlobalObjectCleared, this.hide, this);
+        WebInspector.HelpScreen.prototype.willHide.call(this);
+    }
 }
 
 WebInspector.WorkerTerminatedScreen.prototype.__proto__ = WebInspector.HelpScreen.prototype;

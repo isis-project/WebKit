@@ -32,6 +32,7 @@
 #import "WebViewData.h"
 
 #import "DOMCSSStyleDeclarationInternal.h"
+#import "DOMDocumentInternal.h"
 #import "DOMNodeInternal.h"
 #import "DOMRangeInternal.h"
 #import "WebAlternativeTextClient.h"
@@ -71,6 +72,7 @@
 #import "WebInspector.h"
 #import "WebInspectorClient.h"
 #import "WebKitErrors.h"
+#import "WebKitFullScreenListener.h"
 #import "WebKitLogging.h"
 #import "WebKitNSStringExtras.h"
 #import "WebKitStatisticsPrivate.h"
@@ -687,6 +689,13 @@ static NSString *leakOutlookQuirksUserScriptContents()
         outlookQuirksScriptContents, KURL(), nullptr, nullptr, InjectAtDocumentEnd, InjectInAllFrames);
 }
 
+static bool shouldRespectPriorityInCSSAttributeSetters()
+{
+    static bool isIAdProducerNeedingAttributeSetterQuirk = !WebKitLinkedOnOrAfter(WEBKIT_FIRST_VERSION_WITH_CSS_ATTRIBUTE_SETTERS_IGNORING_PRIORITY)
+        && [[[NSBundle mainBundle] bundleIdentifier] isEqualToString:@"com.apple.iAdProducer"];
+    return isIAdProducerNeedingAttributeSetterQuirk;
+}
+
 - (void)_commonInitializationWithFrameName:(NSString *)frameName groupName:(NSString *)groupName
 {
     WebCoreThreadViolationCheckRoundTwo();
@@ -727,6 +736,8 @@ static NSString *leakOutlookQuirksUserScriptContents()
         // Initialize our platform strategies.
         WebPlatformStrategies::initialize();
         Settings::setDefaultMinDOMTimerInterval(0.004);
+        
+        Settings::setShouldRespectPriorityInCSSAttributeSetters(shouldRespectPriorityInCSSAttributeSetters());
 
         didOneTimeInitialization = true;
     }
@@ -837,6 +848,7 @@ static NSString *leakOutlookQuirksUserScriptContents()
     _private = [[WebViewPrivate alloc] init];
     [self _commonInitializationWithFrameName:frameName groupName:groupName];
     [self setMaintainsBackForwardList: YES];
+    _private->page->setDeviceScaleFactor([self _deviceScaleFactor]);
     return self;
 }
 
@@ -1509,6 +1521,7 @@ static bool needsSelfRetainWhileLoadingQuirk()
     settings->setSuppressesIncrementalRendering([preferences suppressesIncrementalRendering]);
     settings->setRegionBasedColumnsEnabled([preferences regionBasedColumnsEnabled]);
     settings->setBackspaceKeyNavigationEnabled([preferences backspaceKeyNavigationEnabled]);
+    settings->setWantsBalancedSetDefersLoadingBehavior([preferences wantsBalancedSetDefersLoadingBehavior]);
     settings->setMockScrollbarsEnabled([preferences mockScrollbarsEnabled]);
 
 #if ENABLE(VIDEO_TRACK)
@@ -1519,6 +1532,11 @@ static bool needsSelfRetainWhileLoadingQuirk()
 
     settings->setShouldRespectImageOrientation([preferences shouldRespectImageOrientation]);
     settings->setNeedsIsLoadingInAPISenseQuirk([self _needsIsLoadingInAPISenseQuirk]);
+    settings->setRequestAnimationFrameEnabled([preferences requestAnimationFrameEnabled]);
+    
+    NSTimeInterval timeout = [preferences incrementalRenderingSuppressionTimeoutInSeconds];
+    if (timeout > 0)
+        settings->setIncrementalRenderingSuppressionTimeoutInSeconds(timeout);
 
     // Application Cache Preferences are stored on the global cache storage manager, not in Settings.
     [WebApplicationCache setDefaultOriginQuota:[preferences applicationCacheDefaultOriginQuota]];
@@ -1836,8 +1854,17 @@ static inline IMP getMethod(id o, SEL s)
     [NSApp setWindowsNeedUpdate:YES];
 
 #if ENABLE(FULLSCREEN_API)
-    if (_private->newFullscreenController && [_private->newFullscreenController isFullScreen])
-        [_private->newFullscreenController close];
+    Document* document = core([frame DOMDocument]);
+    if (Element* element = document ? document->webkitCurrentFullScreenElement() : 0) {
+        SEL selector = @selector(webView:closeFullScreenWithListener:);
+        if (_private->UIDelegate && [_private->UIDelegate respondsToSelector:selector]) {
+            WebKitFullScreenListener *listener = [[WebKitFullScreenListener alloc] initWithElement:element];
+            CallUIDelegate(self, selector, listener);
+            [listener release];
+        } else if (_private->newFullscreenController && [_private->newFullscreenController isFullScreen]) {
+            [_private->newFullscreenController close];
+        }
+    }
 #endif
 }
 
@@ -3951,6 +3978,7 @@ static NSString * const backingPropertyOldScaleFactorKey = @"NSBackingPropertyOl
     _private->hostWindow = [hostWindow retain];
     for (Frame* frame = coreFrame; frame; frame = frame->tree()->traverseNext(coreFrame))
         [[[kit(frame) frameView] documentView] viewDidMoveToHostWindow];
+    _private->page->setDeviceScaleFactor([self _deviceScaleFactor]);
 }
 
 - (NSWindow *)hostWindow
@@ -5651,13 +5679,18 @@ static WebFrameView *containingFrameView(NSView *view)
         return _private->customDeviceScaleFactor;
 
     NSWindow *window = [self window];
+    NSWindow *hostWindow = [self hostWindow];
 #if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
     if (window)
         return [window backingScaleFactor];
+    if (hostWindow)
+        return [hostWindow backingScaleFactor];
     return [[NSScreen mainScreen] backingScaleFactor];
 #else
     if (window)
         return [window userSpaceScaleFactor];
+    if (hostWindow)
+        return [hostWindow userSpaceScaleFactor];
     return [[NSScreen mainScreen] userSpaceScaleFactor];
 #endif
 }

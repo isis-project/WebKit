@@ -33,6 +33,7 @@ import subprocess
 import time
 
 from webkitpy.common.system.crashlogs import CrashLogs
+from webkitpy.common.system.executive import ScriptError
 from webkitpy.layout_tests.port.apple import ApplePort
 from webkitpy.layout_tests.port.leakdetector import LeakDetector
 
@@ -175,26 +176,42 @@ class MacPort(ApplePort):
     def release_http_lock(self):
         pass
 
-    def _get_crash_log(self, name, pid, stdout, stderr):
+    def _get_crash_log(self, name, pid, stdout, stderr, newer_than, time_fn=None, sleep_fn=None):
         # Note that we do slow-spin here and wait, since it appears the time
         # ReportCrash takes to actually write and flush the file varies when there are
         # lots of simultaneous crashes going on.
         # FIXME: Should most of this be moved into CrashLogs()?
+        time_fn = time_fn or time.time
+        sleep_fn = sleep_fn or time.sleep
         crash_log = ''
-        crash_logs = CrashLogs(self._filesystem)
-        now = time.time()
+        crash_logs = CrashLogs(self.host)
+        now = time_fn()
         # FIXME: delete this after we're sure this code is working ...
         _log.debug('looking for crash log for %s:%s' % (name, str(pid)))
-        deadline = now + 5 * int(self.get_option('child_processes'))
+        deadline = now + 5 * int(self.get_option('child_processes', 1))
         while not crash_log and now <= deadline:
-            crash_log = crash_logs.find_newest_log(name, pid, include_errors=True)
+            crash_log = crash_logs.find_newest_log(name, pid, include_errors=True, newer_than=newer_than)
             if not crash_log or not [line for line in crash_log.splitlines() if not line.startswith('ERROR')]:
-                time.sleep(0.1)
-                now = time.time()
+                sleep_fn(0.1)
+                now = time_fn()
         if not crash_log:
             crash_log = 'no crash log found for %s:%d' % (name, pid)
             _log.warning(crash_log)
         return crash_log
+
+    def sample_process(self, name, pid):
+        try:
+            hang_report = self._filesystem.join(self.results_directory(), "%s-%s.sample.txt" % (name, pid))
+            self._executive.run_command([
+                "/usr/bin/sample",
+                pid,
+                10,
+                10,
+                "-file",
+                hang_report,
+            ])
+        except ScriptError, e:
+            _log.warning('Unable to sample process.')
 
     def _path_to_helper(self):
         binary_name = 'LayoutTestHelper'

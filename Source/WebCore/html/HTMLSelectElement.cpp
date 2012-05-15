@@ -41,6 +41,7 @@
 #include "HTMLOptionElement.h"
 #include "HTMLOptionsCollection.h"
 #include "KeyboardEvent.h"
+#include "LocalizedStrings.h"
 #include "MouseEvent.h"
 #include "NodeRenderingContext.h"
 #include "Page.h"
@@ -145,8 +146,22 @@ bool HTMLSelectElement::hasPlaceholderLabelOption() const
     return !listIndex && option->value().isEmpty();
 }
 
+String HTMLSelectElement::validationMessage() const
+{
+    if (!willValidate())
+        return String();
+
+    if (customError())
+        return customValidationMessage();
+
+    return valueMissing() ? validationMessageValueMissingForSelectText() : String();
+}
+
 bool HTMLSelectElement::valueMissing() const
 {
+    if (!willValidate())
+        return false;
+
     if (!isRequiredFormControl())
         return false;
 
@@ -276,8 +291,11 @@ void HTMLSelectElement::parseAttribute(Attribute* attr)
         // This is important since the style rules for this attribute can determine the appearance property.
         int size = attr->value().toInt();
         String attrSize = String::number(size);
-        if (attrSize != attr->value())
-            attr->setValue(attrSize);
+        if (attrSize != attr->value()) {
+            // FIXME: This is horribly factored.
+            if (Attribute* sizeAttribute = getAttributeItem(sizeAttr))
+                sizeAttribute->setValue(attrSize);
+        }
         size = max(size, 1);
 
         // Ensure that we've determined selectedness of the items at least once prior to changing the size.
@@ -410,7 +428,7 @@ void HTMLSelectElement::setOption(unsigned index, HTMLOptionElement* option, Exc
     if (index > maxSelectItems - 1)
         index = maxSelectItems - 1;
     int diff = index - length();
-    HTMLElement* before = 0;
+    RefPtr<HTMLElement> before = 0;
     // Out of array bounds? First insert empty dummies.
     if (diff > 0) {
         setLength(index, ec);
@@ -421,7 +439,7 @@ void HTMLSelectElement::setOption(unsigned index, HTMLOptionElement* option, Exc
     }
     // Finally add the new element.
     if (!ec) {
-        add(option, before, ec);
+        add(option, before.get(), ec);
         if (diff >= 0 && option->selected())
             optionSelectionStateChanged(option, true);
     }
@@ -1472,13 +1490,14 @@ void HTMLSelectElement::typeAheadFind(KeyboardEvent* event)
     }
 }
 
-void HTMLSelectElement::insertedIntoTree(bool deep)
+Node::InsertionNotificationRequest HTMLSelectElement::insertedInto(Node* insertionPoint)
 {
     // When the element is created during document parsing, it won't have any
     // items yet - but for innerHTML and related methods, this method is called
     // after the whole subtree is constructed.
     recalcListItems();
-    HTMLFormControlElementWithState::insertedIntoTree(deep);
+    HTMLFormControlElementWithState::insertedInto(insertionPoint);
+    return InsertionDone;
 }
 
 void HTMLSelectElement::accessKeySetSelectedIndex(int index)

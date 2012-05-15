@@ -160,6 +160,10 @@ public:
     virtual bool getHBITMAPOfSize(HBITMAP, LPSIZE);
 #endif
 
+#if USE(CAIRO)
+    static PassRefPtr<BitmapImage> create(cairo_surface_t*);
+#endif
+
 #if PLATFORM(GTK)
     virtual GdkPixbuf* getGdkPixbuf();
 #endif
@@ -250,7 +254,6 @@ protected:
     bool internalAdvanceAnimation(bool skippingFrames);
 
     // Handle platform-specific data
-    void initPlatformData();
     void invalidatePlatformData();
     
     // Checks to see if the image is a 1x1 solid color.  We optimize these images and just do a fill rect instead.

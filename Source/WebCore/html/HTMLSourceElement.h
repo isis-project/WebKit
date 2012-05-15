@@ -49,9 +49,9 @@ public:
 private:
     HTMLSourceElement(const QualifiedName&, Document*);
     
-    virtual void insertedIntoTree(bool);
-    virtual void willRemove();
-    virtual bool isURLAttribute(Attribute*) const;
+    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
+    virtual void removedFrom(Node*) OVERRIDE;
+    virtual bool isURLAttribute(const Attribute&) const OVERRIDE;
 
     void errorEventTimerFired(Timer<HTMLSourceElement>*);
 

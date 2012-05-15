@@ -43,11 +43,14 @@
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
 #include "Language.h"
-#include "LocalizedCalendar.h"
+#include "LocalizedDate.h"
 #include "LocalizedStrings.h"
 #include "Page.h"
 #include "RenderDetailsMarker.h"
+#include "RenderTheme.h"
 #include <wtf/text/StringBuilder.h>
+
+using namespace WTF::Unicode;
 
 namespace WebCore {
 
@@ -55,6 +58,7 @@ using namespace HTMLNames;
 
 inline CalendarPickerElement::CalendarPickerElement(Document* document)
     : HTMLDivElement(divTag, document)
+    , m_popup(0)
 {
     setShadowPseudoId("-webkit-calendar-picker-indicator");
 }
@@ -62,6 +66,12 @@ inline CalendarPickerElement::CalendarPickerElement(Document* document)
 PassRefPtr<CalendarPickerElement> CalendarPickerElement::create(Document* document)
 {
     return adoptRef(new CalendarPickerElement(document));
+}
+
+CalendarPickerElement::~CalendarPickerElement()
+{
+    closePopup();
+    ASSERT(!m_popup);
 }
 
 RenderObject* CalendarPickerElement::createRenderer(RenderArena* arena, RenderStyle*)
@@ -102,7 +112,7 @@ void CalendarPickerElement::openPopup()
         return;
     if (!document()->view())
         return;
-    IntRect elementRectInRootView = document()->view()->contentsToRootView(hostInput()->getRect());
+    IntRect elementRectInRootView = document()->view()->contentsToRootView(hostInput()->getPixelSnappedRect());
     m_popup = chrome->client()->openPagePopup(this, elementRectInRootView);
 }
 
@@ -126,7 +136,7 @@ void CalendarPickerElement::detach()
 
 IntSize CalendarPickerElement::contentSize()
 {
-    return IntSize(320, 256);
+    return IntSize(100, 100);
 }
 
 #define addLiteral(literal, writer)    writer.addData(literal, sizeof(literal) - 1)
@@ -159,6 +169,25 @@ static void addProperty(const char* name, const String& value, DocumentWriter& w
     addLiteral(",\n", writer);
 }
 
+static void addProperty(const char* name, unsigned value, DocumentWriter& writer)
+{
+    writer.addData(name, strlen(name));
+    addLiteral(": ", writer);
+    addString(String::number(value), writer);
+    addLiteral(",\n", writer);
+}
+
+static void addProperty(const char* name, bool value, DocumentWriter& writer)
+{
+    writer.addData(name, strlen(name));
+    addLiteral(": ", writer);
+    if (value)
+        addLiteral("true", writer);
+    else
+        addLiteral("false", writer);
+    addLiteral(",\n", writer);
+}
+
 static void addProperty(const char* name, const Vector<String>& values, DocumentWriter& writer)
 {
     writer.addData(name, strlen(name));
@@ -186,19 +215,26 @@ void CalendarPickerElement::writeDocument(DocumentWriter& writer)
 
     addLiteral("<!DOCTYPE html><head><meta charset='UTF-8'><style>\n", writer);
     writer.addData(calendarPickerCss, sizeof(calendarPickerCss));
+    if (document()->page()) {
+        CString extraStyle = document()->page()->theme()->extraCalendarPickerStyleSheet();
+        if (extraStyle.length())
+            writer.addData(extraStyle.data(), extraStyle.length());
+    }
     addLiteral("</style></head><body><div id=main>Loading...</div><script>\n"
                "window.dialogArguments = {\n", writer);
     addProperty("min", minString, writer);
     addProperty("max", maxString, writer);
     addProperty("step", stepString, writer);
-    addProperty("required", input->required() ? "true" : "false", writer);
+    addProperty("required", input->required(), writer);
     addProperty("currentValue", input->value(), writer);
     addProperty("locale", defaultLanguage(), writer);
     addProperty("todayLabel", calendarTodayText(), writer);
     addProperty("clearLabel", calendarClearText(), writer);
-    addProperty("weekStartDay", String::number(firstDayOfWeek()), writer);
+    addProperty("weekStartDay", firstDayOfWeek(), writer);
     addProperty("monthLabels", monthLabels(), writer);
     addProperty("dayLabels", weekDayShortLabels(), writer);
+    Direction dir = direction(monthLabels()[0][0]);
+    addProperty("isRTL", dir == RightToLeft || dir == RightToLeftArabic, writer);
     addLiteral("}\n", writer);
 
     writer.addData(calendarPickerJs, sizeof(calendarPickerJs));

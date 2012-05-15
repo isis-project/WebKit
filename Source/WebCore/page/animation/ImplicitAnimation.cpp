@@ -29,12 +29,12 @@
 #include "config.h"
 
 #include "AnimationControllerPrivate.h"
+#include "CSSPropertyAnimation.h"
 #include "CompositeAnimation.h"
 #include "EventNames.h"
 #include "ImplicitAnimation.h"
 #include "KeyframeAnimation.h"
-#include "RenderLayer.h"
-#include "RenderLayerBacking.h"
+#include "RenderBoxModelObject.h"
 #include <wtf/UnusedParam.h>
 
 namespace WebCore {
@@ -78,7 +78,7 @@ void ImplicitAnimation::animate(CompositeAnimation*, RenderObject*, const Render
     if (!animatedStyle)
         animatedStyle = RenderStyle::clone(targetStyle);
 
-    bool needsAnim = blendProperties(this, m_animatingProperty, animatedStyle.get(), m_fromStyle.get(), m_toStyle.get(), progress(1, 0, 0));
+    bool needsAnim = CSSPropertyAnimation::blendProperties(this, m_animatingProperty, animatedStyle.get(), m_fromStyle.get(), m_toStyle.get(), progress(1, 0, 0));
     // FIXME: we also need to detect cases where we have to software animate for other reasons,
     // such as a child using inheriting the transform. https://bugs.webkit.org/show_bug.cgi?id=23902
     if (needsAnim)
@@ -102,17 +102,14 @@ void ImplicitAnimation::getAnimatedStyle(RefPtr<RenderStyle>& animatedStyle)
     if (!animatedStyle)
         animatedStyle = RenderStyle::clone(m_toStyle.get());
 
-    blendProperties(this, m_animatingProperty, animatedStyle.get(), m_fromStyle.get(), m_toStyle.get(), progress(1, 0, 0));
+    CSSPropertyAnimation::blendProperties(this, m_animatingProperty, animatedStyle.get(), m_fromStyle.get(), m_toStyle.get(), progress(1, 0, 0));
 }
 
 bool ImplicitAnimation::startAnimation(double timeOffset)
 {
 #if USE(ACCELERATED_COMPOSITING)
-    if (m_object && m_object->hasLayer()) {
-        RenderLayer* layer = toRenderBoxModelObject(m_object)->layer();
-        if (layer->isComposited())
-            return layer->backing()->startTransition(timeOffset, m_animatingProperty, m_fromStyle.get(), m_toStyle.get());
-    }
+    if (m_object && m_object->isComposited())
+        return toRenderBoxModelObject(m_object)->startTransition(timeOffset, m_animatingProperty, m_fromStyle.get(), m_toStyle.get());
 #else
     UNUSED_PARAM(timeOffset);
 #endif
@@ -125,11 +122,8 @@ void ImplicitAnimation::pauseAnimation(double timeOffset)
         return;
 
 #if USE(ACCELERATED_COMPOSITING)
-    if (m_object->hasLayer()) {
-        RenderLayer* layer = toRenderBoxModelObject(m_object)->layer();
-        if (layer->isComposited())
-            layer->backing()->transitionPaused(timeOffset, m_animatingProperty);
-    }
+    if (m_object->isComposited())
+        toRenderBoxModelObject(m_object)->transitionPaused(timeOffset, m_animatingProperty);
 #else
     UNUSED_PARAM(timeOffset);
 #endif
@@ -141,11 +135,8 @@ void ImplicitAnimation::pauseAnimation(double timeOffset)
 void ImplicitAnimation::endAnimation()
 {
 #if USE(ACCELERATED_COMPOSITING)
-    if (m_object && m_object->hasLayer()) {
-        RenderLayer* layer = toRenderBoxModelObject(m_object)->layer();
-        if (layer->isComposited())
-            layer->backing()->transitionFinished(m_animatingProperty);
-    }
+    if (m_object && m_object->isComposited())
+        toRenderBoxModelObject(m_object)->transitionFinished(m_animatingProperty);
 #endif
 }
 
@@ -233,7 +224,7 @@ bool ImplicitAnimation::isTargetPropertyEqual(CSSPropertyID prop, const RenderSt
     // So we check that here (see <https://bugs.webkit.org/show_bug.cgi?id=26706>)
     if (!m_toStyle)
         return false;
-    return propertiesEqual(prop, m_toStyle.get(), targetStyle);
+    return CSSPropertyAnimation::propertiesEqual(prop, m_toStyle.get(), targetStyle);
 }
 
 void ImplicitAnimation::blendPropertyValueInStyle(CSSPropertyID prop, RenderStyle* currentStyle)
@@ -244,7 +235,7 @@ void ImplicitAnimation::blendPropertyValueInStyle(CSSPropertyID prop, RenderStyl
     if (!m_toStyle)
         return;
         
-    blendProperties(this, prop, currentStyle, m_fromStyle.get(), m_toStyle.get(), progress(1, 0, 0));
+    CSSPropertyAnimation::blendProperties(this, prop, currentStyle, m_fromStyle.get(), m_toStyle.get(), progress(1, 0, 0));
 }
 
 void ImplicitAnimation::validateTransformFunctionList()
@@ -306,7 +297,7 @@ double ImplicitAnimation::timeToNextService()
         
     // A return value of 0 means we need service. But if this is an accelerated animation we 
     // only need service at the end of the transition.
-    if (animationOfPropertyIsAccelerated(m_animatingProperty) && isAccelerated()) {
+    if (CSSPropertyAnimation::animationOfPropertyIsAccelerated(m_animatingProperty) && isAccelerated()) {
         bool isLooping;
         getTimeToNextEvent(t, isLooping);
     }

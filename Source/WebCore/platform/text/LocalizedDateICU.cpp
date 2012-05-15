@@ -31,14 +31,9 @@
 #include "config.h"
 #include "LocalizedDate.h"
 
-#include "Language.h"
+#include "LocaleICU.h"
 #include <limits>
-#include <unicode/udat.h>
-#include <wtf/OwnPtr.h>
-#include <wtf/PassOwnPtr.h>
-#include <wtf/text/CString.h>
 
-using namespace icu;
 using namespace std;
 
 namespace WebCore {
@@ -46,23 +41,8 @@ namespace WebCore {
 double parseLocalizedDate(const String& input, DateComponents::Type type)
 {
     switch (type) {
-    case DateComponents::Date: {
-        if (input.length() > static_cast<unsigned>(numeric_limits<int32_t>::max()))
-            break;
-        int32_t inputLength = static_cast<int32_t>(input.length());
-        UErrorCode status = U_ZERO_ERROR;
-        UDateFormat* dateFormat = udat_open(UDAT_NONE, UDAT_SHORT, defaultLanguage().utf8().data(), 0, -1, 0, -1, &status);
-        if (!dateFormat)
-            break;
-        status = U_ZERO_ERROR;
-        int32_t parsePosition = 0;
-        UDate date = udat_parse(dateFormat, input.characters(), inputLength, &parsePosition, &status);
-        udat_close(dateFormat);
-        if (parsePosition != inputLength || U_FAILURE(status))
-            break;
-        // UDate, which is an alias of double, is compatible with our expectation.
-        return date;
-    }
+    case DateComponents::Date:
+        return LocaleICU::currentLocale()->parseLocalizedDate(input);
     case DateComponents::DateTime:
     case DateComponents::DateTimeLocal:
     case DateComponents::Month:
@@ -77,25 +57,8 @@ double parseLocalizedDate(const String& input, DateComponents::Type type)
 String formatLocalizedDate(const DateComponents& dateComponents)
 {
     switch (dateComponents.type()) {
-    case DateComponents::Date: {
-        UErrorCode status = U_ZERO_ERROR;
-        UDateFormat* dateFormat = udat_open(UDAT_NONE, UDAT_SHORT, defaultLanguage().utf8().data(), 0, -1, 0, -1, &status);
-        if (!dateFormat)
-            break;
-        double input = dateComponents.millisecondsSinceEpoch();
-        int32_t length = udat_format(dateFormat, input, 0, 0, 0, &status);
-        if (status != U_BUFFER_OVERFLOW_ERROR) {
-            udat_close(dateFormat);
-            break;
-        }
-        Vector<UChar> buffer(length);
-        status = U_ZERO_ERROR;
-        udat_format(dateFormat, input, buffer.data(), length, 0, &status);
-        udat_close(dateFormat);
-        if (U_FAILURE(status))
-            break;
-        return String::adopt(buffer);
-    }
+    case DateComponents::Date:
+        return LocaleICU::currentLocale()->formatLocalizedDate(dateComponents);
     case DateComponents::DateTime:
     case DateComponents::DateTimeLocal:
     case DateComponents::Month:
@@ -106,5 +69,27 @@ String formatLocalizedDate(const DateComponents& dateComponents)
     }
     return String();
 }
+
+#if ENABLE(CALENDAR_PICKER)
+String localizedDateFormatText()
+{
+    return LocaleICU::currentLocale()->localizedDateFormatText();
+}
+
+const Vector<String>& monthLabels()
+{
+    return LocaleICU::currentLocale()->monthLabels();
+}
+
+const Vector<String>& weekDayShortLabels()
+{
+    return LocaleICU::currentLocale()->weekDayShortLabels();
+}
+
+unsigned firstDayOfWeek()
+{
+    return LocaleICU::currentLocale()->firstDayOfWeek();
+}
+#endif
 
 }

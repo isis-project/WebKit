@@ -31,6 +31,7 @@
 #include "ScriptValue.h"
 
 #include "InspectorValues.h"
+#include "JSDOMBinding.h"
 #include "SerializedScriptValue.h"
 
 #include <JavaScriptCore/APICast.h>
@@ -103,6 +104,14 @@ bool ScriptValue::isFunction() const
 PassRefPtr<SerializedScriptValue> ScriptValue::serialize(ScriptState* scriptState, SerializationErrorMode throwExceptions)
 {
     return SerializedScriptValue::create(scriptState, jsValue(), 0, 0, throwExceptions);
+}
+
+PassRefPtr<SerializedScriptValue> ScriptValue::serialize(ScriptState* scriptState, MessagePortArray* messagePorts, ArrayBufferArray* arrayBuffers, bool& didThrow)
+{
+    JSValueRef exception = 0;
+    RefPtr<SerializedScriptValue> serializedValue = SerializedScriptValue::create(toRef(scriptState), toRef(scriptState, jsValue()), messagePorts, arrayBuffers, &exception);
+    didThrow = exception ? true : false;
+    return serializedValue.release();
 }
 
 ScriptValue ScriptValue::deserialize(ScriptState* scriptState, SerializedScriptValue* value, SerializationErrorMode throwExceptions)

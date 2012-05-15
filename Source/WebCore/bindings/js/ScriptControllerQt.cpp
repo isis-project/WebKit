@@ -38,8 +38,8 @@
 
 #include "BridgeJSC.h"
 #include "DOMWindow.h"
-#include "PluginView.h"
 #include "qt_instance.h"
+#include "PluginView.h"
 #include "runtime_root.h"
 
 namespace WebCore {

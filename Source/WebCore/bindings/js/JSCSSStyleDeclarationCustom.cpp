@@ -34,6 +34,7 @@
 #include "JSCSSValue.h"
 #include "JSNode.h"
 #include "PlatformString.h"
+#include "Settings.h"
 #include "StylePropertySet.h"
 #include <runtime/StringPrototype.h>
 #include <wtf/ASCIICType.h>
@@ -70,9 +71,13 @@ enum PropertyNamePrefix
     PropertyNamePrefixCSS,
     PropertyNamePrefixPixel,
     PropertyNamePrefixPos,
+#if ENABLE(LEGACY_CSS_VENDOR_PREFIXES)
     PropertyNamePrefixApple,
+#endif
     PropertyNamePrefixEpub,
+#if ENABLE(LEGACY_CSS_VENDOR_PREFIXES)
     PropertyNamePrefixKHTML,
+#endif
     PropertyNamePrefixWebKit
 };
 
@@ -113,18 +118,22 @@ static PropertyNamePrefix getCSSPropertyNamePrefix(const StringImpl& propertyNam
     // First character of the prefix within the property name may be upper or lowercase.
     UChar firstChar = toASCIILower(propertyName[0]);
     switch (firstChar) {
+#if ENABLE(LEGACY_CSS_VENDOR_PREFIXES)
     case 'a':
         if (matchesCSSPropertyNamePrefix(propertyName, "apple"))
             return PropertyNamePrefixApple;
         break;
+#endif
     case 'c':
         if (matchesCSSPropertyNamePrefix(propertyName, "css"))
             return PropertyNamePrefixCSS;
         break;
+#if ENABLE(LEGACY_CSS_VENDOR_PREFIXES)
     case 'k':
         if (matchesCSSPropertyNamePrefix(propertyName, "khtml"))
             return PropertyNamePrefixKHTML;
         break;
+#endif
     case 'e':
         if (matchesCSSPropertyNamePrefix(propertyName, "epub"))
             return PropertyNamePrefixEpub;
@@ -167,16 +176,16 @@ static inline void writeEpubPrefix(char*& buffer)
     *buffer++ = '-';
 }
 
-static CSSPropertyInfo cssPropertyIDForJSCSSPropertyName(const Identifier& propertyName)
+static CSSPropertyInfo cssPropertyIDForJSCSSPropertyName(PropertyName propertyName)
 {
     CSSPropertyInfo propertyInfo = {CSSPropertyInvalid, false};
     bool hadPixelOrPosPrefix = false;
 
-    unsigned length = propertyName.length();
+    StringImpl* propertyNameString = propertyName.impl();
+    unsigned length = propertyNameString->length();
     if (!length)
         return propertyInfo;
 
-    StringImpl* propertyNameString = propertyName.impl();
     String stringForCache = String(propertyNameString);
     typedef HashMap<String, CSSPropertyInfo> CSSPropertyInfoMap;
     DEFINE_STATIC_LOCAL(CSSPropertyInfoMap, propertyInfoCache, ());
@@ -209,11 +218,13 @@ static CSSPropertyInfo cssPropertyIDForJSCSSPropertyName(const Identifier& prope
         i += 3;
         hadPixelOrPosPrefix = true;
         break;
+#if ENABLE(LEGACY_CSS_VENDOR_PREFIXES)
     case PropertyNamePrefixApple:
     case PropertyNamePrefixKHTML:
         writeWebKitPrefix(bufferPtr);
         i += 5;
         break;
+#endif
     case PropertyNamePrefixEpub:
         writeEpubPrefix(bufferPtr);
         i += 4;
@@ -309,7 +320,7 @@ static JSValue cssPropertyGetterCallback(ExecState* exec, JSValue slotBase, unsi
     return cssPropertyGetter(exec, jsCast<JSCSSStyleDeclaration*>(asObject(slotBase)), propertyID);
 }
 
-bool JSCSSStyleDeclaration::getOwnPropertySlotDelegate(ExecState*, const Identifier& propertyIdentifier, PropertySlot& slot)
+bool JSCSSStyleDeclaration::getOwnPropertySlotDelegate(ExecState*, PropertyName propertyIdentifier, PropertySlot& slot)
 {
     CSSPropertyInfo propertyInfo = cssPropertyIDForJSCSSPropertyName(propertyIdentifier);
     if (!propertyInfo.propertyID)
@@ -322,7 +333,7 @@ bool JSCSSStyleDeclaration::getOwnPropertySlotDelegate(ExecState*, const Identif
     return true;
 }
 
-bool JSCSSStyleDeclaration::getOwnPropertyDescriptorDelegate(JSC::ExecState* exec, const JSC::Identifier& propertyIdentifier, JSC::PropertyDescriptor& descriptor)
+bool JSCSSStyleDeclaration::getOwnPropertyDescriptorDelegate(JSC::ExecState* exec, JSC::PropertyName propertyIdentifier, JSC::PropertyDescriptor& descriptor)
 {
     CSSPropertyInfo propertyInfo = cssPropertyIDForJSCSSPropertyName(propertyIdentifier);
     if (!propertyInfo.propertyID)
@@ -337,7 +348,7 @@ bool JSCSSStyleDeclaration::getOwnPropertyDescriptorDelegate(JSC::ExecState* exe
     return true;
 }
 
-bool JSCSSStyleDeclaration::putDelegate(ExecState* exec, const Identifier& propertyName, JSValue value, PutPropertySlot&)
+bool JSCSSStyleDeclaration::putDelegate(ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot&)
 {
     CSSPropertyInfo propertyInfo = cssPropertyIDForJSCSSPropertyName(propertyName);
     if (!propertyInfo.propertyID)
@@ -346,8 +357,18 @@ bool JSCSSStyleDeclaration::putDelegate(ExecState* exec, const Identifier& prope
     String propValue = valueToStringWithNullCheck(exec, value);
     if (propertyInfo.hadPixelOrPosPrefix)
         propValue += "px";
+
+    bool important = false;
+    if (Settings::shouldRespectPriorityInCSSAttributeSetters()) {
+        size_t importantIndex = propValue.find("!important", 0, false);
+        if (importantIndex != notFound) {
+            important = true;
+            propValue = propValue.left(importantIndex - 1);
+        }
+    }
+
     ExceptionCode ec = 0;
-    impl()->setPropertyInternal(static_cast<CSSPropertyID>(propertyInfo.propertyID), propValue, false, ec);
+    impl()->setPropertyInternal(static_cast<CSSPropertyID>(propertyInfo.propertyID), propValue, important, ec);
     setDOMException(exec, ec);
     return true;
 }

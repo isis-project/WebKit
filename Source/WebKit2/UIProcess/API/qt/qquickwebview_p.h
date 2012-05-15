@@ -28,7 +28,7 @@
 #include <private/qquickflickable_p.h>
 
 class QWebNavigationRequest;
-class QDeclarativeComponent;
+class QQmlComponent;
 class QQuickWebPage;
 class QQuickWebViewAttached;
 class QWebLoadRequest;
@@ -38,7 +38,7 @@ class QWebDownloadItem;
 class QWebNavigationHistory;
 class QWebPreferences;
 class QWebPermissionRequest;
-class QWebViewportInfo;
+class QWebKitTest;
 class QQuickNetworkReply;
 
 namespace WTR {
@@ -48,6 +48,9 @@ class PlatformWebView;
 namespace WebKit {
 class QtRefCountedNetworkRequestData;
 class QtViewportInteractionEngine;
+class QtWebPageLoadClient;
+class QtWebPagePolicyClient;
+class QtWebPageUIClient;
 }
 
 namespace WTF {
@@ -62,11 +65,12 @@ QT_BEGIN_NAMESPACE
 class QPainter;
 class QUrl;
 class QQuickFlickable;
+class QJSValue;
 QT_END_NAMESPACE
 
 
 // Instantiating the WebView in C++ is only possible by creating
-// a QDeclarativeComponent as the initialization depends on the
+// a QQmlComponent as the initialization depends on the
 // componentComplete method being called.
 class QWEBKIT_EXPORT QQuickWebView : public QQuickFlickable {
     Q_OBJECT
@@ -141,6 +145,14 @@ public:
     void updateContentsSize(const QSizeF&);
     QPointF pageItemPos();
 
+    // Private C++-only API.
+    qreal zoomFactor() const;
+    void setZoomFactor(qreal);
+    void runJavaScriptInMainFrame(const QString& script, QObject* receiver, const char* method);
+    // Used to automatically accept the HTTPS certificate in WTR. No other use intended.
+    bool allowAnyHTTPSCertificateForLocalHost() const;
+    void setAllowAnyHTTPSCertificateForLocalHost(bool allow);
+
 public Q_SLOTS:
     void loadHtml(const QString& html, const QUrl& baseUrl = QUrl());
 
@@ -208,9 +220,9 @@ private:
     QQuickWebViewExperimental* m_experimental;
 
     friend class WebKit::QtViewportInteractionEngine;
-    friend class QtWebPageLoadClient;
-    friend class QtWebPagePolicyClient;
-    friend class QtWebPageUIClient;
+    friend class WebKit::QtWebPageLoadClient;
+    friend class WebKit::QtWebPagePolicyClient;
+    friend class WebKit::QtWebPageUIClient;
     friend class WTR::PlatformWebView;
     friend class QQuickWebViewExperimental;
 };
@@ -241,21 +253,23 @@ class QWEBKIT_EXPORT QQuickWebViewExperimental : public QObject {
 
     Q_PROPERTY(bool transparentBackground WRITE setTransparentBackground READ transparentBackground)
     Q_PROPERTY(bool useDefaultContentItemSize WRITE setUseDefaultContentItemSize READ useDefaultContentItemSize)
+    Q_PROPERTY(int preferredMinimumContentsWidth WRITE setPreferredMinimumContentsWidth READ preferredMinimumContentsWidth)
 
     Q_PROPERTY(QWebNavigationHistory* navigationHistory READ navigationHistory CONSTANT FINAL)
-    Q_PROPERTY(QDeclarativeComponent* alertDialog READ alertDialog WRITE setAlertDialog NOTIFY alertDialogChanged)
-    Q_PROPERTY(QDeclarativeComponent* confirmDialog READ confirmDialog WRITE setConfirmDialog NOTIFY confirmDialogChanged)
-    Q_PROPERTY(QDeclarativeComponent* promptDialog READ promptDialog WRITE setPromptDialog NOTIFY promptDialogChanged)
-    Q_PROPERTY(QDeclarativeComponent* authenticationDialog READ authenticationDialog WRITE setAuthenticationDialog NOTIFY authenticationDialogChanged)
-    Q_PROPERTY(QDeclarativeComponent* proxyAuthenticationDialog READ proxyAuthenticationDialog WRITE setProxyAuthenticationDialog NOTIFY proxyAuthenticationDialogChanged)
-    Q_PROPERTY(QDeclarativeComponent* certificateVerificationDialog READ certificateVerificationDialog WRITE setCertificateVerificationDialog NOTIFY certificateVerificationDialogChanged)
-    Q_PROPERTY(QDeclarativeComponent* itemSelector READ itemSelector WRITE setItemSelector NOTIFY itemSelectorChanged)
-    Q_PROPERTY(QDeclarativeComponent* filePicker READ filePicker WRITE setFilePicker NOTIFY filePickerChanged)
-    Q_PROPERTY(QDeclarativeComponent* databaseQuotaDialog READ databaseQuotaDialog WRITE setDatabaseQuotaDialog NOTIFY databaseQuotaDialogChanged)
+    Q_PROPERTY(QQmlComponent* alertDialog READ alertDialog WRITE setAlertDialog NOTIFY alertDialogChanged)
+    Q_PROPERTY(QQmlComponent* confirmDialog READ confirmDialog WRITE setConfirmDialog NOTIFY confirmDialogChanged)
+    Q_PROPERTY(QQmlComponent* promptDialog READ promptDialog WRITE setPromptDialog NOTIFY promptDialogChanged)
+    Q_PROPERTY(QQmlComponent* authenticationDialog READ authenticationDialog WRITE setAuthenticationDialog NOTIFY authenticationDialogChanged)
+    Q_PROPERTY(QQmlComponent* proxyAuthenticationDialog READ proxyAuthenticationDialog WRITE setProxyAuthenticationDialog NOTIFY proxyAuthenticationDialogChanged)
+    Q_PROPERTY(QQmlComponent* certificateVerificationDialog READ certificateVerificationDialog WRITE setCertificateVerificationDialog NOTIFY certificateVerificationDialogChanged)
+    Q_PROPERTY(QQmlComponent* itemSelector READ itemSelector WRITE setItemSelector NOTIFY itemSelectorChanged)
+    Q_PROPERTY(QQmlComponent* filePicker READ filePicker WRITE setFilePicker NOTIFY filePickerChanged)
+    Q_PROPERTY(QQmlComponent* databaseQuotaDialog READ databaseQuotaDialog WRITE setDatabaseQuotaDialog NOTIFY databaseQuotaDialogChanged)
     Q_PROPERTY(QWebPreferences* preferences READ preferences CONSTANT FINAL)
-    Q_PROPERTY(QWebViewportInfo* viewportInfo READ viewportInfo CONSTANT FINAL)
-    Q_PROPERTY(QDeclarativeListProperty<QQuickUrlSchemeDelegate> urlSchemeDelegates READ schemeDelegates)
+    Q_PROPERTY(QWebKitTest* test READ test CONSTANT FINAL)
+    Q_PROPERTY(QQmlListProperty<QQuickUrlSchemeDelegate> urlSchemeDelegates READ schemeDelegates)
     Q_PROPERTY(QString userAgent READ userAgent WRITE setUserAgent NOTIFY userAgentChanged)
+    Q_PROPERTY(double devicePixelRatio READ devicePixelRatio WRITE setDevicePixelRatio NOTIFY devicePixelRatioChanged)
     Q_ENUMS(NavigationRequestActionExperimental)
 
 public:
@@ -266,38 +280,40 @@ public:
     QQuickWebViewExperimental(QQuickWebView* webView);
     virtual ~QQuickWebViewExperimental();
 
-    QDeclarativeComponent* alertDialog() const;
-    void setAlertDialog(QDeclarativeComponent*);
-    QDeclarativeComponent* confirmDialog() const;
-    void setConfirmDialog(QDeclarativeComponent*);
-    QDeclarativeComponent* promptDialog() const;
-    void setPromptDialog(QDeclarativeComponent*);
-    QDeclarativeComponent* authenticationDialog() const;
-    void setAuthenticationDialog(QDeclarativeComponent*);
-    QDeclarativeComponent* certificateVerificationDialog() const;
-    void setCertificateVerificationDialog(QDeclarativeComponent*);
-    QDeclarativeComponent* itemSelector() const;
-    void setItemSelector(QDeclarativeComponent*);
-    QDeclarativeComponent* proxyAuthenticationDialog() const;
-    void setProxyAuthenticationDialog(QDeclarativeComponent*);
-    QDeclarativeComponent* filePicker() const;
-    void setFilePicker(QDeclarativeComponent*);
-    QDeclarativeComponent* databaseQuotaDialog() const;
-    void setDatabaseQuotaDialog(QDeclarativeComponent*);
+    QQmlComponent* alertDialog() const;
+    void setAlertDialog(QQmlComponent*);
+    QQmlComponent* confirmDialog() const;
+    void setConfirmDialog(QQmlComponent*);
+    QQmlComponent* promptDialog() const;
+    void setPromptDialog(QQmlComponent*);
+    QQmlComponent* authenticationDialog() const;
+    void setAuthenticationDialog(QQmlComponent*);
+    QQmlComponent* certificateVerificationDialog() const;
+    void setCertificateVerificationDialog(QQmlComponent*);
+    QQmlComponent* itemSelector() const;
+    void setItemSelector(QQmlComponent*);
+    QQmlComponent* proxyAuthenticationDialog() const;
+    void setProxyAuthenticationDialog(QQmlComponent*);
+    QQmlComponent* filePicker() const;
+    void setFilePicker(QQmlComponent*);
+    QQmlComponent* databaseQuotaDialog() const;
+    void setDatabaseQuotaDialog(QQmlComponent*);
     QString userAgent() const;
     void setUserAgent(const QString& userAgent);
+    double devicePixelRatio() const;
+    void setDevicePixelRatio(double);
 
-    QWebViewportInfo* viewportInfo();
+    QWebKitTest* test();
 
     QWebPreferences* preferences() const;
     QWebNavigationHistory* navigationHistory() const;
     QQuickWebPage* page();
 
-    static QQuickUrlSchemeDelegate* schemeDelegates_At(QDeclarativeListProperty<QQuickUrlSchemeDelegate>*, int index);
-    static void schemeDelegates_Append(QDeclarativeListProperty<QQuickUrlSchemeDelegate>*, QQuickUrlSchemeDelegate*);
-    static int schemeDelegates_Count(QDeclarativeListProperty<QQuickUrlSchemeDelegate>*);
-    static void schemeDelegates_Clear(QDeclarativeListProperty<QQuickUrlSchemeDelegate>*);
-    QDeclarativeListProperty<QQuickUrlSchemeDelegate> schemeDelegates();
+    static QQuickUrlSchemeDelegate* schemeDelegates_At(QQmlListProperty<QQuickUrlSchemeDelegate>*, int index);
+    static void schemeDelegates_Append(QQmlListProperty<QQuickUrlSchemeDelegate>*, QQuickUrlSchemeDelegate*);
+    static int schemeDelegates_Count(QQmlListProperty<QQuickUrlSchemeDelegate>*);
+    static void schemeDelegates_Clear(QQmlListProperty<QQuickUrlSchemeDelegate>*);
+    QQmlListProperty<QQuickUrlSchemeDelegate> schemeDelegates();
     void invokeApplicationSchemeHandler(WTF::PassRefPtr<WebKit::QtRefCountedNetworkRequestData>);
     void sendApplicationSchemeReply(QQuickNetworkReply*);
 
@@ -306,6 +322,9 @@ public:
 
     bool useDefaultContentItemSize() const;
     void setUseDefaultContentItemSize(bool enable);
+
+    int preferredMinimumContentsWidth() const;
+    void setPreferredMinimumContentsWidth(int);
 
     // C++ only
     bool renderToOffscreenBuffer() const;
@@ -317,6 +336,7 @@ public Q_SLOTS:
     void goBackTo(int index);
     void goForwardTo(int index);
     void postMessage(const QString&);
+    void evaluateJavaScript(const QString& script, const QJSValue& value = QJSValue());
 
 Q_SIGNALS:
     void alertDialogChanged();
@@ -332,14 +352,17 @@ Q_SIGNALS:
     void messageReceived(const QVariantMap& message);
     void proxyAuthenticationDialogChanged();
     void userAgentChanged();
+    void devicePixelRatioChanged();
+    void enterFullScreenRequested();
+    void exitFullScreenRequested();
 
 private:
     QQuickWebView* q_ptr;
     QQuickWebViewPrivate* d_ptr;
     QObject* schemeParent;
-    QWebViewportInfo* m_viewportInfo;
+    QWebKitTest* m_test;
 
-    friend class QtWebPageUIClient;
+    friend class WebKit::QtWebPageUIClient;
 
     Q_DECLARE_PRIVATE(QQuickWebView)
     Q_DECLARE_PUBLIC(QQuickWebView)

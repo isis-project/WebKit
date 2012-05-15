@@ -181,9 +181,9 @@ void RenderFrameSet::GridAxis::resize(int size)
     m_deltas.resize(size);
     m_deltas.fill(0);
     
-    // To track edges for resizability and borders, we need to be (size + 1).  This is because a parent frameset
+    // To track edges for resizability and borders, we need to be (size + 1). This is because a parent frameset
     // may ask us for information about our left/top/right/bottom edges in order to make its own decisions about
-    // what to do.  We are capable of tainting that parent frameset's borders, so we have to cache this info.
+    // what to do. We are capable of tainting that parent frameset's borders, so we have to cache this info.
     m_preventResize.resize(size + 1);
     m_allowBorder.resize(size + 1);
 }
@@ -215,7 +215,7 @@ void RenderFrameSet::layOutAxis(GridAxis& axis, const Length* grid, int availabl
         // Count the total length of all of the fixed columns/rows -> totalFixed
         // Count the number of columns/rows which are fixed -> countFixed
         if (grid[i].isFixed()) {
-            gridLayout[i] = max(grid[i].value(), 0);
+            gridLayout[i] = max(grid[i].intValue(), 0);
             totalFixed += gridLayout[i];
             countFixed++;
         }
@@ -223,7 +223,7 @@ void RenderFrameSet::layOutAxis(GridAxis& axis, const Length* grid, int availabl
         // Count the total percentage of all of the percentage columns/rows -> totalPercent
         // Count the number of columns/rows which are percentages -> countPercent
         if (grid[i].isPercent()) {
-            gridLayout[i] = max(valueForLength(grid[i], availableLen), 0);
+            gridLayout[i] = max(intValueForLength(grid[i], availableLen), 0);
             totalPercent += gridLayout[i];
             countPercent++;
         }
@@ -231,7 +231,7 @@ void RenderFrameSet::layOutAxis(GridAxis& axis, const Length* grid, int availabl
         // Count the total relative of all the relative columns/rows -> totalRelative
         // Count the number of columns/rows which are relative -> countRelative
         if (grid[i].isRelative()) {
-            totalRelative += max(grid[i].value(), 1);
+            totalRelative += max(grid[i].intValue(), 1);
             countRelative++;
         }            
     }
@@ -276,7 +276,7 @@ void RenderFrameSet::layOutAxis(GridAxis& axis, const Length* grid, int availabl
 
         for (int i = 0; i < gridLen; ++i) {
             if (grid[i].isRelative()) {
-                gridLayout[i] = (max(grid[i].value(), 1) * remainingRelative) / totalRelative;
+                gridLayout[i] = (max(grid[i].intValue(), 1) * remainingRelative) / totalRelative;
                 remainingLen -= gridLayout[i];
                 lastRelative = i;
             }
@@ -342,11 +342,10 @@ void RenderFrameSet::layOutAxis(GridAxis& axis, const Length* grid, int availabl
                 remainingLen -= changePercent;
             }
         }
-    } 
-    
-    // If we don't have any percentage columns/rows we only have fixed columns. Spread
-    // the remainder equally over all fixed columns/rows.
-    else if (remainingLen && countFixed) {
+    } else if (remainingLen && countFixed) {
+        // If we don't have any percentage columns/rows we only have
+        // fixed columns. Spread the remainder equally over all fixed
+        // columns/rows.
         int remainingFixed = remainingLen;
         int changeFixed = 0;
         
@@ -472,8 +471,8 @@ void RenderFrameSet::layout()
         setHeight(view()->viewHeight());
     }
 
-    size_t cols = frameSet()->totalCols();
-    size_t rows = frameSet()->totalRows();
+    unsigned cols = frameSet()->totalCols();
+    unsigned rows = frameSet()->totalRows();
 
     if (m_rows.m_sizes.size() != rows || m_cols.m_sizes.size() != cols) {
         m_rows.resize(rows);
@@ -668,7 +667,7 @@ bool RenderFrameSet::flattenFrameSet() const
 void RenderFrameSet::startResizing(GridAxis& axis, int position)
 {
     int split = hitTestSplit(axis, position);
-    if (split == noSplit || !axis.m_allowBorder[split] || axis.m_preventResize[split]) {
+    if (split == noSplit || axis.m_preventResize[split]) {
         axis.m_splitBeingResized = noSplit;
         return;
     }
@@ -684,7 +683,7 @@ void RenderFrameSet::continueResizing(GridAxis& axis, int position)
         return;
     int currentSplitPosition = splitPosition(axis, axis.m_splitBeingResized);
     int delta = (position - currentSplitPosition) - axis.m_splitResizeOffset;
-    if (delta == 0)
+    if (!delta)
         return;
     axis.m_deltas[axis.m_splitBeingResized - 1] += delta;
     axis.m_deltas[axis.m_splitBeingResized] -= delta;
@@ -747,13 +746,13 @@ bool RenderFrameSet::isResizingColumn() const
 bool RenderFrameSet::canResizeRow(const IntPoint& p) const
 {
     int r = hitTestSplit(m_rows, p.y());
-    return r != noSplit && m_rows.m_allowBorder[r] && !m_rows.m_preventResize[r];
+    return r != noSplit && !m_rows.m_preventResize[r];
 }
 
 bool RenderFrameSet::canResizeColumn(const IntPoint& p) const
 {
     int c = hitTestSplit(m_cols, p.x());
-    return c != noSplit && m_cols.m_allowBorder[c] && !m_cols.m_preventResize[c];
+    return c != noSplit && !m_cols.m_preventResize[c];
 }
 
 int RenderFrameSet::splitPosition(const GridAxis& axis, int split) const

@@ -115,11 +115,9 @@ void WebPopupMenu::setUpPlatformData(const WebCore::IntRect& pageCoordinates, Pl
 
         String itemText = m_popupClient->itemText(index);
 
-        unsigned length = itemText.length();
-        const UChar* string = itemText.characters();
         // FIXME: defaultWritingDirection should return a TextDirection not a Unicode::Direction.
         TextDirection direction = itemText.defaultWritingDirection() == WTF::Unicode::RightToLeft ? RTL : LTR;
-        TextRun textRun(string, length, false, 0, 0, TextRun::AllowTrailingExpansion, direction);
+        TextRun textRun(itemText, 0, 0, TextRun::AllowTrailingExpansion, direction);
 
         notSelectedBackingStoreContext->setFillColor(optionTextColor, ColorSpaceDeviceRGB);
         selectedBackingStoreContext->setFillColor(activeOptionTextColor, ColorSpaceDeviceRGB);
@@ -136,7 +134,7 @@ void WebPopupMenu::setUpPlatformData(const WebCore::IntRect& pageCoordinates, Pl
         if (itemStyle.isVisible()) {
             int textX = std::max(0, data.m_clientPaddingLeft - data.m_clientInsetLeft);
             if (RenderTheme::defaultTheme()->popupOptionSupportsTextIndent() && itemStyle.textDirection() == LTR)
-                textX += minimumValueForLength(itemStyle.textIndent(), itemRect.width());
+                textX += minimumIntValueForLength(itemStyle.textIndent(), itemRect.width());
             int textY = itemRect.y() + itemFont.fontMetrics().ascent() + (itemRect.height() - itemFont.fontMetrics().height()) / 2;
 
             notSelectedBackingStoreContext->drawBidiText(itemFont, textRun, IntPoint(textX, textY));

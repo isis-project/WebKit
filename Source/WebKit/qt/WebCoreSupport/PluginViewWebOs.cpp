@@ -43,7 +43,7 @@
 namespace WebCore {
 
 PluginViewWebOs::PluginViewWebOs(Frame* parentFrame, const IntSize& size,
-        PluginPackage* plugin, Element* element, const KURL& url,
+        PluginPackage* plugin, HTMLPlugInElement* element, const KURL& url,
         const Vector<String>& paramNames, const Vector<String>& paramValues,
         const String& mimeType, bool loadManually) :
     PluginView(parentFrame, size, plugin, element, url, paramNames, paramValues, mimeType, loadManually)
@@ -161,7 +161,7 @@ void PluginViewWebOs::connectSignals()
 /*
  * Identical to the version in PluginView.cpp - just instantiate a PluginViewWebOs class instead.
  */
-PassRefPtr<PluginViewWebOs> PluginViewWebOs::create(Frame* parentFrame, const IntSize& size, Element* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
+PassRefPtr<PluginViewWebOs> PluginViewWebOs::create(Frame* parentFrame, const IntSize& size, HTMLPlugInElement* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
 {
     // if we fail to find a plugin for this MIME type, findPlugin will search for
     // a plugin by the file extension and update the MIME type, so pass a mutable String
@@ -177,7 +177,7 @@ PassRefPtr<PluginViewWebOs> PluginViewWebOs::create(Frame* parentFrame, const In
     return adoptRef(new PluginViewWebOs(parentFrame, size, plugin, element, url, paramNames, paramValues, mimeTypeCopy, loadManually));
 }
 
-PassRefPtr<PluginView> PluginView::create(Frame* parentFrame, const IntSize& size, Element* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
+PassRefPtr<PluginView> PluginView::create(Frame* parentFrame, const IntSize& size, HTMLPlugInElement* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
 {
     return PluginViewWebOs::create(parentFrame, size, element, url, paramNames, paramValues, mimeType, loadManually);
 }

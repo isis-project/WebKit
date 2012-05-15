@@ -313,16 +313,6 @@ unsigned LayoutTestController::numberOfActiveAnimations() const
     return 0;
 }
 
-void LayoutTestController::suspendAnimations() const
-{
-    // FIXME: implement
-}
-
-void LayoutTestController::resumeAnimations() const
-{
-    // FIXME: implement
-}
-
 unsigned LayoutTestController::workerThreadCount() const
 {
     // FIXME: implement
@@ -456,6 +446,11 @@ void LayoutTestController::removeAllVisitedLinks()
     // FIXME: Implement this.
 }
 
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
+{
+
+}
+
 void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
 {
 
@@ -561,12 +556,6 @@ JSRetainPtr<JSStringRef> LayoutTestController::pageProperty(const char* property
     return 0;
 }
 
-bool LayoutTestController::isPageBoxVisible(int pageNumber) const
-{
-    // FIXME: Implement
-    return true;
-}
-
 JSRetainPtr<JSStringRef> LayoutTestController::pageSizeAndMarginsInPixels(int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft) const
 {
     // FIXME: Implement
@@ -647,4 +636,14 @@ void LayoutTestController::setBackingScaleFactor(double)
 void LayoutTestController::simulateDesktopNotificationClick(JSStringRef title)
 {
     // FIXME: Implement.
+}
+
+void LayoutTestController::resetPageVisibility()
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::setPageVisibility(const char*)
+{
+    // FIXME: Implement this.
 }

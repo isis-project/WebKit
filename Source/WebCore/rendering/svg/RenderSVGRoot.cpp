@@ -253,10 +253,10 @@ void RenderSVGRoot::layout()
     setNeedsLayout(false);
 }
 
-void RenderSVGRoot::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& adjustedPaintOffset)
+void RenderSVGRoot::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
 {
     // An empty viewport disables rendering.
-    if (borderBoxRect().isEmpty())
+    if (pixelSnappedBorderBoxRect().isEmpty())
         return;
 
     // Don't paint, if the context explicitely disabled it.
@@ -285,10 +285,11 @@ void RenderSVGRoot::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& adjus
     childPaintInfo.context->save();
 
     // Apply initial viewport clip - not affected by overflow handling
-    childPaintInfo.context->clip(overflowClipRect(adjustedPaintOffset, paintInfo.renderRegion));
+    childPaintInfo.context->clip(pixelSnappedIntRect(overflowClipRect(paintOffset, paintInfo.renderRegion)));
 
     // Convert from container offsets (html renderers) to a relative transform (svg renderers).
     // Transform from our paint container's coordinate system to our local coords.
+    IntPoint adjustedPaintOffset = roundedIntPoint(paintOffset);
     childPaintInfo.applyTransform(AffineTransform::translation(adjustedPaintOffset.x() - x(), adjustedPaintOffset.y() - y()) * localToParentTransform());
 
     SVGRenderingContext renderingContext;
@@ -368,7 +369,7 @@ void RenderSVGRoot::computeFloatRectForRepaint(RenderBoxModelObject* repaintCont
     repaintRect = m_localToBorderBoxTransform.mapRect(repaintRect);
 
     // Apply initial viewport clip - not affected by overflow settings    
-    repaintRect.intersect(borderBoxRect());
+    repaintRect.intersect(pixelSnappedBorderBoxRect());
 
     const SVGRenderStyle* svgStyle = style()->svgStyle();
     if (const ShadowData* shadow = svgStyle->shadow())
@@ -382,12 +383,12 @@ void RenderSVGRoot::computeFloatRectForRepaint(RenderBoxModelObject* repaintCont
 // This method expects local CSS box coordinates.
 // Callers with local SVG viewport coordinates should first apply the localToBorderBoxTransform
 // to convert from SVG viewport coordinates to local CSS box coordinates.
-void RenderSVGRoot::mapLocalToContainer(RenderBoxModelObject* repaintContainer, bool fixed, bool useTransforms, TransformState& transformState, bool* wasFixed) const
+void RenderSVGRoot::mapLocalToContainer(RenderBoxModelObject* repaintContainer, bool fixed, bool useTransforms, TransformState& transformState, ApplyContainerFlipOrNot, bool* wasFixed) const
 {
     ASSERT(!fixed); // We should have no fixed content in the SVG rendering tree.
     ASSERT(useTransforms); // mapping a point through SVG w/o respecting trasnforms is useless.
 
-    RenderReplaced::mapLocalToContainer(repaintContainer, fixed, useTransforms, transformState, wasFixed);
+    RenderReplaced::mapLocalToContainer(repaintContainer, fixed, useTransforms, transformState, ApplyContainerFlip, wasFixed);
 }
 
 void RenderSVGRoot::updateCachedBoundaries()

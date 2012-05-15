@@ -177,7 +177,7 @@
                     { "name": "value", "type": "string", "description": "Cookie value." },
                     { "name": "domain", "type": "string", "description": "Cookie domain." },
                     { "name": "path", "type": "string", "description": "Cookie path." },
-                    { "name": "expires", "type": "integer", "description": "Cookie expires." },
+                    { "name": "expires", "type": "number", "description": "Cookie expires." },
                     { "name": "size", "type": "integer", "description": "Cookie size." },
                     { "name": "httpOnly", "type": "boolean", "description": "True if cookie is http-only." },
                     { "name": "secure", "type": "boolean", "description": "True if cookie is secure." },
@@ -323,7 +323,8 @@
                 "parameters": [
                     { "name": "width", "type": "integer", "description": "Overriding width value in pixels (minimum 0, maximum 10000000). 0 disables the override." },
                     { "name": "height", "type": "integer", "description": "Overriding height value in pixels (minimum 0, maximum 10000000). 0 disables the override." },
-                    { "name": "fontScaleFactor", "type": "number", "description": "Overriding font scale factor value (must be positive). 1 disables the override." }
+                    { "name": "fontScaleFactor", "type": "number", "description": "Overriding font scale factor value (must be positive). 1 disables the override." },
+                    { "name": "fitWindow", "type": "boolean", "description": "Whether a view that exceeds the available browser window area should be scaled down to fit." }
                 ],
                 "hidden": true
             },
@@ -334,6 +335,20 @@
                     { "name": "result", "type": "boolean", "description": "True for showing paint rectangles" }
                 ],
                 "hidden": true
+            },
+            {
+                "name": "getScriptExecutionStatus",
+                "description": "Determines if scripts can be executed in the page.",
+                "returns": [
+                    { "name": "result", "type": "string", "enum": ["allowed", "disabled", "forbidden"], "description": "Script execution status: \"allowed\" if scripts can be executed, \"disabled\" if script execution has been disabled through page settings, \"forbidden\" if script execution for the given page is not possible for other reasons." }
+                ]
+            },
+            {
+                "name": "setScriptExecutionDisabled",
+                "description": "Switches script execution in the page.",
+                "parameters": [
+                    { "name": "value", "type": "boolean", "description": "Whether script execution should be disabled in the page." }
+                ]
             }
         ],
         "events": [
@@ -412,7 +427,26 @@
                     { "name": "value", "type": "any", "optional": true, "description": "Primitive value." },
                     { "name": "objectId", "$ref": "RemoteObjectId", "optional": true, "description": "Remote object handle." }
                 ]
+            },
+            {
+                "id": "ExecutionContextId",
+                "type": "integer",
+                "description": "Id of an execution context.",
+                "hidden": true
+            },
+            {
+                "id": "ExecutionContextDescription",
+                "type": "object",
+                "description": "Description of an isolated world.",
+                "properties": [
+                    { "name": "id", "$ref": "ExecutionContextId", "description": "Unique id of the execution context. It can be used to specify in which execution context script evaluation should be performed." },
+                    { "name": "isPageContext", "type": "boolean", "description": "True if this is a context where inpspected web page scripts run. False if it is a content script isolated context." },
+                    { "name": "name", "type": "string", "description": "Human readable name describing given context." },
+                    { "name": "frameId", "$ref": "Network.FrameId", "description": "Id of the owning frame." }
+                ],
+                "hidden": true
             }
+
         ],
         "commands": [
             {
@@ -421,8 +455,8 @@
                     { "name": "expression", "type": "string", "description": "Expression to evaluate." },
                     { "name": "objectGroup", "type": "string", "optional": true, "description": "Symbolic group name that can be used to release multiple objects." },
                     { "name": "includeCommandLineAPI", "type": "boolean", "optional": true, "description": "Determines whether Command Line API should be available during the evaluation.", "hidden": true },
-                    { "name": "doNotPauseOnExceptions", "type": "boolean", "optional": true, "description": "Specifies whether evaluation should stop on exceptions. Overrides setPauseOnException state.", "hidden": true },
-                    { "name": "frameId", "$ref": "Network.FrameId", "optional": true, "description": "Specifies in which frame to perform evaluation.", "hidden": true },
+                    { "name": "doNotPauseOnExceptionsAndMuteConsole", "type": "boolean", "optional": true, "description": "Specifies whether evaluation should stop on exceptions and mute console. Overrides setPauseOnException state.", "hidden": true },
+                    { "name": "contextId", "type": "integer", "optional": true, "description": "Specifies in which isolated context to perform evaluation. Each content script lives in an isolated context and this parameter may be used to specify on of those contexts. If the parameter is omitted or 0 the evaluation will be performed in the context of the inspected page.", "hidden": true },
                     { "name": "returnByValue", "type": "boolean", "optional": true, "description": "Whether the result is expected to be a JSON object that should be sent by value." }
                 ],
                 "returns": [
@@ -437,6 +471,7 @@
                     { "name": "objectId", "$ref": "RemoteObjectId", "description": "Identifier of the object to call function on." },
                     { "name": "functionDeclaration", "type": "string", "description": "Declaration of the function to call." },
                     { "name": "arguments", "type": "array", "items": { "$ref": "CallArgument", "description": "Call argument." }, "optional": true, "description": "Call arguments. All call arguments must belong to the same JavaScript world as the target object." },
+                    { "name": "doNotPauseOnExceptionsAndMuteConsole", "type": "boolean", "optional": true, "description": "Specifies whether function call should stop on exceptions and mute console. Overrides setPauseOnException state.", "hidden": true },
                     { "name": "returnByValue", "type": "boolean", "optional": true, "description": "Whether the result is expected to be a JSON object which should be sent by value." }
                 ],
                 "returns": [
@@ -474,6 +509,24 @@
                 "name": "run",
                 "hidden": true,
                 "description": "Tells inspected instance(worker or page) that it can run in case it was started paused."
+            },
+            {
+                "name": "setReportExecutionContextCreation",
+                "parameters": [
+                    { "name": "enabled", "type": "boolean", "description": "Reporting enabled state." }
+                ],
+                "hidden": true,
+                "description": "Enables reporting about creation of isolated contexts by means of <code>isolatedContextCreated</code> event. When the reporting gets enabled the event will be sent immediately for each existing isolated context."
+            }
+
+        ],
+        "events": [
+            {
+                "name": "isolatedContextCreated",
+                "parameters": [
+                    { "name": "context", "$ref": "ExecutionContextDescription", "description": "A newly created isolated contex." }
+                ],
+                "description": "Issued when new isolated context is created."
             }
         ]
     },
@@ -675,6 +728,17 @@
                 ]
             },
             {
+                "id": "WebSocketFrame",
+                "type": "object",
+                "description": "WebSocket frame data.",
+                "hidden": true,
+                "properties": [
+                    { "name": "opcode", "type": "number", "description": "WebSocket frame opcode." },
+                    { "name": "mask", "type": "boolean", "description": "WebSocke frame mask." },
+                    { "name": "payloadData", "type": "string", "description": "WebSocke frame payload data." }
+                ]
+            },
+            {
                 "id": "CachedResource",
                 "type": "object",
                 "description": "Information about the cached resource.",
@@ -773,7 +837,6 @@
                     { "name": "request", "$ref": "Request", "description": "Request data." },
                     { "name": "timestamp", "$ref": "Timestamp", "description": "Timestamp." },
                     { "name": "initiator", "$ref": "Initiator", "description": "Request initiator." },
-                    { "name": "stackTrace", "$ref": "Console.StackTrace", "optional": true, "description": "JavaScript stack trace upon issuing this request." },
                     { "name": "redirectResponse", "optional": true, "$ref": "Response", "description": "Redirect response data." }
                 ]
             },
@@ -872,6 +935,36 @@
                 "parameters": [
                     { "name": "requestId", "$ref": "RequestId", "description": "Request identifier." },
                     { "name": "timestamp", "$ref": "Timestamp", "description": "Timestamp." }
+                ],
+                "hidden": true
+            },
+            {
+                "name": "webSocketFrameReceived",
+                "description": "Fired when WebSocket frame is received.",
+                "parameters": [
+                    { "name": "requestId", "$ref": "RequestId", "description": "Request identifier." },
+                    { "name": "timestamp", "$ref": "Timestamp", "description": "Timestamp." },
+                    { "name": "response", "$ref": "WebSocketFrame", "description": "WebSocket response data." }
+                ],
+                "hidden": true
+            },
+            {
+                "name": "webSocketFrameError",
+                "description": "Fired when WebSocket frame error occurs.",
+                "parameters": [
+                    { "name": "requestId", "$ref": "RequestId", "description": "Request identifier." },
+                    { "name": "timestamp", "$ref": "Timestamp", "description": "Timestamp." },
+                    { "name": "errorMessage", "type": "string", "description": "WebSocket frame error message." }
+                ],
+                "hidden": true
+            },
+            {
+                "name": "webSocketFrameSent",
+                "description": "Fired when WebSocket frame is sent.",
+                "parameters": [
+                    { "name": "requestId", "$ref": "RequestId", "description": "Request identifier." },
+                    { "name": "timestamp", "$ref": "Timestamp", "description": "Timestamp." },
+                    { "name": "response", "$ref": "WebSocketFrame", "description": "WebSocket response data." }
                 ],
                 "hidden": true
             }
@@ -2099,6 +2192,14 @@
                 ],
                 "hidden": true,
                 "description": "Starts calculating various DOM statistics and sending them as part of timeline events."
+            },
+            {
+                "name": "supportsFrameInstrumentation",
+                "returns": [
+                    { "name": "result", "type": "boolean", "description": "True if timeline supports frame instrumentation." }
+                ],
+                "hidden": true,
+                "description": "Tells whether timeline agent supports frame instrumentation."
             }
         ],
         "events": [
@@ -2217,7 +2318,7 @@
                 ],
                 "returns": [
                     { "name": "breakpointId", "$ref": "BreakpointId", "description": "Id of the created breakpoint for further reference." },
-                    { "name": "locations", "optional": true, "type": "array", "items": { "$ref": "Location"}, "description": "List of the locations this breakpoint resolved into upon addition." }
+                    { "name": "locations", "type": "array", "items": { "$ref": "Location"}, "description": "List of the locations this breakpoint resolved into upon addition." }
                 ],
                 "description": "Sets JavaScript breakpoint at given location specified either by URL or URL regex. Once this command is issued, all existing parsed scripts will have breakpoints resolved and returned in <code>locations</code> property. Further matching script parsing will result in subsequent <code>breakpointResolved</code> events issued. This logical breakpoint will survive page reloads."
             },
@@ -2335,6 +2436,7 @@
                     { "name": "expression", "type": "string", "description": "Expression to evaluate." },
                     { "name": "objectGroup", "type": "string", "optional": true, "description": "String object group name to put result into (allows rapid releasing resulting object handles using <code>releaseObjectGroup</code>)." },
                     { "name": "includeCommandLineAPI", "type": "boolean", "optional": true, "description": "Specifies whether command line API should be available to the evaluated expression, defaults to false.", "hidden": true },
+                    { "name": "doNotPauseOnExceptionsAndMuteConsole", "type": "boolean", "optional": true, "description": "Specifies whether evaluation should stop on exceptions and mute console. Overrides setPauseOnException state.", "hidden": true },
                     { "name": "returnByValue", "type": "boolean", "optional": true, "description": "Whether the result is expected to be a JSON object that should be sent by value." }
                 ],
                 "returns": [
@@ -2476,14 +2578,29 @@
         "hidden": true,
         "types": [
             {
-                "id": "Profile",
-                "type": "object",
-                "description": "Profile."
-            },
-            {
                 "id": "ProfileHeader",
                 "type": "object",
-                "description": "Profile header."
+                "description": "Profile header.",
+                "properties": [
+                    { "name": "typeId", "type": "string", "enum": ["CPU", "CSS", "HEAP"], "description": "Profile type name." },
+                    { "name": "title", "type": "string", "description": "Profile title." },
+                    { "name": "uid", "type": "integer", "description": "Unique identifier of the profile." },
+                    { "name": "maxJSObjectId", "type": "integer", "optional": true, "description": "Last seen JS object Id." }
+                ]
+            },
+            {
+                "id": "Profile",
+                "type": "object",
+                "description": "Profile.",
+                "properties": [
+                    { "name": "head", "type": "object", "optional": true },
+                    { "name": "bottomUpHead", "type": "object", "optional": true }
+                ]
+            },
+            {
+                "id": "HeapSnapshotObjectId",
+                "type": "string",
+                "description": "Heap snashot object id."
             }
         ],
         "commands": [
@@ -2552,11 +2669,20 @@
             {
                 "name": "getObjectByHeapObjectId",
                 "parameters": [
-                    { "name": "objectId", "type": "integer" },
+                    { "name": "objectId", "$ref": "HeapSnapshotObjectId" },
                     { "name": "objectGroup", "type": "string", "optional": true, "description": "Symbolic group name that can be used to release multiple objects." }
                 ],
                 "returns": [
                     { "name": "result", "$ref": "Runtime.RemoteObject", "description": "Evaluation result." }
+                ]
+            },
+            {
+                "name": "getHeapObjectId",
+                "parameters": [
+                    { "name": "objectId", "$ref": "Runtime.RemoteObjectId", "description": "Identifier of the object to get heap object id for." }
+                ],
+                "returns": [
+                    { "name": "heapSnapshotObjectId", "$ref": "HeapSnapshotObjectId", "description": "Id of the heap snapshot object corresponding to the passed remote object id." }
                 ]
             }
         ],

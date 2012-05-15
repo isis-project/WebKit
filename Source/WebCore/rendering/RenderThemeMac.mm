@@ -22,7 +22,6 @@
 
 #import "BitmapImage.h"
 #import "ColorMac.h"
-#import "CSSStyleSelector.h"
 #import "CSSValueList.h"
 #import "CSSValueKeywords.h"
 #import "Document.h"
@@ -45,6 +44,7 @@
 #import "RenderView.h"
 #import "SharedBuffer.h"
 #import "StringTruncator.h"
+#import "StyleResolver.h"
 #import "TimeRanges.h"
 #import "ThemeMac.h"
 #import "WebCoreSystemInterface.h"
@@ -103,6 +103,25 @@ const double progressAnimationNumFrames = 256;
     _theme->platformColorsDidChange();
 }
 
+@end
+
+@interface NSTextFieldCell (WKDetails)
+- (CFDictionaryRef)_coreUIDrawOptionsWithFrame:(NSRect)cellFrame inView:(NSView *)controlView includeFocus:(BOOL)includeFocus;
+@end
+
+
+@interface WebCoreTextFieldCell : NSTextFieldCell
+- (CFDictionaryRef)_coreUIDrawOptionsWithFrame:(NSRect)cellFrame inView:(NSView *)controlView includeFocus:(BOOL)includeFocus;
+@end
+
+@implementation WebCoreTextFieldCell
+- (CFDictionaryRef)_coreUIDrawOptionsWithFrame:(NSRect)cellFrame inView:(NSView *)controlView includeFocus:(BOOL)includeFocus
+{
+    // FIXME: This is a post-Lion-only workaround for <rdar://problem/11385461>. When that bug is resolved, we should remove this code.
+    CFMutableDictionaryRef coreUIDrawOptions = CFDictionaryCreateMutableCopy(NULL, 0, [super _coreUIDrawOptionsWithFrame:cellFrame inView:controlView includeFocus:includeFocus]);
+    CFDictionarySetValue(coreUIDrawOptions, @"borders only", kCFBooleanTrue);
+    return (CFDictionaryRef)[NSMakeCollectable(coreUIDrawOptions) autorelease];
+}
 @end
 
 namespace WebCore {
@@ -489,7 +508,7 @@ NSView* RenderThemeMac::documentViewFor(RenderObject* o) const
 bool RenderThemeMac::isControlStyled(const RenderStyle* style, const BorderData& border,
                                      const FillLayer& background, const Color& backgroundColor) const
 {
-    if (style->appearance() == TextAreaPart || style->appearance() == ListboxPart)
+    if (style->appearance() == TextFieldPart || style->appearance() == TextAreaPart || style->appearance() == ListboxPart)
         return style->border() != border;
         
     // FIXME: This is horrible, but there is not much else that can be done.  Menu lists cannot draw properly when
@@ -683,7 +702,7 @@ void RenderThemeMac::setSizeFromFont(RenderStyle* style, const IntSize* sizes) c
         style->setHeight(Length(size.height(), Fixed));
 }
 
-void RenderThemeMac::setFontFromControlSize(CSSStyleSelector*, RenderStyle* style, NSControlSize controlSize) const
+void RenderThemeMac::setFontFromControlSize(StyleResolver*, RenderStyle* style, NSControlSize controlSize) const
 {
     FontDescription fontDescription;
     fontDescription.setIsAbsoluteSize(true);
@@ -714,7 +733,19 @@ NSControlSize RenderThemeMac::controlSizeForSystemFont(RenderStyle* style) const
 bool RenderThemeMac::paintTextField(RenderObject* o, const PaintInfo& paintInfo, const IntRect& r)
 {
     LocalCurrentGraphicsContext localContext(paintInfo.context);
-    NSTextFieldCell* textField = this->textField();
+
+    bool useNewGradient = true;
+#if defined(BUILDING_ON_LION) || defined(BUILDING_ON_SNOW_LEOPARD)
+    // See comment in RenderThemeMac::textField() for a complete explanation of this.
+    useNewGradient = WebCore::deviceScaleFactor(o->frame()) != 1;
+    if (useNewGradient) {
+        useNewGradient = o->style()->hasAppearance()
+            && o->style()->visitedDependentColor(CSSPropertyBackgroundColor) == Color::white
+            && !o->style()->hasBackgroundImage();
+    }
+#endif
+
+    NSTextFieldCell* textField = this->textField(useNewGradient);
 
     GraphicsContextStateSaver stateSaver(*paintInfo.context);
 
@@ -726,7 +757,7 @@ bool RenderThemeMac::paintTextField(RenderObject* o, const PaintInfo& paintInfo,
     return false;
 }
 
-void RenderThemeMac::adjustTextFieldStyle(CSSStyleSelector*, RenderStyle*, Element*) const
+void RenderThemeMac::adjustTextFieldStyle(StyleResolver*, RenderStyle*, Element*) const
 {
 }
 
@@ -748,7 +779,7 @@ bool RenderThemeMac::paintTextArea(RenderObject* o, const PaintInfo& paintInfo, 
     return false;
 }
 
-void RenderThemeMac::adjustTextAreaStyle(CSSStyleSelector*, RenderStyle*, Element*) const
+void RenderThemeMac::adjustTextAreaStyle(StyleResolver*, RenderStyle*, Element*) const
 {
 }
 
@@ -953,7 +984,7 @@ double RenderThemeMac::animationDurationForProgressBar(RenderProgress*) const
     return progressAnimationNumFrames * progressAnimationFrameRate;
 }
 
-void RenderThemeMac::adjustProgressBarStyle(CSSStyleSelector*, RenderStyle*, Element*) const
+void RenderThemeMac::adjustProgressBarStyle(StyleResolver*, RenderStyle*, Element*) const
 {
 }
 
@@ -1197,7 +1228,7 @@ static const IntSize* menuListButtonSizes()
     return sizes;
 }
 
-void RenderThemeMac::adjustMenuListStyle(CSSStyleSelector* selector, RenderStyle* style, Element* e) const
+void RenderThemeMac::adjustMenuListStyle(StyleResolver* styleResolver, RenderStyle* style, Element* e) const
 {
     NSControlSize controlSize = controlSizeForFont(style);
 
@@ -1220,7 +1251,7 @@ void RenderThemeMac::adjustMenuListStyle(CSSStyleSelector* selector, RenderStyle
     // Our font is locked to the appropriate system font size for the control.  To clarify, we first use the CSS-specified font to figure out
     // a reasonable control size, but once that control size is determined, we throw that font away and use the appropriate
     // system font for the control size instead.
-    setFontFromControlSize(selector, style, controlSize);
+    setFontFromControlSize(styleResolver, style, controlSize);
 
     style->setBoxShadow(nullptr);
 }
@@ -1264,7 +1295,7 @@ int RenderThemeMac::popupInternalPaddingBottom(RenderStyle* style) const
     return 0;
 }
 
-void RenderThemeMac::adjustMenuListButtonStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
+void RenderThemeMac::adjustMenuListButtonStyle(StyleResolver*, RenderStyle* style, Element*) const
 {
     float fontScale = style->fontSize() / baseFontSize;
 
@@ -1306,7 +1337,7 @@ int RenderThemeMac::minimumMenuListSize(RenderStyle* style) const
 const int trackWidth = 5;
 const int trackRadius = 2;
 
-void RenderThemeMac::adjustSliderTrackStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
+void RenderThemeMac::adjustSliderTrackStyle(StyleResolver*, RenderStyle* style, Element*) const
 {
     style->setBoxShadow(nullptr);
 }
@@ -1348,9 +1379,9 @@ bool RenderThemeMac::paintSliderTrack(RenderObject* o, const PaintInfo& paintInf
     return false;
 }
 
-void RenderThemeMac::adjustSliderThumbStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeMac::adjustSliderThumbStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
-    RenderTheme::adjustSliderThumbStyle(selector, style, element);
+    RenderTheme::adjustSliderThumbStyle(styleResolver, style, element);
     style->setBoxShadow(nullptr);
 }
 
@@ -1479,7 +1510,7 @@ void RenderThemeMac::setSearchFieldSize(RenderStyle* style) const
     setSizeFromFont(style, searchFieldSizes());
 }
 
-void RenderThemeMac::adjustSearchFieldStyle(CSSStyleSelector* selector, RenderStyle* style, Element*) const
+void RenderThemeMac::adjustSearchFieldStyle(StyleResolver* styleResolver, RenderStyle* style, Element*) const
 {
     // Override border.
     style->resetBorder();
@@ -1505,7 +1536,7 @@ void RenderThemeMac::adjustSearchFieldStyle(CSSStyleSelector* selector, RenderSt
     style->setPaddingBottom(Length(padding, Fixed));
     
     NSControlSize controlSize = controlSizeForFont(style);
-    setFontFromControlSize(selector, style, controlSize);
+    setFontFromControlSize(styleResolver, style, controlSize);
 
     style->setBoxShadow(nullptr);
 }
@@ -1534,7 +1565,7 @@ bool RenderThemeMac::paintSearchFieldCancelButton(RenderObject* o, const PaintIn
 
     float zoomLevel = o->style()->effectiveZoom();
 
-    FloatRect localBounds = [search cancelButtonRectForBounds:NSRect(input->renderBox()->borderBoxRect())];
+    FloatRect localBounds = [search cancelButtonRectForBounds:NSRect(input->renderBox()->pixelSnappedBorderBoxRect())];
 
 #if ENABLE(INPUT_SPEECH)
     // Take care of cases where the cancel button was not aligned with the right border of the input element (for e.g.
@@ -1567,7 +1598,7 @@ const IntSize* RenderThemeMac::cancelButtonSizes() const
     return sizes;
 }
 
-void RenderThemeMac::adjustSearchFieldCancelButtonStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
+void RenderThemeMac::adjustSearchFieldCancelButtonStyle(StyleResolver*, RenderStyle* style, Element*) const
 {
     IntSize size = sizeForSystemFont(style, cancelButtonSizes());
     style->setWidth(Length(size.width(), Fixed));
@@ -1582,7 +1613,7 @@ const IntSize* RenderThemeMac::resultsButtonSizes() const
 }
 
 const int emptyResultsOffset = 9;
-void RenderThemeMac::adjustSearchFieldDecorationStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
+void RenderThemeMac::adjustSearchFieldDecorationStyle(StyleResolver*, RenderStyle* style, Element*) const
 {
     IntSize size = sizeForSystemFont(style, resultsButtonSizes());
     style->setWidth(Length(size.width() - emptyResultsOffset, Fixed));
@@ -1595,7 +1626,7 @@ bool RenderThemeMac::paintSearchFieldDecoration(RenderObject*, const PaintInfo&,
     return false;
 }
 
-void RenderThemeMac::adjustSearchFieldResultsDecorationStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
+void RenderThemeMac::adjustSearchFieldResultsDecorationStyle(StyleResolver*, RenderStyle* style, Element*) const
 {
     IntSize size = sizeForSystemFont(style, resultsButtonSizes());
     style->setWidth(Length(size.width(), Fixed));
@@ -1619,7 +1650,7 @@ bool RenderThemeMac::paintSearchFieldResultsDecoration(RenderObject* o, const Pa
 
     updateActiveState([search searchButtonCell], o);
 
-    FloatRect localBounds = [search searchButtonRectForBounds:NSRect(input->renderBox()->borderBoxRect())];
+    FloatRect localBounds = [search searchButtonRectForBounds:NSRect(input->renderBox()->pixelSnappedBorderBoxRect())];
     localBounds = convertToPaintingRect(input->renderer(), o, localBounds, r);
 
     [[search searchButtonCell] drawWithFrame:localBounds inView:documentViewFor(o)];
@@ -1628,7 +1659,7 @@ bool RenderThemeMac::paintSearchFieldResultsDecoration(RenderObject* o, const Pa
 }
 
 const int resultsArrowWidth = 5;
-void RenderThemeMac::adjustSearchFieldResultsButtonStyle(CSSStyleSelector*, RenderStyle* style, Element*) const
+void RenderThemeMac::adjustSearchFieldResultsButtonStyle(StyleResolver*, RenderStyle* style, Element*) const
 {
     IntSize size = sizeForSystemFont(style, resultsButtonSizes());
     style->setWidth(Length(size.width() + resultsArrowWidth, Fixed));
@@ -1655,7 +1686,7 @@ bool RenderThemeMac::paintSearchFieldResultsButton(RenderObject* o, const PaintI
     GraphicsContextStateSaver stateSaver(*paintInfo.context);
     float zoomLevel = o->style()->effectiveZoom();
 
-    FloatRect localBounds = [search searchButtonRectForBounds:NSRect(input->renderBox()->borderBoxRect())];
+    FloatRect localBounds = [search searchButtonRectForBounds:NSRect(input->renderBox()->pixelSnappedBorderBoxRect())];
     localBounds = convertToPaintingRect(input->renderer(), o, localBounds, r);
     
     IntRect unzoomedRect(localBounds);
@@ -2133,14 +2164,35 @@ NSSliderCell* RenderThemeMac::sliderThumbVertical() const
     return m_sliderThumbVertical.get();
 }
 
-NSTextFieldCell* RenderThemeMac::textField() const
+NSTextFieldCell* RenderThemeMac::textField(bool useNewGradient) const
 {
     if (!m_textField) {
-        m_textField.adoptNS([[NSTextFieldCell alloc] initTextCell:@""]);
+        m_textField.adoptNS([[WebCoreTextFieldCell alloc] initTextCell:@""]);
         [m_textField.get() setBezeled:YES];
         [m_textField.get() setEditable:YES];
         [m_textField.get() setFocusRingType:NSFocusRingTypeExterior];
+#if defined(BUILDING_ON_LION) || defined(BUILDING_ON_SNOW_LEOPARD)
+        [m_textField.get() setDrawsBackground:YES];
+#else
+        UNUSED_PARAM(useNewGradient);
+        [m_textField.get() setDrawsBackground:NO];
+#endif
     }
+
+#if defined(BUILDING_ON_LION) || defined(BUILDING_ON_SNOW_LEOPARD)
+    // This is a workaround for <rdar://problem/11385461> on Lion and SnowLeopard. Newer versions of the
+    // OS can always use the newer version of the text field with the workaround above in
+    // _coreUIDrawOptionsWithFrame. With this workaround for older OS's, when the deviceScaleFactor is 1,
+    // we have an old-school gradient bezel in text fields whether they are styled or not. This is fine and
+    // matches shipping Safari. When the deviceScaleFactor is greater than 1, text fields will have newer,
+    // AppKit-matching gradients that look much more appropriate at the higher resolutions. However, if the
+    // text field is styled  in any way, we'll revert to the old-school bezel, which doesn't look great in
+    // HiDPI, but it looks better than the CSS border, which is the only alternative until 11385461 is resolved.
+    if (useNewGradient)
+        [m_textField.get() setBackgroundColor:[NSColor whiteColor]];
+    else
+        [m_textField.get() setBackgroundColor:[NSColor clearColor]];
+#endif
 
     return m_textField.get();
 }

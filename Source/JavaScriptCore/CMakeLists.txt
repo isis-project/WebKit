@@ -85,6 +85,7 @@ SET(JavaScriptCore_SOURCES
     dfg/DFGThunks.cpp
     dfg/DFGVirtualRegisterAllocationPhase.cpp
 
+    heap/BlockAllocator.cpp
     heap/CopiedSpace.cpp
     heap/ConservativeRoots.cpp
     heap/DFGCodeBlocks.cpp
@@ -166,7 +167,6 @@ SET(JavaScriptCore_SOURCES
     runtime/JSActivation.cpp
     runtime/JSAPIValueWrapper.cpp
     runtime/JSArray.cpp
-    runtime/JSByteArray.cpp
     runtime/JSCell.cpp
     runtime/JSDateMath.cpp
     runtime/JSFunction.cpp
@@ -309,6 +309,7 @@ INCLUDE_DIRECTORIES(${JavaScriptCore_INCLUDE_DIRECTORIES})
 ADD_DEFINITIONS(-DBUILDING_JavaScriptCore)
 ADD_LIBRARY(${JavaScriptCore_LIBRARY_NAME} ${JavaScriptCore_LIBRARY_TYPE} ${JavaScriptCore_HEADERS} ${JavaScriptCore_SOURCES})
 TARGET_LINK_LIBRARIES(${JavaScriptCore_LIBRARY_NAME} ${JavaScriptCore_LIBRARIES})
+SET_TARGET_PROPERTIES(${JavaScriptCore_LIBRARY_NAME} PROPERTIES FOLDER "JavaScriptCore")
 SET_TARGET_PROPERTIES(${JavaScriptCore_LIBRARY_NAME} PROPERTIES LINK_INTERFACE_LIBRARIES "")
 
 IF (JavaScriptCore_LINK_FLAGS)

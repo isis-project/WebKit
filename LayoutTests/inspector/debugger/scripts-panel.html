@@ -11,6 +11,13 @@ function test()
     WebInspector._isMac = false;
 
     var uiSourceCodes;
+
+    var persistentBreakpoints = [];
+    var breakpointStorage = {
+        get: function() { return persistentBreakpoints; },
+        set: function(breakpoints) { persistentBreakpoints = breakpoints; }
+    };
+
     function createDebuggerPresentationModelMock()
     {
         var model = new WebInspector.Object();
@@ -27,7 +34,7 @@ function test()
         model._reset = function(preservedItems)
         {
             uiSourceCodes = preservedItems || [];
-            this.dispatchEventToListeners(WebInspector.DebuggerPresentationModel.Events.DebuggerReset, null);
+            WebInspector.debuggerModel.dispatchEventToListeners(WebInspector.DebuggerModel.Events.GlobalObjectCleared);
         }
         model._replaceUISourceCodes = function(oldUISourceCodeList, newUISourceCodeList)
         {
@@ -38,12 +45,11 @@ function test()
             var data = { oldUISourceCodeList: oldUISourceCodeList, uiSourceCodeList: newUISourceCodeList };
             this.dispatchEventToListeners(WebInspector.DebuggerPresentationModel.Events.UISourceCodeReplaced, data);
         }
-
         return model;
     }
     function createUISouceCode(url)
     {
-        var uiSourceCode = new WebInspector.UISourceCodeImpl(0, url, null, null);
+        var uiSourceCode = new WebInspector.JavaScriptSource(url, null, null);
         uiSourceCode.requestContent = function(callback)
         {
             InspectorTest.addResult("Source requested for " + url);

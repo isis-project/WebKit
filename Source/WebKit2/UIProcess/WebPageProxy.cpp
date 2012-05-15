@@ -109,6 +109,9 @@
 
 using namespace WebCore;
 
+// Represents the number of wheel events we can hold in the queue before we start pushing them preemptively.
+static const unsigned wheelEventQueueSizeThreshold = 10;
+
 namespace WebKit {
 
 WKPageDebugPaintFlags WebPageProxy::s_debugPaintFlags = 0;
@@ -297,10 +300,12 @@ void WebPageProxy::initializeFindClient(const WKPageFindClient* client)
     m_findClient.initialize(client);
 }
 
+#if ENABLE(CONTEXT_MENUS)
 void WebPageProxy::initializeContextMenuClient(const WKPageContextMenuClient* client)
 {
     m_contextMenuClient.initialize(client);
 }
+#endif
 
 void WebPageProxy::reattachToWebProcess()
 {
@@ -642,20 +647,27 @@ void WebPageProxy::shouldGoToBackForwardListItem(uint64_t itemID, bool& shouldGo
     shouldGoToBackForwardItem = item && m_loaderClient.shouldGoToBackForwardListItem(this, item);
 }
 
-void WebPageProxy::willGoToBackForwardListItem(uint64_t itemID)
+void WebPageProxy::willGoToBackForwardListItem(uint64_t itemID, CoreIPC::ArgumentDecoder* arguments)
 {
+    RefPtr<APIObject> userData;
+    WebContextUserMessageDecoder messageDecoder(userData, m_process->context());
+    if (!arguments->decode(messageDecoder))
+        return;
+
     if (WebBackForwardListItem* item = process()->webBackForwardItem(itemID))
-        m_loaderClient.willGoToBackForwardListItem(this, item);
+        m_loaderClient.willGoToBackForwardListItem(this, item, userData.get());
 }
 
 String WebPageProxy::activeURL() const
 {
-    if (!m_mainFrame)
-        return String();
-
-    // If there is a currently pending url, it is the active URL.
+    // If there is a currently pending url, it is the active URL,
+    // even when there's no main frame yet, as it might be the
+    // first API request.
     if (!m_pendingAPIRequestURL.isNull())
         return m_pendingAPIRequestURL;
+
+    if (!m_mainFrame)
+        return String();
 
     if (!m_mainFrame->unreachableURL().isEmpty())
         return m_mainFrame->unreachableURL();
@@ -978,6 +990,68 @@ void WebPageProxy::handleMouseEvent(const NativeWebMouseEvent& event)
         process()->send(Messages::WebPage::MouseEvent(event), m_pageID);
 }
 
+#if MERGE_WHEEL_EVENTS
+static bool canCoalesce(const WebWheelEvent& a, const WebWheelEvent& b)
+{
+    if (a.position() != b.position())
+        return false;
+    if (a.globalPosition() != b.globalPosition())
+        return false;
+    if (a.modifiers() != b.modifiers())
+        return false;
+    if (a.granularity() != b.granularity())
+        return false;
+#if PLATFORM(MAC)
+    if (a.phase() != b.phase())
+        return false;
+    if (a.momentumPhase() != b.momentumPhase())
+        return false;
+    if (a.hasPreciseScrollingDeltas() != b.hasPreciseScrollingDeltas())
+        return false;
+#endif
+
+    return true;
+}
+
+static WebWheelEvent coalesce(const WebWheelEvent& a, const WebWheelEvent& b)
+{
+    ASSERT(canCoalesce(a, b));
+
+    FloatSize mergedDelta = a.delta() + b.delta();
+    FloatSize mergedWheelTicks = a.wheelTicks() + b.wheelTicks();
+
+#if PLATFORM(MAC)
+    return WebWheelEvent(WebEvent::Wheel, b.position(), b.globalPosition(), mergedDelta, mergedWheelTicks, b.granularity(), b.phase(), b.momentumPhase(), b.hasPreciseScrollingDeltas(), b.modifiers(), b.timestamp(), b.directionInvertedFromDevice());
+#else
+    return WebWheelEvent(WebEvent::Wheel, b.position(), b.globalPosition(), mergedDelta, mergedWheelTicks, b.granularity(), b.modifiers(), b.timestamp());
+#endif
+}
+#endif // MERGE_WHEEL_EVENTS
+
+static WebWheelEvent coalescedWheelEvent(Deque<NativeWebWheelEvent>& queue, Vector<NativeWebWheelEvent>& coalescedEvents)
+{
+    ASSERT(!queue.isEmpty());
+    ASSERT(coalescedEvents.isEmpty());
+
+#if MERGE_WHEEL_EVENTS
+    NativeWebWheelEvent firstEvent = queue.takeFirst();
+    coalescedEvents.append(firstEvent);
+
+    WebWheelEvent event = firstEvent;
+    while (!queue.isEmpty() && canCoalesce(event, queue.first())) {
+        NativeWebWheelEvent firstEvent = queue.takeFirst();
+        coalescedEvents.append(firstEvent);
+        event = coalesce(event, firstEvent);
+    }
+
+    return event;
+#else
+    while (!queue.isEmpty())
+        coalescedEvents.append(queue.takeFirst());
+    return coalescedEvents.last();
+#endif
+}
+
 void WebPageProxy::handleWheelEvent(const NativeWebWheelEvent& event)
 {
     if (!isValid())
@@ -985,19 +1059,42 @@ void WebPageProxy::handleWheelEvent(const NativeWebWheelEvent& event)
 
     if (!m_currentlyProcessedWheelEvents.isEmpty()) {
         m_wheelEventQueue.append(event);
+        if (m_wheelEventQueue.size() < wheelEventQueueSizeThreshold)
+            return;
+        // The queue has too many wheel events, so push a new event.
+    }
+
+    if (!m_wheelEventQueue.isEmpty()) {
+        processNextQueuedWheelEvent();
         return;
     }
 
-    m_currentlyProcessedWheelEvents.append(event);
+    OwnPtr<Vector<NativeWebWheelEvent> > coalescedWheelEvent = adoptPtr(new Vector<NativeWebWheelEvent>);
+    coalescedWheelEvent->append(event);
+    m_currentlyProcessedWheelEvents.append(coalescedWheelEvent.release());
+    sendWheelEvent(event);
+}
 
+void WebPageProxy::processNextQueuedWheelEvent()
+{
+    OwnPtr<Vector<NativeWebWheelEvent> > nextCoalescedEvent = adoptPtr(new Vector<NativeWebWheelEvent>);
+    WebWheelEvent nextWheelEvent = coalescedWheelEvent(m_wheelEventQueue, *nextCoalescedEvent.get());
+    m_currentlyProcessedWheelEvents.append(nextCoalescedEvent.release());
+    sendWheelEvent(nextWheelEvent);
+}
+
+void WebPageProxy::sendWheelEvent(const WebWheelEvent& event)
+{
     process()->responsivenessTimer()->start();
 
     if (m_shouldSendEventsSynchronously) {
         bool handled = false;
         process()->sendSync(Messages::WebPage::WheelEventSyncForTesting(event), Messages::WebPage::WheelEventSyncForTesting::Reply(handled), m_pageID);
         didReceiveEvent(event.type(), handled);
-    } else
-        process()->send(Messages::EventDispatcher::WheelEvent(m_pageID, event, canGoBack(), canGoForward()), 0);
+        return;
+    }
+
+    process()->send(Messages::EventDispatcher::WheelEvent(m_pageID, event, canGoBack(), canGoForward()), 0);
 }
 
 void WebPageProxy::handleKeyboardEvent(const NativeWebKeyboardEvent& event)
@@ -1310,14 +1407,13 @@ void WebPageProxy::scalePage(double scale, const IntPoint& origin)
 
 void WebPageProxy::setIntrinsicDeviceScaleFactor(float scaleFactor)
 {
-    if (!isValid())
-        return;
-
     if (m_intrinsicDeviceScaleFactor == scaleFactor)
         return;
 
     m_intrinsicDeviceScaleFactor = scaleFactor;
-    m_drawingArea->deviceScaleFactorDidChange();
+
+    if (m_drawingArea)
+        m_drawingArea->deviceScaleFactorDidChange();
 }
 
 void WebPageProxy::windowScreenDidChange(PlatformDisplayID displayID)
@@ -1779,11 +1875,6 @@ void WebPageProxy::didStartProvisionalLoadForFrame(uint64_t frameID, const Strin
 
     frame->didStartProvisionalLoad(url);
     m_loaderClient.didStartProvisionalLoadForFrame(this, frame, userData.get());
-
-#if ENABLE(FULLSCREEN_API)
-    if (m_fullScreenManager && m_fullScreenManager->isFullScreen())
-        m_fullScreenManager->close();
-#endif
 }
 
 void WebPageProxy::didReceiveServerRedirectForProvisionalLoadForFrame(uint64_t frameID, const String& url, CoreIPC::ArgumentDecoder* arguments)
@@ -2308,12 +2399,13 @@ void WebPageProxy::mouseDidMoveOverElement(const WebHitTestResult::Data& hitTest
     m_uiClient.mouseDidMoveOverElement(this, hitTestResultData, modifiers, userData.get());
 }
 
-void WebPageProxy::missingPluginButtonClicked(const String& mimeType, const String& url, const String& pluginsPageURL)
+void WebPageProxy::unavailablePluginButtonClicked(uint32_t opaquePluginUnavailabilityReason, const String& mimeType, const String& url, const String& pluginsPageURL)
 {
     MESSAGE_CHECK_URL(url);
     MESSAGE_CHECK_URL(pluginsPageURL);
 
-    m_uiClient.missingPluginButtonClicked(this, mimeType, url, pluginsPageURL);
+    WKPluginUnavailabilityReason pluginUnavailabilityReason = static_cast<WKPluginUnavailabilityReason>(opaquePluginUnavailabilityReason);
+    m_uiClient.unavailablePluginButtonClicked(this, pluginUnavailabilityReason, mimeType, url, pluginsPageURL);
 }
 
 void WebPageProxy::setToolbarsAreVisible(bool toolbarsAreVisible)
@@ -2394,9 +2486,9 @@ void WebPageProxy::pageDidRequestScroll(const IntPoint& point)
 }
 #endif
 
-void WebPageProxy::didChangeViewportProperties(const ViewportArguments& args)
+void WebPageProxy::didChangeViewportProperties(const ViewportAttributes& attr)
 {
-    m_pageClient->didChangeViewportProperties(args);
+    m_pageClient->didChangeViewportProperties(attr);
 }
 
 void WebPageProxy::pageDidScroll()
@@ -2437,6 +2529,7 @@ void WebPageProxy::printFrame(uint64_t frameID)
 
     m_uiClient.printFrame(this, frame);
 
+    endPrinting(); // Send a message synchronously while m_isPerformingDOMPrintOperation is still true.
     m_isPerformingDOMPrintOperation = false;
 }
 
@@ -2689,6 +2782,7 @@ void WebPageProxy::hidePopupMenu()
     m_activePopupMenu = 0;
 }
 
+#if ENABLE(CONTEXT_MENUS)
 void WebPageProxy::showContextMenu(const IntPoint& menuLocation, const WebHitTestResult::Data& hitTestResultData, const Vector<WebContextMenuItemData>& proposedItems, CoreIPC::ArgumentDecoder* arguments)
 {
     internalShowContextMenu(menuLocation, hitTestResultData, proposedItems, arguments);
@@ -2798,6 +2892,7 @@ void WebPageProxy::contextMenuItemSelected(const WebContextMenuItemData& item)
 
     process()->send(Messages::WebPage::DidSelectItemFromActiveContextMenu(item), m_pageID);
 }
+#endif // ENABLE(CONTEXT_MENUS)
 
 void WebPageProxy::didChooseFilesForOpenPanel(const Vector<String>& fileURLs)
 {
@@ -2963,68 +3058,6 @@ void WebPageProxy::setCursorHiddenUntilMouseMoves(bool hiddenUntilMouseMoves)
     m_pageClient->setCursorHiddenUntilMouseMoves(hiddenUntilMouseMoves);
 }
 
-#if MERGE_WHEEL_EVENTS
-static bool canCoalesce(const WebWheelEvent& a, const WebWheelEvent& b)
-{
-    if (a.position() != b.position())
-        return false;
-    if (a.globalPosition() != b.globalPosition())
-        return false;
-    if (a.modifiers() != b.modifiers())
-        return false;
-    if (a.granularity() != b.granularity())
-        return false;
-#if PLATFORM(MAC)
-    if (a.phase() != b.phase())
-        return false;
-    if (a.momentumPhase() != b.momentumPhase())
-        return false;
-    if (a.hasPreciseScrollingDeltas() != b.hasPreciseScrollingDeltas())
-        return false;
-#endif
-
-    return true;
-}
-
-static WebWheelEvent coalesce(const WebWheelEvent& a, const WebWheelEvent& b)
-{
-    ASSERT(canCoalesce(a, b));
-
-    FloatSize mergedDelta = a.delta() + b.delta();
-    FloatSize mergedWheelTicks = a.wheelTicks() + b.wheelTicks();
-
-#if PLATFORM(MAC)
-    return WebWheelEvent(WebEvent::Wheel, b.position(), b.globalPosition(), mergedDelta, mergedWheelTicks, b.granularity(), b.phase(), b.momentumPhase(), b.hasPreciseScrollingDeltas(), b.modifiers(), b.timestamp(), b.directionInvertedFromDevice());
-#else
-    return WebWheelEvent(WebEvent::Wheel, b.position(), b.globalPosition(), mergedDelta, mergedWheelTicks, b.granularity(), b.modifiers(), b.timestamp());
-#endif
-}
-#endif
-
-static WebWheelEvent coalescedWheelEvent(Deque<NativeWebWheelEvent>& queue, Vector<NativeWebWheelEvent>& coalescedEvents)
-{
-    ASSERT(!queue.isEmpty());
-    ASSERT(coalescedEvents.isEmpty());
-
-#if MERGE_WHEEL_EVENTS
-    NativeWebWheelEvent firstEvent = queue.takeFirst();
-    coalescedEvents.append(firstEvent);
-
-    WebWheelEvent event = firstEvent;
-    while (!queue.isEmpty() && canCoalesce(event, queue.first())) {
-        NativeWebWheelEvent firstEvent = queue.takeFirst();
-        coalescedEvents.append(firstEvent);
-        event = coalesce(event, firstEvent);
-    }
-
-    return event;
-#else
-    while (!queue.isEmpty())
-        coalescedEvents.append(queue.takeFirst());
-    return coalescedEvents.last();
-#endif
-}
-
 void WebPageProxy::didReceiveEvent(uint32_t opaqueType, bool handled)
 {
     WebEvent::Type type = static_cast<WebEvent::Type>(opaqueType);
@@ -3087,19 +3120,14 @@ void WebPageProxy::didReceiveEvent(uint32_t opaqueType, bool handled)
     case WebEvent::Wheel: {
         ASSERT(!m_currentlyProcessedWheelEvents.isEmpty());
 
+        OwnPtr<Vector<NativeWebWheelEvent> > oldestCoalescedEvent = m_currentlyProcessedWheelEvents.takeFirst();
+
         // FIXME: Dispatch additional events to the didNotHandleWheelEvent client function.
         if (!handled && m_uiClient.implementsDidNotHandleWheelEvent())
-            m_uiClient.didNotHandleWheelEvent(this, m_currentlyProcessedWheelEvents.last());
+            m_uiClient.didNotHandleWheelEvent(this, oldestCoalescedEvent->last());
 
-        m_currentlyProcessedWheelEvents.clear();
-
-        if (!m_wheelEventQueue.isEmpty()) {
-            WebWheelEvent newWheelEvent = coalescedWheelEvent(m_wheelEventQueue, m_currentlyProcessedWheelEvents);
-
-            process()->responsivenessTimer()->start();
-            process()->send(Messages::EventDispatcher::WheelEvent(m_pageID, newWheelEvent, canGoBack(), canGoForward()), 0);
-        }
-
+        if (!m_wheelEventQueue.isEmpty())
+            processNextQueuedWheelEvent();
         break;
     }
 
@@ -3273,6 +3301,14 @@ void WebPageProxy::processDidBecomeUnresponsive()
     updateBackingStoreDiscardableState();
 
     m_loaderClient.processDidBecomeUnresponsive(this);
+}
+
+void WebPageProxy::interactionOccurredWhileProcessUnresponsive()
+{
+    if (!isValid())
+        return;
+
+    m_loaderClient.interactionOccurredWhileProcessUnresponsive(this);
 }
 
 void WebPageProxy::processDidBecomeResponsive()
@@ -3583,6 +3619,22 @@ void WebPageProxy::didChangePageCount(unsigned pageCount)
 void WebPageProxy::didFailToInitializePlugin(const String& mimeType)
 {
     m_loaderClient.didFailToInitializePlugin(this, mimeType);
+}
+
+void WebPageProxy::didBlockInsecurePluginVersion(const String& mimeType)
+{
+    String pluginIdentifier;
+    String pluginVersion;
+
+#if PLATFORM(MAC)
+    String newMimeType = mimeType;
+    PluginModuleInfo plugin = m_process->context()->pluginInfoStore().findPlugin(newMimeType, KURL());
+
+    pluginIdentifier = plugin.bundleIdentifier;
+    pluginVersion = plugin.versionString;
+#endif
+
+    m_loaderClient.didBlockInsecurePluginVersion(this, mimeType, pluginIdentifier, pluginVersion);
 }
 
 bool WebPageProxy::willHandleHorizontalScrollEvents() const

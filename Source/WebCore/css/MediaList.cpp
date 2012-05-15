@@ -82,6 +82,16 @@ MediaQuerySet::MediaQuerySet(const String& mediaString, bool fallbackToDescripto
         parse("invalid");
 }
 
+MediaQuerySet::MediaQuerySet(const MediaQuerySet& o)
+    : RefCounted<MediaQuerySet>()
+    , m_fallbackToDescriptor(o.m_fallbackToDescriptor)
+    , m_lastLine(o.m_lastLine)
+    , m_queries(o.m_queries.size())
+{
+    for (unsigned i = 0; i < m_queries.size(); ++i)
+        m_queries[i] = o.m_queries[i]->copy();
+}
+
 MediaQuerySet::~MediaQuerySet()
 {
 }
@@ -199,17 +209,18 @@ String MediaQuerySet::mediaText() const
     }
     return text;
 }
-
-MediaList* MediaQuerySet::ensureMediaList(CSSStyleSheet* parentSheet) const
-{
-    if (!m_cssomWrapper)
-        m_cssomWrapper = adoptPtr(new MediaList(const_cast<MediaQuerySet*>(this), parentSheet));
-    return m_cssomWrapper.get();
-}
     
 MediaList::MediaList(MediaQuerySet* mediaQueries, CSSStyleSheet* parentSheet)
     : m_mediaQueries(mediaQueries)
     , m_parentStyleSheet(parentSheet)
+    , m_parentRule(0)
+{
+}
+
+MediaList::MediaList(MediaQuerySet* mediaQueries, CSSRule* parentRule)
+    : m_mediaQueries(mediaQueries)
+    , m_parentStyleSheet(0)
+    , m_parentRule(parentRule)
 {
 }
 
@@ -219,12 +230,15 @@ MediaList::~MediaList()
 
 void MediaList::setMediaText(const String& value, ExceptionCode& ec)
 {
+    CSSStyleSheet::RuleMutationScope mutationScope(m_parentRule);
+
     bool success = m_mediaQueries->parse(value);
     if (!success) {
         ec = SYNTAX_ERR;
         return;
     }
-    notifyChanged();
+    if (m_parentStyleSheet)
+        m_parentStyleSheet->didMutate();
 }
 
 String MediaList::item(unsigned index) const
@@ -237,31 +251,35 @@ String MediaList::item(unsigned index) const
 
 void MediaList::deleteMedium(const String& medium, ExceptionCode& ec)
 {
+    CSSStyleSheet::RuleMutationScope mutationScope(m_parentRule);
+
     bool success = m_mediaQueries->remove(medium);
     if (!success) {
         ec = NOT_FOUND_ERR;
         return;
     }
-    notifyChanged();
+    if (m_parentStyleSheet)
+        m_parentStyleSheet->didMutate();
 }
 
 void MediaList::appendMedium(const String& medium, ExceptionCode& ec)
 {
+    CSSStyleSheet::RuleMutationScope mutationScope(m_parentRule);
+
     bool success = m_mediaQueries->add(medium);
     if (!success) {
         // FIXME: Should this really be INVALID_CHARACTER_ERR?
         ec = INVALID_CHARACTER_ERR;
         return;
     }
-    notifyChanged();
+    if (m_parentStyleSheet)
+        m_parentStyleSheet->didMutate();
 }
 
-void MediaList::notifyChanged()
+void MediaList::reattach(MediaQuerySet* mediaQueries)
 {
-    if (!m_parentStyleSheet)
-        return;
-
-    m_parentStyleSheet->styleSheetChanged();
+    ASSERT(mediaQueries);
+    m_mediaQueries = mediaQueries;
 }
 
 }

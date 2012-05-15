@@ -346,6 +346,11 @@ sub GetWriteableProperties {
 sub GenerateConditionalWarning
 {
     my $node = shift;
+    my $indentSize = shift;
+    if (!$indentSize) {
+        $indentSize = 4;
+    }
+
     my $conditional = $node->extendedAttributes->{"Conditional"};
     my @warn;
 
@@ -354,15 +359,15 @@ sub GenerateConditionalWarning
             my @splitConditionals = split(/&/, $conditional);
             foreach $condition (@splitConditionals) {
                 push(@warn, "#if !ENABLE($condition)\n");
-                push(@warn, "    WEBKIT_WARN_FEATURE_NOT_PRESENT(\"" . HumanReadableConditional($condition) . "\")\n");
+                push(@warn, ' ' x $indentSize . "WEBKIT_WARN_FEATURE_NOT_PRESENT(\"" . HumanReadableConditional($condition) . "\")\n");
                 push(@warn, "#endif\n");
             }
         } elsif ($conditional =~ /\|/) {
             foreach $condition (split(/\|/, $conditional)) {
-                push(@warn, "    WEBKIT_WARN_FEATURE_NOT_PRESENT(\"" . HumanReadableConditional($condition) . "\")\n");
+                push(@warn, ' ' x $indentSize . "WEBKIT_WARN_FEATURE_NOT_PRESENT(\"" . HumanReadableConditional($condition) . "\")\n");
             }
         } else {
-            push(@warn, "    WEBKIT_WARN_FEATURE_NOT_PRESENT(\"" . HumanReadableConditional($conditional) . "\")\n");
+            push(@warn, ' ' x $indentSize . "WEBKIT_WARN_FEATURE_NOT_PRESENT(\"" . HumanReadableConditional($conditional) . "\")\n");
         }
     }
 
@@ -373,8 +378,12 @@ sub GenerateProperty {
     my $attribute = shift;
     my $interfaceName = shift;
     my @writeableProperties = @{shift @_};
+    my $parentNode = shift;
 
     my $conditionalString = $codeGenerator->GenerateConditionalString($attribute->signature);
+    my @conditionalWarn = GenerateConditionalWarning($attribute->signature, 8);
+    my $parentConditionalString = $codeGenerator->GenerateConditionalString($parentNode);
+    my @parentConditionalWarn = GenerateConditionalWarning($parentNode, 8);
     my $camelPropName = $attribute->signature->name;
     my $setPropNameFunction = $codeGenerator->WK_ucfirst($camelPropName);
     my $getPropNameFunction = $codeGenerator->WK_lcfirst($camelPropName);
@@ -383,9 +392,7 @@ sub GenerateProperty {
     my $propNameCaps = uc($propName);
     $propName =~ s/_/-/g;
     my ${propEnum} = "PROP_${propNameCaps}";
-    push(@cBodyProperties, "#if ${conditionalString}\n") if $conditionalString;
     push(@cBodyProperties, "    ${propEnum},\n");
-    push(@cBodyProperties, "#endif /* ${conditionalString} */\n") if $conditionalString;
 
     my $propType = $attribute->signature->type;
     my ${propGType} = decamelize($propType);
@@ -434,16 +441,23 @@ sub GenerateProperty {
     push(@setterArguments, "ec") if @{$attribute->setterExceptions};
 
     if (grep {$_ eq $attribute} @writeableProperties) {
-        push(@txtSetProps, "#if ${conditionalString}\n") if $conditionalString;
         push(@txtSetProps, "    case ${propEnum}: {\n");
+        push(@txtSetProps, "#if ${parentConditionalString}\n") if $parentConditionalString;
+        push(@txtSetProps, "#if ${conditionalString}\n") if $conditionalString;
         push(@txtSetProps, "        WebCore::ExceptionCode ec = 0;\n") if @{$attribute->setterExceptions};
         push(@txtSetProps, "        ${setterFunctionName}(" . join(", ", @setterArguments) . ");\n");
-        push(@txtSetProps, "        break;\n    }\n");
+        push(@txtSetProps, "#else\n") if $conditionalString;
+        push(@txtSetProps, @conditionalWarn) if scalar(@conditionalWarn);
         push(@txtSetProps, "#endif /* ${conditionalString} */\n") if $conditionalString;
+        push(@txtSetProps, "#else\n") if $parentConditionalString;
+        push(@txtSetProps, @parentConditionalWarn) if scalar(@parentConditionalWarn);
+        push(@txtSetProps, "#endif /* ${parentConditionalString} */\n") if $parentConditionalString;
+        push(@txtSetProps, "        break;\n    }\n");
     }
 
-    push(@txtGetProps, "#if ${conditionalString}\n") if $conditionalString;
     push(@txtGetProps, "    case ${propEnum}: {\n");
+    push(@txtGetProps, "#if ${parentConditionalString}\n") if $parentConditionalString;
+    push(@txtGetProps, "#if ${conditionalString}\n") if $conditionalString;
     push(@txtGetProps, "        WebCore::ExceptionCode ec = 0;\n") if @{$attribute->getterExceptions};
 
     my $postConvertFunction = "";
@@ -473,8 +487,13 @@ sub GenerateProperty {
         }
     }
 
-    push(@txtGetProps, "        break;\n    }\n");
+    push(@txtGetProps, "#else\n") if $conditionalString;
+    push(@txtGetProps, @conditionalWarn) if scalar(@conditionalWarn);
     push(@txtGetProps, "#endif /* ${conditionalString} */\n") if $conditionalString;
+    push(@txtGetProps, "#else\n") if $parentConditionalString;
+    push(@txtGetProps, @parentConditionalWarn) if scalar(@parentConditionalWarn);
+    push(@txtGetProps, "#endif /* ${parentConditionalString} */\n") if $parentConditionalString;
+    push(@txtGetProps, "        break;\n    }\n");
 
     my %param_spec_options = ("int", "G_MININT, /* min */\nG_MAXINT, /* max */\n0, /* default */",
                               "boolean", "FALSE, /* default */",
@@ -500,9 +519,7 @@ sub GenerateProperty {
                                                            $param_spec_options{$gtype}
                                                            ${gparamflag}));
 EOF
-    push(@txtInstallProps, "#if ${conditionalString}\n") if $conditionalString;
     push(@txtInstallProps, $txtInstallProp);
-    push(@txtInstallProps, "#endif /* ${conditionalString} */\n") if $conditionalString;
 }
 
 sub GenerateProperties {
@@ -541,8 +558,10 @@ EOF
     push(@txtGetProps, $txtGetProp);
     if (scalar @readableProperties > 0) {
         $txtGetProp = << "EOF";
+$conditionGuardStart
     ${className}* self = WEBKIT_DOM_${clsCaps}(object);
     $privFunction
+$conditionGuardEnd
 EOF
         push(@txtGetProps, $txtGetProp);
     }
@@ -563,8 +582,10 @@ EOF
 
     if (scalar @writeableProperties > 0) {
         $txtSetProps = << "EOF";
+$conditionGuardStart
     ${className}* self = WEBKIT_DOM_${clsCaps}(object);
     $privFunction
+$conditionGuardEnd
 EOF
         push(@txtSetProps, $txtSetProps);
     }
@@ -577,7 +598,7 @@ EOF
     foreach my $attribute (@readableProperties) {
         if ($attribute->signature->type ne "EventListener" &&
             $attribute->signature->type ne "MediaQueryListListener") {
-            GenerateProperty($attribute, $interfaceName, \@writeableProperties);
+            GenerateProperty($attribute, $interfaceName, \@writeableProperties, $dataNode);
         }
     }
 
@@ -1413,7 +1434,6 @@ EOF
     print IMPL @cPrefix;
     print IMPL "#include \"config.h\"\n";
     print IMPL "#include \"$installedHeaderFilename\"\n\n";
-    print IMPL "#if ${conditionalString}\n\n" if $conditionalString;
 
     # Remove the implementation header from the list of included files.
     %includesCopy = %implIncludes;
@@ -1423,6 +1443,7 @@ EOF
     print IMPL "#include <glib-object.h>\n";
     print IMPL "#include <wtf/GetPtr.h>\n";
     print IMPL "#include <wtf/RefPtr.h>\n\n";
+    print IMPL "#if ${conditionalString}\n\n" if $conditionalString;
 
     print IMPL "namespace WebKit {\n\n";
     print IMPL @cBodyPriv;

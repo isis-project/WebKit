@@ -421,49 +421,6 @@ static void renderThemeEflColorClassFocusRing(void* data, Evas_Object* object, c
     that->setFocusRingColor(fr, fg, fb, fa);
 }
 
-static void renderThemeEflColorClassButtonText(void* data, Evas_Object* object, const char* signal, const char* source)
-{
-    RenderThemeEfl* that = static_cast<RenderThemeEfl *>(data);
-    int fr, fg, fb, fa, br, bg, bb, ba;
-
-    if (!edje_object_color_class_get(object, source, &fr, &fg, &fb, &fa, &br, &bg, &bb, &ba, 0, 0, 0, 0))
-        return;
-
-    that->setButtonTextColor(fr, fg, fb, fa, br, bg, bb, ba);
-}
-
-static void renderThemeEflColorClassComboText(void* data, Evas_Object* object, const char* signal, const char* source)
-{
-    RenderThemeEfl* that = static_cast<RenderThemeEfl *>(data);
-    int fr, fg, fb, fa, br, bg, bb, ba;
-
-    if (!edje_object_color_class_get(object, source, &fr, &fg, &fb, &fa, &br, &bg, &bb, &ba, 0, 0, 0, 0))
-        return;
-
-    that->setComboTextColor(fr, fg, fb, fa, br, bg, bb, ba);
-}
-
-static void renderThemeEflColorClassEntryText(void* data, Evas_Object* object, const char* signal, const char* source)
-{
-    RenderThemeEfl* that = static_cast<RenderThemeEfl *>(data);
-    int fr, fg, fb, fa, br, bg, bb, ba;
-
-    if (!edje_object_color_class_get(object, source, &fr, &fg, &fb, &fa, &br, &bg, &bb, &ba, 0, 0, 0, 0))
-        return;
-
-    that->setEntryTextColor(fr, fg, fb, fa, br, bg, bb, ba);
-}
-
-static void renderThemeEflColorClassSearchText(void* data, Evas_Object* object, const char* signal, const char* source)
-{
-    RenderThemeEfl* that = static_cast<RenderThemeEfl *>(data);
-    int fr, fg, fb, fa, br, bg, bb, ba;
-    if (!edje_object_color_class_get(object, source, &fr, &fg, &fb, &fa, &br, &bg, &bb, &ba, 0, 0, 0, 0))
-        return;
-
-    that->setSearchTextColor(fr, fg, fb, fa, br, bg, bb, ba);
-}
-
 void RenderThemeEfl::createCanvas()
 {
     ASSERT(!m_canvas);
@@ -500,10 +457,6 @@ void RenderThemeEfl::createEdje()
             CONNECT("selection/inactive",
                     renderThemeEflColorClassSelectionInactive);
             CONNECT("focus_ring", renderThemeEflColorClassFocusRing);
-            CONNECT("button/text", renderThemeEflColorClassButtonText);
-            CONNECT("combo/text", renderThemeEflColorClassComboText);
-            CONNECT("entry/text", renderThemeEflColorClassEntryText);
-            CONNECT("search/text", renderThemeEflColorClassSearchText);
 #undef CONNECT
         }
     }
@@ -533,22 +486,6 @@ void RenderThemeEfl::applyEdjeColors()
         // this is ugly, but no other way to do it unless we change
         // it to use page themes as much as possible.
         RenderTheme::setCustomFocusRingColor(m_focusRingColor);
-    }
-    if (COLOR_GET("button/text")) {
-        m_buttonTextForegroundColor = Color(fr, fg, fb, fa);
-        m_buttonTextBackgroundColor = Color(br, bg, bb, ba);
-    }
-    if (COLOR_GET("combo/text")) {
-        m_comboTextForegroundColor = Color(fr, fg, fb, fa);
-        m_comboTextBackgroundColor = Color(br, bg, bb, ba);
-    }
-    if (COLOR_GET("entry/text")) {
-        m_entryTextForegroundColor = Color(fr, fg, fb, fa);
-        m_entryTextBackgroundColor = Color(br, bg, bb, ba);
-    }
-    if (COLOR_GET("search/text")) {
-        m_searchTextForegroundColor = Color(fr, fg, fb, fa);
-        m_searchTextBackgroundColor = Color(br, bg, bb, ba);
     }
 #undef COLOR_GET
     platformColorsDidChange();
@@ -713,14 +650,6 @@ RenderThemeEfl::RenderThemeEfl(Page* page)
     , m_inactiveSelectionBackgroundColor(0, 0, 128)
     , m_inactiveSelectionForegroundColor(200, 200, 200)
     , m_focusRingColor(32, 32, 224, 224)
-    , m_buttonTextBackgroundColor(0, 0, 0, 0)
-    , m_buttonTextForegroundColor(Color::black)
-    , m_comboTextBackgroundColor(0, 0, 0, 0)
-    , m_comboTextForegroundColor(Color::black)
-    , m_entryTextBackgroundColor(0, 0, 0, 0)
-    , m_entryTextForegroundColor(Color::black)
-    , m_searchTextBackgroundColor(0, 0, 0, 0)
-    , m_searchTextForegroundColor(Color::black)
     , m_sliderThumbColor(Color::darkGray)
 #if ENABLE(VIDEO)
     , m_mediaPanelColor(220, 220, 195) // light tannish color.
@@ -765,34 +694,6 @@ void RenderThemeEfl::setFocusRingColor(int r, int g, int b, int a)
     // this is ugly, but no other way to do it unless we change
     // it to use page themes as much as possible.
     RenderTheme::setCustomFocusRingColor(m_focusRingColor);
-    platformColorsDidChange();
-}
-
-void RenderThemeEfl::setButtonTextColor(int foreR, int foreG, int foreB, int foreA, int backR, int backG, int backB, int backA)
-{
-    m_buttonTextForegroundColor = Color(foreR, foreG, foreB, foreA);
-    m_buttonTextBackgroundColor = Color(backR, backG, backB, backA);
-    platformColorsDidChange();
-}
-
-void RenderThemeEfl::setComboTextColor(int foreR, int foreG, int foreB, int foreA, int backR, int backG, int backB, int backA)
-{
-    m_comboTextForegroundColor = Color(foreR, foreG, foreB, foreA);
-    m_comboTextBackgroundColor = Color(backR, backG, backB, backA);
-    platformColorsDidChange();
-}
-
-void RenderThemeEfl::setEntryTextColor(int foreR, int foreG, int foreB, int foreA, int backR, int backG, int backB, int backA)
-{
-    m_entryTextForegroundColor = Color(foreR, foreG, foreB, foreA);
-    m_entryTextBackgroundColor = Color(backR, backG, backB, backA);
-    platformColorsDidChange();
-}
-
-void RenderThemeEfl::setSearchTextColor(int foreR, int foreG, int foreB, int foreA, int backR, int backG, int backB, int backA)
-{
-    m_searchTextForegroundColor = Color(foreR, foreG, foreB, foreA);
-    m_searchTextBackgroundColor = Color(backR, backG, backB, backA);
     platformColorsDidChange();
 }
 
@@ -844,10 +745,10 @@ bool RenderThemeEfl::paintSliderTrack(RenderObject* object, const PaintInfo& inf
     return paintThemePart(object, SliderVertical, info, rect);
 }
 
-void RenderThemeEfl::adjustSliderTrackStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustSliderTrackStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSliderTrackStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSliderTrackStyle(styleResolver, style, element);
         return;
     }
 
@@ -861,10 +762,10 @@ void RenderThemeEfl::adjustSliderTrackStyle(CSSStyleSelector* selector, RenderSt
         style->setHeight(desc->min.height());
 }
 
-void RenderThemeEfl::adjustSliderThumbStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustSliderThumbStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
-    RenderTheme::adjustSliderThumbStyle(selector, style, element);
-    adjustSliderTrackStyle(selector, style, element);
+    RenderTheme::adjustSliderThumbStyle(styleResolver, style, element);
+    adjustSliderTrackStyle(styleResolver, style, element);
 }
 
 void RenderThemeEfl::adjustSliderThumbSize(RenderStyle* style) const
@@ -888,10 +789,10 @@ bool RenderThemeEfl::paintSliderThumb(RenderObject* object, const PaintInfo& inf
     return false;
 }
 
-void RenderThemeEfl::adjustCheckboxStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustCheckboxStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustCheckboxStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustCheckboxStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, CheckBox);
@@ -909,10 +810,10 @@ bool RenderThemeEfl::paintCheckbox(RenderObject* object, const PaintInfo& info, 
     return paintThemePart(object, CheckBox, info, rect);
 }
 
-void RenderThemeEfl::adjustRadioStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustRadioStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustRadioStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustRadioStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, RadioButton);
@@ -930,10 +831,10 @@ bool RenderThemeEfl::paintRadio(RenderObject* object, const PaintInfo& info, con
     return paintThemePart(object, RadioButton, info, rect);
 }
 
-void RenderThemeEfl::adjustButtonStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustButtonStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustButtonStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustButtonStyle(styleResolver, style, element);
         return;
     }
 
@@ -943,8 +844,6 @@ void RenderThemeEfl::adjustButtonStyle(CSSStyleSelector* selector, RenderStyle* 
         style->resetBorder();
         style->setWhiteSpace(PRE);
         style->setHeight(Length(Auto));
-        style->setColor(m_buttonTextForegroundColor);
-        style->setBackgroundColor(m_buttonTextBackgroundColor);
     }
 }
 
@@ -953,17 +852,15 @@ bool RenderThemeEfl::paintButton(RenderObject* object, const PaintInfo& info, co
     return paintThemePart(object, Button, info, rect);
 }
 
-void RenderThemeEfl::adjustMenuListStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustMenuListStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustMenuListStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustMenuListStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, ComboBox);
     style->resetBorder();
     style->setWhiteSpace(PRE);
-    style->setColor(m_comboTextForegroundColor);
-    style->setBackgroundColor(m_comboTextBackgroundColor);
 }
 
 bool RenderThemeEfl::paintMenuList(RenderObject* object, const PaintInfo& info, const IntRect& rect)
@@ -971,9 +868,9 @@ bool RenderThemeEfl::paintMenuList(RenderObject* object, const PaintInfo& info, 
     return paintThemePart(object, ComboBox, info, rect);
 }
 
-void RenderThemeEfl::adjustMenuListButtonStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustMenuListButtonStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
-    adjustMenuListStyle(selector, style, element);
+    adjustMenuListStyle(styleResolver, style, element);
 }
 
 bool RenderThemeEfl::paintMenuListButton(RenderObject* object, const PaintInfo& info, const IntRect& rect)
@@ -981,17 +878,14 @@ bool RenderThemeEfl::paintMenuListButton(RenderObject* object, const PaintInfo& 
     return paintMenuList(object, info, rect);
 }
 
-void RenderThemeEfl::adjustTextFieldStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustTextFieldStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustTextFieldStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustTextFieldStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, TextField);
     style->resetBorder();
-    style->setWhiteSpace(PRE);
-    style->setColor(m_entryTextForegroundColor);
-    style->setBackgroundColor(m_entryTextBackgroundColor);
 }
 
 bool RenderThemeEfl::paintTextField(RenderObject* object, const PaintInfo& info, const IntRect& rect)
@@ -999,9 +893,9 @@ bool RenderThemeEfl::paintTextField(RenderObject* object, const PaintInfo& info,
     return paintThemePart(object, TextField, info, rect);
 }
 
-void RenderThemeEfl::adjustTextAreaStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustTextAreaStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
-    adjustTextFieldStyle(selector, style, element);
+    adjustTextFieldStyle(styleResolver, style, element);
 }
 
 bool RenderThemeEfl::paintTextArea(RenderObject* object, const PaintInfo& info, const IntRect& rect)
@@ -1009,10 +903,10 @@ bool RenderThemeEfl::paintTextArea(RenderObject* object, const PaintInfo& info, 
     return paintTextField(object, info, rect);
 }
 
-void RenderThemeEfl::adjustSearchFieldDecorationStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustSearchFieldDecorationStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldDecorationStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldDecorationStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, SearchFieldDecoration);
@@ -1025,10 +919,10 @@ bool RenderThemeEfl::paintSearchFieldDecoration(RenderObject* object, const Pain
     return paintThemePart(object, SearchFieldDecoration, info, rect);
 }
 
-void RenderThemeEfl::adjustSearchFieldResultsButtonStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustSearchFieldResultsButtonStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldResultsButtonStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldResultsButtonStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, SearchFieldResultsButton);
@@ -1041,10 +935,10 @@ bool RenderThemeEfl::paintSearchFieldResultsButton(RenderObject* object, const P
     return paintThemePart(object, SearchFieldResultsButton, info, rect);
 }
 
-void RenderThemeEfl::adjustSearchFieldResultsDecorationStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustSearchFieldResultsDecorationStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldResultsDecorationStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldResultsDecorationStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, SearchFieldResultsDecoration);
@@ -1057,10 +951,10 @@ bool RenderThemeEfl::paintSearchFieldResultsDecoration(RenderObject* object, con
     return paintThemePart(object, SearchFieldResultsDecoration, info, rect);
 }
 
-void RenderThemeEfl::adjustSearchFieldCancelButtonStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustSearchFieldCancelButtonStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldCancelButtonStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldCancelButtonStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, SearchFieldCancelButton);
@@ -1073,17 +967,15 @@ bool RenderThemeEfl::paintSearchFieldCancelButton(RenderObject* object, const Pa
     return paintThemePart(object, SearchFieldCancelButton, info, rect);
 }
 
-void RenderThemeEfl::adjustSearchFieldStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustSearchFieldStyle(StyleResolver* styleResolver, RenderStyle* style, Element* element) const
 {
     if (!m_page && element && element->document()->page()) {
-        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldStyle(selector, style, element);
+        static_cast<RenderThemeEfl*>(element->document()->page()->theme())->adjustSearchFieldStyle(styleResolver, style, element);
         return;
     }
     adjustSizeConstraints(style, SearchField);
     style->resetBorder();
     style->setWhiteSpace(PRE);
-    style->setColor(m_searchTextForegroundColor);
-    style->setBackgroundColor(m_searchTextBackgroundColor);
 }
 
 bool RenderThemeEfl::paintSearchField(RenderObject* object, const PaintInfo& info, const IntRect& rect)
@@ -1112,7 +1004,7 @@ void RenderThemeEfl::systemFont(int propId, FontDescription& fontDescription) co
 }
 
 #if ENABLE(PROGRESS_TAG)
-void RenderThemeEfl::adjustProgressBarStyle(CSSStyleSelector* selector, RenderStyle* style, Element* element) const
+void RenderThemeEfl::adjustProgressBarStyle(StyleResolver*, RenderStyle* style, Element*) const
 {
     style->setBoxShadow(nullptr);
 }

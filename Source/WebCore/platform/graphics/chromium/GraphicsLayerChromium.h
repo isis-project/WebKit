@@ -44,6 +44,7 @@
 namespace WebCore {
 
 class LayerChromium;
+class LinkHighlight;
 
 class GraphicsLayerChromium : public GraphicsLayer, public ContentLayerDelegate, public CCLayerAnimationDelegate {
 public:
@@ -102,8 +103,11 @@ public:
     virtual bool addAnimation(const KeyframeValueList&, const IntSize& boxSize, const Animation*, const String&, double timeOffset);
     virtual void pauseAnimation(const String& animationName, double timeOffset);
     virtual void removeAnimation(const String& animationName);
-    virtual void suspendAnimations(double time);
+    virtual void suspendAnimations(double wallClockTime);
     virtual void resumeAnimations();
+
+    virtual void addLinkHighlight(const Path&);
+    virtual void didFinishLinkHighlight();
 
     virtual PlatformLayer* platformLayer() const;
 
@@ -116,6 +120,7 @@ public:
 
     // CCLayerAnimationDelegate implementation.
     virtual void notifyAnimationStarted(double startTime);
+    virtual void notifyAnimationFinished(double finishTime);
 
     // Exposed for tests.
     LayerChromium* contentsLayer() const { return m_contentsLayer.get(); }
@@ -156,6 +161,7 @@ private:
     RefPtr<ContentLayerChromium> m_layer;
     RefPtr<LayerChromium> m_transformLayer;
     RefPtr<LayerChromium> m_contentsLayer;
+    RefPtr<LinkHighlight> m_linkHighlight;
 
     enum ContentsLayerPurpose {
         NoContentsLayer = 0,

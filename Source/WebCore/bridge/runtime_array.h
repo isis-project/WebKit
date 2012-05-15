@@ -51,18 +51,18 @@ public:
     static void destroy(JSCell*);
 
     static void getOwnPropertyNames(JSObject*, ExecState*, PropertyNameArray&, EnumerationMode);
-    static bool getOwnPropertySlot(JSCell*, ExecState*, const Identifier&, PropertySlot&);
+    static bool getOwnPropertySlot(JSCell*, ExecState*, PropertyName, PropertySlot&);
     static bool getOwnPropertySlotByIndex(JSCell*, ExecState*, unsigned, PropertySlot&);
-    static bool getOwnPropertyDescriptor(JSObject*, ExecState*, const Identifier&, PropertyDescriptor&);
-    static void put(JSCell*, ExecState*, const Identifier& propertyName, JSValue, PutPropertySlot&);
+    static bool getOwnPropertyDescriptor(JSObject*, ExecState*, PropertyName, PropertyDescriptor&);
+    static void put(JSCell*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
     static void putByIndex(JSCell*, ExecState*, unsigned propertyName, JSValue, bool shouldThrow);
     
-    static bool deleteProperty(JSCell*, ExecState*, const Identifier &propertyName);
+    static bool deleteProperty(JSCell*, ExecState*, PropertyName);
     static bool deletePropertyByIndex(JSCell*, ExecState*, unsigned propertyName);
     
-    unsigned getLength() const { return getConcreteArray()->getLength(); }
+    unsigned getLength() const { return m_array->getLength(); }
     
-    Bindings::Array* getConcreteArray() const { return static_cast<BindingsArray*>(subclassData()); }
+    Bindings::Array* getConcreteArray() const { return m_array; }
 
     static const ClassInfo s_info;
 
@@ -83,8 +83,10 @@ protected:
 
 private:
     RuntimeArray(ExecState*, Structure*);
-    static JSValue lengthGetter(ExecState*, JSValue, const Identifier&);
+    static JSValue lengthGetter(ExecState*, JSValue, PropertyName);
     static JSValue indexGetter(ExecState*, JSValue, unsigned);
+
+    BindingsArray* m_array;
 };
     
 } // namespace JSC

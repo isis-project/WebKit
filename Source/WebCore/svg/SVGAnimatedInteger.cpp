@@ -40,77 +40,57 @@ PassOwnPtr<SVGAnimatedType> SVGAnimatedIntegerAnimator::constructFromString(cons
     return animtedType.release();
 }
 
-PassOwnPtr<SVGAnimatedType> SVGAnimatedIntegerAnimator::startAnimValAnimation(const Vector<SVGAnimatedProperty*>& properties)
+PassOwnPtr<SVGAnimatedType> SVGAnimatedIntegerAnimator::startAnimValAnimation(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    return SVGAnimatedType::createInteger(constructFromBaseValue<SVGAnimatedInteger>(properties));
+    return SVGAnimatedType::createInteger(constructFromBaseValue<SVGAnimatedInteger>(animatedTypes));
 }
 
-void SVGAnimatedIntegerAnimator::stopAnimValAnimation(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedIntegerAnimator::stopAnimValAnimation(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    stopAnimValAnimationForType<SVGAnimatedInteger>(properties);
+    stopAnimValAnimationForType<SVGAnimatedInteger>(animatedTypes);
 }
 
-void SVGAnimatedIntegerAnimator::resetAnimValToBaseVal(const Vector<SVGAnimatedProperty*>& properties, SVGAnimatedType* type)
+void SVGAnimatedIntegerAnimator::resetAnimValToBaseVal(const SVGElementAnimatedPropertyList& animatedTypes, SVGAnimatedType* type)
 {
-    resetFromBaseValue<SVGAnimatedInteger>(properties, type, &SVGAnimatedType::integer);
+    resetFromBaseValue<SVGAnimatedInteger>(animatedTypes, type, &SVGAnimatedType::integer);
 }
 
-void SVGAnimatedIntegerAnimator::animValWillChange(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedIntegerAnimator::animValWillChange(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    animValWillChangeForType<SVGAnimatedInteger>(properties);
+    animValWillChangeForType<SVGAnimatedInteger>(animatedTypes);
 }
 
-void SVGAnimatedIntegerAnimator::animValDidChange(const Vector<SVGAnimatedProperty*>& properties)
+void SVGAnimatedIntegerAnimator::animValDidChange(const SVGElementAnimatedPropertyList& animatedTypes)
 {
-    animValDidChangeForType<SVGAnimatedInteger>(properties);
+    animValDidChangeForType<SVGAnimatedInteger>(animatedTypes);
 }
 
-void SVGAnimatedIntegerAnimator::calculateFromAndToValues(OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, const String& fromString, const String& toString)
+void SVGAnimatedIntegerAnimator::addAnimatedTypes(SVGAnimatedType* from, SVGAnimatedType* to)
 {
-    ASSERT(m_contextElement);
-    ASSERT(m_animationElement);
-    SVGAnimateElement* animationElement = static_cast<SVGAnimateElement*>(m_animationElement);
-    animationElement->determinePropertyValueTypes(fromString, toString);
-    
-    from = constructFromString(fromString);
-    to = constructFromString(toString);
-}
+    ASSERT(from->type() == AnimatedInteger);
+    ASSERT(from->type() == to->type());
 
-void SVGAnimatedIntegerAnimator::calculateFromAndByValues(OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, const String& fromString, const String& byString)
-{
-    ASSERT(m_contextElement);
-    ASSERT(m_animationElement);
-    SVGAnimateElement* animationElement = static_cast<SVGAnimateElement*>(m_animationElement);
-    animationElement->determinePropertyValueTypes(fromString, byString);
-    
-    from = constructFromString(fromString);
-    to = constructFromString(byString);
-    
     to->integer() += from->integer();
 }
 
-void SVGAnimatedIntegerAnimator::calculateAnimatedInteger(SVGAnimationElement* animationElement, float percentage, unsigned repeatCount, int& animatedNumber, int fromNumber, int toNumber)
+void SVGAnimatedIntegerAnimator::calculateAnimatedInteger(SVGAnimationElement* animationElement, float percentage, unsigned repeatCount, int fromInteger, int toInteger, int toAtEndOfDurationInteger, int& animatedInteger)
 {
-    float animatedFloat = animatedNumber;
-    SVGAnimatedNumberAnimator::calculateAnimatedNumber(animationElement, percentage, repeatCount, animatedFloat, fromNumber, toNumber);
-    animatedNumber = static_cast<int>(roundf(animatedFloat));
+    float animatedNumber = animatedInteger;
+    animationElement->animateAdditiveNumber(percentage, repeatCount, fromInteger, toInteger, toAtEndOfDurationInteger, animatedNumber);
+    animatedInteger = static_cast<int>(roundf(animatedNumber));
 }
 
-void SVGAnimatedIntegerAnimator::calculateAnimatedValue(float percentage, unsigned repeatCount,
-                                                        OwnPtr<SVGAnimatedType>& from, OwnPtr<SVGAnimatedType>& to, OwnPtr<SVGAnimatedType>& animated)
+void SVGAnimatedIntegerAnimator::calculateAnimatedValue(float percentage, unsigned repeatCount, SVGAnimatedType* from, SVGAnimatedType* to, SVGAnimatedType* toAtEndOfDuration, SVGAnimatedType* animated)
 {
     ASSERT(m_animationElement);
     ASSERT(m_contextElement);
 
-    SVGAnimateElement* animationElement = static_cast<SVGAnimateElement*>(m_animationElement);    
-    AnimationMode animationMode = animationElement->animationMode();
+    int fromInteger = m_animationElement->animationMode() == ToAnimation ? animated->integer() : from->integer();
+    int toInteger = to->integer();
+    int toAtEndOfDurationInteger = toAtEndOfDuration->integer();
+    int& animatedInteger = animated->integer();
 
-    // To animation uses contributions from the lower priority animations as the base value.
-    int& animatedInt = animated->integer();
-    if (animationMode == ToAnimation)
-        from->integer() = animatedInt;
-
-    calculateAnimatedInteger(animationElement, percentage, repeatCount, animatedInt, from->integer(), to->integer());
+    calculateAnimatedInteger(m_animationElement, percentage, repeatCount, fromInteger, toInteger, toAtEndOfDurationInteger, animatedInteger);
 }
 
 float SVGAnimatedIntegerAnimator::calculateDistance(const String& fromString, const String& toString)

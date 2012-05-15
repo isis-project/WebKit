@@ -1311,26 +1311,6 @@ HRESULT WebFrame::numberOfActiveAnimations(UINT* number)
     return S_OK;
 }
 
-HRESULT WebFrame::suspendAnimations()
-{
-    Frame* frame = core(this);
-    if (!frame)
-        return E_FAIL;
-
-    frame->animation()->suspendAnimations();
-    return S_OK;
-}
-
-HRESULT WebFrame::resumeAnimations()
-{
-    Frame* frame = core(this);
-    if (!frame)
-        return E_FAIL;
-
-    frame->animation()->resumeAnimations();
-    return S_OK;
-}
-
 HRESULT WebFrame::isDisplayingStandaloneImage(BOOL* result)
 {
     if (!result)
@@ -1554,6 +1534,10 @@ void WebFrame::cancelPolicyCheck()
     }
 
     d->m_policyFunction = 0;
+}
+
+void WebFrame::dispatchWillSendSubmitEvent(PassRefPtr<WebCore::FormState>)
+{
 }
 
 void WebFrame::dispatchWillSubmitForm(FramePolicyFunction function, PassRefPtr<FormState> formState)

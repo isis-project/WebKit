@@ -50,21 +50,24 @@ void HTMLBaseElement::parseAttribute(Attribute* attribute)
         HTMLElement::parseAttribute(attribute);
 }
 
-void HTMLBaseElement::insertedIntoDocument()
+Node::InsertionNotificationRequest HTMLBaseElement::insertedInto(Node* insertionPoint)
 {
-    HTMLElement::insertedIntoDocument();
-    document()->processBaseElement();
+    HTMLElement::insertedInto(insertionPoint);
+    if (insertionPoint->inDocument())
+        document()->processBaseElement();
+    return InsertionDone;
 }
 
-void HTMLBaseElement::removedFromDocument()
+void HTMLBaseElement::removedFrom(Node* insertionPoint)
 {
-    HTMLElement::removedFromDocument();
-    document()->processBaseElement();
+    HTMLElement::removedFrom(insertionPoint);
+    if (insertionPoint->inDocument())
+        document()->processBaseElement();
 }
 
-bool HTMLBaseElement::isURLAttribute(Attribute* attribute) const
+bool HTMLBaseElement::isURLAttribute(const Attribute& attribute) const
 {
-    return attribute->name() == hrefAttr || HTMLElement::isURLAttribute(attribute);
+    return attribute.name() == hrefAttr || HTMLElement::isURLAttribute(attribute);
 }
 
 String HTMLBaseElement::target() const

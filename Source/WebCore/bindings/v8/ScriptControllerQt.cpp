@@ -30,8 +30,9 @@
 #include "ScriptController.h"
 
 #if !PLATFORM(WEBOS)
-#include <QJSEngine>
+#include <QtQml/QJSEngine>
 #endif
+
 
 namespace WebCore {
 

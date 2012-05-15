@@ -112,7 +112,7 @@ WebInspector.TextPrompt.prototype = {
         this.proxyElement.appendChild(element);
         this._element.addStyleClass("text-prompt");
         this._element.addEventListener("keydown", this._boundOnKeyDown, false);
-        this._element.addEventListener("selectstart", this._selectStart.bind(this), false);
+        this._element.addEventListener("selectstart", this._boundSelectStart, false);
 
         if (typeof this._suggestBoxClassName === "string")
             this._suggestBox = new WebInspector.TextPrompt.SuggestBox(this, this._element, this._suggestBoxClassName);
@@ -125,6 +125,9 @@ WebInspector.TextPrompt.prototype = {
         this._removeFromElement();
         this.proxyElement.parentElement.insertBefore(this._element, this.proxyElement);
         this.proxyElement.parentElement.removeChild(this.proxyElement);
+        this._element.removeStyleClass("text-prompt");
+        this._element.removeEventListener("keydown", this._boundOnKeyDown, false);
+        this._element.removeEventListener("selectstart", this._boundSelectStart, false);
         delete this._proxyElement;
         WebInspector.restoreFocusFromElement(this._element);
     },
@@ -303,6 +306,7 @@ WebInspector.TextPrompt.prototype = {
             clearTimeout(this._completeTimeout);
             delete this._completeTimeout;
         }
+        delete this._waitingForCompletions;
 
         if (!this.autoCompleteElement)
             return;
@@ -378,6 +382,7 @@ WebInspector.TextPrompt.prototype = {
         }
 
         var wordPrefixRange = selectionRange.startContainer.rangeOfWord(selectionRange.startOffset, this._completionStopCharacters, this._element, "backward");
+        this._waitingForCompletions = true;
         this._loadCompletions(this, wordPrefixRange, force, this._completionsReady.bind(this, selection, auto, wordPrefixRange, !!reverse));
     },
 
@@ -423,10 +428,11 @@ WebInspector.TextPrompt.prototype = {
      */
     _completionsReady: function(selection, auto, originalWordPrefixRange, reverse, completions)
     {
-        if (!completions || !completions.length) {
+        if (!this._waitingForCompletions || !completions || !completions.length) {
             this.hideSuggestBox();
             return;
         }
+        delete this._waitingForCompletions;
 
         var selectionRange = selection.getRangeAt(0);
 
@@ -508,7 +514,7 @@ WebInspector.TextPrompt.prototype = {
 
     _completeCommonPrefix: function()
     {
-        if (!this.autoCompleteElement || !this._commonPrefix || !this._userEnteredText || this._commonPrefix.indexOf(this._userEnteredText) !== 0)
+        if (!this.autoCompleteElement || !this._commonPrefix || !this._userEnteredText || !this._commonPrefix.startsWith(this._userEnteredText))
             return;
 
         if (!this.isSuggestBoxVisible()) {

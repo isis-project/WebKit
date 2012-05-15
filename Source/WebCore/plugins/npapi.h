@@ -91,11 +91,11 @@
 #endif
 
 #if defined(XP_UNIX)
-# if !defined(XP_WEBOS)
+#include <stdio.h>
+#if defined(MOZ_X11) || !defined(XP_WEBOS)
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
-# endif
-#include <stdio.h>
+#endif
 #endif
 
 /*----------------------------------------------------------------------*/
@@ -270,10 +270,12 @@ typedef struct
 typedef struct
 {
   int32_t      type;
+#if defined(MOZ_X11)
   Display*     display;
   Visual*      visual;
   Colormap     colormap;
   unsigned int depth;
+#endif
 } NPSetWindowCallbackStruct;
 # endif
 
@@ -603,8 +605,7 @@ typedef struct _NPEvent
   uint32_t wParam;
   uint32_t lParam;
 } NPEvent;
-#elif defined(XP_UNIX)
-#if defined(XP_WEBOS)
+#elif defined(XP_UNIX) && (defined(MOZ_X11) || defined(XP_WEBOS))
 typedef enum NpPalmEventsEnum
 {
   npPalmNullEvent,
@@ -754,9 +755,6 @@ typedef struct NPEvent
 
 } NPEvent;
 #else
-typedef XEvent NPEvent;
-#endif
-#else
 typedef void*  NPEvent;
 #endif
 
@@ -770,7 +768,7 @@ typedef CGPathRef NPCGRegion;
 typedef HRGN NPRegion;
 #elif defined(XP_WEBOS)
 typedef void *NPRegion;
-#elif defined(XP_UNIX)
+#elif defined(XP_UNIX) && defined(MOZ_X11)
 typedef Region NPRegion;
 #else
 typedef void *NPRegion;

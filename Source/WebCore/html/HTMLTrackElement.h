@@ -77,9 +77,10 @@ private:
 
     virtual void parseAttribute(Attribute*) OVERRIDE;
 
-    virtual void insertedIntoTree(bool) OVERRIDE;
-    virtual void willRemove() OVERRIDE;
-    virtual bool isURLAttribute(Attribute*) const;
+    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
+
+    virtual void removedFrom(Node*) OVERRIDE;
+    virtual bool isURLAttribute(const Attribute&) const OVERRIDE;
 
 #if ENABLE(MICRODATA)
     virtual String itemValueText() const OVERRIDE;

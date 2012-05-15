@@ -29,6 +29,7 @@
 #include "DrawingAreaInfo.h"
 #include <WebCore/FloatPoint.h>
 #include <WebCore/IntRect.h>
+#include <wtf/Forward.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/PassOwnPtr.h>
 
@@ -75,6 +76,9 @@ public:
     virtual void didInstallPageOverlay() { }
     virtual void didUninstallPageOverlay() { }
     virtual void setPageOverlayNeedsDisplay(const WebCore::IntRect&) { }
+    virtual void setPageOverlayOpacity(float) { }
+    // If this function returns false, PageOverlay should apply opacity when painting.
+    virtual bool pageOverlayShouldApplyFadeWhenPainting() const { return true; }
     virtual void pageCustomRepresentationChanged() { }
 
     virtual void setPaintingEnabled(bool) { }
@@ -92,6 +96,8 @@ public:
 #if PLATFORM(WIN)
     virtual void scheduleChildWindowGeometryUpdate(const WindowGeometry&) = 0;
 #endif
+
+    virtual void dispatchAfterEnsuringUpdatedScrollPosition(const Function<void ()>&);
 
 protected:
     DrawingArea(DrawingAreaType, WebPage*);

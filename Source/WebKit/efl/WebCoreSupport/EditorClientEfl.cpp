@@ -35,7 +35,9 @@
 #include "Settings.h"
 #include "UndoStep.h"
 #include "WindowsKeyboardCodes.h"
+#include "ewk_frame_private.h"
 #include "ewk_private.h"
+#include "ewk_view_private.h"
 
 using namespace WebCore;
 
@@ -144,6 +146,15 @@ void EditorClientEfl::respondToChangedSelection(Frame* coreFrame)
 
     Evas_Object* webFrame = EWKPrivate::kitFrame(coreFrame);
     ewk_frame_editor_client_selection_changed(webFrame);
+
+    if (!coreFrame->editor()->hasComposition() || coreFrame->editor()->ignoreCompositionSelectionChange())
+        return;
+
+    unsigned start;
+    unsigned end;
+
+    if (!coreFrame->editor()->getCompositionSelection(start, end))
+        coreFrame->editor()->cancelComposition();
 }
 
 void EditorClientEfl::didEndEditing()

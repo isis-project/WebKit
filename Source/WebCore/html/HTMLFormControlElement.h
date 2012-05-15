@@ -95,13 +95,12 @@ public:
     virtual void setActivatedSubmit(bool) { }
 
     virtual bool willValidate() const;
-    String validationMessage();
     void updateVisibleValidationMessage();
     void hideVisibleValidationMessage();
     bool checkValidity(Vector<RefPtr<FormAssociatedElement> >* unhandledInvalidControls = 0);
     // This must be called when a validation constraint or control value is changed.
     void setNeedsValidityCheck();
-    void setCustomValidity(const String&);
+    virtual void setCustomValidity(const String&) OVERRIDE;
 
     bool readOnly() const { return m_readOnly; }
 
@@ -120,10 +119,8 @@ protected:
     virtual void requiredAttributeChanged();
     virtual void disabledAttributeChanged();
     virtual void attach();
-    virtual void insertedIntoTree(bool deep);
-    virtual void removedFromTree(bool deep);
-    virtual void insertedIntoDocument();
-    virtual void removedFromDocument();
+    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
+    virtual void removedFrom(Node*) OVERRIDE;
     virtual void didMoveToNewDocument(Document* oldDocument) OVERRIDE;
 
     virtual bool supportsFocus() const;
@@ -160,6 +157,9 @@ private:
     bool m_readOnly : 1;
     bool m_required : 1;
     bool m_valueMatchesRenderer : 1;
+
+    enum DataListAncestorState { Unknown, InsideDataList, NotInsideDataList };
+    mutable enum DataListAncestorState m_dataListAncestorState;
 
     // The initial value of m_willValidate depends on the derived class. We can't
     // initialize it with a virtual function in the constructor. m_willValidate

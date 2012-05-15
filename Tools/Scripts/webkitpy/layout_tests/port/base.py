@@ -594,8 +594,9 @@ class Port(object):
     def webkit_base(self):
         return self._filesystem.abspath(self.path_from_webkit_base('.'))
 
-    def skipped_layout_tests(self):
-        return []
+    def skipped_layout_tests(self, test_list):
+        """Returns the set of tests found in Skipped files. Does *not* include tests marked as SKIP in expectations files."""
+        return set([])
 
     def _tests_from_skipped_file_contents(self, skipped_file_contents):
         tests_to_skip = []
@@ -622,21 +623,6 @@ class Port(object):
     @memoized
     def skipped_perf_tests(self):
         return self._expectations_from_skipped_files([self.perf_tests_dir()])
-
-    def skipped_tests(self, test_list):
-        return set([])
-
-    def skips_layout_test(self, test_name):
-        """Figures out if the givent test is being skipped or not.
-
-        Test categories are handled as well."""
-        for test_or_category in self.skipped_layout_tests():
-            if test_or_category == test_name:
-                return True
-            category = self._filesystem.join(self.layout_tests_dir(), test_or_category)
-            if self._filesystem.isdir(category) and test_name.startswith(test_or_category):
-                return True
-        return False
 
     def skips_perf_test(self, test_name):
         for test_or_category in self.skipped_perf_tests():
@@ -728,6 +714,10 @@ class Port(object):
         """Perform port-specific work at the beginning of a test run."""
         pass
 
+    def clean_up_test_run(self):
+        """Perform port-specific work at the end of a test run."""
+        pass
+
     # FIXME: os.environ access should be moved to onto a common/system class to be more easily mockable.
     def _value_or_default_from_environ(self, name, default=None):
         if name in os.environ:
@@ -749,6 +739,7 @@ class Port(object):
             'LANG',
             'LD_LIBRARY_PATH',
             'DBUS_SESSION_BUS_ADDRESS',
+            'XDG_DATA_DIRS',
 
             # Darwin:
             'DYLD_LIBRARY_PATH',
@@ -897,7 +888,13 @@ class Port(object):
         it is possible that you might need "downstream" expectations that
         temporarily override the "upstream" expectations until the port can
         sync up the two repos."""
-        return None
+        overrides = ''
+        for path in self.get_option('additional_expectations', []):
+            if self._filesystem.exists(self._filesystem.expanduser(path)):
+                overrides += self._filesystem.read_text_file(self._filesystem.expanduser(path))
+            else:
+                _log.warning("overrides path '%s' does not exist" % path)
+        return overrides or None
 
     def repository_paths(self):
         """Returns a list of (repository_name, repository_path) tuples of its depending code base.
@@ -1076,7 +1073,7 @@ class Port(object):
         """Returns the port's driver implementation."""
         raise NotImplementedError('Port._driver_class')
 
-    def _get_crash_log(self, name, pid, stdout, stderr):
+    def _get_crash_log(self, name, pid, stdout, stderr, newer_than):
         name_str = name or '<unknown process name>'
         pid_str = str(pid or '<unknown>')
         stdout_lines = (stdout or '<empty>').decode('utf8', 'replace').splitlines()
@@ -1084,6 +1081,9 @@ class Port(object):
         return 'crash log for %s (pid %s):\n%s\n%s\n' % (name_str, pid_str,
             '\n'.join(('STDOUT: ' + l) for l in stdout_lines),
             '\n'.join(('STDERR: ' + l) for l in stderr_lines))
+
+    def sample_process(self, name, pid):
+        pass
 
     def virtual_test_suites(self):
         return []

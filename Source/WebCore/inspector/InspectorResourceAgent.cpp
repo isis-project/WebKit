@@ -59,6 +59,7 @@
 #include "ScriptCallStack.h"
 #include "ScriptCallStackFactory.h"
 #include "ScriptableDocumentParser.h"
+#include "WebSocketFrame.h"
 #include "WebSocketHandshakeRequest.h"
 #include "WebSocketHandshakeResponse.h"
 
@@ -118,7 +119,8 @@ static PassRefPtr<TypeBuilder::Network::ResourceTiming> buildObjectForTiming(con
         .setSslEnd(timing.sslEnd)
         .setSendStart(timing.sendStart)
         .setSendEnd(timing.sendEnd)
-        .setReceiveHeadersEnd(timing.receiveHeadersEnd);
+        .setReceiveHeadersEnd(timing.receiveHeadersEnd)
+        .release();
 }
 
 static PassRefPtr<TypeBuilder::Network::Request> buildObjectForResourceRequest(const ResourceRequest& request)
@@ -224,14 +226,8 @@ void InspectorResourceAgent::willSendRequest(unsigned long identifier, DocumentL
         request.setHTTPHeaderField("Cache-Control", "no-cache");
     }
 
-    RefPtr<ScriptCallStack> callStack = createScriptCallStack(ScriptCallStack::maxCallStackSizeToCapture, true);
-    RefPtr<TypeBuilder::Array<TypeBuilder::Console::CallFrame> > callStackValue;
-    if (callStack)
-        callStackValue = callStack->buildInspectorArray();
-    else
-        callStackValue = TypeBuilder::Array<TypeBuilder::Console::CallFrame>::create();
     RefPtr<TypeBuilder::Network::Initiator> initiatorObject = buildInitiatorObject(loader->frame() ? loader->frame()->document() : 0);
-    m_frontend->requestWillBeSent(requestId, m_pageAgent->frameId(loader->frame()), m_pageAgent->loaderId(loader), loader->url().string(), buildObjectForResourceRequest(request), currentTime(), initiatorObject, callStackValue, buildObjectForResourceResponse(redirectResponse, loader));
+    m_frontend->requestWillBeSent(requestId, m_pageAgent->frameId(loader->frame()), m_pageAgent->loaderId(loader), loader->url().string(), buildObjectForResourceRequest(request), currentTime(), initiatorObject, buildObjectForResourceResponse(redirectResponse, loader));
 }
 
 void InspectorResourceAgent::markResourceAsCached(unsigned long identifier)
@@ -253,7 +249,7 @@ void InspectorResourceAgent::didReceiveResponse(unsigned long identifier, Docume
             cachedResourceSize = cachedResource->encodedSize();
             // Use mime type from cached resource in case the one in response is empty.
             if (resourceResponse && response.mimeType().isEmpty())
-                resourceResponse->setString("mimeType", cachedResource->response().mimeType());
+                resourceResponse->setString(TypeBuilder::Network::Response::MimeType, cachedResource->response().mimeType());
 
             m_resourcesData->addCachedResource(requestId, cachedResource);
         }
@@ -276,11 +272,20 @@ void InspectorResourceAgent::didReceiveResponse(unsigned long identifier, Docume
         didReceiveData(identifier, 0, cachedResourceSize, 0);
 }
 
+static bool isErrorStatusCode(int statusCode)
+{
+    return statusCode >= 400;
+}
+
 void InspectorResourceAgent::didReceiveData(unsigned long identifier, const char* data, int dataLength, int encodedDataLength)
 {
     String requestId = IdentifiersFactory::requestId(identifier);
-    if (data && m_resourcesData->resourceType(requestId) == InspectorPageAgent::OtherResource)
-        m_resourcesData->maybeAddResourceData(requestId, data, dataLength);
+
+    if (data) {
+        NetworkResourcesData::ResourceData const* resourceData = m_resourcesData->data(requestId);
+        if (m_resourcesData->resourceType(requestId) == InspectorPageAgent::OtherResource || (resourceData && isErrorStatusCode(resourceData->httpStatusCode()) && (resourceData->cachedResource())))
+            m_resourcesData->maybeAddResourceData(requestId, data, dataLength);
+    }
 
     m_frontend->dataReceived(requestId, currentTime(), dataLength, encodedDataLength);
 }
@@ -405,7 +410,8 @@ PassRefPtr<TypeBuilder::Network::Initiator> InspectorResourceAgent::buildInitiat
         return m_styleRecalculationInitiator;
 
     return TypeBuilder::Network::Initiator::create()
-        .setType(TypeBuilder::Network::Initiator::Type::Other);
+        .setType(TypeBuilder::Network::Initiator::Type::Other)
+        .release();
 }
 
 #if ENABLE(WEB_SOCKETS)
@@ -452,6 +458,30 @@ void InspectorResourceAgent::didCloseWebSocket(unsigned long identifier)
 {
     m_frontend->webSocketClosed(IdentifiersFactory::requestId(identifier), currentTime());
 }
+
+void InspectorResourceAgent::didReceiveWebSocketFrame(unsigned long identifier, const WebSocketFrame& frame)
+{
+    RefPtr<TypeBuilder::Network::WebSocketFrame> frameObject = TypeBuilder::Network::WebSocketFrame::create()
+        .setOpcode(frame.opCode)
+        .setMask(frame.masked)
+        .setPayloadData(String(frame.payload, frame.payloadLength));
+    m_frontend->webSocketFrameReceived(IdentifiersFactory::requestId(identifier), currentTime(), frameObject);
+}
+
+void InspectorResourceAgent::didSendWebSocketFrame(unsigned long identifier, const WebSocketFrame& frame)
+{
+    RefPtr<TypeBuilder::Network::WebSocketFrame> frameObject = TypeBuilder::Network::WebSocketFrame::create()
+        .setOpcode(frame.opCode)
+        .setMask(frame.masked)
+        .setPayloadData(String(frame.payload, frame.payloadLength));
+    m_frontend->webSocketFrameSent(IdentifiersFactory::requestId(identifier), currentTime(), frameObject);
+}
+
+void InspectorResourceAgent::didReceiveWebSocketFrameError(unsigned long identifier, const String& errorMessage)
+{
+    m_frontend->webSocketFrameError(IdentifiersFactory::requestId(identifier), currentTime(), errorMessage);
+}
+
 #endif // ENABLE(WEB_SOCKETS)
 
 // called from Internals for layout test purposes.

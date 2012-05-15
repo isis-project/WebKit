@@ -34,7 +34,6 @@
 #include <wtf/InlineASM.h>
 #include "Interpreter.h"
 #include "JSActivation.h"
-#include "JSByteArray.h"
 #include "JSGlobalData.h"
 #include "JSStaticScopeObject.h"
 #include "Operations.h"
@@ -60,6 +59,7 @@
 
 #define FUNCTION_WRAPPER_WITH_RETURN_ADDRESS(function, offset) \
     asm( \
+    ".text" "\n" \
     ".globl " SYMBOL_STRING(function) "\n" \
     HIDE_SYMBOL(function) "\n" \
     SYMBOL_STRING(function) ":" "\n" \
@@ -100,6 +100,16 @@
         "b " SYMBOL_STRING_RELOCATION(function) "WithReturnAddress" "\n" \
     );
 
+// EncodedJSValue in JSVALUE32_64 is a 64-bit integer. When being compiled in ARM EABI, it must be aligned even-numbered register (r0, r2 or [sp]).
+// As a result, return address will be at a 4-byte further location in the following cases.
+#if COMPILER_SUPPORTS(EABI) && CPU(ARM)
+#define INSTRUCTION_STORE_RETURN_ADDRESS_EJI "str lr, [sp, #4]"
+#define INSTRUCTION_STORE_RETURN_ADDRESS_EJCI "str lr, [sp, #8]"
+#else
+#define INSTRUCTION_STORE_RETURN_ADDRESS_EJI "str lr, [sp, #0]"
+#define INSTRUCTION_STORE_RETURN_ADDRESS_EJCI "str lr, [sp, #4]"
+#endif
+
 #define FUNCTION_WRAPPER_WITH_RETURN_ADDRESS_EJI(function) \
     asm ( \
     ".text" "\n" \
@@ -109,7 +119,7 @@
     ".thumb" "\n" \
     ".thumb_func " THUMB_FUNC_PARAM(function) "\n" \
     SYMBOL_STRING(function) ":" "\n" \
-        "str lr, [sp, #0]" "\n" \
+        INSTRUCTION_STORE_RETURN_ADDRESS_EJI "\n" \
         "b " SYMBOL_STRING_RELOCATION(function) "WithReturnAddress" "\n" \
     );
 
@@ -122,7 +132,7 @@
     ".thumb" "\n" \
     ".thumb_func " THUMB_FUNC_PARAM(function) "\n" \
     SYMBOL_STRING(function) ":" "\n" \
-        "str lr, [sp, #4]" "\n" \
+        INSTRUCTION_STORE_RETURN_ADDRESS_EJCI "\n" \
         "b " SYMBOL_STRING_RELOCATION(function) "WithReturnAddress" "\n" \
     );
 
@@ -149,31 +159,18 @@ namespace JSC { namespace DFG {
 template<bool strict>
 static inline void putByVal(ExecState* exec, JSValue baseValue, uint32_t index, JSValue value)
 {
-    JSGlobalData* globalData = &exec->globalData();
-
+    JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
+    
     if (isJSArray(baseValue)) {
         JSArray* array = asArray(baseValue);
         if (array->canSetIndex(index)) {
-            array->setIndex(*globalData, index, value);
+            array->setIndex(globalData, index, value);
             return;
         }
 
         JSArray::putByIndex(array, exec, index, value, strict);
         return;
-    }
-
-    if (isJSByteArray(baseValue) && asByteArray(baseValue)->canAccessIndex(index)) {
-        JSByteArray* byteArray = asByteArray(baseValue);
-        // FIXME: the JITstub used to relink this to an optimized form!
-        if (value.isInt32()) {
-            byteArray->setIndex(index, value.asInt32());
-            return;
-        }
-
-        if (value.isNumber()) {
-            byteArray->setIndex(index, value.asNumber());
-            return;
-        }
     }
 
     baseValue.putByIndex(exec, index, value, strict);
@@ -222,38 +219,17 @@ EncodedJSValue DFG_OPERATION operationConvertThis(ExecState* exec, EncodedJSValu
     return JSValue::encode(JSValue::decode(encodedOp).toThisObject(exec));
 }
 
-inline JSCell* createThis(ExecState* exec, JSCell* prototype, JSFunction* constructor)
+JSCell* DFG_OPERATION operationCreateThis(ExecState* exec, JSCell* constructor)
 {
+    JSGlobalData* globalData = &exec->globalData();
+    NativeCallFrameTracer tracer(globalData, exec);
+
 #if !ASSERT_DISABLED
     ConstructData constructData;
-    ASSERT(constructor->methodTable()->getConstructData(constructor, constructData) == ConstructTypeJS);
+    ASSERT(jsCast<JSFunction*>(constructor)->methodTable()->getConstructData(jsCast<JSFunction*>(constructor), constructData) == ConstructTypeJS);
 #endif
     
-    JSGlobalData& globalData = exec->globalData();
-    
-    Structure* structure;
-    if (prototype->isObject())
-        structure = asObject(prototype)->inheritorID(globalData);
-    else
-        structure = constructor->scope()->globalObject->emptyObjectStructure();
-    
-    return constructEmptyObject(exec, structure);
-}
-
-JSCell* DFG_OPERATION operationCreateThis(ExecState* exec, JSCell* prototype)
-{
-    JSGlobalData* globalData = &exec->globalData();
-    NativeCallFrameTracer tracer(globalData, exec);
-
-    return createThis(exec, prototype, jsCast<JSFunction*>(exec->callee()));
-}
-
-JSCell* DFG_OPERATION operationCreateThisInlined(ExecState* exec, JSCell* prototype, JSCell* constructor)
-{
-    JSGlobalData* globalData = &exec->globalData();
-    NativeCallFrameTracer tracer(globalData, exec);
-    
-    return createThis(exec, prototype, jsCast<JSFunction*>(constructor));
+    return constructEmptyObject(exec, jsCast<JSFunction*>(constructor)->cachedInheritorID(exec));
 }
 
 JSCell* DFG_OPERATION operationNewObject(ExecState* exec)
@@ -293,6 +269,9 @@ EncodedJSValue DFG_OPERATION operationValueAddNotNumber(ExecState* exec, Encoded
 
 static inline EncodedJSValue getByVal(ExecState* exec, JSCell* base, uint32_t index)
 {
+    JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
+    
     // FIXME: the JIT used to handle these in compiled code!
     if (isJSArray(base) && asArray(base)->canGetIndex(index))
         return JSValue::encode(asArray(base)->getIndex(index));
@@ -300,10 +279,6 @@ static inline EncodedJSValue getByVal(ExecState* exec, JSCell* base, uint32_t in
     // FIXME: the JITstub used to relink this to an optimized form!
     if (isJSString(base) && asString(base)->canGetIndex(index))
         return JSValue::encode(asString(base)->getIndex(exec, index));
-
-    // FIXME: the JITstub used to relink this to an optimized form!
-    if (isJSByteArray(base) && asByteArray(base)->canAccessIndex(index))
-        return JSValue::encode(asByteArray(base)->getIndex(exec, index));
 
     return JSValue::encode(JSValue(base).get(exec, index));
 }
@@ -505,6 +480,9 @@ EncodedJSValue DFG_OPERATION operationArrayPush(ExecState* exec, EncodedJSValue 
 
 EncodedJSValue DFG_OPERATION operationRegExpExec(ExecState* exec, JSCell* base, JSCell* argument)
 {
+    JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
+    
     if (!base->inherits(&RegExpObject::s_info))
         return throwVMTypeError(exec);
 
@@ -515,6 +493,9 @@ EncodedJSValue DFG_OPERATION operationRegExpExec(ExecState* exec, JSCell* base, 
         
 size_t DFG_OPERATION operationRegExpTest(ExecState* exec, JSCell* base, JSCell* argument)
 {
+    JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
+
     if (!base->inherits(&RegExpObject::s_info)) {
         throwTypeError(exec);
         return false;
@@ -792,6 +773,8 @@ static void* handleHostCall(ExecState* execCallee, JSValue callee, CodeSpecializ
         ASSERT(callType != CallTypeJS);
     
         if (callType == CallTypeHost) {
+            NativeCallFrameTracer tracer(globalData, execCallee);
+            execCallee->setCallee(asObject(callee));
             globalData->hostCallReturnValue = JSValue::decode(callData.native.function(execCallee));
             if (globalData->exception)
                 return 0;
@@ -812,6 +795,8 @@ static void* handleHostCall(ExecState* execCallee, JSValue callee, CodeSpecializ
     ASSERT(constructType != ConstructTypeJS);
     
     if (constructType == ConstructTypeHost) {
+        NativeCallFrameTracer tracer(globalData, execCallee);
+        execCallee->setCallee(asObject(callee));
         globalData->hostCallReturnValue = JSValue::decode(constructData.native.function(execCallee));
         if (globalData->exception)
             return 0;
@@ -998,11 +983,15 @@ EncodedJSValue DFG_OPERATION operationNewArray(ExecState* exec, void* start, siz
 
 EncodedJSValue DFG_OPERATION operationNewArrayBuffer(ExecState* exec, size_t start, size_t size)
 {
+    JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
     return JSValue::encode(constructArray(exec, exec->codeBlock()->constantBuffer(start), size));
 }
 
 EncodedJSValue DFG_OPERATION operationNewRegexp(ExecState* exec, void* regexpPtr)
 {
+    JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
     RegExp* regexp = static_cast<RegExp*>(regexpPtr);
     if (!regexp->isValid()) {
         throwError(exec, createSyntaxError(exec, "Invalid flags supplied to RegExp constructor."));
@@ -1015,6 +1004,7 @@ EncodedJSValue DFG_OPERATION operationNewRegexp(ExecState* exec, void* regexpPtr
 JSCell* DFG_OPERATION operationCreateActivation(ExecState* exec)
 {
     JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
     JSActivation* activation = JSActivation::create(
         globalData, exec, static_cast<FunctionExecutable*>(exec->codeBlock()->ownerExecutable()));
     exec->setScopeChain(exec->scopeChain()->push(activation));
@@ -1025,12 +1015,16 @@ void DFG_OPERATION operationTearOffActivation(ExecState* exec, JSCell* activatio
 {
     ASSERT(activation);
     ASSERT(activation->inherits(&JSActivation::s_info));
+    JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
     jsCast<JSActivation*>(activation)->tearOff(exec->globalData());
 }
 
 JSCell* DFG_OPERATION operationNewFunction(ExecState* exec, JSCell* functionExecutable)
 {
     ASSERT(functionExecutable->inherits(&FunctionExecutable::s_info));
+    JSGlobalData& globalData = exec->globalData();
+    NativeCallFrameTracer tracer(&globalData, exec);
     return static_cast<FunctionExecutable*>(functionExecutable)->make(exec, exec->scopeChain());
 }
 
@@ -1049,7 +1043,17 @@ JSCell* DFG_OPERATION operationNewFunctionExpression(ExecState* exec, JSCell* fu
     return function;
 }
 
-double operationFModOnInts(int32_t a, int32_t b)
+size_t DFG_OPERATION operationIsObject(EncodedJSValue value)
+{
+    return jsIsObjectType(JSValue::decode(value));
+}
+
+size_t DFG_OPERATION operationIsFunction(EncodedJSValue value)
+{
+    return jsIsFunctionType(JSValue::decode(value));
+}
+
+double DFG_OPERATION operationFModOnInts(int32_t a, int32_t b)
 {
     return fmod(a, b);
 }
@@ -1157,6 +1161,7 @@ SYMBOL_STRING(getHostCallReturnValue) ":" "\n"
 );
 #elif CPU(X86)
 asm (
+".text" "\n" \
 ".globl " SYMBOL_STRING(getHostCallReturnValue) "\n"
 HIDE_SYMBOL(getHostCallReturnValue) "\n"
 SYMBOL_STRING(getHostCallReturnValue) ":" "\n"

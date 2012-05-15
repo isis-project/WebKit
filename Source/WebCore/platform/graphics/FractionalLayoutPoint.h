@@ -35,6 +35,14 @@
 #include "FractionalLayoutSize.h"
 #include <wtf/MathExtras.h>
 
+#if PLATFORM(QT)
+#include <qglobal.h>
+QT_BEGIN_NAMESPACE
+class QPoint;
+class QPointF;
+QT_END_NAMESPACE
+#endif
+
 namespace WebCore {
 
 class FractionalLayoutPoint {
@@ -43,6 +51,7 @@ public:
     FractionalLayoutPoint(FractionalLayoutUnit x, FractionalLayoutUnit y) : m_x(x), m_y(y) { }
     FractionalLayoutPoint(const IntPoint& point) : m_x(point.x()), m_y(point.y()) { }
     explicit FractionalLayoutPoint(const FloatPoint& size) : m_x(size.x()), m_y(size.y()) { }
+    explicit FractionalLayoutPoint(const FractionalLayoutSize& size) : m_x(size.width()), m_y(size.height()) { }
 
     static FractionalLayoutPoint zero() { return FractionalLayoutPoint(); }
 
@@ -80,6 +89,12 @@ public:
     {
         return FractionalLayoutPoint(m_y, m_x);
     }
+
+#if PLATFORM(QT)
+    explicit FractionalLayoutPoint(const QPoint&);
+    explicit FractionalLayoutPoint(const QPointF&);
+    operator QPointF() const;
+#endif
 
 private:
     FractionalLayoutUnit m_x, m_y;
@@ -156,7 +171,6 @@ inline IntPoint ceiledIntPoint(const FractionalLayoutPoint& point)
 {
     return IntPoint(point.x().ceil(), point.y().ceil());
 }
-
 
 } // namespace WebCore
 

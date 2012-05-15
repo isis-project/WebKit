@@ -57,6 +57,7 @@ TileCache::TileCache(WebTileCacheLayer* tileCacheLayer, const IntSize& tileSize)
     , m_scale(1)
     , m_deviceScaleFactor(1)
     , m_isInWindow(true)
+    , m_canHaveScrollbars(true)
     , m_acceleratesDrawing(false)
     , m_tileDebugBorderWidth(0)
 {
@@ -122,7 +123,7 @@ void TileCache::setNeedsDisplayInRect(const IntRect& rect)
     }
 }
 
-void TileCache::drawLayer(WebTileLayer* layer, CGContextRef context)
+void TileCache::drawLayer(WebTileLayer *layer, CGContextRef context)
 {
     PlatformCALayer* platformLayer = PlatformCALayer::platformCALayer(m_tileCacheLayer);
     if (!platformLayer)
@@ -137,36 +138,7 @@ void TileCache::drawLayer(WebTileLayer* layer, CGContextRef context)
 
     CGContextRestoreGState(context);
 
-    unsigned repaintCount = [layer incrementRepaintCount];
-    if (!shouldShowRepaintCounters())
-        return;
-
-    // FIXME: Some of this code could be shared with WebLayer.
-    char text[16]; // that's a lot of repaints
-    snprintf(text, sizeof(text), "%d", repaintCount);
-
-    CGRect indicatorBox = [layer bounds];
-    indicatorBox.size.width = 12 + 10 * strlen(text);
-    indicatorBox.size.height = 27;
-    CGContextSaveGState(context);
-
-    CGContextSetAlpha(context, 0.5f);
-    CGContextBeginTransparencyLayerWithRect(context, indicatorBox, 0);
-
-    CGContextSetFillColorWithColor(context, m_tileDebugBorderColor.get());
-    CGContextFillRect(context, indicatorBox);
-
-    if (platformLayer->acceleratesDrawing())
-        CGContextSetRGBFillColor(context, 1, 0, 0, 1);
-    else
-        CGContextSetRGBFillColor(context, 1, 1, 1, 1);
-
-    CGContextSetTextMatrix(context, CGAffineTransformMakeScale(1, -1));
-    CGContextSelectFont(context, "Helvetica", 22, kCGEncodingMacRoman);
-    CGContextShowTextAtPoint(context, indicatorBox.origin.x + 5, indicatorBox.origin.y + 22, text, strlen(text));
-
-    CGContextEndTransparencyLayer(context);
-    CGContextRestoreGState(context);
+    drawRepaintCounter(layer, context);
 }
 
 void TileCache::setScale(CGFloat scale)
@@ -242,6 +214,15 @@ void TileCache::setIsInWindow(bool isInWindow)
     }
 }
 
+void TileCache::setCanHaveScrollbars(bool canHaveScrollbars)
+{
+    if (m_canHaveScrollbars == canHaveScrollbars)
+        return;
+
+    m_canHaveScrollbars = canHaveScrollbars;
+    scheduleTileRevalidation(0);
+}
+
 void TileCache::setTileDebugBorderWidth(float borderWidth)
 {
     if (m_tileDebugBorderWidth == borderWidth)
@@ -294,7 +275,10 @@ IntRect TileCache::tileCoverageRect() const
 {
     IntRect tileCoverageRect = m_visibleRect;
 
-    if (m_isInWindow) {
+    // If the page is not in a window (for example if it's in a background tab), we limit the tile coverage rect to the visible rect.
+    // Furthermore, if the page can't have scrollbars (for example if its body element has overflow:hidden) it's very unlikely that the
+    // page will ever be scrolled so we limit the tile coverage rect as well.
+    if (m_isInWindow && m_canHaveScrollbars) {
         // Inflate the coverage rect so that it covers 2x of the visible width and 3x of the visible height.
         // These values were chosen because it's more common to have tall pages and to scroll vertically,
         // so we keep more tiles above and below the current area.
@@ -370,7 +354,8 @@ void TileCache::revalidateTiles()
                 [m_tileContainerLayer.get() addSublayer:tileLayer.get()];
             } else {
                 // We already have a layer for this tile. Ensure that its size is correct.
-                if (CGSizeEqualToSize([tileLayer.get() frame].size, tileRect.size()))
+                CGSize tileLayerSize = [tileLayer.get() frame].size;
+                if (tileLayerSize.width >= tileRect.width() && tileLayerSize.height >= tileRect.height())
                     continue;
                 [tileLayer.get() setFrame:tileRect];
             }
@@ -388,6 +373,8 @@ void TileCache::revalidateTiles()
         m_tileCoverageRect.unite(rectForTileIndex(tileIndex));
     }
 
+    if (dirtyRects.isEmpty())
+        return;
     platformLayer->owner()->platformCALayerDidCreateTiles(dirtyRects);
 }
 
@@ -427,6 +414,42 @@ bool TileCache::shouldShowRepaintCounters() const
         return false;
 
     return layerContents->platformCALayerShowRepaintCounter();
+}
+
+void TileCache::drawRepaintCounter(WebTileLayer *layer, CGContextRef context)
+{
+    unsigned repaintCount = [layer incrementRepaintCount];
+    if (!shouldShowRepaintCounters())
+        return;
+
+    // FIXME: Some of this code could be shared with WebLayer.
+    char text[16]; // that's a lot of repaints
+    snprintf(text, sizeof(text), "%d", repaintCount);
+
+    CGRect indicatorBox = [layer bounds];
+    indicatorBox.size.width = 12 + 10 * strlen(text);
+    indicatorBox.size.height = 27;
+    CGContextSaveGState(context);
+
+    CGContextSetAlpha(context, 0.5f);
+    CGContextBeginTransparencyLayerWithRect(context, indicatorBox, 0);
+
+    CGContextSetFillColorWithColor(context, m_tileDebugBorderColor.get());
+    CGContextFillRect(context, indicatorBox);
+
+    PlatformCALayer* platformLayer = PlatformCALayer::platformCALayer(m_tileCacheLayer);
+
+    if (platformLayer->acceleratesDrawing())
+        CGContextSetRGBFillColor(context, 1, 0, 0, 1);
+    else
+        CGContextSetRGBFillColor(context, 1, 1, 1, 1);
+
+    CGContextSetTextMatrix(context, CGAffineTransformMakeScale(1, -1));
+    CGContextSelectFont(context, "Helvetica", 22, kCGEncodingMacRoman);
+    CGContextShowTextAtPoint(context, indicatorBox.origin.x + 5, indicatorBox.origin.y + 22, text, strlen(text));
+
+    CGContextEndTransparencyLayer(context);
+    CGContextRestoreGState(context);
 }
 
 } // namespace WebCore

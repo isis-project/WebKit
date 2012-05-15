@@ -93,10 +93,10 @@ public:
     bool hasDocument();
 
     AudioDestinationNode* destination() { return m_destinationNode.get(); }
-    size_t currentSampleFrame() { return m_destinationNode->currentSampleFrame(); }
-    double currentTime() { return m_destinationNode->currentTime(); }
-    float sampleRate() { return m_destinationNode->sampleRate(); }
-    unsigned long activeSourceCount() { return static_cast<unsigned long>(m_activeSourceCount); }
+    size_t currentSampleFrame() const { return m_destinationNode->currentSampleFrame(); }
+    double currentTime() const { return m_destinationNode->currentTime(); }
+    float sampleRate() const { return m_destinationNode->sampleRate(); }
+    unsigned long activeSourceCount() const { return static_cast<unsigned long>(m_activeSourceCount); }
 
     void incrementActiveSourceCount();
     void decrementActiveSourceCount();
@@ -126,8 +126,10 @@ public:
     PassRefPtr<JavaScriptAudioNode> createJavaScriptNode(size_t bufferSize, ExceptionCode&);
     PassRefPtr<JavaScriptAudioNode> createJavaScriptNode(size_t bufferSize, size_t numberOfInputChannels, ExceptionCode&);
     PassRefPtr<JavaScriptAudioNode> createJavaScriptNode(size_t bufferSize, size_t numberOfInputChannels, size_t numberOfOutputChannels, ExceptionCode&);
-    PassRefPtr<AudioChannelSplitter> createChannelSplitter();
-    PassRefPtr<AudioChannelMerger> createChannelMerger();
+    PassRefPtr<AudioChannelSplitter> createChannelSplitter(ExceptionCode&);
+    PassRefPtr<AudioChannelSplitter> createChannelSplitter(size_t numberOfOutputs, ExceptionCode&);
+    PassRefPtr<AudioChannelMerger> createChannelMerger(ExceptionCode&);
+    PassRefPtr<AudioChannelMerger> createChannelMerger(size_t numberOfInputs, ExceptionCode&);
     PassRefPtr<Oscillator> createOscillator();
     PassRefPtr<WaveTable> createWaveTable(Float32Array* real, Float32Array* imag, ExceptionCode&);
 
@@ -146,7 +148,15 @@ public:
     // We schedule deletion of all marked nodes at the end of each realtime render quantum.
     void markForDeletion(AudioNode*);
     void deleteMarkedNodes();
-    
+
+    // AudioContext can pull node(s) at the end of each render quantum even when they are not connected to any downstream nodes.
+    // These two methods are called by the nodes who want to add/remove themselves into/from the automatic pull lists.
+    void addAutomaticPullNode(AudioNode*);
+    void removeAutomaticPullNode(AudioNode*);
+
+    // Called right before handlePostRenderTasks() to handle nodes which need to be pulled even when they are not connected to anything.
+    void processAutomaticPullNodes(size_t framesToProcess);
+
     // Keeps track of the number of connections made.
     void incrementConnectionCount()
     {
@@ -278,6 +288,14 @@ private:
     HashSet<AudioNodeOutput*> m_dirtyAudioNodeOutputs;
     void handleDirtyAudioNodeInputs();
     void handleDirtyAudioNodeOutputs();
+
+    // For the sake of thread safety, we maintain a seperate Vector of automatic pull nodes for rendering in m_renderingAutomaticPullNodes.
+    // It will be copied from m_automaticPullNodes by updateAutomaticPullNodes() at the very start or end of the rendering quantum.
+    HashSet<AudioNode*> m_automaticPullNodes;
+    Vector<AudioNode*> m_renderingAutomaticPullNodes;
+    // m_automaticPullNodesNeedUpdating keeps track if m_automaticPullNodes is modified.
+    bool m_automaticPullNodesNeedUpdating;
+    void updateAutomaticPullNodes();
 
     unsigned m_connectionCount;
 

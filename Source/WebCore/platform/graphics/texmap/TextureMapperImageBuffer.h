@@ -34,10 +34,10 @@ public:
     virtual void didReset();
     virtual bool isValid() const { return m_image; }
     inline GraphicsContext* graphicsContext() { return m_image ? m_image->context() : 0; }
-    virtual void updateContents(Image*, const IntRect&, const IntRect&, PixelFormat);
-    void updateContents(const void* data, const IntRect& targetRect);
+    virtual void updateContents(Image*, const IntRect&, const IntPoint&);
+    virtual void updateContents(const void*, const IntRect& target, const IntPoint& sourceOffset, int bytesPerLine);
 #if ENABLE(CSS_FILTERS)
-    void applyFilters(const BitmapTexture&, const FilterOperations&);
+    PassRefPtr<BitmapTexture> applyFilters(const BitmapTexture&, const FilterOperations&);
 #endif
 
 private:
@@ -48,18 +48,21 @@ private:
 
 class TextureMapperImageBuffer : public TextureMapper {
 public:
-    virtual void drawTexture(const BitmapTexture&, const FloatRect& targetRect, const TransformationMatrix&, float opacity, const BitmapTexture* maskTexture);
-    virtual void beginClip(const TransformationMatrix&, const FloatRect&);
-    virtual void bindSurface(BitmapTexture* surface) { m_currentSurface = surface;}
-    virtual void endClip() { graphicsContext()->restore(); }
     static PassOwnPtr<TextureMapper> create() { return adoptPtr(new TextureMapperImageBuffer); }
-    PassRefPtr<BitmapTexture> createTexture() { return BitmapTextureImageBuffer::create(); }
+
+    // TextureMapper implementation
+    virtual void drawBorder(const Color& color, float borderWidth, const FloatRect& targetRect, const TransformationMatrix& modelViewMatrix = TransformationMatrix()) OVERRIDE { };
+    virtual void drawTexture(const BitmapTexture&, const FloatRect& targetRect, const TransformationMatrix&, float opacity, const BitmapTexture* maskTexture) OVERRIDE;
+    virtual void beginClip(const TransformationMatrix&, const FloatRect&) OVERRIDE;
+    virtual void bindSurface(BitmapTexture* surface) OVERRIDE { m_currentSurface = surface;}
+    virtual void endClip() OVERRIDE { graphicsContext()->restore(); }
+    virtual PassRefPtr<BitmapTexture> createTexture() OVERRIDE { return BitmapTextureImageBuffer::create(); }
+    virtual AccelerationMode accelerationMode() const OVERRIDE { return SoftwareMode; }
+
     inline GraphicsContext* currentContext()
     {
         return m_currentSurface ? static_cast<BitmapTextureImageBuffer*>(m_currentSurface.get())->graphicsContext() : graphicsContext();
     }
-
-    virtual AccelerationMode accelerationMode() const { return SoftwareMode; }
 
 private:
     RefPtr<BitmapTexture> m_currentSurface;

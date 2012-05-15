@@ -26,7 +26,6 @@
 #include "ContentData.h"
 #include "CursorList.h"
 #include "CSSPropertyNames.h"
-#include "CSSStyleSelector.h"
 #include "CSSWrapShapes.h"
 #include "FontSelector.h"
 #include "QuotesData.h"
@@ -35,6 +34,7 @@
 #include "ScaleTransformOperation.h"
 #include "ShadowData.h"
 #include "StyleImage.h"
+#include "StyleResolver.h"
 #if ENABLE(TOUCH_EVENTS)
 #include "RenderTheme.h"
 #endif
@@ -87,11 +87,12 @@ PassRefPtr<RenderStyle> RenderStyle::createDefaultStyle()
     return adoptRef(new RenderStyle(true));
 }
 
-PassRefPtr<RenderStyle> RenderStyle::createAnonymousStyle(const RenderStyle* parentStyle)
+PassRefPtr<RenderStyle> RenderStyle::createAnonymousStyleWithDisplay(const RenderStyle* parentStyle, EDisplay display)
 {
     RefPtr<RenderStyle> newStyle = RenderStyle::create();
     newStyle->inheritFrom(parentStyle);
     newStyle->inheritUnicodeBidiFrom(parentStyle);
+    newStyle->setDisplay(display);
     return newStyle;
 }
 
@@ -222,7 +223,7 @@ bool RenderStyle::operator==(const RenderStyle& o) const
 
 bool RenderStyle::isStyleAvailable() const
 {
-    return this != CSSStyleSelector::styleNotYetAvailable();
+    return this != StyleResolver::styleNotYetAvailable();
 }
 
 static inline int pseudoBit(PseudoId pseudo)
@@ -461,6 +462,7 @@ StyleDifference RenderStyle::diff(const RenderStyle* other, unsigned& changedCon
             || rareInheritedData->textEmphasisMark != other->rareInheritedData->textEmphasisMark
             || rareInheritedData->textEmphasisPosition != other->rareInheritedData->textEmphasisPosition
             || rareInheritedData->textEmphasisCustomMark != other->rareInheritedData->textEmphasisCustomMark
+            || rareInheritedData->m_tabSize != other->rareInheritedData->m_tabSize
             || rareInheritedData->m_lineBoxContain != other->rareInheritedData->m_lineBoxContain
             || rareInheritedData->m_lineGrid != other->rareInheritedData->m_lineGrid
             || rareInheritedData->m_lineSnap != other->rareInheritedData->m_lineSnap
@@ -930,7 +932,7 @@ RoundedRect RenderStyle::getRoundedBorderFor(const LayoutRect& borderRect, Rende
     IntRect snappedBorderRect(pixelSnappedIntRect(borderRect));
     RoundedRect roundedRect(snappedBorderRect);
     if (hasBorderRadius()) {
-        RoundedRect::Radii radii = calcRadiiFor(surround->border, borderRect.size(), renderView);
+        RoundedRect::Radii radii = calcRadiiFor(surround->border, snappedBorderRect.size(), renderView);
         radii.scale(calcConstraintScaleFor(snappedBorderRect, radii));
         roundedRect.includeLogicalEdges(radii, isHorizontalWritingMode(), includeLogicalLeftEdge, includeLogicalRightEdge);
     }
@@ -1169,10 +1171,10 @@ void RenderStyle::getShadowExtent(const ShadowData* shadow, LayoutUnit &top, Lay
             continue;
         int blurAndSpread = shadow->blur() + shadow->spread();
 
-        top = min(top, shadow->y() - blurAndSpread);
-        right = max(right, shadow->x() + blurAndSpread);
-        bottom = max(bottom, shadow->y() + blurAndSpread);
-        left = min(left, shadow->x() - blurAndSpread);
+        top = min<LayoutUnit>(top, shadow->y() - blurAndSpread);
+        right = max<LayoutUnit>(right, shadow->x() + blurAndSpread);
+        bottom = max<LayoutUnit>(bottom, shadow->y() + blurAndSpread);
+        left = min<LayoutUnit>(left, shadow->x() - blurAndSpread);
     }
 }
 
@@ -1186,8 +1188,8 @@ void RenderStyle::getShadowHorizontalExtent(const ShadowData* shadow, LayoutUnit
             continue;
         int blurAndSpread = shadow->blur() + shadow->spread();
 
-        left = min(left, shadow->x() - blurAndSpread);
-        right = max(right, shadow->x() + blurAndSpread);
+        left = min<LayoutUnit>(left, shadow->x() - blurAndSpread);
+        right = max<LayoutUnit>(right, shadow->x() + blurAndSpread);
     }
 }
 
@@ -1201,8 +1203,8 @@ void RenderStyle::getShadowVerticalExtent(const ShadowData* shadow, LayoutUnit &
             continue;
         int blurAndSpread = shadow->blur() + shadow->spread();
 
-        top = min(top, shadow->y() - blurAndSpread);
-        bottom = max(bottom, shadow->y() + blurAndSpread);
+        top = min<LayoutUnit>(top, shadow->y() - blurAndSpread);
+        bottom = max<LayoutUnit>(bottom, shadow->y() + blurAndSpread);
     }
 }
 

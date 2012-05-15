@@ -6,13 +6,13 @@
 # are met:
 #
 # 1.  Redistributions of source code must retain the above copyright
-#     notice, this list of conditions and the following disclaimer. 
+#     notice, this list of conditions and the following disclaimer.
 # 2.  Redistributions in binary form must reproduce the above copyright
 #     notice, this list of conditions and the following disclaimer in the
-#     documentation and/or other materials provided with the distribution. 
+#     documentation and/or other materials provided with the distribution.
 # 3.  Neither the name of Apple Computer, Inc. ("Apple") nor the names of
 #     its contributors may be used to endorse or promote products derived
-#     from this software without specific prior written permission. 
+#     from this software without specific prior written permission.
 #
 # THIS SOFTWARE IS PROVIDED BY APPLE AND ITS CONTRIBUTORS "AS IS" AND ANY
 # EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -43,7 +43,6 @@ fast/repaint/body-background-image.html
 
 # This port doesn't support Notifications.
 fast/notifications
-http/tests/notifications
 
 # Skipped while Eric Carlson works on a fix.
 # https://bugs.webkit.org/show_bug.cgi?id=28221
@@ -194,7 +193,6 @@ fast/dom/HTMLLinkElement/prefetch-beforeload.html
 fast/dom/HTMLLinkElement/prefetch-onerror.html
 fast/dom/HTMLLinkElement/prefetch-onload.html
 fast/dom/HTMLLinkElement/prefetch-too-many-clients.html
-fast/dom/HTMLLinkElement/prerender.html
 fast/dom/HTMLLinkElement/subresource.html
 http/tests/misc/link-rel-prefetch-and-subresource.html
 http/tests/misc/prefetch-purpose.html
@@ -237,7 +235,6 @@ fast/speech
 fast/events/constructors/speech-recognition-event-constructor.html
 
 # Media Stream API is not yet enabled.
-fast/dom/MediaStream
 fast/mediastream
 
 # Needs to be fixed at image decoder layer for Safari.
@@ -260,6 +257,7 @@ http/tests/misc/webtiming-one-redirect.php
 http/tests/misc/webtiming-slow-load.php
 http/tests/misc/webtiming-ssl.php
 http/tests/misc/webtiming-two-redirects.php
+fast/performance/
 
 # Still working out flakiness issues with the perf tests.
 # https://bugs.webkit.org/show_bug.cgi?id=44199
@@ -282,6 +280,9 @@ inspector/debugger/xhr-breakpoints.html
 # JSC doesn't support heap profiling
 # https://bugs.webkit.org/show_bug.cgi?id=50485
 inspector/profiler/heap-snapshot-inspect-dom-wrapper.html
+inspector/profiler/heap-snapshot-comparison-dom-groups-change.html
+inspector/profiler/heap-snapshot-reveal-in-dominators-view.html
+inspector/profiler/heap-snapshot-summary-show-ranges.html
 
 # Skipping newly added tests while I'm finding out what is wrong.
 # https://bugs.webkit.org/show_bug.cgi?id=59706
@@ -447,6 +448,7 @@ fast/regions/style-scoped-in-flow.html
 
 # ENABLE(SHADOW_DOM) is disabled.
 fast/dom/shadow
+editing/shadow
 
 # JSC does not support setIsolatedWorldSecurityOrigin (http://webkit.org/b/61540)
 http/tests/security/isolatedWorld/cross-origin-xhr.html
@@ -478,6 +480,10 @@ http/tests/security/text-track-crossorigin.html
 # Tests for MediaSource API. Feature is not yet functional.
 # https://bugs.webkit.org/show_bug.cgi?id=64731
 http/tests/media/media-source/
+
+# Encrypted Media Extensions are not enabled.
+media/encrypted-media/
+fast/events/constructors/media-key-event-constructor.html
 
 # REGRESSION (r91547): scrollbars/scrollbar-drag-thumb-with-large-content.html failing on SnowLeopard Intel Release (Tests)
 # https://bugs.webkit.org/show_bug.cgi?id=65434
@@ -613,21 +619,17 @@ canvas/philip/tests/2d.path.arc.scale.1.html
 # https://bugs.webkit.org/show_bug.cgi?id=81604
 http/tests/media/video-useragent.html
 media/audio-garbage-collect.html
- 
+
 # parser test that times out waiting for notifyDone
 # http://bugs.webkit.org/show_bug.cgi?id=81618
 fast/workers/storage/use-same-database-in-page-and-workers.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=81276
-# Allowed to regress to fix a crash. 
+# Allowed to regress to fix a crash.
 fast/inline/continuation-outlines-with-layers.html
 
 # Not possible to set UA string for media requests with all Mac media engines.
 http/tests/media/video-useragent.html
-
-# Need rebaselining after https://bugs.webkit.org/show_bug.cgi?id=71541
-fast/overflow/hidden-scrollbar-resize.html
-scrollbars/scrollbars-on-positioned-content.html
 
 # Rebaseline after https://bugs.webkit.org/show_bug.cgi?id=78412
 tables/mozilla/bugs/bug2123.html
@@ -651,16 +653,13 @@ fast/events/dropzone-005.html
 
 # Spelling tests that are flakey. https://bugs.webkit.org/show_bug.cgi?id=82555
 editing/spelling/spellcheck-async-mutation.html
-
-# This should only be a layer change.
-# http://webkit.org/b/82129
-# https://bugs.webkit.org/show_bug.cgi?id=82742
-fast/box-shadow/shadow-buffer-partial.html
-fast/block/lineboxcontain/block-font.html
-fast/block/lineboxcontain/block-glyphs.html
-fast/block/lineboxcontain/font.html
-fast/block/lineboxcontain/block-glyphs-replaced.html
-fast/block/lineboxcontain/glyphs.html
+platform/mac/editing/spelling/move-cursor-to-beginning-of-autocorrected-word.html
+platform/mac/editing/spelling/move-cursor-to-autocorrected-word.html
+platform/mac/editing/spelling/forward-delete-into-autocorrected-word.html
+platform/mac/editing/spelling/editing-word-with-marker-1.html
+platform/mac/editing/spelling/delete-into-autocorrected-word.html
+platform/mac/editing/spelling/click-autocorrected-word.html
+platform/mac/editing/spelling/autocorrection-contraction.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=82665
 http/tests/webarchive/test-css-url-encoding-shift-jis.html
@@ -695,6 +694,7 @@ fast/events/scroll-div-with-prevent-default-in-subframe.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=82748
 fast/frames/flattening/frameset-flattening-advanced.html
+fast/frames/flattening/frameset-flattening-simple.html
 fast/frames/flattening/frameset-flattening-subframesets.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=82749
@@ -731,9 +731,8 @@ svg/dom/animated-tearoff-equality.xhtml
 # https://bugs.webkit.org/show_bug.cgi?id=82817
 storage/domstorage/localstorage/storagetracker/storage-tracker-1-prepare.html
 storage/domstorage/localstorage/storagetracker/storage-tracker-2-create.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=82818
-fast/forms/listbox-clear-restore.html
+storage/domstorage/localstorage/storagetracker/storage-tracker-6-create.html
+storage/domstorage/localstorage/storagetracker/storage-tracker-7-usage.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=82923
 inspector/styles/override-screen-size.html
@@ -749,6 +748,8 @@ inspector/debugger/copy-stack-trace.html
 inspector/debugger/callstack-placards-discarded.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=82972
+plugins/keyboard-events.html
+plugins/layout-in-beforeload-listener-affects-plugin-loading.html
 plugins/mouse-events-fixedpos.html
 plugins/multiple-plugins.html
 
@@ -778,11 +779,71 @@ inspector/styles/override-screen-size.html
 # https://bugs.webkit.org/show_bug.cgi?id=83239
 fast/animation/request-animation-frame-during-modal.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=83427
-fast/canvas/webgl/array-message-passing.html
-
 # https://bugs.webkit.org/show_bug.cgi?id=77754
 # https://bugs.webkit.org/show_bug.cgi?id=83489
 # window.resizeTo() does not seem to work as expected in Mac DRT. The outerWidth changes after a resizeTo()
 # but not the innerWidth. The test passes on Qt, GTK and Chromium.
 fast/css/align-positioned-object-on-resize.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=83618
+fast/dom/inline-event-attributes-release.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=84102
+fast/profiler/stop-profiling-after-setTimeout.html
+fast/profiler/dead-time.html
+
+# Requires rebaseline after bug 83978
+tables/mozilla_expected_failures/collapsing_borders/bug41262-5.html
+
+# The Mac port does not support the legacy WebKitBlobBuilder class.
+fast/files/blob-builder-crash.html
+
+# [Mac] inspector/debugger/linkifier.html is flakey
+# https://bugs.webkit.org/show_bug.cgi?id=85319
+inspector/debugger/linkifier.html
+
+# scrollbars/scrollbar-miss-mousemove-disabled.html is asserting in markAllMisspellingsAndBadGrammarInRanges()
+# https://bugs.webkit.org/show_bug.cgi?id=85273
+scrollbars/scrollbar-miss-mousemove-disabled.html
+
+# Fail until SUBPIXEL_LAYOUT is enabled
+# https://bugs.webkit.org/show_bug.cgi?id=85532
+fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/layout-boxes-with-zoom.html
+fast/sub-pixel/size-of-box-with-zoom.html
+
+# media/audio-repaint.html sometimes fails on Lion Debug (Tests)
+# https://bugs.webkit.org/show_bug.cgi?id=84357
+media/audio-repaint.html
+
+# Requires ENABLE(MEDIA_CAPTURE)
+fast/forms/file/file-input-capture.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=85522
+http/tests/security/sandboxed-iframe-modify-self.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=85523
+fullscreen/full-screen-iframe-legacy.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=85524
+fast/dom/xmlhttprequest-constructor-in-detached-document.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=85525
+media/video-played-reset.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=85969
+http/tests/loading/post-in-iframe-with-back-navigation.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=86000
+http/tests/security/referrer-policy-redirect-link.html
+
+# Hits assert https://bugs.webkit.org/show_bug.cgi?id=86208
+ietestcenter/css3/valuesandunits/units-000.htm
+
+# Inspector only supports evaluation in content script world with v8, see https://bugs.webkit.org/show_bug.cgi?id=85709
+inspector/extensions/extensions-eval-content-script.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=86480
+plugins/npruntime/delete-plugin-within-setProperty.html
+plugins/npruntime/delete-plugin-within-hasProperty-return-true.html
+plugins/npruntime/delete-plugin-within-hasProperty-return-false.html

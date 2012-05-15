@@ -86,14 +86,26 @@ MarkupAccumulator::~MarkupAccumulator()
 
 String MarkupAccumulator::serializeNodes(Node* targetNode, Node* nodeToSkip, EChildrenOnly childrenOnly)
 {
-    serializeNodesWithNamespaces(targetNode, nodeToSkip, childrenOnly, 0);
+    return serializeNodes(targetNode, nodeToSkip, childrenOnly, 0);
+}
+
+String MarkupAccumulator::serializeNodes(Node* targetNode, Node* nodeToSkip, EChildrenOnly childrenOnly, Vector<QualifiedName>* tagNamesToSkip)
+{
+    serializeNodesWithNamespaces(targetNode, nodeToSkip, childrenOnly, 0, tagNamesToSkip);
     return m_markup.toString();
 }
 
-void MarkupAccumulator::serializeNodesWithNamespaces(Node* targetNode, Node* nodeToSkip, EChildrenOnly childrenOnly, const Namespaces* namespaces)
+void MarkupAccumulator::serializeNodesWithNamespaces(Node* targetNode, Node* nodeToSkip, EChildrenOnly childrenOnly, const Namespaces* namespaces, Vector<QualifiedName>* tagNamesToSkip)
 {
     if (targetNode == nodeToSkip)
         return;
+    
+    if (tagNamesToSkip) {
+        for (size_t i = 0; i < tagNamesToSkip->size(); ++i) {
+            if (targetNode->hasTagName(tagNamesToSkip->at(i)))
+                return;
+        }
+    }
 
     Namespaces namespaceHash;
     if (namespaces)
@@ -104,7 +116,7 @@ void MarkupAccumulator::serializeNodesWithNamespaces(Node* targetNode, Node* nod
 
     if (!(targetNode->document()->isHTMLDocument() && elementCannotHaveEndTag(targetNode))) {
         for (Node* current = targetNode->firstChild(); current; current = current->nextSibling())
-            serializeNodesWithNamespaces(current, nodeToSkip, IncludeNode, &namespaceHash);
+            serializeNodesWithNamespaces(current, nodeToSkip, IncludeNode, &namespaceHash, tagNamesToSkip);
     }
 
     if (!childrenOnly)
@@ -170,7 +182,7 @@ void MarkupAccumulator::appendCustomAttributes(StringBuilder&, Element*, Namespa
 
 void MarkupAccumulator::appendQuotedURLAttributeValue(StringBuilder& result, const Element* element, const Attribute& attribute)
 {
-    ASSERT(element->isURLAttribute(const_cast<Attribute*>(&attribute)));
+    ASSERT(element->isURLAttribute(attribute));
     const String resolvedURLString = resolveURLIfNeeded(element, attribute.value());
     UChar quoteChar = '"';
     String strippedURLString = resolvedURLString.stripWhiteSpace();
@@ -296,6 +308,36 @@ void MarkupAccumulator::appendComment(StringBuilder& result, const String& comme
     result.append(commentEnd, sizeof(commentEnd) - 1);
 }
 
+void MarkupAccumulator::appendXMLDeclaration(StringBuilder& result, const Document* document)
+{
+    if (!document->hasXMLDeclaration())
+        return;
+
+    static const char xmlDeclStart[] = "<?xml version=\"";
+    result.append(xmlDeclStart, sizeof(xmlDeclStart) - 1);
+    result.append(document->xmlVersion());
+    const String& encoding = document->xmlEncoding();
+    if (!encoding.isEmpty()) {
+        static const char xmlEncoding[] = "\" encoding=\"";
+        result.append(xmlEncoding, sizeof(xmlEncoding) - 1);
+        result.append(encoding);
+    }
+    if (document->xmlStandaloneStatus() != Document::StandaloneUnspecified) {
+        static const char xmlStandalone[] = "\" standalone=\"";
+        result.append(xmlStandalone, sizeof(xmlStandalone) - 1);
+        if (document->xmlStandalone()) {
+            static const char standaloneYes[] = "yes";
+            result.append(standaloneYes, sizeof(standaloneYes) - 1);
+        } else {
+            static const char standaloneNo[] = "no";
+            result.append(standaloneNo, sizeof(standaloneNo) - 1);
+        }
+    }
+
+    static const char xmlDeclEnd[] = "\"?>";
+    result.append(xmlDeclEnd, sizeof(xmlDeclEnd) - 1);
+}
+
 void MarkupAccumulator::appendDocumentType(StringBuilder& result, const DocumentType* n)
 {
     if (n->name().isEmpty())
@@ -389,7 +431,7 @@ void MarkupAccumulator::appendAttribute(StringBuilder& result, Element* element,
 
     result.append('=');
 
-    if (element->isURLAttribute(const_cast<Attribute*>(&attribute)))
+    if (element->isURLAttribute(attribute))
         appendQuotedURLAttributeValue(result, element, attribute);
     else {
         result.append('"');
@@ -424,6 +466,8 @@ void MarkupAccumulator::appendStartMarkup(StringBuilder& result, const Node* nod
         appendComment(result, static_cast<const Comment*>(node)->data());
         break;
     case Node::DOCUMENT_NODE:
+        appendXMLDeclaration(result, static_cast<const Document*>(node));
+        break;
     case Node::DOCUMENT_FRAGMENT_NODE:
         break;
     case Node::DOCUMENT_TYPE_NODE:

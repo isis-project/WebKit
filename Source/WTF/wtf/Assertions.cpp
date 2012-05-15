@@ -52,7 +52,7 @@
 #include <windows.h>
 #endif
 
-#if OS(DARWIN) || OS(LINUX)
+#if (OS(DARWIN) || OS(LINUX)) && !OS(ANDROID)
 #include <cxxabi.h>
 #include <dlfcn.h>
 #include <execinfo.h>
@@ -256,7 +256,7 @@ void WTFReportArgumentAssertionFailure(const char* file, int line, const char* f
 
 void WTFGetBacktrace(void** stack, int* size)
 {
-#if OS(DARWIN) || OS(LINUX)
+#if (OS(DARWIN) || OS(LINUX)) && !OS(ANDROID)
     *size = backtrace(stack, *size);
 #elif OS(WINDOWS) && !OS(WINCE)
     // The CaptureStackBackTrace function is available in XP, but it is not defined
@@ -295,7 +295,7 @@ void WTFReportBacktrace()
 #    if defined(__GLIBC__) && !defined(__UCLIBC__)
 #      define WTF_USE_BACKTRACE_SYMBOLS 1
 #    endif
-#  else
+#  elif !OS(ANDROID)
 #    define WTF_USE_DLADDR 1
 #  endif
 #endif
@@ -407,6 +407,18 @@ void WTFLogVerbose(const char* file, int line, const char* function, WTFLogChann
     va_end(args);
 
     printCallSite(file, line, function);
+}
+
+void WTFLogAlways(const char* format, ...)
+{
+#if PLATFORM(BLACKBERRY)
+    WTFLogLocker locker(BlackBerry::Platform::LogLevelInfo);
+#endif
+
+    va_list args;
+    va_start(args, format);
+    vprintf_stderr_with_trailing_newline(format, args);
+    va_end(args);
 }
 
 } // extern "C"

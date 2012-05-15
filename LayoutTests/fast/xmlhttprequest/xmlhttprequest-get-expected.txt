@@ -10,7 +10,7 @@ responseText
   <d id="id3">Three</d>
 </doc>
 responseXML serialized
-<!DOCTYPE doc><doc>
+<?xml version="1.0"?><!DOCTYPE doc><doc>
   <foo xmlns="foobar">One</foo> <x:bar xmlns:x="barfoo">Two</x:bar>
   <d id="id3">Three</d>
 </doc>
@@ -41,6 +41,7 @@ MOUSEMOVE : '16'
 MOUSEOUT : '8'
 MOUSEOVER : '4'
 MOUSEUP : '2'
+NONE : '0'
 SELECT : '16384'
 bubbles : 'false'
 cancelBubble : 'false'

@@ -75,12 +75,14 @@ class PlatformKeyboardEvent;
 class PlatformMouseEvent;
 class PlatformWheelEvent;
 class QualifiedName;
+class RadioNodeList;
 class RegisteredEventListener;
 class RenderArena;
 class RenderBox;
 class RenderBoxModelObject;
 class RenderObject;
 class RenderStyle;
+class ShadowRoot;
 class TagNodeList;
 class TreeScope;
 
@@ -90,7 +92,7 @@ class HTMLPropertiesCollection;
 
 typedef int ExceptionCode;
 
-const int nodeStyleChangeShift = 21;
+const int nodeStyleChangeShift = 20;
 
 // SyntheticStyleChange means that we need to go through the entire style change logic even though
 // no style property has actually changed. It is used to restructure the tree when, for instance,
@@ -210,21 +212,25 @@ public:
     virtual bool isMediaControlElement() const { return false; }
     virtual bool isMediaControls() const { return false; }
     bool isStyledElement() const { return getFlag(IsStyledElementFlag); }
-    virtual bool isFrameOwnerElement() const { return false; }
     virtual bool isAttributeNode() const { return false; }
     virtual bool isCharacterDataNode() const { return false; }
     bool isDocumentNode() const;
     bool isShadowRoot() const { return getFlag(IsShadowRootFlag); }
+    bool inNamedFlow() const { return getFlag(InNamedFlowFlag); }
+    bool hasAttrList() const { return getFlag(HasAttrListFlag); }
+    bool isFrameOwnerElement() const { return getFlag(IsFrameOwnerElementFlag); }
 
     Node* shadowAncestorNode() const;
     // Returns 0, a ShadowRoot, or a legacy shadow root.
-    Node* shadowTreeRootNode() const;
+    ShadowRoot* shadowTreeRootNode() const;
     // Returns 0, a child of ShadowRoot, or a legacy shadow root.
     Node* nonBoundaryShadowTreeRootNode();
     bool isInShadowTree() const;
     // Node's parent, shadow tree host.
     ContainerNode* parentOrHostNode() const;
     Element* parentOrHostElement() const;
+    Node* highestAncestor() const;
+
     // Use when it's guaranteed to that shadowHost is 0.
     ContainerNode* parentNodeGuaranteedHostFree() const;
     // Returns the parent node, but 0 if the parent node is a ShadowRoot.
@@ -266,7 +272,8 @@ public:
 
     // enclosingBlockFlowElement() is deprecated. Use enclosingBlock instead.
     Element* enclosingBlockFlowElement() const;
-    
+
+    bool isRootEditableElement() const;
     Element* rootEditableElement() const;
     Element* rootEditableElement(EditableType) const;
 
@@ -293,10 +300,9 @@ public:
     bool hasName() const { return getFlag(HasNameFlag); }
     bool hasID() const;
     bool hasClass() const;
-    
+
     bool active() const { return getFlag(IsActiveFlag); }
     bool inActiveChain() const { return getFlag(InActiveChainFlag); }
-    bool inDetach() const { return getFlag(InDetachFlag); }
     bool hovered() const { return getFlag(IsHoveredFlag); }
     bool focused() const { return hasRareData() ? rareDataFocused() : false; }
     bool attached() const { return getFlag(IsAttachedFlag); }
@@ -323,6 +329,12 @@ public:
     void setIsLink(bool f) { setFlag(f, IsLinkFlag); }
     void setIsLink() { setFlag(IsLinkFlag); }
     void clearIsLink() { clearFlag(IsLinkFlag); }
+
+    void setInNamedFlow() { setFlag(InNamedFlowFlag); }
+    void clearInNamedFlow() { clearFlag(InNamedFlowFlag); }
+
+    void setHasAttrList() { setFlag(HasAttrListFlag); }
+    void clearHasAttrList() { clearFlag(HasAttrListFlag); }
 
     enum ShouldSetAttached {
         SetAttached,
@@ -421,10 +433,12 @@ public:
     // This uses the same order that tags appear in the source file. If the stayWithin
     // argument is non-null, the traversal will stop once the specified node is reached.
     // This can be used to restrict traversal to a particular sub-tree.
-    Node* traverseNextNode(const Node* stayWithin = 0) const;
+    Node* traverseNextNode() const;
+    Node* traverseNextNode(const Node* stayWithin) const;
 
     // Like traverseNextNode, but skips children and starts with the next sibling.
-    Node* traverseNextSibling(const Node* stayWithin = 0) const;
+    Node* traverseNextSibling() const;
+    Node* traverseNextSibling(const Node* stayWithin) const;
 
     // Does a reverse pre-order traversal to find the node that comes before the current one in document order
     Node* traversePreviousNode(const Node* stayWithin = 0) const;
@@ -483,10 +497,12 @@ public:
     // the node's rendering object from the rendering tree and delete it.
     virtual void detach();
 
+#ifndef NDEBUG
+    bool inDetach() const;
+#endif
+
     void reattach();
     void reattachIfAttached();
-
-    virtual void willRemove();
     void createRendererIfNeeded();
     virtual bool rendererIsNeeded(const NodeRenderingContext&);
     virtual bool childShouldCreateRenderer(const NodeRenderingContext&) const { return true; }
@@ -501,22 +517,34 @@ public:
 
     // -----------------------------------------------------------------------------
     // Notification of document structure changes (see ContainerNode.h for more notification methods)
-
-    // Notifies the node that it has been inserted into the document. This is called during document parsing, and also
-    // when a node is added through the DOM methods insertBefore(), appendChild() or replaceChild(). Note that this only
-    // happens when the node becomes part of the document tree, i.e. only when the document is actually an ancestor of
-    // the node. The call happens _after_ the node has been added to the tree.
     //
+    // At first, WebKit notifies the node that it has been inserted into the document. This is called during document parsing, and also
+    // when a node is added through the DOM methods insertBefore(), appendChild() or replaceChild(). The call happens _after_ the node has been added to the tree.
     // This is similar to the DOMNodeInsertedIntoDocument DOM event, but does not require the overhead of event
     // dispatching.
-    virtual void insertedIntoDocument();
-
-    // Notifies the node that it is no longer part of the document tree, i.e. when the document is no longer an ancestor
-    // node.
     //
-    // This is similar to the DOMNodeRemovedFromDocument DOM event, but does not require the overhead of event
+    // Webkit notifies this callback regardless if the subtree of the node is a document tree or a floating subtree.
+    // Implementation can determine the type of subtree by seeing insertionPoint->inDocument().
+    // For a performance reason, notifications are delivered only to ContainerNode subclasses if the insertionPoint is out of document.
+    //
+    // There are another callback named didNotifyDescendantInseretions(), which is called after all the descendant is notified.
+    // Only a few subclasses actually need this. To utilize this, the node should return InsertionShouldCallDidNotifyDescendantInseretions
+    // from insrtedInto().
+    //
+    enum InsertionNotificationRequest {
+        InsertionDone,
+        InsertionShouldCallDidNotifyDescendantInseretions
+    };
+
+    virtual InsertionNotificationRequest insertedInto(Node* insertionPoint);
+    virtual void didNotifyDescendantInseretions(Node*) { }
+
+    // Notifies the node that it is no longer part of the tree.
+    //
+    // This is a dual of insertedInto(), and is similar to the DOMNodeRemovedFromDocument DOM event, but does not require the overhead of event
     // dispatching, and is called _after_ the node is removed from the tree.
-    virtual void removedFromDocument();
+    //
+    virtual void removedFrom(Node* insertionPoint);
 
 #ifndef NDEBUG
     virtual void formatForDebugger(char* buffer, unsigned length) const;
@@ -539,6 +567,9 @@ public:
     void removeCachedLabelsNodeList(DynamicSubtreeNodeList*);
 
     void removeCachedChildNodeList();
+
+    PassRefPtr<RadioNodeList> radioNodeList(const AtomicString&);
+    void removeCachedRadioNodeList(RadioNodeList*, const AtomicString&);
 
     PassRefPtr<NodeList> getElementsByTagName(const AtomicString&);
     PassRefPtr<NodeList> getElementsByTagNameNS(const AtomicString& namespaceURI, const AtomicString& localName);
@@ -610,7 +641,7 @@ public:
 #endif
 
 #if ENABLE(MUTATION_OBSERVERS)
-    void getRegisteredMutationObserversOfType(HashMap<WebKitMutationObserver*, MutationRecordDeliveryOptions>&, WebKitMutationObserver::MutationType, const AtomicString& attributeName = nullAtom);
+    void getRegisteredMutationObserversOfType(HashMap<WebKitMutationObserver*, MutationRecordDeliveryOptions>&, WebKitMutationObserver::MutationType, const QualifiedName* attributeName);
     MutationObserverRegistration* registerMutationObserver(PassRefPtr<WebKitMutationObserver>);
     void unregisterMutationObserver(MutationObserverRegistration*);
     void registerTransientMutationObserver(MutationObserverRegistration*);
@@ -640,38 +671,40 @@ private:
         IsActiveFlag = 1 << 10,
         IsHoveredFlag = 1 << 11,
         InActiveChainFlag = 1 << 12,
-        InDetachFlag = 1 << 13,
-        HasRareDataFlag = 1 << 14,
-        IsShadowRootFlag = 1 << 15,
+        HasRareDataFlag = 1 << 13,
+        IsShadowRootFlag = 1 << 14,
 
         // These bits are used by derived classes, pulled up here so they can
         // be stored in the same memory word as the Node bits above.
-        IsParsingChildrenFinishedFlag = 1 << 16, // Element
-        IsStyleAttributeValidFlag = 1 << 17, // StyledElement
+        IsParsingChildrenFinishedFlag = 1 << 15, // Element
+        IsStyleAttributeValidFlag = 1 << 16, // StyledElement
 #if ENABLE(SVG)
-        AreSVGAttributesValidFlag = 1 << 18, // Element
-        IsSynchronizingSVGAttributesFlag = 1 << 19, // SVGElement
-        HasSVGRareDataFlag = 1 << 20, // SVGElement
+        AreSVGAttributesValidFlag = 1 << 17, // Element
+        IsSynchronizingSVGAttributesFlag = 1 << 18, // SVGElement
+        HasSVGRareDataFlag = 1 << 19, // SVGElement
 #endif
 
         StyleChangeMask = 1 << nodeStyleChangeShift | 1 << (nodeStyleChangeShift + 1),
 
-        SelfOrAncestorHasDirAutoFlag = 1 << 23,
-        HasCustomWillOrDidRecalcStyleFlag = 1 << 24,
-        HasCustomStyleForRendererFlag = 1 << 25,
+        SelfOrAncestorHasDirAutoFlag = 1 << 22,
+        HasCustomWillOrDidRecalcStyleFlag = 1 << 23,
+        HasCustomStyleForRendererFlag = 1 << 24,
 
-        HasNameFlag = 1 << 26,
+        HasNameFlag = 1 << 25,
 
-        AttributeStyleDirtyFlag = 1 << 27,
+        AttributeStyleDirtyFlag = 1 << 26,
 
 #if ENABLE(SVG)
-        DefaultNodeFlags = IsParsingChildrenFinishedFlag | IsStyleAttributeValidFlag | AreSVGAttributesValidFlag
+        DefaultNodeFlags = IsParsingChildrenFinishedFlag | IsStyleAttributeValidFlag | AreSVGAttributesValidFlag,
 #else
-        DefaultNodeFlags = IsParsingChildrenFinishedFlag | IsStyleAttributeValidFlag
+        DefaultNodeFlags = IsParsingChildrenFinishedFlag | IsStyleAttributeValidFlag,
 #endif
+        InNamedFlowFlag = 1 << 28,
+        HasAttrListFlag = 1 << 29,
+        IsFrameOwnerElementFlag = 1 << 30
     };
 
-    // 3 bits remaining
+    // 2 bits remaining
 
     bool getFlag(NodeFlags mask) const { return m_nodeFlags & mask; }
     void setFlag(bool f, NodeFlags mask) const { m_nodeFlags = (m_nodeFlags & ~mask) | (-(int32_t)f & mask); } 
@@ -687,6 +720,7 @@ protected:
         CreateShadowRoot = CreateContainer | IsShadowRootFlag,
         CreateStyledElement = CreateElement | IsStyledElementFlag, 
         CreateHTMLElement = CreateStyledElement | IsHTMLFlag, 
+        CreateFrameOwnerElement = CreateHTMLElement | IsFrameOwnerElementFlag,
         CreateSVGElement = CreateStyledElement | IsSVGFlag,
         CreateDocument = CreateContainer | InDocumentFlag
     };
@@ -741,6 +775,9 @@ private:
 
     Element* ancestorElement() const;
 
+    Node* traverseNextAncestorSibling() const;
+    Node* traverseNextAncestorSibling(const Node* stayWithin) const;
+
     // Use Node::parentNode as the consistent way of querying a parent node.
     // This method is made private to ensure a compiler error on call sites that
     // don't follow this rule.
@@ -751,7 +788,7 @@ private:
 #if ENABLE(MUTATION_OBSERVERS)
     Vector<OwnPtr<MutationObserverRegistration> >* mutationObserverRegistry();
     HashSet<MutationObserverRegistration*>* transientMutationObserverRegistry();
-    void collectMatchingObserversForMutation(HashMap<WebKitMutationObserver*, MutationRecordDeliveryOptions>&, Node* fromNode, WebKitMutationObserver::MutationType, const AtomicString& attributeName);
+    void collectMatchingObserversForMutation(HashMap<WebKitMutationObserver*, MutationRecordDeliveryOptions>&, Node* fromNode, WebKitMutationObserver::MutationType, const QualifiedName* attributeName);
 #endif
 
     mutable uint32_t m_nodeFlags;

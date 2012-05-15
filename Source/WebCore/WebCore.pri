@@ -60,6 +60,7 @@ INCLUDEPATH += \
     $$SOURCE_DIR/platform/graphics/filters/arm \
     $$SOURCE_DIR/platform/graphics/opengl \
     $$SOURCE_DIR/platform/graphics/qt \
+    $$SOURCE_DIR/platform/graphics/surfaces \
     $$SOURCE_DIR/platform/graphics/texmap \
     $$SOURCE_DIR/platform/graphics/transforms \
     $$SOURCE_DIR/platform/image-decoders \
@@ -112,7 +113,12 @@ INCLUDEPATH += $$WEBCORE_GENERATED_SOURCES_DIR
 
 contains(DEFINES, ENABLE_XSLT=1) {
     contains(DEFINES, WTF_USE_LIBXML2=1) {
-        PKGCONFIG += libxslt
+        mac {
+            INCLUDEPATH += /usr/include/libxml2
+            LIBS += -lxml2 -lxslt
+        } else {
+            PKGCONFIG += libxslt
+        }
     } else {
         QT *= xmlpatterns
     }
@@ -134,9 +140,10 @@ contains(DEFINES, ENABLE_NETSCAPE_PLUGIN_API=1) {
             INCLUDEPATH += platform/mac
             # Note: XP_MACOSX is defined in npapi.h
         } else {
-            !embedded {
+            xlibAvailable() {
                 CONFIG += x11
                 LIBS += -lXrender
+                DEFINES += MOZ_X11
             }
             DEFINES += XP_UNIX
             DEFINES += ENABLE_NETSCAPE_PLUGIN_METADATA_CACHE=1
@@ -159,8 +166,12 @@ contains(DEFINES, ENABLE_GEOLOCATION=1) {
 }
 
 contains(DEFINES, ENABLE_DEVICE_ORIENTATION=1) {
-    CONFIG *= mobility
-    MOBILITY *= sensors
+    haveQt(5) {
+        QT += sensors
+    } else {
+        CONFIG *= mobility
+        MOBILITY *= sensors
+    }
 }
 
 contains(DEFINES, WTF_USE_QT_MOBILITY_SYSTEMINFO=1) {
@@ -204,6 +215,7 @@ contains(CONFIG, texmap) {
         DEFINES += WTF_USE_TEXTURE_MAPPER_GL=1
         contains(QT_CONFIG, opengles2): LIBS += -lEGL
     }
+    mac: LIBS += -framework IOSurface -framework CoreFoundation
 }
 
 contains(DEFINES, WTF_USE_TEXTURE_MAPPER_GL=1)|contains(DEFINES, ENABLE_WEBGL=1) {
@@ -231,10 +243,10 @@ contains(DEFINES, WTF_USE_QT_IMAGE_DECODER=0) {
     haveQt(5) {
         # Qt5 allows us to use config tests to check for the presence of these libraries
         !contains(config_test_libjpeg, yes): error("JPEG library not found!")
-        !contains(config_test_libpng, yes): error("PNG 1.2 library not found!")
+        !contains(config_test_libpng, yes): error("PNG library not found!")
     }
 
-    LIBS += -ljpeg -lpng12
+    LIBS += -ljpeg -lpng
 
     contains(DEFINES, WTF_USE_WEBP=1) {
         INCLUDEPATH += $$SOURCE_DIR/platform/image-decoders/webp

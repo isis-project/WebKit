@@ -53,6 +53,8 @@ var WebInspector = {
             this.panels.network = new WebInspector.NetworkPanel();
         if (hiddenPanels.indexOf("scripts") === -1)
             this.panels.scripts = new WebInspector.ScriptsPanel(this.debuggerPresentationModel);
+        if (hiddenPanels.indexOf("styles") === -1 && WebInspector.experimentsSettings.showStylesPanel.isEnabled())
+            this.panels.styles = new WebInspector.StylesPanel();
         if (hiddenPanels.indexOf("timeline") === -1)
             this.panels.timeline = new WebInspector.TimelinePanel();
         if (hiddenPanels.indexOf("profiles") === -1)
@@ -75,9 +77,6 @@ var WebInspector = {
         this._dockToggleButton.toggled = !this.attached;
         WebInspector.updateDockToggleButton();
 
-        this._settingsButton = new WebInspector.StatusBarButton(WebInspector.UIString("Settings"), "settings-status-bar-item");
-        this._settingsButton.addEventListener("click", this._toggleSettings.bind(this), false);
-
         var anchoredStatusBar = document.getElementById("anchored-status-bar-items");
         anchoredStatusBar.appendChild(this._dockToggleButton.element);
 
@@ -87,7 +86,7 @@ var WebInspector = {
 
         if (this.panels.elements)
             anchoredStatusBar.appendChild(this.panels.elements.nodeSearchButton.element);
-        anchoredStatusBar.appendChild(this._settingsButton.element);
+        anchoredStatusBar.appendChild(this.settingsController.statusBarItem);
     },
 
     _dockButtonTitle: function()
@@ -142,35 +141,6 @@ var WebInspector = {
         this._toggleConsoleButton.title = WebInspector.UIString("Hide console.");
         this._toggleConsoleButton.toggled = false;
         this.drawer.show(view, WebInspector.Drawer.AnimationType.Immediately);
-    },
-
-    _toggleSettings: function()
-    {
-        this._settingsButton.toggled = !this._settingsButton.toggled;
-        if (this._settingsButton.toggled)
-            this._showSettingsScreen();
-        else
-            this._hideSettingsScreen();
-    },
-
-    _showSettingsScreen: function()
-    {
-        function onhide()
-        {
-            this._settingsButton.toggled = false;
-            delete this._settingsScreen;
-        }
-
-        if (!this._settingsScreen) {
-            this._settingsScreen = new WebInspector.SettingsScreen();
-            this._settingsScreen.show(onhide.bind(this));
-        }
-    },
-
-    _hideSettingsScreen: function()
-    {
-        if (this._settingsScreen)
-            this._settingsScreen.hide();
     },
 
     get attached()
@@ -283,9 +253,13 @@ var WebInspector = {
             errorWarningElement.title = null;
     },
 
-    networkResourceById: function(id)
+    /**
+     * @param {NetworkAgent.RequestId} requestId
+     * @return {?WebInspector.NetworkRequest}
+     */
+    networkRequestById: function(requestId)
     {
-        return this.panels.network.resourceById(id);
+        return this.panels.network.requestById(requestId);
     },
 
     get inspectedPageDomain()
@@ -387,6 +361,7 @@ WebInspector.doLoadedDone = function()
     ProfilerAgent.causesRecompilation(WebInspector._initializeCapability.bind(WebInspector, "profilerCausesRecompilation", null));
     ProfilerAgent.isSampling(WebInspector._initializeCapability.bind(WebInspector, "samplingCPUProfiler", null));
     ProfilerAgent.hasHeapProfiler(WebInspector._initializeCapability.bind(WebInspector, "heapProfilerPresent", null));
+    TimelineAgent.supportsFrameInstrumentation(WebInspector._initializeCapability.bind(WebInspector, "timelineSupportsFrameInstrumentation", null));
     PageAgent.canOverrideDeviceMetrics(WebInspector._initializeCapability.bind(WebInspector, "canOverrideDeviceMetrics", WebInspector._doLoadedDoneWithCapabilities.bind(WebInspector)));
 }
 
@@ -405,8 +380,10 @@ WebInspector._doLoadedDoneWithCapabilities = function()
     this.console.addEventListener(WebInspector.ConsoleModel.Events.RepeatCountUpdated, this._updateErrorAndWarningCounts, this);
 
     this.debuggerModel = new WebInspector.DebuggerModel();
-    this.snippetsModel = new WebInspector.SnippetsModel();
+    this.scriptSnippetModel = new WebInspector.ScriptSnippetModel();
+    this.breakpointManager = new WebInspector.BreakpointManager(WebInspector.settings.breakpoints, this.debuggerModel);
     this.debuggerPresentationModel = new WebInspector.DebuggerPresentationModel();
+    new WebInspector.DebuggerResourceBinding();
 
     this.drawer = new WebInspector.Drawer();
     this.consoleView = new WebInspector.ConsoleView(WebInspector.WorkerManager.isWorkerFrontend());
@@ -415,7 +392,7 @@ WebInspector._doLoadedDoneWithCapabilities = function()
     this.resourceTreeModel = new WebInspector.ResourceTreeModel(this.networkManager);
     this.networkLog = new WebInspector.NetworkLog();
     this.domAgent = new WebInspector.DOMAgent();
-    new WebInspector.JavaScriptContextManager(this.resourceTreeModel, this.consoleView);
+    this.javaScriptContextManager = new WebInspector.JavaScriptContextManager(this.resourceTreeModel, this.consoleView);
 
     InspectorBackend.registerInspectorDispatcher(this);
 
@@ -427,6 +404,7 @@ WebInspector._doLoadedDoneWithCapabilities = function()
 
     this.searchController = new WebInspector.SearchController();
     this.advancedSearchController = new WebInspector.AdvancedSearchController();
+    this.settingsController = new WebInspector.SettingsController();
 
     if (Capabilities.nativeInstrumentationEnabled)
         this.domBreakpointsSidebarPane = new WebInspector.DOMBreakpointsSidebarPane();
@@ -474,6 +452,11 @@ WebInspector._doLoadedDoneWithCapabilities = function()
 
     if (WebInspector.settings.showPaintRects.get())
         PageAgent.setShowPaintRects(true);
+
+    if (WebInspector.settings.javaScriptDisabled.get())
+        PageAgent.setScriptExecutionDisabled(true);
+
+    this.domAgent._emulateTouchEventsChanged();
 
     WebInspector.WorkerManager.loadCompleted();
     InspectorFrontendAPI.loadCompleted();
@@ -648,10 +631,10 @@ WebInspector.openResource = function(resourceURL, inResourcesPanel)
         InspectorFrontendHost.openInNewTab(resourceURL);
 }
 
-WebInspector.openRequestInNetworkPanel = function(resource)
+WebInspector.openRequestInNetworkPanel = function(request)
 {
     WebInspector.showPanel("network");
-    WebInspector.panels.network.revealAndHighlightResource(resource);
+    WebInspector.panels.network.revealAndHighlightRequest(request);
 }
 
 WebInspector._registerShortcuts = function()
@@ -694,7 +677,7 @@ WebInspector.documentKeyDown = function(event)
 
     if (event.keyIdentifier === "F1" ||
         (event.keyIdentifier === helpKey && event.shiftKey && (!WebInspector.isBeingEdited(event.target) || event.metaKey))) {
-        WebInspector.shortcutsScreen.show();
+        WebInspector.shortcutsScreen.showModal();
         event.consume(true);
         return;
     }
@@ -968,7 +951,7 @@ WebInspector._showAnchorLocation = function(anchor)
 
 WebInspector._showAnchorLocationInPanel = function(anchor, panel)
 {
-    if (!panel.canShowAnchorLocation(anchor))
+    if (!panel || !panel.canShowAnchorLocation(anchor))
         return false;
 
     // FIXME: support webkit-html-external-link links here.
@@ -1021,25 +1004,3 @@ WebInspector._toolbarItemClicked = function(event)
     WebInspector.inspectorView.setCurrentPanel(toolbarItem.panel);
 }
 
-WebInspector.save = function(url, content, forceSaveAs)
-{
-    // Remove this url from the saved URLs while it is being saved.
-    var savedURLs = WebInspector.settings.savedURLs.get();
-    delete savedURLs[url];
-    WebInspector.settings.savedURLs.set(savedURLs);
-
-    InspectorFrontendHost.save(url, content, forceSaveAs);
-}
-
-WebInspector.savedURL = function(url)
-{
-    var savedURLs = WebInspector.settings.savedURLs.get();
-    savedURLs[url] = true;
-    WebInspector.settings.savedURLs.set(savedURLs);
-}
-
-WebInspector.isURLSaved = function(url)
-{
-    var savedURLs = WebInspector.settings.savedURLs.get();
-    return savedURLs[url];
-}

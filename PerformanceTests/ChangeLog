@@ -1,3 +1,189 @@
+2012-05-14  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Convert CSS and Parser tests to runs/s tests
+        https://bugs.webkit.org/show_bug.cgi?id=86399
+
+        Reviewed by Ojan Vafai.
+
+        Use runPerSecond instead of run to measure results in function calls per second (run/s) instead of time (ms).
+        This allows us to continue measuring performance reliably even when WebKit's performance improves and results
+        become too small for Date.now()'s precision (around 15 ms).
+
+        It should also reduce perf. bots cycle time for slower tests because we limit the number of function calls by time.
+
+        * CSS/CSSPropertySetterGetter.html:
+        * CSS/CSSPropertyUpdateValue.html:
+        * Parser/css-parser-yui.html:
+        * Parser/simple-url.html:
+        * Parser/tiny-innerHTML.html:
+        * Parser/url-parser.html:
+        * Parser/xml-parser.html:
+
+2012-05-14  Dan Bernstein  <mitz@apple.com>
+
+        Add a line layout performance test
+        https://bugs.webkit.org/show_bug.cgi?id=86216
+
+        Reviewed by Ryosuke Niwa.
+
+        * Layout/line-layout.html: Added.
+
+2012-05-14  Tony Chang  <tony@chromium.org>
+
+        Don't append log lines while perf tests are running.
+        https://bugs.webkit.org/show_bug.cgi?id=86028
+
+        Reviewed by Ryosuke Niwa.
+
+        In some tests, the extra DOM nodes can cause the test timing to change.
+        Avoid adding DOM nodes until the test is over. When running in a browser,
+        we append nodes as we run so the user can have some feedback.
+
+        * resources/runner.js:
+        (PerfTestRunner.log): Store the log lines in an array until the test is finished.
+
+2012-05-14  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Build fix. Don't adjust calls per iteration in the second run.
+
+        * resources/runner.js:
+        (PerfTestRunner._perSecondRunner):
+
+2012-05-13  Ryosuke Niwa  <rniwa@webkit.org>
+
+        performance tests should be able to measure runs/sec rather than time
+        https://bugs.webkit.org/show_bug.cgi?id=86021
+
+        Reviewed by Ojan Vafai.
+
+        Add PerfTestRunner.runPerSecond. It uses _runLoop but replaces _runner by _perSecondRunner
+        to compute runs/s of runFunction.
+
+        When _perSecondRunner is called for the first time, i.e. _completedRuns is 0 (notice this is -1
+        in regular run/_runner), it slowly increases the number of function calls to runFunction between
+        time measurements in order to discount the time used by new Date() calls themselves until the
+        total time spent reaches 100 milliseconds.
+
+        By default, runPerSecond runs the test for at least 750 milliseconds in each run, and executes
+        21 runs, yielding the total run time of roughly 18 seconds. This is significantly faster than
+        most of existing performance tests. Also see http://ejohn.org/blog/accuracy-of-javascript-time/.
+
+        Finally, refactored the existing methods of PerfTestRunner to allow "runs/s" unit and share code.
+
+        * Layout/flexbox-column-nowrap.html:
+        * Layout/flexbox-column-wrap.html:
+        * Layout/flexbox-row-nowrap.html:
+        * Layout/flexbox-row-wrap.html:
+        * resources/runner.js:
+        (PerfTestRunner.computeStatistics): Takes unit.
+        (PerfTestRunner.logStatistics): Ditto.
+        (PerfTestRunner._runLoop):
+        (PerfTestRunner._runner):
+        (PerfTestRunner.runPerSecond): Added.
+        (PerfTestRunner._perSecondRunner): Added. Called by _runLoop.
+        (PerfTestRunner._perSecondRunnerIterator): Added.
+
+2012-05-09  Tony Chang  <tony@chromium.org>
+
+        add some basic perf-o-matic tests for flexbox
+        https://bugs.webkit.org/show_bug.cgi?id=86017
+
+        Reviewed by Ryosuke Niwa.
+
+        Each of these tests take < 3s on my machine.
+
+        * Layout/flexbox-column-nowrap.html: Added.
+        * Layout/flexbox-column-wrap.html: Added.
+        * Layout/flexbox-row-nowrap.html: Added.
+        * Layout/flexbox-row-wrap.html: Added.
+
+2012-05-05  Ilya Tikhonovsky  <loislo@chromium.org>
+
+        Web Inspector: unreviewed followup fix for the performance test after r116218.
+
+        * inspector/heap-snapshot.html:
+
+2012-05-02  Tom Zakrajsek  <tomz@codeaurora.org>
+
+        Need tests for PerfTestRunner.computeStatistics
+        https://bugs.webkit.org/show_bug.cgi?id=85410
+
+        Reviewed by Ryosuke Niwa.
+
+        * resources/runner.js:
+
+2012-05-02  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r115905.
+        http://trac.webkit.org/changeset/115905
+        https://bugs.webkit.org/show_bug.cgi?id=85435
+
+        New computeStatistics test is failing on chromium ports
+        (Requested by tomz on #webkit).
+
+        * resources/runner.js:
+
+2012-05-02  Tom Zakrajsek  <tomz@codeaurora.org>
+
+        Need tests for PerfTestRunner.computeStatistics
+        https://bugs.webkit.org/show_bug.cgi?id=85410
+
+        Reviewed by Ryosuke Niwa.
+
+        * resources/runner.js:
+
+2012-04-29  Tom Zakrajsek  <tomz@codeaurora.org>
+
+        PerfTestRunner.computeStatistics incorrectly calculates min, max and median
+        https://bugs.webkit.org/show_bug.cgi?id=85111
+
+        Reviewed by Ryosuke Niwa.
+
+        The sort of the data input was being done alphabetically.
+        So I provided a numeric compare function.
+
+        * resources/runner.js:
+
+2012-04-17  Ilya Tikhonovsky  <loislo@chromium.org>
+
+        Web Inspector: the fix for test after massive rename in r114271.
+        https://bugs.webkit.org/show_bug.cgi?id=84147
+
+        Drive by fix. The test was renamed to heap-snapshot.html
+
+        Reviewed by Yury Semikhatsky.
+
+        * inspector/heap-snapshot.html: Renamed from PerformanceTests/inspector/detailed-heapshots-smoke-test.html.
+
+2012-04-16  Yury Semikhatsky  <yurys@chromium.org>
+
+        Web Inspector: rename heap profiler files and classes DetailedHeapshot* ->HeapSnapshot*
+        https://bugs.webkit.org/show_bug.cgi?id=84038
+
+        A bunch of renames "detailed heapshot" -> "heap snapshot".
+
+        Reviewed by Pavel Feldman.
+
+        * inspector/detailed-heapshots-smoke-test.html:
+
+2012-04-13  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Fix skipped list.
+
+        * Skipped:
+
+2012-04-12  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Enable SVG page loading performance tests
+        https://bugs.webkit.org/show_bug.cgi?id=83861
+
+        Reviewed by Adam Barth.
+
+        Unskip PageLoad directory and skip tests that load too fast (less than 100ms) and are unstable,
+        and the ones that take too long to load (more than 20s).
+
+        * Skipped:
+
 2012-04-04  Ilya Tikhonovsky  <loislo@chromium.org>
 
         Web Inspector: Unreviewed. temporary disable broken inspector tests.

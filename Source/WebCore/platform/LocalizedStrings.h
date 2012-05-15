@@ -167,6 +167,7 @@ namespace WebCore {
 
     String missingPluginText();
     String crashedPluginText();
+    String insecurePluginVersionText();
     String multipleFileUploadText(unsigned numberOfFiles);
     String unknownFileSizeText();
 
@@ -214,6 +215,9 @@ namespace WebCore {
 #if ENABLE(CALENDAR_PICKER)
     String calendarTodayText();
     String calendarClearText();
+    String dateFormatYearText();
+    String dateFormatMonthText();
+    String dateFormatDayInMonthText();
 #endif
 
 #if !PLATFORM(CHROMIUM)

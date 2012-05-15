@@ -64,6 +64,7 @@ public:
 
 #if ENABLE(THREADED_SCROLLING)
     ScrollingTree* scrollingTree() const;
+    void commitTreeStateIfNeeded();
 #endif
 
     // Return whether this scrolling coordinator handles scrolling for the given frame view.
@@ -71,9 +72,6 @@ public:
 
     // Should be called whenever the given frame view has been laid out.
     void frameViewLayoutUpdated(FrameView*);
-
-    // Should be called whenever the set of ScrollableAreas inside a FrameView changes.
-    void frameViewScrollableAreasDidChange(FrameView*);
 
     // Should be called whenever a wheel event handler is added or removed in the 
     // frame view's underlying document.
@@ -126,9 +124,24 @@ private:
 
     void setScrollLayer(GraphicsLayer*);
     void setNonFastScrollableRegion(const Region&);
-    void setScrollParameters(ScrollElasticity horizontalScrollElasticity, ScrollElasticity verticalScrollElasticity,
-                             bool hasEnabledHorizontalScrollbar, bool hasEnabledVerticalScrollbar,
-                             const IntRect& viewportRect, const IntSize& contentsSize);
+
+    struct ScrollParameters {
+        ScrollElasticity horizontalScrollElasticity;
+        ScrollElasticity verticalScrollElasticity;
+
+        bool hasEnabledHorizontalScrollbar;
+        bool hasEnabledVerticalScrollbar;
+
+        ScrollbarMode horizontalScrollbarMode;
+        ScrollbarMode verticalScrollbarMode;
+
+        IntPoint scrollOrigin;
+
+        IntRect viewportRect;
+        IntSize contentsSize;
+    };
+
+    void setScrollParameters(const ScrollParameters&);
     void setWheelEventHandlerCount(unsigned);
     void setShouldUpdateScrollLayerPositionOnMainThread(bool);
 
@@ -140,7 +153,6 @@ private:
     void scheduleTreeStateCommit();
 
     void scrollingTreeStateCommitterTimerFired(Timer<ScrollingCoordinator>*);
-    void commitTreeStateIfNeeded();
     void commitTreeState();
 
     OwnPtr<ScrollingTreeState> m_scrollingTreeState;

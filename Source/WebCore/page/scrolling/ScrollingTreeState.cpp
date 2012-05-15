@@ -43,6 +43,8 @@ ScrollingTreeState::ScrollingTreeState()
     , m_verticalScrollElasticity(ScrollElasticityNone)
     , m_hasEnabledHorizontalScrollbar(false)
     , m_hasEnabledVerticalScrollbar(false)
+    , m_horizontalScrollbarMode(ScrollbarAuto)
+    , m_verticalScrollbarMode(ScrollbarAuto)
 {
 }
 
@@ -131,10 +133,37 @@ void ScrollingTreeState::setHasEnabledVerticalScrollbar(bool hasEnabledVerticalS
     m_changedProperties |= HasEnabledVerticalScrollbar;
 }
 
+void ScrollingTreeState::setHorizontalScrollbarMode(ScrollbarMode horizontalScrollbarMode)
+{
+    if (m_horizontalScrollbarMode == horizontalScrollbarMode)
+        return;
+
+    m_horizontalScrollbarMode = horizontalScrollbarMode;
+    m_changedProperties |= HorizontalScrollbarMode;
+}
+
+void ScrollingTreeState::setVerticalScrollbarMode(ScrollbarMode verticalScrollbarMode)
+{
+    if (m_verticalScrollbarMode == verticalScrollbarMode)
+        return;
+
+    m_verticalScrollbarMode = verticalScrollbarMode;
+    m_changedProperties |= VerticalScrollbarMode;
+}
+
 void ScrollingTreeState::setRequestedScrollPosition(const IntPoint& requestedScrollPosition)
 {
     m_requestedScrollPosition = requestedScrollPosition;
     m_changedProperties |= RequestedScrollPosition;
+}
+
+void ScrollingTreeState::setScrollOrigin(const IntPoint& scrollOrigin)
+{
+    if (m_scrollOrigin == scrollOrigin)
+        return;
+
+    m_scrollOrigin = scrollOrigin;
+    m_changedProperties |= ScrollOrigin;
 }
 
 PassOwnPtr<ScrollingTreeState> ScrollingTreeState::commit()

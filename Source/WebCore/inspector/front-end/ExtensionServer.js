@@ -260,9 +260,8 @@ WebInspector.ExtensionServer.prototype = {
             this._dispatchCallback(message.requestId, port, result);
         }
         if (message.evaluateOnPage)
-            sidebar.setExpression(message.expression, message.rootTitle, callback.bind(this));
-        else
-            sidebar.setObject(message.expression, message.rootTitle, callback.bind(this));
+            return sidebar.setExpression(message.expression, message.rootTitle, message.evaluateOptions, port._extensionOrigin, callback.bind(this));
+        sidebar.setObject(message.expression, message.rootTitle, callback.bind(this));
     },
 
     _onSetSidebarPage: function(message, port)
@@ -319,12 +318,17 @@ WebInspector.ExtensionServer.prototype = {
 
     _onEvaluateOnInspectedPage: function(message, port)
     {
+        /**
+         * @param {?Protocol.Error} error
+         * @param {RuntimeAgent.RemoteObject} resultPayload
+         * @param {boolean=} wasThrown
+         */
         function callback(error, resultPayload, wasThrown)
         {
             var result = {};
             if (error) {
                 result.isException = true;
-                result.value = error.message;
+                result.value = error.toString();
             }  else
                 result.value = resultPayload.value;
 
@@ -333,7 +337,7 @@ WebInspector.ExtensionServer.prototype = {
       
             this._dispatchCallback(message.requestId, port, result);
         }
-        RuntimeAgent.evaluate(message.expression, "", true, undefined, undefined, true, callback.bind(this));
+        return this.evaluate(message.expression, true, true, message.evaluateOptions, port._extensionOrigin, callback.bind(this));
     },
 
     _onGetConsoleMessages: function()
@@ -406,7 +410,7 @@ WebInspector.ExtensionServer.prototype = {
 
     _onGetHAR: function()
     {
-        var requests = WebInspector.networkLog.resources;
+        var requests = WebInspector.networkLog.requests;
         var harLog = (new WebInspector.HARLog(requests)).build();
         for (var i = 0; i < harLog.entries.length; ++i)
             harLog.entries[i]._requestId = this._requestId(requests[i]);
@@ -434,10 +438,15 @@ WebInspector.ExtensionServer.prototype = {
 
     _getResourceContent: function(resource, message, port)
     {
-        function onContentAvailable(content, encoded)
+        /**
+         * @param {?string} content
+         * @param {boolean} contentEncoded
+         * @param {string} mimeType
+         */
+        function onContentAvailable(content, contentEncoded, mimeType)
         {
             var response = {
-                encoding: encoded ? "base64" : "",
+                encoding: contentEncoded ? "base64" : "",
                 content: content
             };
             this._dispatchCallback(message.requestId, port, response);
@@ -463,6 +472,9 @@ WebInspector.ExtensionServer.prototype = {
 
     _onSetResourceContent: function(message, port)
     {
+        /**
+         * @param {?Protocol.Error} error
+         */
         function callbackWrapper(error)
         {
             var response = error ? this._status.E_FAILED(error) : this._status.OK();
@@ -529,7 +541,7 @@ WebInspector.ExtensionServer.prototype = {
         this._registerAutosubscriptionHandler(WebInspector.extensionAPI.Events.ConsoleMessageAdded,
             WebInspector.console, WebInspector.ConsoleModel.Events.MessageAdded, this._notifyConsoleMessageAdded);
         this._registerAutosubscriptionHandler(WebInspector.extensionAPI.Events.NetworkRequestFinished,
-            WebInspector.networkManager, WebInspector.NetworkManager.EventTypes.ResourceFinished, this._notifyRequestFinished);
+            WebInspector.networkManager, WebInspector.NetworkManager.EventTypes.RequestFinished, this._notifyRequestFinished);
         this._registerAutosubscriptionHandler(WebInspector.extensionAPI.Events.ResourceAdded,
             WebInspector.resourceTreeModel,
             WebInspector.ResourceTreeModel.EventTypes.ResourceAdded,
@@ -584,7 +596,7 @@ WebInspector.ExtensionServer.prototype = {
 
     _notifyRequestFinished: function(event)
     {
-        var request = event.data;
+        var request = /** @type {WebInspector.NetworkRequest} */ event.data;
         this._postNotification(WebInspector.extensionAPI.Events.NetworkRequestFinished, this._requestId(request), (new WebInspector.HAREntry(request)).build());
     },
 
@@ -710,6 +722,29 @@ WebInspector.ExtensionServer.prototype = {
                 result.push(source[i]);
         }
         return "/" + result.join("/");
+    },
+
+    /**
+     * @param {string} expression
+     * @param {boolean} exposeCommandLineAPI
+     * @param {boolean} returnByValue
+     * @param {Object} options
+     * @param {string} securityOrigin
+     * @param {function(?string, ?RuntimeAgent.RemoteObject, boolean=)} callback
+     */
+    evaluate: function(expression, exposeCommandLineAPI, returnByValue, options, securityOrigin, callback) 
+    {
+        var contextId;
+        if (typeof options === "object" && options["useContentScriptContext"]) {
+            var mainFrame = WebInspector.resourceTreeModel.mainFrame;
+            if (!mainFrame)
+                return this._status.E_FAILED("main frame not available yet");
+            var context = WebInspector.javaScriptContextManager.contextByFrameAndSecurityOrigin(mainFrame, securityOrigin);
+            if (!context)
+                return this._status.E_NOTFOUND(securityOrigin);
+            contextId = context.id;
+        }
+        RuntimeAgent.evaluate(expression, "extension", exposeCommandLineAPI, true, contextId, returnByValue, callback);
     }
 }
 

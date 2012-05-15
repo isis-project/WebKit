@@ -1,3 +1,992 @@
+2012-05-14  Shinya Kawanaka  <shinyak@chromium.org>
+
+        document.execCommand('Indent') in the direct child of ShadowRoot causes a crash.
+        https://bugs.webkit.org/show_bug.cgi?id=86341
+
+        Reviewed by Ryosuke Niwa.
+
+        Exports necessary symbols.
+
+        * Source/autotools/symbols.filter:
+
+2012-05-14  Luke Macpherson  <macpherson@chromium.org>
+
+        Introduce ENABLE_CSS_VARIABLES compile flag.
+        https://bugs.webkit.org/show_bug.cgi?id=86338
+
+        Reviewed by Dimitri Glazkov.
+
+        Add a configuration option for CSS Variables support, disabling it by default.
+
+        * Source/cmake/WebKitFeatures.cmake:
+
+2012-05-14  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix. Fix wxMSW build, and make sure we properly
+        define WebKitVersion.h as a build target for all platforms to avoid
+        unnecessary rebuilds.
+        
+        * wscript:
+
+2012-05-11  Jeffrey Pfau  <jpfau@apple.com>
+
+        REGRESSION (r114170): Scroll areas in nested frames improperly placed when tiled drawing is enabled
+        https://bugs.webkit.org/show_bug.cgi?id=86239
+
+        Reviewed by Anders Carlsson.
+
+        * ManualTests/resources/frame-textarea.html: Added.
+        * ManualTests/scrollable-positioned-frame.html: Added.
+        * ManualTests/scrollable-positioned-nested-frame.html: Added.
+
+2012-05-11  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix, exclude some files we don't use from the build.
+
+        * wscript:
+
+2012-05-11  Tommy Widenflycht  <tommyw@google.com>
+
+        MediaStream API: Fix a reference counting issue in UserMediaRequest
+        https://bugs.webkit.org/show_bug.cgi?id=86210
+
+        Reviewed by Abhishek Arya.
+
+        * ManualTests/user-media-request-crash.html: Added.
+
+2012-05-11  Christophe Dumez  <christophe.dumez@intel.com>
+
+        Web Intents code only supports V8
+        https://bugs.webkit.org/show_bug.cgi?id=85954
+
+        Reviewed by Adam Barth.
+
+        Add ENABLE_WEB_INTENTS flag to CMake.
+
+        * Source/cmake/WebKitFeatures.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-05-11  Xiaobo Wang  <xbwang@torchmobile.com.cn>
+
+        [BlackBerry] Update DumpRenderTree.cpp to also run ref-tests if there're any
+        https://bugs.webkit.org/show_bug.cgi?id=86055
+
+        Reviewed by Rob Buis.
+
+        Ref-tests are tests with suffix "-expected", "-expected-mismatch" and a valid
+        extension(".html", ".htm", etc.).
+        Currently torch-launcher only run tests parsed by NRWT, with ref-tests
+        excluded. As a result, if a test have ref-tests (which were not run), our
+        DumpRenderTree Perl script will think there's a crash and exit with code 1.
+        So NRWT will report the result as CRASH.
+        We need to update DumpRenderTree.cpp to try to find ref-tests and run them.
+
+        * DumpRenderTree/blackberry/DumpRenderTree.cpp:
+        (BlackBerry::WebKit::DumpRenderTree::DumpRenderTree):
+        (BlackBerry::WebKit::DumpRenderTree::getRefTests):
+        (WebKit):
+        (BlackBerry::WebKit::DumpRenderTree::runCurrentTest):
+        (BlackBerry::WebKit::DumpRenderTree::runRemainingTests):
+        (BlackBerry::WebKit::DumpRenderTree::runTests):
+        * DumpRenderTree/blackberry/DumpRenderTreeBlackBerry.h:
+        (DumpRenderTree):
+
+2012-05-10  MORITA Hajime  <morrita@google.com>
+
+        ElementShadow should minimize the usage of "ShadowRoot" name
+        https://bugs.webkit.org/show_bug.cgi?id=85970
+
+        Reviewed by Dimitri Glazkov.
+
+        Removed symbols which no longer exists
+
+        * Source/autotools/symbols.filter:
+
+2012-05-10  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Move resumeAnimations to use Internals interface
+        https://bugs.webkit.org/show_bug.cgi?id=86063
+
+        Reviewed by Alexey Proskuryakov.
+
+        * Source/autotools/symbols.filter: Add a symbol filter for resumeAnimations. 
+
+2012-05-10  Zan Dobersek  <zandobersek@gmail.com>
+
+        [GTK] ENABLE_IFRAME_SEAMLESS support
+        https://bugs.webkit.org/show_bug.cgi?id=85843
+
+        Reviewed by Eric Seidel.
+
+        Add a configuration option for enabling the iframe seamless
+        attribute support, enabling it by default.
+
+        * configure.ac:
+
+2012-05-09  Stephen Chenney  <schenney@chromium.org>
+
+        SVG Filters allow invalid elements as children
+        https://bugs.webkit.org/show_bug.cgi?id=83979
+
+        Reviewed by Nikolas Zimmermann.
+
+        This test will crash upon load in Chromium, unless the associated fix is in.
+
+        * ManualTests/bugzilla-83979.svg: Added.
+
+2012-05-09  Kent Tamura  <tkent@chromium.org>
+
+        Calendar Picker: Fix a crash by changing input type.
+        https://bugs.webkit.org/show_bug.cgi?id=86007
+
+        Reviewed by Hajime Morita.
+
+        * ManualTests/forms/calendar-picker-crash-by-type-change.html: Added.
+
+2012-05-09  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Move suspendAnimations to use Internals interface.
+        https://bugs.webkit.org/show_bug.cgi?id=85986
+
+        Reviewed by Ryosuke Niwa.
+
+        * Source/autotools/symbols.filter: Add a symbol filter for suspendAnimations. 
+
+2012-05-09  Hugo Parente Lima  <hugo.lima@openbossa.org>
+
+        Use suitable viewport values on XHTML-MP pages.
+        https://bugs.webkit.org/show_bug.cgi?id=85425
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Add LEGACY_VIEWPORT_ADAPTION use feature to cmake build system,
+        this feature will enable the use of a suitable viewport size
+        on legacy XHTML-MP pages.
+
+        * Source/cmake/WebKitFeatures.cmake:
+
+2012-05-09  Crystal Zhang  <haizhang@rim.com>
+
+        [BlackBerry] Enable PAGE_POPUP in make file, and implement required methods
+        https://bugs.webkit.org/show_bug.cgi?id=85907
+
+        Reviewed by Rob Buis.
+
+        Enable PAGE_POPUP option in make files.
+
+        Internal reviewed by Yong Li.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-05-09  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Split WebKit2 Makefile moving source code listings to GNUmakefile.list.am
+        https://bugs.webkit.org/show_bug.cgi?id=85985
+
+        Reviewed by Gustavo Noronha Silva.
+
+        * GNUmakefile.am:
+
+2012-05-09  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Use independent version numbers for public libraries
+        https://bugs.webkit.org/show_bug.cgi?id=85984
+
+        Reviewed by Gustavo Noronha Silva.
+
+        * configure.ac: Define LIBJAVASCRIPTCOREGTK_VERSION and
+        LIBWEBKIT2GTK_VERSION using the same version as
+        LIBWEBKITGTK_VERSION for backwards compatibility.
+
+2012-05-08  Raphael Kubo da Costa  <rakuco@webkit.org>
+
+        [CMake] FindGStreamer: Fix the build with static WebCore.
+        https://bugs.webkit.org/show_bug.cgi?id=85930
+
+        Reviewed by Daniel Bates.
+
+        Building WebCore statically was failing because files in
+        WebCore/platform/gstreamer when ENABLE_VIDEO was set required
+        gstreamer-base, which was not being linked to after r116453.
+
+        Fix that by looking for gstreamer-base, requiring and linking
+        against it if GStreamer is used.
+
+        * Source/cmake/FindGStreamer.cmake:
+
+2012-05-08  Raphael Kubo da Costa  <rakuco@webkit.org>
+
+        [CMake] Rewrite FindGStreamer.cmake.
+        https://bugs.webkit.org/show_bug.cgi?id=85857
+
+        Reviewed by Daniel Bates.
+
+        We are currently kind of duplicating the same
+        FindGStreamer-Foo.cmake file whenever a new GStreamer plugin needs
+        to be found. Besides this approach not scaling very well, it
+        relies on pkg-config for version checking, uses the LibFindMacros
+        package that we should deprecate and all the find files could be
+        merged into one, with users using the COMPONENTS feature of the
+        FIND_PACKAGE() call to find the desired plugins.
+
+        FindGStreamer.cmake has then been rewritten to take all that into
+        account:
+        - The LibFindMacros.cmake package is not used anymore.
+        - Version check is performed in the CMake file itself by parsing
+        the gstversion.h header.
+        - All GStreamer plugins are searched and the COMPONENTS keyword
+        used in the FIND_PACKAGE() call is used to check which plugins are
+        required.
+        - The plugins-base and base GStreamer plugins are not searched, as
+        they were not used anywhere in the build system.
+
+        * Source/cmake/FindGStreamer-App.cmake: Removed.
+        * Source/cmake/FindGStreamer-Audio.cmake: Removed.
+        * Source/cmake/FindGStreamer-Base.cmake: Removed.
+        * Source/cmake/FindGStreamer-FFT.cmake: Removed.
+        * Source/cmake/FindGStreamer-Interfaces.cmake: Removed.
+        * Source/cmake/FindGStreamer-Pbutils.cmake: Removed.
+        * Source/cmake/FindGStreamer-Plugins-Base.cmake: Removed.
+        * Source/cmake/FindGStreamer-Video.cmake: Removed.
+        * Source/cmake/FindGStreamer.cmake: Rewrite as described above.
+        * Source/cmake/OptionsEfl.cmake: Use COMPONENTS to specify which
+        GStreamer plugins to look for.
+
+2012-05-08  Ryosuke Niwa  <rniwa@webkit.org>
+
+        perf-o-matic fix attempt for dashboard images.
+
+        Rubber-stamped by Antti Koivisto.
+
+        Also stop generating images for 30, 90, and 365 days since they have been timing out.
+
+        * Websites/webkit-perf.appspot.com/controller.py:
+        (schedule_runs_update):
+        * Websites/webkit-perf.appspot.com/models.py:
+        (Runs.chart_params):
+
+2012-05-08  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [CMake] Add ENABLE_IFRAME_SEAMLESS flag
+        https://bugs.webkit.org/show_bug.cgi?id=85838
+
+        Reviewed by Eric Seidel.
+
+        Add ENABLE_IFRAME_SEAMLESS flag to CMake and enable it by default.
+        This flag was introduced by r116356.
+
+        * Source/cmake/WebKitFeatures.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-05-08  Balazs Kelemen  <kbalazs@webkit.org>
+
+        [Qt] X11 plugins need to be reworked for Qt5+WK1
+        https://bugs.webkit.org/show_bug.cgi?id=80691
+
+        Reviewed by Simon Hausmann.
+
+        Implement basic windowless plugin support with Qt5.
+
+        * Source/api.pri: Need private API's to be able
+        to use QApplicationPrivate::windowForWidget.
+
+2012-05-07  Dave Tu  <dtu@chromium.org>
+
+        Adjust flakiness dashboard gpu_tests image diff URLs.
+        https://bugs.webkit.org/show_bug.cgi?id=85423
+
+        Reviewed by Ojan Vafai.
+
+        * Tools/TestResultServer/static-dashboards/flakiness_dashboard.js:
+
+2012-05-07  Liam Quinn  <lquinn@rim.com>
+
+        [BlackBerry] WWW-Authenticate header on 200 response pops up authentication dialog
+        https://bugs.webkit.org/show_bug.cgi?id=85643
+
+        Reviewed by George Staikos.
+
+        RIM PR: 151992
+        Added manual test for WWW-Authenticate header on a 200 response.
+
+        * ManualTests/blackberry/http-auth-on-200.php: Added.
+
+2012-05-07  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Unreviewed trivial build fix: Don't include bytearraytestdata.h in the QtWebKit
+        module header.
+
+        * Source/sync.profile:
+
+2012-05-06  MORITA Hajime  <morrita@google.com>
+
+        https://bugs.webkit.org/show_bug.cgi?id=85265
+        [Shadow DOM] ShadowTree needs a better name
+
+        Reviewed by Dimitri Glazkov.
+
+        * Source/autotools/symbols.filter: Updated exported symbol names according to the rename.
+
+2012-05-06  Dan Bernstein  <mitz@apple.com>
+
+        Part of: Building and debugging WebKit in the Xcode IDE requires a lot of setup
+        https://bugs.webkit.org/show_bug.cgi?id=85739
+
+        Reviewed by Daniel Bates.
+
+        * WebKit.xcworkspace: Added.
+        * WebKit.xcworkspace/contents.xcworkspacedata: Added.
+        * WebKit.xcworkspace/xcshareddata: Added.
+        * WebKit.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings: Added.
+        * WebKit.xcworkspace/xcshareddata/xcschemes: Added.
+        * WebKit.xcworkspace/xcshareddata/xcschemes/All Source (target WebProcess).xcscheme: Added
+        this scheme, which builds all source projects and runs WebProcess with
+        Safari as the client executable.
+        * WebKit.xcworkspace/xcshareddata/xcschemes/All Source.xcscheme: Added
+        this scheme, which builds all source projects and runs Safari.
+        * WebKit.xcworkspace/xcshareddata/xcschemes/All Tools.xcscheme: Added
+        this scheme, which builds all tools projects and runs DumpRenderTree.
+
+2012-05-06  Gustavo Noronha Silva  <gns@gnome.org>
+
+        [GTK] Enable WebKit2 build by default (again)
+        https://bugs.webkit.org/show_bug.cgi?id=85750
+
+        * configure.ac: enable wk2 build by default.
+
+2012-05-06  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Convert isPageBoxVisible to use Internals interface.
+        https://bugs.webkit.org/show_bug.cgi?id=85692
+
+        Reviewed by Darin Adler.
+
+        * Source/autotools/symbols.filter: Add isPageBoxVisible symbol filter.
+
+2012-05-06  Jonathan Dong  <jonathan.dong@torchmobile.com.cn>
+
+        [BlackBerry] Enable credential persistance and auto fill
+        https://bugs.webkit.org/show_bug.cgi?id=85572
+
+        Reviewed by Rob Buis.
+
+        Enable credential persistance and auto fill feature by adding
+        ENABLE_BLACKBERRY_CREDENTIAL_PERSIST=1.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-05-05  Gustavo Noronha Silva  <gns@gnome.org>
+
+        Unreviewed preparation for 1.9.2.
+
+        * configure.ac: bump version to 1.9.2 and bump libtool version.
+
+2012-05-04  Jer Noble  <jer.noble@apple.com>
+
+        Flash of white when exiting full screen HTML5 video
+        https://bugs.webkit.org/show_bug.cgi?id=85438
+
+        Reviewed by Sam Weinig.
+
+        * ManualTests/fullscreen/full-screen-flash.html: Added.
+
+2012-05-04  Jer Noble  <jer.noble@apple.com>
+
+        Taking a visibility:hidden element full screen causes full screen window to disappear.
+        https://bugs.webkit.org/show_bug.cgi?id=85432
+
+        Reviewed by Maciej Stachowiak.
+
+        * ManualTests/fullscreen/full-screen-zero-width.html: Added.
+
+2012-05-04  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed, rolling out r116075.
+        http://trac.webkit.org/changeset/116075
+
+        WebKit2 build was broken while WebKit2 build was disabled in bots,
+        so nobody noticed it. Disable the WebKit2 build for now to keep
+        the bots green again until we find the actual commit that
+        broke the WebKit2 build.
+
+        * configure.ac:
+
+2012-05-04  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Enable WebKit2 by default in configure.
+
+        This was removed in r115624 to make sure release 1.9.1 didn't have
+        WebKit2 enabled by default, because we are using the same library
+        versions for WebKit1 and WebKit2.
+
+        * configure.ac: Enable WebKit2 by default.
+
+2012-05-03  Raphael Kubo da Costa  <rakuco@webkit.org>
+
+        [CMake] Rewrite FindCairo.cmake.
+        https://bugs.webkit.org/show_bug.cgi?id=84895
+
+        Reviewed by Daniel Bates.
+
+        The old approach relied on pkg-config for finding Cairo (which
+        introduced a dependency on pkg-config that could be avoided), used
+        the LibFindMacros code that we should probably remove in the
+        future and did not use the FindPackageHandleStandardArguments
+        module.
+
+        Change all that by rewriting the module.
+        - Use the pkg-config output optionally instead of requiring it
+        like LibFindMacros did.
+        - Remove the implicit dependency on FreeType which often found it
+        the wrong way via pkg-config and without considering
+        CMAKE_PREFIX_PATH.
+        - Retrieve the Cairo version by looking at cairo-version.h instead
+        of relying on pkg-config. It requires some additional code for
+        checking if the desired version has been found, but that will not
+        be needed once we start depending on CMake 2.8.3 or later.
+
+        The only downside is that FPHSA sets <UPPERCASED_NAME>_FOUND
+        instead of <Name>_FOUND, and to keep things consistent
+        Cairo_LIBRARIES and Cairo_INCLUDE_DIRS have become CAIRO_LIBRARIES
+        and CAIRO_INCLUDE_DIRS.
+
+        * Source/cmake/FindCairo.cmake:
+
+2012-05-03  Mike Fenton  <mifenton@rim.com>
+
+        Rename attribute.
+
+        [BlackBerry] Add special attribute for alternate selection touch handling.
+        https://bugs.webkit.org/show_bug.cgi?id=85284
+
+        Reviewed by Rob Buis.
+
+        * ManualTests/blackberry/selection-touch-override.html:
+
+2012-05-03  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        [CMAKE] Remove unneeded keyword in WebKitFeatures.cmake
+        https://bugs.webkit.org/show_bug.cgi?id=85461
+
+        Reviewed by Eric Seidel.
+
+        DEFAULT keyword wasn't removed on Bug 72815.
+
+        * Source/cmake/WebKitFeatures.cmake: Remove DEFAULT keyword in ENABLE_DRAG_SUPPORT field.
+
+2012-05-02  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Unreviewed prospective QtMobility build fix.
+
+        * Source/api.pri: The Qt 4 equivalent of QT += sensors should be handled by
+        WebCore.pri, but somehow it isn't.
+
+2012-05-02  Lars Knudsen  <lars.knudsen@nokia.com>
+
+        [Qt] Make DeviceMotion and DeviceOrientation work with WebKit2
+        https://bugs.webkit.org/show_bug.cgi?id=64595
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Moving DeviceMotion and DeviceOrientation clients and providers
+        to WebCore.  This is done to allow clean dependencies when
+        statically linking WK2.
+
+        * Source/api.pri:
+
+2012-05-02  Dongwoo Im  <dw.im@samsung.com>
+
+        [EFL] Implement the Web Audio API feature.
+        https://bugs.webkit.org/show_bug.cgi?id=78688
+
+        Reviewed by Philippe Normand.
+
+        Implement the Web Audio API feature on the EFL port.
+        https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html
+
+        * Source/cmake/FindGStreamer-Audio.cmake: Added. Find the pkgconfig of the GStreamer-audio.
+        * Source/cmake/FindGStreamer-FFT.cmake: Added. Find the pkgconfig of the GStreamer-fft.
+        * Source/cmake/OptionsEfl.cmake: Add the ENABLE_WEB_AUDIO option.
+        * Source/cmakeconfig.h.cmake: Add the ENABLE_WEB_AUDIO option.
+
+2012-05-01  Landry Breuil  <landry@openbsd.org>
+
+        [GTK] Fix gstreamer detection during configure
+        https://bugs.webkit.org/show_bug.cgi?id=84325
+
+        Reviewed by Philippe Normand.
+
+        * configure.ac: Fix GSTREAMER_REQUIRED_VERSION and
+        GSTREAMER_PLUGINS_BASE_REQUIRED_VERSION assignments.
+
+2012-05-01  Mike Fenton  <mifenton@rim.com>
+
+        Add special attribute for alternate selection touch handling.
+        https://bugs.webkit.org/show_bug.cgi?id=85284
+
+        Reviewed by Antonio Gomes.
+
+        PR 152975.
+
+        Add manual test for -bb-selection-touchoverride.
+
+        Reviewed Internally by Gen Mak.
+
+        * ManualTests/blackberry/selection-touch-override.html: Added.
+
+2012-04-25  Raphael Kubo da Costa  <rakuco@webkit.org>
+
+        [CMake] Add a proper license to FindSqlite.cmake.
+        https://bugs.webkit.org/show_bug.cgi?id=84901
+
+        Reviewed by Daniel Bates.
+
+        FindSqlite.cmake referenced COPYING-CMAKE-SCRIPTS, which was
+        supposed to contain its license. This file, however, was not
+        imported with FindSqlite.cmake into the tree.
+
+        Add it from kdelibs (where the Find file came from) at git
+        revision [1]. Also worth mentioning is that Alexander Neundorf
+        added Gilles Caulier as the script author in revision [2].
+
+        [1] https://projects.kde.org/projects/kde/kdelibs/repository/revisions/c27925edf98b9952aeada677dfc74ce9c809c48a
+        [2] https://projects.kde.org/projects/kde/kdelibs/repository/revisions/14d0a92e04e1a200d6e58397e57a29194a0819cf
+
+        * Source/cmake/FindSqlite.cmake:
+
+2012-04-30  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Update NEWS and configure.ac for 1.9.1 release
+        https://bugs.webkit.org/show_bug.cgi?id=85175
+
+        Reviewed by Philippe Normand.
+
+        * configure.ac: Bumped version number. Disable WebKit2 by default
+        for now, since we still don't use a different libtool version for
+        libwebkit2gtk. It will be enabled again after the release and the
+        library version will be reworked for the next release.
+
+2012-04-30  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Fix make distcheck.
+
+        * GNUmakefile.am: Add ALL_MOFILES declaration.
+
+2012-04-28  Yury Semikhatsky  <yurys@chromium.org>
+
+        Unreviewed. Gtk build fix after r115553.
+
+        * Source/autotools/symbols.filter:
+
+2012-04-26  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [SOUP] Add a way to register custom uri schemes in WebKit2
+        https://bugs.webkit.org/show_bug.cgi?id=84130
+
+        Reviewed by Martin Robinson.
+
+        * GNUmakefile.am: Add BUILDING_SOUP__ macro to compilation.
+
+2012-04-26  Antonio Gomes  <agomes@rim.com>
+
+        [BlackBerry] properly disable DRAG_SUPPORT
+        https://bugs.webkit.org/show_bug.cgi?id=84952
+
+        Reviewed by Daniel Bates.
+
+        Add CMake build options to toggle DRAG_SUPPORT on/off,
+        and set its value for BlackBerry port.
+
+        * Source/cmake/OptionsBlackBerry.cmake: Toggled in ON.
+        * Source/cmake/OptionsBlackBerry.cmake: Toggled OFF.
+        * Source/cmake/OptionsWinCE.cmake: Toggled it OFF.
+        * Source/cmake/OptionsWindows.cmake: Toggled it ON.
+        * Source/cmakeconfig.h.cmake:
+
+2012-04-26  Antonio Gomes  <agomes@rim.com>
+
+        [BlackBerry] Add smooth_scrolling options to CMAKE and enable it for Blackberry
+        https://bugs.webkit.org/show_bug.cgi?id=84954
+
+        Reviewed by Daniel Bates.
+
+        * Source/cmakeconfig.h.cmake: Make it possible for CMake builds to
+          toggle SMOOTH_SCROLLING on/off
+        * Source/cmake/OptionsBlackBerry.cmake: ... and set it to ON by defualt
+          for the Blackberry port.
+
+2012-04-26  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Enable VIDEO_TRACK feature
+        https://bugs.webkit.org/show_bug.cgi?id=84830
+
+        Reviewed by Gustavo Noronha Silva.
+
+        Enable VIDEO_TRACK feature by default on EFL port.
+
+        * Source/cmake/OptionsEfl.cmake:
+        * Source/cmake/WebKitFeatures.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-04-24  Kent Tamura  <tkent@chromium.org>
+
+        Calendar Picker: Resize to minimal size to fit the content
+        https://bugs.webkit.org/show_bug.cgi?id=84826
+
+        Reviewed by Hajime Morita.
+
+        * ManualTests/forms/calendar-picker.html:
+        Sync with the size specified in CalendarPickerElement.cpp.
+
+2012-04-25  Allan Sandfeld Jensen  <allan.jensen@nokia.com>
+
+        [Qt] Zoom back can overscroll document edges.
+        https://bugs.webkit.org/show_bug.cgi?id=84851
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Manual test for overscroll on zoom-back. Needs to be manual since we do not yet
+        have automatic testing for this type of UI-side behaviour.
+
+        * ManualTests/qt/double-tap-overscroll.html: Added.
+
+2012-04-24  Yael Aharon  <yael.aharon@nokia.com>
+
+        Fixed background is scrolling in http://www.nieuwecode.nl/ in Qt webkit2
+        https://bugs.webkit.org/show_bug.cgi?id=83980
+
+        Reviewed by Simon Fraser.
+
+        * ManualTests/fixed-position-no-z-index.html: Added.
+
+2012-04-24  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Build and run TestWebKitAPI unit tests
+        https://bugs.webkit.org/show_bug.cgi?id=84325
+
+        Reviewed by Philippe Normand.
+
+        * GNUmakefile.am: Include makefiles to build gtest and
+        TestWebKitAPI. Add BUILDING_WEBKIT2__ macro to compilation when
+        building WebKit2.
+
+2012-04-24  Charles Wei  <charles.wei@torchmobile.com.cn>
+
+        [BlackBerry] Input Range element expects mouse events
+        https://bugs.webkit.org/show_bug.cgi?id=84571
+
+        Reviewed by Antonio Gomes.
+
+        Input element with Range type expects mouse events to
+        drag the handle. Note that Input Range could appear
+        in both the web page directly, or in some shadow tree,
+        like the MediaControlTimeline and MediaControlVolume.
+        * ManualTests/blackberry/slider-thumb-consumes-event.html: Added.
+
+2012-04-24  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Enable Web Timing
+        https://bugs.webkit.org/show_bug.cgi?id=84705
+
+        Reviewed by Tony Gentilcore.
+
+        Enable Web Timing in EFL port for for performance profiling and
+        improvement.
+
+        * Source/cmake/OptionsEfl.cmake:
+
+2012-04-23  Kent Tamura  <tkent@chromium.org>
+
+        Add test function to get placeholder string
+        https://bugs.webkit.org/show_bug.cgi?id=84536
+
+        Reviewed by Ryosuke Niwa.
+
+        * Source/autotools/symbols.filter:
+        Expose Node::textContent and HTMLTextFormControlElement::placeholderShouldBeVisible.
+
+2012-04-22  Sriram Neelakandan  <sriram.neelakandan@gmail.com>
+
+        [Gtk] Added MOZ_X11 build flag for TARGET_X11
+        [Qt]  Added MOZ_X11 build flag for !embedded
+        [CMake]  Added MOZ_X11 build flag for WTF_OS_UNIX
+        https://bugs.webkit.org/show_bug.cgi?id=40785
+
+        Reviewed by Anders Carlsson.
+
+        * GNUmakefile.am:
+        * Source/cmake/OptionsCommon.cmake:
+
+2012-04-22  Adrian Bunk  <bunk@stusta.de>
+
+        [GTK] Remove the obsolete Hildon UI extensions
+        https://bugs.webkit.org/show_bug.cgi?id=83420
+
+        Reviewed by Martin Robinson.
+
+        * configure.ac:
+
+2012-04-18  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [CMake] Use jsc target instead of ONLY_BUILD_JAVASCRIPTCORE
+        https://bugs.webkit.org/show_bug.cgi?id=84229
+
+        CMake caches ONLY_BUILD_JAVASCRIPTCORE=1 and will reuse the setting for
+        subsequent builds, stopping WebCore from being built ever again.
+
+        Instead of trying to emulate a build target using command line options,
+        just build the existing jsc target directly.
+
+        Reviewed by Rob Buis.
+
+        * CMakeLists.txt:
+
+2012-04-18  Jason Liu  <jason.liu@torchmobile.com.cn>
+
+        [BlackBerry] HTTP GET header has a "Cookie" when refreshing a page after cookies have been cleared.
+        https://bugs.webkit.org/show_bug.cgi?id=84223
+
+        Reviewed by George Staikos.
+
+        * ManualTests/blackberry/clear-cookie-refresh-result.php: Added.
+        * ManualTests/blackberry/clear-cookie-refresh.php: Added.
+
+2012-04-17  Yong Li  <yoli@rim.com>
+
+        REGRESSION (r105453): Crash when handling touch events
+        https://bugs.webkit.org/show_bug.cgi?id=81958
+
+        Reviewed by Antonio Gomes.
+
+        Add a manual test for this issue because DumpRenderTree
+        currently cannot send a group of touch points with
+        different touch states in one shot.
+
+        * ManualTests/resources/iframe-reloaded-on-touch.html: Added.
+        * ManualTests/touch-stale-iframe-crash.html: Added.
+
+2012-04-17  Kent Tamura  <tkent@chromium.org>
+
+        Calendar Picker: Support RTL layout
+        https://bugs.webkit.org/show_bug.cgi?id=83668
+
+        Reviewed by Hajime Morita.
+
+        * ManualTests/forms/calendar-picker.html:
+        Add Arabic parameters.
+        Add <select> to select a locale.
+
+2012-04-16  Dave Tu  <dtu@chromium.org>
+
+        Re-add GPU DEPS builders to flakiness dashboard.
+        https://bugs.webkit.org/show_bug.cgi?id=84056
+
+        Reviewed by Ojan Vafai.
+
+        * Tools/TestResultServer/static-dashboards/builders.js:
+
+2012-04-16  Gustavo Noronha Silva  <gns@gnome.org>
+
+        [GTK] Bump dependency on GTK+ 3.x to match reality
+        https://bugs.webkit.org/show_bug.cgi?id=84060
+
+        Rubber-stamped by Martin Robinson.
+
+        * configure.ac: Bump GTK+ 3 requirement to 3.4.0. In practice we
+        already depend on this version because of our dependency on a recent
+        glib, which causes linking issues with older GTK+; also bump glib to
+        its earliest version.
+
+2012-04-16  Philippe Normand  <pnormand@igalia.com>
+
+        [GTK] GStreamer 1.0 support in configure.ac
+        https://bugs.webkit.org/show_bug.cgi?id=84029
+
+        Reviewed by Martin Robinson.
+
+        The GStreamer version was recently changed to 1.0 in the git
+        repositories of the project so we need to reflect this change in
+        configure.ac.
+
+        * configure.ac:
+
+2012-04-16  Yael Aharon  <yael.aharon@nokia.com>
+
+        [Qt][WK2] Fixed elements position is wrong after zooming.
+        https://bugs.webkit.org/show_bug.cgi?id=83981
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * ManualTests/remove-add-fixed-position.html: Added.
+
+2012-04-13  Jason Liu  <jason.liu@torchmobile.com.cn>
+
+        [BlackBerry] Sign in cookie for ESPN.com does not retain login account (for fantasy sports).
+        https://bugs.webkit.org/show_bug.cgi?id=83760
+
+        Reviewed by George Staikos.
+
+        * ManualTests/blackberry/http-cookie-database-set.php: Added.
+        * ManualTests/blackberry/http-cookie-database-update.php: Added.
+
+2012-04-13  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [EFL] Add API for color chooser
+        https://bugs.webkit.org/show_bug.cgi?id=83692
+
+        Enables INPUT_TYPE_COLOR by default on the EFL port.
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * Source/cmake/OptionsEfl.cmake:
+        * Source/cmake/WebKitFeatures.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-04-12  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Enable WebKit2 by default in configure
+        https://bugs.webkit.org/show_bug.cgi?id=83753
+
+        Reviewed by Martin Robinson.
+
+        * configure.ac:
+
+2012-04-12  Bear Travis  <betravis@adobe.com>
+
+        [CSS Exclusions] Add flag to enable / disable exclusions at runtime
+        https://bugs.webkit.org/show_bug.cgi?id=83313
+
+        Reviewed by Ryosuke Niwa.
+
+        Adding the GTK symbols
+
+        * Source/autotools/symbols.filter:
+
+2012-04-12  George Staikos  <staikos@webkit.org>
+
+        Enable the fullscreen API for BlackBerry.
+        https://bugs.webkit.org/show_bug.cgi?id=83757
+
+        Reviewed by Antonio Gomes.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-04-12  Yael Aharon  <yael.aharon@nokia.com>
+
+        [Qt][WK2] Nested fixed elements scroll too fast
+        https://bugs.webkit.org/show_bug.cgi?id=83720
+
+        Reviewed by Noam Rosenthal.
+
+        * ManualTests/nested-fixed-position.html: Added.
+
+2012-03-15  Martin Robinson  <mrobinson@igalia.com>
+
+        [CAIRO] Make GLContextGLX a subclass of GLContext
+        https://bugs.webkit.org/show_bug.cgi?id=81285
+
+        Reviewed by Gustavo Noronha Silva.
+
+        * GNUmakefile.am: Add a configuration option for activating GLX.
+        This is selected automatically now, but in the future there will be
+        the choice to turn on EGL and turn off GLX at compilation time.
+        * configure.ac: Ditto.
+
+2012-04-10  Jocelyn Turcotte  <jocelyn.turcotte@nokia.com>
+
+        [Qt] InspectorServer: Add an API level auto test
+        https://bugs.webkit.org/show_bug.cgi?id=83594
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * Source/tests.pri:
+
+2012-04-11  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake] Add WEBKIT_CREATE_FORWARDING_HEADERS macro
+        https://bugs.webkit.org/show_bug.cgi?id=83574
+
+        Reviewed by Daniel Bates.
+
+        This new macro generates forwarding headers with absolute paths to the original files.
+        It accepts a list of files and/or a list of directories as input.
+
+        * Source/cmake/WebKitMacros.cmake:
+
+2012-04-10  Yael Aharon  <yael.aharon@nokia.com>
+
+        Initial support for fixed position elements in Qt WebKit2
+        https://bugs.webkit.org/show_bug.cgi?id=81786
+
+        Reviewed by Noam Rosenthal.
+
+        * ManualTests/fixed-position.html: Added.
+
+2012-04-10  Raphael Kubo da Costa  <rakuco@webkit.org>
+
+        [CMake] Do not pass -P to the preprocessor when running make_names.pl.
+        https://bugs.webkit.org/show_bug.cgi?id=83225
+
+        Reviewed by Rob Buis.
+
+        This is necessary to make CMake-based ports build with the
+        recently-released GCC 4.7.0, whose preprocessor seems to ignore
+        empty lines when -P is passed to it.  Such behavior breaks
+        make_names.pl (in fact, InFilesParser.pm), which expects an empty
+        line to separate common and specific sections in .in files.
+
+        A fix for this same problem has been supposedly done in r84123,
+        but as the CMake-based ports always pass --preprocessor to the
+        Perl tools the fix never reached us.
+
+        The idea is to define CODE_GENERATOR_PREPROCESSOR_WITH_LINEMARKERS
+        for (!MSVC && !QNX) and use it in the macros which call
+        make_names.pl.
+
+        * Source/cmake/OptionsCommon.cmake:
+        * Source/cmake/WebKitMacros.cmake:
+
+2012-04-10  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake][WIN] Add /MP flag when using a compiler with support for it
+        https://bugs.webkit.org/show_bug.cgi?id=83577
+
+        Reviewed by Daniel Bates.
+
+        * Source/cmake/OptionsWindows.cmake:
+
+2012-04-10  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake] Add missing DERIVED_SOURCES_WEBKIT_DIR variable
+        https://bugs.webkit.org/show_bug.cgi?id=83573
+
+        Reviewed by Daniel Bates.
+
+        We need this variable when ports want to generate files in the WebKit target.
+
+        * CMakeLists.txt:
+
+2012-04-10  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake] Enable USE_FOLDERS property
+        https://bugs.webkit.org/show_bug.cgi?id=83571
+
+        Reviewed by Daniel Bates.
+
+        Setting the FOLDER property on targets gives more structure
+        to the generated Visual Studio solutions.
+        This does not affect other CMake generators.
+
+        * Source/cmake/OptionsCommon.cmake:
+
+2012-04-06  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Update perf-o-matic config.js per upstream change.
+
+        * Websites/webkit-perf.appspot.com/js/config.js:
+        (var):
+
 2012-04-09  Dale Curtis  <dalecurtis@chromium.org>
 
         Remove unworkable video-buffering-repaints-controls test.

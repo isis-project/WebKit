@@ -142,8 +142,6 @@ public:
     static void clearFrameName(QWebFrame* frame);
     static void overwritePluginDirectories();
     static int numberOfActiveAnimations(QWebFrame*);
-    static void suspendAnimations(QWebFrame*);
-    static void resumeAnimations(QWebFrame*);
     static int numberOfPages(QWebFrame* frame, float width, float height);
     static int pageNumberForElementById(QWebFrame* frame, const QString& id, float width, float height);
     static bool hasDocumentElement(QWebFrame* frame);
@@ -197,8 +195,6 @@ public:
 
     static void setCustomPolicyDelegate(bool enabled, bool permissive);
 
-    static bool isPageBoxVisible(QWebFrame* frame, int pageIndex);
-
     static QString pageSizeAndMarginsInPixels(QWebFrame* frame, int pageIndex, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft);
     static QString pageProperty(QWebFrame* frame, const QString& propertyName, int pageNumber);
     static void addUserStyleSheet(QWebPage* page, const QString& sourceCode);
@@ -240,6 +236,8 @@ public:
 
     static bool defaultHixie76WebSocketProtocolEnabled();
     static void setHixie76WebSocketProtocolEnabled(QWebPage*, bool);
+
+    static QImage paintPagesWithBoundaries(QWebFrame*);
 };
 
 #endif

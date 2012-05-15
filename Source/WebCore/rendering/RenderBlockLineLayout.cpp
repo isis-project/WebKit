@@ -1096,8 +1096,8 @@ public:
     void updateRepaintRangeFromBox(RootInlineBox* box, LayoutUnit paginationDelta = 0)
     {
         m_usesRepaintBounds = true;
-        m_repaintLogicalTop = min(m_repaintLogicalTop, box->logicalTopVisualOverflow() + min(paginationDelta, zeroLayoutUnit));
-        m_repaintLogicalBottom = max(m_repaintLogicalBottom, box->logicalBottomVisualOverflow() + max(paginationDelta, zeroLayoutUnit));
+        m_repaintLogicalTop = min(m_repaintLogicalTop, box->logicalTopVisualOverflow() + min(paginationDelta, ZERO_LAYOUT_UNIT));
+        m_repaintLogicalBottom = max(m_repaintLogicalBottom, box->logicalBottomVisualOverflow() + max(paginationDelta, ZERO_LAYOUT_UNIT));
     }
     
     bool endLineMatched() const { return m_endLineMatched; }
@@ -1556,7 +1556,7 @@ void RenderBlock::checkFloatsInCleanLine(RootInlineBox* line, Vector<FloatWithRe
             LayoutUnit floatTop = isHorizontalWritingMode() ? floats[floatIndex].rect.y() : floats[floatIndex].rect.x();
             LayoutUnit floatHeight = isHorizontalWritingMode() ? max(floats[floatIndex].rect.height(), newSize.height())
                                                                  : max(floats[floatIndex].rect.width(), newSize.width());
-            floatHeight = min(floatHeight, numeric_limits<LayoutUnit>::max() - floatTop);
+            floatHeight = min(floatHeight, MAX_LAYOUT_UNIT - floatTop);
             line->markDirty();
             markLinesDirtyInBlockRange(line->lineBottomWithLeading(), floatTop + floatHeight, line);
             floats[floatIndex].rect.setSize(newSize);
@@ -1757,7 +1757,7 @@ bool RenderBlock::checkPaginationAndFloatsAtEndLine(LineLayoutState& layoutState
     while (RootInlineBox* nextLine = lastLine->nextRootBox())
         lastLine = nextLine;
 
-    LayoutUnit logicalBottom = lastLine->lineBottomWithLeading() + abs(lineDelta);
+    LayoutUnit logicalBottom = lastLine->lineBottomWithLeading() + absoluteValue(lineDelta);
 
     const FloatingObjectSet& floatingObjectSet = m_floatingObjects->set();
     FloatingObjectSetIterator end = floatingObjectSet.end();
@@ -1947,7 +1947,8 @@ static inline float textWidth(RenderText* text, unsigned from, unsigned len, con
     run.setCharactersLength(text->textLength() - from);
     ASSERT(run.charactersLength() >= run.length());
 
-    run.setAllowTabs(!collapseWhiteSpace);
+    run.setCharacterScanForCodePath(!text->canUseSimpleFontCodePath());
+    run.setTabSize(!collapseWhiteSpace, text->style()->tabSize());
     run.setXPos(xPos);
     return font.width(run);
 }
@@ -1979,7 +1980,7 @@ static void tryHyphenating(RenderText* text, const Font& font, const AtomicStrin
     run.setCharactersLength(text->textLength() - lastSpace);
     ASSERT(run.charactersLength() >= run.length());
 
-    run.setAllowTabs(!collapseWhiteSpace);
+    run.setTabSize(!collapseWhiteSpace, text->style()->tabSize());
     run.setXPos(xPos + lastSpaceWordSpacing);
 
     unsigned prefixLength = font.offsetForPosition(run, maxPrefixWidth, false);
@@ -2665,9 +2666,9 @@ InlineIterator RenderBlock::LineBreaker::nextLineBreak(InlineBidiResolver& resol
 
 void RenderBlock::addOverflowFromInlineChildren()
 {
-    LayoutUnit endPadding = hasOverflowClip() ? paddingEnd() : zeroLayoutUnit;
+    LayoutUnit endPadding = hasOverflowClip() ? paddingEnd() : ZERO_LAYOUT_UNIT;
     // FIXME: Need to find another way to do this, since scrollbars could show when we don't want them to.
-    if (hasOverflowClip() && !endPadding && node() && node()->rendererIsEditable() && node() == node()->rootEditableElement() && style()->isLeftToRightDirection())
+    if (hasOverflowClip() && !endPadding && node() && node()->isRootEditableElement() && style()->isLeftToRightDirection())
         endPadding = 1;
     for (RootInlineBox* curr = firstRootBox(); curr; curr = curr->nextRootBox()) {
         addLayoutOverflow(curr->paddedLayoutOverflowRect(endPadding));

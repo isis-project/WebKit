@@ -109,7 +109,6 @@ private:
 
     virtual bool isSVGShape() const { return true; }
     virtual const char* renderName() const { return "RenderSVGShape"; }
-    virtual bool isRoundedRect() { return false; }
 
     virtual void layout();
     virtual void paint(PaintInfo&, const LayoutPoint&);
@@ -144,7 +143,6 @@ private:
     bool m_needsShapeUpdate : 1;
     bool m_needsTransformUpdate : 1;
     bool m_fillFallback : 1;
-    bool m_strokeContainsFallBack : 1;
 };
 
 inline RenderSVGShape* toRenderSVGShape(RenderObject* object)

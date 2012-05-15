@@ -72,7 +72,7 @@ public:
 
     virtual bool hasWebView() const;
     virtual bool hasFrameView() const;
-    virtual void makeRepresentation(WebCore::DocumentLoader*);
+    virtual void makeRepresentation(WebCore::DocumentLoader*) { }
     virtual void forceLayout();
     virtual void forceLayoutForNonHTML();
     virtual void setCopiesOnScroll();
@@ -116,9 +116,9 @@ public:
     virtual void dispatchDecidePolicyForNavigationAction(WebCore::FramePolicyFunction function, const WebCore::NavigationAction& action, const WebCore::ResourceRequest& request, PassRefPtr<WebCore::FormState> form_state);
     virtual void cancelPolicyCheck();
     virtual void dispatchUnableToImplementPolicy(const WebCore::ResourceError&);
-    virtual void dispatchWillSendSubmitEvent(WebCore::HTMLFormElement*);
+    virtual void dispatchWillSendSubmitEvent(PassRefPtr<WebCore::FormState>);
     virtual void dispatchWillSubmitForm(WebCore::FramePolicyFunction, PassRefPtr<WebCore::FormState>);
-    virtual void revertToProvisionalState(WebCore::DocumentLoader*);
+    virtual void revertToProvisionalState(WebCore::DocumentLoader*) { }
     virtual void setMainDocumentError(WebCore::DocumentLoader*, const WebCore::ResourceError&);
     virtual void willChangeEstimatedProgress() { }
     virtual void didChangeEstimatedProgress() { }
@@ -205,6 +205,13 @@ public:
     virtual PassRefPtr<WebCore::FrameNetworkingContext> createNetworkingContext();
     virtual bool willCheckAndDispatchMessageEvent(WebCore::SecurityOrigin* target, WebCore::MessageEvent*) const;
 
+#if ENABLE(WEB_INTENTS_TAG)
+    virtual void registerIntentService(const String& action,
+                                       const String& type,
+                                       const WebCore::KURL& href,
+                                       const String& title,
+                                       const String& disposition);
+#endif
 #if ENABLE(WEB_INTENTS)
     virtual void dispatchIntent(PassRefPtr<WebCore::IntentRequest>) OVERRIDE;
 #endif
@@ -224,11 +231,6 @@ private:
     // The WebFrame that owns this object and manages its lifetime. Therefore,
     // the web frame object is guaranteed to exist.
     WebFrameImpl* m_webFrame;
-
-    // True if makeRepresentation was called.  We don't actually have a concept
-    // of a "representation", but we need to know when we're expected to have one.
-    // See finishedLoading().
-    bool m_hasRepresentation;
 
     // Used to help track client redirects. When a provisional load starts, it
     // has no redirects in its chain. But in the case of client redirects, we want

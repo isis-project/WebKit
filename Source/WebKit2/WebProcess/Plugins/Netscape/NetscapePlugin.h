@@ -26,6 +26,8 @@
 #ifndef NetscapePlugin_h
 #define NetscapePlugin_h
 
+#if ENABLE(NETSCAPE_PLUGIN_API)
+
 #include "NetscapePluginModule.h"
 #include "Plugin.h"
 #include <WebCore/AffineTransform.h>
@@ -173,6 +175,7 @@ private:
     virtual PlatformLayer* pluginLayer();
 #endif
     virtual bool isTransparent();
+    virtual bool wantsWheelEvents() OVERRIDE;
     virtual void geometryDidChange(const WebCore::IntSize& pluginSize, const WebCore::IntRect& clipRect, const WebCore::AffineTransform& pluginToRootViewTransform);
     virtual void visibilityDidChange();
     virtual void frameDidFinishLoading(uint64_t requestID);
@@ -234,6 +237,11 @@ private:
     void scheduleWindowedGeometryUpdate();
 #endif
 
+#if PLUGIN_ARCHITECTURE(X11)
+    bool platformPostInitializeWindowed(bool needsXEmbed, uint64_t windowID);
+    bool platformPostInitializeWindowless();
+#endif
+
     uint64_t m_nextRequestID;
 
     typedef HashMap<uint64_t, std::pair<String, void*> > PendingURLNotifyMap;
@@ -263,7 +271,7 @@ private:
     bool m_isWindowed;
     bool m_isTransparent;
     bool m_inNPPNew;
-    bool m_loadManually;
+    bool m_shouldUseManualLoader;
     RefPtr<NetscapePluginStream> m_manualStream;
     Vector<bool, 8> m_popupEnabledStates;
 
@@ -343,6 +351,9 @@ private:
 #elif PLUGIN_ARCHITECTURE(X11)
     Pixmap m_drawable;
     Display* m_pluginDisplay;
+#if PLATFORM(GTK)
+    GtkWidget* m_platformPluginWidget;
+#endif
 
 public: // Need to call it in the NPN_GetValue browser callback.
     static Display* x11HostDisplay();
@@ -350,5 +361,7 @@ public: // Need to call it in the NPN_GetValue browser callback.
 };
 
 } // namespace WebKit
+
+#endif // ENABLE(NETSCAPE_PLUGIN_API)
 
 #endif // NetscapePlugin_h

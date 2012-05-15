@@ -1,3 +1,406 @@
+2012-05-14  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [GTK] Wrong documentation for Web Database
+        https://bugs.webkit.org/show_bug.cgi?id=86362
+
+        Reviewed by Martin Robinson.
+
+        Fixed docs for webkit_set_default_web_database_quota().
+
+        * webkit/webkitwebdatabase.cpp:
+
+2012-05-11  Gustavo Noronha Silva  <gns@gnome.org>
+
+        REGRESSION(r116205): [GTK]: build no longer supports thin archives
+        https://bugs.webkit.org/show_bug.cgi?id=86207
+
+        * GNUmakefile.am: link libWebCoreModules into the webkitgtk shared
+        library.
+
+2012-05-10  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Move resumeAnimations to use Internals interface
+        https://bugs.webkit.org/show_bug.cgi?id=86063
+
+        Reviewed by Alexey Proskuryakov.
+
+        Remove resumeAnimations functions, because it is able to work in the 
+        cross-port way through the Internals interface.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        * WebCoreSupport/DumpRenderTreeSupportGtk.h:
+        (DumpRenderTreeSupportGtk):
+
+2012-05-09  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Move suspendAnimations to use Internals interface.
+        https://bugs.webkit.org/show_bug.cgi?id=85986
+
+        Reviewed by Ryosuke Niwa.
+
+        Remove suspendAnimations functions, because it is able to work in the 
+        cross-port way through the Internals interface.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        * WebCoreSupport/DumpRenderTreeSupportGtk.h:
+        (DumpRenderTreeSupportGtk):
+
+2012-05-09  Simon Pena  <spena@igalia.com>
+
+        [GTK] Missing WebPreferences for media playback requiring user gestures and inline playback
+        https://bugs.webkit.org/show_bug.cgi?id=85194
+
+        Reviewed by Martin Robinson.
+
+        Expose WebPreferences for media playback requires user gesture and
+        media playback allows inline to GTK side.
+
+        This adds two properties (mediaPlaybackRequiresUserGesture and
+        mediaPlaybackAllowsInline) to GTK WebKit WebSettings, and connects
+        them to the WebKit WebView, so clients can programmatically modify
+        them.
+
+        * webkit/webkitwebsettings.cpp: install new properties and update
+        setter and getter
+        (webkit_web_settings_class_init):
+        (webkit_web_settings_set_property):
+        (webkit_web_settings_get_property):
+        * webkit/webkitwebsettingsprivate.h: add media playback related
+        properties
+        * webkit/webkitwebview.cpp: connect newly added properties
+        (webkit_web_view_update_settings):
+        (webkit_web_view_settings_notify):
+
+2012-05-09  Dan Winship  <danw@gnome.org>
+
+        [GTK] don't use soup_session_pause_message in webkitdownload
+        https://bugs.webkit.org/show_bug.cgi?id=85931
+
+        Reviewed by Martin Robinson.
+
+        * webkit/webkitdownload.cpp:
+        (webkit_download_new_with_handle):
+        (webkit_download_start):
+
+2012-05-06  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Convert isPageBoxVisible to use Internals interface.
+        https://bugs.webkit.org/show_bug.cgi?id=85692
+
+        Reviewed by Darin Adler.
+
+        Remove isPageBoxVisible functions, because it is able to work in the
+        cross-port way through the Internals interface.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        * WebCoreSupport/DumpRenderTreeSupportGtk.h:
+        (DumpRenderTreeSupportGtk):
+
+2012-05-05  Martin Robinson  <mrobinson@igalia.com>
+
+        Fix the GTK+ TextureMapper accelerated compositing build.
+
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_realize): Properly access the private data
+        structure of the WebKitWebView.
+
+2012-05-05  Martin Robinson  <mrobinson@igalia.com>
+
+        [GTK] WebKit should properly set the input method context window location
+        https://bugs.webkit.org/show_bug.cgi?id=84981
+
+        Reviewed by Gustavo Noronha Silva.
+
+        * WebCoreSupport/ChromeClientGtk.cpp:
+        (WebKit::ChromeClient::paint): During painting, update the cursor rectangle
+        if possible.
+
+2012-05-05  Gustavo Noronha Silva  <gns@gnome.org>
+
+        Unreviewed preparation for 1.9.2.
+
+        * NEWS: changes from 1.9.1.
+
+2012-05-04  Gustavo Noronha Silva  <gns@gnome.org>
+
+        [GTK] Simplify how libWebCoreModules is linked in, and fix WebKit2 build
+        https://bugs.webkit.org/show_bug.cgi?id=85691
+
+        * GNUmakefile.am: no longer link libwebkitgtk to libWebCoreModules.
+
+2012-05-04  Sudarsana Nagineni  <sudarsana.nagineni@linux.intel.com>
+
+        [GTK] DRT needs an implementation of LayoutTestController::setDefersLoading and ::goBack
+        https://bugs.webkit.org/show_bug.cgi?id=85134
+
+        Reviewed by Martin Robinson.
+
+        Add support for setDefersLoading in DumpRenderTreeSupportGtk.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        (DumpRenderTreeSupportGtk::setDefersLoading):
+        * WebCoreSupport/DumpRenderTreeSupportGtk.h:
+        (DumpRenderTreeSupportGtk):
+
+2012-05-04  Martin Robinson  <mrobinson@igalia.com>
+
+        Fix the GTK+ debug build after the r116114.
+
+        * WebCoreSupport/EditorClientGtk.cpp:
+        (WebKit::EditorClient::handleInputMethodKeyboardEvent): Update an
+        assertion to reflect a real method name in PlatformKeyboardEvent
+        and remove an unnecessary call to preventDefault() which triggered
+        an assertion failure higher in the call stack.
+
+2012-05-04  Nate Chapin  <japhet@chromium.org>
+
+        Don't require FrameLoaderClient to manufacture a commitData() call for empty documents.
+        https://bugs.webkit.org/show_bug.cgi?id=85533
+
+        Reviewed by Alexey Proskuryakov.
+
+        * WebCoreSupport/FrameLoaderClientGtk.cpp:
+        (WebKit::FrameLoaderClient::FrameLoaderClient):
+        (WebKit):
+        (WebKit::FrameLoaderClient::finishedLoading):
+        * WebCoreSupport/FrameLoaderClientGtk.h:
+        (WebKit::FrameLoaderClient::makeRepresentation):
+        (WebKit::FrameLoaderClient::revertToProvisionalState):
+        (FrameLoaderClient):
+
+2012-05-03  Martin Robinson  <mrobinson@igalia.com>
+
+        [GTK] Rework IME handling to fix bugs and prepare for WebKit2
+        https://bugs.webkit.org/show_bug.cgi?id=84556
+
+        Reviewed by Gustavo Noronha Silva.
+
+        Rework input method handling logic into a class called GtkInputMethodFilter.
+        This filter now runs before WebCore event handling, allowing the code to more
+        easily fake simple compositions that should be seen as keystrokes. We can also
+        filter keypresses that should not go to web content at all, such as key up events
+        related to key down events that were filtered.
+
+        Also added is a WebViewInputMethodFilter which is a concrete implementation of
+        GtkInputMethodFilter. This class contains logic for actually sending events to
+        WebCore. In WebKit2 an implementation of GtkInputMethodFilter will send events
+        across the IPC channel.
+
+        * GNUmakefile.am: Add new files to the source list.
+        * WebCoreSupport/ContextMenuClientGtk.cpp:
+        (WebKit::inputMethodsMenuItem): Access the input method context via the filter.
+        * WebCoreSupport/EditorClientGtk.cpp: Remove the tricky logic of input method
+        events from this class, because it's now in the GtkInputMethodFilter.
+        (WebKit::EditorClient::setInputMethodState): Call into the filter.
+        (WebKit::EditorClient::shouldBeginEditing): We no longer need to update the composition here.
+        This is handled by the focus in and focus out logic in the filter.
+        (WebKit::EditorClient::shouldEndEditing): Ditto.
+        (WebKit::EditorClient::respondToChangedSelection): Call into the filter now.
+        (WebKit::EditorClient::handleInputMethodKeyboardEvent): Added this helper which executes
+        any pending composition confirmation or preedit update actions as the default action of
+        the keydown event.
+        (WebKit::EditorClient::handleKeyboardEvent): Call handleInputMethodKeyboardEvent to do
+        any pending composition action.
+        (WebKit::EditorClient::handleInputMethodKeydown): Remove all the logic from this method.
+        Keys are filtered before they are sent to WebCore now and the actual action of input method
+        events happens in the keydown default action to increase compatibility with other browsers.
+        (WebKit::EditorClient::EditorClient): Remove context signal management.
+        (WebKit::EditorClient::~EditorClient): Ditto.
+        * WebCoreSupport/EditorClientGtk.h:
+        (EditorClient): No longer has some members that tracked IME status.
+        * WebCoreSupport/WebViewInputMethodFilter.cpp: Added.
+        * WebCoreSupport/WebViewInputMethodFilter.h: Added.
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_get_property): Get the context from the filter now.
+        (webkit_web_view_key_press_event): Just send events straight to the filter.
+        The filter will decide whether or not to send them to WebCore.
+        (webkit_web_view_key_release_event): Ditto.
+        (webkit_web_view_button_press_event): Use the filter to handle button press
+        events related to IME.
+        (webkit_web_view_focus_in_event): Notify the filter now.
+        (webkit_web_view_focus_out_event): Ditto.
+        (webkit_web_view_realize): The filter takes care of listening for realize now.
+        (webkit_web_view_init): Set the WebView widget on the filter.
+        * webkit/webkitwebviewprivate.h: Change the GtkIMContext member to be a GtkInputMethodFilter member.
+
+2012-05-03  Fady Samuel  <fsamuel@chromium.org>
+
+        Removing line in computeViewportAttributes that enforces a minimum scale factor to never allow zooming out more than viewport
+        https://bugs.webkit.org/show_bug.cgi?id=70609
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        (DumpRenderTreeSupportGtk::dumpConfigurationForViewport):
+
+2012-04-18  Jon Honeycutt  <jhoneycutt@apple.com>
+
+        FrameLoaderClient::dispatchWillSendSubmitEvent() should be given more
+        information about the form being submitted
+        https://bugs.webkit.org/show_bug.cgi?id=84297
+
+        Reviewed by Andy Estes.
+
+        * WebCoreSupport/FrameLoaderClientGtk.h:
+        (WebKit::FrameLoaderClient::dispatchWillSendSubmitEvent):
+        Updated method declaration.
+
+2012-05-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        *Command.h files shouldn't be exported to WebKit layer
+        https://bugs.webkit.org/show_bug.cgi?id=74778
+
+        Reviewed by Eric Seidel.
+
+        * webkit/webkitwebframe.cpp:
+
+2012-04-30  Emil A Eklund  <eae@chromium.org>
+
+        [gtk, qt, chromium, win] Fix usage of LayoutUnits and rounding in platform code
+        https://bugs.webkit.org/show_bug.cgi?id=85222
+
+        Reviewed by Eric Seidel.
+
+        Update platform code to use the pixel snapped values for painting rects
+        to line up with device pixels and change platform specific hit testing
+        code to use roundedPoint as hit testing is still mostly done on integer
+        bounds.
+
+        * WebCoreSupport/ChromeClientGtk.cpp:
+        (WebKit::ChromeClient::mouseDidMoveOverElement):
+        * webkit/webkithittestresult.cpp:
+        (WebKit::kit):
+        * webkit/webkitwebview.cpp:
+        (getLocationForKeyboardGeneratedContextMenu):
+        (webkit_web_view_query_tooltip):
+
+2012-04-30  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Update NEWS and configure.ac for 1.9.1 release
+        https://bugs.webkit.org/show_bug.cgi?id=85175
+
+        Reviewed by Philippe Normand.
+
+        * NEWS: Added release notes for 1.9.1.
+
+2012-04-30  Sudarsana Nagineni  <sudarsana.nagineni@linux.intel.com>
+
+        [GTK] DRT support for layoutTestController.removeOriginAccessWhitelistEntry
+        https://bugs.webkit.org/show_bug.cgi?id=85156
+
+        Reviewed by Martin Robinson.
+
+        Add support for removeOriginAccessWhitelistEntry which allow
+        layout tests to remove origins whitelisting.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        (DumpRenderTreeSupportGtk::removeWhiteListAccessFromOrigin):
+        * WebCoreSupport/DumpRenderTreeSupportGtk.h:
+        (DumpRenderTreeSupportGtk):
+
+2012-04-29  Sudarsana Nagineni  <sudarsana.nagineni@linux.intel.com>
+
+        [GTK] DRT needs an implementation of layoutTestController.setDomainRelaxationForbiddenForURLScheme
+        https://bugs.webkit.org/show_bug.cgi?id=85131
+
+        Reviewed by Martin Robinson.
+
+        Add support for setDomainRelaxationForbiddenForURLScheme which allow
+        disabling domain relaxation.
+
+        * WebCoreSupport/DumpRenderTreeSupportGtk.cpp:
+        (DumpRenderTreeSupportGtk::setDomainRelaxationForbiddenForURLScheme):
+        * WebCoreSupport/DumpRenderTreeSupportGtk.h:
+        (DumpRenderTreeSupportGtk):
+
+2012-04-22  Adrian Bunk  <bunk@stusta.de>
+
+        [GTK] Remove the obsolete Hildon UI extensions
+        https://bugs.webkit.org/show_bug.cgi?id=83420
+
+        Reviewed by Martin Robinson.
+
+        * GNUmakefile.am:
+        * WebCoreSupport/EditorClientGtk.cpp:
+        (WebKit::EditorClient::setInputMethodState):
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_button_release_event):
+
+2012-04-20  Zan Dobersek  <zandobersek@gmail.com>
+
+        [Gtk][WK1] Use mock scrollbars when testing
+        https://bugs.webkit.org/show_bug.cgi?id=79577
+
+        Reviewed by Daniel Bates.
+
+        Enable mock scrollbars if running DumpRenderTree.
+
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_update_settings):
+
+2012-04-18  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r114506.
+        http://trac.webkit.org/changeset/114506
+        https://bugs.webkit.org/show_bug.cgi?id=84254
+
+        Seems to be making gtk's DumpRenderTree crash occasionally
+        (Requested by tomz on #webkit).
+
+        * webkit/webkitwebsettings.cpp:
+        (webkit_web_settings_class_init):
+        (webkit_web_settings_set_property):
+        (webkit_web_settings_get_property):
+        * webkit/webkitwebsettingsprivate.h:
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_update_settings):
+        (webkit_web_view_settings_notify):
+
+2012-04-18  Simon Pena  <spena@igalia.com>
+
+        [GTK] r114021 triggered media flakyness
+        https://bugs.webkit.org/show_bug.cgi?id=83874
+
+        Reviewed by Philippe Normand.
+
+        When the MediaPlaybackRequiresUserGesture setting was added, no gtk
+        API was implemented to access it.
+
+        This adds a property to gtk WebKit WebSettings, and connects it to
+        WebKit WebView, thus allowing clients to programmatically modify it.
+
+        * webkit/webkitwebsettings.cpp:
+        (webkit_web_settings_class_init):
+        (webkit_web_settings_set_property):
+        (webkit_web_settings_get_property):
+        * webkit/webkitwebsettingsprivate.h:
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_update_settings):
+        (webkit_web_view_settings_notify):
+
+2012-04-17  Carlos Garnacho  <carlos@lanedo.com>
+
+        [GTK] Enable back double buffering on WebKitWebView to fix flickering
+        https://bugs.webkit.org/show_bug.cgi?id=84149
+
+        Reviewed by Martin Robinson.
+
+        Despite having WebKitWebView its own backing buffer, calling
+        gtk_widget_set_double_buffered(...,FALSE) may still pose side
+        effects, such as ensuring that all drawing operations are 
+        flushed to the X server before rendering a non-double buffered
+        widget, which may translate into flickering of the parent 
+        GdkWindow before the WebKitWebView itself is rendered. 
+
+        Enabling back double buffering solves this as all contents are 
+        first composited together before getting to the front buffer,
+        but effectively acts as 3rd buffer. This is sort of unavoidable
+        unless GTK+ gains a "let me take ownership of the backing buffer
+        for this widget", which currently lacks.
+
+        * webkit/webkitwebview.cpp:
+        (webkit_web_view_init): Remove call to gtk_widget_set_double_buffered(..., FALSE)
+
 2012-04-06  Martin Robinson  <mrobinson@igalia.com>
 
         [GTK] Accelerated compositing is broken after recent TextureMapper reorganizations

@@ -133,9 +133,8 @@ IntRect PluginView::windowClipRect() const
     IntRect clipRect(m_windowRect);
     
     // Take our element and get the clip rect from the enclosing layer and frame view.
-    RenderLayer* layer = m_element->renderer()->enclosingLayer();
     FrameView* parentView = m_element->document()->view();
-    clipRect.intersect(parentView->windowClipRectForLayer(layer, true));
+    clipRect.intersect(parentView->windowClipRectForFrameOwner(m_element, true));
 
     return clipRect;
 }
@@ -386,8 +385,7 @@ void PluginView::stop()
     }
 
 #if defined(XP_UNIX) && !defined(XP_WEBOS) // webOS doesn't support windowed plugins.
-    if (m_isWindowed && m_npWindow.ws_info)
-           delete (NPSetWindowCallbackStruct *)m_npWindow.ws_info;
+    delete static_cast<NPSetWindowCallbackStruct*>(m_npWindow.ws_info);
     m_npWindow.ws_info = 0;
 #endif
 
@@ -851,7 +849,7 @@ void PluginView::setParameters(const Vector<String>& paramNames, const Vector<St
     m_paramCount = paramCount;
 }
 
-PluginView::PluginView(Frame* parentFrame, const IntSize& size, PluginPackage* plugin, Element* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
+PluginView::PluginView(Frame* parentFrame, const IntSize& size, PluginPackage* plugin, HTMLPlugInElement* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
     : m_parentFrame(parentFrame)
     , m_plugin(plugin)
     , m_element(element)
@@ -1006,7 +1004,7 @@ bool PluginView::isCallingPlugin()
 }
 
 #if !PLATFORM(WEBOS)
-PassRefPtr<PluginView> PluginView::create(Frame* parentFrame, const IntSize& size, Element* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
+PassRefPtr<PluginView> PluginView::create(Frame* parentFrame, const IntSize& size, HTMLPlugInElement* element, const KURL& url, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually)
 {
     // if we fail to find a plugin for this MIME type, findPlugin will search for
     // a plugin by the file extension and update the MIME type, so pass a mutable String

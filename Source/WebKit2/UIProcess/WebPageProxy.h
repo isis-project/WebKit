@@ -92,7 +92,7 @@ namespace WebCore {
     class ProtectionSpace;
     struct FileChooserSettings;
     struct TextCheckingResult;
-    struct ViewportArguments;
+    struct ViewportAttributes;
     struct WindowFeatures;
 }
 
@@ -239,7 +239,9 @@ public:
     WebFullScreenManagerProxy* fullScreenManager();
 #endif
 
+#if ENABLE(CONTEXT_MENUS)
     void initializeContextMenuClient(const WKPageContextMenuClient*);
+#endif
     void initializeFindClient(const WKPageFindClient*);
     void initializeFormClient(const WKPageFormClient*);
     void initializeLoaderClient(const WKPageLoaderClient*);
@@ -272,7 +274,7 @@ public:
     void tryRestoreScrollPosition();
     void didChangeBackForwardList(WebBackForwardListItem* addedItem, Vector<RefPtr<APIObject> >* removedItems);
     void shouldGoToBackForwardListItem(uint64_t itemID, bool& shouldGoToBackForwardListItem);
-    void willGoToBackForwardListItem(uint64_t itemID);
+    void willGoToBackForwardListItem(uint64_t itemID, CoreIPC::ArgumentDecoder* arguments);
 
     String activeURL() const;
     String provisionalURL() const;
@@ -466,8 +468,9 @@ public:
     void registerWebProcessAccessibilityToken(const CoreIPC::DataReference&);
     // Called by the UI process when it is ready to send its tokens to the web process.
     void registerUIProcessAccessibilityTokens(const CoreIPC::DataReference& elemenToken, const CoreIPC::DataReference& windowToken);
-    bool writeSelectionToPasteboard(const String& pasteboardName, const Vector<String>& pasteboardTypes);
     bool readSelectionFromPasteboard(const String& pasteboardName);
+    String stringSelectionForPasteboard();
+    PassRefPtr<WebCore::SharedBuffer> dataSelectionForPasteboard(const String& pasteboardType);
     void makeFirstResponder();
 #endif
 
@@ -534,6 +537,7 @@ public:
     void didReceiveSyncMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, OwnPtr<CoreIPC::ArgumentEncoder>&);
 
     void processDidBecomeUnresponsive();
+    void interactionOccurredWhileProcessUnresponsive();
     void processDidBecomeResponsive();
     void processDidCrash();
 
@@ -551,6 +555,11 @@ public:
     bool isValidEditCommand(WebEditCommandProxy*);
     void registerEditCommand(PassRefPtr<WebEditCommandProxy>, UndoOrRedo);
 
+#if PLATFORM(MAC)
+    void registerKeypressCommandName(const String& name) { m_knownKeypressCommandNames.add(name); }
+    bool isValidKeypressCommandName(const String& name) const { return m_knownKeypressCommandNames.contains(name); }
+#endif
+
     WebProcessProxy* process() const;
     PlatformProcessIdentifier processIdentifier() const;
 
@@ -566,8 +575,10 @@ public:
 
     void preferencesDidChange();
 
+#if ENABLE(CONTEXT_MENUS)
     // Called by the WebContextMenuProxy.
     void contextMenuItemSelected(const WebContextMenuItemData&);
+#endif
 
     // Called by the WebOpenPanelResultListenerProxy.
     void didChooseFilesForOpenPanel(const Vector<String>&);
@@ -707,7 +718,7 @@ private:
     void shouldInterruptJavaScript(bool& result);
     void setStatusText(const String&);
     void mouseDidMoveOverElement(const WebHitTestResult::Data& hitTestResultData, uint32_t modifiers, CoreIPC::ArgumentDecoder*);
-    void missingPluginButtonClicked(const String& mimeType, const String& url, const String& pluginsPageURL);
+    void unavailablePluginButtonClicked(uint32_t opaquePluginUnavailabilityReason, const String& mimeType, const String& url, const String& pluginsPageURL);
     void setToolbarsAreVisible(bool toolbarsAreVisible);
     void getToolbarsAreVisible(bool& toolbarsAreVisible);
     void setMenuBarIsVisible(bool menuBarIsVisible);
@@ -721,7 +732,7 @@ private:
     void screenToWindow(const WebCore::IntPoint& screenPoint, WebCore::IntPoint& windowPoint);
     void windowToScreen(const WebCore::IntRect& viewRect, WebCore::IntRect& result);
     void runBeforeUnloadConfirmPanel(const String& message, uint64_t frameID, bool& shouldClose);
-    void didChangeViewportProperties(const WebCore::ViewportArguments&);
+    void didChangeViewportProperties(const WebCore::ViewportAttributes&);
     void pageDidScroll();
     void runOpenPanel(uint64_t frameID, const WebCore::FileChooserSettings&);
     void printFrame(uint64_t frameID);
@@ -734,6 +745,7 @@ private:
     void didChangeScrollOffsetPinningForMainFrame(bool pinnedToLeftSide, bool pinnedToRightSide);
     void didChangePageCount(unsigned);
     void didFailToInitializePlugin(const String& mimeType);
+    void didBlockInsecurePluginVersion(const String& mimeType);
     void setCanShortCircuitHorizontalWheelEvents(bool canShortCircuitHorizontalWheelEvents) { m_canShortCircuitHorizontalWheelEvents = canShortCircuitHorizontalWheelEvents; }
 
     void reattachToWebProcess();
@@ -791,9 +803,11 @@ private:
     void setPopupMenuSelectedIndex(int32_t);
 #endif
 
+#if ENABLE(CONTEXT_MENUS)
     // Context Menu.
     void showContextMenu(const WebCore::IntPoint& menuLocation, const WebHitTestResult::Data&, const Vector<WebContextMenuItemData>&, CoreIPC::ArgumentDecoder*);
     void internalShowContextMenu(const WebCore::IntPoint& menuLocation, const WebHitTestResult::Data&, const Vector<WebContextMenuItemData>&, CoreIPC::ArgumentDecoder*);
+#endif
 
     // Search popup results
     void saveRecentSearches(const String&, const Vector<String>&);
@@ -885,6 +899,14 @@ private:
 
     void setRenderTreeSize(uint64_t treeSize) { m_renderTreeSize = treeSize; }
 
+#if PLUGIN_ARCHITECTURE(X11)
+    void createPluginContainer(uint64_t& windowID);
+    void windowedPluginGeometryDidChange(const WebCore::IntRect& frameRect, const WebCore::IntRect& clipRect, uint64_t windowID);
+#endif
+
+    void processNextQueuedWheelEvent();
+    void sendWheelEvent(const WebWheelEvent&);
+
     PageClient* m_pageClient;
     WebLoaderClient m_loaderClient;
     WebPolicyClient m_policyClient;
@@ -892,7 +914,9 @@ private:
     WebResourceLoadClient m_resourceLoadClient;
     WebUIClient m_uiClient;
     WebFindClient m_findClient;
+#if ENABLE(CONTEXT_MENUS)
     WebPageContextMenuClient m_contextMenuClient;
+#endif
 
     OwnPtr<DrawingAreaProxy> m_drawingArea;
     RefPtr<WebProcessProxy> m_process;
@@ -926,6 +950,10 @@ private:
 #endif
 
     HashSet<WebEditCommandProxy*> m_editCommandSet;
+
+#if PLATFORM(MAC)
+    HashSet<String> m_knownKeypressCommandNames;
+#endif
 
     RefPtr<WebPopupMenuProxy> m_activePopupMenu;
     RefPtr<WebContextMenuProxy> m_activeContextMenu;
@@ -1000,7 +1028,7 @@ private:
 #endif
     Deque<NativeWebKeyboardEvent> m_keyEventQueue;
     Deque<NativeWebWheelEvent> m_wheelEventQueue;
-    Vector<NativeWebWheelEvent> m_currentlyProcessedWheelEvents;
+    Deque<OwnPtr<Vector<NativeWebWheelEvent> > > m_currentlyProcessedWheelEvents;
 
     bool m_processingMouseMoveEvent;
     OwnPtr<NativeWebMouseEvent> m_nextMouseMoveEvent;

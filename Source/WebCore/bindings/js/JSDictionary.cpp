@@ -26,6 +26,7 @@
 #include "config.h"
 #include "JSDictionary.h"
 
+#include "Dictionary.h"
 #include "JSDOMWindow.h"
 #include "JSEventTarget.h"
 #include "JSMessagePortCustom.h"
@@ -42,7 +43,7 @@ using namespace JSC;
 
 namespace WebCore {
 
-JSDictionary::GetPropertyResult JSDictionary::tryGetProperty(const char* propertyName, JSValue& finalResult)
+JSDictionary::GetPropertyResult JSDictionary::tryGetProperty(const char* propertyName, JSValue& finalResult) const
 {
     Identifier identifier(m_exec, propertyName);
     PropertySlot slot(m_initializerObject);
@@ -89,6 +90,11 @@ void JSDictionary::convertValue(ExecState* exec, JSValue value, unsigned long lo
 void JSDictionary::convertValue(ExecState* exec, JSValue value, double& result)
 {
     result = value.toNumber(exec);
+}
+
+void JSDictionary::convertValue(JSC::ExecState* exec, JSC::JSValue value, Dictionary& result)
+{
+    result = Dictionary(exec, value);
 }
 
 void JSDictionary::convertValue(ExecState* exec, JSValue value, String& result)

@@ -29,11 +29,11 @@
 #include "GraphicsContext3D.h"
 #include "LayerRendererChromium.h"
 #include "TraceEvent.h"
+#include "cc/CCFontAtlas.h"
 #include "cc/CCLayerTreeHost.h"
 #include "cc/CCTextureUpdater.h"
 #include <wtf/CurrentTime.h>
 
-using namespace std;
 using namespace WTF;
 
 namespace WebCore {
@@ -72,10 +72,7 @@ bool CCSingleThreadProxy::compositeAndReadback(void *pixels, const IntRect& rect
     TRACE_EVENT("CCSingleThreadProxy::compositeAndReadback", this, 0);
     ASSERT(CCProxy::isMainThread());
 
-    if (!commitIfNeeded())
-        return false;
-
-    if (!doComposite())
+    if (!commitAndComposite())
         return false;
 
     m_layerTreeHostImpl->readback(pixels, rect);
@@ -129,13 +126,18 @@ bool CCSingleThreadProxy::initializeContext()
     return true;
 }
 
+void CCSingleThreadProxy::setSurfaceReady()
+{
+    // Scheduling is controlled by the embedder in the single thread case, so nothing to do.
+}
+
 bool CCSingleThreadProxy::initializeLayerRenderer()
 {
     ASSERT(CCProxy::isMainThread());
     ASSERT(m_contextBeforeInitialization);
     {
         DebugScopedSetImplThread impl;
-        bool ok = m_layerTreeHostImpl->initializeLayerRenderer(m_contextBeforeInitialization.release());
+        bool ok = m_layerTreeHostImpl->initializeLayerRenderer(m_contextBeforeInitialization.release(), UnthrottledUploader);
         if (ok) {
             m_layerRendererInitialized = true;
             m_layerRendererCapabilitiesForMainThread = m_layerTreeHostImpl->layerRendererCapabilities();
@@ -159,7 +161,7 @@ bool CCSingleThreadProxy::recreateContext()
     {
         DebugScopedSetImplThread impl;
         m_layerTreeHost->deleteContentsTexturesOnImplThread(m_layerTreeHostImpl->contentsTextureAllocator());
-        initialized = m_layerTreeHostImpl->initializeLayerRenderer(context);
+        initialized = m_layerTreeHostImpl->initializeLayerRenderer(context, UnthrottledUploader);
         if (initialized) {
             m_layerRendererCapabilitiesForMainThread = m_layerTreeHostImpl->layerRendererCapabilities();
         }
@@ -191,19 +193,25 @@ void CCSingleThreadProxy::setNeedsAnimate()
     ASSERT_NOT_REACHED();
 }
 
-void CCSingleThreadProxy::doCommit()
+void CCSingleThreadProxy::doCommit(CCTextureUpdater& updater)
 {
     ASSERT(CCProxy::isMainThread());
     // Commit immediately
     {
+        DebugScopedSetMainThreadBlocked mainThreadBlocked;
         DebugScopedSetImplThread impl;
+
         m_layerTreeHostImpl->beginCommit();
 
         m_layerTreeHost->beginCommitOnImplThread(m_layerTreeHostImpl.get());
-        CCTextureUpdater updater(m_layerTreeHostImpl->contentsTextureAllocator(), m_layerTreeHostImpl->layerRenderer()->textureCopier());
-        m_layerTreeHost->updateCompositorResources(m_layerTreeHostImpl->context(), updater);
-        updater.update(m_layerTreeHostImpl->context(), numeric_limits<size_t>::max());
-        ASSERT(!updater.hasMoreUpdates());
+
+        // CCTextureUpdater is non-blocking and will return without updating
+        // any textures if the uploader is busy. This shouldn't be a problem
+        // here as the throttled uploader isn't used in single thread mode.
+        // For correctness, loop until no more updates are pending.
+        while (updater.hasMoreUpdates())
+            updater.update(m_layerTreeHostImpl->context(), m_layerTreeHostImpl->contentsTextureAllocator(), m_layerTreeHostImpl->layerRenderer()->textureCopier(), m_layerTreeHostImpl->layerRenderer()->textureUploader(), maxPartialTextureUpdates());
+
         m_layerTreeHostImpl->setVisible(m_layerTreeHost->visible());
         m_layerTreeHost->finishCommitOnImplThread(m_layerTreeHostImpl.get());
 
@@ -257,11 +265,20 @@ void CCSingleThreadProxy::stop()
     TRACE_EVENT("CCSingleThreadProxy::stop", this, 0);
     ASSERT(CCProxy::isMainThread());
     {
+        DebugScopedSetMainThreadBlocked mainThreadBlocked;
         DebugScopedSetImplThread impl;
+
         m_layerTreeHost->deleteContentsTexturesOnImplThread(m_layerTreeHostImpl->contentsTextureAllocator());
         m_layerTreeHostImpl.clear();
     }
     m_layerTreeHost = 0;
+}
+
+void CCSingleThreadProxy::setFontAtlas(PassOwnPtr<CCFontAtlas> fontAtlas)
+{
+    ASSERT(isMainThread());
+    DebugScopedSetImplThread impl;
+    m_layerTreeHostImpl->setFontAtlas(fontAtlas);
 }
 
 void CCSingleThreadProxy::postAnimationEventsToMainThreadOnImplThread(PassOwnPtr<CCAnimationEventsVector> events, double wallClockTime)
@@ -271,27 +288,43 @@ void CCSingleThreadProxy::postAnimationEventsToMainThreadOnImplThread(PassOwnPtr
     m_layerTreeHost->setAnimationEvents(events, wallClockTime);
 }
 
+void CCSingleThreadProxy::postSetContentsMemoryAllocationLimitBytesToMainThreadOnImplThread(size_t bytes)
+{
+    // FIXME: This is called via a graphics context callback, on main thread in single threaded mode, because its hard to fake the impl thread. This should need to DebugScopedSetMainThread, but is actually already on the main thread.
+    ASSERT(CCProxy::isMainThread());
+    ASSERT(m_layerTreeHost);
+    m_layerTreeHost->setContentsMemoryAllocationLimitBytes(bytes);
+}
+
 // Called by the legacy scheduling path (e.g. where render_widget does the scheduling)
 void CCSingleThreadProxy::compositeImmediately()
 {
-    if (!commitIfNeeded())
-        return;
-
-    if (doComposite()) {
+    if (commitAndComposite()) {
         m_layerTreeHostImpl->swapBuffers();
         didSwapFrame();
     }
 }
 
-bool CCSingleThreadProxy::commitIfNeeded()
+void CCSingleThreadProxy::forceSerializeOnSwapBuffers()
+{
+    {
+        DebugScopedSetImplThread impl;
+        if (m_layerRendererInitialized)
+            m_layerTreeHostImpl->layerRenderer()->doNoOp();
+    }
+}
+
+bool CCSingleThreadProxy::commitAndComposite()
 {
     ASSERT(CCProxy::isMainThread());
 
-    if (!m_layerTreeHost->updateLayers())
+    CCTextureUpdater updater;
+
+    if (!m_layerTreeHost->updateLayers(updater))
         return false;
 
-    doCommit();
-    return true;
+    doCommit(updater);
+    return doComposite();
 }
 
 bool CCSingleThreadProxy::doComposite()
@@ -301,11 +334,18 @@ bool CCSingleThreadProxy::doComposite()
       DebugScopedSetImplThread impl;
       double monotonicTime = monotonicallyIncreasingTime();
       double wallClockTime = currentTime();
-
       m_layerTreeHostImpl->animate(monotonicTime, wallClockTime);
+
+      // We guard prepareToDraw() with canDraw() because it always returns a valid frame, so can only
+      // be used when such a frame is possible. Since drawLayers() depends on the result of
+      // prepareToDraw(), it is guarded on canDraw() as well.
+      if (!m_layerTreeHostImpl->canDraw())
+          return false;
+
       CCLayerTreeHostImpl::FrameData frame;
       m_layerTreeHostImpl->prepareToDraw(frame);
       m_layerTreeHostImpl->drawLayers(frame);
+      m_layerTreeHostImpl->didDrawAllLayers(frame);
     }
 
     if (m_layerTreeHostImpl->isContextLost()) {

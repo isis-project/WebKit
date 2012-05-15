@@ -72,23 +72,14 @@ public:
 
     virtual void attach() OVERRIDE;
     virtual void detach() OVERRIDE;
-    virtual void willRemove() OVERRIDE;
     virtual LayoutRect getRect() const OVERRIDE;
     virtual void setFocus(bool = true) OVERRIDE;
     virtual void setActive(bool active = true, bool pause = false) OVERRIDE;
     virtual void setHovered(bool = true) OVERRIDE;
-    virtual void insertedIntoDocument() OVERRIDE;
-    virtual void removedFromDocument() OVERRIDE;
     virtual void scheduleSetNeedsStyleRecalc(StyleChangeType = FullStyleChange) OVERRIDE;
 
     // -----------------------------------------------------------------------------
     // Notification of document structure changes (see Node.h for more notification methods)
-
-    // These functions are called whenever you are connected or disconnected from a tree. That tree may be the main
-    // document tree, or it could be another disconnected tree. Override these functions to do any work that depends
-    // on connectedness to some ancestor (e.g., an ancestor <form>).
-    virtual void insertedIntoTree(bool deep);
-    virtual void removedFromTree(bool deep);
 
     // Notifies the node that it's list of children have changed (either by adding or removing child nodes), or a child
     // node that is of the type CDATA_SECTION_NODE, TEXT_NODE or COMMENT_NODE has changed its value.
@@ -101,6 +92,8 @@ public:
     void detachAsNode();
     void detachChildren();
     void detachChildrenIfNeeded();
+
+    void disconnectDescendantFrames();
 
 protected:
     ContainerNode(Document*, ConstructionType = CreateContainer);
@@ -225,6 +218,45 @@ inline Node* Node::lastChild() const
     if (!isContainerNode())
         return 0;
     return toContainerNode(this)->lastChild();
+}
+
+inline Node* Node::highestAncestor() const
+{
+    Node* node = const_cast<Node*>(this);
+    Node* highest = node;
+    for (; node; node = node->parentNode())
+        highest = node;
+    return highest;
+}
+
+inline Node* Node::traverseNextSibling() const
+{
+    if (nextSibling())
+        return nextSibling();
+    return traverseNextAncestorSibling();
+}
+
+inline Node* Node::traverseNextNode() const
+{
+    if (firstChild())
+        return firstChild();
+    return traverseNextSibling();
+}
+
+inline Node* Node::traverseNextSibling(const Node* stayWithin) const
+{
+    if (this == stayWithin)
+        return 0;
+    if (nextSibling())
+        return nextSibling();
+    return traverseNextAncestorSibling(stayWithin);
+}
+
+inline Node* Node::traverseNextNode(const Node* stayWithin) const
+{
+    if (firstChild())
+        return firstChild();
+    return traverseNextSibling(stayWithin);
 }
 
 typedef Vector<RefPtr<Node>, 11> NodeVector;

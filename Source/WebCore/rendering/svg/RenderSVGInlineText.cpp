@@ -27,7 +27,6 @@
 #include "RenderSVGInlineText.h"
 
 #include "CSSFontSelector.h"
-#include "CSSStyleSelector.h"
 #include "FloatConversion.h"
 #include "FloatQuad.h"
 #include "RenderBlock.h"
@@ -37,6 +36,7 @@
 #include "SVGInlineTextBox.h"
 #include "SVGRenderingContext.h"
 #include "SVGRootInlineBox.h"
+#include "StyleResolver.h"
 #include "VisiblePosition.h"
 
 namespace WebCore {
@@ -254,8 +254,8 @@ void RenderSVGInlineText::computeNewScaledFontForStyle(RenderObject* renderer, c
     Document* document = renderer->document();
     ASSERT(document);
     
-    CSSStyleSelector* styleSelector = document->styleSelector();
-    ASSERT(styleSelector);
+    StyleResolver* styleResolver = document->styleResolver();
+    ASSERT(styleResolver);
 
     // Alter font-size to the right on-screen value to avoid scaling the glyphs themselves, except when GeometricPrecision is specified
     AffineTransform ctm;
@@ -270,10 +270,10 @@ void RenderSVGInlineText::computeNewScaledFontForStyle(RenderObject* renderer, c
     FontDescription fontDescription(style->fontDescription());
 
     // FIXME: We need to better handle the case when we compute very small fonts below (below 1pt).
-    fontDescription.setComputedSize(CSSStyleSelector::getComputedSizeFromSpecifiedSize(document, scalingFactor, fontDescription.isAbsoluteSize(), fontDescription.computedSize(), DoNotUseSmartMinimumForFontSize));
+    fontDescription.setComputedSize(StyleResolver::getComputedSizeFromSpecifiedSize(document, scalingFactor, fontDescription.isAbsoluteSize(), fontDescription.computedSize(), DoNotUseSmartMinimumForFontSize));
 
     scaledFont = Font(fontDescription, 0, 0);
-    scaledFont.update(styleSelector->fontSelector());
+    scaledFont.update(styleResolver->fontSelector());
 }
 
 }

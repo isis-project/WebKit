@@ -39,6 +39,7 @@ import sys
 from webkitpy.common.host import Host
 from webkitpy.layout_tests.controllers.manager import Manager, WorkerException
 from webkitpy.layout_tests.models import test_expectations
+from webkitpy.layout_tests.port import port_options
 from webkitpy.layout_tests.views import printing
 
 
@@ -191,27 +192,7 @@ def parse_args(args=None):
 
     option_group_definitions = []
 
-    # FIXME: All of these options should be stored closer to the code which
-    # FIXME: actually uses them. configuration_options should move
-    # FIXME: to WebKitPort and be shared across all scripts.
-    option_group_definitions.append(("Configuration Options", [
-        optparse.make_option("-t", "--target", dest="configuration",
-                             help="(DEPRECATED)"),
-        # FIXME: --help should display which configuration is default.
-        optparse.make_option('--debug', action='store_const', const='Debug',
-                             dest="configuration",
-                             help='Set the configuration to Debug'),
-        optparse.make_option('--release', action='store_const',
-                             const='Release', dest="configuration",
-                             help='Set the configuration to Release'),
-        # old-run-webkit-tests also accepts -c, --configuration CONFIGURATION.
-        optparse.make_option("--platform", help="Override port/platform being tested (i.e. chromium-mac)"),
-        optparse.make_option("--chromium", action="store_const", const='chromium', dest='platform', help='Alias for --platform=chromium'),
-        optparse.make_option('--efl', action='store_const', const='efl', dest="platform", help='Alias for --platform=efl'),
-        optparse.make_option('--gtk', action='store_const', const='gtk', dest="platform", help='Alias for --platform=gtk'),
-        optparse.make_option('--qt', action='store_const', const='qt', dest="platform", help='Alias for --platform=qt'),
-    ]))
-
+    option_group_definitions.append(("Configuration options", port_options()))
     option_group_definitions.append(("Printing Options", printing.print_options()))
 
     # FIXME: These options should move onto the ChromiumPort.
@@ -271,7 +252,7 @@ def parse_args(args=None):
         optparse.make_option("-l", "--leaks", action="store_true", default=False,
             help="Enable leaks checking (Mac OS X only)"),
         optparse.make_option("-g", "--guard-malloc", action="store_true", default=False,
-            help="Enable malloc guard (Mac OS X only)"),
+            help="Enable Guard Malloc (Mac OS X only)"),
         optparse.make_option("--threaded", action="store_true", default=False,
             help="Run a concurrent JavaScript thread with each test"),
         optparse.make_option("--webkit-test-runner", "-2", action="store_true",
@@ -325,6 +306,9 @@ def parse_args(args=None):
             default=[], help="Additional directory where to look for test "
                  "baselines (will take precendence over platform baselines). "
                  "Specify multiple times to add multiple search path entries."),
+        optparse.make_option("--additional-expectations", action="append", default=[],
+            help="Path to a test_expectations file that will override previous expectations. "
+                 "Specify multiple times for multiple sets of overrides."),
         optparse.make_option("--no-show-results", action="store_false",
             default=True, dest="show_results",
             help="Don't launch a browser with results after the tests "
@@ -400,13 +384,8 @@ def parse_args(args=None):
         optparse.make_option("--child-processes",
             help="Number of DumpRenderTrees to run in parallel."),
         # FIXME: Display default number of child processes that will run.
-        optparse.make_option("-f", "--experimental-fully-parallel",
-            action="store_true",
+        optparse.make_option("-f", "--fully-parallel", action="store_true",
             help="run all tests in parallel"),
-        optparse.make_option("--no-experimental-fully-parallel",
-            action="store_false",
-            dest="experimental_fully_parallel",
-            help="do not run all tests in parallel"),
         optparse.make_option("--exit-after-n-failures", type="int", default=500,
             help="Exit after the first N failures instead of running all "
             "tests"),

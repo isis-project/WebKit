@@ -96,15 +96,12 @@ public:
     virtual void setWebGLErrorsToConsoleEnabled(bool);
     virtual void setShowDebugBorders(bool);
     virtual void setShowFPSCounter(bool);
-    virtual bool showFPSCounter() const { return m_showFPSCounter; }
     virtual void setShowPlatformLayerTree(bool);
-    virtual bool showPlatformLayerTree() const { return m_showPlatformLayerTree; }
+    virtual void setShowPaintRects(bool);
     virtual void setEditingBehavior(EditingBehavior);
     virtual void setAcceleratedCompositingEnabled(bool);
     virtual void setForceCompositingMode(bool);
     virtual void setMockScrollbarsEnabled(bool);
-    virtual void setCompositeToTextureEnabled(bool);
-    virtual bool compositeToTextureEnabled() const { return m_compositeToTextureEnabled; }
     virtual void setAcceleratedCompositingFor3DTransformsEnabled(bool);
     virtual void setAcceleratedCompositingForVideoEnabled(bool);
     virtual void setAcceleratedCompositingForPluginsEnabled(bool);
@@ -144,11 +141,15 @@ public:
     virtual void setViewportEnabled(bool);
     virtual bool viewportEnabled() const { return m_viewportEnabled; }
 
+    bool showFPSCounter() const { return m_showFPSCounter; }
+    bool showPlatformLayerTree() const { return m_showPlatformLayerTree; }
+    bool showPaintRects() const { return m_showPaintRects; }
+
 private:
     WebCore::Settings* m_settings;
-    bool m_compositeToTextureEnabled;
     bool m_showFPSCounter;
     bool m_showPlatformLayerTree;
+    bool m_showPaintRects;
     bool m_viewportEnabled;
 };
 

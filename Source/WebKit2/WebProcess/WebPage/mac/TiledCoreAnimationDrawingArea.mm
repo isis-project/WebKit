@@ -26,11 +26,14 @@
 #import "config.h"
 #import "TiledCoreAnimationDrawingArea.h"
 
+#if ENABLE(THREADED_SCROLLING)
+
 #import "DrawingAreaProxyMessages.h"
 #import "EventDispatcher.h"
 #import "LayerHostingContext.h"
 #import "LayerTreeContext.h"
 #import "WebPage.h"
+#import "WebPageCreationParameters.h"
 #import "WebPageProxyMessages.h"
 #import "WebProcess.h"
 #import <QuartzCore/QuartzCore.h>
@@ -63,17 +66,15 @@ TiledCoreAnimationDrawingArea::TiledCoreAnimationDrawingArea(WebPage* webPage, c
     : DrawingArea(DrawingAreaTypeTiledCoreAnimation, webPage)
     , m_layerTreeStateIsFrozen(false)
     , m_layerFlushScheduler(this)
+    , m_isPaintingSuspended(!parameters.isVisible)
 {
     Page* page = webPage->corePage();
 
     // FIXME: It's weird that we're mucking around with the settings here.
     page->settings()->setForceCompositingMode(true);
-
-#if ENABLE(THREADED_SCROLLING)
     page->settings()->setScrollingCoordinatorEnabled(true);
 
     WebProcess::shared().eventDispatcher().addScrollingTreeForPage(webPage);
-#endif
 
     m_rootLayer = [CALayer layer];
 
@@ -94,9 +95,7 @@ TiledCoreAnimationDrawingArea::TiledCoreAnimationDrawingArea(WebPage* webPage, c
 
 TiledCoreAnimationDrawingArea::~TiledCoreAnimationDrawingArea()
 {
-#if ENABLE(THREADED_SCROLLING)
     WebProcess::shared().eventDispatcher().removeScrollingTreeForPage(m_webPage);
-#endif
 
     m_layerFlushScheduler.invalidate();
 }
@@ -138,34 +137,16 @@ void TiledCoreAnimationDrawingArea::forceRepaint()
     [CATransaction synchronize];
 }
 
-#if ENABLE(THREADED_SCROLLING)
-static void forceRepaintAndSendMessage(uint64_t webPageID, uint64_t callbackID)
-{
-    WebPage* webPage = WebProcess::shared().webPage(webPageID);
-    if (!webPage)
-        return;
-
-    webPage->drawingArea()->forceRepaint();
-    webPage->send(Messages::WebPageProxy::VoidCallback(callbackID));
-}
-
-static void dispatchBackToMainThread(uint64_t webPageID, uint64_t callbackID)
-{
-    callOnMainThread(bind(forceRepaintAndSendMessage, webPageID, callbackID));
-}
-#endif
-
 bool TiledCoreAnimationDrawingArea::forceRepaintAsync(uint64_t callbackID)
 {
-#if ENABLE(THREADED_SCROLLING)
     if (m_layerTreeStateIsFrozen)
         return false;
 
-    ScrollingThread::dispatch(bind(dispatchBackToMainThread, m_webPage->pageID(), callbackID));
+    dispatchAfterEnsuringUpdatedScrollPosition(bind(^{
+        m_webPage->drawingArea()->forceRepaint();
+        m_webPage->send(Messages::WebPageProxy::VoidCallback(callbackID));
+    }));
     return true;
-#else
-    return false;
-#endif
 }
 
 void TiledCoreAnimationDrawingArea::setLayerTreeStateIsFrozen(bool layerTreeStateIsFrozen)
@@ -192,9 +173,7 @@ void TiledCoreAnimationDrawingArea::scheduleCompositingLayerSync()
 
 void TiledCoreAnimationDrawingArea::didInstallPageOverlay()
 {
-#if ENABLE(THREADED_SCROLLING)
     m_webPage->corePage()->scrollingCoordinator()->setForceMainThreadScrollLayerPositionUpdates(true);
-#endif
 
     createPageOverlayLayer();
     scheduleCompositingLayerSync();
@@ -202,10 +181,8 @@ void TiledCoreAnimationDrawingArea::didInstallPageOverlay()
 
 void TiledCoreAnimationDrawingArea::didUninstallPageOverlay()
 {
-#if ENABLE(THREADED_SCROLLING)
     if (Page* page = m_webPage->corePage())
         page->scrollingCoordinator()->setForceMainThreadScrollLayerPositionUpdates(false);
-#endif
 
     destroyPageOverlayLayer();
     scheduleCompositingLayerSync();
@@ -233,9 +210,26 @@ void TiledCoreAnimationDrawingArea::updatePreferences()
         m_debugInfoLayer = nullptr;
     }
 
-#if ENABLE(THREADED_SCROLLING)
     ScrollingThread::dispatch(bind(&ScrollingTree::setDebugRootLayer, m_webPage->corePage()->scrollingCoordinator()->scrollingTree(), m_debugInfoLayer));
-#endif
+}
+
+void TiledCoreAnimationDrawingArea::dispatchAfterEnsuringUpdatedScrollPosition(const Function<void ()>& functionRef)
+{
+    m_webPage->ref();
+    m_webPage->corePage()->scrollingCoordinator()->commitTreeStateIfNeeded();
+
+    if (!m_layerTreeStateIsFrozen)
+        m_layerFlushScheduler.suspend();
+
+    Function<void ()> function = functionRef;
+    ScrollingThread::dispatchBarrier(bind(^{
+        function();
+
+        if (!m_layerTreeStateIsFrozen)
+            m_layerFlushScheduler.resume();
+
+        m_webPage->deref();
+    }));
 }
 
 void TiledCoreAnimationDrawingArea::notifyAnimationStarted(const GraphicsLayer*, double)
@@ -291,6 +285,33 @@ bool TiledCoreAnimationDrawingArea::flushLayers()
 
     [pool drain];
     return returnValue;
+}
+
+void TiledCoreAnimationDrawingArea::suspendPainting()
+{
+    ASSERT(!m_isPaintingSuspended);
+    m_isPaintingSuspended = true;
+
+    [m_rootLayer.get() setValue:(id)kCFBooleanTrue forKey:@"NSCAViewRenderPaused"];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"NSCAViewRenderDidPauseNotification" object:nil userInfo:[NSDictionary dictionaryWithObject:m_rootLayer.get() forKey:@"layer"]];
+
+    m_webPage->corePage()->suspendScriptedAnimations();
+}
+
+void TiledCoreAnimationDrawingArea::resumePainting()
+{
+    if (!m_isPaintingSuspended) {
+        // FIXME: We can get a call to resumePainting when painting is not suspended.
+        // This happens when sending a synchronous message to create a new page. See <rdar://problem/8976531>.
+        return;
+    }
+    m_isPaintingSuspended = false;
+
+    [m_rootLayer.get() setValue:(id)kCFBooleanFalse forKey:@"NSCAViewRenderPaused"];
+    [[NSNotificationCenter defaultCenter] postNotificationName:@"NSCAViewRenderDidResumeNotification" object:nil userInfo:[NSDictionary dictionaryWithObject:m_rootLayer.get() forKey:@"layer"]];
+
+    if (m_webPage->windowIsVisible())
+        m_webPage->corePage()->resumeScriptedAnimations();
 }
 
 void TiledCoreAnimationDrawingArea::updateGeometry(const IntSize& viewSize)
@@ -404,3 +425,5 @@ void TiledCoreAnimationDrawingArea::destroyPageOverlayLayer()
 }
 
 } // namespace WebKit
+
+#endif // ENABLE(THREADED_SCROLLING)

@@ -24,6 +24,7 @@
 #include "GLES2Context.h"
 #include "LayerRenderer.h"
 #endif
+#include "KURL.h"
 #include "PageClientBlackBerry.h"
 #include "PlatformMouseEvent.h"
 #include "ScriptSourceCode.h"
@@ -35,12 +36,12 @@
 #include <BlackBerryPlatformMessage.h>
 
 namespace WebCore {
+class AutofillManager;
 class DOMWrapperWorld;
 class Document;
 class Frame;
 class GeolocationControllerClientBlackBerry;
 class JavaScriptDebuggerBlackBerry;
-class KURL;
 class Node;
 class Page;
 class PluginView;
@@ -48,6 +49,7 @@ class RenderLayer;
 class RenderObject;
 class ScrollView;
 class TransformationMatrix;
+class PagePopupBlackBerry;
 template<typename T> class Timer;
 }
 
@@ -79,7 +81,6 @@ public:
     enum LoadState { None /* on instantiation of page */, Provisional, Committed, Finished, Failed };
 
     WebPagePrivate(WebPage*, WebPageClient*, const WebCore::IntRect&);
-    virtual ~WebPagePrivate();
 
     static WebCore::Page* core(const WebPage*);
 
@@ -89,7 +90,7 @@ public:
     bool handleMouseEvent(WebCore::PlatformMouseEvent&);
     bool handleWheelEvent(WebCore::PlatformWheelEvent&);
 
-    void load(const char* url, const char* networkToken, const char* method, Platform::NetworkRequest::CachePolicy, const char* data, size_t dataLength, const char* const* headers, size_t headersLength, bool isInitial, bool mustHandleInternally = false, bool forceDownload = false, const char* overrideContentType = "");
+    void load(const char* url, const char* networkToken, const char* method, Platform::NetworkRequest::CachePolicy, const char* data, size_t dataLength, const char* const* headers, size_t headersLength, bool isInitial, bool mustHandleInternally = false, bool forceDownload = false, const char* overrideContentType = "", const char* suggestedSaveName = "");
     void loadString(const char* string, const char* baseURL, const char* mimeType, const char* failingURL = 0);
     bool executeJavaScript(const char* script, JavaScriptDataType& returnType, WebString& returnValue);
     bool executeJavaScriptInIsolatedWorld(const WebCore::ScriptSourceCode&, JavaScriptDataType& returnType, WebString& returnValue);
@@ -179,7 +180,8 @@ public:
     virtual double currentZoomFactor() const;
     virtual int showAlertDialog(WebPageClient::AlertType atype);
     virtual bool isActive() const;
-    virtual bool authenticationChallenge(const WebCore::KURL&, const WebCore::ProtectionSpace&, WebCore::Credential&);
+    virtual bool isVisible() const { return m_visible; }
+    virtual WebCore::Credential authenticationChallenge(const WebCore::KURL&, const WebCore::ProtectionSpace&);
     virtual SaveCredentialType notifyShouldSaveCredential(bool);
 
     // Called from within WebKit via ChromeClientBlackBerry.
@@ -189,6 +191,7 @@ public:
     void overflowExceedsContentsSize() { m_overflowExceedsContentsSize = true; }
     void layoutFinished();
     void setNeedTouchEvents(bool);
+    void notifyPopupAutofillDialog(const Vector<String>&, const WebCore::IntRect&);
 
     // Called according to our heuristic or from setLoadState depending on whether we have a virtual viewport.
     void zoomToInitialScaleOnLoad();
@@ -398,6 +401,8 @@ public:
     void addBackingStoreClientForFrame(const WebCore::Frame*, BackingStoreClient*);
     void removeBackingStoreClientForFrame(const WebCore::Frame*);
 
+    void setParentPopup(WebCore::PagePopupBlackBerry* webPopup);
+
     // Clean up any document related data we might be holding.
     void clearDocumentData(const WebCore::Document*);
 
@@ -414,6 +419,8 @@ public:
     void setPageVisibilityState();
 #endif
     void notifyAppActivationStateChange(ActivationStateType);
+
+    void deferredTasksTimerFired(WebCore::Timer<WebPagePrivate>*);
 
     WebPage* m_webPage;
     WebPageClient* m_client;
@@ -450,6 +457,7 @@ public:
     int m_virtualViewportHeight;
     WebCore::IntSize m_defaultLayoutSize;
     WebCore::ViewportArguments m_viewportArguments; // We keep this around since we may need to re-evaluate the arguments on rotation.
+    WebCore::ViewportArguments m_userViewportArguments; // A fallback set of Viewport Arguments supplied by the WebPageClient
     bool m_didRestoreFromPageCache;
     ViewMode m_viewMode;
     LoadState m_loadState;
@@ -534,6 +542,56 @@ public:
     RefPtr<WebCore::DOMWrapperWorld> m_isolatedWorld;
     bool m_hasInRegionScrollableAreas;
     bool m_updateDelegatedOverlaysDispatched;
+
+    // There is no need to initialize the following members in WebPagePrivate's constructor,
+    // because they are only used by WebPageTasks and the tasks will initialize them when
+    // being constructed.
+    bool m_wouldPopupListSelectMultiple;
+    bool m_wouldPopupListSelectSingle;
+    bool m_wouldSetDateTimeInput;
+    bool m_wouldSetColorInput;
+    bool m_wouldCancelSelection;
+    bool m_wouldLoadManualScript;
+    bool m_wouldSetFocused;
+    bool m_wouldSetPageVisibilityState;
+    Vector<bool> m_cachedPopupListSelecteds;
+    int m_cachedPopupListSelectedIndex;
+    WebString m_cachedDateTimeInput;
+    WebString m_cachedColorInput;
+    WebCore::KURL m_cachedManualScript;
+    bool m_cachedFocused;
+
+    class DeferredTaskBase {
+    public:
+        void perform(WebPagePrivate* webPagePrivate)
+        {
+            if (!(webPagePrivate->*m_isActive))
+                return;
+            performInternal(webPagePrivate);
+        }
+    protected:
+        DeferredTaskBase(WebPagePrivate* webPagePrivate, bool WebPagePrivate::*isActive)
+            : m_isActive(isActive)
+        {
+            webPagePrivate->*m_isActive = true;
+        }
+
+        virtual void performInternal(WebPagePrivate*) = 0;
+
+        bool WebPagePrivate::*m_isActive;
+    };
+
+    Vector<OwnPtr<DeferredTaskBase> > m_deferredTasks;
+    WebCore::Timer<WebPagePrivate> m_deferredTasksTimer;
+
+    // The popup that opened in this webpage
+    WebCore::PagePopupBlackBerry* m_selectPopup;
+    // The popup that owned this webpage
+    WebCore::PagePopupBlackBerry* m_parentPopup;
+
+    RefPtr<WebCore::AutofillManager> m_autofillManager;
+protected:
+    virtual ~WebPagePrivate();
 };
 }
 }

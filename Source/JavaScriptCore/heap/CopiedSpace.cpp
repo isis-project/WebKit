@@ -27,6 +27,7 @@
 #include "CopiedSpace.h"
 
 #include "CopiedSpaceInlineMethods.h"
+#include "GCActivityCallback.h"
 
 namespace JSC {
 
@@ -36,7 +37,6 @@ CopiedSpace::CopiedSpace(Heap* heap)
     , m_fromSpace(0)
     , m_inCopyingPhase(false)
     , m_numberOfLoanedBlocks(0)
-    , m_waterMark(0)
 {
 }
 
@@ -54,7 +54,7 @@ CheckedBoolean CopiedSpace::tryAllocateSlowCase(size_t bytes, void** outPtr)
     if (isOversize(bytes))
         return tryAllocateOversize(bytes, outPtr);
     
-    m_waterMark += m_allocator.currentCapacity();
+    m_heap->didAllocate(m_allocator.currentCapacity());
 
     if (!addNewBlock()) {
         *outPtr = 0;
@@ -83,7 +83,7 @@ CheckedBoolean CopiedSpace::tryAllocateOversize(size_t bytes, void** outPtr)
     
     *outPtr = allocateFromBlock(block, bytes);
 
-    m_waterMark += block->capacity();
+    m_heap->didAllocate(blockSize);
 
     return true;
 }
@@ -135,7 +135,6 @@ CheckedBoolean CopiedSpace::tryReallocateOversize(void** ptr, size_t oldSize, si
     if (isOversize(oldSize)) {
         CopiedBlock* oldBlock = oversizeBlockFor(oldPtr);
         m_oversizeBlocks.remove(oldBlock);
-        m_waterMark -= oldBlock->capacity();
         oldBlock->m_allocation.deallocate();
     }
     
@@ -162,11 +161,6 @@ void CopiedSpace::doneFillingBlock(CopiedBlock* block)
     }
 
     {
-        MutexLocker locker(m_memoryStatsLock);
-        m_waterMark += block->capacity();
-    }
-
-    {
         MutexLocker locker(m_loanedBlocksLock);
         ASSERT(m_numberOfLoanedBlocks > 0);
         m_numberOfLoanedBlocks--;
@@ -189,17 +183,15 @@ void CopiedSpace::doneCopying()
         CopiedBlock* block = static_cast<CopiedBlock*>(m_fromSpace->removeHead());
         if (block->m_isPinned) {
             block->m_isPinned = false;
+            // We don't add the block to the toSpaceSet because it was never removed.
+            ASSERT(m_toSpaceSet.contains(block));
+            m_toSpaceFilter.add(reinterpret_cast<Bits>(block));
             m_toSpace->push(block);
-            m_waterMark += block->capacity();
             continue;
         }
 
         m_toSpaceSet.remove(block);
-        {
-            MutexLocker locker(m_heap->m_freeBlockLock);
-            m_heap->m_freeBlocks.push(block);
-            m_heap->m_numberOfFreeBlocks++;
-        }
+        m_heap->blockAllocator().deallocate(block);
     }
 
     CopiedBlock* curr = static_cast<CopiedBlock*>(m_oversizeBlocks.head());
@@ -208,10 +200,8 @@ void CopiedSpace::doneCopying()
         if (!curr->m_isPinned) {
             m_oversizeBlocks.remove(curr);
             curr->m_allocation.deallocate();
-        } else {
+        } else
             curr->m_isPinned = false;
-            m_waterMark += curr->capacity();
-        }
         curr = next;
     }
 
@@ -224,19 +214,11 @@ void CopiedSpace::doneCopying()
 
 CheckedBoolean CopiedSpace::getFreshBlock(AllocationEffort allocationEffort, CopiedBlock** outBlock)
 {
-    HeapBlock* heapBlock = 0;
     CopiedBlock* block = 0;
-    {
-        MutexLocker locker(m_heap->m_freeBlockLock);
-        if (!m_heap->m_freeBlocks.isEmpty()) {
-            heapBlock = m_heap->m_freeBlocks.removeHead();
-            m_heap->m_numberOfFreeBlocks--;
-        }
-    }
-    if (heapBlock)
-        block = new (NotNull, heapBlock) CopiedBlock(heapBlock->m_allocation);
-    else if (allocationEffort == AllocationMustSucceed) {
-        if (!allocateNewBlock(&block)) {
+    if (allocationEffort == AllocationMustSucceed) {
+        if (HeapBlock* heapBlock = m_heap->blockAllocator().allocate())
+            block = new (NotNull, heapBlock) CopiedBlock(heapBlock->m_allocation);
+        else if (!allocateNewBlock(&block)) {
             *outBlock = 0;
             ASSERT_NOT_REACHED();
             return false;
@@ -258,28 +240,16 @@ CheckedBoolean CopiedSpace::getFreshBlock(AllocationEffort allocationEffort, Cop
     return true;
 }
 
-void CopiedSpace::destroy()
+void CopiedSpace::freeAllBlocks()
 {
-    while (!m_toSpace->isEmpty()) {
-        CopiedBlock* block = static_cast<CopiedBlock*>(m_toSpace->removeHead());
-        MutexLocker locker(m_heap->m_freeBlockLock);
-        m_heap->m_freeBlocks.append(block);
-        m_heap->m_numberOfFreeBlocks++;
-    }
+    while (!m_toSpace->isEmpty())
+        m_heap->blockAllocator().deallocate(m_toSpace->removeHead());
 
-    while (!m_fromSpace->isEmpty()) {
-        CopiedBlock* block = static_cast<CopiedBlock*>(m_fromSpace->removeHead());
-        MutexLocker locker(m_heap->m_freeBlockLock);
-        m_heap->m_freeBlocks.append(block);
-        m_heap->m_numberOfFreeBlocks++;
-    }
+    while (!m_fromSpace->isEmpty())
+        m_heap->blockAllocator().deallocate(m_fromSpace->removeHead());
 
-    while (!m_oversizeBlocks.isEmpty()) {
-        CopiedBlock* block = static_cast<CopiedBlock*>(m_oversizeBlocks.removeHead());
-        block->m_allocation.deallocate();
-    }
-
-    m_waterMark = 0;
+    while (!m_oversizeBlocks.isEmpty())
+        m_oversizeBlocks.removeHead()->m_allocation.deallocate();
 }
 
 size_t CopiedSpace::size()
@@ -312,6 +282,31 @@ size_t CopiedSpace::capacity()
         calculatedCapacity += block->capacity();
 
     return calculatedCapacity;
+}
+
+static bool isBlockListPagedOut(double deadline, DoublyLinkedList<HeapBlock>* list)
+{
+    unsigned itersSinceLastTimeCheck = 0;
+    HeapBlock* current = list->head();
+    while (current) {
+        current = current->next();
+        ++itersSinceLastTimeCheck;
+        if (itersSinceLastTimeCheck >= Heap::s_timeCheckResolution) {
+            double currentTime = WTF::monotonicallyIncreasingTime();
+            if (currentTime > deadline)
+                return true;
+            itersSinceLastTimeCheck = 0;
+        }
+    }
+
+    return false;
+}
+
+bool CopiedSpace::isPagedOut(double deadline)
+{
+    return isBlockListPagedOut(deadline, m_toSpace) 
+        || isBlockListPagedOut(deadline, m_fromSpace) 
+        || isBlockListPagedOut(deadline, &m_oversizeBlocks);
 }
 
 } // namespace JSC

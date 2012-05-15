@@ -72,20 +72,26 @@ PassRefPtr<HTMLTrackElement> HTMLTrackElement::create(const QualifiedName& tagNa
     return adoptRef(new HTMLTrackElement(tagName, document));
 }
 
-void HTMLTrackElement::insertedIntoTree(bool deep)
+Node::InsertionNotificationRequest HTMLTrackElement::insertedInto(Node* insertionPoint)
 {
-    HTMLElement::insertedIntoTree(deep);
+    HTMLElement::insertedInto(insertionPoint);
+    if (insertionPoint->inDocument()) {
+        if (HTMLMediaElement* parent = mediaElement())
+            parent->didAddTrack(this);
+    }
 
-    if (HTMLMediaElement* parent = mediaElement())
-        parent->didAddTrack(this);
+    return InsertionDone;
 }
 
-void HTMLTrackElement::willRemove()
+void HTMLTrackElement::removedFrom(Node* insertionPoint)
 {
-    if (HTMLMediaElement* parent = mediaElement())
+    HTMLMediaElement* parent = mediaElement();
+    if (!parent && WebCore::isMediaElement(insertionPoint))
+        parent = toMediaElement(insertionPoint);
+    if (parent)
         parent->willRemoveTrack(this);
 
-    HTMLElement::willRemove();
+    HTMLElement::removedFrom(insertionPoint);
 }
 
 void HTMLTrackElement::parseAttribute(Attribute* attribute)
@@ -181,9 +187,9 @@ TextTrack* HTMLTrackElement::track()
     return ensureTrack();
 }
 
-bool HTMLTrackElement::isURLAttribute(Attribute* attribute) const
+bool HTMLTrackElement::isURLAttribute(const Attribute& attribute) const
 {
-    return attribute->name() == srcAttr || HTMLElement::isURLAttribute(attribute);
+    return attribute.name() == srcAttr || HTMLElement::isURLAttribute(attribute);
 }
 
 void HTMLTrackElement::scheduleLoad()
@@ -315,7 +321,7 @@ void HTMLTrackElement::textTrackAddCues(TextTrack* track, const TextTrackCueList
 void HTMLTrackElement::textTrackRemoveCues(TextTrack* track, const TextTrackCueList* cues)
 {
     if (HTMLMediaElement* parent = mediaElement())
-        return parent->textTrackAddCues(track, cues);
+        return parent->textTrackRemoveCues(track, cues);
 }
     
 void HTMLTrackElement::textTrackAddCue(TextTrack* track, PassRefPtr<TextTrackCue> cue)

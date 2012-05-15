@@ -26,6 +26,8 @@
 #ifndef TiledCoreAnimationDrawingAreaProxy_h
 #define TiledCoreAnimationDrawingAreaProxy_h
 
+#if ENABLE(THREADED_SCROLLING)
+
 #include "DrawingAreaProxy.h"
 #include <wtf/PassOwnPtr.h>
 
@@ -42,6 +44,7 @@ private:
     // DrawingAreaProxy
     virtual void deviceScaleFactorDidChange() OVERRIDE;
     virtual void layerHostingModeDidChange() OVERRIDE;
+    virtual void visibilityDidChange() OVERRIDE;
     virtual void sizeDidChange() OVERRIDE;
     virtual void waitForPossibleGeometryUpdate() OVERRIDE;
 
@@ -62,5 +65,7 @@ private:
 };
 
 } // namespace WebKit
+
+#endif // ENABLE(THREADED_SCROLLING)
 
 #endif // TiledCoreAnimationDrawingAreaProxy_h

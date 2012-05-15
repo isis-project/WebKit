@@ -36,7 +36,6 @@
 #include "CSSRule.h"
 #include "CSSRuleList.h"
 #include "CSSStyleRule.h"
-#include "CSSStyleSelector.h"
 #include "CSSValue.h"
 #include "CSSValueKeywords.h"
 #include "ChildListMutationScope.h"
@@ -55,6 +54,7 @@
 #include "Range.h"
 #include "RenderObject.h"
 #include "StylePropertySet.h"
+#include "StyleResolver.h"
 #include "TextIterator.h"
 #include "VisibleSelection.h"
 #include "XMLNSNames.h"
@@ -110,7 +110,7 @@ static void completeURLs(Node* node, const String& baseURL)
             unsigned length = e->attributeCount();
             for (unsigned i = 0; i < length; i++) {
                 Attribute* attribute = e->attributeItem(i);
-                if (e->isURLAttribute(attribute))
+                if (e->isURLAttribute(*attribute))
                     changes.append(AttributeChange(e, attribute->name(), KURL(parsedBaseURL, attribute->value()).string()));
             }
         }
@@ -759,7 +759,7 @@ PassRefPtr<DocumentFragment> createFragmentFromMarkupWithContext(Document* docum
     return fragment;
 }
 
-String createMarkup(const Node* node, EChildrenOnly childrenOnly, Vector<Node*>* nodes, EAbsoluteURLs shouldResolveURLs)
+String createMarkup(const Node* node, EChildrenOnly childrenOnly, Vector<Node*>* nodes, EAbsoluteURLs shouldResolveURLs, Vector<QualifiedName>* tagNamesToSkip)
 {
     if (!node)
         return "";
@@ -772,7 +772,7 @@ String createMarkup(const Node* node, EChildrenOnly childrenOnly, Vector<Node*>*
     }
 
     MarkupAccumulator accumulator(nodes, shouldResolveURLs);
-    return accumulator.serializeNodes(const_cast<Node*>(node), deleteButtonContainerElement, childrenOnly);
+    return accumulator.serializeNodes(const_cast<Node*>(node), deleteButtonContainerElement, childrenOnly, tagNamesToSkip);
 }
 
 static void fillContainerFromString(ContainerNode* paragraph, const String& string)
@@ -859,7 +859,7 @@ PassRefPtr<DocumentFragment> createFragmentFromText(Range* context, const String
     if (renderer && renderer->style()->preserveNewline()) {
         fragment->appendChild(document->createTextNode(string), ec);
         ASSERT(!ec);
-        if (string.endsWith("\n")) {
+        if (string.endsWith('\n')) {
             RefPtr<Element> element = createBreakElement(document);
             element->setAttribute(classAttr, AppleInterchangeNewline);            
             fragment->appendChild(element.release(), ec);

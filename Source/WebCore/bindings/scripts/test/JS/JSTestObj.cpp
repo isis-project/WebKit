@@ -90,6 +90,19 @@ static const HashTableValue JSTestObjTableValues[] =
     { "stringAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjStringAttr), (intptr_t)setJSTestObjStringAttr, NoIntrinsic },
     { "testObjAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjTestObjAttr), (intptr_t)setJSTestObjTestObjAttr, NoIntrinsic },
     { "sequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjSequenceAttr), (intptr_t)setJSTestObjSequenceAttr, NoIntrinsic },
+    { "intSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjIntSequenceAttr), (intptr_t)setJSTestObjIntSequenceAttr, NoIntrinsic },
+    { "shortSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjShortSequenceAttr), (intptr_t)setJSTestObjShortSequenceAttr, NoIntrinsic },
+    { "longSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjLongSequenceAttr), (intptr_t)setJSTestObjLongSequenceAttr, NoIntrinsic },
+    { "longLongSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjLongLongSequenceAttr), (intptr_t)setJSTestObjLongLongSequenceAttr, NoIntrinsic },
+    { "unsignedIntSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjUnsignedIntSequenceAttr), (intptr_t)setJSTestObjUnsignedIntSequenceAttr, NoIntrinsic },
+    { "unsignedShortSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjUnsignedShortSequenceAttr), (intptr_t)setJSTestObjUnsignedShortSequenceAttr, NoIntrinsic },
+    { "unsignedLongSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjUnsignedLongSequenceAttr), (intptr_t)setJSTestObjUnsignedLongSequenceAttr, NoIntrinsic },
+    { "unsignedLongLongSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjUnsignedLongLongSequenceAttr), (intptr_t)setJSTestObjUnsignedLongLongSequenceAttr, NoIntrinsic },
+    { "floatSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjFloatSequenceAttr), (intptr_t)setJSTestObjFloatSequenceAttr, NoIntrinsic },
+    { "doubleSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjDoubleSequenceAttr), (intptr_t)setJSTestObjDoubleSequenceAttr, NoIntrinsic },
+    { "booleanSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjBooleanSequenceAttr), (intptr_t)setJSTestObjBooleanSequenceAttr, NoIntrinsic },
+    { "voidSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjVoidSequenceAttr), (intptr_t)setJSTestObjVoidSequenceAttr, NoIntrinsic },
+    { "dateSequenceAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjDateSequenceAttr), (intptr_t)setJSTestObjDateSequenceAttr, NoIntrinsic },
     { "XMLObjAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjXMLObjAttr), (intptr_t)setJSTestObjXMLObjAttr, NoIntrinsic },
     { "create", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjCreate), (intptr_t)setJSTestObjCreate, NoIntrinsic },
     { "reflectedStringAttr", DontDelete, (intptr_t)static_cast<PropertySlot::GetValueFunc>(jsTestObjReflectedStringAttr), (intptr_t)setJSTestObjReflectedStringAttr, NoIntrinsic },
@@ -146,7 +159,7 @@ static const HashTableValue JSTestObjTableValues[] =
     { 0, 0, 0, 0, NoIntrinsic }
 };
 
-static const HashTable JSTestObjTable = { 138, 127, JSTestObjTableValues, 0 };
+static const HashTable JSTestObjTable = { 265, 255, JSTestObjTableValues, 0 };
 /* Hash table for constructor */
 
 static const HashTableValue JSTestObjConstructorTableValues[] =
@@ -208,12 +221,12 @@ void JSTestObjConstructor::finishCreation(ExecState* exec, JSDOMGlobalObject* gl
     putDirect(exec->globalData(), exec->propertyNames().length, jsNumber(1), ReadOnly | DontDelete | DontEnum);
 }
 
-bool JSTestObjConstructor::getOwnPropertySlot(JSCell* cell, ExecState* exec, const Identifier& propertyName, PropertySlot& slot)
+bool JSTestObjConstructor::getOwnPropertySlot(JSCell* cell, ExecState* exec, PropertyName propertyName, PropertySlot& slot)
 {
     return getStaticPropertySlot<JSTestObjConstructor, JSDOMWrapper>(exec, &JSTestObjConstructorTable, jsCast<JSTestObjConstructor*>(cell), propertyName, slot);
 }
 
-bool JSTestObjConstructor::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, const Identifier& propertyName, PropertyDescriptor& descriptor)
+bool JSTestObjConstructor::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, PropertyName propertyName, PropertyDescriptor& descriptor)
 {
     return getStaticPropertyDescriptor<JSTestObjConstructor, JSDOMWrapper>(exec, &JSTestObjConstructorTable, jsCast<JSTestObjConstructor*>(object), propertyName, descriptor);
 }
@@ -222,7 +235,7 @@ EncodedJSValue JSC_HOST_CALL JSTestObjConstructor::constructJSTestObj(ExecState*
 {
     JSTestObjConstructor* castedThis = jsCast<JSTestObjConstructor*>(exec->callee());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     if (exec->argumentCount() <= 0 || !exec->argument(0).isFunction()) {
         setDOMException(exec, TYPE_MISMATCH_ERR);
         return JSValue::encode(jsUndefined());
@@ -324,13 +337,13 @@ JSObject* JSTestObjPrototype::self(ExecState* exec, JSGlobalObject* globalObject
     return getDOMPrototype<JSTestObj>(exec, globalObject);
 }
 
-bool JSTestObjPrototype::getOwnPropertySlot(JSCell* cell, ExecState* exec, const Identifier& propertyName, PropertySlot& slot)
+bool JSTestObjPrototype::getOwnPropertySlot(JSCell* cell, ExecState* exec, PropertyName propertyName, PropertySlot& slot)
 {
     JSTestObjPrototype* thisObject = jsCast<JSTestObjPrototype*>(cell);
     return getStaticPropertySlot<JSTestObjPrototype, JSObject>(exec, &JSTestObjPrototypeTable, thisObject, propertyName, slot);
 }
 
-bool JSTestObjPrototype::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, const Identifier& propertyName, PropertyDescriptor& descriptor)
+bool JSTestObjPrototype::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, PropertyName propertyName, PropertyDescriptor& descriptor)
 {
     JSTestObjPrototype* thisObject = jsCast<JSTestObjPrototype*>(object);
     return getStaticPropertyDescriptor<JSTestObjPrototype, JSObject>(exec, &JSTestObjPrototypeTable, thisObject, propertyName, descriptor);
@@ -366,21 +379,21 @@ JSTestObj::~JSTestObj()
     releaseImplIfNotNull();
 }
 
-bool JSTestObj::getOwnPropertySlot(JSCell* cell, ExecState* exec, const Identifier& propertyName, PropertySlot& slot)
+bool JSTestObj::getOwnPropertySlot(JSCell* cell, ExecState* exec, PropertyName propertyName, PropertySlot& slot)
 {
     JSTestObj* thisObject = jsCast<JSTestObj*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, &s_info);
     return getStaticValueSlot<JSTestObj, Base>(exec, &JSTestObjTable, thisObject, propertyName, slot);
 }
 
-bool JSTestObj::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, const Identifier& propertyName, PropertyDescriptor& descriptor)
+bool JSTestObj::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, PropertyName propertyName, PropertyDescriptor& descriptor)
 {
     JSTestObj* thisObject = jsCast<JSTestObj*>(object);
     ASSERT_GC_OBJECT_INHERITS(thisObject, &s_info);
     return getStaticValueDescriptor<JSTestObj, Base>(exec, &JSTestObjTable, thisObject, propertyName, descriptor);
 }
 
-JSValue jsTestObjReadOnlyIntAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReadOnlyIntAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -390,7 +403,7 @@ JSValue jsTestObjReadOnlyIntAttr(ExecState* exec, JSValue slotBase, const Identi
 }
 
 
-JSValue jsTestObjReadOnlyStringAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReadOnlyStringAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -400,7 +413,7 @@ JSValue jsTestObjReadOnlyStringAttr(ExecState* exec, JSValue slotBase, const Ide
 }
 
 
-JSValue jsTestObjReadOnlyTestObjAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReadOnlyTestObjAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -410,7 +423,7 @@ JSValue jsTestObjReadOnlyTestObjAttr(ExecState* exec, JSValue slotBase, const Id
 }
 
 
-JSValue jsTestObjShortAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjShortAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -420,7 +433,7 @@ JSValue jsTestObjShortAttr(ExecState* exec, JSValue slotBase, const Identifier&)
 }
 
 
-JSValue jsTestObjUnsignedShortAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjUnsignedShortAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -430,7 +443,7 @@ JSValue jsTestObjUnsignedShortAttr(ExecState* exec, JSValue slotBase, const Iden
 }
 
 
-JSValue jsTestObjIntAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjIntAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -440,7 +453,7 @@ JSValue jsTestObjIntAttr(ExecState* exec, JSValue slotBase, const Identifier&)
 }
 
 
-JSValue jsTestObjLongLongAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjLongLongAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -450,7 +463,7 @@ JSValue jsTestObjLongLongAttr(ExecState* exec, JSValue slotBase, const Identifie
 }
 
 
-JSValue jsTestObjUnsignedLongLongAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjUnsignedLongLongAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -460,7 +473,7 @@ JSValue jsTestObjUnsignedLongLongAttr(ExecState* exec, JSValue slotBase, const I
 }
 
 
-JSValue jsTestObjStringAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjStringAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -470,7 +483,7 @@ JSValue jsTestObjStringAttr(ExecState* exec, JSValue slotBase, const Identifier&
 }
 
 
-JSValue jsTestObjTestObjAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjTestObjAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -480,7 +493,7 @@ JSValue jsTestObjTestObjAttr(ExecState* exec, JSValue slotBase, const Identifier
 }
 
 
-JSValue jsTestObjSequenceAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -490,7 +503,137 @@ JSValue jsTestObjSequenceAttr(ExecState* exec, JSValue slotBase, const Identifie
 }
 
 
-JSValue jsTestObjXMLObjAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjIntSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->intSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjShortSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->shortSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjLongSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->longSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjLongLongSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->longLongSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjUnsignedIntSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->unsignedIntSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjUnsignedShortSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->unsignedShortSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjUnsignedLongSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->unsignedLongSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjUnsignedLongLongSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->unsignedLongLongSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjFloatSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->floatSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjDoubleSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->doubleSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjBooleanSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->booleanSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjVoidSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->voidSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjDateSequenceAttr(ExecState* exec, JSValue slotBase, PropertyName)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
+    UNUSED_PARAM(exec);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    JSValue result = jsArray(exec, castedThis->globalObject(), impl->dateSequenceAttr());
+    return result;
+}
+
+
+JSValue jsTestObjXMLObjAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -500,7 +643,7 @@ JSValue jsTestObjXMLObjAttr(ExecState* exec, JSValue slotBase, const Identifier&
 }
 
 
-JSValue jsTestObjCreate(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjCreate(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -510,7 +653,7 @@ JSValue jsTestObjCreate(ExecState* exec, JSValue slotBase, const Identifier&)
 }
 
 
-JSValue jsTestObjReflectedStringAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedStringAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -520,7 +663,7 @@ JSValue jsTestObjReflectedStringAttr(ExecState* exec, JSValue slotBase, const Id
 }
 
 
-JSValue jsTestObjReflectedIntegralAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedIntegralAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -530,7 +673,7 @@ JSValue jsTestObjReflectedIntegralAttr(ExecState* exec, JSValue slotBase, const 
 }
 
 
-JSValue jsTestObjReflectedUnsignedIntegralAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedUnsignedIntegralAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -540,7 +683,7 @@ JSValue jsTestObjReflectedUnsignedIntegralAttr(ExecState* exec, JSValue slotBase
 }
 
 
-JSValue jsTestObjReflectedBooleanAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedBooleanAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -550,7 +693,7 @@ JSValue jsTestObjReflectedBooleanAttr(ExecState* exec, JSValue slotBase, const I
 }
 
 
-JSValue jsTestObjReflectedURLAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedURLAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -560,7 +703,7 @@ JSValue jsTestObjReflectedURLAttr(ExecState* exec, JSValue slotBase, const Ident
 }
 
 
-JSValue jsTestObjReflectedStringAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedStringAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -570,7 +713,7 @@ JSValue jsTestObjReflectedStringAttr(ExecState* exec, JSValue slotBase, const Id
 }
 
 
-JSValue jsTestObjReflectedCustomIntegralAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedCustomIntegralAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -580,7 +723,7 @@ JSValue jsTestObjReflectedCustomIntegralAttr(ExecState* exec, JSValue slotBase, 
 }
 
 
-JSValue jsTestObjReflectedCustomBooleanAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedCustomBooleanAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -590,7 +733,7 @@ JSValue jsTestObjReflectedCustomBooleanAttr(ExecState* exec, JSValue slotBase, c
 }
 
 
-JSValue jsTestObjReflectedCustomURLAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjReflectedCustomURLAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -600,7 +743,7 @@ JSValue jsTestObjReflectedCustomURLAttr(ExecState* exec, JSValue slotBase, const
 }
 
 
-JSValue jsTestObjAttrWithGetterException(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjAttrWithGetterException(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     ExceptionCode ec = 0;
@@ -611,7 +754,7 @@ JSValue jsTestObjAttrWithGetterException(ExecState* exec, JSValue slotBase, cons
 }
 
 
-JSValue jsTestObjAttrWithSetterException(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjAttrWithSetterException(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -621,7 +764,7 @@ JSValue jsTestObjAttrWithSetterException(ExecState* exec, JSValue slotBase, cons
 }
 
 
-JSValue jsTestObjStringAttrWithGetterException(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjStringAttrWithGetterException(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     ExceptionCode ec = 0;
@@ -632,7 +775,7 @@ JSValue jsTestObjStringAttrWithGetterException(ExecState* exec, JSValue slotBase
 }
 
 
-JSValue jsTestObjStringAttrWithSetterException(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjStringAttrWithSetterException(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -642,14 +785,14 @@ JSValue jsTestObjStringAttrWithSetterException(ExecState* exec, JSValue slotBase
 }
 
 
-JSValue jsTestObjCustomAttr(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjCustomAttr(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     return castedThis->customAttr(exec);
 }
 
 
-JSValue jsTestObjWithScriptStateAttribute(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjWithScriptStateAttribute(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
@@ -658,7 +801,7 @@ JSValue jsTestObjWithScriptStateAttribute(ExecState* exec, JSValue slotBase, con
 }
 
 
-JSValue jsTestObjWithScriptExecutionContextAttribute(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjWithScriptExecutionContextAttribute(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     ScriptExecutionContext* scriptContext = jsCast<JSDOMGlobalObject*>(exec->lexicalGlobalObject())->scriptExecutionContext();
@@ -670,7 +813,7 @@ JSValue jsTestObjWithScriptExecutionContextAttribute(ExecState* exec, JSValue sl
 }
 
 
-JSValue jsTestObjWithScriptStateAttributeRaises(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjWithScriptStateAttributeRaises(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     ExceptionCode ec = 0;
@@ -681,7 +824,7 @@ JSValue jsTestObjWithScriptStateAttributeRaises(ExecState* exec, JSValue slotBas
 }
 
 
-JSValue jsTestObjWithScriptExecutionContextAttributeRaises(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjWithScriptExecutionContextAttributeRaises(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     ExceptionCode ec = 0;
@@ -695,7 +838,7 @@ JSValue jsTestObjWithScriptExecutionContextAttributeRaises(ExecState* exec, JSVa
 }
 
 
-JSValue jsTestObjWithScriptExecutionContextAndScriptStateAttribute(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjWithScriptExecutionContextAndScriptStateAttribute(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     ScriptExecutionContext* scriptContext = jsCast<JSDOMGlobalObject*>(exec->lexicalGlobalObject())->scriptExecutionContext();
@@ -707,7 +850,7 @@ JSValue jsTestObjWithScriptExecutionContextAndScriptStateAttribute(ExecState* ex
 }
 
 
-JSValue jsTestObjWithScriptExecutionContextAndScriptStateAttributeRaises(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjWithScriptExecutionContextAndScriptStateAttributeRaises(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     ExceptionCode ec = 0;
@@ -721,7 +864,7 @@ JSValue jsTestObjWithScriptExecutionContextAndScriptStateAttributeRaises(ExecSta
 }
 
 
-JSValue jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     ScriptExecutionContext* scriptContext = jsCast<JSDOMGlobalObject*>(exec->lexicalGlobalObject())->scriptExecutionContext();
@@ -733,7 +876,7 @@ JSValue jsTestObjWithScriptExecutionContextAndScriptStateWithSpacesAttribute(Exe
 }
 
 
-JSValue jsTestObjWithScriptArgumentsAndCallStackAttribute(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjWithScriptArgumentsAndCallStackAttribute(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     RefPtr<ScriptCallStack> callStack(createScriptCallStackForInspector(exec));
@@ -744,7 +887,7 @@ JSValue jsTestObjWithScriptArgumentsAndCallStackAttribute(ExecState* exec, JSVal
 
 
 #if ENABLE(Condition1)
-JSValue jsTestObjConditionalAttr1(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjConditionalAttr1(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -756,7 +899,7 @@ JSValue jsTestObjConditionalAttr1(ExecState* exec, JSValue slotBase, const Ident
 #endif
 
 #if ENABLE(Condition1) && ENABLE(Condition2)
-JSValue jsTestObjConditionalAttr2(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjConditionalAttr2(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -768,7 +911,7 @@ JSValue jsTestObjConditionalAttr2(ExecState* exec, JSValue slotBase, const Ident
 #endif
 
 #if ENABLE(Condition1) || ENABLE(Condition2)
-JSValue jsTestObjConditionalAttr3(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjConditionalAttr3(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -780,7 +923,7 @@ JSValue jsTestObjConditionalAttr3(ExecState* exec, JSValue slotBase, const Ident
 #endif
 
 #if ENABLE(Condition1)
-JSValue jsTestObjConditionalAttr4Constructor(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjConditionalAttr4Constructor(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     return JSTestObjectA::getConstructor(exec, castedThis);
@@ -789,7 +932,7 @@ JSValue jsTestObjConditionalAttr4Constructor(ExecState* exec, JSValue slotBase, 
 #endif
 
 #if ENABLE(Condition1) && ENABLE(Condition2)
-JSValue jsTestObjConditionalAttr5Constructor(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjConditionalAttr5Constructor(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     return JSTestObjectB::getConstructor(exec, castedThis);
@@ -798,7 +941,7 @@ JSValue jsTestObjConditionalAttr5Constructor(ExecState* exec, JSValue slotBase, 
 #endif
 
 #if ENABLE(Condition1) || ENABLE(Condition2)
-JSValue jsTestObjConditionalAttr6Constructor(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjConditionalAttr6Constructor(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     return JSTestObjectC::getConstructor(exec, castedThis);
@@ -806,7 +949,7 @@ JSValue jsTestObjConditionalAttr6Constructor(ExecState* exec, JSValue slotBase, 
 
 #endif
 
-JSValue jsTestObjCachedAttribute1(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjCachedAttribute1(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -819,7 +962,7 @@ JSValue jsTestObjCachedAttribute1(ExecState* exec, JSValue slotBase, const Ident
 }
 
 
-JSValue jsTestObjCachedAttribute2(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjCachedAttribute2(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -832,7 +975,7 @@ JSValue jsTestObjCachedAttribute2(ExecState* exec, JSValue slotBase, const Ident
 }
 
 
-JSValue jsTestObjContentDocument(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjContentDocument(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
@@ -840,7 +983,7 @@ JSValue jsTestObjContentDocument(ExecState* exec, JSValue slotBase, const Identi
 }
 
 
-JSValue jsTestObjMutablePoint(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjMutablePoint(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -850,7 +993,7 @@ JSValue jsTestObjMutablePoint(ExecState* exec, JSValue slotBase, const Identifie
 }
 
 
-JSValue jsTestObjImmutablePoint(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjImmutablePoint(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -860,7 +1003,7 @@ JSValue jsTestObjImmutablePoint(ExecState* exec, JSValue slotBase, const Identif
 }
 
 
-JSValue jsTestObjStrawberry(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjStrawberry(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -870,7 +1013,7 @@ JSValue jsTestObjStrawberry(ExecState* exec, JSValue slotBase, const Identifier&
 }
 
 
-JSValue jsTestObjStrictFloat(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjStrictFloat(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -880,7 +1023,7 @@ JSValue jsTestObjStrictFloat(ExecState* exec, JSValue slotBase, const Identifier
 }
 
 
-JSValue jsTestObjDescription(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjDescription(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -890,7 +1033,7 @@ JSValue jsTestObjDescription(ExecState* exec, JSValue slotBase, const Identifier
 }
 
 
-JSValue jsTestObjId(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjId(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -900,7 +1043,7 @@ JSValue jsTestObjId(ExecState* exec, JSValue slotBase, const Identifier&)
 }
 
 
-JSValue jsTestObjHash(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjHash(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(slotBase));
     UNUSED_PARAM(exec);
@@ -910,13 +1053,13 @@ JSValue jsTestObjHash(ExecState* exec, JSValue slotBase, const Identifier&)
 }
 
 
-JSValue jsTestObjConstructor(ExecState* exec, JSValue slotBase, const Identifier&)
+JSValue jsTestObjConstructor(ExecState* exec, JSValue slotBase, PropertyName)
 {
     JSTestObj* domObject = jsCast<JSTestObj*>(asObject(slotBase));
     return JSTestObj::getConstructor(exec, domObject->globalObject());
 }
 
-void JSTestObj::put(JSCell* cell, ExecState* exec, const Identifier& propertyName, JSValue value, PutPropertySlot& slot)
+void JSTestObj::put(JSCell* cell, ExecState* exec, PropertyName propertyName, JSValue value, PutPropertySlot& slot)
 {
     JSTestObj* thisObject = jsCast<JSTestObj*>(cell);
     ASSERT_GC_OBJECT_INHERITS(thisObject, &s_info);
@@ -984,6 +1127,110 @@ void setJSTestObjSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue val
     JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     impl->setSequenceAttr(toNativeArray<ScriptProfile>(exec, value));
+}
+
+
+void setJSTestObjIntSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setIntSequenceAttr(toNativeArray<int>(exec, value));
+}
+
+
+void setJSTestObjShortSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setShortSequenceAttr(toNativeArray<short>(exec, value));
+}
+
+
+void setJSTestObjLongSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setLongSequenceAttr(toNativeArray<long>(exec, value));
+}
+
+
+void setJSTestObjLongLongSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setLongLongSequenceAttr(toNativeArray<long long>(exec, value));
+}
+
+
+void setJSTestObjUnsignedIntSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setUnsignedIntSequenceAttr(toNativeArray<unsigned int>(exec, value));
+}
+
+
+void setJSTestObjUnsignedShortSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setUnsignedShortSequenceAttr(toNativeArray<unsigned short>(exec, value));
+}
+
+
+void setJSTestObjUnsignedLongSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setUnsignedLongSequenceAttr(toNativeArray<unsigned long>(exec, value));
+}
+
+
+void setJSTestObjUnsignedLongLongSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setUnsignedLongLongSequenceAttr(toNativeArray<unsigned long long>(exec, value));
+}
+
+
+void setJSTestObjFloatSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setFloatSequenceAttr(toNativeArray<float>(exec, value));
+}
+
+
+void setJSTestObjDoubleSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setDoubleSequenceAttr(toNativeArray<double>(exec, value));
+}
+
+
+void setJSTestObjBooleanSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setBooleanSequenceAttr(toNativeArray<boolean>(exec, value));
+}
+
+
+void setJSTestObjVoidSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setVoidSequenceAttr(toNativeArray<void>(exec, value));
+}
+
+
+void setJSTestObjDateSequenceAttr(ExecState* exec, JSObject* thisObject, JSValue value)
+{
+    JSTestObj* castedThis = jsCast<JSTestObj*>(thisObject);
+    TestObj* impl = static_cast<TestObj*>(castedThis->impl());
+    impl->setDateSequenceAttr(toNativeArray<Date>(exec, value));
 }
 
 
@@ -1330,7 +1577,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionVoidMethodWithArgs(ExecSt
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 3)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int intArg(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1366,7 +1613,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionIntMethodWithArgs(ExecSta
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 3)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int intArg(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1403,7 +1650,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionObjMethodWithArgs(ExecSta
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 3)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int intArg(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1427,7 +1674,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionMethodWithSequenceArg(Exe
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     sequence<ScriptProfile>* sequenceArg(toNativeArray<ScriptProfile>(exec, MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1444,7 +1691,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionMethodReturningSequence(E
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int intArg(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1462,7 +1709,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionMethodThatRequiresAllArgs
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 2)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     ExceptionCode ec = 0;
     const String& strArg(ustringToString(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).isEmpty() ? UString() : MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toString(exec)->value(exec)));
     if (exec->hadException())
@@ -1485,7 +1732,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionSerializedValue(ExecState
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     RefPtr<SerializedScriptValue> serializedArg(SerializedScriptValue::create(exec, MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1502,7 +1749,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionIdbKey(ExecState* exec)
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     PassRefPtr<IDBKey> key(createIDBKeyFromValue(exec, MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1519,8 +1766,8 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOptionsObject(ExecState* 
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
-    Dictionary oo(createDictionaryFromValue(exec, MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
+    Dictionary oo(exec, MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
 
@@ -1530,7 +1777,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOptionsObject(ExecState* 
         return JSValue::encode(jsUndefined());
     }
 
-    Dictionary ooo(createDictionaryFromValue(exec, MAYBE_MISSING_PARAMETER(exec, 1, DefaultIsUndefined)));
+    Dictionary ooo(exec, MAYBE_MISSING_PARAMETER(exec, 1, DefaultIsUndefined));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
     impl->optionsObject(oo, ooo);
@@ -1579,8 +1826,6 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionAddEventListener(ExecStat
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(thisValue));
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
-    if (exec->argumentCount() < 2)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
     JSValue listener = exec->argument(1);
     if (!listener.isObject())
         return JSValue::encode(jsUndefined());
@@ -1596,8 +1841,6 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionRemoveEventListener(ExecS
     JSTestObj* castedThis = jsCast<JSTestObj*>(asObject(thisValue));
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
-    if (exec->argumentCount() < 2)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
     JSValue listener = exec->argument(1);
     if (!listener.isObject())
         return JSValue::encode(jsUndefined());
@@ -1776,7 +2019,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionMethodWithNonOptionalArgA
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int nonOpt(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1803,7 +2046,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionMethodWithNonOptionalArgA
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int nonOpt(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1890,7 +2133,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionMethodWithCallbackArg(Exe
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     if (exec->argumentCount() <= 0 || !exec->argument(0).isFunction()) {
         setDOMException(exec, TYPE_MISMATCH_ERR);
         return JSValue::encode(jsUndefined());
@@ -1909,7 +2152,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionMethodWithNonCallbackArgA
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 2)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int nonCallback(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -1997,7 +2240,7 @@ static EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOverloadedMethod1(
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 2)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     TestObj* objArg(toTestObj(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2017,7 +2260,7 @@ static EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOverloadedMethod2(
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     TestObj* objArg(toTestObj(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2044,7 +2287,7 @@ static EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOverloadedMethod3(
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     const String& strArg(ustringToString(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).isEmpty() ? UString() : MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toString(exec)->value(exec)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2061,7 +2304,7 @@ static EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOverloadedMethod4(
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int intArg(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2078,7 +2321,7 @@ static EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOverloadedMethod5(
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     if (exec->argumentCount() <= 0 || !exec->argument(0).isFunction()) {
         setDOMException(exec, TYPE_MISMATCH_ERR);
         return JSValue::encode(jsUndefined());
@@ -2097,7 +2340,7 @@ static EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOverloadedMethod6(
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     DOMStringList* listArg(toDOMStringList(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2114,7 +2357,7 @@ static EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionOverloadedMethod7(
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     DOMStringList* arrayArg(toDOMStringList(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2171,7 +2414,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjConstructorFunctionClassMethodWithOptional
 EncodedJSValue JSC_HOST_CALL jsTestObjConstructorFunctionClassMethod2(ExecState* exec)
 {
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     return JSValue::encode(JSTestObj::classMethod2(exec));
 }
 
@@ -2179,7 +2422,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjConstructorFunctionClassMethod2(ExecState*
 static EncodedJSValue JSC_HOST_CALL jsTestObjConstructorFunctionOverloadedMethod11(ExecState* exec)
 {
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     int arg(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toInt32(exec));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2193,7 +2436,7 @@ static EncodedJSValue JSC_HOST_CALL jsTestObjConstructorFunctionOverloadedMethod
 static EncodedJSValue JSC_HOST_CALL jsTestObjConstructorFunctionOverloadedMethod12(ExecState* exec)
 {
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     const String& type(ustringToString(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).isEmpty() ? UString() : MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toString(exec)->value(exec)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2223,7 +2466,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionMethodWithUnsignedLongArr
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     Vector<unsigned long> unsignedLongArray(jsUnsignedLongArrayToVector(exec, MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2257,7 +2500,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionConvert1(ExecState* exec)
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     a* (toa(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2274,7 +2517,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionConvert2(ExecState* exec)
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     b* (tob(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2291,7 +2534,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionConvert3(ExecState* exec)
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     c* (toc(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2308,7 +2551,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionConvert4(ExecState* exec)
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     d* (tod(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2325,7 +2568,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionConvert5(ExecState* exec)
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 1)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     e* (toe(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined)));
     if (exec->hadException())
         return JSValue::encode(jsUndefined());
@@ -2380,7 +2623,7 @@ EncodedJSValue JSC_HOST_CALL jsTestObjPrototypeFunctionStrictFunction(ExecState*
     ASSERT_GC_OBJECT_INHERITS(castedThis, &JSTestObj::s_info);
     TestObj* impl = static_cast<TestObj*>(castedThis->impl());
     if (exec->argumentCount() < 3)
-        return throwVMError(exec, createTypeError(exec, "Not enough arguments"));
+        return throwVMError(exec, createNotEnoughArgumentsError(exec));
     ExceptionCode ec = 0;
     const String& str(ustringToString(MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).isEmpty() ? UString() : MAYBE_MISSING_PARAMETER(exec, 0, DefaultIsUndefined).toString(exec)->value(exec)));
     if (exec->hadException())
@@ -2415,79 +2658,79 @@ void JSTestObj::visitChildren(JSCell* cell, SlotVisitor& visitor)
 // Constant getters
 
 #if ENABLE(Condition1)
-JSValue jsTestObjCONDITIONAL_CONST(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONDITIONAL_CONST(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(0));
 }
 
 #endif
-JSValue jsTestObjCONST_VALUE_0(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_0(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(0));
 }
 
-JSValue jsTestObjCONST_VALUE_1(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_1(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(1));
 }
 
-JSValue jsTestObjCONST_VALUE_2(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_2(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(2));
 }
 
-JSValue jsTestObjCONST_VALUE_4(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_4(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(4));
 }
 
-JSValue jsTestObjCONST_VALUE_8(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_8(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(8));
 }
 
-JSValue jsTestObjCONST_VALUE_9(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_9(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(-1));
 }
 
-JSValue jsTestObjCONST_VALUE_10(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_10(ExecState* exec, JSValue, PropertyName)
 {
     return jsStringOrNull(exec, String("my constant string"));
 }
 
-JSValue jsTestObjCONST_VALUE_11(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_11(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(0xffffffff));
 }
 
-JSValue jsTestObjCONST_VALUE_12(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_12(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(0x01));
 }
 
-JSValue jsTestObjCONST_VALUE_13(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_13(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(0X20));
 }
 
-JSValue jsTestObjCONST_VALUE_14(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_VALUE_14(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(0x1abc));
 }
 
-JSValue jsTestObjCONST_JAVASCRIPT(ExecState* exec, JSValue, const Identifier&)
+JSValue jsTestObjCONST_JAVASCRIPT(ExecState* exec, JSValue, PropertyName)
 {
     UNUSED_PARAM(exec);
     return jsNumber(static_cast<int>(15));

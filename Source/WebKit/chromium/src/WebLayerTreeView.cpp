@@ -41,9 +41,9 @@ WebLayerTreeView::Settings::operator CCSettings() const
 {
     CCSettings settings;
     settings.acceleratePainting = acceleratePainting;
-    settings.compositeOffscreen = compositeOffscreen;
     settings.showFPSCounter = showFPSCounter;
     settings.showPlatformLayerTree = showPlatformLayerTree;
+    settings.showPaintRects = showPaintRects;
     settings.refreshRate = refreshRate;
     settings.perTilePainting = perTilePainting;
     settings.partialSwapEnabled = partialSwapEnabled;
@@ -70,6 +70,11 @@ bool WebLayerTreeView::initialize(WebLayerTreeViewClient* client, const WebLayer
     return !isNull();
 }
 
+void WebLayerTreeView::setSurfaceReady()
+{
+    m_private->setSurfaceReady();
+}
+
 void WebLayerTreeView::setRootLayer(WebLayer *root)
 {
     if (root)
@@ -91,6 +96,11 @@ void WebLayerTreeView::setViewportSize(const WebSize& viewportSize)
 WebSize WebLayerTreeView::viewportSize() const
 {
     return WebSize(m_private->viewportSize());
+}
+
+void WebLayerTreeView::setBackgroundColor(WebColor color)
+{
+    m_private->setBackgroundColor(color);
 }
 
 void WebLayerTreeView::setVisible(bool visible)

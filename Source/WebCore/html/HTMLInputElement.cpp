@@ -7,6 +7,7 @@
  * Copyright (C) 2007 Samuel Weinig (sam@webkit.org)
  * Copyright (C) 2010 Google Inc. All rights reserved.
  * Copyright (C) 2008 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
+ * Copyright (C) 2012 Samsung Electronics. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -109,7 +110,7 @@ PassRefPtr<HTMLInputElement> HTMLInputElement::create(const QualifiedName& tagNa
 
 void HTMLInputElement::createShadowSubtree()
 {
-    ASSERT(!hasShadowRoot());
+    ASSERT(!shadow());
     ShadowRoot::create(this, ShadowRoot::CreatingUserAgentShadowRoot, ASSERT_NO_EXCEPTION);
 
     m_inputType->createShadowSubtree();
@@ -190,27 +191,32 @@ bool HTMLInputElement::isValidValue(const String& value) const
         return false;
     }
     return !m_inputType->typeMismatchFor(value)
-        && !stepMismatch(value)
-        && !rangeUnderflow(value)
-        && !rangeOverflow(value)
+        && !m_inputType->stepMismatch(value)
+        && !m_inputType->rangeUnderflow(value)
+        && !m_inputType->rangeOverflow(value)
         && !tooLong(value, IgnoreDirtyFlag)
-        && !patternMismatch(value)
-        && !valueMissing(value);
+        && !m_inputType->patternMismatch(value)
+        && !m_inputType->valueMissing(value);
+}
+
+bool HTMLInputElement::tooLong() const
+{
+    return willValidate() && tooLong(value(), CheckDirtyFlag);
 }
 
 bool HTMLInputElement::typeMismatch() const
 {
-    return m_inputType->typeMismatch();
+    return willValidate() && m_inputType->typeMismatch();
 }
 
-bool HTMLInputElement::valueMissing(const String& value) const
+bool HTMLInputElement::valueMissing() const
 {
-    return m_inputType->valueMissing(value);
+    return willValidate() && m_inputType->valueMissing(value());
 }
 
-bool HTMLInputElement::patternMismatch(const String& value) const
+bool HTMLInputElement::patternMismatch() const
 {
-    return m_inputType->patternMismatch(value);
+    return willValidate() && m_inputType->patternMismatch(value());
 }
 
 bool HTMLInputElement::tooLong(const String& value, NeedsToCheckDirtyFlag check) const
@@ -231,14 +237,25 @@ bool HTMLInputElement::tooLong(const String& value, NeedsToCheckDirtyFlag check)
     return numGraphemeClusters(value) > static_cast<unsigned>(max);
 }
 
-bool HTMLInputElement::rangeUnderflow(const String& value) const
+bool HTMLInputElement::rangeUnderflow() const
 {
-    return m_inputType->rangeUnderflow(value);
+    return willValidate() && m_inputType->rangeUnderflow(value());
 }
 
-bool HTMLInputElement::rangeOverflow(const String& value) const
+bool HTMLInputElement::rangeOverflow() const
 {
-    return m_inputType->rangeOverflow(value);
+    return willValidate() && m_inputType->rangeOverflow(value());
+}
+
+String HTMLInputElement::validationMessage() const
+{
+    if (!willValidate())
+        return String();
+
+    if (customError())
+        return customValidationMessage();
+
+    return m_inputType->validationMessage();
 }
 
 double HTMLInputElement::minimum() const
@@ -251,182 +268,24 @@ double HTMLInputElement::maximum() const
     return m_inputType->maximum();
 }
 
-bool HTMLInputElement::stepMismatch(const String& value) const
+bool HTMLInputElement::stepMismatch() const
 {
-    double step;
-    if (!getAllowedValueStep(&step))
-        return false;
-    return m_inputType->stepMismatch(value, step);
-}
-
-String HTMLInputElement::minimumString() const
-{
-    return m_inputType->serialize(minimum());
-}
-
-String HTMLInputElement::maximumString() const
-{
-    return m_inputType->serialize(maximum());
-}
-
-String HTMLInputElement::stepBaseString() const
-{
-    return m_inputType->serialize(m_inputType->stepBase());
-}
-
-String HTMLInputElement::stepString() const
-{
-    double step;
-    if (!getAllowedValueStep(&step)) {
-        // stepString() should be called only if stepMismatch() can be true.
-        ASSERT_NOT_REACHED();
-        return String();
-    }
-    return serializeForNumberType(step / m_inputType->stepScaleFactor());
-}
-
-String HTMLInputElement::typeMismatchText() const
-{
-    return m_inputType->typeMismatchText();
-}
-
-String HTMLInputElement::valueMissingText() const
-{
-    return m_inputType->valueMissingText();
+    return willValidate() && m_inputType->stepMismatch(value());
 }
 
 bool HTMLInputElement::getAllowedValueStep(double* step) const
 {
-    return getAllowedValueStepWithDecimalPlaces(RejectAny, step, 0);
-}
-
-bool HTMLInputElement::getAllowedValueStepWithDecimalPlaces(AnyStepHandling anyStepHandling, double* step, unsigned* decimalPlaces) const
-{
-    ASSERT(step);
-    double defaultStep = m_inputType->defaultStep();
-    double stepScaleFactor = m_inputType->stepScaleFactor();
-    if (!isfinite(defaultStep) || !isfinite(stepScaleFactor))
-        return false;
-    const AtomicString& stepString = fastGetAttribute(stepAttr);
-    if (stepString.isEmpty()) {
-        *step = defaultStep * stepScaleFactor;
-        if (decimalPlaces)
-            *decimalPlaces = 0;
-        return true;
-    }
-
-    if (equalIgnoringCase(stepString, "any")) {
-        switch (anyStepHandling) {
-        case RejectAny:
-            return false;
-        case AnyIsDefaultStep:
-            *step = defaultStep * stepScaleFactor;
-            if (decimalPlaces)
-                *decimalPlaces = 0;
-            return true;
-        default:
-            ASSERT_NOT_REACHED();
-        }
-    }
-
-    double parsed;
-    if (!decimalPlaces) {
-        if (!parseToDoubleForNumberType(stepString, &parsed) || parsed <= 0.0) {
-            *step = defaultStep * stepScaleFactor;
-            return true;
-        }
-    } else {
-        if (!parseToDoubleForNumberTypeWithDecimalPlaces(stepString, &parsed, decimalPlaces) || parsed <= 0.0) {
-            *step = defaultStep * stepScaleFactor;
-            *decimalPlaces = 0;
-            return true;
-        }
-    }
-    // For date, month, week, the parsed value should be an integer for some types.
-    if (m_inputType->parsedStepValueShouldBeInteger())
-        parsed = max(round(parsed), 1.0);
-    double result = parsed * stepScaleFactor;
-    // For datetime, datetime-local, time, the result should be an integer.
-    if (m_inputType->scaledStepValueShouldBeInteger())
-        result = max(round(result), 1.0);
-    ASSERT(result > 0);
-    *step = result;
-    return true;
-}
-
-void HTMLInputElement::applyStep(double count, AnyStepHandling anyStepHandling, TextFieldEventBehavior eventBehavior, ExceptionCode& ec)
-{
-    double step;
-    unsigned stepDecimalPlaces, currentDecimalPlaces;
-    if (!getAllowedValueStepWithDecimalPlaces(anyStepHandling, &step, &stepDecimalPlaces)) {
-        ec = INVALID_STATE_ERR;
-        return;
-    }
-
-    const double nan = numeric_limits<double>::quiet_NaN();
-    double current = m_inputType->parseToDoubleWithDecimalPlaces(value(), nan, &currentDecimalPlaces);
-    if (!isfinite(current)) {
-        ec = INVALID_STATE_ERR;
-        return;
-    }
-    double newValue = current + step * count;
-    if (isinf(newValue)) {
-        ec = INVALID_STATE_ERR;
-        return;
-    }
-
-    double acceptableError = m_inputType->acceptableError(step);
-    if (newValue - m_inputType->minimum() < -acceptableError) {
-        ec = INVALID_STATE_ERR;
-        return;
-    }
-    if (newValue < m_inputType->minimum())
-        newValue = m_inputType->minimum();
-
-    const AtomicString& stepString = fastGetAttribute(stepAttr);
-    if (!equalIgnoringCase(stepString, "any"))
-        newValue = alignValueForStep(newValue, step, currentDecimalPlaces, stepDecimalPlaces);
-
-    if (newValue - m_inputType->maximum() > acceptableError) {
-        ec = INVALID_STATE_ERR;
-        return;
-    }
-    if (newValue > m_inputType->maximum())
-        newValue = m_inputType->maximum();
-
-    setValueAsNumber(newValue, ec, eventBehavior);
-
-    if (AXObjectCache::accessibilityEnabled())
-         document()->axObjectCache()->postNotification(renderer(), AXObjectCache::AXValueChanged, true);
-}
-
-double HTMLInputElement::alignValueForStep(double newValue, double step, unsigned currentDecimalPlaces, unsigned stepDecimalPlaces)
-{
-    if (newValue >= pow(10.0, 21.0))
-        return newValue;
-
-    unsigned baseDecimalPlaces;
-    double base = m_inputType->stepBaseWithDecimalPlaces(&baseDecimalPlaces);
-    baseDecimalPlaces = min(baseDecimalPlaces, 16u);
-    if (stepMismatch(value())) {
-        double scale = pow(10.0, static_cast<double>(max(stepDecimalPlaces, currentDecimalPlaces)));
-        newValue = round(newValue * scale) / scale;
-    } else {
-        double scale = pow(10.0, static_cast<double>(max(stepDecimalPlaces, baseDecimalPlaces)));
-        newValue = round((base + round((newValue - base) / step) * step) * scale) / scale;
-    }
-
-    return newValue;
+    return m_inputType->getAllowedValueStep(step);
 }
 
 void HTMLInputElement::stepUp(int n, ExceptionCode& ec)
 {
-    applyStep(n, RejectAny, DispatchNoEvent, ec);
+    m_inputType->stepUp(n, ec);
 }
 
 void HTMLInputElement::stepDown(int n, ExceptionCode& ec)
 {
-    applyStep(-n, RejectAny, DispatchNoEvent, ec);
+    m_inputType->stepUp(-n, ec);
 }
 
 bool HTMLInputElement::isKeyboardFocusable(KeyboardEvent* event) const
@@ -532,9 +391,10 @@ void HTMLInputElement::updateType()
         setAttribute(valueAttr, m_valueIfDirty);
         m_valueIfDirty = String();
     }
-    if (!didStoreValue && willStoreValue)
-        m_valueIfDirty = sanitizeValue(fastGetAttribute(valueAttr));
-    else
+    if (!didStoreValue && willStoreValue) {
+        AtomicString valueString = fastGetAttribute(valueAttr);
+        m_valueIfDirty = sanitizeValue(valueString);
+    } else
         updateValueIfNeeded();
 
     setFormControlValueMatchesRenderer(false);
@@ -991,7 +851,8 @@ String HTMLInputElement::value() const
     if (!value.isNull())
         return value;
 
-    value = sanitizeValue(fastGetAttribute(valueAttr));
+    AtomicString valueString = fastGetAttribute(valueAttr);
+    value = sanitizeValue(valueString);
     if (!value.isNull())
         return value;
 
@@ -1107,7 +968,7 @@ void HTMLInputElement::setValueFromRenderer(const String& value)
     // Workaround for bug where trailing \n is included in the result of textContent.
     // The assert macro above may also be simplified to: value == constrainValue(value)
     // http://bugs.webkit.org/show_bug.cgi?id=9661
-    m_valueIfDirty = value == "\n" ? String("") : value;
+    m_valueIfDirty = value == "\n" ? emptyString() : value;
 
     setFormControlValueMatchesRenderer(true);
     m_wasModifiedByUser = true;
@@ -1232,9 +1093,9 @@ void HTMLInputElement::defaultEventHandler(Event* evt)
         HTMLTextFormControlElement::defaultEventHandler(evt);
 }
 
-bool HTMLInputElement::isURLAttribute(Attribute *attr) const
+bool HTMLInputElement::isURLAttribute(const Attribute& attribute) const
 {
-    return attr->name() == srcAttr || attr->name() == formactionAttr || HTMLTextFormControlElement::isURLAttribute(attr);
+    return attribute.name() == srcAttr || attribute.name() == formactionAttr || HTMLTextFormControlElement::isURLAttribute(attribute);
 }
 
 String HTMLInputElement::defaultValue() const
@@ -1391,12 +1252,12 @@ bool HTMLInputElement::hasUnacceptableValue() const
 
 bool HTMLInputElement::isInRange() const
 {
-    return m_inputType->supportsRangeLimitation() && !rangeUnderflow(value()) && !rangeOverflow(value());
+    return m_inputType->supportsRangeLimitation() && !m_inputType->rangeUnderflow(value()) && !m_inputType->rangeOverflow(value());
 }
 
 bool HTMLInputElement::isOutOfRange() const
 {
-    return m_inputType->supportsRangeLimitation() && (rangeUnderflow(value()) || rangeOverflow(value()));
+    return m_inputType->supportsRangeLimitation() && (m_inputType->rangeUnderflow(value()) || m_inputType->rangeOverflow(value()));
 }
 
 bool HTMLInputElement::needsSuspensionCallback()
@@ -1454,18 +1315,21 @@ void HTMLInputElement::didChangeForm()
     addToRadioButtonGroup();
 }
 
-void HTMLInputElement::insertedIntoDocument()
+Node::InsertionNotificationRequest HTMLInputElement::insertedInto(Node* insertionPoint)
 {
-    HTMLTextFormControlElement::insertedIntoDocument();
+    HTMLTextFormControlElement::insertedInto(insertionPoint);
+    if (!insertionPoint->inDocument())
+        return InsertionDone;
     ASSERT(inDocument());
     addToRadioButtonGroup();
+    return InsertionDone;
 }
 
-void HTMLInputElement::removedFromDocument()
+void HTMLInputElement::removedFrom(Node* insertionPoint)
 {
-    ASSERT(inDocument());
-    removeFromRadioButtonGroup();
-    HTMLTextFormControlElement::removedFromDocument();
+    if (insertionPoint->inDocument())
+        removeFromRadioButtonGroup();
+    HTMLTextFormControlElement::removedFrom(insertionPoint);
 }
 
 void HTMLInputElement::didMoveToNewDocument(Document* oldDocument)
@@ -1547,108 +1411,7 @@ bool HTMLInputElement::isSteppable() const
 
 void HTMLInputElement::stepUpFromRenderer(int n)
 {
-    // The differences from stepUp()/stepDown():
-    //
-    // Difference 1: the current value
-    // If the current value is not a number, including empty, the current value is assumed as 0.
-    //   * If 0 is in-range, and matches to step value
-    //     - The value should be the +step if n > 0
-    //     - The value should be the -step if n < 0
-    //     If -step or +step is out of range, new value should be 0.
-    //   * If 0 is smaller than the minimum value
-    //     - The value should be the minimum value for any n
-    //   * If 0 is larger than the maximum value
-    //     - The value should be the maximum value for any n
-    //   * If 0 is in-range, but not matched to step value
-    //     - The value should be the larger matched value nearest to 0 if n > 0
-    //       e.g. <input type=number min=-100 step=3> -> 2
-    //     - The value should be the smaler matched value nearest to 0 if n < 0
-    //       e.g. <input type=number min=-100 step=3> -> -1
-    //   As for date/datetime-local/month/time/week types, the current value is assumed as "the current local date/time".
-    //   As for datetime type, the current value is assumed as "the current date/time in UTC".
-    // If the current value is smaller than the minimum value:
-    //  - The value should be the minimum value if n > 0
-    //  - Nothing should happen if n < 0
-    // If the current value is larger than the maximum value:
-    //  - The value should be the maximum value if n < 0
-    //  - Nothing should happen if n > 0
-    //
-    // Difference 2: clamping steps
-    // If the current value is not matched to step value:
-    // - The value should be the larger matched value nearest to 0 if n > 0
-    //   e.g. <input type=number value=3 min=-100 step=3> -> 5
-    // - The value should be the smaler matched value nearest to 0 if n < 0
-    //   e.g. <input type=number value=3 min=-100 step=3> -> 2
-    //
-    // n is assumed as -n if step < 0.
-
-    ASSERT(isSteppable());
-    if (!isSteppable())
-        return;
-    ASSERT(n);
-    if (!n)
-        return;
-
-    unsigned stepDecimalPlaces, baseDecimalPlaces;
-    double step, base;
-    // FIXME: Not any changes after stepping, even if it is an invalid value, may be better.
-    // (e.g. Stepping-up for <input type="number" value="foo" step="any" /> => "foo")
-    if (!getAllowedValueStepWithDecimalPlaces(AnyIsDefaultStep, &step, &stepDecimalPlaces))
-      return;
-    base = m_inputType->stepBaseWithDecimalPlaces(&baseDecimalPlaces);
-    baseDecimalPlaces = min(baseDecimalPlaces, 16u);
-
-    int sign;
-    if (step > 0)
-        sign = n;
-    else if (step < 0)
-        sign = -n;
-    else
-        sign = 0;
-
-    const double nan = numeric_limits<double>::quiet_NaN();
-    String currentStringValue = value();
-    double current = m_inputType->parseToDouble(currentStringValue, nan);
-    if (!isfinite(current)) {
-        ExceptionCode ec;
-        current = m_inputType->defaultValueForStepUp();
-        double nextDiff = step * n;
-        if (current < m_inputType->minimum() - nextDiff)
-            current = m_inputType->minimum() - nextDiff;
-        if (current > m_inputType->maximum() - nextDiff)
-            current = m_inputType->maximum() - nextDiff;
-        setValueAsNumber(current, ec, DispatchInputAndChangeEvent);
-    }
-    if ((sign > 0 && current < m_inputType->minimum()) || (sign < 0 && current > m_inputType->maximum()))
-        setValue(m_inputType->serialize(sign > 0 ? m_inputType->minimum() : m_inputType->maximum()), DispatchInputAndChangeEvent);
-    else {
-        ExceptionCode ec;
-        if (stepMismatch(value())) {
-            ASSERT(step);
-            double newValue;
-            double scale = pow(10.0, static_cast<double>(max(stepDecimalPlaces, baseDecimalPlaces)));
-
-            if (sign < 0)
-                newValue = round((base + floor((current - base) / step) * step) * scale) / scale;
-            else if (sign > 0)
-                newValue = round((base + ceil((current - base) / step) * step) * scale) / scale;
-            else
-                newValue = current;
-
-            if (newValue < m_inputType->minimum())
-                newValue = m_inputType->minimum();
-            if (newValue > m_inputType->maximum())
-                newValue = m_inputType->maximum();
-
-            setValueAsNumber(newValue, ec, n == 1 || n == -1 ? DispatchInputAndChangeEvent : DispatchNoEvent);
-            current = newValue;
-            if (n > 1)
-                applyStep(n - 1, AnyIsDefaultStep, DispatchInputAndChangeEvent, ec);
-            else if (n < -1)
-                applyStep(n + 1, AnyIsDefaultStep, DispatchInputAndChangeEvent, ec);
-        } else
-            applyStep(n, AnyIsDefaultStep, DispatchInputAndChangeEvent, ec);
-    }
+    m_inputType->stepUpFromRenderer(n);
 }
 
 #if ENABLE(INPUT_SPEECH)
@@ -1736,6 +1499,36 @@ bool HTMLInputElement::isURLField() const
     return m_inputType->isURLField();
 }
 
+bool HTMLInputElement::isDateField() const
+{
+    return m_inputType->isDateField();
+}
+
+bool HTMLInputElement::isDateTimeField() const
+{
+    return m_inputType->isDateTimeField();
+}
+
+bool HTMLInputElement::isDateTimeLocalField() const
+{
+    return m_inputType->isDateTimeLocalField();
+}
+
+bool HTMLInputElement::isMonthField() const
+{
+    return m_inputType->isMonthField();
+}
+
+bool HTMLInputElement::isTimeField() const
+{
+    return m_inputType->isTimeField();
+}
+
+bool HTMLInputElement::isWeekField() const
+{
+    return m_inputType->isWeekField();
+}
+
 bool HTMLInputElement::isEnumeratable() const
 {
     return m_inputType->isEnumeratable();
@@ -1754,6 +1547,13 @@ bool HTMLInputElement::shouldAppearChecked() const
 bool HTMLInputElement::supportsPlaceholder() const
 {
     return m_inputType->supportsPlaceholder();
+}
+
+bool HTMLInputElement::isPlaceholderEmpty() const
+{
+    if (m_inputType->usesFixedPlaceholder())
+        return m_inputType->fixedPlaceholder().isEmpty();
+    return HTMLTextFormControlElement::isPlaceholderEmpty();
 }
 
 void HTMLInputElement::updatePlaceholderText()
@@ -1794,6 +1594,29 @@ bool HTMLInputElement::isIndeterminate() const
     return m_inputType->supportsIndeterminateAppearance() && indeterminate();
 }
 
+#if ENABLE(MEDIA_CAPTURE)
+String HTMLInputElement::capture() const
+{
+    if (!isFileUpload())
+        return String();
+
+    String capture = fastGetAttribute(captureAttr).lower();
+    if (capture == "camera"
+        || capture == "camcorder"
+        || capture == "microphone"
+        || capture == "filesystem")
+        return capture;
+
+    return "filesystem";
+}
+
+void HTMLInputElement::setCapture(const String& value)
+{
+    setAttribute(captureAttr, value);
+}
+
+#endif
+
 bool HTMLInputElement::isInRequiredRadioButtonGroup() const
 {
     ASSERT(isRadioButton());
@@ -1830,6 +1653,26 @@ inline void HTMLInputElement::removeFromRadioButtonGroup()
 {
     if (CheckedRadioButtons* buttons = checkedRadioButtons())
         buttons->removeButton(this);
+}
+
+unsigned HTMLInputElement::height() const
+{
+    return m_inputType->height();
+}
+
+unsigned HTMLInputElement::width() const
+{
+    return m_inputType->width();
+}
+
+void HTMLInputElement::setHeight(unsigned height)
+{
+    setAttribute(heightAttr, String::number(height));
+}
+
+void HTMLInputElement::setWidth(unsigned width)
+{
+    setAttribute(widthAttr, String::number(width));
 }
 
 } // namespace

@@ -172,8 +172,8 @@ public:
 #endif
 
 #if ENABLE(TOUCH_ADJUSTMENT)
-    void bestClickableNodeForTouchPoint(const IntPoint& touchCenter, const IntSize& touchRadius, IntPoint& targetPoint, Node*& targetNode);
-    void bestZoomableAreaForTouchPoint(const IntPoint& touchCenter, const IntSize& touchRadius, IntRect& targetArea, Node*& targetNode);
+    bool bestClickableNodeForTouchPoint(const IntPoint& touchCenter, const IntSize& touchRadius, IntPoint& targetPoint, Node*& targetNode);
+    bool bestZoomableAreaForTouchPoint(const IntPoint& touchCenter, const IntSize& touchRadius, IntRect& targetArea, Node*& targetNode);
 #endif
 
 #if ENABLE(IOS_GESTURE_EVENTS)
@@ -183,6 +183,9 @@ public:
 #if ENABLE(CONTEXT_MENUS)
     bool sendContextMenuEvent(const PlatformMouseEvent&);
     bool sendContextMenuEventForKey();
+#if ENABLE(GESTURE_EVENTS)
+    bool sendContextMenuEventForGesture(const PlatformGestureEvent&);
+#endif
 #endif
 
     void setMouseDownMayStartAutoscroll() { m_mouseDownMayStartAutoscroll = true; }

@@ -83,7 +83,7 @@ public:
                            float& beginMaxW, float& endMaxW,
                            float& minW, float& maxW, bool& stripFrontSpaces);
 
-    virtual LayoutRect linesBoundingBox() const;
+    virtual IntRect linesBoundingBox() const;
     LayoutRect linesVisualOverflowBoundingBox() const;
 
     FloatPoint firstRunOrigin() const;
@@ -123,13 +123,12 @@ public:
 
     InlineTextBox* findNextInlineTextBox(int offset, int& pos) const;
 
-    bool allowTabs() const { return !style()->collapseWhiteSpace(); }
-
     void checkConsistency() const;
 
     virtual void computePreferredLogicalWidths(float leadWidth);
     bool isAllCollapsibleWhitespace();
-    
+
+    bool canUseSimpleFontCodePath() const { return m_canUseSimpleFontCodePath; }
     bool knownToHaveNoOverflowAndNoFallbackFonts() const { return m_knownToHaveNoOverflowAndNoFallbackFonts; }
 
     void removeAndDestroyTextBoxes();
@@ -148,6 +147,8 @@ protected:
 private:
     void computePreferredLogicalWidths(float leadWidth, HashSet<const SimpleFontData*>& fallbackFonts, GlyphOverflow&);
 
+    bool computeCanUseSimpleFontCodePath() const;
+    
     // Make length() private so that callers that have a RenderText*
     // will use the more efficient textLength() instead, while
     // callers with a RenderObject* can continue to use length().
@@ -165,16 +166,7 @@ private:
 
     void secureText(UChar mask);
 
-    float m_minWidth; // here to minimize padding in 64-bit.
-    float m_maxWidth;
-    float m_beginMinWidth;
-    float m_endMinWidth;
-
-    String m_text;
-
-    InlineTextBox* m_firstTextBox;
-    InlineTextBox* m_lastTextBox;
-
+    // We put the bitfield first to minimize padding on 64-bit.
     bool m_hasBreakableChar : 1; // Whether or not we can be broken into multiple lines.
     bool m_hasBreak : 1; // Whether or not we have a hard break (e.g., <pre> with '\n').
     bool m_hasTab : 1; // Whether or not we have a variable width tab character (e.g., <pre> with '\t').
@@ -186,8 +178,19 @@ private:
                            // or removed).
     bool m_containsReversedText : 1;
     bool m_isAllASCII : 1;
+    bool m_canUseSimpleFontCodePath : 1;
     mutable bool m_knownToHaveNoOverflowAndNoFallbackFonts : 1;
     bool m_needsTranscoding : 1;
+    
+    float m_minWidth;
+    float m_maxWidth;
+    float m_beginMinWidth;
+    float m_endMinWidth;
+
+    String m_text;
+
+    InlineTextBox* m_firstTextBox;
+    InlineTextBox* m_lastTextBox;
 };
 
 inline RenderText* toRenderText(RenderObject* object)

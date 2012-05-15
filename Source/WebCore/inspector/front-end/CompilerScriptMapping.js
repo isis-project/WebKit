@@ -71,7 +71,7 @@ WebInspector.CompilerScriptMapping.prototype = {
      */
     uiSourceCodeList: function()
     {
-        var result = []
+        var result = [];
         for (var url in this._uiSourceCodeByURL)
             result.push(this._uiSourceCodeByURL[url]);
         return result;
@@ -100,8 +100,7 @@ WebInspector.CompilerScriptMapping.prototype = {
         if (this._scriptForSourceMap.get(sourceMap)) {
             this._sourceMapForScriptId[script.scriptId] = sourceMap;
             var uiSourceCodes = this._uiSourceCodesForSourceMap(sourceMap);
-            var data = { scriptId: script.scriptId, uiSourceCodes: uiSourceCodes };
-            this.dispatchEventToListeners(WebInspector.ScriptMapping.Events.ScriptBound, data);
+            script.setSourceMapping(this);
             return;
         }
 
@@ -117,7 +116,7 @@ WebInspector.CompilerScriptMapping.prototype = {
                 contentProvider = new WebInspector.StaticContentProvider("text/javascript", sourceContent);
             else
                 contentProvider = new WebInspector.CompilerSourceMappingContentProvider(sourceURL);
-            var uiSourceCode = new WebInspector.UISourceCodeImpl(sourceURL, sourceURL, contentProvider);
+            var uiSourceCode = new WebInspector.JavaScriptSource(sourceURL, contentProvider, this);
             uiSourceCode.isContentScript = script.isContentScript;
             uiSourceCode.isEditable = false;
             this._uiSourceCodeByURL[sourceURL] = uiSourceCode;
@@ -129,8 +128,7 @@ WebInspector.CompilerScriptMapping.prototype = {
         this._scriptForSourceMap.put(sourceMap, script);
         var data = { removedItems: [], addedItems: uiSourceCodeList };
         this.dispatchEventToListeners(WebInspector.ScriptMapping.Events.UISourceCodeListChanged, data);
-        data = { scriptId: script.scriptId, uiSourceCodes: uiSourceCodeList };
-        this.dispatchEventToListeners(WebInspector.ScriptMapping.Events.ScriptBound, data);
+        script.setSourceMapping(this);
     },
 
     /**
@@ -361,7 +359,7 @@ WebInspector.SourceMapParser.prototype = {
         var baseHost = base.scheme + "://" + base.host + (base.port ? ":" + base.port : "");
         if (url[0] === "/")
             return baseHost + url;
-        return baseHost + base.firstPathComponents + url;
+        return baseHost + base.folderPathComponents + "/" + url;
     },
 
     _VLQ_BASE_SHIFT: 5,

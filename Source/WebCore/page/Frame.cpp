@@ -66,9 +66,9 @@
 #include "Navigator.h"
 #include "NodeList.h"
 #include "Page.h"
+#include "PageCache.h"
 #include "PageGroup.h"
 #include "RegularExpression.h"
-#include "RenderLayer.h"
 #include "RenderPart.h"
 #include "RenderTableCell.h"
 #include "RenderTextControl.h"
@@ -262,12 +262,12 @@ void Frame::setView(PassRefPtr<FrameView> view)
     if (m_view)
         m_view->detachCustomScrollbars();
 
-    // Detach the document now, so any onUnload handlers get run - if
-    // we wait until the view is destroyed, then things won't be
-    // hooked up enough for some JavaScript calls to work.
+    // Prepare for destruction now, so any unload event handlers get run and the DOMWindow is
+    // notified. If we wait until the view is destroyed, then things won't be hooked up enough for
+    // these calls to work.
     if (!view && m_doc && m_doc->attached() && !m_doc->inPageCache()) {
         // FIXME: We don't call willRemove here. Why is that OK?
-        m_doc->detach();
+        m_doc->prepareForDestruction();
     }
     
     if (m_view)
@@ -521,7 +521,7 @@ void Frame::setPrinting(bool printing, const FloatSize& pageSize, const FloatSiz
     m_doc->setPrinting(printing);
     view()->adjustMediaTypeForPrinting(printing);
 
-    m_doc->styleSelectorChanged(RecalcStyleImmediately);
+    m_doc->styleResolverChanged(RecalcStyleImmediately);
     if (printing)
         view()->forceLayoutForPagination(pageSize, originalPageSize, maximumShrinkRatio, shouldAdjustViewSize);
     else {
@@ -593,8 +593,10 @@ void Frame::injectUserScriptsForWorld(DOMWrapperWorld* world, const UserScriptVe
 
 void Frame::clearDOMWindow()
 {
-    if (m_domWindow)
+    if (m_domWindow) {
+        InspectorInstrumentation::frameWindowDiscarded(this, m_domWindow.get());
         m_domWindow->clear();
+    }
     m_domWindow = 0;
 }
 
@@ -659,8 +661,10 @@ void Frame::clearTimers()
 
 void Frame::setDOMWindow(DOMWindow* domWindow)
 {
-    if (m_domWindow)
+    if (m_domWindow) {
+        InspectorInstrumentation::frameWindowDiscarded(this, m_domWindow.get());
         m_domWindow->clear();
+    }
     m_domWindow = domWindow;
 }
 
@@ -950,7 +954,7 @@ void Frame::setPageAndTextZoomFactors(float pageZoomFactor, float textZoomFactor
     }
 
     if (page->mainFrame() == this)
-        page->backForward()->markPagesForFullStyleRecalc();
+        pageCache()->markPagesForFullStyleRecalc(page);
 }
 
 float Frame::frameScaleFactor() const

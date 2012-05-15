@@ -45,30 +45,38 @@ public:
     ~DumpRenderTreeSupportEfl() { }
 
     static unsigned activeAnimationsCount(const Evas_Object* ewkFrame);
+    static bool callShouldCloseOnWebView(Evas_Object* ewkFrame);
     static void clearFrameName(Evas_Object* ewkFrame);
     static void clearOpener(Evas_Object* ewkFrame);
     static String counterValueByElementId(const Evas_Object* ewkFrame, const char* elementId);
+    static bool elementDoesAutoCompleteForElementWithId(const Evas_Object* ewkFrame, const String& elementId);
     static Eina_List* frameChildren(const Evas_Object* ewkFrame);
     static WebCore::Frame* frameParent(const Evas_Object* ewkFrame);
-    static bool isPageBoxVisible(const Evas_Object* ewkFrame, int pageIndex);
     static void layoutFrame(Evas_Object* ewkFrame);
     static int numberOfPages(const Evas_Object* ewkFrame, float pageWidth, float pageHeight);
     static int numberOfPagesForElementId(const Evas_Object* ewkFrame, const char* elementId, float pageWidth, float pageHeight);
+    static String pageProperty(const Evas_Object* ewkFrame, const char* propertyName, int pageNumber);
     static String pageSizeAndMarginsInPixels(const Evas_Object* ewkFrame, int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft);
     static bool pauseAnimation(Evas_Object* ewkFrame, const char* name, const char* elementId, double time);
     static bool pauseTransition(Evas_Object* ewkFrame, const char* name, const char* elementId, double time);
     static unsigned pendingUnloadEventCount(const Evas_Object* ewkFrame);
     static String renderTreeDump(Evas_Object* ewkFrame);
     static String responseMimeType(const Evas_Object* ewkFrame);
-    static void resumeAnimations(Evas_Object* ewkFrame);
     static WebCore::IntRect selectionRectangle(const Evas_Object* ewkFrame);
     static String suitableDRTFrameName(const Evas_Object* ewkFrame);
-    static void suspendAnimations(Evas_Object* ewkFrame);
-    static void setValueForUser(JSContextRef, JSValueRef nodeObject, JSStringRef value);
+    static void setValueForUser(JSContextRef, JSValueRef nodeObject, const String& value);
     static void setAutofilled(JSContextRef, JSValueRef nodeObject, bool autofilled);
     static void setDefersLoading(Evas_Object* ewkView, bool defers);
+    static void setLoadsSiteIconsIgnoringImageLoadingSetting(Evas_Object* ewkView, bool loadsSiteIconsIgnoringImageLoadingPreferences);
 
-    static bool findString(const Evas_Object* ewkView, const char* text, WebCore::FindOptions);
+    static void addUserScript(const Evas_Object* ewkView, const String& sourceCode, bool runAtStart, bool allFrames);
+    static void clearUserScripts(const Evas_Object* ewkView);
+    static void addUserStyleSheet(const Evas_Object* ewkView, const String& sourceCode, bool allFrames);
+    static void clearUserStyleSheets(const Evas_Object* ewkView);
+    static void executeCoreCommandByName(const Evas_Object* ewkView, const char* name, const char* value);
+    static bool findString(const Evas_Object* ewkView, const String& text, WebCore::FindOptions);
+    static bool isCommandEnabled(const Evas_Object* ewkView, const char* name);
+    static void setJavaScriptProfilingEnabled(const Evas_Object* ewkView, bool enabled);
     static void setSmartInsertDeleteEnabled(Evas_Object* ewkView, bool enabled);
     static void setSelectTrailingWhitespaceEnabled(Evas_Object* ewkView, bool enabled);
 
@@ -90,6 +98,15 @@ public:
     static String markerTextForListItem(JSContextRef, JSValueRef nodeObject);
     static void setInteractiveFormValidationEnabled(Evas_Object* ewkView, bool enabled);
     static JSValueRef computedStyleIncludingVisitedInfo(JSContextRef, JSValueRef);
+    static void setAuthorAndUserStylesEnabled(Evas_Object* ewkView, bool);
+
+    // TextInputController
+    static void setComposition(Evas_Object*, const char*, int, int);
+    static bool hasComposition(const Evas_Object*);
+    static bool compositionRange(Evas_Object*, int*, int*);
+    static void confirmComposition(Evas_Object*, const char*);
+    static WebCore::IntRect firstRectForCharacterRange(Evas_Object*, int, int);
+    static bool selectedRange(Evas_Object*, int*, int*);
 };
 
 #endif // DumpRenderTreeSupportEfl_h

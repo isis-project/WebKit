@@ -62,6 +62,8 @@ class WebPluginContainerImpl;
 class WebView;
 class WebViewImpl;
 
+template <typename T> class WebVector;
+
 // Implementation of WebFrame, note that this is a reference counted object.
 class WebFrameImpl : public WebFrame, public RefCounted<WebFrameImpl> {
 public:
@@ -70,7 +72,6 @@ public:
     virtual void setName(const WebString&);
     virtual long long identifier() const;
     virtual WebVector<WebIconURL> iconURLs(int iconTypes) const;
-    virtual WebReferrerPolicy referrerPolicy() const;
     virtual WebSize scrollOffset() const;
     virtual void setScrollOffset(const WebSize&);
     virtual WebSize minimumScrollOffset() const;
@@ -110,6 +111,9 @@ public:
 #if WEBKIT_USING_V8
     virtual v8::Handle<v8::Value> executeScriptAndReturnValue(
         const WebScriptSource&);
+    virtual void executeScriptInIsolatedWorld(
+        int worldID, const WebScriptSource* sourcesIn, unsigned numSources,
+        int extensionGroup, WebVector<v8::Local<v8::Value> >* results);
     virtual v8::Handle<v8::Value> callFunctionEvenIfScriptDisabled(
         v8::Handle<v8::Function>,
         v8::Handle<v8::Object>,
@@ -170,6 +174,7 @@ public:
     virtual WebString selectionAsMarkup() const;
     virtual bool selectWordAroundCaret();
     virtual void selectRange(const WebPoint& start, const WebPoint& end);
+    virtual void selectRange(const WebRange&);
     virtual int printBegin(const WebSize& pageSize,
                            const WebNode& constrainToNode,
                            int printerDPI,
@@ -202,11 +207,16 @@ public:
     virtual void handleIntentResult(int, const WebString&);
     virtual void handleIntentFailure(int, const WebString&);
 
+    virtual void sendOrientationChangeEvent(int orientation);
+
     virtual void addEventListener(const WebString& eventType,
                                   WebDOMEventListener*, bool useCapture);
     virtual void removeEventListener(const WebString& eventType,
                                      WebDOMEventListener*, bool useCapture);
     virtual bool dispatchEvent(const WebDOMEvent&);
+    virtual void dispatchMessageEventWithOriginCheck(
+        const WebSecurityOrigin& intendedTargetOrigin,
+        const WebDOMEvent&);
 
     virtual WebString contentAsText(size_t maxChars) const;
     virtual WebString contentAsMarkup() const;
@@ -230,9 +240,6 @@ public:
     PassRefPtr<WebCore::Frame> createChildFrame(
         const WebCore::FrameLoadRequest&, WebCore::HTMLFrameOwnerElement*);
 
-    void layout();
-    void paint(WebCanvas*, const WebRect&);
-    void paintWithContext(WebCore::GraphicsContext&, const WebRect&);
     void createFrameView();
 
     static WebFrameImpl* fromFrame(WebCore::Frame* frame);

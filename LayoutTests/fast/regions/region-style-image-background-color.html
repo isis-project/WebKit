@@ -7,20 +7,29 @@
     -->
     <head>
         <style>
-            p { background-color: red; }
+            @font-face {
+                font-family: webkit-ahem;
+                font-style: normal;
+                src: url(../../resources/Ahem.ttf);
+            }
+
+            p { background-color: red; font-family: webkit-ahem; }
             img { background-color: green}
-            .regionBox2 { width: 280px; height: 100px; }
+            .regionBox2 { width: 300px; height: 100px; }
 
             #article { -webkit-flow-into: flow; }
-            #region { -webkit-flow-from: flow; }
-            @-webkit-region #region { p { background-color: green; } }
-            @-webkit-region #region { img { background-color: red; } }
+            #region { -webkit-flow-from: flow; position: absolute; top: 10px; }
+            @-webkit-region #region {
+                p { background-color: green; }
+                img { background-color: red; }
+            }
         </style>
     </head>
     <body>
         <div id="article">
-            <p>Green background text styled in region.</p>
-            <img src="resources/transparent.png"></img>
+            <!-- Green background text styled in region. -->
+            <p>R: 00 G: 80 B: 00</p>
+            <img src="resources/transparent.png">
         </div>
         <div id="region" class="regionBox2"></div>
     </body>

@@ -47,8 +47,8 @@ public:
     bool isSupportedAttribute(const QualifiedName&);
     virtual void parseAttribute(Attribute*) OVERRIDE;
     virtual void svgAttributeChanged(const QualifiedName&) OVERRIDE;
-    virtual void insertedIntoDocument();
-    virtual void removedFromDocument();
+    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
+    virtual void removedFrom(Node*) OVERRIDE;
     
     virtual bool hasValidAttributeType() = 0;
     virtual void animationAttributeChanged() = 0;
@@ -89,7 +89,8 @@ public:
     SMILTime previousIntervalBegin() const { return m_previousIntervalBegin; }
     SMILTime simpleDuration() const;
 
-    void progress(SMILTime elapsed, SVGSMILElement* resultsElement);
+    void seekToIntervalCorrespondingToTime(SMILTime elapsed);
+    bool progress(SMILTime elapsed, SVGSMILElement* resultsElement, bool seekToTime);
     SMILTime nextProgressTime() const;
 
     void reset();
@@ -105,7 +106,8 @@ public:
     void setDocumentOrderIndex(unsigned index) { m_documentOrderIndex = index; }
 
     virtual bool isAdditive() const = 0;
-    virtual void resetToBaseValue(const String&) = 0;
+    virtual void resetAnimatedType() = 0;
+    virtual void clearAnimatedType(SVGElement* targetElement) = 0;
     virtual void applyResultsToTarget() = 0;
 
 protected:
@@ -116,10 +118,10 @@ protected:
 
     // Sub-classes may need to take action when the target is changed.
     virtual void targetElementWillChange(SVGElement* currentTarget, SVGElement* newTarget);
-    virtual void endedActiveInterval();
 
 private:
     virtual void startedActiveInterval() = 0;
+    void endedActiveInterval();
     virtual void updateAnimation(float percent, unsigned repeat, SVGSMILElement* resultElement) = 0;
 
     enum BeginOrEnd {
@@ -129,7 +131,7 @@ private:
     
     SMILTime findInstanceTime(BeginOrEnd, SMILTime minimumTime, bool equalsMinimumOK) const;
     void resolveFirstInterval();
-    void resolveNextInterval();
+    void resolveNextInterval(bool notifyDependents);
     void resolveInterval(bool first, SMILTime& beginResult, SMILTime& endResult) const;
     SMILTime resolveActiveEnd(SMILTime resolvedBegin, SMILTime resolvedEnd) const;
     SMILTime repeatingDuration() const;

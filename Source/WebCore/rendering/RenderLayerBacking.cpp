@@ -32,7 +32,6 @@
 #include "AnimationController.h"
 #include "CanvasRenderingContext.h"
 #include "CSSPropertyNames.h"
-#include "CSSStyleSelector.h"
 #include "Chrome.h"
 #include "FontCache.h"
 #include "FrameView.h"
@@ -52,7 +51,10 @@
 #include "RenderEmbeddedObject.h"
 #include "RenderVideo.h"
 #include "RenderView.h"
+#include "StyleResolver.h"
 #include "TiledBacking.h"
+
+#include <wtf/CurrentTime.h>
 
 #if ENABLE(CSS_FILTERS)
 #include "FilterEffectRenderer.h"
@@ -92,6 +94,7 @@ RenderLayerBacking::RenderLayerBacking(RenderLayer* layer)
     , m_artificiallyInflatedBounds(false)
     , m_isMainFrameRenderViewLayer(false)
     , m_usingTiledCacheLayer(false)
+    , m_requiresOwnBackingStore(true)
 #if ENABLE(CSS_FILTERS)
     , m_canCompositeFilters(false)
 #endif
@@ -114,8 +117,10 @@ RenderLayerBacking::RenderLayerBacking(RenderLayer* layer)
 
     if (m_usingTiledCacheLayer) {
         if (Page* page = renderer()->frame()->page()) {
-            if (TiledBacking* tiledBacking = m_graphicsLayer->tiledBacking())
+            if (TiledBacking* tiledBacking = m_graphicsLayer->tiledBacking()) {
                 tiledBacking->setIsInWindow(page->isOnscreen());
+                tiledBacking->setCanHaveScrollbars(renderer()->frame()->view()->canHaveScrollbars());
+            }
         }
     }
 }
@@ -259,7 +264,7 @@ void RenderLayerBacking::updateCompositedBounds()
         RenderLayer* rootLayer = view->layer();
 
         // Start by clipping to the view's bounds.
-        LayoutRect clippingBounds = view->layoutOverflowRect();
+        LayoutRect clippingBounds = view->unscaledDocumentRect();
 
         if (m_owningLayer != rootLayer)
             clippingBounds.intersect(m_owningLayer->backgroundClipRect(rootLayer, 0, true).rect()); // FIXME: Incorrect for CSS regions.
@@ -502,7 +507,7 @@ void RenderLayerBacking::updateGraphicsLayerGeometry()
     }
     
     if (m_owningLayer->hasTransform()) {
-        const IntRect borderBox = toRenderBox(renderer())->borderBoxRect();
+        const IntRect borderBox = toRenderBox(renderer())->pixelSnappedBorderBoxRect();
 
         // Get layout bounds in the coords of compAncestor to match relativeCompositingBounds.
         IntRect layerBounds = IntRect(delta, borderBox.size());
@@ -563,6 +568,10 @@ void RenderLayerBacking::updateGraphicsLayerGeometry()
     }
 
     m_graphicsLayer->setContentsRect(contentsBox());
+
+    // If this layer was created just for clipping or to apply perspective, it doesn't need its own backing store.
+    setRequiresOwnBackingStore(compositor()->requiresOwnBackingStore(m_owningLayer, compAncestor));
+
     updateDrawsContent();
     updateAfterWidgetResize();
 }
@@ -601,7 +610,12 @@ void RenderLayerBacking::updateInternalHierarchy()
 
 void RenderLayerBacking::updateDrawsContent()
 {
-    m_graphicsLayer->setDrawsContent(containsPaintedContent());
+    bool hasPaintedContent = containsPaintedContent();
+
+    // FIXME: we could refine this to only allocate backing for one of these layers if possible.
+    m_graphicsLayer->setDrawsContent(hasPaintedContent);
+    if (m_foregroundLayer)
+        m_foregroundLayer->setDrawsContent(hasPaintedContent);
 }
 
 // Return true if the layers changed.
@@ -895,6 +909,9 @@ bool RenderLayerBacking::containsNonEmptyRenderers() const
 // Conservative test for having no rendered children.
 bool RenderLayerBacking::hasVisibleNonCompositingDescendantLayers() const
 {
+    // FIXME: We shouldn't be called with a stale z-order lists. See bug 85512.
+    m_owningLayer->updateLayerListsIfNeeded();
+
 #if !ASSERT_DISABLED
     LayerListMutationDetector mutationChecker(m_owningLayer);
 #endif
@@ -937,7 +954,7 @@ bool RenderLayerBacking::hasVisibleNonCompositingDescendantLayers() const
 
 bool RenderLayerBacking::containsPaintedContent() const
 {
-    if (isSimpleContainerCompositingLayer() || paintsIntoWindow() || m_artificiallyInflatedBounds || m_owningLayer->isReflection())
+    if (isSimpleContainerCompositingLayer() || paintsIntoWindow() || paintsIntoCompositedAncestor() || m_artificiallyInflatedBounds || m_owningLayer->isReflection())
         return false;
 
     if (isDirectlyCompositedImage())
@@ -976,14 +993,14 @@ bool RenderLayerBacking::isDirectlyCompositedImage() const
     return false;
 }
 
-void RenderLayerBacking::contentChanged(RenderLayer::ContentChangeType changeType)
+void RenderLayerBacking::contentChanged(ContentChangeType changeType)
 {
-    if ((changeType == RenderLayer::ImageChanged) && isDirectlyCompositedImage()) {
+    if ((changeType == ImageChanged) && isDirectlyCompositedImage()) {
         updateImageContents();
         return;
     }
     
-    if ((changeType == RenderLayer::MaskImageChanged) && m_maskLayer) {
+    if ((changeType == MaskImageChanged) && m_maskLayer) {
         // The composited layer bounds relies on box->maskClipRect(), which changes
         // when the mask image becomes available.
         bool isUpdateRoot = true;
@@ -991,7 +1008,7 @@ void RenderLayerBacking::contentChanged(RenderLayer::ContentChangeType changeTyp
     }
 
 #if ENABLE(WEBGL) || ENABLE(ACCELERATED_2D_CANVAS)
-    if ((changeType == RenderLayer::CanvasChanged) && isAcceleratedCanvas(renderer())) {
+    if ((changeType == CanvasChanged) && isAcceleratedCanvas(renderer())) {
         m_graphicsLayer->setContentsNeedsDisplay();
         return;
     }
@@ -1095,6 +1112,8 @@ bool RenderLayerBacking::paintsIntoWindow() const
 
 void RenderLayerBacking::setContentsNeedDisplay()
 {
+    ASSERT(!paintsIntoCompositedAncestor());
+    
     if (m_graphicsLayer && m_graphicsLayer->drawsContent())
         m_graphicsLayer->setNeedsDisplay();
     
@@ -1108,6 +1127,8 @@ void RenderLayerBacking::setContentsNeedDisplay()
 // r is in the coordinate space of the layer's render object
 void RenderLayerBacking::setContentsNeedDisplayInRect(const IntRect& r)
 {
+    ASSERT(!paintsIntoCompositedAncestor());
+
     if (m_graphicsLayer && m_graphicsLayer->drawsContent()) {
         IntRect layerDirtyRect = r;
         layerDirtyRect.move(-m_graphicsLayer->offsetFromRenderer());
@@ -1132,7 +1153,7 @@ void RenderLayerBacking::paintIntoLayer(RenderLayer* rootLayer, GraphicsContext*
                     PaintBehavior paintBehavior, GraphicsLayerPaintingPhase paintingPhase,
                     RenderObject* paintingRoot)
 {
-    if (paintsIntoWindow()) {
+    if (paintsIntoWindow() || paintsIntoCompositedAncestor()) {
         ASSERT_NOT_REACHED();
         return;
     }
@@ -1149,6 +1170,9 @@ void RenderLayerBacking::paintIntoLayer(RenderLayer* rootLayer, GraphicsContext*
         
     // FIXME: GraphicsLayers need a way to split for RenderRegions.
     m_owningLayer->paintLayerContents(rootLayer, context, paintDirtyRect, paintBehavior, paintingRoot, 0, 0, paintFlags);
+
+    if (m_owningLayer->containsDirtyOverlayScrollbars())
+        m_owningLayer->paintOverlayScrollbars(context, paintDirtyRect, paintBehavior, paintingRoot);
 
     ASSERT(!m_owningLayer->m_usedTransparency);
 }
@@ -1183,6 +1207,9 @@ void RenderLayerBacking::paintContents(const GraphicsLayer* graphicsLayer, Graph
 
         // We have to use the same root as for hit testing, because both methods can compute and cache clipRects.
         paintIntoLayer(m_owningLayer, &context, dirtyRect, PaintBehaviorNormal, paintingPhase, renderer());
+
+        if (m_usingTiledCacheLayer)
+            m_owningLayer->renderer()->frame()->view()->setLastPaintTime(currentTime());
 
         InspectorInstrumentation::didPaint(cookie);
     } else if (graphicsLayer == layerForHorizontalScrollbar()) {
@@ -1287,21 +1314,15 @@ bool RenderLayerBacking::startAnimation(double timeOffset, const Animation* anim
     bool didAnimateFilter = false;
 #endif
     
-    if (hasTransform && m_graphicsLayer->addAnimation(transformVector, toRenderBox(renderer())->borderBoxRect().size(), anim, keyframes.animationName(), timeOffset)) {
+    if (hasTransform && m_graphicsLayer->addAnimation(transformVector, toRenderBox(renderer())->pixelSnappedBorderBoxRect().size(), anim, keyframes.animationName(), timeOffset))
         didAnimateTransform = true;
-        compositor()->didStartAcceleratedAnimation(CSSPropertyWebkitTransform);
-    }
 
-    if (hasOpacity && m_graphicsLayer->addAnimation(opacityVector, IntSize(), anim, keyframes.animationName(), timeOffset)) {
+    if (hasOpacity && m_graphicsLayer->addAnimation(opacityVector, IntSize(), anim, keyframes.animationName(), timeOffset))
         didAnimateOpacity = true;
-        compositor()->didStartAcceleratedAnimation(CSSPropertyOpacity);
-    }
 
 #if ENABLE(CSS_FILTERS)
-    if (hasFilter && m_graphicsLayer->addAnimation(filterVector, IntSize(), anim, keyframes.animationName(), timeOffset)) {
+    if (hasFilter && m_graphicsLayer->addAnimation(filterVector, IntSize(), anim, keyframes.animationName(), timeOffset))
         didAnimateFilter = true;
-        compositor()->didStartAcceleratedAnimation(CSSPropertyWebkitFilter);
-    }
 #endif
 
 #if ENABLE(CSS_FILTERS)
@@ -1352,7 +1373,7 @@ bool RenderLayerBacking::startTransition(double timeOffset, CSSPropertyID proper
             KeyframeValueList transformVector(AnimatedPropertyWebkitTransform);
             transformVector.insert(new TransformAnimationValue(0, &fromStyle->transform()));
             transformVector.insert(new TransformAnimationValue(1, &toStyle->transform()));
-            if (m_graphicsLayer->addAnimation(transformVector, toRenderBox(renderer())->borderBoxRect().size(), transformAnim, GraphicsLayer::animationNameForTransition(AnimatedPropertyWebkitTransform), timeOffset)) {
+            if (m_graphicsLayer->addAnimation(transformVector, toRenderBox(renderer())->pixelSnappedBorderBoxRect().size(), transformAnim, GraphicsLayer::animationNameForTransition(AnimatedPropertyWebkitTransform), timeOffset)) {
                 // To ensure that the correct transform is visible when the animation ends, also set the final transform.
                 updateLayerTransform(toStyle);
                 didAnimateTransform = true;
@@ -1374,17 +1395,6 @@ bool RenderLayerBacking::startTransition(double timeOffset, CSSPropertyID proper
             }
         }
     }
-#endif
-
-    if (didAnimateOpacity)
-        compositor()->didStartAcceleratedAnimation(CSSPropertyOpacity);
-
-    if (didAnimateTransform)
-        compositor()->didStartAcceleratedAnimation(CSSPropertyWebkitTransform);
-    
-#if ENABLE(CSS_FILTERS)
-    if (didAnimateFilter)
-        compositor()->didStartAcceleratedAnimation(CSSPropertyWebkitFilter);
 #endif
 
 #if ENABLE(CSS_FILTERS)
@@ -1438,8 +1448,8 @@ IntRect RenderLayerBacking::compositedBounds() const
 void RenderLayerBacking::setCompositedBounds(const IntRect& bounds)
 {
     m_compositedBounds = bounds;
-
 }
+
 CSSPropertyID RenderLayerBacking::graphicsLayerToCSSProperty(AnimatedPropertyID property)
 {
     CSSPropertyID cssProperty = CSSPropertyInvalid;
@@ -1486,7 +1496,6 @@ AnimatedPropertyID RenderLayerBacking::cssToGraphicsLayerProperty(CSSPropertyID 
     return AnimatedPropertyInvalid;
 }
 
-#ifndef NDEBUG
 String RenderLayerBacking::nameForLayer() const
 {
     String name = renderer()->renderName();
@@ -1502,7 +1511,6 @@ String RenderLayerBacking::nameForLayer() const
 
     return name;
 }
-#endif
 
 CompositingLayerType RenderLayerBacking::compositingLayerType() const
 {
@@ -1515,6 +1523,30 @@ CompositingLayerType RenderLayerBacking::compositingLayerType() const
     return ContainerCompositingLayer;
 }
 
+double RenderLayerBacking::backingStoreArea() const
+{
+    double backingArea;
+    
+    // m_ancestorClippingLayer and m_clippingLayer are just used for masking, so have no backing.
+    backingArea = m_graphicsLayer->backingStoreArea();
+    if (m_foregroundLayer)
+        backingArea += m_foregroundLayer->backingStoreArea();
+    if (m_maskLayer)
+        backingArea += m_maskLayer->backingStoreArea();
+
+    if (m_layerForHorizontalScrollbar)
+        backingArea += m_layerForHorizontalScrollbar->backingStoreArea();
+
+    if (m_layerForVerticalScrollbar)
+        backingArea += m_layerForVerticalScrollbar->backingStoreArea();
+
+    if (m_layerForScrollCorner)
+        backingArea += m_layerForScrollCorner->backingStoreArea();
+    
+    return backingArea;
+}
+
 } // namespace WebCore
 
 #endif // USE(ACCELERATED_COMPOSITING)
+

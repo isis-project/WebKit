@@ -26,6 +26,8 @@
 #include "config.h"
 #include "NPRuntimeObjectMap.h"
 
+#if ENABLE(NETSCAPE_PLUGIN_API)
+
 #include "JSNPObject.h"
 #include "NPJSObject.h"
 #include "NPRuntimeUtilities.h"
@@ -102,7 +104,7 @@ JSObject* NPRuntimeObjectMap::getOrCreateJSObject(JSGlobalObject* globalObject, 
         return jsNPObject;
 
     JSNPObject* jsNPObject = JSNPObject::create(globalObject, this, npObject);
-    m_jsNPObjects.set(npObject, JSC::PassWeak<JSNPObject>(globalObject->globalData(), jsNPObject, this, npObject));
+    m_jsNPObjects.set(npObject, JSC::PassWeak<JSNPObject>(jsNPObject, this, npObject));
 
     return jsNPObject;
 }
@@ -301,3 +303,5 @@ void NPRuntimeObjectMap::finalize(JSC::Handle<JSC::Unknown> handle, void* contex
 }
 
 } // namespace WebKit
+
+#endif // ENABLE(NETSCAPE_PLUGIN_API)

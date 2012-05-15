@@ -36,6 +36,7 @@
 #include "DocumentLoader.h"
 #include "Frame.h"
 #include "FrameLoaderClient.h"
+#include "MemoryUsageSupport.h"
 #include "Page.h"
 #include "PageGroup.h"
 #include "RuntimeEnabledFeatures.h"
@@ -94,7 +95,7 @@ static void reportFatalErrorInV8(const char* location, const char* message)
     // FIXME: clean up V8Proxy and disable JavaScript.
     int memoryUsageMB = -1;
 #if PLATFORM(CHROMIUM)
-    memoryUsageMB = PlatformSupport::actualMemoryUsageMB();
+    memoryUsageMB = MemoryUsageSupport::actualMemoryUsageMB();
 #endif
     printf("V8 error: %s (%s).  Current memory usage: %d MB\n", message, location, memoryUsageMB);
     handleFatalErrorInV8();
@@ -294,9 +295,9 @@ bool V8DOMWindowShell::initContextIfNeeded()
         v8::V8::AddMessageListener(&v8UncaughtExceptionHandler);
 
         v8::V8::SetFailedAccessCheckCallbackFunction(reportUnsafeJavaScriptAccess);
-
+#if ENABLE(JAVASCRIPT_DEBUGGER)
         ScriptProfiler::initialize();
-
+#endif
         V8BindingPerIsolateData::ensureInitialized(v8::Isolate::GetCurrent());
 
         isV8Initialized = true;
@@ -550,7 +551,7 @@ v8::Handle<v8::Value> getter(v8::Local<v8::String> property, const v8::AccessorI
     AtomicString name = v8StringToAtomicWebCoreString(property);
     HTMLDocument* htmlDocument = V8HTMLDocument::toNative(info.Holder());
     ASSERT(htmlDocument);
-    v8::Handle<v8::Value> result = V8HTMLDocument::GetNamedProperty(htmlDocument, name);
+    v8::Handle<v8::Value> result = V8HTMLDocument::GetNamedProperty(htmlDocument, name, info.GetIsolate());
     if (!result.IsEmpty())
         return result;
     v8::Handle<v8::Value> prototype = info.Holder()->GetPrototype();
@@ -592,12 +593,6 @@ void V8DOMWindowShell::updateSecurityOrigin()
 {
     v8::HandleScope scope;
     setSecurityToken();
-}
-
-void V8DOMWindowShell::setLocation(DOMWindow* window, const String& locationString)
-{
-    State<V8Binding>* state = V8BindingState::Only();
-    window->setLocation(locationString, state->activeWindow(), state->firstWindow());
 }
 
 } // WebCore

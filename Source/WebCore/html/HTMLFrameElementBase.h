@@ -54,14 +54,15 @@ protected:
     bool isURLAllowed() const;
 
     virtual void parseAttribute(Attribute*) OVERRIDE;
-    virtual void insertedIntoDocument();
+    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
+    virtual void didNotifyDescendantInseretions(Node*) OVERRIDE;
     virtual void attach();
 
 private:
     virtual bool supportsFocus() const;
     virtual void setFocus(bool);
     
-    virtual bool isURLAttribute(Attribute*) const;
+    virtual bool isURLAttribute(const Attribute&) const OVERRIDE;
     virtual bool isFrameElementBase() const { return true; }
 
     bool viewSourceMode() const { return m_viewSource; }

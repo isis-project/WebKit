@@ -23,6 +23,7 @@ LIST(APPEND WebCore_SOURCES
   page/efl/EventHandlerEfl.cpp
   platform/Cursor.cpp
   platform/efl/ClipboardEfl.cpp
+  platform/efl/ColorChooserEfl.cpp
   platform/efl/ContextMenuEfl.cpp
   platform/efl/ContextMenuItemEfl.cpp
   platform/efl/CursorEfl.cpp
@@ -118,12 +119,14 @@ IF (WTF_USE_CAIRO)
   )
   LIST(APPEND WebCore_SOURCES
     platform/cairo/WidgetBackingStoreCairo.cpp
+    platform/graphics/cairo/BitmapImageCairo.cpp
     platform/graphics/cairo/CairoUtilities.cpp
     platform/graphics/cairo/FontCairo.cpp
     platform/graphics/cairo/GradientCairo.cpp
     platform/graphics/cairo/GraphicsContextCairo.cpp
     platform/graphics/cairo/ImageBufferCairo.cpp
     platform/graphics/cairo/ImageCairo.cpp
+    platform/graphics/cairo/NativeImageCairo.cpp
     platform/graphics/cairo/OwnPtrCairo.cpp
     platform/graphics/cairo/PathCairo.cpp
     platform/graphics/cairo/PatternCairo.cpp
@@ -180,24 +183,8 @@ IF (WTF_USE_ICU_UNICODE)
   )
 ENDIF ()
 
-IF (ENABLE_VIDEO)
-  LIST(APPEND WebCore_INCLUDE_DIRECTORIES
-    "${WEBCORE_DIR}/platform/graphics/gstreamer"
-  )
-  LIST(APPEND WebCore_SOURCES
-    platform/graphics/gstreamer/GRefPtrGStreamer.cpp
-    platform/graphics/gstreamer/GStreamerGWorld.cpp
-    platform/graphics/gstreamer/GStreamerVersioning.cpp
-    platform/graphics/gstreamer/ImageGStreamerCairo.cpp
-    platform/graphics/gstreamer/MediaPlayerPrivateGStreamer.cpp
-    platform/graphics/gstreamer/PlatformVideoWindowEfl.cpp
-    platform/graphics/gstreamer/VideoSinkGStreamer.cpp
-    platform/graphics/gstreamer/WebKitWebSourceGStreamer.cpp
-  )
-ENDIF ()
-
 LIST(APPEND WebCore_LIBRARIES
-  ${Cairo_LIBRARIES}
+  ${CAIRO_LIBRARIES}
   ${ECORE_X_LIBRARIES}
   ${EFLDEPS_LIBRARIES}
   ${EVAS_LIBRARIES}
@@ -213,17 +200,8 @@ LIST(APPEND WebCore_LIBRARIES
   ${ZLIB_LIBRARIES}
 )
 
-IF (ENABLE_VIDEO)
-  LIST(APPEND WebCore_LIBRARIES
-    ${GStreamer-App_LIBRARIES}
-    ${GStreamer-Interfaces_LIBRARIES}
-    ${GStreamer-Pbutils_LIBRARIES}
-    ${GStreamer-Video_LIBRARIES}
-  )
-ENDIF ()
-
 LIST(APPEND WebCore_INCLUDE_DIRECTORIES
-  ${Cairo_INCLUDE_DIRS}
+  ${CAIRO_INCLUDE_DIRS}
   ${ECORE_X_INCLUDE_DIRS}
   ${EFLDEPS_INCLUDE_DIRS}
   ${EVAS_INCLUDE_DIRS}
@@ -237,12 +215,44 @@ LIST(APPEND WebCore_INCLUDE_DIRECTORIES
   ${ZLIB_INCLUDE_DIRS}
 )
 
+IF (ENABLE_VIDEO OR ENABLE_WEB_AUDIO)
+  LIST(APPEND WebCore_INCLUDE_DIRECTORIES
+    "${WEBCORE_DIR}/platform/graphics/gstreamer"
+
+    ${GSTREAMER_INCLUDE_DIRS}
+    ${GSTREAMER_BASE_INCLUDE_DIRS}
+    ${GSTREAMER_APP_INCLUDE_DIRS}
+    ${GSTREAMER_INTERFACES_INCLUDE_DIRS}
+    ${GSTREAMER_PBUTILS_INCLUDE_DIRS}
+  )
+  LIST(APPEND WebCore_SOURCES
+    platform/graphics/gstreamer/GRefPtrGStreamer.cpp
+    platform/graphics/gstreamer/GStreamerUtilities.cpp
+    platform/graphics/gstreamer/GStreamerVersioning.cpp
+  )
+  LIST(APPEND WebCore_LIBRARIES
+    ${GSTREAMER_LIBRARIES}
+    ${GSTREAMER_BASE_LIBRARIES}
+    ${GSTREAMER_APP_LIBRARIES}
+    ${GSTREAMER_INTERFACES_LIBRARIES}
+    ${GSTREAMER_PBUTILS_LIBRARIES}
+  )
+ENDIF ()
+
 IF (ENABLE_VIDEO)
   LIST(APPEND WebCore_INCLUDE_DIRECTORIES
-    ${GStreamer-App_INCLUDE_DIRS}
-    ${GStreamer-Interfaces_INCLUDE_DIRS}
-    ${GStreamer-Pbutils_INCLUDE_DIRS}
-    ${GStreamer-Video_INCLUDE_DIRS}
+    ${GSTREAMER_VIDEO_INCLUDE_DIRS}
+  )
+  LIST(APPEND WebCore_SOURCES
+    platform/graphics/gstreamer/GStreamerGWorld.cpp
+    platform/graphics/gstreamer/ImageGStreamerCairo.cpp
+    platform/graphics/gstreamer/MediaPlayerPrivateGStreamer.cpp
+    platform/graphics/gstreamer/PlatformVideoWindowEfl.cpp
+    platform/graphics/gstreamer/VideoSinkGStreamer.cpp
+    platform/graphics/gstreamer/WebKitWebSourceGStreamer.cpp
+  )
+  LIST(APPEND WebCore_LIBRARIES
+    ${GSTREAMER_VIDEO_LIBRARIES}
   )
 ENDIF ()
 
@@ -269,3 +279,28 @@ ENDIF ()
 
 ADD_DEFINITIONS(-DWTF_USE_CROSS_PLATFORM_CONTEXT_MENUS=1
                 -DDATA_DIR="${CMAKE_INSTALL_PREFIX}/${DATA_INSTALL_DIR}")
+
+IF (ENABLE_WEB_AUDIO)
+  LIST(APPEND WebCore_INCLUDE_DIRECTORIES
+    "${WEBCORE_DIR}/platform/audio/gstreamer"
+
+    ${GSTREAMER_AUDIO_INCLUDE_DIRS}
+    ${GSTREAMER_FFT_INCLUDE_DIRS}
+  )
+  LIST(APPEND WebCore_SOURCES
+    platform/audio/efl/AudioBusEfl.cpp
+    platform/audio/gstreamer/AudioDestinationGStreamer.cpp
+    platform/audio/gstreamer/AudioFileReaderGStreamer.cpp
+    platform/audio/gstreamer/FFTFrameGStreamer.cpp
+    platform/audio/gstreamer/WebKitWebAudioSourceGStreamer.cpp
+  )
+  LIST(APPEND WebCore_LIBRARIES
+    ${GSTREAMER_AUDIO_LIBRARIES}
+    ${GSTREAMER_FFT_LIBRARIES}
+  )
+  SET(WEB_AUDIO_DIR ${CMAKE_INSTALL_PREFIX}/${DATA_INSTALL_DIR}/webaudio/resources)
+  FILE(GLOB WEB_AUDIO_DATA "${WEBCORE_DIR}/platform/audio/resources/*.wav")
+  INSTALL(FILES ${WEB_AUDIO_DATA} DESTINATION ${WEB_AUDIO_DIR})
+  ADD_DEFINITIONS(-DUNINSTALLED_AUDIO_RESOURCES_DIR="${WEBCORE_DIR}/platform/audio/resources")
+ENDIF ()
+

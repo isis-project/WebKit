@@ -16,8 +16,7 @@ function test()
     shouldBeFalse("IDBDatabaseException == null");
 
     name = self.location.pathname;
-    description = "My Test Database";
-    openreq = evalAndLog("indexedDB.open(name, description)");
+    openreq = evalAndLog("indexedDB.open(name)");
     openreq.onsuccess = openSuccess;
     openreq.onerror = unexpectedErrorCallback;
 }
@@ -42,7 +41,7 @@ function setVersionSuccess()
 
 function testValidArrayKeys()
 {
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction('store', 'readwrite')");
     evalAndLog("store = trans.objectStore('store')");
     debug("");
 
@@ -125,7 +124,7 @@ function testValidArrayKeys()
 
 function testInvalidArrayKeys()
 {
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_WRITE)");
+    evalAndLog("trans = db.transaction('store', 'readwrite')");
     evalAndLog("store = trans.objectStore('store')");
     debug("");
 

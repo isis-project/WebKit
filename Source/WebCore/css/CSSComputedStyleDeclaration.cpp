@@ -54,7 +54,6 @@
 #include "Pair.h"
 #include "Rect.h"
 #include "RenderBox.h"
-#include "RenderLayer.h"
 #include "RenderStyle.h"
 #include "RenderView.h"
 #include "ShadowValue.h"
@@ -158,6 +157,7 @@ static const CSSPropertyID computedProperties[] = {
     CSSPropertyRight,
     CSSPropertySpeak,
     CSSPropertyTableLayout,
+    CSSPropertyTabSize,
     CSSPropertyTextAlign,
     CSSPropertyTextDecoration,
     CSSPropertyTextIndent,
@@ -220,6 +220,9 @@ static const CSSPropertyID computedProperties[] = {
     CSSPropertyWebkitColumnWidth,
 #if ENABLE(DASHBOARD_SUPPORT)
     CSSPropertyWebkitDashboardRegion,
+#endif
+#if ENABLE(CSS_FILTERS)
+    CSSPropertyWebkitFilter,
 #endif
     CSSPropertyWebkitFlex,
     CSSPropertyWebkitFlexOrder,
@@ -518,9 +521,9 @@ static PassRefPtr<CSSValue> valueForNinePieceImage(const NinePieceImage& image)
     return createBorderImageValue(imageValue, imageSlices, borderSlices, outset, repeat);
 }
 
-inline static PassRefPtr<CSSPrimitiveValue> zoomAdjustedPixelValue(int value, const RenderStyle* style)
+inline static PassRefPtr<CSSPrimitiveValue> zoomAdjustedPixelValue(double value, const RenderStyle* style)
 {
-    return cssValuePool().createValue(adjustForAbsoluteZoom(value, style), CSSPrimitiveValue::CSS_PX);
+    return cssValuePool().createValue(adjustFloatForAbsoluteZoom(value, style), CSSPrimitiveValue::CSS_PX);
 }
 
 inline static PassRefPtr<CSSPrimitiveValue> zoomAdjustedNumberValue(double value, const RenderStyle* style)
@@ -669,18 +672,7 @@ static LayoutRect sizingBox(RenderObject* renderer)
         return LayoutRect();
 
     RenderBox* box = toRenderBox(renderer);
-    if (box->style()->boxSizing() == BORDER_BOX)
-        return box->borderBoxRect();
-    LayoutUnit cssPaddingLeft = box->paddingLeft(ExcludeIntrinsicPadding);
-    LayoutUnit cssPaddingTop = box->paddingTop(ExcludeIntrinsicPadding);
-    LayoutUnit cssWidth = box->clientWidth() - cssPaddingLeft - box->paddingRight(ExcludeIntrinsicPadding);
-    LayoutUnit cssHeight = box->clientHeight() - cssPaddingTop - box->paddingBottom(ExcludeIntrinsicPadding);
-    return LayoutRect(box->borderLeft() + cssPaddingLeft, box->borderTop() + cssPaddingTop, cssWidth, cssHeight);
-}
-
-static inline bool hasCompositedLayer(RenderObject* renderer)
-{
-    return renderer && renderer->hasLayer() && toRenderBoxModelObject(renderer)->layer()->isComposited();
+    return box->style()->boxSizing() == BORDER_BOX ? box->borderBoxRect() : box->computedCSSContentBoxRect();
 }
 
 static PassRefPtr<CSSValue> computedTransform(RenderObject* renderer, const RenderStyle* style)
@@ -837,7 +829,7 @@ PassRefPtr<CSSValue> CSSComputedStyleDeclaration::valueForFilter(RenderStyle* st
             DropShadowFilterOperation* dropShadowOperation = static_cast<DropShadowFilterOperation*>(filterOperation);
             filterValue = WebKitCSSFilterValue::create(WebKitCSSFilterValue::DropShadowFilterOperation);
             // We want our computed style to look like that of a text shadow (has neither spread nor inset style).
-            ShadowData shadowData = ShadowData(dropShadowOperation->x(), dropShadowOperation->y(), dropShadowOperation->stdDeviation(), 0, Normal, false, dropShadowOperation->color());
+            ShadowData shadowData = ShadowData(dropShadowOperation->location(), dropShadowOperation->stdDeviation(), 0, Normal, false, dropShadowOperation->color());
             filterValue->append(valueForShadow(&shadowData, CSSPropertyTextShadow, style));
             break;
         }
@@ -1334,7 +1326,7 @@ PassRefPtr<CSSValue> CSSComputedStyleDeclaration::getPropertyCSSValue(CSSPropert
     RenderObject* renderer = node->renderer();
 
     RefPtr<RenderStyle> style;
-    if (renderer && hasCompositedLayer(renderer) && AnimationController::supportsAcceleratedAnimationOfProperty(propertyID)) {
+    if (renderer && renderer->isComposited() && AnimationController::supportsAcceleratedAnimationOfProperty(propertyID)) {
         style = renderer->animation()->getAnimatedStyleForRenderer(renderer);
         if (m_pseudoElementSpecifier) {
             // FIXME: This cached pseudo style will only exist if the animation has been run at least once.
@@ -1600,6 +1592,8 @@ PassRefPtr<CSSValue> CSSComputedStyleDeclaration::getPropertyCSSValue(CSSPropert
             if (style->hasAutoColumnWidth())
                 return cssValuePool().createIdentifierValue(CSSValueAuto);
             return zoomAdjustedPixelValue(style->columnWidth(), style.get());
+        case CSSPropertyTabSize:
+            return cssValuePool().createValue(style->tabSize(), CSSPrimitiveValue::CSS_NUMBER);
         case CSSPropertyWebkitRegionBreakAfter:
             return cssValuePool().createValue(style->regionBreakAfter());
         case CSSPropertyWebkitRegionBreakBefore:
@@ -1650,8 +1644,11 @@ PassRefPtr<CSSValue> CSSComputedStyleDeclaration::getPropertyCSSValue(CSSPropert
         case CSSPropertyWebkitFlexAlign:
             return cssValuePool().createValue(style->flexAlign());
         case CSSPropertyWebkitFlexItemAlign:
-            if (style->flexItemAlign() == AlignAuto && m_node && m_node->parentNode() && m_node->parentNode()->computedStyle())
-                return cssValuePool().createValue(m_node->parentNode()->computedStyle()->flexAlign());
+            if (style->flexItemAlign() == AlignAuto) {
+                if (m_node && m_node->parentNode() && m_node->parentNode()->computedStyle())
+                    return cssValuePool().createValue(m_node->parentNode()->computedStyle()->flexAlign());
+                return cssValuePool().createValue(AlignStretch);
+            }
             return cssValuePool().createValue(style->flexItemAlign());
         case CSSPropertyWebkitFlexDirection:
             return cssValuePool().createValue(style->flexDirection());
@@ -1861,19 +1858,19 @@ PassRefPtr<CSSValue> CSSComputedStyleDeclaration::getPropertyCSSValue(CSSPropert
             return cssValuePool().createValue(style->overflowY());
         case CSSPropertyPaddingTop:
             if (renderer && renderer->isBox())
-                return zoomAdjustedPixelValue(toRenderBox(renderer)->paddingTop(ExcludeIntrinsicPadding), style.get());
+                return zoomAdjustedPixelValue(toRenderBox(renderer)->computedCSSPaddingTop(), style.get());
             return zoomAdjustedPixelValueForLength(style->paddingTop(), style.get());
         case CSSPropertyPaddingRight:
             if (renderer && renderer->isBox())
-                return zoomAdjustedPixelValue(toRenderBox(renderer)->paddingRight(ExcludeIntrinsicPadding), style.get());
+                return zoomAdjustedPixelValue(toRenderBox(renderer)->computedCSSPaddingRight(), style.get());
             return zoomAdjustedPixelValueForLength(style->paddingRight(), style.get());
         case CSSPropertyPaddingBottom:
             if (renderer && renderer->isBox())
-                return zoomAdjustedPixelValue(toRenderBox(renderer)->paddingBottom(ExcludeIntrinsicPadding), style.get());
+                return zoomAdjustedPixelValue(toRenderBox(renderer)->computedCSSPaddingBottom(), style.get());
             return zoomAdjustedPixelValueForLength(style->paddingBottom(), style.get());
         case CSSPropertyPaddingLeft:
             if (renderer && renderer->isBox())
-                return zoomAdjustedPixelValue(toRenderBox(renderer)->paddingLeft(ExcludeIntrinsicPadding), style.get());
+                return zoomAdjustedPixelValue(toRenderBox(renderer)->computedCSSPaddingLeft(), style.get());
             return zoomAdjustedPixelValueForLength(style->paddingLeft(), style.get());
         case CSSPropertyPageBreakAfter:
             return cssValuePool().createValue(style->pageBreakAfter());
@@ -2252,7 +2249,7 @@ PassRefPtr<CSSValue> CSSComputedStyleDeclaration::getPropertyCSSValue(CSSPropert
         case CSSPropertyWebkitTransformOrigin: {
             RefPtr<CSSValueList> list = CSSValueList::createSpaceSeparated();
             if (renderer) {
-                IntRect box = sizingBox(renderer);
+                LayoutRect box = sizingBox(renderer);
                 RenderView* renderView = m_node->document()->renderView();
                 list->append(zoomAdjustedPixelValue(minimumValueForLength(style->transformOriginX(), box.width(), renderView), style.get()));
                 list->append(zoomAdjustedPixelValue(minimumValueForLength(style->transformOriginY(), box.height(), renderView), style.get()));
@@ -2349,12 +2346,8 @@ PassRefPtr<CSSValue> CSSComputedStyleDeclaration::getPropertyCSSValue(CSSPropert
         case CSSPropertyWebkitFilter:
             return valueForFilter(style.get());
 #endif
-        case CSSPropertyBackground: {
-            const CSSPropertyID properties[5] = { CSSPropertyBackgroundColor, CSSPropertyBackgroundImage,
-                                        CSSPropertyBackgroundRepeat, CSSPropertyBackgroundAttachment,
-                                        CSSPropertyBackgroundPosition };
-            return getCSSPropertyValuesForShorthandProperties(StylePropertyShorthand(properties, WTF_ARRAY_LENGTH(properties)));
-        }
+        case CSSPropertyBackground:
+            return getBackgroundShorthandValue();
         case CSSPropertyBorder: {
             RefPtr<CSSValue> value = getPropertyCSSValue(CSSPropertyBorderTop, DoNotUpdateLayout);
             const CSSPropertyID properties[3] = { CSSPropertyBorderRight, CSSPropertyBorderBottom,
@@ -2688,8 +2681,7 @@ String CSSComputedStyleDeclaration::removeProperty(const String&, ExceptionCode&
     
 PassRefPtr<CSSValue> CSSComputedStyleDeclaration::getPropertyCSSValueInternal(CSSPropertyID propertyID)
 {
-    RefPtr<CSSValue> value = getPropertyCSSValue(propertyID);
-    return value ? value->cloneForCSSOM() : 0;
+    return getPropertyCSSValue(propertyID);
 }
 
 String CSSComputedStyleDeclaration::getPropertyValueInternal(CSSPropertyID propertyID)
@@ -2700,6 +2692,19 @@ String CSSComputedStyleDeclaration::getPropertyValueInternal(CSSPropertyID prope
 void CSSComputedStyleDeclaration::setPropertyInternal(CSSPropertyID, const String&, bool, ExceptionCode& ec)
 {
     ec = NO_MODIFICATION_ALLOWED_ERR;
+}
+
+PassRefPtr<CSSValueList> CSSComputedStyleDeclaration::getBackgroundShorthandValue() const
+{
+    // CSSPropertyBackgroundPosition should be at the end of the array so that CSSPropertyBackgroundSize can be appended followed by '/'.
+    static const CSSPropertyID properties[5] = { CSSPropertyBackgroundColor, CSSPropertyBackgroundImage,
+                                                 CSSPropertyBackgroundRepeat, CSSPropertyBackgroundAttachment,
+                                                 CSSPropertyBackgroundPosition };
+
+    RefPtr<CSSValueList> list = CSSValueList::createSlashSeparated();
+    list->append(getCSSPropertyValuesForShorthandProperties(StylePropertyShorthand(properties, WTF_ARRAY_LENGTH(properties))));
+    list->append(getPropertyCSSValue(CSSPropertyBackgroundSize, DoNotUpdateLayout));
+    return list.release();
 }
 
 } // namespace WebCore

@@ -43,6 +43,8 @@ class PagePopup;
 class CalendarPickerElement : public HTMLDivElement, public PagePopupClient {
 public:
     static PassRefPtr<CalendarPickerElement> create(Document*);
+    virtual ~CalendarPickerElement();
+    void openPopup();
     void closePopup();
 
 private:
@@ -58,7 +60,6 @@ private:
     virtual void didClosePopup() OVERRIDE;
 
     HTMLInputElement* hostInput();
-    void openPopup();
 
     PagePopup* m_popup;
 };

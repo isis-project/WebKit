@@ -225,7 +225,9 @@ void HTMLAnchorElement::parseAttribute(Attribute* attr)
             }
             if (document()->page() && !document()->page()->javaScriptURLsAreAllowed() && protocolIsJavaScript(parsedURL)) {
                 clearIsLink();
-                attr->setValue(nullAtom);
+                // FIXME: This is horribly factored.
+                if (Attribute* hrefAttribute = getAttributeItem(hrefAttr))
+                    hrefAttribute->setValue(nullAtom);
             }
         }
         invalidateCachedVisitedLinkHash();
@@ -243,9 +245,9 @@ void HTMLAnchorElement::accessKeyAction(bool sendMouseEvents)
     dispatchSimulatedClick(0, sendMouseEvents);
 }
 
-bool HTMLAnchorElement::isURLAttribute(Attribute *attr) const
+bool HTMLAnchorElement::isURLAttribute(const Attribute& attribute) const
 {
-    return attr->name() == hrefAttr || HTMLElement::isURLAttribute(attr);
+    return attribute.name() == hrefAttr || HTMLElement::isURLAttribute(attribute);
 }
 
 bool HTMLAnchorElement::canStartSelection() const

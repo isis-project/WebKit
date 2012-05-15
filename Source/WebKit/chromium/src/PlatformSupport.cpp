@@ -50,7 +50,6 @@
 #include "WebWorkerClientImpl.h"
 #include "WebWorkerRunLoop.h"
 #include "platform/WebAudioBus.h"
-#include "platform/WebClipboard.h"
 #include "platform/WebCookie.h"
 #include "platform/WebCookieJar.h"
 #include "platform/WebData.h"
@@ -61,7 +60,6 @@
 #include "platform/WebString.h"
 #include "platform/WebURL.h"
 #include "platform/WebVector.h"
-#include <public/WebMimeRegistry.h>
 
 #if USE(CG)
 #include <CoreGraphics/CGContext.h>
@@ -82,9 +80,7 @@
 #include "platform/android/WebThemeEngine.h"
 #endif
 
-#if WEBKIT_USING_SKIA
 #include "NativeImageSkia.h"
-#endif
 
 #include "AsyncFileSystemChromium.h"
 #include "BitmapImage.h"
@@ -92,7 +88,6 @@
 #include "Cookie.h"
 #include "Document.h"
 #include "FrameView.h"
-#include "GamepadList.h"
 #include "GraphicsContext.h"
 #include "IDBFactoryBackendProxy.h"
 #include "KURL.h"
@@ -103,6 +98,8 @@
 
 #include "Worker.h"
 #include "WorkerContextProxy.h"
+#include <public/WebClipboard.h>
+#include <public/WebMimeRegistry.h>
 #include <wtf/Assertions.h>
 
 // We are part of the WebKit implementation.
@@ -143,13 +140,6 @@ static WebCookieJar* getCookieJar(const Document* document)
     if (!cookieJar)
         cookieJar = webKitPlatformSupport()->cookieJar();
     return cookieJar;
-}
-
-// Cache ----------------------------------------------------------------------
-
-void PlatformSupport::cacheMetadata(const KURL& url, double responseTime, const Vector<char>& data)
-{
-    webKitPlatformSupport()->cacheMetadata(url, responseTime, data.data(), data.size());
 }
 
 // Clipboard ------------------------------------------------------------------
@@ -232,11 +222,7 @@ void PlatformSupport::clipboardWriteImage(NativeImagePtr image,
                                          const KURL& sourceURL,
                                          const String& title)
 {
-#if WEBKIT_USING_SKIA
     WebImage webImage(image->bitmap());
-#else
-    WebImage webImage(image);
-#endif
     webKitPlatformSupport()->clipboard()->writeImage(webImage, sourceURL, title);
 }
 
@@ -313,13 +299,6 @@ bool PlatformSupport::cookiesEnabled(const Document* document)
     if (cookieJar)
         result = cookieJar->cookiesEnabled(document->cookieURL(), document->firstPartyForCookies());
     return result;
-}
-
-// DNS ------------------------------------------------------------------------
-
-void PlatformSupport::prefetchDNS(const String& hostname)
-{
-    webKitPlatformSupport()->prefetchHostName(hostname);
 }
 
 // File ------------------------------------------------------------------------
@@ -419,14 +398,9 @@ int PlatformSupport::writeToFile(PlatformFileHandle handle, const char* data, in
 }
 
 #if ENABLE(FILE_SYSTEM)
-String PlatformSupport::createIsolatedFileSystemName(const String& storageIdentifier, const String& filesystemId)
+PassOwnPtr<AsyncFileSystem> PlatformSupport::createAsyncFileSystem()
 {
-    return AsyncFileSystemChromium::createIsolatedFileSystemName(storageIdentifier, filesystemId);
-}
-
-PassOwnPtr<AsyncFileSystem> PlatformSupport::createIsolatedFileSystem(const String& originString, const String& filesystemId)
-{
-    return AsyncFileSystemChromium::createIsolatedFileSystem(originString, filesystemId);
+    return AsyncFileSystemChromium::create();
 }
 #endif
 
@@ -547,93 +521,11 @@ PassRefPtr<SerializedScriptValue> PlatformSupport::injectIDBKeyIntoSerializedVal
     return webKitPlatformSupport()->injectIDBKeyIntoSerializedValue(key, value, keyPath);
 }
 
-// Gamepad --------------------------------------------------------------------
-
-void PlatformSupport::sampleGamepads(GamepadList* into)
-{
-    WebGamepads gamepads;
-
-    webKitPlatformSupport()->sampleGamepads(gamepads);
-
-    for (unsigned i = 0; i < WebKit::WebGamepads::itemsLengthCap; ++i) {
-        WebGamepad& webGamepad = gamepads.items[i];
-        if (i < gamepads.length && webGamepad.connected) {
-            RefPtr<Gamepad> gamepad = into->item(i);
-            if (!gamepad)
-                gamepad = Gamepad::create();
-            gamepad->id(webGamepad.id);
-            gamepad->index(i);
-            gamepad->timestamp(webGamepad.timestamp);
-            gamepad->axes(webGamepad.axesLength, webGamepad.axes);
-            gamepad->buttons(webGamepad.buttonsLength, webGamepad.buttons);
-            into->set(i, gamepad);
-        } else
-            into->set(i, 0);
-    }
-}
-
-// Keygen ---------------------------------------------------------------------
-
-String PlatformSupport::signedPublicKeyAndChallengeString(
-    unsigned keySizeIndex, const String& challenge, const KURL& url)
-{
-    return webKitPlatformSupport()->signedPublicKeyAndChallengeString(keySizeIndex,
-                                                             WebString(challenge),
-                                                             WebURL(url));
-}
-
-// Language -------------------------------------------------------------------
-
-String PlatformSupport::computedDefaultLanguage()
-{
-    return webKitPlatformSupport()->defaultLocale();
-}
-
 // LayoutTestMode -------------------------------------------------------------
 
 bool PlatformSupport::layoutTestMode()
 {
     return WebKit::layoutTestMode();
-}
-
-// MimeType -------------------------------------------------------------------
-
-bool PlatformSupport::isSupportedImageMIMEType(const String& mimeType)
-{
-    return webKitPlatformSupport()->mimeRegistry()->supportsImageMIMEType(mimeType)
-        != WebMimeRegistry::IsNotSupported;
-}
-
-bool PlatformSupport::isSupportedJavaScriptMIMEType(const String& mimeType)
-{
-    return webKitPlatformSupport()->mimeRegistry()->supportsJavaScriptMIMEType(mimeType)
-        != WebMimeRegistry::IsNotSupported;
-}
-
-bool PlatformSupport::isSupportedNonImageMIMEType(const String& mimeType)
-{
-    return webKitPlatformSupport()->mimeRegistry()->supportsNonImageMIMEType(mimeType)
-        != WebMimeRegistry::IsNotSupported;
-}
-
-String PlatformSupport::mimeTypeForExtension(const String& extension)
-{
-    return webKitPlatformSupport()->mimeRegistry()->mimeTypeForExtension(extension);
-}
-
-String PlatformSupport::wellKnownMimeTypeForExtension(const String& extension)
-{
-    return webKitPlatformSupport()->mimeRegistry()->wellKnownMimeTypeForExtension(extension);
-}
-
-String PlatformSupport::mimeTypeFromFile(const String& path)
-{
-    return webKitPlatformSupport()->mimeRegistry()->mimeTypeFromFile(path);
-}
-
-String PlatformSupport::preferredExtensionForMIMEType(const String& mimeType)
-{
-    return webKitPlatformSupport()->mimeRegistry()->preferredExtensionForMIMEType(mimeType);
 }
 
 // Plugin ---------------------------------------------------------------------
@@ -655,27 +547,7 @@ NPObject* PlatformSupport::pluginScriptableObject(Widget* widget)
 
 // Resources ------------------------------------------------------------------
 
-PassRefPtr<Image> PlatformSupport::loadPlatformImageResource(const char* name)
-{
-    const WebData& resource = webKitPlatformSupport()->loadResource(name);
-    if (resource.isEmpty())
-        return Image::nullImage();
-
-    RefPtr<Image> image = BitmapImage::create();
-    image->setData(resource, true);
-    return image;
-}
-
 #if ENABLE(WEB_AUDIO)
-
-PassOwnPtr<AudioBus> PlatformSupport::loadPlatformAudioResource(const char* name, double sampleRate)
-{
-    const WebData& resource = webKitPlatformSupport()->loadResource(name);
-    if (resource.isEmpty())
-        return nullptr;
-    
-    return decodeAudioFileData(resource.data(), resource.size(), sampleRate);
-}
 
 PassOwnPtr<AudioBus> PlatformSupport::decodeAudioFileData(const char* data, size_t size, double sampleRate)
 {
@@ -697,11 +569,6 @@ void PlatformSupport::setSharedTimerFiredFunction(void (*func)())
 void PlatformSupport::setSharedTimerFireInterval(double interval)
 {
     webKitPlatformSupport()->setSharedTimerFireInterval(interval);
-}
-
-void PlatformSupport::stopSharedTimer()
-{
-    webKitPlatformSupport()->stopSharedTimer();
 }
 
 // Theming --------------------------------------------------------------------
@@ -799,11 +666,7 @@ void PlatformSupport::paintScrollbarThumb(
     webThemeScrollbarInfo.visibleSize = scrollbarInfo.visibleSize;
     webThemeScrollbarInfo.totalSize = scrollbarInfo.totalSize;
 
-#if WEBKIT_USING_SKIA
     WebKit::WebCanvas* webCanvas = gc->platformContext()->canvas();
-#else
-    WebKit::WebCanvas* webCanvas = gc->platformContext();
-#endif
     webKitPlatformSupport()->themeEngine()->paintScrollbarThumb(
         webCanvas,
         static_cast<WebThemeEngine::State>(state),
@@ -922,28 +785,6 @@ void PlatformSupport::paintThemePart(
 
 #endif
 
-// Trace Event ----------------------------------------------------------------
-
-const unsigned char* PlatformSupport::getTraceCategoryEnabledFlag(const char* categoryName)
-{
-    return webKitPlatformSupport()->getTraceCategoryEnabledFlag(categoryName);
-}
-int PlatformSupport::addTraceEvent(char phase,
-                                   const unsigned char* categoryEnabledFlag,
-                                   const char* name,
-                                   unsigned long long id,
-                                   int numArgs,
-                                   const char** argNames,
-                                   const unsigned char* argTypes,
-                                   const unsigned long long* argValues,
-                                   int thresholdBeginId,
-                                   long long threshold,
-                                   unsigned char flags)
-{
-    return webKitPlatformSupport()->addTraceEvent(
-        phase, categoryEnabledFlag, name, id, numArgs, argNames, argTypes, argValues,  thresholdBeginId, threshold, flags);
-}
-
 // Visited Links --------------------------------------------------------------
 
 LinkHash PlatformSupport::visitedLinkHash(const UChar* url, unsigned length)
@@ -989,11 +830,6 @@ LinkHash PlatformSupport::visitedLinkHash(const KURL& base,
     return webKitPlatformSupport()->visitedLinkHash(buffer.data(), buffer.length());
 }
 
-bool PlatformSupport::isLinkVisited(LinkHash visitedLinkHash)
-{
-    return webKitPlatformSupport()->isLinkVisited(visitedLinkHash);
-}
-
 // These are temporary methods that the WebKit layer can use to call to the
 // Glue layer. Once the Glue layer moves entirely into the WebKit layer, these
 // methods will be deleted.
@@ -1007,31 +843,6 @@ void PlatformSupport::notifyJSOutOfMemory(Frame* frame)
     if (!webFrame->client())
         return;
     webFrame->client()->didExhaustMemoryAvailableForScript(webFrame);
-}
-
-int PlatformSupport::memoryUsageMB()
-{
-    return static_cast<int>(webKitPlatformSupport()->memoryUsageMB());
-}
-
-int PlatformSupport::actualMemoryUsageMB()
-{
-    return static_cast<int>(webKitPlatformSupport()->actualMemoryUsageMB());
-}
-
-int PlatformSupport::lowMemoryUsageMB()
-{
-    return static_cast<int>(webKitPlatformSupport()->lowMemoryUsageMB());
-}
-
-int PlatformSupport::highMemoryUsageMB()
-{
-    return static_cast<int>(webKitPlatformSupport()->highMemoryUsageMB());
-}
-
-int PlatformSupport::highUsageDeltaMB()
-{
-    return static_cast<int>(webKitPlatformSupport()->highUsageDeltaMB());
 }
 
 int PlatformSupport::screenHorizontalDPI(Widget* widget)

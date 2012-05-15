@@ -47,7 +47,7 @@
 #import <WebKitSystemInterface.h>
 #import <wtf/PassOwnPtr.h>
 
-SOFT_LINK_STAGED_FRAMEWORK_OPTIONAL(WebInspector, PrivateFrameworks)
+SOFT_LINK_STAGED_FRAMEWORK_OPTIONAL(WebInspector, PrivateFrameworks, A)
 
 using namespace WebCore;
 
@@ -170,8 +170,13 @@ static bool useWebKitWebInspector()
     // Call the soft link framework function to dlopen it, then [NSBundle bundleWithIdentifier:] will work.
     WebInspectorLibrary();
 
-    return [[NSUserDefaults standardUserDefaults] boolForKey:@"UseWebKitWebInspector"] ||
-        ![[NSBundle bundleWithIdentifier:@"com.apple.WebInspector"] pathForResource:@"Main" ofType:@"html"];
+    if (![[NSBundle bundleWithIdentifier:@"com.apple.WebInspector"] pathForResource:@"Main" ofType:@"html"])
+        return true;
+
+    if (![[NSBundle bundleWithIdentifier:@"com.apple.WebCore"] pathForResource:@"inspector" ofType:@"html" inDirectory:@"inspector"])
+        return false;
+
+    return [[NSUserDefaults standardUserDefaults] boolForKey:@"UseWebKitWebInspector"];
 }
 
 String WebInspectorFrontendClient::localizedStringsURL()
@@ -405,6 +410,7 @@ void WebInspectorFrontendClient::updateWindowTitle() const
 
         [_webView removeFromSuperview];
         [_inspectedWebView.get() addSubview:_webView positioned:NSWindowBelow relativeTo:(NSView *)frameView];
+        [[_inspectedWebView.get() window] makeFirstResponder:_webView];
 
         [_webView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable | NSViewMaxYMargin)];
         [frameView setAutoresizingMask:(NSViewWidthSizable | NSViewHeightSizable | NSViewMinYMargin)];

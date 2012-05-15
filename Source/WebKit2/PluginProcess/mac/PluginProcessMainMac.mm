@@ -79,7 +79,7 @@ int PluginProcessMain(const CommandLine& commandLine)
     mach_port_t serverPort;
     kern_return_t kr = bootstrap_look_up(bootstrap_port, serviceName.utf8().data(), &serverPort);
     if (kr) {
-        fprintf(stderr, "bootstrap_look_up result: %s (%x)\n", mach_error_string(kr), kr);
+        WTFLogAlways("bootstrap_look_up result: %s (%x)\n", mach_error_string(kr), kr);
         return EXIT_FAILURE;
     }
 
@@ -89,8 +89,15 @@ int PluginProcessMain(const CommandLine& commandLine)
         WKSetDefaultLocalization(cfLocalization.get());
 
 #if defined(__i386__)
-    NSDictionary *defaults = [NSDictionary dictionaryWithObject:[NSNumber numberWithBool:YES] forKey:@"AppleMagnifiedMode"];
-    [[NSUserDefaults standardUserDefaults] registerDefaults:defaults];
+    {
+        NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+
+        NSDictionary *defaults = [[NSDictionary alloc] initWithObjectsAndKeys:[NSNumber numberWithBool:YES], @"AppleMagnifiedMode", nil];
+        [[NSUserDefaults standardUserDefaults] registerDefaults:defaults];
+        [defaults release];
+
+        [pool drain];
+    }
 #endif
 
 #if !SHOW_CRASH_REPORTER

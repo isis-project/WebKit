@@ -3,6 +3,7 @@
  *           (C) 1999 Antti Koivisto (koivisto@kde.org)
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
  * Copyright (C) 2004, 2005, 2006, 2007, 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2012 Samsung Electronics. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -47,13 +48,15 @@ public:
     virtual bool shouldAutocomplete() const;
 
     // For ValidityState
-    bool typeMismatch() const;
-    // valueMissing() ignores the specified string value for CHECKBOX and RADIO.
-    bool valueMissing(const String&) const;
-    bool patternMismatch(const String&) const;
-    bool tooLong(const String&, NeedsToCheckDirtyFlag) const;
-    bool rangeUnderflow(const String&) const;
-    bool rangeOverflow(const String&) const;
+    virtual bool patternMismatch() const OVERRIDE;
+    virtual bool rangeUnderflow() const OVERRIDE;
+    virtual bool rangeOverflow() const;
+    virtual bool stepMismatch() const OVERRIDE;
+    virtual bool tooLong() const OVERRIDE;
+    virtual bool typeMismatch() const OVERRIDE;
+    virtual bool valueMissing() const OVERRIDE;
+    virtual String validationMessage() const OVERRIDE;
+
     // Returns the minimum value for type=date, number, or range.  Don't call this for other types.
     double minimum() const;
     // Returns the maximum value for type=date, number, or range.  Don't call this for other types.
@@ -62,15 +65,6 @@ public:
     // Sets the "allowed value step" defined in the HTML spec to the specified double pointer.
     // Returns false if there is no "allowed value step."
     bool getAllowedValueStep(double*) const;
-
-    // For ValidityState.
-    bool stepMismatch(const String&) const;
-    String minimumString() const;
-    String maximumString() const;
-    String stepBaseString() const;
-    String stepString() const;
-    String typeMismatchText() const;
-    String valueMissingText() const;
 
     // Implementations of HTMLInputElement::stepUp() and stepDown().
     void stepUp(int, ExceptionCode&);
@@ -104,6 +98,12 @@ public:
     bool isSubmitButton() const;
     bool isTelephoneField() const;
     bool isURLField() const;
+    bool isDateField() const;
+    bool isDateTimeField() const;
+    bool isDateTimeLocalField() const;
+    bool isMonthField() const;
+    bool isTimeField() const;
+    bool isWeekField() const;
 
 #if ENABLE(INPUT_SPEECH)
     bool isSpeechEnabled() const;
@@ -234,7 +234,17 @@ public:
 
     String defaultToolTip() const;
 
+#if ENABLE(MEDIA_CAPTURE)
+    String capture() const;
+    void setCapture(const String& value);
+#endif
+
     static const int maximumLength;
+
+    unsigned height() const;
+    unsigned width() const;
+    void setHeight(unsigned);
+    void setWidth(unsigned);
 
 protected:
     HTMLInputElement(const QualifiedName&, Document*, HTMLFormElement*, bool createdByParser);
@@ -243,12 +253,11 @@ protected:
 
 private:
     enum AutoCompleteSetting { Uninitialized, On, Off };
-    enum AnyStepHandling { RejectAny, AnyIsDefaultStep };
 
     virtual void willChangeForm() OVERRIDE;
     virtual void didChangeForm() OVERRIDE;
-    virtual void insertedIntoDocument() OVERRIDE;
-    virtual void removedFromDocument() OVERRIDE;
+    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
+    virtual void removedFrom(Node*) OVERRIDE;
     virtual void didMoveToNewDocument(Document* oldDocument) OVERRIDE;
 
     virtual bool isKeyboardFocusable(KeyboardEvent*) const;
@@ -292,7 +301,7 @@ private:
     virtual void* preDispatchEventHandler(Event*);
     virtual void postDispatchEventHandler(Event*, void* dataFromPreDispatch);
 
-    virtual bool isURLAttribute(Attribute*) const;
+    virtual bool isURLAttribute(const Attribute&) const OVERRIDE;
 
     virtual bool hasUnacceptableValue() const;
 
@@ -309,8 +318,10 @@ private:
 
     bool supportsMaxLength() const { return isTextType(); }
     bool isTextType() const;
+    bool tooLong(const String&, NeedsToCheckDirtyFlag) const;
 
     virtual bool supportsPlaceholder() const;
+    virtual bool isPlaceholderEmpty() const OVERRIDE;
     virtual void updatePlaceholderText();
     virtual bool isEmptyValue() const OVERRIDE { return innerTextValue().isEmpty(); }
     virtual bool isEmptySuggestedValue() const { return suggestedValue().isEmpty(); }
@@ -326,11 +337,6 @@ private:
     
     virtual void subtreeHasChanged();
 
-    bool getAllowedValueStepWithDecimalPlaces(AnyStepHandling, double*, unsigned*) const;
-
-    // Helper for stepUp()/stepDown().  Adds step value * count to the current value.
-    void applyStep(double count, AnyStepHandling, TextFieldEventBehavior, ExceptionCode&);
-    double alignValueForStep(double value, double step, unsigned currentDecimalPlaces, unsigned stepDecimalPlaces);
 
 #if ENABLE(DATALIST)
     HTMLDataListElement* dataList() const;
@@ -367,5 +373,4 @@ private:
 };
 
 } //namespace
-
 #endif

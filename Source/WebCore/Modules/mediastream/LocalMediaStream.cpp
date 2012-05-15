@@ -35,32 +35,21 @@ namespace WebCore {
 
 PassRefPtr<LocalMediaStream> LocalMediaStream::create(ScriptExecutionContext* context, const MediaStreamSourceVector& audioSources, const MediaStreamSourceVector& videoSources)
 {
-    RefPtr<LocalMediaStream> stream = adoptRef(new LocalMediaStream(context, audioSources, videoSources));
-    stream->suspendIfNeeded();
-    return stream.release();
+    return adoptRef(new LocalMediaStream(context, MediaStreamDescriptor::create(createCanonicalUUIDString(), audioSources, videoSources)));
 }
 
-LocalMediaStream::LocalMediaStream(ScriptExecutionContext* context, const MediaStreamSourceVector& audioSources, const MediaStreamSourceVector& videoSources)
-    : MediaStream(context, MediaStreamDescriptor::create(createCanonicalUUIDString(), audioSources, videoSources))
-    , m_stopTimer(this, &LocalMediaStream::stopTimerFired)
+PassRefPtr<LocalMediaStream> LocalMediaStream::create(ScriptExecutionContext* context, PassRefPtr<MediaStreamDescriptor> streamDescriptor)
 {
+    return adoptRef(new LocalMediaStream(context, streamDescriptor));
 }
 
-void LocalMediaStream::stopFunction()
+LocalMediaStream::LocalMediaStream(ScriptExecutionContext* context, PassRefPtr<MediaStreamDescriptor> streamDescriptor)
+    : MediaStream(context, streamDescriptor)
 {
-    stop();
 }
 
 void LocalMediaStream::stop()
 {
-    if (!m_stopTimer.isActive())
-        m_stopTimer.startOneShot(0);
-}
-
-void LocalMediaStream::stopTimerFired(Timer<LocalMediaStream>* timer)
-{
-    ASSERT_UNUSED(timer, timer == &m_stopTimer);
-
     if (readyState() == ENDED)
         return;
 

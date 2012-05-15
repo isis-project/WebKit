@@ -1,3 +1,4 @@
+// There are tests for computeStatistics() located in LayoutTests/fast/harness/perftests
 
 var PerfTestRunner = {};
 
@@ -23,6 +24,10 @@ PerfTestRunner.random = Math.random = function() {
 };
 
 PerfTestRunner.log = function (text) {
+    if (this._logLines) {
+        this._logLines.push(text);
+        return;
+    }
     if (!document.getElementById("log")) {
         var pre = document.createElement('pre');
         pre.id = 'log';
@@ -48,11 +53,11 @@ PerfTestRunner.loadFile = function (path) {
     return xhr.responseText;
 }
 
-PerfTestRunner.computeStatistics = function (times) {
+PerfTestRunner.computeStatistics = function (times, unit) {
     var data = times.slice();
 
     // Add values from the smallest to the largest to avoid the loss of significance
-    data.sort();
+    data.sort(function(a,b){return a-b;});
 
     var middle = Math.floor(data.length / 2);
     var result = {
@@ -75,14 +80,14 @@ PerfTestRunner.computeStatistics = function (times) {
     }
     result.variance = squareSum / data.length;
     result.stdev = Math.sqrt(result.variance);
-    result.unit = "ms";
+    result.unit = unit || "ms";
 
     return result;
 }
 
 PerfTestRunner.logStatistics = function (times) {
     this.log("");
-    var statistics = this.computeStatistics(times);
+    var statistics = this.computeStatistics(times, this.unit);
     this.printStatistics(statistics);
 }
 
@@ -116,7 +121,13 @@ PerfTestRunner._runLoop = function () {
         this.gc();
         window.setTimeout(function () { PerfTestRunner._runner(); }, 0);
     } else {
-        this.logStatistics(this._times);
+        this.logStatistics(this._results);
+        if (this._logLines) {
+            var logLines = this._logLines;
+            this._logLines = null;
+            var self = this;
+            logLines.forEach(function(text) { self.log(text); });
+        }
         this._doneFunction();
         if (window.layoutTestController)
             layoutTestController.notifyDone();
@@ -139,13 +150,28 @@ PerfTestRunner._runner = function () {
     // Assume totalTime can never be zero when _runFunction returns a number.
     var time = totalTime ? totalTime : Date.now() - start;
 
+    this.ignoreWarmUpAndLog(time);
+    this._runLoop();
+}
+
+PerfTestRunner.ignoreWarmUpAndLog = function (result) {
     this._completedRuns++;
+
+    var labeledResult = result + " " + this.unit;
     if (this._completedRuns <= 0)
-        this.log("Ignoring warm-up run (" + time + ")");
+        this.log("Ignoring warm-up run (" + labeledResult + ")");
     else {
-        this._times.push(time);
-        this.log(time);
+        this._results.push(result);
+        this.log(labeledResult);
     }
+}
+
+PerfTestRunner.initAndStartLoop = function() {
+    this._completedRuns = -1;
+    this.customRunFunction = null;
+    this._results = [];
+    this._logLines = window.layoutTestController ? [] : null;
+    this.log("Running " + this._runCount + " times");
     this._runLoop();
 }
 
@@ -154,12 +180,47 @@ PerfTestRunner.run = function (runFunction, loopsPerRun, runCount, doneFunction)
     this._loopsPerRun = loopsPerRun || 10;
     this._runCount = runCount || 20;
     this._doneFunction = doneFunction || function () {};
-    this._completedRuns = -1;
-    this.customRunFunction = null;
-    this._times = [];
+    this.unit = 'ms';
+    this.initAndStartLoop();
+}
 
-    this.log("Running " + this._runCount + " times");
+PerfTestRunner.runPerSecond = function (test) {
+    this._doneFunction = function () { if (test.done) test.done(); };
+    this._runCount = test.runCount || 20;
+    this._callsPerIteration = 1;
+    this.unit = 'runs/s';
+
+    this._test = test;
+    this._runner = this._perSecondRunner;
+    this.initAndStartLoop();
+}
+
+PerfTestRunner._perSecondRunner = function () {
+    var timeToRun = this._test.timeToRun || 750;
+    var totalTime = 0;
+    var i = 0;
+    var callsPerIteration = this._callsPerIteration;
+
+    if (this._test.setup)
+        this._test.setup();
+
+    while (totalTime < timeToRun) {
+        totalTime += this._perSecondRunnerIterator(callsPerIteration);
+        i += callsPerIteration;
+        if (this._completedRuns < 0 && totalTime < 100)
+            callsPerIteration = Math.max(10, 2 * callsPerIteration);
+    }
+    this._callsPerIteration = callsPerIteration;
+
+    this.ignoreWarmUpAndLog(i * 1000 / totalTime);
     this._runLoop();
+}
+
+PerfTestRunner._perSecondRunnerIterator = function (callsPerIteration) {
+    var startTime = Date.now();
+    for (var i = 0; i < callsPerIteration; i++)
+        this._test.run();
+    return Date.now() - startTime;
 }
 
 if (window.layoutTestController) {

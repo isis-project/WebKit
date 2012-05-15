@@ -44,6 +44,15 @@ using namespace std;
 
 namespace WebCore {
 
+class ExpectedSVGInlineTextBoxSize : public InlineTextBox {
+    float float1;
+    uint32_t bitfields : 5;
+    void* pointer;
+    Vector<SVGTextFragment> vector;
+};
+
+COMPILE_ASSERT(sizeof(SVGInlineTextBox) == sizeof(ExpectedSVGInlineTextBoxSize), SVGInlineTextBox_is_not_of_expected_size);
+
 SVGInlineTextBox::SVGInlineTextBox(RenderObject* object)
     : InlineTextBox(object)
     , m_logicalHeight(0)
@@ -274,7 +283,7 @@ void SVGInlineTextBox::paint(PaintInfo& paintInfo, const LayoutPoint&, LayoutUni
     ASSERT(svgStyle);
 
     bool hasFill = svgStyle->hasFill();
-    bool hasStroke = svgStyle->hasStroke();
+    bool hasVisibleStroke = svgStyle->hasVisibleStroke();
 
     RenderStyle* selectionStyle = style;
     if (hasSelection) {
@@ -285,15 +294,15 @@ void SVGInlineTextBox::paint(PaintInfo& paintInfo, const LayoutPoint&, LayoutUni
 
             if (!hasFill)
                 hasFill = svgSelectionStyle->hasFill();
-            if (!hasStroke)
-                hasStroke = svgSelectionStyle->hasStroke();
+            if (!hasVisibleStroke)
+                hasVisibleStroke = svgSelectionStyle->hasVisibleStroke();
         } else
             selectionStyle = style;
     }
 
     if (textRenderer->frame() && textRenderer->frame()->view() && textRenderer->frame()->view()->paintBehavior() & PaintBehaviorRenderingSVGMask) {
         hasFill = true;
-        hasStroke = false;
+        hasVisibleStroke = false;
     }
 
     AffineTransform fragmentTransform;
@@ -321,7 +330,7 @@ void SVGInlineTextBox::paint(PaintInfo& paintInfo, const LayoutPoint&, LayoutUni
         }
 
         // Stroke text
-        if (hasStroke) {
+        if (hasVisibleStroke) {
             m_paintingResourceMode = ApplyToStrokeMode | ApplyToTextMode;
             paintText(paintInfo.context, style, selectionStyle, fragment, hasSelection, paintSelectedTextOnly);
         }
@@ -422,7 +431,6 @@ TextRun SVGInlineTextBox::constructTextRun(RenderStyle* style, const SVGTextFrag
 
     TextRun run(text->characters() + fragment.characterOffset
                 , fragment.length
-                , false /* allowTabs */
                 , 0 /* xPos, only relevant with allowTabs=true */
                 , 0 /* padding, only relevant for justified text, not relevant for SVG */
                 , TextRun::AllowTrailingExpansion
@@ -526,14 +534,14 @@ void SVGInlineTextBox::paintDecoration(GraphicsContext* context, ETextDecoration
     ASSERT(svgDecorationStyle);
 
     bool hasDecorationFill = svgDecorationStyle->hasFill();
-    bool hasDecorationStroke = svgDecorationStyle->hasStroke();
+    bool hasVisibleDecorationStroke = svgDecorationStyle->hasVisibleStroke();
 
     if (hasDecorationFill) {
         m_paintingResourceMode = ApplyToFillMode;
         paintDecorationWithStyle(context, decoration, fragment, decorationRenderer);
     }
 
-    if (hasDecorationStroke) {
+    if (hasVisibleDecorationStroke) {
         m_paintingResourceMode = ApplyToStrokeMode;
         paintDecorationWithStyle(context, decoration, fragment, decorationRenderer);
     }

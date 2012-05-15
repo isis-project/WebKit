@@ -90,9 +90,14 @@ public:
     bool needsDisplay() const { return m_needsDisplay; }
     IntRect needsDisplayRect() const { return enclosingIntRect(m_needsDisplayRect); }
 
+    virtual void setDebugBorder(const Color&, float width);
+
 #if ENABLE(CSS_FILTERS)
     virtual bool setFilters(const FilterOperations&);
 #endif
+
+    void setFixedToViewport(bool fixed) { m_fixedToViewport = fixed; }
+    bool fixedToViewport() const { return m_fixedToViewport; }
 
 private:
     virtual void willBeDestroyed();
@@ -103,6 +108,7 @@ private:
     bool m_syncQueued;
     int m_changeMask;
     bool m_needsDisplay;
+    bool m_fixedToViewport;
     TextureMapperPlatformLayer* m_contentsLayer;
     FloatRect m_needsDisplayRect;
     TextureMapperAnimations m_animations;

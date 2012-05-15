@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010 Apple Inc. All rights reserved.
+ * Copyright (C) 2010, 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -102,6 +102,7 @@ LayoutTestController::LayoutTestController()
     , m_dumpTitleChanges(false)
     , m_dumpPixels(true)
     , m_dumpFullScreenCallbacks(false)
+    , m_dumpFrameLoadCallbacks(false)
     , m_waitToDump(false)
     , m_testRepaint(false)
     , m_testRepaintSweepHorizontally(false)
@@ -109,6 +110,7 @@ LayoutTestController::LayoutTestController()
     , m_policyDelegateEnabled(false)
     , m_policyDelegatePermissive(false)
     , m_globalFlag(false)
+    , m_customFullScreenBehavior(false)
 {
     platformInitialize();
 }
@@ -132,7 +134,8 @@ void LayoutTestController::display()
 
 void LayoutTestController::dumpAsText(bool dumpPixels)
 {
-    m_whatToDump = MainFrameText;
+    if (m_whatToDump < MainFrameText)
+        m_whatToDump = MainFrameText;
     m_dumpPixels = dumpPixels;
 }
 
@@ -204,12 +207,6 @@ void LayoutTestController::suspendAnimations()
 {
     WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
     WKBundleFrameSuspendAnimations(mainFrame);
-}
-
-void LayoutTestController::resumeAnimations()
-{
-    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
-    WKBundleFrameResumeAnimations(mainFrame);
 }
 
 JSRetainPtr<JSStringRef> LayoutTestController::layerTreeAsText() const
@@ -460,23 +457,31 @@ void LayoutTestController::makeWindowObject(JSContextRef context, JSObjectRef wi
 
 void LayoutTestController::showWebInspector()
 {
+#if ENABLE(INSPECTOR)
     WKBundleInspectorShow(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()));
+#endif // ENABLE(INSPECTOR)
 }
 
 void LayoutTestController::closeWebInspector()
 {
+#if ENABLE(INSPECTOR)
     WKBundleInspectorClose(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()));
+#endif // ENABLE(INSPECTOR)
 }
 
 void LayoutTestController::evaluateInWebInspector(long callID, JSStringRef script)
 {
+#if ENABLE(INSPECTOR)
     WKRetainPtr<WKStringRef> scriptWK = toWK(script);
     WKBundleInspectorEvaluateScriptForTest(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()), callID, scriptWK.get());
+#endif // ENABLE(INSPECTOR)
 }
 
 void LayoutTestController::setJavaScriptProfilingEnabled(bool enabled)
 {
+#if ENABLE(INSPECTOR)
     WKBundleInspectorSetJavaScriptProfilingEnabled(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()), enabled);
+#endif // ENABLE(INSPECTOR)
 }
 
 typedef WTF::HashMap<unsigned, WKRetainPtr<WKBundleScriptWorldRef> > WorldMap;

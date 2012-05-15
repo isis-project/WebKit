@@ -30,7 +30,6 @@
  */
 
 // FIXME:
-//  - RTL
 //  - Touch event
 
 /**
@@ -123,12 +122,22 @@ function getLanguage() {
     return result[1];
 }
 
+/*
+ * @const
+ * @type {number}
+ */
+var ImperialEraLimit = 2087;
+
 /**
  * @param {!number} year
  * @param {!number} month
  * @return {!string}
  */
 function formatJapaneseImperialEra(year, month) {
+    // We don't show an imperial era if it is greater than 99 becase of space
+    // limitation.
+    if (year > ImperialEraLimit)
+        return "";
     if (year > 1989)
         return "(平成" + (year - 1988) + "年)";
     if (year == 1989)
@@ -287,12 +296,40 @@ function initialize(args) {
             initialDate = global.maximumDate;
         global.daysTable.selectDate(initialDate);
 
-        setTimeout(function() {
-            if (window.frameElement)
-                window.frameElement.style.height = main.offsetHeight + "px";
-            else
-                window.resizeTo(window.outerWidth, main.offsetTop + main.offsetHeight);
-        }, 0);
+        setTimeout(fixWindowSize, 0);
+    }
+}
+
+function fixWindowSize() {
+    var yearMonthRightElement = document.getElementsByClassName(ClassNames.YearMonthButtonRight)[0];
+    var daysAreaElement = document.getElementsByClassName(ClassNames.DaysArea)[0];
+    var headers = daysAreaElement.getElementsByClassName(ClassNames.DayLabel);
+    var maxCellWidth = 0;
+    for (var i = 0; i < headers.length; ++i) {
+        if (maxCellWidth < headers[i].offsetWidth)
+            maxCellWidth = headers[i].offsetWidth;
+    }
+    var DaysAreaContainerBorder = 1;
+    var maxRight = Math.max(yearMonthRightElement.offsetLeft + yearMonthRightElement.offsetWidth,
+                            daysAreaElement.offsetLeft + maxCellWidth * 7 + DaysAreaContainerBorder);
+    var MainPadding = 6;
+    var MainBorder = 1;
+    var desiredBodyWidth = maxRight + MainPadding + MainBorder;
+
+    var main = $("main");
+    var mainHeight = main.offsetHeight;
+    main.style.width = "auto";
+    daysAreaElement.style.width = "100%";
+    daysAreaElement.style.tableLayout = "fixed";
+    document.getElementsByClassName(ClassNames.YearMonthUpper)[0].style.display = "-webkit-box";
+    document.getElementsByClassName(ClassNames.MonthSelectorBox)[0].style.display = "block";
+    main.style.webkitTransition = "opacity 0.1s ease";
+    main.style.opacity = "1";
+    if (window.frameElement) {
+        window.frameElement.style.width = desiredBodyWidth + "px";
+        window.frameElement.style.height = mainHeight + "px";
+    } else {
+        window.resizeTo(desiredBodyWidth, mainHeight);
     }
 }
 
@@ -316,6 +353,8 @@ function checkLimits() {
 }
 
 function layout() {
+    if (global.params.isRTL)
+        document.body.dir = "rtl";
     var main = $("main");
     var params = global.params;
     main.removeChild(main.firstChild);
@@ -396,6 +435,20 @@ YearMonthController.prototype.attachTo = function(main) {
     this._wall = createElement("div", ClassNames.MonthSelectorWall);
     this._wall.addEventListener("click", bind(this._closePopup, this), false);
     main.appendChild(this._wall);
+
+    var maximumYear = global.maximumDate.getUTCFullYear();
+    var maxWidth = 0;
+    for (var m = 0; m < 12; ++m) {
+        this._month.textContent = formatYearMonth(maximumYear, m);
+        maxWidth = Math.max(maxWidth, this._month.offsetWidth);
+    }
+    if (getLanguage() == "ja" && ImperialEraLimit < maximumYear) {
+        for (var m = 0; m < 12; ++m) {
+            this._month.textContent = formatYearMonth(ImperialEraLimit, m);
+            maxWidth = Math.max(maxWidth, this._month.offsetWidth);
+        }
+    }
+    this._month.style.minWidth = maxWidth + 'px';
 
     global.firstFocusableControl = this._left2; // FIXME: Shoud it be this.month?
 };
@@ -512,7 +565,7 @@ YearMonthController.prototype._showPopup = function() {
     this._monthPopup.style.display = "block";
     this._monthPopup.style.position = "absolute";
     this._monthPopup.style.zIndex = "1000"; // Larger than the days area.
-    this._monthPopup.style.left = this._month.offsetLeft + "px";
+    this._monthPopup.style.left = this._month.offsetLeft + (this._month.offsetWidth - this._monthPopup.offsetWidth) / 2 + "px";
     this._monthPopup.style.top = this._month.offsetTop + this._month.offsetHeight + "px";
     this._monthPopup.focus();
 
@@ -925,7 +978,7 @@ DaysTable.prototype._handleKey = function(event) {
         return;
     }
 
-    if (key == "Left") {
+    if (key == (global.params.isRTL ? "Right" : "Left")) {
         if (x == 0) {
             if (y == 0) {
                 if (!this._maybeSetPreviousMonth())
@@ -947,7 +1000,7 @@ DaysTable.prototype._handleKey = function(event) {
             y--;
         this.updateSelection(event, x, y);
 
-    } else if (key == "Right") {
+    } else if (key == (global.params.isRTL ? "Left" : "Right")) {
         if (x == 6) {
             if (y == DaysTable._Weeks - 1) {
                 if (!this._maybeSetNextMonth())
@@ -1056,7 +1109,8 @@ function handleGlobalKey(event) {
         global.yearMonthController.moveRelatively(event.shiftKey ? YearMonthController.PreviousYear : YearMonthController.NextYear);
     } else if (key == "U+0044") { // 'd'
         global.yearMonthController.moveRelatively(event.shiftKey ? YearMonthController.PreviousTenYears : YearMonthController.NextTenYears);
-    }
+    } else if (key == "U+001B") // ESC
+        handleCancel();
 }
 
 function maybeUpdateFocusStyle() {

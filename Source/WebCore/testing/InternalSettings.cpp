@@ -94,11 +94,10 @@ InternalSettings::InternalSettings(Frame* frame)
     : FrameDestructionObserver(frame)
     , m_originalPasswordEchoDurationInSeconds(settings()->passwordEchoDurationInSeconds())
     , m_originalPasswordEchoEnabled(settings()->passwordEchoEnabled())
+    , m_originalCSSExclusionsEnabled(RuntimeEnabledFeatures::cssExclusionsEnabled())
 #if ENABLE(SHADOW_DOM)
     , m_originalShadowDOMEnabled(RuntimeEnabledFeatures::shadowDOMEnabled())
 #endif
-
-
 {
 }
 
@@ -106,6 +105,7 @@ void InternalSettings::restoreTo(Settings* settings)
 {
     settings->setPasswordEchoDurationInSeconds(m_originalPasswordEchoDurationInSeconds);
     settings->setPasswordEchoEnabled(m_originalPasswordEchoEnabled);
+    RuntimeEnabledFeatures::setCSSExclusionsEnabled(m_originalCSSExclusionsEnabled);
 #if ENABLE(SHADOW_DOM)
     RuntimeEnabledFeatures::setShadowDOMEnabled(m_originalShadowDOMEnabled);
 #endif
@@ -315,6 +315,18 @@ bool InternalSettings::scrollAnimatorEnabled(ExceptionCode& ec)
     UNUSED_PARAM(ec);
     return false;
 #endif
+}
+
+void InternalSettings::setCSSExclusionsEnabled(bool enabled, ExceptionCode& ec)
+{
+    UNUSED_PARAM(ec);
+    RuntimeEnabledFeatures::setCSSExclusionsEnabled(enabled);
+}
+
+void InternalSettings::setMediaPlaybackRequiresUserGesture(bool enabled, ExceptionCode& ec)
+{
+    InternalSettingsGuardForSettings();
+    settings()->setMediaPlaybackRequiresUserGesture(enabled);
 }
 
 }

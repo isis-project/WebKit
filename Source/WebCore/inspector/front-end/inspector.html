@@ -33,20 +33,20 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <link rel="stylesheet" type="text/css" href="inspector.css">
     <link rel="stylesheet" type="text/css" href="inspectorCommon.css">
     <link rel="stylesheet" type="text/css" href="inspectorSyntaxHighlight.css">
-    <link rel="stylesheet" type="text/css" href="helpScreen.css">
     <link rel="stylesheet" type="text/css" href="popover.css">
     <script type="text/javascript" src="utilities.js"></script>
-    <script type="text/javascript" src="BinarySearch.js"></script>
+    <script type="text/javascript" src="DOMExtension.js"></script>
     <script type="text/javascript" src="treeoutline.js"></script>
     <script type="text/javascript" src="inspector.js"></script>
     <script type="text/javascript" src="UIUtils.js"></script>
     <script type="text/javascript" src="InspectorBackend.js"></script>
-    <script type="text/javascript" src="InspectorBackendStub.js"></script>
+    <script type="text/javascript" src="InspectorBackendCommands.js"></script>
     <script type="text/javascript" src="ExtensionRegistryStub.js"></script>
     <script type="text/javascript" src="InspectorFrontendAPI.js"></script>
     <script type="text/javascript" src="Object.js"></script>
     <script type="text/javascript" src="Settings.js"></script>
     <script type="text/javascript" src="InspectorFrontendHostStub.js"></script>
+    <script type="text/javascript" src="FileManager.js"></script>
     <script type="text/javascript" src="Checkbox.js"></script>
     <script type="text/javascript" src="ContextMenu.js"></script>
     <script type="text/javascript" src="SoftContextMenu.js"></script>
@@ -64,9 +64,13 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <script type="text/javascript" src="InspectorView.js"></script>
     <script type="text/javascript" src="AdvancedSearchController.js"></script>
     <script type="text/javascript" src="TimelineGrid.js"></script>    
+    <script type="text/javascript" src="ContentProvider.js"></script>
     <script type="text/javascript" src="Resource.js"></script>
+    <script type="text/javascript" src="NetworkRequest.js"></script>
     <script type="text/javascript" src="CSSStyleModel.js"></script>
     <script type="text/javascript" src="NetworkManager.js"></script>
+    <script type="text/javascript" src="NavigatorOverlayController.js"></script>
+    <script type="text/javascript" src="NavigatorView.js"></script>
     <script type="text/javascript" src="NetworkLog.js"></script>
     <script type="text/javascript" src="ResourceTreeModel.js"></script>
     <script type="text/javascript" src="ResourceUtils.js"></script>
@@ -117,6 +121,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <script type="text/javascript" src="TextViewer.js"></script>
     <script type="text/javascript" src="SourceFrame.js"></script>
     <script type="text/javascript" src="ResourceView.js"></script>
+    <script type="text/javascript" src="RequestView.js"></script>
     <script type="text/javascript" src="JavaScriptSourceFrame.js"></script>
     <script type="text/javascript" src="SplitView.js"></script>
     <script type="text/javascript" src="TabbedEditorContainer.js"></script>
@@ -137,13 +142,14 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <script type="text/javascript" src="AuditFormatters.js"></script>
     <script type="text/javascript" src="NetworkItemView.js"></script>
     <script type="text/javascript" src="EmptyView.js"></script>
-    <script type="text/javascript" src="ResourceHeadersView.js"></script>
-    <script type="text/javascript" src="ResourceCookiesView.js"></script>
-    <script type="text/javascript" src="ResourceTimingView.js"></script>
-    <script type="text/javascript" src="ResourceJSONView.js"></script>
-    <script type="text/javascript" src="ResourceHTMLView.js"></script>
-    <script type="text/javascript" src="ResourceResponseView.js"></script>
-    <script type="text/javascript" src="ResourcePreviewView.js"></script>
+    <script type="text/javascript" src="RequestHeadersView.js"></script>
+    <script type="text/javascript" src="RequestCookiesView.js"></script>
+    <script type="text/javascript" src="RequestTimingView.js"></script>
+    <script type="text/javascript" src="RequestJSONView.js"></script>
+    <script type="text/javascript" src="RequestHTMLView.js"></script>
+    <script type="text/javascript" src="RequestResponseView.js"></script>
+    <script type="text/javascript" src="RequestPreviewView.js"></script>
+    <script type="text/javascript" src="ResourceWebSocketFrameView.js"></script>
     <script type="text/javascript" src="ScriptFormatter.js"></script>
     <script type="text/javascript" src="DOMSyntaxHighlighter.js"></script>
     <script type="text/javascript" src="TextEditorModel.js"></script>
@@ -162,16 +168,21 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <script type="text/javascript" src="TopDownProfileDataGridTree.js"></script>
     <script type="text/javascript" src="ProfileView.js"></script>
     <script type="text/javascript" src="CSSSelectorProfileView.js"></script>
-    <script type="text/javascript" src="PartialQuickSort.js"></script>
     <script type="text/javascript" src="HeapSnapshot.js"></script>
     <script type="text/javascript" src="HeapSnapshotProxy.js"></script>
     <script type="text/javascript" src="HeapSnapshotWorkerDispatcher.js"></script>
-    <script type="text/javascript" src="DetailedHeapshotGridNodes.js"></script>
-    <script type="text/javascript" src="DetailedHeapshotView.js"></script>
+    <script type="text/javascript" src="HeapSnapshotGridNodes.js"></script>
+    <script type="text/javascript" src="HeapSnapshotLoader.js"></script>
+    <script type="text/javascript" src="HeapSnapshotDataGrids.js"></script>
+    <script type="text/javascript" src="HeapSnapshotView.js"></script>
     <script type="text/javascript" src="DebuggerModel.js"></script>
     <script type="text/javascript" src="ScriptMapping.js"></script>
     <script type="text/javascript" src="UISourceCode.js"></script>
+    <script type="text/javascript" src="JavaScriptSource.js"></script>
+    <script type="text/javascript" src="Linkifier.js"></script>
     <script type="text/javascript" src="DebuggerPresentationModel.js"></script>
+    <script type="text/javascript" src="DebuggerResourceBinding.js"></script>
+    <script type="text/javascript" src="PresentationConsoleMessageHelper.js"></script>
     <script type="text/javascript" src="BreakpointManager.js"></script>
     <script type="text/javascript" src="ContentProviders.js"></script>
     <script type="text/javascript" src="RawSourceCode.js"></script>
@@ -200,7 +211,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     <script type="text/javascript" src="JavaScriptContextManager.js"></script>
     <script type="text/javascript" src="HandlerRegistry.js"></script>
     <script type="text/javascript" src="MemoryStatistics.js"></script>
-    <script type="text/javascript" src="SnippetsModel.js"></script>
+    <script type="text/javascript" src="SnippetStorage.js"></script>
+    <script type="text/javascript" src="ScriptSnippetModel.js"></script>
+    <script type="text/javascript" src="StylesPanel.js"></script>
 </head>
 <body class="detached" id="-webkit-web-inspector">
     <div id="toolbar">
@@ -208,7 +221,10 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
         <div id="toolbar-controls">
             <div class="toolbar-item"><button id="toolbar-dropdown-arrow" class="toolbar-label">&raquo;</button></div>
             <div class="toolbar-item hidden" id="search-results-matches"></div>
-            <div class="toolbar-item toolbar-search-item"><input id="search" type="search" incremental results="0"><div id="search-toolbar-label" class="toolbar-label"></div></div>
+            <div class="toolbar-item" id="toolbar-search-item">
+                <input id="search" type="search" incremental results="0">
+                <div id="toolbar-search-navigation-control"></div>
+            </div>
             <div class="toolbar-item close-right"><button id="close-button-right"></button></div>
         </div>
     </div>

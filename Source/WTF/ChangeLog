@@ -1,3 +1,709 @@
+2012-05-15  Zoltan Herczeg  <zherczeg@webkit.org>
+
+        NEONizing forceValidPreMultipliedPixels
+        https://bugs.webkit.org/show_bug.cgi?id=86468
+
+        Reviewed by Nikolas Zimmermann.
+
+        Allow to disable all intrinsics with a single macro.
+
+        * wtf/Platform.h:
+
+2012-05-14  Andy Estes  <aestes@apple.com>
+
+        Add WTF_USE_APPKIT to differentiate platforms that use AppKit.framework from other Darwin platforms
+        https://bugs.webkit.org/show_bug.cgi?id=86432
+
+        Reviewed by Maciej Stachowiak.
+
+        * wtf/Platform.h:
+
+2012-05-14  Mark Rowe  <mrowe@apple.com>
+
+        <http://webkit.org/b/86320> WTF.xcodeproj builds with -O3 in debug builds
+
+        Reviewed by Simon Fraser.
+
+        * WTF.xcodeproj/project.pbxproj: Ensure that the debug configuration uses the
+        same settings as the debug variant would.
+
+2012-05-14  Wei James  <james.wei@intel.com>
+
+        [Chromium] ImageDiff should be build for host on Android
+        https://bugs.webkit.org/show_bug.cgi?id=82039
+
+        Reviewed by Adam Barth.
+
+        * WTF.gyp/WTF.gyp:
+
+2012-05-14  Yong Li  <yoli@rim.com>
+
+        DFG JIT is not ARM EABI compatible
+        https://bugs.webkit.org/show_bug.cgi?id=84449
+
+        Reviewed by Filip Pizlo.
+
+        Add COMPILER_SUPPORTS(EABI) when __ARM_EABI__
+        or __EABI__ is defined.
+
+        * wtf/Compiler.h:
+
+2012-05-10  Michał Pakuła vel Rutka  <m.pakula@samsung.com>
+
+        [EFL] Add OwnPtr specialization for Eina_Hash.
+        https://bugs.webkit.org/show_bug.cgi?id=85046
+
+        Reviewed by Andreas Kling.
+
+        Add an override for Eina_Hash for EFL port.
+
+        * wtf/OwnPtrCommon.h:
+        (WTF):
+        * wtf/efl/OwnPtrEfl.cpp:
+        (WTF::deleteOwnedPtr):
+        (WTF):
+
+2012-05-09  Filip Pizlo  <fpizlo@apple.com>
+
+        It should be possible to get useful debug logging from the JIT memory allocator
+        https://bugs.webkit.org/show_bug.cgi?id=86042
+
+        Reviewed by Geoff Garen.
+
+        * wtf/MetaAllocator.cpp:
+        (WTF::MetaAllocator::findAndRemoveFreeSpace):
+        (WTF::MetaAllocator::addFreeSpace):
+        (WTF::MetaAllocator::dumpProfile):
+
+2012-05-08  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r116440.
+        http://trac.webkit.org/changeset/116440
+        https://bugs.webkit.org/show_bug.cgi?id=85904
+
+        Broke the Chromium Android bot (Requested by beverloo on
+        #webkit).
+
+        * WTF.gyp/WTF.gyp:
+
+2012-05-08  Adam Barth  <abarth@webkit.org>
+
+        [Chromium] OS(ANDROID) ImageDiff requires us to build WTF for both host and target
+        https://bugs.webkit.org/show_bug.cgi?id=85897
+
+        Reviewed by Tony Chang.
+
+        * WTF.gyp/WTF.gyp:
+
+2012-05-08  Adam Barth  <abarth@webkit.org>
+
+        [Chromium] Assertions.cpp should work on OS(ANDROID)
+        https://bugs.webkit.org/show_bug.cgi?id=85867
+
+        Reviewed by Eric Seidel.
+
+        Some minor ifdefs for OS(ANDROID) on PLATFORM(CHROMIUM).
+
+        * wtf/Assertions.cpp:
+
+2012-05-07  Adam Barth  <abarth@webkit.org>
+
+        [Chromium] Android wishes to use an empty implementation if AXObjectCache
+        https://bugs.webkit.org/show_bug.cgi?id=85842
+
+        Reviewed by Eric Seidel.
+
+        Disable accessibility on OS(ANDROID) for PLATFORM(CHROMIUM).
+
+        * wtf/Platform.h:
+
+2012-05-04  Jeff Rogers  <jrogers@rim.com>
+
+        [BlackBerry] Implement numberOfProcessorCores() for QNX
+        https://bugs.webkit.org/show_bug.cgi?id=85638
+
+        Reviewed by Antonio Gomes.
+
+        * wtf/NumberOfCores.cpp:
+        (WTF::numberOfProcessorCores):
+
+2012-05-03  Yong Li  <yoli@rim.com>
+
+        Mutex failure when HashTable is memory moved in debug build
+        https://bugs.webkit.org/show_bug.cgi?id=84970
+
+        Reviewed by Rob Buis.
+
+        1. Replace m_mutex with OwnPtr<m_mutex> so HashTable is still
+           memory movable in debug build.
+        2. Assert successes of pthread_mutex_init() and pthread_mutex_destroy().
+
+        * wtf/HashTable.h:
+        (HashTable):
+        (WTF::::HashTable):
+        (WTF::::invalidateIterators):
+        (WTF::addIterator):
+        (WTF::removeIterator):
+        * wtf/ThreadingPthreads.cpp:
+        (WTF::Mutex::Mutex):
+        (WTF::Mutex::~Mutex):
+
+2012-05-02  Antti Koivisto  <antti@apple.com>
+
+        Add temporary feature define for parsed stylesheet caching
+        https://bugs.webkit.org/show_bug.cgi?id=85413
+
+        Rubber-stamped by Nikolas Zimmermann.
+
+        While not an externally visible feature this is still a significant internal change.
+        It is good to have define in case someone has an urgent need to turn it off.
+        
+        Caching is enabled by default on all platforms. The define should be removed after some bake time.
+
+        * wtf/Platform.h:
+
+2012-05-02  Lauro Neto  <lauro.neto@openbossa.org>
+
+        [Qt]r57240 broke Qt build (gcc bug)
+        https://bugs.webkit.org/show_bug.cgi?id=37253
+
+        Reviewed by Csaba Osztrogonác.
+
+        Add back the inline hack just for ARM due to old version of
+        gcc still being used on Harmattan SDK. Thanks to Ossy for the
+        suggestion.
+        * wtf/PassRefPtr.h:
+        (WTF):
+
+2012-05-02  Nico Weber  <thakis@chromium.org>
+
+        Let WebKit parse with clang on windows with -std=c++11
+        https://bugs.webkit.org/show_bug.cgi?id=85398
+
+        Reviewed by Ryosuke Niwa.
+
+        See http://trac.webkit.org/changeset/85945 for background on the line
+        I'm changing. With clang, __GXX_EXPERIMENTLAL_CXX0X__ is set in c++11
+        mode, but MSVC's c++ library doesn't have a tr1/memory header. So also
+        check for __GLIBCXX__, like it's done in the rest of this file.
+
+        * wtf/TypeTraits.h:
+
+2012-05-02  Adenilson Cavalcanti  <cavalcantii@gmail.com>
+
+        [Qt]r57240 broke Qt build (gcc bug)
+        https://bugs.webkit.org/show_bug.cgi?id=37253
+
+        Reviewed by Noam Rosenthal.
+
+        Removing workaround macro since current gcc/Qt doesn't require it to compile.
+
+        * wtf/PassRefPtr.h:
+        (WTF):
+
+2012-04-30  Oliver Hunt  <oliver@apple.com>
+
+        Investigate overflows in Canvas putImageData routine
+        https://bugs.webkit.org/show_bug.cgi?id=61373
+
+        Reviewed by Gavin Barraclough.
+
+        Allow floating point multiplies of checked types (complete with
+        bounds checks).
+
+        * wtf/CheckedArithmetic.h:
+        (Checked):
+        (WTF::Checked::operator*=):
+
+2012-04-30  Benjamin Poulain  <benjamin@webkit.org>
+
+        Add String::startsWith() and endsWith() for string literals
+        https://bugs.webkit.org/show_bug.cgi?id=85154
+
+        Reviewed by Darin Adler.
+
+        When invoking StringImpl::startsWidth() or StringImpl::endsWith() with
+        a string literal, a new String was constructed implicitly, allocating
+        a new StringImpl and copying the characters for the operation.
+
+        This patch adds a version of those methods for single characters and
+        string literals.
+        This allows us to avoid allocating memory and use the characters in place,
+        and it permits some extra shortcuts in the implementation.
+
+        * wtf/text/AtomicString.h:
+        (WTF::AtomicString::startsWith):
+        (AtomicString):
+        (WTF::AtomicString::endsWith):
+        * wtf/text/StringImpl.cpp:
+        (WTF::equalInner):
+        (WTF):
+        (WTF::StringImpl::startsWith):
+        (WTF::StringImpl::endsWith):
+        * wtf/text/StringImpl.h:
+        (WTF::StringImpl::startsWith):
+        (StringImpl):
+        (WTF::StringImpl::endsWith):
+        * wtf/text/WTFString.h:
+        (WTF::String::startsWith):
+        (String):
+        (WTF::String::endsWith):
+
+2012-04-30  Anders Carlsson  <andersca@apple.com>
+
+        WTF::bind should work with blocks
+        https://bugs.webkit.org/show_bug.cgi?id=85227
+
+        Reviewed by Sam Weinig.
+
+        Add a block type FunctionWrapper specialization.
+
+        * wtf/Functional.h:
+
+2012-04-28  Emil A Eklund  <eae@chromium.org>
+
+        Add ENABLE_SUBPIXEL_LAYOUT controlling FractionalLayoutUnit denominator
+        https://bugs.webkit.org/show_bug.cgi?id=85146
+
+        Reviewed by Eric Seidel.
+
+        Add a new flag for controlling the fixed point denominator in
+        FractionalLayoutUnit. Controls whether the denominator is set to 60 or 1.
+        Until we change the LayoutUnit typedef this change will have no effect.
+
+        * wtf/Platform.h:
+
+2012-04-29  Kent Tamura  <tkent@chromium.org>
+
+        [Mac] Add LocalizedDateMac
+        https://bugs.webkit.org/show_bug.cgi?id=85039
+
+        Reviewed by Kentaro Hara.
+
+        * wtf/DateMath.h:
+        (WTF): Add monthFullName[]. It is useful to make fallback month
+        names for calendar/date related features.
+
+2012-04-26  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [SOUP] Add a way to register custom uri schemes in WebKit2
+        https://bugs.webkit.org/show_bug.cgi?id=84130
+
+        Reviewed by Martin Robinson.
+
+        Add GPtrArray template to be able to use GRefPtr with GPtrArrays.
+
+        * wtf/gobject/GRefPtr.cpp:
+        (WTF::refGPtr):
+        (WTF):
+        (WTF::derefGPtr):
+        * wtf/gobject/GRefPtr.h:
+        (WTF):
+        * wtf/gobject/GTypedefs.h:
+
+2012-04-26  Nico Weber  <thakis@chromium.org>
+
+        Don't define WTF_COMPILER_SUPPORTS_CXX_NULLPTR twice when building with clang on windows.
+        https://bugs.webkit.org/show_bug.cgi?id=85018
+
+        Reviewed by Anders Carlsson.
+
+        Clang sets _MSC_VER when compiling for a -pc-win32 target (just like it sets __GNUC__ on unix).
+        As a result, WTF_COMPILER_SUPPORTS_CXX_NULLPTR gets currently set twice, once for clang and
+        once for _MSC_VER. Guard the second instance with !COMPILER(CLANG). This matches the gcc code
+        for WTF_COMPILER_SUPPORTS_CXX_NULLPTR in the same file.
+
+        * wtf/Compiler.h:
+
+2012-04-26  Antonio Gomes  <agomes@rim.com>
+
+        [BlackBerry] properly disable DRAG_SUPPORT
+        https://bugs.webkit.org/show_bug.cgi?id=84952
+
+        Reviewed by Daniel Bates.
+
+        * wtf/Platform.h: Remove the line that disables drag support from here
+        for the BlackBerry port.
+
+2012-04-25  Benjamin Poulain  <benjamin@webkit.org>
+
+        Add a version of StringImpl::find() without offset
+        https://bugs.webkit.org/show_bug.cgi?id=83968
+
+        Reviewed by Sam Weinig.
+
+        This patch add a version of StringImpl::find() without offset, Instead of using the default
+        value for the index.
+
+        By not having the index, we can skip a couple of branches and a few instructions. This gives
+        significant gains when the strings are short-ish.
+
+        The case of empty string is moved below (matchLength == 1) since it is a less common operation.
+
+        * wtf/text/StringImpl.cpp:
+        (WTF::StringImpl::find):
+        (WTF):
+        * wtf/text/StringImpl.h:
+        (StringImpl):
+        * wtf/text/WTFString.h:
+        (String):
+        (WTF::String::find):
+
+2012-04-25  Darin Adler  <darin@apple.com>
+
+        Iterating a HashMap<String, X> involves a string equality comparison to check for the empty value
+        https://bugs.webkit.org/show_bug.cgi?id=84524
+
+        Reviewed by Antti Koivisto.
+
+        * wtf/HashMap.h: Added a struct template, HashMapValueTraits, that derives from
+        PairHashTraits, adds an isEmptyValue function that looks only at the key, not
+        the mapped value, in the hash table value, and uses the isHashTraitsEmptyValue
+        function template to check if the key is empty.
+
+2012-04-25  Landry Breuil  <landry@openbsd.org>
+
+        Include <sys/param.h>, needed for sysctl() on OpenBSD/NetBSD
+        https://bugs.webkit.org/show_bug.cgi?id=82585
+
+        Reviewed by Zoltan Herczeg.
+
+        * wtf/NumberOfCores.cpp: include <sys/param.h> on the BSDs
+
+2012-04-25  Kenneth Russell  <kbr@google.com>
+
+        Delete CanvasPixelArray, ByteArray, JSByteArray and JSC code once unreferenced
+        https://bugs.webkit.org/show_bug.cgi?id=83655
+
+        Reviewed by Oliver Hunt.
+
+        * GNUmakefile.list.am:
+        * WTF.gypi:
+        * WTF.pro:
+        * WTF.vcproj/WTF.vcproj:
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/ByteArray.cpp: Removed.
+        * wtf/ByteArray.h: Removed.
+        * wtf/CMakeLists.txt:
+
+2012-04-25  Philippe Normand  <pnormand@igalia.com>
+
+        Webkit build fails due to missing gstreamer include file on Kubuntu 8.04
+        https://bugs.webkit.org/show_bug.cgi?id=81913
+
+        Reviewed by Tor Arne Vestbø.
+
+        * WTF.pri: GStreamer build support implies GLib support, as it's
+        done in WebCore.pri.
+
+2012-04-24  Benjamin Poulain  <bpoulain@apple.com>
+
+        Generalize the single character optimization of r114072
+        https://bugs.webkit.org/show_bug.cgi?id=83961
+
+        Reviewed by Eric Seidel.
+
+        This patch makes some improvment over String::find() in the case of lookup for a single
+        character.
+
+        The two function find(UChar|LChar) are replaced by a template.
+
+        The case of searching a UChar in a 8bit string has a shortcut if the UChar cannot
+        possibly match any character in the range of the type LChar.
+
+        The slow case StringImpl::find(StringImpl*) is modified to
+        -Do not allocate in the fast case if only one string is 8bit.
+        -Use the shortcut for searching UChar in LChar.
+
+        This speed up the function by about 7% when avoiding string conversion.
+
+        * wtf/text/StringImpl.cpp:
+        (WTF::StringImpl::find):
+        * wtf/text/StringImpl.h:
+        (StringImpl):
+        (WTF):
+        (WTF::find):
+        (WTF::StringImpl::find):
+
+2012-04-24  Darin Adler  <darin@apple.com>
+
+        Iterating a HashMap<String, X> involves a string equality comparison to check for the empty value
+        https://bugs.webkit.org/show_bug.cgi?id=84524
+
+        Reviewed by Antti Koivisto.
+
+        Added a new algorithm for checking for empty buckets that can be specialized.
+        Specialized it for String. We may later want to do the same thing for KURL.
+        It's not important to do it for AtomicString, since AtomicString's == function
+        is already a simple pointer equality compare. We may also later want to do
+        something similar for pairs that have String objects in them.
+
+        * wtf/HashTable.h:
+        (WTF::HashTable::isEmptyBucket): Call the new isHashTraitsEmptyValue function, which
+        will do something more efficient for String.
+
+        * wtf/HashTraits.h: Added hasIsEmptyValueFunction to hash traits, with a default value
+        of false. This allows us to continue to get automatic comparison with the appropriate
+        emptyValue result for all existing traits, but supply a custom isEmptyValue function
+        for HashTraits<String>. Putting an isEmptyValue function into the traits would require
+        overriding it in every class that has a custom value for emptyValue. Specialized
+        HashTraits for String to add hasIsEmptyValueFunction and declare, but not define, the
+        isEmptyValue function.
+        (WTF::isHashTraitsEmptyValue): Added a function that uses the HashTraitsEmptyValueChecker
+        struct to use either == combined with the emptyValue function or the isEmptyValue function.
+
+        * wtf/text/StringHash.h: Removed unneeded includes and sorted the using statements at
+        the bottom of the file.
+        (WTF::HashTraits<String>::isEmptyValue): Define this function here, since here we have
+        included the WTFString.h header; the HashTraits.h header compiles without WTFString.h.
+
+2012-04-23  Kenneth Russell  <kbr@google.com>
+
+        Change ImageData to reference Uint8ClampedArray rather than CanvasPixelArray
+        https://bugs.webkit.org/show_bug.cgi?id=73011
+
+        Reviewed by Oliver Hunt.
+
+        * wtf/ArrayBuffer.h:
+        (ArrayBuffer):
+        (WTF::ArrayBuffer::create):
+        (WTF::ArrayBuffer::createUninitialized):
+        (WTF):
+        (WTF::ArrayBufferContents::tryAllocate):
+        * wtf/TypedArrayBase.h:
+        (WTF::TypedArrayBase::createUninitialized):
+        (TypedArrayBase):
+        * wtf/Uint8ClampedArray.h:
+        (Uint8ClampedArray):
+        (WTF::Uint8ClampedArray::createUninitialized):
+        (WTF):
+        (WTF::Uint8ClampedArray::zeroFill):
+
+2012-04-23  George Staikos  <staikos@webkit.org>
+
+        Enable parallel GC for BlackBerry.
+        https://bugs.webkit.org/show_bug.cgi?id=84633
+
+        Reviewed by Antonio Gomes.
+
+        * wtf/Platform.h:
+
+2012-04-23  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r114914.
+        http://trac.webkit.org/changeset/114914
+        https://bugs.webkit.org/show_bug.cgi?id=84615
+
+        Causing infinite hangs on some tests involving HashMaps with
+        integer keys (Requested by dimich on #webkit).
+
+        * wtf/HashTable.h:
+        (WTF::HashTable::isEmptyBucket):
+        * wtf/HashTraits.h:
+        * wtf/text/StringHash.h:
+
+2012-04-23  Darin Adler  <darin@apple.com>
+
+        Iterating a HashMap<String, X> involves a string equality comparison to check for the empty value
+        https://bugs.webkit.org/show_bug.cgi?id=84524
+
+        Reviewed by Antti Koivisto.
+
+        Added a new algorithm for checking for empty buckets that can be specialized.
+        Specialized it for String. We may later want to do the same thing for KURL.
+        It's not important to do it for AtomicString, since AtomicString's == function
+        is already a simple pointer equality compare.
+
+        * wtf/HashTable.h:
+        (WTF::HashTable::isEmptyBucket): Call the new isHashTraitsEmptyValue function, which
+        will do something more efficient for String.
+
+        * wtf/HashTraits.h: Added hasIsEmptyValueFunction to hash traits, with a default value
+        of false. This allows us to continue to get automatic comparison with the appropriate
+        emptyValue result for all existing traits, but supply a custom isEmptyValue function
+        for HashTraits<String>. Putting an isEmptyValue function into the traits would require
+        overriding it in every class that has a custom value for emptyValue. Specialized
+        HashTraits for String to add hasIsEmptyValueFunction and declare, but not define, the
+        isEmptyValue function.
+        (WTF::isHashTraitsEmptyValue): Added a function that uses the HashTraitsEmptyValueChecker
+        struct to use either == combined with the emptyValue function or the isEmptyValue function.
+        (PairHashTraits): Define hasIsEmptyValueFunction and isEmptyValue.
+
+        * wtf/text/StringHash.h: Removed unneeded includes and sorted the using statements at
+        the bottom of the file.
+        (WTF::HashTraits<String>::isEmptyValue): Define this function here, since here we have
+        included the WTFString.h header; the HashTraits.h header compiles without WTFString.h.
+
+2012-04-18  Myles Maxfield  <mmaxfield@google.com>
+
+        Somehow, there's an errant backslash in my last WTF patch
+        https://bugs.webkit.org/show_bug.cgi?id=84290
+
+        Reviewed by Andreas Kling.
+
+        * wtf/StdLibExtras.h:
+        (WTF::roundUpToMultipleOf):
+
+2012-04-16  Nico Weber  <thakis@chromium.org>
+
+        Make NullPtr.h compile with clang -std=c++11 and libstdc++4.2
+        https://bugs.webkit.org/show_bug.cgi?id=83999
+
+        Reviewed by Sam Weinig.
+
+        Before this patch, NullPtr.h assumed that a working |nullptr| implied
+        a working |std::nullptr_t| as well. With clang and libstdc++4.2, this
+        is not true.
+
+        I tested (-stdlib=libc++, -stdlib=libstdc++) x (-std=c++11, -std=c++03)
+        with clang.
+
+        * wtf/NullPtr.h:
+        (std):
+
+2012-04-14  Sam Weinig  <sam@webkit.org>
+
+        Harden WTF::ByteArray::create()
+        https://bugs.webkit.org/show_bug.cgi?id=83318
+
+        Reviewed by Maciej Stachowiak.
+
+        * wtf/ByteArray.cpp:
+        (WTF::ByteArray::create):
+        Add overflow check. I don't believe there is anyway to trigger this currently,
+        hence no tests, so this should be considered hardening.
+
+2012-04-12  Benjamin Poulain  <bpoulain@apple.com>
+
+        Inline StringImpl::find(UChar, ...)
+        https://bugs.webkit.org/show_bug.cgi?id=83737
+
+        Reviewed by Geoffrey Garen.
+
+        The implementation of StringImpl::find() is a simple branch before invoking one of
+        two inline functions. The overhead of having a function for StringImpl::find() is significant.
+
+        It is better to let the compiler decide if that should be inlined or not.
+
+        * wtf/text/StringImpl.cpp:
+        * wtf/text/StringImpl.h:
+        (StringImpl):
+        (WTF::find):
+        (WTF):
+        (WTF::reverseFind):
+        (WTF::StringImpl::find):
+        * wtf/text/WTFString.h:
+
+2012-04-12  Balazs Kelemen  <kbalazs@webkit.org>
+
+        [Qt] Fix WebKit1 build with V8
+        https://bugs.webkit.org/show_bug.cgi?id=83322
+
+        Reviewed by Adam Barth.
+
+        * wtf/StdLibExtras.h:
+        (WTF):
+
+2012-04-12  Jer Noble  <jer.noble@apple.com>
+
+        ThreadingWin: Mutex::unlock() can be "over-unlocked".
+        https://bugs.webkit.org/show_bug.cgi?id=83725
+
+        Reviewed by David Levin.
+
+        In order to support the behavior of pthread_mutex_trylock(), the Windows Mutex class includes
+        a recursion counter which is incremented in Mutex::lock(), decremented in Mutex::unlock(),
+        and checked in Mutex::tryLock().  If the mutex is "over-unlocked", the counter wraps around to
+        MAX_INT, and subsequent calls to Mutex::trylock() will fail. Raise an ASSERT in this situation
+        so the "over-unlock" will be caught.
+
+        * wtf/ThreadingWin.cpp:
+        (WTF::Mutex::unlock): ASSERT if unlocking a non-locked mutex.
+
+2012-04-10  Mark Rowe  <mrowe@apple.com>
+
+        <rdar://problem/10583749> WebKit2 should log to both ASL and stderr
+
+        Reviewed by Sam Weinig.
+
+        * wtf/Assertions.cpp: Add a WTFLogAlways function that unconditionally logs the given message.
+        * wtf/Assertions.h:
+
+2012-04-10  Patrick Gansterer  <paroga@webkit.org>
+
+        Cleanup wtf/Platform.h and config.h files
+        https://bugs.webkit.org/show_bug.cgi?id=83431
+
+        Reviewed by Eric Seidel.
+
+        The ENABLE() and USE() macros take care about the case when the flag
+        isn't defined. So there is no need to define anything with 0.
+
+        Also move duplicated code from the config.h files to Platform.h and
+        merge a few preprocessor commands to make the file more readable.
+
+        * config.h:
+        * wtf/Platform.h:
+
+2012-04-10  Filip Pizlo  <fpizlo@apple.com>
+
+        DFG should flush SetLocals to arguments
+        https://bugs.webkit.org/show_bug.cgi?id=83554
+
+        Reviewed by Gavin Barraclough.
+        
+        Added an isRoot() method that is a faster shorthand for saying
+        find() == this.
+
+        * wtf/UnionFind.h:
+        (WTF::UnionFind::isRoot):
+        (UnionFind):
+
+2012-04-10  Adam Klein  <adamk@chromium.org>
+
+        Remove unused NonNullPassRefPtr from WTF
+        https://bugs.webkit.org/show_bug.cgi?id=82389
+
+        Reviewed by Kentaro Hara.
+
+        NonNullPassRefPtr seems to be unused since JSC allocation was
+        restructured in r84052.
+
+        If someone decides they need this later, they can always revert this patch.
+
+        * wtf/PassRefPtr.h:
+        * wtf/RefPtr.h:
+        (RefPtr):
+
+2012-04-10  Patrick Gansterer  <paroga@webkit.org>
+
+        [CMake] Enable USE_FOLDERS property
+        https://bugs.webkit.org/show_bug.cgi?id=83571
+
+        Reviewed by Daniel Bates.
+
+        Setting the FOLDER property on targets gives more structure 
+        to the generated Visual Studio solutions.
+        This does not affect other CMake generators.
+
+        * wtf/CMakeLists.txt:
+
+2012-04-09  Patrick Gansterer  <paroga@webkit.org>
+
+        Port BinarySemaphoreWin.cpp to WinCE
+        https://bugs.webkit.org/show_bug.cgi?id=83502
+
+        Reviewed by Daniel Bates.
+
+        Replace WaitForSingleObjectEx with WaitForSingleObject since
+        the additonal parameter supported by the extended function
+        is not used anyway and the function does not exist on WinCE.
+
+        * wtf/CMakeLists.txt:
+        * wtf/PlatformWinCE.cmake:
+        * wtf/threads/win/BinarySemaphoreWin.cpp:
+        (WTF::BinarySemaphore::wait):
+
 2012-04-09  Patrick Gansterer  <paroga@webkit.org>
 
         [CMake] Build fix for USE_SYSTEM_MALLOC after r113570.

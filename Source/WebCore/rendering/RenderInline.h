@@ -98,12 +98,14 @@ private:
 
     virtual bool isRenderInline() const { return true; }
 
-    FloatRect culledInlineBoundingBox(const RenderInline* container) const;
     LayoutRect culledInlineVisualOverflowBoundingBox() const;
     InlineBox* culledInlineFirstLineBox() const;
     InlineBox* culledInlineLastLineBox() const;
-    void culledInlineAbsoluteRects(const RenderInline* container, Vector<IntRect>&, const LayoutSize&) const;
-    void culledInlineAbsoluteQuads(const RenderInline* container, Vector<FloatQuad>&) const;
+
+    template<typename GeneratorContext>
+    void generateLineBoxRects(GeneratorContext yield) const;
+    template<typename GeneratorContext>
+    void generateCulledLineBoxRects(GeneratorContext yield, const RenderInline* container) const;
 
     void addChildToContinuation(RenderObject* newChild, RenderObject* beforeChild);
     virtual void addChildIgnoringContinuation(RenderObject* newChild, RenderObject* beforeChild = 0);
@@ -130,7 +132,7 @@ private:
     virtual LayoutRect rectWithOutlineForRepaint(RenderBoxModelObject* repaintContainer, LayoutUnit outlineWidth) const;
     virtual void computeRectForRepaint(RenderBoxModelObject* repaintContainer, LayoutRect&, bool fixed) const;
 
-    virtual void mapLocalToContainer(RenderBoxModelObject* repaintContainer, bool fixed, bool useTransforms, TransformState&, bool* wasFixed = 0) const;
+    virtual void mapLocalToContainer(RenderBoxModelObject* repaintContainer, bool fixed, bool useTransforms, TransformState&, ApplyContainerFlipOrNot = ApplyContainerFlip, bool* wasFixed = 0) const;
 
     virtual VisiblePosition positionForPoint(const LayoutPoint&);
 

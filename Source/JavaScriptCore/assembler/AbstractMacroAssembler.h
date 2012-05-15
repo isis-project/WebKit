@@ -221,33 +221,17 @@ public:
     struct TrustedImm32 {
         explicit TrustedImm32(int32_t value)
             : m_value(value)
-#if CPU(ARM) || CPU(MIPS)
-            , m_isPointer(false)
-#endif
         {
         }
 
 #if !CPU(X86_64)
         explicit TrustedImm32(TrustedImmPtr ptr)
             : m_value(ptr.asIntptr())
-#if CPU(ARM) || CPU(MIPS)
-            , m_isPointer(true)
-#endif
         {
         }
 #endif
 
         int32_t m_value;
-#if CPU(ARM) || CPU(MIPS)
-        // We rely on being able to regenerate code to recover exception handling
-        // information.  Since ARMv7 supports 16-bit immediates there is a danger
-        // that if pointer values change the layout of the generated code will change.
-        // To avoid this problem, always generate pointers (and thus Imm32s constructed
-        // from ImmPtrs) with a code sequence that is able  to represent  any pointer
-        // value - don't use a more compact form in these cases.
-        // Same for MIPS.
-        bool m_isPointer;
-#endif
     };
 
 
@@ -497,6 +481,21 @@ public:
 #endif
     };
 
+    struct PatchableJump {
+        PatchableJump()
+        {
+        }
+
+        explicit PatchableJump(Jump jump)
+            : m_jump(jump)
+        {
+        }
+
+        operator Jump&() { return m_jump; }
+
+        Jump m_jump;
+    };
+
     // JumpList:
     //
     // A JumpList is a set of Jump objects.
@@ -563,7 +562,7 @@ public:
     }
 
     template<typename T, typename U>
-    ptrdiff_t differenceBetween(T from, U to)
+    static ptrdiff_t differenceBetween(T from, U to)
     {
         return AssemblerType::getDifferenceBetweenLabels(from.m_label, to.m_label);
     }
@@ -573,27 +572,15 @@ public:
         return reinterpret_cast<ptrdiff_t>(b.executableAddress()) - reinterpret_cast<ptrdiff_t>(a.executableAddress());
     }
 
-    void beginUninterruptedSequence() { m_inUninterruptedSequence = true; }
-    void endUninterruptedSequence() { m_inUninterruptedSequence = false; }
-
     unsigned debugOffset() { return m_assembler.debugOffset(); }
 
 protected:
     AbstractMacroAssembler()
-        : m_inUninterruptedSequence(false)
-        , m_randomSource(cryptographicallyRandomNumber())
+        : m_randomSource(cryptographicallyRandomNumber())
     {
     }
 
     AssemblerType m_assembler;
-
-    bool inUninterruptedSequence()
-    {
-        return m_inUninterruptedSequence;
-    }
-
-    bool m_inUninterruptedSequence;
-    
     
     uint32_t random()
     {

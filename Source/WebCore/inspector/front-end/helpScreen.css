@@ -1,52 +1,44 @@
 .help-window-outer {
     position: absolute;
-    top: 60px;
+    top: 12px;
     left: 5%;
     width: 90%;
-    bottom: 40px;
+    bottom: 12px;
     z-index: 2000;
 }
 
 body.compact .help-window-outer {
-    top: 32px;
+    top: 0;
     left: 0;
     width: 100%;
-    bottom: 23px;
+    bottom: 0;
 }
 
 .help-window-main {
     max-height: 100%;
     color: white;
-    background-color: rgba(0, 0, 0, 0.85);
+    background-color: rgba(17, 17, 17, 0.85);
     display: -webkit-box;
     -webkit-box-orient: vertical;
     border-top-width: 0;
-    border-radius: 15px;
-    -webkit-box-shadow: 10px 10px 8px rgba(40, 40, 40, 0.40);
+    border-radius: 10px;
 }
 
 body.compact .help-window-main {
     height: 100%;
-    padding: 10px;
-}
-
-body.compact .help-window-main {
     border-radius: 0;
-    -webkit-box-shadow: 0 0 0;
 }
 
 .help-window-caption {
-    margin: 8px 8px 0 8px;
-}
-
-body.compact .help-window-caption {
-    margin: 0;
+    border-bottom: solid 1px rgb(153, 153, 153);
+    margin: 0 8px;
+    padding: 0 2px;
+    line-height: 36px;
 }
 
 .help-window-title {
-    border-bottom: solid 1px lightGrey;
-    font-size: 18px;
-    padding-bottom: 6px;
+    font-size: 16px;
+    margin: 0;
 }
 
 .help-content {
@@ -54,7 +46,8 @@ body.compact .help-window-caption {
     overflow-x: hidden;
     scrollbar-width: 11px;
     -webkit-box-flex: 1;
-    margin: 10px;
+    margin: 8px;
+    padding: 0 4px;
     font-size: 13px;
 }
 
@@ -88,18 +81,15 @@ body.compact .help-window-caption {
     padding: 0;
     font-size: 14px;
     color: rgb(222, 222, 222);
-    background: -webkit-gradient(radial, 30% 30%, 1, 50% 50%, 8, from(rgb(128, 128, 128)), to(rgb(80, 80, 80)));
+    background: -webkit-gradient(radial, 30% 30%, 1, 50% 50%, 8, from(rgb(144, 144, 144)), to(rgb(96, 96, 96)));
     border-radius: 8px;
     height: 16px;
     width: 16px;
-}
-
-body.compact .help-close-button {
-    margin: 0;
+    margin: 10px 0;
 }
 
 body.compact .help-content {
-    margin: 8px 0 0 8px;
+    margin-bottom: 8px;
 }
 
 .help-close-button:hover {
@@ -121,10 +111,14 @@ body:not(.platform-mac) .help-close-button {
     -webkit-user-select: auto;
 }
 
+.help-column-table {
+    border-collapse: collapse;
+}
+
 .help-table > tr > th {
     padding-top: 6px;
     text-align: left;
-    color: yellow;
+    color: rgb(221, 221, 0);
 }
 
 .help-table > tr > td {
@@ -138,25 +132,24 @@ body:not(.platform-mac) .help-close-button {
 }
 
 .help-key {
-    color: yellow;
-}
-
-body:not(.platform-mac) .help-key {
-    text-shadow: black 1px 1px 7px;
+    color: rgb(221, 221, 0);
 }
 
 body.platform-mac .help-key {
     font-family: Lucida Grande, sans-serif;
 }
 
-.help-combine-keys {
+.help-combine-keys, .help-key-delimiter {
     color: white;
+    font-size: 9px;
+    font-weight: bold;
+}
+
+.help-combine-keys {
     margin: 0 0.3em;
-    font-size: 12px;
 }
 
 .help-key-delimiter {
-    color: white;
     margin: 0 0.5em;
 }
 
@@ -181,11 +174,12 @@ body.platform-mac .help-key {
 }
 
 .help-content p.help-section {
-    margin-bottom: 15px;
+    margin: 0 0 15px 0;
 }
 
 .help-section-title {
-    color: yellow;
+    color: rgb(221, 221, 0);
+    text-align: left;
 }
 
 .settings-experiments-warning-subsection-warning {
@@ -203,7 +197,7 @@ body.platform-mac .help-key {
 .help-content input[type=checkbox] {
     height: 13px;
     width: 13px;
-    margin-right: 0;
+    margin-left: 0;
     margin-right: 4px;
 }
 
@@ -211,7 +205,7 @@ body.platform-mac .help-key {
     background-color: rgb(64, 64, 64);
     color: white;
     border-color: black;
-    padding: 0px 4px;
+    padding: 0 4px;
 }
 
 .help-content select:disabled {

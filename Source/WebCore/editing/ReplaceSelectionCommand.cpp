@@ -444,11 +444,12 @@ static bool isHeaderElement(Node* a)
     if (!a)
         return false;
         
-    return a->hasTagName(h1Tag) ||
-           a->hasTagName(h2Tag) ||
-           a->hasTagName(h3Tag) ||
-           a->hasTagName(h4Tag) ||
-           a->hasTagName(h5Tag);
+    return a->hasTagName(h1Tag)
+        || a->hasTagName(h2Tag)
+        || a->hasTagName(h3Tag)
+        || a->hasTagName(h4Tag)
+        || a->hasTagName(h5Tag)
+        || a->hasTagName(h6Tag);
 }
 
 static bool haveSameTagName(Node* a, Node* b)
@@ -888,7 +889,7 @@ void ReplaceSelectionCommand::doApply()
     
     // Adjust insertionPos to prevent nesting.
     // If the start was in a Mail blockquote, we will have already handled adjusting insertionPos above.
-    if (m_preventNesting && startBlock && !startIsInsideMailBlockquote) {
+    if (m_preventNesting && startBlock && !isTableCell(startBlock) && !startIsInsideMailBlockquote) {
         ASSERT(startBlock != currentRoot);
         VisiblePosition visibleInsertionPos(insertionPos);
         if (isEndOfBlock(visibleInsertionPos) && !(isStartOfBlock(visibleInsertionPos) && fragment.hasInterchangeNewlineAtEnd()))
@@ -917,6 +918,10 @@ void ReplaceSelectionCommand::doApply()
 
     bool handledStyleSpans = handleStyleSpansBeforeInsertion(fragment, insertionPos);
 
+    // We're finished if there is nothing to add.
+    if (fragment.isEmpty() || !fragment.firstChild())
+        return;
+
     // If we are not trying to match the destination style we prefer a position
     // that is outside inline elements that provide style.
     // This way we can produce a less verbose markup.
@@ -939,11 +944,7 @@ void ReplaceSelectionCommand::doApply()
 
     // FIXME: When pasting rich content we're often prevented from heading down the fast path by style spans.  Try
     // again here if they've been removed.
-    
-    // We're finished if there is nothing to add.
-    if (fragment.isEmpty() || !fragment.firstChild())
-        return;
-    
+
     // 1) Insert the content.
     // 2) Remove redundant styles and style tags, this inner <b> for example: <b>foo <b>bar</b> baz</b>.
     // 3) Merge the start of the added content with the content before the position being pasted into.
@@ -1076,10 +1077,12 @@ void ReplaceSelectionCommand::doApply()
                     RefPtr<Node> newListItem = createListItemElement(document());
                     insertNodeAfter(newListItem, enclosingNode);
                     setEndingSelection(VisiblePosition(firstPositionInNode(newListItem.get())));
-                } else
+                } else {
                     // Use a default paragraph element (a plain div) for the empty paragraph, using the last paragraph
                     // block's style seems to annoy users.
-                    insertParagraphSeparator(true);
+                    insertParagraphSeparator(true, !startIsInsideMailBlockquote && highestEnclosingNodeOfType(endOfInsertedContent.deepEquivalent(),
+                        isMailBlockquote, CannotCrossEditingBoundary, insertedNodes.firstNodeInserted()->parentNode()));
+                }
 
                 // Select up to the paragraph separator that was added.
                 lastPositionToSelect = endingSelection().visibleStart().deepEquivalent();
@@ -1296,7 +1299,7 @@ bool ReplaceSelectionCommand::performTrivialReplace(const ReplacementFragment& f
     if (nodeToSplitToAvoidPastingIntoInlineNodesWithStyle(endingSelection().start()))
         return false;
 
-    Node* nodeAfterInsertionPos = endingSelection().end().downstream().anchorNode();
+    RefPtr<Node> nodeAfterInsertionPos = endingSelection().end().downstream().anchorNode();
     Text* textNode = toText(fragment.firstChild());
     // Our fragment creation code handles tabs, spaces, and newlines, so we don't have to worry about those here.
 
@@ -1305,8 +1308,9 @@ bool ReplaceSelectionCommand::performTrivialReplace(const ReplacementFragment& f
     if (end.isNull())
         return false;
 
-    if (nodeAfterInsertionPos && nodeAfterInsertionPos->hasTagName(brTag) && shouldRemoveEndBR(nodeAfterInsertionPos, positionBeforeNode(nodeAfterInsertionPos)))
-        removeNodeAndPruneAncestors(nodeAfterInsertionPos);
+    if (nodeAfterInsertionPos && nodeAfterInsertionPos->parentNode() && nodeAfterInsertionPos->hasTagName(brTag)
+        && shouldRemoveEndBR(nodeAfterInsertionPos.get(), positionBeforeNode(nodeAfterInsertionPos.get())))
+        removeNodeAndPruneAncestors(nodeAfterInsertionPos.get());
 
     VisibleSelection selectionAfterReplace(m_selectReplacement ? start : end, end);
 

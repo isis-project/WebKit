@@ -39,6 +39,12 @@
 #include "Page.h"
 #include "ScriptExecutionContext.h"
 
+#if USE(JSC)
+namespace JSC {
+class ExecState;
+}
+#endif
+
 namespace WebCore {
 
 class CSSRule;
@@ -63,6 +69,7 @@ class ScriptArguments;
 class ScriptCallStack;
 class ScriptExecutionContext;
 class ScriptProfile;
+class SecurityOrigin;
 class ShadowRoot;
 class StorageArea;
 class StyleRule;
@@ -70,7 +77,14 @@ class WorkerContext;
 class WorkerContextProxy;
 class XMLHttpRequest;
 
+#if USE(JSC)
+typedef JSC::ExecState ScriptState;
+#else
+class ScriptState;
+#endif
+
 #if ENABLE(WEB_SOCKETS)
+struct WebSocketFrame;
 class WebSocketHandshakeRequest;
 class WebSocketHandshakeResponse;
 #endif
@@ -118,6 +132,7 @@ public:
     static void didDispatchEventOnWindow(const InspectorInstrumentationCookie&);
     static InspectorInstrumentationCookie willEvaluateScript(Frame*, const String& url, int lineNumber);
     static void didEvaluateScript(const InspectorInstrumentationCookie&);
+    static void didCreateIsolatedContext(Frame*, ScriptState*, SecurityOrigin*);
     static InspectorInstrumentationCookie willFireTimer(ScriptExecutionContext*, int timerId);
     static void didFireTimer(const InspectorInstrumentationCookie&);
     static void didBeginFrame(Page*);
@@ -139,6 +154,8 @@ public:
     static void applyUserAgentOverride(Frame*, String*);
     static void applyScreenWidthOverride(Frame*, long*);
     static void applyScreenHeightOverride(Frame*, long*);
+    static bool shouldApplyScreenWidthOverride(Frame*);
+    static bool shouldApplyScreenHeightOverride(Frame*);
     static void willSendRequest(Frame*, unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse& redirectResponse);
     static void continueAfterPingLoader(Frame*, unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse&);
     static void markResourceAsCached(Page*, unsigned long identifier);
@@ -215,6 +232,9 @@ public:
     static void willSendWebSocketHandshakeRequest(ScriptExecutionContext*, unsigned long identifier, const WebSocketHandshakeRequest&);
     static void didReceiveWebSocketHandshakeResponse(ScriptExecutionContext*, unsigned long identifier, const WebSocketHandshakeResponse&);
     static void didCloseWebSocket(ScriptExecutionContext*, unsigned long identifier);
+    static void didReceiveWebSocketFrame(Document*, unsigned long identifier, const WebSocketFrame&);
+    static void didSendWebSocketFrame(Document*, unsigned long identifier, const WebSocketFrame&);
+    static void didReceiveWebSocketFrameError(Document*, unsigned long identifier, const String& errorMessage);
 #endif
 
     static void networkStateChanged(Page*);
@@ -272,6 +292,7 @@ private:
     static void didDispatchEventOnWindowImpl(const InspectorInstrumentationCookie&);
     static InspectorInstrumentationCookie willEvaluateScriptImpl(InstrumentingAgents*, const String& url, int lineNumber);
     static void didEvaluateScriptImpl(const InspectorInstrumentationCookie&);
+    static void didCreateIsolatedContextImpl(InstrumentingAgents*, Frame*, ScriptState*, SecurityOrigin*);
     static InspectorInstrumentationCookie willFireTimerImpl(InstrumentingAgents*, int timerId);
     static void didFireTimerImpl(const InspectorInstrumentationCookie&);
     static void didBeginFrameImpl(InstrumentingAgents*);
@@ -293,6 +314,8 @@ private:
     static void applyUserAgentOverrideImpl(InstrumentingAgents*, String*);
     static void applyScreenWidthOverrideImpl(InstrumentingAgents*, long*);
     static void applyScreenHeightOverrideImpl(InstrumentingAgents*, long*);
+    static bool shouldApplyScreenWidthOverrideImpl(InstrumentingAgents*);
+    static bool shouldApplyScreenHeightOverrideImpl(InstrumentingAgents*);
     static void willSendRequestImpl(InstrumentingAgents*, unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse& redirectResponse);
     static void continueAfterPingLoaderImpl(InstrumentingAgents*, unsigned long identifier, DocumentLoader*, ResourceRequest&, const ResourceResponse&);
     static void markResourceAsCachedImpl(InstrumentingAgents*, unsigned long identifier);
@@ -365,6 +388,9 @@ private:
     static void willSendWebSocketHandshakeRequestImpl(InstrumentingAgents*, unsigned long identifier, const WebSocketHandshakeRequest&);
     static void didReceiveWebSocketHandshakeResponseImpl(InstrumentingAgents*, unsigned long identifier, const WebSocketHandshakeResponse&);
     static void didCloseWebSocketImpl(InstrumentingAgents*, unsigned long identifier);
+    static void didReceiveWebSocketFrameImpl(InstrumentingAgents*, unsigned long identifier, const WebSocketFrame&);
+    static void didSendWebSocketFrameImpl(InstrumentingAgents*, unsigned long identifier, const WebSocketFrame&);
+    static void didReceiveWebSocketFrameErrorImpl(InstrumentingAgents*, unsigned long identifier, const String&);
 #endif
 
     static void networkStateChangedImpl(InstrumentingAgents*);
@@ -695,6 +721,15 @@ inline void InspectorInstrumentation::didEvaluateScript(const InspectorInstrumen
 #endif
 }
 
+inline void InspectorInstrumentation::didCreateIsolatedContext(Frame* frame, ScriptState* scriptState, SecurityOrigin* origin)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(void());
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
+        return didCreateIsolatedContextImpl(instrumentingAgents, frame, scriptState, origin);
+#endif
+}
+
 inline InspectorInstrumentationCookie InspectorInstrumentation::willFireTimer(ScriptExecutionContext* context, int timerId)
 {
 #if ENABLE(INSPECTOR)
@@ -882,6 +917,26 @@ inline void InspectorInstrumentation::applyScreenHeightOverride(Frame* frame, lo
     if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
         applyScreenHeightOverrideImpl(instrumentingAgents, height);
 #endif
+}
+
+inline bool InspectorInstrumentation::shouldApplyScreenWidthOverride(Frame* frame)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(false);
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
+        return shouldApplyScreenWidthOverrideImpl(instrumentingAgents);
+#endif
+    return false;
+}
+
+inline bool InspectorInstrumentation::shouldApplyScreenHeightOverride(Frame* frame)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(false);
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForFrame(frame))
+        return shouldApplyScreenHeightOverrideImpl(instrumentingAgents);
+#endif
+    return false;
 }
 
 inline void InspectorInstrumentation::willSendRequest(Frame* frame, unsigned long identifier, DocumentLoader* loader, ResourceRequest& request, const ResourceResponse& redirectResponse)
@@ -1198,6 +1253,27 @@ inline void InspectorInstrumentation::didCloseWebSocket(ScriptExecutionContext* 
 #if ENABLE(INSPECTOR)
     if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForContext(context))
         didCloseWebSocketImpl(instrumentingAgents, identifier);
+#endif
+}
+inline void InspectorInstrumentation::didReceiveWebSocketFrame(Document* document, unsigned long identifier, const WebSocketFrame& frame)
+{
+#if ENABLE(INSPECTOR)
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForDocument(document))
+        didReceiveWebSocketFrameImpl(instrumentingAgents, identifier, frame);
+#endif
+}
+inline void InspectorInstrumentation::didReceiveWebSocketFrameError(Document* document, unsigned long identifier, const String& errorMessage)
+{
+#if ENABLE(INSPECTOR)
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForDocument(document))
+        didReceiveWebSocketFrameErrorImpl(instrumentingAgents, identifier, errorMessage);
+#endif
+}
+inline void InspectorInstrumentation::didSendWebSocketFrame(Document* document, unsigned long identifier, const WebSocketFrame& frame)
+{
+#if ENABLE(INSPECTOR)
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForDocument(document))
+        didSendWebSocketFrameImpl(instrumentingAgents, identifier, frame);
 #endif
 }
 #endif

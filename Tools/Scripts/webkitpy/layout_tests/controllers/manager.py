@@ -88,6 +88,7 @@ def interpret_test_failures(port, test_name, failures):
         elif isinstance(failure, test_failures.FailureReftestMismatch):
             test_dict['is_reftest'] = True
             test_dict['ref_file'] = port.relative_test_filename(failure.reference_filename)
+            test_dict['image_diff_percent'] = failure.diff_percent
         elif isinstance(failure, test_failures.FailureReftestMismatchDidNotOccur):
             test_dict['is_mismatch_reftest'] = True
             test_dict['ref_file'] = port.relative_test_filename(failure.reference_filename)
@@ -300,6 +301,7 @@ class Manager(object):
         self._expectations = None
 
         self.HTTP_SUBDIR = 'http' + port.TEST_PATH_SEPARATOR
+        self.PERF_SUBDIR = 'perf'
         self.WEBSOCKET_SUBDIR = 'websocket' + port.TEST_PATH_SEPARATOR
         self.LAYOUT_TESTS_DIRECTORY = 'LayoutTests'
         self._has_http_lock = False
@@ -356,6 +358,9 @@ class Manager(object):
     def _http_tests(self):
         return set(test for test in self._test_files if self._is_http_test(test))
 
+    def _is_perf_test(self, test):
+        return self.PERF_SUBDIR == test or (self.PERF_SUBDIR + self._port.TEST_PATH_SEPARATOR) in test
+
     def parse_expectations(self):
         """Parse the expectations from the test_list files and return a data
         structure holding them. Throws an error if the test_list files have
@@ -369,7 +374,7 @@ class Manager(object):
             port.test_configuration(),
             self._options.lint_test_files,
             port.test_expectations_overrides(),
-            port.skipped_tests(self._test_files).union(tests_to_ignore))
+            port.skipped_layout_tests(self._test_files).union(tests_to_ignore))
 
     def _split_into_chunks_if_necessary(self, skipped):
         if not self._options.run_chunk and not self._options.run_part:
@@ -473,10 +478,10 @@ class Manager(object):
             skipped = skipped.union(self._http_tests())
 
         if num_all_test_files > 1 and not self._options.force:
-            skipped = skipped.union(self._expectations.get_tests_with_result_type(test_expectations.SKIP))
+            skipped.update(self._expectations.get_tests_with_result_type(test_expectations.SKIP))
             if self._options.skip_failing_tests:
-                failing = self._expectations.get_tests_with_result_type(test_expectations.FAIL)
-                self._test_files -= failing
+                skipped.update(self._expectations.get_tests_with_result_type(test_expectations.FAIL))
+                skipped.update(self._expectations.get_tests_with_result_type(test_expectations.FLAKY))
 
         self._test_files -= skipped
 
@@ -553,8 +558,10 @@ class Manager(object):
 
     def _test_requires_lock(self, test_file):
         """Return True if the test needs to be locked when
-        running multiple copies of NRWTs."""
-        return self._is_http_test(test_file)
+        running multiple copies of NRWTs. Perf tests are locked
+        because heavy load caused by running other tests in parallel
+        might cause some of them to timeout."""
+        return self._is_http_test(test_file) or self._is_perf_test(test_file)
 
     def _test_is_slow(self, test_file):
         return self._expectations.has_modifier(test_file, test_expectations.SLOW)
@@ -733,7 +740,7 @@ class Manager(object):
         thread_timings = []
 
         self._printer.print_update('Sharding tests ...')
-        locked_shards, unlocked_shards = self._shard_tests(file_list, int(self._options.child_processes), self._options.experimental_fully_parallel)
+        locked_shards, unlocked_shards = self._shard_tests(file_list, int(self._options.child_processes), self._options.fully_parallel)
 
         # FIXME: We don't have a good way to coordinate the workers so that
         # they don't try to run the shards that need a lock if we don't actually
@@ -816,6 +823,7 @@ class Manager(object):
             self.cancel_workers()
             raise
         finally:
+            manager_connection.cleanup()
             self.stop_servers_with_lock()
 
         thread_timings = [worker_state.stats for worker_state in self._worker_states.values()]
@@ -845,8 +853,9 @@ class Manager(object):
         """
         # This must be started before we check the system dependencies,
         # since the helper may do things to make the setup correct.
-        self._printer.print_update("Starting helper ...")
-        self._port.start_helper()
+        if self._options.pixel_tests:
+            self._printer.print_update("Starting pixel test helper ...")
+            self._port.start_helper()
 
         # Check that the system dependencies (themes, fonts, ...) are correct.
         if not self._options.nocheck_sys_deps:
@@ -970,6 +979,8 @@ class Manager(object):
         sys.stderr.flush()
         _log.debug("stopping helper")
         self._port.stop_helper()
+        _log.debug("cleaning up port")
+        self._port.clean_up_test_run()
 
     def update_summary(self, result_summary):
         """Update the summary and print results with any completed tests."""
@@ -985,10 +996,11 @@ class Manager(object):
     def _mark_interrupted_tests_as_skipped(self, result_summary):
         for test_name in self._test_files:
             if test_name not in result_summary.results:
-                result = test_results.TestResult(test_name)
-                result.type = test_expectations.SKIP
+                result = test_results.TestResult(test_name, [test_failures.FailureEarlyExit()])
                 # FIXME: We probably need to loop here if there are multiple iterations.
-                result_summary.add(result, expected=True)
+                # FIXME: Also, these results are really neither expected nor unexpected. We probably
+                # need a third type of result.
+                result_summary.add(result, expected=False)
 
     def _interrupt_if_at_failure_limits(self, result_summary):
         # Note: The messages in this method are constructed to match old-run-webkit-tests
@@ -1105,11 +1117,8 @@ class Manager(object):
 
         # Remove these files from the results directory so they don't take up too much space on the buildbot.
         # The tools use the version we uploaded to the results server anyway.
-
-        # FIXME: Remove after done debugging problems w/ uploads on leopard.
-        if self._port.name() != 'chromium-mac-leopard':
-            self._filesystem.remove(times_json_path)
-            self._filesystem.remove(incremental_results_path)
+        self._filesystem.remove(times_json_path)
+        self._filesystem.remove(incremental_results_path)
 
     def print_config(self):
         """Prints the configuration for the test run."""

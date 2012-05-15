@@ -50,7 +50,7 @@ class PluginViewWebOs : public QObject, public PluginView {
 
 public:
 
-    static PassRefPtr<PluginViewWebOs> create(Frame* parentFrame, const IntSize&, Element*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
+    static PassRefPtr<PluginViewWebOs> create(Frame* parentFrame, const IntSize&, HTMLPlugInElement*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
     virtual ~PluginViewWebOs();
 
     virtual bool platformGetValue(NPNVariable, void* value, NPError* result);
@@ -68,7 +68,7 @@ protected:
 
 private:
 
-    PluginViewWebOs(Frame* parentFrame, const IntSize&, PluginPackage*, Element*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
+    PluginViewWebOs(Frame* parentFrame, const IntSize&, PluginPackage*, HTMLPlugInElement*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
     void connectSignals();
 
     bool m_signalsConnected;

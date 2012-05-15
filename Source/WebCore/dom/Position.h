@@ -189,6 +189,8 @@ public:
 
     static bool hasRenderedNonAnonymousDescendantsWithHeight(RenderObject*);
     static bool nodeIsUserSelectNone(Node*);
+
+    static ContainerNode* findParent(const Node*);
     
     void debugPosition(const char* msg = "") const;
 
@@ -203,6 +205,7 @@ private:
 
     int renderedOffset() const;
 
+    
     Position previousCharacterPosition(EAffinity) const;
     Position nextCharacterPosition(EAffinity) const;
 
@@ -244,13 +247,13 @@ inline Position positionInParentBeforeNode(const Node* node)
     // At least one caller currently hits this ASSERT though, which indicates
     // that the caller is trying to make a position relative to a disconnected node (which is likely an error)
     // Specifically, editing/deleting/delete-ligature-001.html crashes with ASSERT(node->parentNode())
-    return Position(node->nonShadowBoundaryParentNode(), node->nodeIndex(), Position::PositionIsOffsetInAnchor);
+    return Position(Position::findParent(node), node->nodeIndex(), Position::PositionIsOffsetInAnchor);
 }
 
 inline Position positionInParentAfterNode(const Node* node)
 {
-    ASSERT(node->nonShadowBoundaryParentNode());
-    return Position(node->nonShadowBoundaryParentNode(), node->nodeIndex() + 1, Position::PositionIsOffsetInAnchor);
+    ASSERT(Position::findParent(node));
+    return Position(Position::findParent(node), node->nodeIndex() + 1, Position::PositionIsOffsetInAnchor);
 }
 
 // positionBeforeNode and positionAfterNode return neighbor-anchored positions, construction is O(1)
@@ -284,6 +287,31 @@ inline Position lastPositionInNode(Node* anchorNode)
     if (anchorNode->isTextNode())
         return Position(anchorNode, lastOffsetInNode(anchorNode), Position::PositionIsOffsetInAnchor);
     return Position(anchorNode, Position::PositionIsAfterChildren);
+}
+
+inline int minOffsetForNode(Node* anchorNode, int offset)
+{
+    if (anchorNode->offsetInCharacters())
+        return std::min(offset, anchorNode->maxCharacterOffset());
+
+    int newOffset = 0;
+    for (Node* node = anchorNode->firstChild(); node && newOffset < offset; node = node->nextSibling())
+        newOffset++;
+    
+    return newOffset;
+}
+
+inline bool offsetIsBeforeLastNodeOffset(int offset, Node* anchorNode)
+{
+    if (anchorNode->offsetInCharacters())
+        return offset < anchorNode->maxCharacterOffset();
+
+    int currentOffset = 0;
+    for (Node* node = anchorNode->firstChild(); node && currentOffset < offset; node = node->nextSibling())
+        currentOffset++;
+    
+    
+    return offset < currentOffset;
 }
 
 } // namespace WebCore

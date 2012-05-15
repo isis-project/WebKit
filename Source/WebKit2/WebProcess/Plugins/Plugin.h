@@ -35,6 +35,8 @@
 
 #if PLATFORM(MAC)
 #include "LayerHostingContext.h"
+
+OBJC_CLASS PDFDocument;
 #endif
 
 struct NPObject;
@@ -68,7 +70,8 @@ public:
         Vector<String> names;
         Vector<String> values;
         String mimeType;
-        bool loadManually;
+        bool isFullFramePlugin;
+        bool shouldUseManualLoader;
 #if PLATFORM(MAC)
         LayerHostingMode layerHostingMode;
 #endif
@@ -117,6 +120,9 @@ public:
     
     // Returns whether the plug-in is transparent or not.
     virtual bool isTransparent() = 0;
+
+    // Returns whether we should send wheel events to this plug-in.
+    virtual bool wantsWheelEvents() = 0;
 
     // Tells the plug-in that its geometry has changed. The clip rect is in plug-in coordinates, and the affine transform can be used
     // to convert from root view coordinates to plug-in coordinates.
@@ -222,8 +228,8 @@ public:
     virtual WebCore::Scrollbar* horizontalScrollbar() = 0;
     virtual WebCore::Scrollbar* verticalScrollbar() = 0;
 
-#if USE(CG)
-    virtual RetainPtr<CGPDFDocumentRef> pdfDocumentForPrinting() const { return 0; }
+#if PLATFORM(MAC)
+    virtual RetainPtr<PDFDocument> pdfDocumentForPrinting() const { return 0; }
 #endif
 
 protected:

@@ -66,6 +66,10 @@
 #include "BuiltInPDFView.h"
 #endif
 
+#if USE(SOUP)
+#include "WebSoupRequestManagerProxy.h"
+#endif
+
 #ifndef NDEBUG
 #include <wtf/RefCountedLeakCounter.h>
 #endif
@@ -135,11 +139,15 @@ WebContext::WebContext(ProcessModel processModel, const String& injectedBundlePa
     , m_notificationManagerProxy(WebNotificationManagerProxy::create(this))
     , m_pluginSiteDataManager(WebPluginSiteDataManager::create(this))
     , m_resourceCacheManagerProxy(WebResourceCacheManagerProxy::create(this))
+#if USE(SOUP)
+    , m_soupRequestManagerProxy(WebSoupRequestManagerProxy::create(this))
+#endif
 #if PLATFORM(WIN)
     , m_shouldPaintNativeControls(true)
     , m_initialHTTPCookieAcceptPolicy(HTTPCookieAcceptPolicyAlways)
 #endif
     , m_processTerminationEnabled(true)
+    , m_pluginWorkQueue("com.apple.CoreIPC.PluginQueue")
 {
 #if !LOG_DISABLED
     WebKit::initializeLogChannelsIfNecessary();
@@ -158,6 +166,11 @@ WebContext::WebContext(ProcessModel processModel, const String& injectedBundlePa
 
 WebContext::~WebContext()
 {
+    m_pluginWorkQueue.invalidate();
+
+    if (m_process && m_process->isValid())
+        m_process->connection()->removeQueueClient(this);
+
     ASSERT(contexts().find(this) != notFound);
     contexts().remove(contexts().find(this));
 
@@ -192,7 +205,12 @@ WebContext::~WebContext()
 
     m_resourceCacheManagerProxy->invalidate();
     m_resourceCacheManagerProxy->clearContext();
-    
+
+#if USE(SOUP)
+    m_soupRequestManagerProxy->invalidate();
+    m_soupRequestManagerProxy->clearContext();
+#endif
+
     invalidateCallbackMap(m_dictionaryCallbacks);
 
     platformInvalidateContext();
@@ -342,6 +360,8 @@ void WebContext::processDidFinishLaunching(WebProcessProxy* process)
     ASSERT_UNUSED(process, process == m_process);
 
     m_visitedLinkProvider.processDidFinishLaunching();
+
+    m_process->connection()->addQueueClient(this);
     
     // Sometimes the memorySampler gets initialized after process initialization has happened but before the process has finished launching
     // so check if it needs to be started here
@@ -380,6 +400,9 @@ void WebContext::disconnectProcess(WebProcessProxy* process)
     m_mediaCacheManagerProxy->invalidate();
     m_notificationManagerProxy->invalidate();
     m_resourceCacheManagerProxy->invalidate();
+#if USE(SOUP)
+    m_soupRequestManagerProxy->invalidate();
+#endif
 
     // When out of process plug-ins are enabled, we don't want to invalidate the plug-in site data
     // manager just because the web process crashes since it's not involved.
@@ -589,23 +612,42 @@ void WebContext::addVisitedLinkHash(LinkHash linkHash)
     m_visitedLinkProvider.addVisitedLink(linkHash);
 }
 
-void WebContext::getPlugins(bool refresh, Vector<PluginInfo>& pluginInfos)
+void WebContext::sendDidGetPlugins(uint64_t requestID, const Vector<PluginInfo>& pluginInfos)
+{
+    ASSERT(isMainThread());
+
+    Vector<PluginInfo> plugins(pluginInfos);
+
+#if PLATFORM(MAC)
+    // Add built-in PDF last, so that it's not used when a real plug-in is installed.
+    // NOTE: This has to be done on the main thread as it calls localizedString().
+    if (!omitPDFSupport())
+        plugins.append(BuiltInPDFView::pluginInfo());
+#endif
+
+    process()->send(Messages::WebProcess::DidGetPlugins(requestID, plugins), 0);
+}
+
+void WebContext::handleGetPlugins(uint64_t requestID, bool refresh)
 {
     if (refresh)
         m_pluginInfoStore.refresh();
+
+    Vector<PluginInfo> pluginInfos;
 
     Vector<PluginModuleInfo> plugins = m_pluginInfoStore.plugins();
     for (size_t i = 0; i < plugins.size(); ++i)
         pluginInfos.append(plugins[i].info);
 
-#if PLATFORM(MAC)
-    // Add built-in PDF last, so that it's not used when a real plug-in is installed.
-    if (!omitPDFSupport())
-        pluginInfos.append(BuiltInPDFView::pluginInfo());
-#endif
+    RunLoop::main()->dispatch(bind(&WebContext::sendDidGetPlugins, this, requestID, pluginInfos));
 }
 
-void WebContext::getPluginPath(const String& mimeType, const String& urlString, String& pluginPath)
+void WebContext::getPlugins(CoreIPC::Connection*, uint64_t requestID, bool refresh)
+{
+    m_pluginWorkQueue.dispatch(bind(&WebContext::handleGetPlugins, this, requestID, refresh));
+}
+
+void WebContext::getPluginPath(const String& mimeType, const String& urlString, String& pluginPath, bool& blocked)
 {
     MESSAGE_CHECK_URL(urlString);
 
@@ -614,6 +656,12 @@ void WebContext::getPluginPath(const String& mimeType, const String& urlString, 
     PluginModuleInfo plugin = pluginInfoStore().findPlugin(newMimeType, KURL(KURL(), urlString));
     if (!plugin.path)
         return;
+
+    blocked = false;
+    if (pluginInfoStore().shouldBlockPlugin(plugin)) {
+        blocked = true;
+        return;
+    }
 
     pluginPath = plugin.path;
 }
@@ -715,6 +763,13 @@ void WebContext::didReceiveMessage(CoreIPC::Connection* connection, CoreIPC::Mes
         m_resourceCacheManagerProxy->didReceiveWebResourceCacheManagerProxyMessage(connection, messageID, arguments);
         return;
     }
+
+#if USE(SOUP)
+    if (messageID.is<CoreIPC::MessageClassWebSoupRequestManagerProxy>()) {
+        m_soupRequestManagerProxy->didReceiveMessage(connection, messageID, arguments);
+        return;
+    }
+#endif
 
     switch (messageID.get<WebContextLegacyMessage::Kind>()) {
         case WebContextLegacyMessage::PostMessage: {
@@ -899,6 +954,19 @@ void WebContext::didGetWebCoreStatistics(const StatisticsData& statisticsData, u
 void WebContext::garbageCollectJavaScriptObjects()
 {
     sendToAllProcesses(Messages::WebProcess::GarbageCollectJavaScriptObjects());
+}
+
+void WebContext::setJavaScriptGarbageCollectorTimerEnabled(bool flag)
+{
+    sendToAllProcesses(Messages::WebProcess::SetJavaScriptGarbageCollectorTimerEnabled(flag));
+}
+
+void WebContext::didReceiveMessageOnConnectionWorkQueue(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments, bool& didHandleMessage)
+{
+    if (messageID.is<CoreIPC::MessageClassWebContext>()) {
+        didReceiveWebContextMessageOnConnectionWorkQueue(connection, messageID, arguments, didHandleMessage);
+        return;
+    }
 }
 
 } // namespace WebKit

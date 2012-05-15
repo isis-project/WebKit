@@ -29,6 +29,9 @@
 
 namespace WebCore {
 
+static const unsigned unsetRowIndex = 0x7FFFFFFF;
+static const unsigned maxRowIndex = 0x7FFFFFFE; // 2,147,483,646
+
 class RenderTableRow : public RenderBox {
 public:
     explicit RenderTableRow(Node*);
@@ -48,6 +51,21 @@ public:
         return createAnonymousWithParentRenderer(parent);
     }
 
+    void setRowIndex(unsigned rowIndex)
+    {
+        if (UNLIKELY(rowIndex > maxRowIndex))
+            CRASH();
+
+        m_rowIndex = rowIndex;
+    }
+
+    bool rowIndexWasSet() const { return m_rowIndex != unsetRowIndex; }
+    unsigned rowIndex() const
+    {
+        ASSERT(rowIndexWasSet());
+        return m_rowIndex;
+    }
+
 private:
     virtual RenderObjectChildList* virtualChildren() { return children(); }
     virtual const RenderObjectChildList* virtualChildren() const { return children(); }
@@ -63,7 +81,6 @@ private:
     virtual LayoutRect clippedOverflowRectForRepaint(RenderBoxModelObject* repaintContainer) const;
     virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
 
-    // We need to allocate a layer whenever we have an overflow clip as RenderTableSection::paintObject does not push rows' clips.
     virtual bool requiresLayer() const OVERRIDE { return isTransparent() || hasOverflowClip() || hasTransform() || hasHiddenBackface() || hasMask() || hasFilter(); }
 
     virtual void paint(PaintInfo&, const LayoutPoint&);
@@ -73,6 +90,7 @@ private:
     virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle);
 
     RenderObjectChildList m_children;
+    unsigned m_rowIndex : 31;
 };
 
 inline RenderTableRow* toRenderTableRow(RenderObject* object)

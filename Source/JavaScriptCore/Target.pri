@@ -76,6 +76,7 @@ SOURCES += \
     heap/WeakBlock.cpp \
     heap/HandleSet.cpp \
     heap/HandleStack.cpp \
+    heap/BlockAllocator.cpp \
     heap/Heap.cpp \
     heap/MachineStackMarker.cpp \
     heap/MarkStack.cpp \
@@ -174,7 +175,6 @@ SOURCES += \
     runtime/JSActivation.cpp \
     runtime/JSAPIValueWrapper.cpp \
     runtime/JSArray.cpp \
-    runtime/JSByteArray.cpp \
     runtime/JSCell.cpp \
     runtime/JSDateMath.cpp \
     runtime/JSFunction.cpp \

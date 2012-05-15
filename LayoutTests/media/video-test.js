@@ -79,9 +79,27 @@ function testExpected(testFuncString, expected, comparison)
         case '>=': success = observed >= expected; break;
         case '!=':  success = observed != expected; break;
         case '==': success = observed == expected; break;
+        case '===': success = observed === expected; break;
     }
 
     reportExpected(success, testFuncString, comparison, expected, observed)
+}
+
+function testArraysEqual(testFuncString, expected)
+{
+    var observed;
+    try {
+        observed = eval(testFuncString);
+    } catch (ex) {
+        consoleWrite(ex);
+        return;
+    }
+  
+    testExpected(testFuncString + ".length", expected.length);
+
+    for (var i = 0; i < observed.length; i++) {
+        testExpected(testFuncString + "[" + i + "]", expected[i]);
+    }
 }
 
 var testNumber = 0;
@@ -137,12 +155,15 @@ function waitForEventAndEnd(eventName, funcString)
     waitForEvent(eventName, funcString, true)
 }
 
-function waitForEvent(eventName, func, endit, oneTimeOnly)
+function waitForEvent(eventName, func, endit, oneTimeOnly, element)
 {
+    if (!element)
+        element = mediaElement;
+
     function _eventCallback(event)
     {
         if (oneTimeOnly)
-            mediaElement.removeEventListener(eventName, _eventCallback, true);
+            element.removeEventListener(eventName, _eventCallback, true);
 
         consoleWrite("EVENT(" + eventName + ")");
 
@@ -153,7 +174,7 @@ function waitForEvent(eventName, func, endit, oneTimeOnly)
             endTest();
     }
 
-    mediaElement.addEventListener(eventName, _eventCallback, true);
+    element.addEventListener(eventName, _eventCallback, true);
 }
 
 function waitForEventTestAndEnd(eventName, testFuncString)

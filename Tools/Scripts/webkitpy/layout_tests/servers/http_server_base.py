@@ -61,7 +61,7 @@ class HttpServerBase(object):
         # randomly-generated directory under /var/folders and no one would ever
         # look there.
         tmpdir = tempfile.gettempdir()
-        if sys.platform == 'darwin':
+        if port_obj.host.platform.is_mac():
             tmpdir = '/tmp'
 
         self._runtime_path = self._filesystem.join(tmpdir, "WebKit")
@@ -174,12 +174,6 @@ class HttpServerBase(object):
             try:
                 s.connect(('localhost', port))
                 _log.debug("Server running on %d" % port)
-            except socket.error, e:
-                # this branch is needed on Mac 10.5 / python 2.5
-                if e.args[0] not in (errno.ECONNREFUSED, errno.ECONNRESET):
-                    raise
-                _log.debug("Server NOT running on %d: %s" % (port, e))
-                return False
             except IOError, e:
                 if e.errno not in (errno.ECONNREFUSED, errno.ECONNRESET):
                     raise

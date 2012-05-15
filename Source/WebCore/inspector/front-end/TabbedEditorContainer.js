@@ -43,8 +43,9 @@ WebInspector.TabbedEditorContainerDelegate.prototype = {
  * @constructor
  * @extends {WebInspector.Object}
  * @param {WebInspector.TabbedEditorContainerDelegate} delegate
+ * @param {string} settingName
  */
-WebInspector.TabbedEditorContainer = function(delegate)
+WebInspector.TabbedEditorContainer = function(delegate, settingName)
 {
     this._delegate = delegate;
 
@@ -59,7 +60,7 @@ WebInspector.TabbedEditorContainer = function(delegate)
     this._files = {};
     this._loadedURLs = {};
 
-    this._previouslyViewedFilesSetting = WebInspector.settings.createSetting("previouslyViewedFiles", []);
+    this._previouslyViewedFilesSetting = WebInspector.settings.createSetting(settingName, []);
     this._history = new WebInspector.TabbedEditorContainer.History(this._previouslyViewedFilesSetting.get());
 }
 
@@ -75,19 +76,19 @@ WebInspector.TabbedEditorContainer.maximalPreviouslyViewedFilesCount = 30;
 
 WebInspector.TabbedEditorContainer.prototype = {
     /**
+     * @return {WebInspector.View}
+     */
+    get view()
+    {
+        return this._tabbedPane;
+    },
+
+    /**
      * @type {WebInspector.SourceFrame}
      */
     get visibleView()
     {
         return this._tabbedPane.visibleView;
-    },
-
-    /**
-     * @type {Element}
-     */
-    get element()
-    {
-        return this._tabbedPane.element;
     },
 
     /**
@@ -131,7 +132,18 @@ WebInspector.TabbedEditorContainer.prototype = {
      */
     _titleForFile: function(uiSourceCode)
     {
-        return uiSourceCode.displayName;
+        const maxDisplayNameLength = 30;
+        const minDisplayQueryParamLength = 5;
+
+        var parsedURL = uiSourceCode.parsedURL;
+        if (!parsedURL.isValid)
+            return parsedURL.url ? parsedURL.url.trimMiddle(maxDisplayNameLength) : WebInspector.UIString("(program)");
+
+        var maxDisplayQueryParamLength = Math.max(minDisplayQueryParamLength, maxDisplayNameLength - parsedURL.lastPathComponent.length);
+        var displayQueryParams = parsedURL.queryParams ? "?" + parsedURL.queryParams.trimEnd(maxDisplayQueryParamLength - 1) : "";
+        var displayLastPathComponent = parsedURL.lastPathComponent.trimMiddle(maxDisplayNameLength - displayQueryParams.length);
+        var displayName = displayLastPathComponent + displayQueryParams;
+        return displayName || WebInspector.UIString("(program)");
     },
 
     /**

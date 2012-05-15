@@ -51,6 +51,7 @@
     'webcore_include_dirs': [
       '../',
       '../..',
+      '../Modules/battery',
       '../Modules/filesystem',
       '../Modules/filesystem/chromium',
       '../Modules/gamepad',
@@ -119,7 +120,6 @@
       '../platform/image-decoders/jpeg',
       '../platform/image-decoders/png',
       '../platform/image-decoders/skia',
-      '../platform/image-decoders/xbm',
       '../platform/image-decoders/webp',
       '../platform/image-encoders/skia',
       '../platform/leveldb',
@@ -328,6 +328,9 @@
           'link_settings': {
             'libraries': [
               '<(adjusted_library_path)',
+
+              # libWebKitSystemInterfaceLeopard.a references _kCIFormatRGBA8.
+              '$(SDKROOT)/System/Library/Frameworks/QuartzCore.framework',
             ],
           },  # link_settings
         },  # target webkit_system_interface
@@ -366,7 +369,7 @@
             '<(SHARED_INTERMEDIATE_DIR)/webkit/InspectorFrontend.h',
             '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorTypeBuilder.cpp',
             '<(SHARED_INTERMEDIATE_DIR)/webkit/InspectorTypeBuilder.h',
-            '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorBackendStub.js',
+            '<(SHARED_INTERMEDIATE_DIR)/webcore/InspectorBackendCommands.js',
           ],
           'variables': {
             'generator_include_dirs': [
@@ -862,6 +865,24 @@
           ],
         },
         {
+          'action_name': 'CalendarPickerMac',
+          'inputs': [
+            '../Resources/calendarPickerMac.css',
+          ],
+          'outputs': [
+            '<(SHARED_INTERMEDIATE_DIR)/webkit/CalendarPickerMac.h',
+            '<(SHARED_INTERMEDIATE_DIR)/webkit/CalendarPickerMac.cpp',
+          ],
+          'action': [
+            'python',
+            '../make-file-arrays.py',
+            '--condition=ENABLE(CALENDAR_PICKER)',
+            '--out-h=<(SHARED_INTERMEDIATE_DIR)/webkit/CalendarPickerMac.h',
+            '--out-cpp=<(SHARED_INTERMEDIATE_DIR)/webkit/CalendarPickerMac.cpp',
+            '<@(_inputs)',
+          ],
+        },
+        {
           'action_name': 'XLinkNames',
           'inputs': [
             '../dom/make_names.pl',
@@ -1144,6 +1165,9 @@
           'include_dirs': [
             '<(chromium_src_dir)/third_party/apple_webkit',
           ],
+          'sources': [
+            '<(SHARED_INTERMEDIATE_DIR)/webkit/CalendarPickerMac.cpp',
+          ],
         }],
         ['OS=="win"', {
           'defines': [
@@ -1156,6 +1180,8 @@
           'direct_dependent_settings': {
             'include_dirs+++': ['../dom'],
           },
+          # In generated bindings code: 'switch contains default but no case'.
+          'msvs_disabled_warnings': [ 4065 ],
         }],
         ['OS=="linux" and "WTF_USE_WEBAUDIO_IPP=1" in feature_defines', {
           'cflags': [
@@ -1339,7 +1365,7 @@
                 'postbuild_name': 'Check Objective-C Rename',
                 'variables': {
                   'class_whitelist_regex':
-                      'ChromiumWebCoreObjC|TCMVisibleView|RTCMFlippedView',
+                      'ChromiumWebCoreObjC|TCMVisibleView|RTCMFlippedView|WebCoreTextFieldCell',
                   'category_whitelist_regex':
                       'TCMInterposing|ScrollAnimatorChromiumMacExt',
                 },
@@ -1599,6 +1625,10 @@
 
             ['include', 'WebKit/mac/WebCoreSupport/WebSystemInterface\\.mm$'],
 
+            # We use LocalizedDateMac.mm instead of LocalizedDateICU.cpp.
+            ['exclude', 'platform/text/LocalizedDateICU\\.cpp$'],
+            ['include', 'platform/text/mac/LocalizedDateMac\\.mm$'],
+
             # The Mac uses platform/mac/KillRingMac.mm instead of the dummy
             # implementation.
             ['exclude', 'platform/KillRingNone\\.cpp$'],
@@ -1626,7 +1656,6 @@
             ['include', 'platform/graphics/cg/IntPointCG\\.cpp$'],
             ['include', 'platform/graphics/cg/IntRectCG\\.cpp$'],
             ['include', 'platform/graphics/cg/IntSizeCG\\.cpp$'],
-            ['exclude', 'platform/graphics/chromium/ImageChromiumMac\\.mm$'],
             ['exclude', 'platform/graphics/mac/FontMac\\.mm$'],
             ['exclude', 'platform/graphics/skia/FontCacheSkia\\.cpp$'],
             ['exclude', 'platform/graphics/skia/GlyphPageTreeNodeSkia\\.cpp$'],
@@ -1663,6 +1692,11 @@
 
             # SystemInfo.cpp is useful and we don't want to copy it.
             ['include', 'platform/win/SystemInfo\\.cpp$'],
+
+            ['exclude', 'platform/text/LocalizedDateICU\.cpp$'],
+            ['include', 'platform/text/LocalizedDateWin\.cpp$'],
+            ['include', 'platform/text/LocaleWin\.cpp$'],
+            ['include', 'platform/text/LocaleWin\.h$'],
           ],
         },{ # OS!="win"
           'sources/': [
@@ -1683,6 +1717,7 @@
             ['include', 'platform/graphics/harfbuzz/FontPlatformDataHarfBuzz\\.cpp$'],
             ['include', 'platform/graphics/harfbuzz/HarfBuzzSkia\\.cpp$'],
             ['include', 'platform/graphics/harfbuzz/HarfBuzzShaperBase\\.cpp$'],
+            ['exclude', 'platform/graphics/skia/FontCacheSkia\\.cpp$'],
             ['include', 'platform/graphics/skia/SimpleFontDataSkia\\.cpp$'],
           ],
         }, { # OS!="android"
@@ -1846,8 +1881,17 @@
         ['exclude', 'plugins/PluginStream\\.cpp$'],
         ['exclude', 'plugins/PluginView\\.cpp$'],
         ['exclude', 'plugins/npapi\\.cpp$'],
-        ['exclude', 'storage/StorageEventDispatcher\\.cpp$'],
+        ['exclude', 'storage/StorageAreaImpl\\.(cpp|h)$'],
+        ['exclude', 'storage/StorageAreaSync\\.(cpp|h)$'],
+        ['exclude', 'storage/StorageEventDispatcher\\.(cpp|h)$'],
+        ['exclude', 'storage/StorageMap\\.(cpp|h)$'],
         ['exclude', 'storage/StorageNamespace\\.cpp$'],
+        ['exclude', 'storage/StorageNamespaceImpl\\.(cpp|h)$'],
+        ['exclude', 'storage/StorageSyncManager\\.(cpp|h)$'],
+        ['exclude', 'storage/StorageTask\\.(cpp|h)$'],
+        ['exclude', 'storage/StorageThread\\.(cpp|h)$'],
+        ['exclude', 'storage/StorageTracker\\.(cpp|h)$'],
+        ['exclude', 'storage/StorageTrackerClient\\.h$'],
         ['exclude', 'workers/DefaultSharedWorkerRepository\\.(cpp|h)$'],
 
         ['include', 'loader/appcache/ApplicationCacheHost\.h$'],

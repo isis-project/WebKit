@@ -48,8 +48,9 @@ PassRefPtr<Oscillator> Oscillator::create(AudioContext* context, float sampleRat
 }
 
 Oscillator::Oscillator(AudioContext* context, float sampleRate)
-    : AudioSourceNode(context, sampleRate)
+    : AudioScheduledSourceNode(context, sampleRate)
     , m_type(SINE)
+    , m_firstRender(true)
     , m_virtualReadIndex(0)
     , m_phaseIncrements(AudioNode::ProcessingSizeInFrames)
     , m_detuneValues(AudioNode::ProcessingSizeInFrames)
@@ -57,11 +58,9 @@ Oscillator::Oscillator(AudioContext* context, float sampleRate)
     setNodeType(NodeTypeOscillator);
 
     // Use musical pitch standard A440 as a default.
-    m_frequency = AudioParam::create("frequency", 440, 0, 100000);
+    m_frequency = AudioParam::create(context, "frequency", 440, 0, 100000);
     // Default to no detuning.
-    m_detune = AudioParam::create("detune", 0, -4800, 4800);
-    m_frequency->setContext(context);
-    m_detune->setContext(context);
+    m_detune = AudioParam::create(context, "detune", 0, -4800, 4800);
 
     // Sets up default wavetable.
     setType(m_type);
@@ -112,14 +111,20 @@ bool Oscillator::calculateSampleAccuratePhaseIncrements(size_t framesToProcess)
     if (!isGood)
         return false;
 
-    bool hasTimelineValues = false;
+    if (m_firstRender) {
+        m_firstRender = false;
+        m_frequency->resetSmoothedValue();
+        m_detune->resetSmoothedValue();
+    }
+
+    bool hasSampleAccurateValues = false;
     bool hasFrequencyChanges = false;
     float* phaseIncrements = m_phaseIncrements.data();
 
     float finalScale = m_waveTable->rateScale();
 
-    if (m_frequency->hasTimelineValues()) {
-        hasTimelineValues = true;
+    if (m_frequency->hasSampleAccurateValues()) {
+        hasSampleAccurateValues = true;
         hasFrequencyChanges = true;
 
         // Get the sample-accurate frequency values and convert to phase increments.
@@ -132,8 +137,8 @@ bool Oscillator::calculateSampleAccuratePhaseIncrements(size_t framesToProcess)
         finalScale *= frequency;
     }
 
-    if (m_detune->hasTimelineValues()) {
-        hasTimelineValues = true;
+    if (m_detune->hasSampleAccurateValues()) {
+        hasSampleAccurateValues = true;
 
         // Get the sample-accurate detune values.
         float* detuneValues = hasFrequencyChanges ? m_detuneValues.data() : phaseIncrements;
@@ -157,19 +162,17 @@ bool Oscillator::calculateSampleAccuratePhaseIncrements(size_t framesToProcess)
         finalScale *= detuneScale;
     }
 
-    if (hasTimelineValues) {
+    if (hasSampleAccurateValues) {
         // Convert from frequency to wavetable increment.
         vsmul(phaseIncrements, 1, &finalScale, phaseIncrements, 1, framesToProcess);
     }
 
-    return hasTimelineValues;
+    return hasSampleAccurateValues;
 }
 
 void Oscillator::process(size_t framesToProcess)
 {
     AudioBus* outputBus = output(0)->bus();
-
-    outputBus->zero();
 
     if (!isInitialized() || !outputBus->numberOfChannels()) {
         outputBus->zero();
@@ -194,26 +197,39 @@ void Oscillator::process(size_t framesToProcess)
         return;
     }
 
+    size_t quantumFrameOffset;
+    size_t nonSilentFramesToProcess;
+
+    updateSchedulingInfo(framesToProcess,
+                         outputBus,
+                         quantumFrameOffset,
+                         nonSilentFramesToProcess);
+
+    if (!nonSilentFramesToProcess) {
+        outputBus->zero();
+        return;
+    }
+
     unsigned waveTableSize = m_waveTable->waveTableSize();
     double invWaveTableSize = 1.0 / waveTableSize;
 
     float* destP = outputBus->channel(0)->mutableData();
 
-    int n = framesToProcess;
+    ASSERT(quantumFrameOffset <= framesToProcess);
 
     // We keep virtualReadIndex double-precision since we're accumulating values.
     double virtualReadIndex = m_virtualReadIndex;
 
     float rateScale = m_waveTable->rateScale();
     float invRateScale = 1 / rateScale;
-    bool hasTimelineValues = calculateSampleAccuratePhaseIncrements(framesToProcess);
+    bool hasSampleAccurateValues = calculateSampleAccuratePhaseIncrements(framesToProcess);
 
     float frequency = 0;
     float* higherWaveData = 0;
     float* lowerWaveData = 0;
     float tableInterpolationFactor;
 
-    if (!hasTimelineValues) {
+    if (!hasSampleAccurateValues) {
         frequency = m_frequency->smoothedValue();
         float detune = m_detune->smoothedValue();
         float detuneScale = powf(2, detune / 1200);
@@ -226,6 +242,10 @@ void Oscillator::process(size_t framesToProcess)
 
     unsigned readIndexMask = waveTableSize - 1;
 
+    // Start rendering at the correct offset.
+    destP += quantumFrameOffset;
+    int n = nonSilentFramesToProcess;
+
     while (n--) {
         unsigned readIndex = static_cast<unsigned>(virtualReadIndex);
         unsigned readIndex2 = readIndex + 1;
@@ -234,7 +254,7 @@ void Oscillator::process(size_t framesToProcess)
         readIndex = readIndex & readIndexMask;
         readIndex2 = readIndex2 & readIndexMask;
 
-        if (hasTimelineValues) {
+        if (hasSampleAccurateValues) {
             incr = *phaseIncrements++;
 
             frequency = invRateScale * incr;
@@ -262,6 +282,8 @@ void Oscillator::process(size_t framesToProcess)
     }
 
     m_virtualReadIndex = virtualReadIndex;
+
+    outputBus->clearSilentFlag();
 }
 
 void Oscillator::reset()
@@ -277,7 +299,11 @@ void Oscillator::setWaveTable(WaveTable* waveTable)
     MutexLocker processLocker(m_processLock);
     m_waveTable = waveTable;
     m_type = CUSTOM;
-    m_virtualReadIndex = 0;
+}
+
+bool Oscillator::propagatesSilence() const
+{
+    return !isPlayingOrScheduled() || hasFinished() || !m_waveTable.get();
 }
 
 } // namespace WebCore

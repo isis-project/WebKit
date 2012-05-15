@@ -25,7 +25,6 @@
 #include "RenderTextControlSingleLine.h"
 
 #include "CSSFontSelector.h"
-#include "CSSStyleSelector.h"
 #include "CSSValueKeywords.h"
 #include "Chrome.h"
 #include "Frame.h"
@@ -43,6 +42,7 @@
 #include "SearchPopupMenu.h"
 #include "Settings.h"
 #include "SimpleFontData.h"
+#include "StyleResolver.h"
 #include "TextControlInnerElements.h"
 
 using namespace std;
@@ -674,7 +674,7 @@ void RenderTextControlSingleLine::setTextFromItem(unsigned listIndex)
 
 FontSelector* RenderTextControlSingleLine::fontSelector() const
 {
-    return document()->styleSelector()->fontSelector();
+    return document()->styleResolver()->fontSelector();
 }
 
 HostWindow* RenderTextControlSingleLine::hostWindow() const
@@ -750,7 +750,7 @@ PassRefPtr<Scrollbar> RenderTextControlSingleLine::createScrollbar(ScrollableAre
     RefPtr<Scrollbar> widget;
     bool hasCustomScrollbarStyle = style()->hasPseudoStyle(SCROLLBAR);
     if (hasCustomScrollbarStyle)
-        widget = RenderScrollbar::createCustomScrollbar(scrollableArea, orientation, this);
+        widget = RenderScrollbar::createCustomScrollbar(scrollableArea, orientation, this->node());
     else
         widget = Scrollbar::createNativeScrollbar(scrollableArea, orientation, controlSize);
     return widget.release();

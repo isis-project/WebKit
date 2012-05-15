@@ -58,12 +58,15 @@ class WebNotificationManagerProxy;
 class WebPageGroup;
 class WebPageProxy;
 class WebResourceCacheManagerProxy;
+#if USE(SOUP)
+class WebSoupRequestManagerProxy;
+#endif
 struct StatisticsData;
 struct WebProcessCreationParameters;
     
 typedef GenericCallback<WKDictionaryRef> DictionaryCallback;
 
-class WebContext : public APIObject {
+class WebContext : public APIObject, private CoreIPC::Connection::QueueClient {
 public:
     static const Type APIType = TypeContext;
 
@@ -161,6 +164,9 @@ public:
     WebNotificationManagerProxy* notificationManagerProxy() const { return m_notificationManagerProxy.get(); }
     WebPluginSiteDataManager* pluginSiteDataManager() const { return m_pluginSiteDataManager.get(); }
     WebResourceCacheManagerProxy* resourceCacheManagerProxy() const { return m_resourceCacheManagerProxy.get(); }
+#if USE(SOUP)
+    WebSoupRequestManagerProxy* soupRequestManagerProxy() const { return m_soupRequestManagerProxy.get(); }
+#endif
 
     struct Statistics {
         unsigned wkViewCount;
@@ -188,6 +194,7 @@ public:
     
     void getWebCoreStatistics(PassRefPtr<DictionaryCallback>);
     void garbageCollectJavaScriptObjects();
+    void setJavaScriptGarbageCollectorTimerEnabled(bool flag);
 
 #if PLATFORM(MAC)
     static bool omitPDFSupport();
@@ -210,8 +217,8 @@ private:
     void didUpdateHistoryTitle(uint64_t pageID, const String& title, const String& url, uint64_t frameID);
 
     // Plugins
-    void getPlugins(bool refresh, Vector<WebCore::PluginInfo>&);
-    void getPluginPath(const String& mimeType, const String& urlString, String& pluginPath);
+    void getPlugins(CoreIPC::Connection*, uint64_t requestID, bool refresh);
+    void getPluginPath(const String& mimeType, const String& urlString, String& pluginPath, bool& blocked);
 #if !ENABLE(PLUGIN_PROCESS)
     void didGetSitesWithPluginData(const Vector<String>& sites, uint64_t callbackID);
     void didClearPluginSiteData(uint64_t callbackID);
@@ -239,6 +246,9 @@ private:
     // Implemented in generated WebContextMessageReceiver.cpp
     void didReceiveWebContextMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*);
     void didReceiveSyncWebContextMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, OwnPtr<CoreIPC::ArgumentEncoder>&);
+    void didReceiveWebContextMessageOnConnectionWorkQueue(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, bool& didHandleMessage);
+
+    virtual void didReceiveMessageOnConnectionWorkQueue(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, bool& didHandleMessage) OVERRIDE;
 
     static void languageChanged(void* context);
     void languageChanged();
@@ -250,6 +260,9 @@ private:
 
     String localStorageDirectory() const;
     String platformDefaultLocalStorageDirectory() const;
+
+    void handleGetPlugins(uint64_t requestID, bool refresh);
+    void sendDidGetPlugins(uint64_t requestID, const Vector<WebCore::PluginInfo>&);
 
     ProcessModel m_processModel;
     
@@ -296,6 +309,9 @@ private:
     RefPtr<WebNotificationManagerProxy> m_notificationManagerProxy;
     RefPtr<WebPluginSiteDataManager> m_pluginSiteDataManager;
     RefPtr<WebResourceCacheManagerProxy> m_resourceCacheManagerProxy;
+#if USE(SOUP)
+    RefPtr<WebSoupRequestManagerProxy> m_soupRequestManagerProxy;
+#endif
 
 #if PLATFORM(WIN)
     bool m_shouldPaintNativeControls;
@@ -313,6 +329,8 @@ private:
     bool m_processTerminationEnabled;
     
     HashMap<uint64_t, RefPtr<DictionaryCallback> > m_dictionaryCallbacks;
+
+    WorkQueue m_pluginWorkQueue;
 };
 
 template<typename U> inline bool WebContext::sendToAllProcesses(const U& message)

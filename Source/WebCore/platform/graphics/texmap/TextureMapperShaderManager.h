@@ -31,6 +31,10 @@
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefPtr.h>
 
+#if ENABLE(CSS_FILTERS)
+#include "FilterOperations.h"
+#endif
+
 namespace WebCore {
 
 class BitmapTexture;
@@ -65,6 +69,35 @@ protected:
     GLint m_opacityVariable;
 };
 
+#if ENABLE(CSS_FILTERS)
+class StandardFilterProgram : public RefCounted<StandardFilterProgram> {
+public:
+    virtual ~StandardFilterProgram();
+    virtual void prepare(const FilterOperation&);
+    static PassRefPtr<StandardFilterProgram> create(FilterOperation::OperationType);
+    GLuint vertexAttrib() const { return m_vertexAttrib; }
+    GLuint texCoordAttrib() const { return m_texCoordAttrib; }
+    GLuint textureUniform() const { return m_textureUniformLocation; }
+private:
+    StandardFilterProgram(FilterOperation::OperationType);
+    GLuint m_id;
+    GLuint m_vertexShader;
+    GLuint m_fragmentShader;
+    GLuint m_vertexAttrib;
+    GLuint m_texCoordAttrib;
+    GLuint m_textureUniformLocation;
+    union {
+        GLuint amount;
+        GLuint stddev;
+        struct {
+            GLuint stddev;
+            GLuint color;
+            GLuint offset;
+        } shadow;
+    } m_uniformLocations;
+};
+#endif
+
 class TextureMapperShaderProgramSimple : public TextureMapperShaderProgram {
 public:
     static PassRefPtr<TextureMapperShaderProgramSimple> create();
@@ -90,42 +123,46 @@ private:
     GLint m_maskTextureVariable;
 };
 
+class TextureMapperShaderProgramSolidColor : public TextureMapperShaderProgram {
+public:
+    static PassRefPtr<TextureMapperShaderProgramSolidColor> create();
+    GLint colorVariable() const { return m_colorVariable; }
+
+private:
+    virtual const char* vertexShaderSource() const;
+    virtual const char* fragmentShaderSource() const;
+    TextureMapperShaderProgramSolidColor();
+    GLint m_colorVariable;
+};
+
+
 class TextureMapperShaderManager {
 public:
     enum ShaderType {
         Invalid = 0, // HashMaps do not like 0 as a key.
         Simple,
-        OpacityAndMask
+        OpacityAndMask,
+        SolidColor,
     };
 
     TextureMapperShaderManager();
     virtual ~TextureMapperShaderManager();
 
-    PassRefPtr<TextureMapperShaderProgram> getShaderProgram(ShaderType shaderType)
-    {
-        RefPtr<TextureMapperShaderProgram> program;
-        if (shaderType == Invalid)
-            return program;
-
-        TextureMapperShaderProgramMap::iterator it = m_textureMapperShaderProgramMap.find(shaderType);
-        if (it != m_textureMapperShaderProgramMap.end())
-            return it->second;
-
-        switch (shaderType) {
-        case Simple:
-            program = TextureMapperShaderProgramSimple::create();
-            break;
-        case OpacityAndMask:
-            program = TextureMapperShaderProgramOpacityAndMask::create();
-            break;
-        }
-        m_textureMapperShaderProgramMap.add(shaderType, program);
-        return program;
-    }
+#if ENABLE(CSS_FILTERS)
+    PassRefPtr<StandardFilterProgram> getShaderForFilter(const FilterOperation&);
+#endif
+    PassRefPtr<TextureMapperShaderProgram> getShaderProgram(ShaderType);
+    PassRefPtr<TextureMapperShaderProgramSolidColor> solidColorProgram();
 
 private:
     typedef HashMap<ShaderType, RefPtr<TextureMapperShaderProgram>, DefaultHash<int>::Hash, HashTraits<int> > TextureMapperShaderProgramMap;
     TextureMapperShaderProgramMap m_textureMapperShaderProgramMap;
+
+#if ENABLE(CSS_FILTERS)
+    typedef HashMap<FilterOperation::OperationType, RefPtr<StandardFilterProgram>, DefaultHash<int>::Hash, HashTraits<int> > FilterMap;
+    FilterMap m_filterMap;
+#endif
+
 };
 
 }

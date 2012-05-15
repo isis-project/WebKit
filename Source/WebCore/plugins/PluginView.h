@@ -85,9 +85,9 @@ namespace JSC {
 #endif
 
 namespace WebCore {
-    class Element;
     class Frame;
     class Image;
+    class HTMLPlugInElement;
     class KeyboardEvent;
     class MouseEvent;
     class KURL;
@@ -148,7 +148,7 @@ namespace WebCore {
                      , public PluginManualLoader
                      , private MediaCanStartListener {
     public:
-        static PassRefPtr<PluginView> create(Frame* parentFrame, const IntSize&, Element*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
+        static PassRefPtr<PluginView> create(Frame* parentFrame, const IntSize&, HTMLPlugInElement*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
         virtual ~PluginView();
 
         PluginPackage* plugin() const { return m_plugin.get(); }
@@ -275,14 +275,14 @@ namespace WebCore {
 #if PLATFORM(WEBOS)
     protected:
 #endif
-        PluginView(Frame* parentFrame, const IntSize&, PluginPackage*, Element*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
+        PluginView(Frame* parentFrame, const IntSize&, PluginPackage*, HTMLPlugInElement*, const KURL&, const Vector<String>& paramNames, const Vector<String>& paramValues, const String& mimeType, bool loadManually);
+
 #if PLATFORM(WEBOS)
         virtual bool platformGetValue(NPNVariable, void* value, NPError* result);
         virtual void postPlatformStart(void) { }
         virtual void prePlatformDestroy(void) { }
     private:
 #endif
-
         void setParameters(const Vector<String>& paramNames, const Vector<String>& paramValues);
         bool startOrAddToUnstartedList();
         void init();
@@ -317,7 +317,7 @@ namespace WebCore {
 
         RefPtr<Frame> m_parentFrame;
         RefPtr<PluginPackage> m_plugin;
-        Element* m_element;
+        HTMLPlugInElement* m_element;
         bool m_isStarted;
         KURL m_url;
         PluginStatus m_status;
@@ -461,6 +461,7 @@ private:
 # if !defined(XP_WEBOS)
         static void setXKeyEventSpecificFields(XEvent*, KeyboardEvent*);
         void paintUsingXPixmap(QPainter* painter, const QRect &exposedRect);
+        QWebPageClient* platformPageClient() const;
 # endif
 #endif
 #if USE(ACCELERATED_COMPOSITING_PLUGIN_LAYER)

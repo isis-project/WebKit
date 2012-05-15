@@ -93,8 +93,10 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     // names to their methods will be done by calling bindToJavaScript() (defined
     // by CppBoundClass, the parent to LayoutTestController).
     bindMethod("addFileToPasteboardOnDrag", &LayoutTestController::addFileToPasteboardOnDrag);
+#if ENABLE(INPUT_SPEECH)
     bindMethod("addMockSpeechInputResult", &LayoutTestController::addMockSpeechInputResult);
     bindMethod("setMockSpeechInputDumpRect", &LayoutTestController::setMockSpeechInputDumpRect);
+#endif
     bindMethod("addOriginAccessWhitelistEntry", &LayoutTestController::addOriginAccessWhitelistEntry);
     bindMethod("addUserScript", &LayoutTestController::addUserScript);
     bindMethod("addUserStyleSheet", &LayoutTestController::addUserStyleSheet);
@@ -128,14 +130,16 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("enableAutoResizeMode", &LayoutTestController::enableAutoResizeMode);
     bindMethod("evaluateInWebInspector", &LayoutTestController::evaluateInWebInspector);
     bindMethod("evaluateScriptInIsolatedWorld", &LayoutTestController::evaluateScriptInIsolatedWorld);
+    bindMethod("evaluateScriptInIsolatedWorldAndReturnValue", &LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue);
     bindMethod("setIsolatedWorldSecurityOrigin", &LayoutTestController::setIsolatedWorldSecurityOrigin);
     bindMethod("execCommand", &LayoutTestController::execCommand);
     bindMethod("forceRedSelectionColors", &LayoutTestController::forceRedSelectionColors);
+#if ENABLE(NOTIFICATIONS)
     bindMethod("grantDesktopNotificationPermission", &LayoutTestController::grantDesktopNotificationPermission);
+#endif
     bindMethod("findString", &LayoutTestController::findString);
     bindMethod("isCommandEnabled", &LayoutTestController::isCommandEnabled);
     bindMethod("hasCustomPageSizeStyle", &LayoutTestController::hasCustomPageSizeStyle);
-    bindMethod("isPageBoxVisible", &LayoutTestController::isPageBoxVisible);
     bindMethod("layerTreeAsText", &LayoutTestController::layerTreeAsText);
     bindMethod("loseCompositorContext", &LayoutTestController::loseCompositorContext);
     bindMethod("markerTextForListItem", &LayoutTestController::markerTextForListItem);
@@ -161,7 +165,6 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("removeOriginAccessWhitelistEntry", &LayoutTestController::removeOriginAccessWhitelistEntry);
     bindMethod("repaintSweepHorizontally", &LayoutTestController::repaintSweepHorizontally);
     bindMethod("resetPageVisibility", &LayoutTestController::resetPageVisibility);
-    bindMethod("resumeAnimations", &LayoutTestController::resumeAnimations);
     bindMethod("setAcceptsEditing", &LayoutTestController::setAcceptsEditing);
     bindMethod("setAllowDisplayOfInsecureContent", &LayoutTestController::setAllowDisplayOfInsecureContent);
     bindMethod("setAllowFileAccessFromFileURLs", &LayoutTestController::setAllowFileAccessFromFileURLs);
@@ -210,9 +213,10 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("setXSSAuditorEnabled", &LayoutTestController::setXSSAuditorEnabled);
     bindMethod("setAsynchronousSpellCheckingEnabled", &LayoutTestController::setAsynchronousSpellCheckingEnabled);
     bindMethod("showWebInspector", &LayoutTestController::showWebInspector);
+#if ENABLE(NOTIFICATIONS)
     bindMethod("simulateDesktopNotificationClick", &LayoutTestController::simulateDesktopNotificationClick);
+#endif
     bindMethod("startSpeechInput", &LayoutTestController::startSpeechInput);
-    bindMethod("suspendAnimations", &LayoutTestController::suspendAnimations);
     bindMethod("testRepaint", &LayoutTestController::testRepaint);
     bindMethod("waitForPolicyDelegate", &LayoutTestController::waitForPolicyDelegate);
     bindMethod("waitUntilDone", &LayoutTestController::waitUntilDone);
@@ -251,6 +255,7 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("enableFixedLayoutMode", &LayoutTestController::enableFixedLayoutMode);
     bindMethod("setFixedLayoutSize", &LayoutTestController::setFixedLayoutSize);
     bindMethod("selectionAsMarkup", &LayoutTestController::selectionAsMarkup);
+    bindMethod("setHasCustomFullScreenBehavior", &LayoutTestController::setHasCustomFullScreenBehavior);
     
     // The fallback method is called when an unknown method is invoked.
     bindFallbackMethod(&LayoutTestController::fallbackMethod);
@@ -674,6 +679,7 @@ void LayoutTestController::reset()
     m_workQueue.reset();
     m_taskList.revokeAll();
     m_shouldStayOnPageAfterHandlingBeforeUnload = false;
+    m_hasCustomFullScreenBehavior = false;
 }
 
 void LayoutTestController::locationChangeDone()
@@ -1057,32 +1063,6 @@ int LayoutTestController::numberOfActiveAnimations()
     return controller->numberOfActiveAnimations();
 }
 
-void LayoutTestController::suspendAnimations()
-{
-    WebFrame* webFrame = m_shell->webView()->mainFrame();
-    if (!webFrame)
-        return;
-
-    WebAnimationController* controller = webFrame->animationController();
-    if (!controller)
-        return;
-
-    controller->suspendAnimations();
-}
-
-void LayoutTestController::resumeAnimations()
-{
-    WebFrame* webFrame = m_shell->webView()->mainFrame();
-    if (!webFrame)
-        return;
-
-    WebAnimationController* controller = webFrame->animationController();
-    if (!controller)
-        return;
-
-    controller->resumeAnimations();
-}
-
 void LayoutTestController::pauseAnimationAtTimeOnElementWithId(const CppArgumentList& arguments, CppVariant* result)
 {
     result->set(false);
@@ -1154,18 +1134,6 @@ void LayoutTestController::numberOfActiveAnimations(const CppArgumentList&, CppV
     result->set(numberOfActiveAnimations());
 }
 
-void LayoutTestController::suspendAnimations(const CppArgumentList&, CppVariant* result)
-{
-    suspendAnimations();
-    result->setNull();
-}
-
-void LayoutTestController::resumeAnimations(const CppArgumentList&, CppVariant* result)
-{
-    resumeAnimations();
-    result->setNull();
-}
-
 void LayoutTestController::disableImageLoading(const CppArgumentList&, CppVariant* result)
 {
     m_shell->preferences()->loadsImagesAutomatically = false;
@@ -1184,6 +1152,7 @@ void LayoutTestController::callShouldCloseOnWebView(const CppArgumentList&, CppV
     result->set(m_shell->webView()->dispatchBeforeUnloadEvent());
 }
 
+#if ENABLE(NOTIFICATIONS)
 void LayoutTestController::grantDesktopNotificationPermission(const CppArgumentList& arguments, CppVariant* result)
 {
     if (arguments.size() != 1 || !arguments[0].isString()) {
@@ -1209,6 +1178,7 @@ void LayoutTestController::simulateDesktopNotificationClick(const CppArgumentLis
 #endif
         result->set(false);
 }
+#endif
 
 void LayoutTestController::setDomainRelaxationForbiddenForURLScheme(const CppArgumentList& arguments, CppVariant* result)
 {
@@ -1330,6 +1300,36 @@ void LayoutTestController::setXSSAuditorEnabled(const CppArgumentList& arguments
         m_shell->applyPreferences();
     }
     result->setNull();
+}
+
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(const CppArgumentList& arguments, CppVariant* result)
+{
+    v8::HandleScope scope;
+    WebVector<v8::Local<v8::Value> > values;
+    if (arguments.size() >= 2 && arguments[0].isNumber() && arguments[1].isString()) {
+        WebScriptSource source(cppVariantToWebString(arguments[1]));
+        // This relies on the iframe focusing itself when it loads. This is a bit
+        // sketchy, but it seems to be what other tests do.
+        m_shell->webView()->focusedFrame()->executeScriptInIsolatedWorld(arguments[0].toInt32(), &source, 1, 1, &values);
+    }
+    result->setNull();
+    // Since only one script was added, only one result is expected
+    if (values.size() == 1 && !values[0].IsEmpty()) {
+        v8::Local<v8::Value> scriptValue = values[0];
+        // FIXME: There are many more types that can be handled.
+        if (scriptValue->IsString()) {
+            v8::String::AsciiValue asciiV8(scriptValue);
+            result->set(std::string(*asciiV8));
+        } else if (scriptValue->IsBoolean())
+            result->set(scriptValue->ToBoolean()->Value());
+        else if (scriptValue->IsNumber()) {
+            if (scriptValue->IsInt32())
+                result->set(scriptValue->ToInt32()->Value());
+            else
+                result->set(scriptValue->ToNumber()->Value());
+        } else if (scriptValue->IsNull())
+              result->setNull();
+    }
 }
 
 void LayoutTestController::evaluateScriptInIsolatedWorld(const CppArgumentList& arguments, CppVariant* result)
@@ -1765,18 +1765,6 @@ void LayoutTestController::hasCustomPageSizeStyle(const CppArgumentList& argumen
     result->set(frame->hasCustomPageSizeStyle(pageIndex));
 }
 
-void LayoutTestController::isPageBoxVisible(const CppArgumentList& arguments, CppVariant* result)
-{
-    result->setNull();
-    int pageNumber = 0;
-    if (!parsePageNumber(arguments, 0, &pageNumber))
-        return;
-    WebFrame* frame = m_shell->webView()->mainFrame();
-    if (!frame)
-        return;
-    result->set(frame->isPageBoxVisible(pageNumber));
-}
-
 void LayoutTestController::pageProperty(const CppArgumentList& arguments, CppVariant* result)
 {
     result->set("");
@@ -1940,6 +1928,7 @@ void LayoutTestController::abortModal(const CppArgumentList& arguments, CppVaria
     result->setNull();
 }
 
+#if ENABLE(INPUT_SPEECH)
 void LayoutTestController::addMockSpeechInputResult(const CppArgumentList& arguments, CppVariant* result)
 {
     result->setNull();
@@ -1959,6 +1948,7 @@ void LayoutTestController::setMockSpeechInputDumpRect(const CppArgumentList& arg
     if (MockWebSpeechInputController* controller = m_shell->webViewHost()->speechInputControllerMock())
         controller->setDumpRect(arguments[0].value.boolValue);
 }
+#endif
 
 void LayoutTestController::startSpeechInput(const CppArgumentList& arguments, CppVariant* result)
 {
@@ -2228,6 +2218,14 @@ void LayoutTestController::setAudioData(const CppArgumentList& arguments, CppVar
         return;
 
     setShouldDumpAsAudio(true);
+}
+
+void LayoutTestController::setHasCustomFullScreenBehavior(const CppArgumentList& arguments, CppVariant* result)
+{
+    result->setNull();
+    if (arguments.size() <  1 || !arguments[0].isBool())
+        return;
+    m_hasCustomFullScreenBehavior = arguments[0].toBoolean();
 }
 
 #if ENABLE(POINTER_LOCK)

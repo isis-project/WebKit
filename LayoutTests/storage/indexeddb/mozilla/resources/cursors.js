@@ -113,7 +113,7 @@ function testGroup6()
         shouldBe("cursor.value", "'foo'");
 
         evalAndLog("cursor.continue();");
-        evalAndExpectException("cursor.continue();", "IDBDatabaseException.NOT_ALLOWED_ERR");
+        evalAndExpectException("cursor.continue();", "DOMException.INVALID_STATE_ERR");
 
         shouldBe("cursor.key", "sortedKeys[keyIndex]");
         shouldBe("cursor.primaryKey", "sortedKeys[keyIndex]");
@@ -312,7 +312,7 @@ function testGroup13()
     gotRemoveEvent = false;
     retval = false;
 
-    request = evalAndLog("request = objectStore.openCursor(null, IDBCursor.NEXT);");
+    request = evalAndLog("request = objectStore.openCursor(null, 'next');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
       cursor = evalAndLog("cursor = event.target.result;");
@@ -361,7 +361,7 @@ function testGroup15()
 {
     keyIndex = sortedKeys.length - 1;
 
-    request = evalAndLog("request = objectStore.openCursor(null, IDBCursor.PREV);");
+    request = evalAndLog("request = objectStore.openCursor(null, 'prev');");
     request.onerror = unexpectedErrorCallback;
     request.onsuccess = function (event) {
       cursor = evalAndLog("cursor = event.target.result;");

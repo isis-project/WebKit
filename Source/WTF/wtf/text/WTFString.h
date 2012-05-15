@@ -205,8 +205,12 @@ public:
     // Find a single character or string, also with match function & latin1 forms.
     size_t find(UChar c, unsigned start = 0) const
         { return m_impl ? m_impl->find(c, start) : notFound; }
-    size_t find(const String& str, unsigned start = 0) const
+
+    size_t find(const String& str) const
+        { return m_impl ? m_impl->find(str.impl()) : notFound; }
+    size_t find(const String& str, unsigned start) const
         { return m_impl ? m_impl->find(str.impl(), start) : notFound; }
+
     size_t find(CharacterMatchFunctionPtr matchFunction, unsigned start = 0) const
         { return m_impl ? m_impl->find(matchFunction, start) : notFound; }
     size_t find(const LChar* str, unsigned start = 0) const
@@ -244,8 +248,19 @@ public:
 
     bool startsWith(const String& s, bool caseSensitive = true) const
         { return m_impl ? m_impl->startsWith(s.impl(), caseSensitive) : s.isEmpty(); }
+    bool startsWith(UChar character) const
+        { return m_impl ? m_impl->startsWith(character) : false; }
+    template<unsigned matchLength>
+    bool startsWith(const char (&prefix)[matchLength], bool caseSensitive = true) const
+        { return m_impl ? m_impl->startsWith<matchLength>(prefix, caseSensitive) : !matchLength; }
+
     bool endsWith(const String& s, bool caseSensitive = true) const
         { return m_impl ? m_impl->endsWith(s.impl(), caseSensitive) : s.isEmpty(); }
+    bool endsWith(UChar character) const
+        { return m_impl ? m_impl->endsWith(character) : false; }
+    template<unsigned matchLength>
+    bool endsWith(const char (&prefix)[matchLength], bool caseSensitive = true) const
+        { return m_impl ? m_impl->endsWith<matchLength>(prefix, caseSensitive) : !matchLength; }
 
     WTF_EXPORT_PRIVATE void append(const String&);
     WTF_EXPORT_PRIVATE void append(LChar);
@@ -507,72 +522,6 @@ WTF_EXPORT_PRIVATE int codePointCompare(const String&, const String&);
 inline bool codePointCompareLessThan(const String& a, const String& b)
 {
     return codePointCompare(a.impl(), b.impl()) < 0;
-}
-
-inline size_t find(const LChar* characters, unsigned length, LChar matchCharacter, unsigned index = 0)
-{
-    while (index < length) {
-        if (characters[index] == matchCharacter)
-            return index;
-        ++index;
-    }
-    return notFound;
-}
-
-inline size_t find(const UChar* characters, unsigned length, UChar matchCharacter, unsigned index = 0)
-{
-    while (index < length) {
-        if (characters[index] == matchCharacter)
-            return index;
-        ++index;
-    }
-    return notFound;
-}
-
-inline size_t find(const LChar* characters, unsigned length, CharacterMatchFunctionPtr matchFunction, unsigned index = 0)
-{
-    while (index < length) {
-        if (matchFunction(characters[index]))
-            return index;
-        ++index;
-    }
-    return notFound;
-}
-
-inline size_t find(const UChar* characters, unsigned length, CharacterMatchFunctionPtr matchFunction, unsigned index = 0)
-{
-    while (index < length) {
-        if (matchFunction(characters[index]))
-            return index;
-        ++index;
-    }
-    return notFound;
-}
-
-inline size_t reverseFind(const LChar* characters, unsigned length, LChar matchCharacter, unsigned index = UINT_MAX)
-{
-    if (!length)
-        return notFound;
-    if (index >= length)
-        index = length - 1;
-    while (characters[index] != matchCharacter) {
-        if (!index--)
-            return notFound;
-    }
-    return index;
-}
-
-inline size_t reverseFind(const UChar* characters, unsigned length, UChar matchCharacter, unsigned index = UINT_MAX)
-{
-    if (!length)
-        return notFound;
-    if (index >= length)
-        index = length - 1;
-    while (characters[index] != matchCharacter) {
-        if (!index--)
-            return notFound;
-    }
-    return index;
 }
 
 inline void append(Vector<UChar>& vector, const String& string)

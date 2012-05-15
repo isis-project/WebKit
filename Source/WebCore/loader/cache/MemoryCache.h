@@ -129,7 +129,6 @@ public:
     void evictResources();
     
     void setPruneEnabled(bool enabled) { m_pruneEnabled = enabled; }
-    bool pruneEnabled() const { return m_pruneEnabled; }
     void prune();
     void pruneToPercentage(float targetPercentLive);
 
@@ -201,7 +200,7 @@ private:
 
     bool m_disabled;  // Whether or not the cache is enabled.
     bool m_pruneEnabled;
-    bool m_inPruneDeadResources;
+    bool m_inPruneResources;
 
     unsigned m_capacity;
     unsigned m_minDeadCapacity;

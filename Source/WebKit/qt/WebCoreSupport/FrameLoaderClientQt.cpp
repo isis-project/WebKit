@@ -212,7 +212,6 @@ FrameLoaderClientQt::FrameLoaderClientQt()
     , m_webFrame(0)
     , m_pluginView(0)
     , m_hasSentResponseToPlugin(false)
-    , m_hasRepresentation(false)
     , m_isOriginatingLoad(false)
 {
 }
@@ -312,11 +311,6 @@ void FrameLoaderClientQt::dispatchDidBecomeFrameset(bool)
 {
 }
 
-void FrameLoaderClientQt::makeRepresentation(DocumentLoader*)
-{
-    m_hasRepresentation = true;
-}
-
 
 void FrameLoaderClientQt::forceLayout()
 {
@@ -397,7 +391,7 @@ void FrameLoaderClientQt::dispatchDidChangeLocationWithinPage()
 }
 
 #if USE(V8)
-void FrameLoaderClientQt::didCreateScriptContext(v8::Handle<v8::Context>, int)
+void FrameLoaderClientQt::didCreateScriptContext(v8::Handle<v8::Context>, int, int)
 {
 }
 void FrameLoaderClientQt::willReleaseScriptContext(v8::Handle<v8::Context>, int)
@@ -567,12 +561,6 @@ void FrameLoaderClientQt::dispatchWillSubmitForm(FramePolicyFunction function,
 }
 
 
-void FrameLoaderClientQt::revertToProvisionalState(DocumentLoader*)
-{
-    m_hasRepresentation = true;
-}
-
-
 void FrameLoaderClientQt::postProgressStartedNotification()
 {
     if (m_webFrame && m_frame->page())
@@ -626,16 +614,10 @@ void FrameLoaderClientQt::didChangeTitle(DocumentLoader*)
 }
 
 
-void FrameLoaderClientQt::finishedLoading(DocumentLoader* loader)
+void FrameLoaderClientQt::finishedLoading(DocumentLoader*)
 {
-    if (!m_pluginView) {
-        // This is necessary to create an empty document. See bug 634004.
-        // However, we only want to do this if makeRepresentation has been called,
-        // to match the behavior on the Mac.
-        if (m_hasRepresentation)
-            loader->writer()->setEncoding("", false);
+    if (!m_pluginView)
         return;
-    }
     if (m_pluginView->isPluginView())
         m_pluginView->didFinishLoading();
     m_pluginView = 0;
@@ -1621,9 +1603,14 @@ PassRefPtr<Widget> FrameLoaderClientQt::createPlugin(const IntSize& pluginSize, 
         Vector<String> params = paramNames;
         Vector<String> values = paramValues;
         if (mimeType == "application/x-shockwave-flash") {
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+            const bool shouldInjectWmode = true;
+#else
+            // Inject wmode=opaque when there is no client or the client is not a QWebView.
             QWebPageClient* client = m_webFrame->page()->d->client.get();
-            const bool isQWebView = client && qobject_cast<QWidget*>(client->pluginParent());
-            if (!isQWebView) {
+            const bool shouldInjectWmode = !(client && qobject_cast<QWidget*>(client->pluginParent()));
+#endif
+            if (shouldInjectWmode) {
                 // Inject wmode=opaque when there is no client or the client is not a QWebView.
                 size_t wmodeIndex = params.find("wmode");
                 if (wmodeIndex == WTF::notFound) {

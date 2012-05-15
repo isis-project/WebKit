@@ -65,7 +65,7 @@ bool IndentOutdentCommand::tryIndentingAsListItem(const Position& start, const P
         return false;
 
     // Find the block that we want to indent.  If it's not a list item (e.g., a div inside a list item), we bail out.
-    Element* selectedListItem = static_cast<Element*>(enclosingBlock(lastNodeInSelectedParagraph));
+    Element* selectedListItem = enclosingBlock(lastNodeInSelectedParagraph);
 
     // FIXME: we need to deal with the case where there is no li (malformed HTML)
     if (!selectedListItem->hasTagName(liTag))
@@ -114,7 +114,7 @@ void IndentOutdentCommand::indentIntoBlockquote(const Position& start, const Pos
             insertNodeAt(targetBlockquote, start);
         else
             insertNodeBefore(targetBlockquote, outerBlock);
-        startOfContents = positionAfterNode(targetBlockquote.get());
+        startOfContents = positionInParentAfterNode(targetBlockquote.get());
     }
 
     moveParagraphWithClones(startOfContents, end, targetBlockquote.get(), outerBlock.get());

@@ -68,6 +68,10 @@
 #include <stdio.h>
 #endif
 
+#if USE(GSTREAMER)
+#include "GStreamerUtilities.h"
+#endif
+
 #include <wtf/ArrayBuffer.h>
 #include <wtf/Atomics.h>
 #include <wtf/MainThread.h>
@@ -136,6 +140,7 @@ AudioContext::AudioContext(Document* document)
     , m_document(document)
     , m_destinationNode(0)
     , m_isDeletionScheduled(false)
+    , m_automaticPullNodesNeedUpdating(false)
     , m_connectionCount(0)
     , m_audioThread(0)
     , m_graphOwnerThread(UndefinedThreadIdentifier)
@@ -160,6 +165,7 @@ AudioContext::AudioContext(Document* document, unsigned numberOfChannels, size_t
     , m_isAudioThreadFinished(false)
     , m_document(document)
     , m_destinationNode(0)
+    , m_automaticPullNodesNeedUpdating(false)
     , m_connectionCount(0)
     , m_audioThread(0)
     , m_graphOwnerThread(UndefinedThreadIdentifier)
@@ -178,6 +184,10 @@ AudioContext::AudioContext(Document* document, unsigned numberOfChannels, size_t
 
 void AudioContext::constructCommon()
 {
+#if USE(GSTREAMER)
+    initializeGStreamer();
+#endif
+
     FFTFrame::initialize();
     
     m_listener = AudioListener::create();
@@ -192,6 +202,8 @@ AudioContext::~AudioContext()
     ASSERT(!m_nodesToDelete.size());
     ASSERT(!m_referencedNodes.size());
     ASSERT(!m_finishedNodes.size());
+    ASSERT(!m_automaticPullNodes.size());
+    ASSERT(!m_renderingAutomaticPullNodes.size());
 }
 
 void AudioContext::lazyInitialize()
@@ -338,7 +350,10 @@ PassRefPtr<AudioBufferSourceNode> AudioContext::createBufferSource()
     lazyInitialize();
     RefPtr<AudioBufferSourceNode> node = AudioBufferSourceNode::create(this, m_destinationNode->sampleRate());
 
-    refNode(node.get()); // context keeps reference until source has finished playing
+    // Because this is an AudioScheduledSourceNode, the context keeps a reference until it has finished playing.
+    // When this happens, AudioScheduledSourceNode::finish() calls AudioContext::notifyNodeFinishedProcessing().
+    refNode(node.get());
+
     return node;
 }
 
@@ -458,25 +473,60 @@ PassRefPtr<DelayNode> AudioContext::createDelayNode(double maxDelayTime)
     return DelayNode::create(this, m_destinationNode->sampleRate(), maxDelayTime);
 }
 
-PassRefPtr<AudioChannelSplitter> AudioContext::createChannelSplitter()
+PassRefPtr<AudioChannelSplitter> AudioContext::createChannelSplitter(ExceptionCode& ec)
 {
-    ASSERT(isMainThread());
-    lazyInitialize();
-    return AudioChannelSplitter::create(this, m_destinationNode->sampleRate());
+    const unsigned ChannelSplitterDefaultNumberOfOutputs = 6;
+    return createChannelSplitter(ChannelSplitterDefaultNumberOfOutputs, ec);
 }
 
-PassRefPtr<AudioChannelMerger> AudioContext::createChannelMerger()
+PassRefPtr<AudioChannelSplitter> AudioContext::createChannelSplitter(size_t numberOfOutputs, ExceptionCode& ec)
 {
     ASSERT(isMainThread());
     lazyInitialize();
-    return AudioChannelMerger::create(this, m_destinationNode->sampleRate());
+
+    RefPtr<AudioChannelSplitter> node = AudioChannelSplitter::create(this, m_destinationNode->sampleRate(), numberOfOutputs);
+
+    if (!node.get()) {
+        ec = SYNTAX_ERR;
+        return 0;
+    }
+
+    return node;
+}
+
+PassRefPtr<AudioChannelMerger> AudioContext::createChannelMerger(ExceptionCode& ec)
+{
+    const unsigned ChannelMergerDefaultNumberOfInputs = 6;
+    return createChannelMerger(ChannelMergerDefaultNumberOfInputs, ec);
+}
+
+PassRefPtr<AudioChannelMerger> AudioContext::createChannelMerger(size_t numberOfInputs, ExceptionCode& ec)
+{
+    ASSERT(isMainThread());
+    lazyInitialize();
+
+    RefPtr<AudioChannelMerger> node = AudioChannelMerger::create(this, m_destinationNode->sampleRate(), numberOfInputs);
+
+    if (!node.get()) {
+        ec = SYNTAX_ERR;
+        return 0;
+    }
+
+    return node;
 }
 
 PassRefPtr<Oscillator> AudioContext::createOscillator()
 {
     ASSERT(isMainThread());
     lazyInitialize();
-    return Oscillator::create(this, m_destinationNode->sampleRate());
+
+    RefPtr<Oscillator> node = Oscillator::create(this, m_destinationNode->sampleRate());
+
+    // Because this is an AudioScheduledSourceNode, the context keeps a reference until it has finished playing.
+    // When this happens, AudioScheduledSourceNode::finish() calls AudioContext::notifyNodeFinishedProcessing().
+    refNode(node.get());
+
+    return node;
 }
 
 PassRefPtr<WaveTable> AudioContext::createWaveTable(Float32Array* real, Float32Array* imag, ExceptionCode& ec)
@@ -626,7 +676,9 @@ void AudioContext::handlePreRenderTasks()
         // Fixup the state of any dirty AudioNodeInputs and AudioNodeOutputs.
         handleDirtyAudioNodeInputs();
         handleDirtyAudioNodeOutputs();
-        
+
+        updateAutomaticPullNodes();
+
         if (mustReleaseLock)
             unlock();
     }
@@ -654,7 +706,9 @@ void AudioContext::handlePostRenderTasks()
         // Fixup the state of any dirty AudioNodeInputs and AudioNodeOutputs.
         handleDirtyAudioNodeInputs();
         handleDirtyAudioNodeOutputs();
-        
+
+        updateAutomaticPullNodes();
+
         if (mustReleaseLock)
             unlock();
     }
@@ -676,6 +730,12 @@ void AudioContext::markForDeletion(AudioNode* node)
 {
     ASSERT(isGraphOwner());
     m_nodesToDelete.append(node);
+
+    // This is probably the best time for us to remove the node from automatic pull list,
+    // since all connections are gone and we hold the graph lock. Then when handlePostRenderTasks()
+    // gets a chance to schedule the deletion work, updateAutomaticPullNodes() also gets a chance to
+    // modify m_renderingAutomaticPullNodes.
+    removeAutomaticPullNode(node);
 }
 
 void AudioContext::scheduleNodeDeletion()
@@ -765,6 +825,52 @@ void AudioContext::handleDirtyAudioNodeOutputs()
         (*i)->updateRenderingState();
 
     m_dirtyAudioNodeOutputs.clear();
+}
+
+void AudioContext::addAutomaticPullNode(AudioNode* node)
+{
+    ASSERT(isGraphOwner());
+
+    if (!m_automaticPullNodes.contains(node)) {
+        m_automaticPullNodes.add(node);
+        m_automaticPullNodesNeedUpdating = true;
+    }
+}
+
+void AudioContext::removeAutomaticPullNode(AudioNode* node)
+{
+    ASSERT(isGraphOwner());
+
+    if (m_automaticPullNodes.contains(node)) {
+        m_automaticPullNodes.remove(node);
+        m_automaticPullNodesNeedUpdating = true;
+    }
+}
+
+void AudioContext::updateAutomaticPullNodes()
+{
+    ASSERT(isGraphOwner());
+
+    if (m_automaticPullNodesNeedUpdating) {
+        // Copy from m_automaticPullNodes to m_renderingAutomaticPullNodes.
+        m_renderingAutomaticPullNodes.resize(m_automaticPullNodes.size());
+
+        unsigned j = 0;
+        for (HashSet<AudioNode*>::iterator i = m_automaticPullNodes.begin(); i != m_automaticPullNodes.end(); ++i, ++j) {
+            AudioNode* output = *i;
+            m_renderingAutomaticPullNodes[j] = output;
+        }
+
+        m_automaticPullNodesNeedUpdating = false;
+    }
+}
+
+void AudioContext::processAutomaticPullNodes(size_t framesToProcess)
+{
+    ASSERT(isAudioThread());
+
+    for (unsigned i = 0; i < m_renderingAutomaticPullNodes.size(); ++i)
+        m_renderingAutomaticPullNodes[i]->processIfNecessary(framesToProcess);
 }
 
 const AtomicString& AudioContext::interfaceName() const

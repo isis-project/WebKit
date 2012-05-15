@@ -26,7 +26,12 @@
 #ifndef GCController_h
 #define GCController_h
 
+#if USE(CF)
+#include <wtf/FastAllocBase.h>
+#include <wtf/Noncopyable.h>
+#else
 #include "Timer.h"
+#endif
 
 namespace WebCore {
 
@@ -39,14 +44,16 @@ namespace WebCore {
         void garbageCollectNow(); // It's better to call garbageCollectSoon, unless you have a specific reason not to.
 
         void garbageCollectOnAlternateThreadForDebugging(bool waitUntilDone); // Used for stress testing.
-
+        void setJavaScriptGarbageCollectorTimerEnabled(bool);
         void discardAllCompiledCode();
 
     private:
         GCController(); // Use gcController() instead
+
+#if !USE(CF)
         void gcTimerFired(Timer<GCController>*);
-        
         Timer<GCController> m_GCTimer;
+#endif
     };
 
     // Function to obtain the global GC controller.

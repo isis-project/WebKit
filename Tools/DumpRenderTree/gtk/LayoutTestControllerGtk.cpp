@@ -149,11 +149,6 @@ JSRetainPtr<JSStringRef> LayoutTestController::pageProperty(const char* property
     return propertyValue;
 }
 
-bool LayoutTestController::isPageBoxVisible(int pageNumber) const
-{
-    return DumpRenderTreeSupportGtk::isPageBoxVisible(mainFrame, pageNumber);
-}
-
 JSRetainPtr<JSStringRef> LayoutTestController::pageSizeAndMarginsInPixels(int pageNumber, int width, int height, int marginTop, int marginRight, int marginBottom, int marginLeft) const
 {
     JSRetainPtr<JSStringRef> propertyValue(Adopt, JSStringCreateWithUTF8CString(DumpRenderTreeSupportGtk::pageSizeAndMarginsInPixels(mainFrame, pageNumber, width, height, marginTop, marginRight, marginBottom, marginLeft).data()));
@@ -286,7 +281,10 @@ void LayoutTestController::addOriginAccessWhitelistEntry(JSStringRef sourceOrigi
 
 void LayoutTestController::removeOriginAccessWhitelistEntry(JSStringRef sourceOrigin, JSStringRef protocol, JSStringRef host, bool includeSubdomains)
 {
-    // FIXME: implement
+    GOwnPtr<gchar> sourceOriginGChar(JSStringCopyUTF8CString(sourceOrigin));
+    GOwnPtr<gchar> protocolGChar(JSStringCopyUTF8CString(protocol));
+    GOwnPtr<gchar> hostGChar(JSStringCopyUTF8CString(host));
+    DumpRenderTreeSupportGtk::removeWhiteListAccessFromOrigin(sourceOriginGChar.get(), protocolGChar.get(), hostGChar.get(), includeSubdomains);
 }
 
 void LayoutTestController::setMainFrameIsFirstResponder(bool flag)
@@ -741,19 +739,22 @@ void LayoutTestController::syncLocalStorage()
     // FIXME: implement
 }
 
-void LayoutTestController::setDomainRelaxationForbiddenForURLScheme(bool, JSStringRef)
+void LayoutTestController::setDomainRelaxationForbiddenForURLScheme(bool forbidden, JSStringRef scheme)
 {
-    // FIXME: implement
+    GOwnPtr<gchar> urlScheme(JSStringCopyUTF8CString(scheme));
+    DumpRenderTreeSupportGtk::setDomainRelaxationForbiddenForURLScheme(forbidden, urlScheme.get());
 }
 
 void LayoutTestController::goBack()
 {
-    // FIXME: implement to enable loader/navigation-while-deferring-loads.html
+    WebKitWebView* webView = webkit_web_frame_get_web_view(mainFrame);
+    webkit_web_view_go_back(webView);
 }
 
-void LayoutTestController::setDefersLoading(bool)
+void LayoutTestController::setDefersLoading(bool defers)
 {
-    // FIXME: implement to enable loader/navigation-while-deferring-loads.html
+    WebKitWebView* webView = webkit_web_frame_get_web_view(mainFrame);
+    DumpRenderTreeSupportGtk::setDefersLoading(webView, defers);
 }
 
 void LayoutTestController::setAppCacheMaximumSize(unsigned long long size)
@@ -784,16 +785,6 @@ bool LayoutTestController::pauseTransitionAtTimeOnElementWithId(JSStringRef prop
 unsigned LayoutTestController::numberOfActiveAnimations() const
 {
     return DumpRenderTreeSupportGtk::numberOfActiveAnimations(mainFrame);
-}
-
-void LayoutTestController::suspendAnimations() const
-{
-    DumpRenderTreeSupportGtk::suspendAnimations(mainFrame);
-}
-
-void LayoutTestController::resumeAnimations() const
-{
-    DumpRenderTreeSupportGtk::resumeAnimations(mainFrame);
 }
 
 static gboolean booleanFromValue(gchar* value)
@@ -916,6 +907,11 @@ void LayoutTestController::evaluateInWebInspector(long callId, JSStringRef scrip
     g_free(scriptString);
 }
 
+void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
+{
+    // FIXME: Implement this.
+}
+
 void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
 {
     // FIXME: Implement this.
@@ -1021,4 +1017,14 @@ void LayoutTestController::setBackingScaleFactor(double)
 
 void LayoutTestController::simulateDesktopNotificationClick(JSStringRef title)
 {
+}
+
+void LayoutTestController::resetPageVisibility()
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::setPageVisibility(const char*)
+{
+    // FIXME: Implement this.
 }

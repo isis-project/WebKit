@@ -82,6 +82,7 @@ public:
 
     virtual bool isCreateLinkCommand() const;
     virtual bool isTypingCommand() const;
+    virtual bool isDictationCommand() const { return false; }
     virtual bool preservesTypingStyle() const;
     virtual bool shouldRetainAutocorrectionIndicator() const;
     virtual void setShouldRetainAutocorrectionIndicator(bool);
@@ -100,15 +101,15 @@ protected:
     void applyStyle(const EditingStyle*, const Position& start, const Position& end, EditAction = EditActionChangeAttributes);
     void applyStyledElement(PassRefPtr<Element>);
     void removeStyledElement(PassRefPtr<Element>);
-    void deleteSelection(bool smartDelete = false, bool mergeBlocksAfterDelete = true, bool replace = false, bool expandForSpecialElements = true);
-    void deleteSelection(const VisibleSelection&, bool smartDelete = false, bool mergeBlocksAfterDelete = true, bool replace = false, bool expandForSpecialElements = true);
+    void deleteSelection(bool smartDelete = false, bool mergeBlocksAfterDelete = true, bool replace = false, bool expandForSpecialElements = true, bool sanitizeMarkup = true);
+    void deleteSelection(const VisibleSelection&, bool smartDelete = false, bool mergeBlocksAfterDelete = true, bool replace = false, bool expandForSpecialElements = true, bool sanitizeMarkup = true);
     virtual void deleteTextFromNode(PassRefPtr<Text>, unsigned offset, unsigned count);
     bool isRemovableBlock(const Node*);
     void insertNodeAfter(PassRefPtr<Node>, PassRefPtr<Node> refChild);
     void insertNodeAt(PassRefPtr<Node>, const Position&);
     void insertNodeAtTabSpanPosition(PassRefPtr<Node>, const Position&);
     void insertNodeBefore(PassRefPtr<Node>, PassRefPtr<Node> refChild);
-    void insertParagraphSeparator(bool useDefaultParagraphElement = false);
+    void insertParagraphSeparator(bool useDefaultParagraphElement = false, bool pasteBlockqutoeIntoUnquotedArea = false);
     void insertLineBreak();
     void insertTextIntoNode(PassRefPtr<Text>, unsigned offset, const String& text);
     void mergeIdenticalElements(PassRefPtr<Element>, PassRefPtr<Element>);
@@ -125,6 +126,7 @@ protected:
     HTMLElement* replaceElementWithSpanPreservingChildrenAndAttributes(PassRefPtr<HTMLElement>);
     void removeNodePreservingChildren(PassRefPtr<Node>);
     void removeNodeAndPruneAncestors(PassRefPtr<Node>);
+    void updatePositionForNodeRemovalPreservingChildren(Position&, Node*);
     void prune(PassRefPtr<Node>);
     void replaceTextInNode(PassRefPtr<Text>, unsigned offset, unsigned count, const String& replacementText);
     Position replaceSelectedTextInNode(const String&);

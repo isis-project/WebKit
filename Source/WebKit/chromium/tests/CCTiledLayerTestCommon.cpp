@@ -63,7 +63,7 @@ FakeLayerTextureUpdater::~FakeLayerTextureUpdater()
 {
 }
 
-void FakeLayerTextureUpdater::prepareToUpdate(const IntRect& contentRect, const IntSize&, int, float, IntRect* resultingOpaqueRect)
+void FakeLayerTextureUpdater::prepareToUpdate(const IntRect& contentRect, const IntSize&, int, float, IntRect& resultingOpaqueRect)
 {
     m_prepareCount++;
     m_lastUpdateRect = contentRect;
@@ -72,7 +72,7 @@ void FakeLayerTextureUpdater::prepareToUpdate(const IntRect& contentRect, const 
         m_rectToInvalidate = IntRect();
         m_layer = 0;
     }
-    *resultingOpaqueRect = m_opaquePaintRect;
+    resultingOpaqueRect = m_opaquePaintRect;
 }
 
 void FakeLayerTextureUpdater::setRectToInvalidate(const IntRect& rect, FakeTiledLayerChromium* layer)
@@ -116,18 +116,13 @@ void FakeTiledLayerChromium::setNeedsDisplayRect(const FloatRect& rect)
     TiledLayerChromium::setNeedsDisplayRect(rect);
 }
 
-void FakeTiledLayerChromium::paintContentsIfDirty(const CCOcclusionTracker* occlusion)
+void FakeTiledLayerChromium::update(CCTextureUpdater& updater, const CCOcclusionTracker* occlusion)
 {
-    prepareToUpdate(visibleLayerRect(), occlusion);
+    updateLayerRect(updater, visibleLayerRect(), occlusion);
 }
 
 FakeTiledLayerWithScaledBounds::FakeTiledLayerWithScaledBounds(TextureManager* textureManager)
     : FakeTiledLayerChromium(textureManager)
-{
-}
-
-FakeCCTextureUpdater::FakeCCTextureUpdater()
-    : CCTextureUpdater(&m_textureAllocator, &m_textureCopier)
 {
 }
 
