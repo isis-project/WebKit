@@ -672,6 +672,12 @@ typedef struct NpPalmTouchPoint
   int32_t xCoord, yCoord;
 } NpPalmTouchPoint;
 
+typedef struct NpPalmTouchList
+{
+  NpPalmTouchPoint* points;
+  int32_t length;
+} NpPalmTouchList;
+
 typedef struct NpPalmTouchEvent
 {
   int32_t touchCount;
