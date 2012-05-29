@@ -125,7 +125,7 @@ JSObject* JSTestActiveDOMObject::createPrototype(ExecState* exec, JSGlobalObject
 
 void JSTestActiveDOMObject::destroy(JSC::JSCell* cell)
 {
-    JSTestActiveDOMObject* thisObject = jsCast<JSTestActiveDOMObject*>(cell);
+    JSTestActiveDOMObject* thisObject = static_cast<JSTestActiveDOMObject*>(cell);
     thisObject->JSTestActiveDOMObject::~JSTestActiveDOMObject();
 }
 

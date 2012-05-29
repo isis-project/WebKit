@@ -60,7 +60,7 @@ String IDBObjectStore::name() const
     return m_backend->name();
 }
 
-String IDBObjectStore::keyPath() const
+PassRefPtr<IDBAny> IDBObjectStore::keyPath() const
 {
     IDB_TRACE("IDBObjectStore::keyPath");
     return m_backend->keyPath();
@@ -76,6 +76,12 @@ IDBTransaction* IDBObjectStore::transaction() const
 {
     IDB_TRACE("IDBObjectStore::transaction");
     return m_transaction.get();
+}
+
+bool IDBObjectStore::autoIncrement() const
+{
+    IDB_TRACE("IDBObjectStore::autoIncrement");
+    return m_backend->autoIncrement();
 }
 
 PassRefPtr<IDBRequest> IDBObjectStore::get(ScriptExecutionContext* context, PassRefPtr<IDBKeyRange> keyRange, ExceptionCode& ec)
@@ -177,7 +183,7 @@ PassRefPtr<IDBRequest> IDBObjectStore::deleteFunction(ScriptExecutionContext* co
 PassRefPtr<IDBRequest> IDBObjectStore::deleteFunction(ScriptExecutionContext* context, PassRefPtr<IDBKey> key, ExceptionCode& ec)
 {
     IDB_TRACE("IDBObjectStore::delete");
-    if (!key || !key->valid()) {
+    if (!key || !key->isValid()) {
         ec = IDBDatabaseException::DATA_ERR;
         return 0;
     }
@@ -205,9 +211,23 @@ PassRefPtr<IDBRequest> IDBObjectStore::clear(ScriptExecutionContext* context, Ex
 
 PassRefPtr<IDBIndex> IDBObjectStore::createIndex(const String& name, const String& keyPath, const Dictionary& options, ExceptionCode& ec)
 {
+    return createIndex(name, IDBKeyPath(keyPath), options, ec);
+}
+
+PassRefPtr<IDBIndex> IDBObjectStore::createIndex(const String& name, PassRefPtr<DOMStringList> keyPath, const Dictionary& options, ExceptionCode& ec)
+{
+    // FIXME: Binding code for DOMString[] should not match null. http://webkit.org/b/84217
+    if (!keyPath)
+        return createIndex(name, IDBKeyPath("null"), options, ec);
+    return createIndex(name, IDBKeyPath(*keyPath), options, ec);
+}
+
+
+PassRefPtr<IDBIndex> IDBObjectStore::createIndex(const String& name, const IDBKeyPath& keyPath, const Dictionary& options, ExceptionCode& ec)
+{
     IDB_TRACE("IDBObjectStore::createIndex");
-    if (!IDBIsValidKeyPath(keyPath)) {
-        ec = IDBDatabaseException::NON_TRANSIENT_ERR;
+    if (!keyPath.isValid()) {
+        ec = SYNTAX_ERR;
         return 0;
     }
 
@@ -217,7 +237,10 @@ PassRefPtr<IDBIndex> IDBObjectStore::createIndex(const String& name, const Strin
     bool multiEntry = false;
     options.get("multiEntry", multiEntry);
 
-    // FIXME: When Array-type keyPaths are supported, throw exception if keyPath is Array and multiEntry is true.
+    if (keyPath.type() == IDBKeyPath::ArrayType && multiEntry) {
+        ec = NOT_SUPPORTED_ERR;
+        return 0;
+    }
 
     RefPtr<IDBIndexBackendInterface> indexBackend = m_backend->createIndex(name, keyPath, unique, multiEntry, m_transaction->backend(), ec);
     ASSERT(!indexBackend != !ec); // If we didn't get an index, we should have gotten an exception code. And vice versa.
@@ -231,7 +254,7 @@ PassRefPtr<IDBIndex> IDBObjectStore::createIndex(const String& name, const Strin
 PassRefPtr<IDBIndex> IDBObjectStore::index(const String& name, ExceptionCode& ec)
 {
     IDB_TRACE("IDBObjectStore::index");
-    if (m_transaction->finished()) {
+    if (m_transaction->isFinished()) {
         ec = IDBDatabaseException::NOT_ALLOWED_ERR;
         return 0;
     }
@@ -324,7 +347,7 @@ PassRefPtr<IDBRequest> IDBObjectStore::count(ScriptExecutionContext* context, Pa
 
 void IDBObjectStore::transactionFinished()
 {
-    ASSERT(m_transaction->finished());
+    ASSERT(m_transaction->isFinished());
 
     // Break reference cycles.
     m_indexMap.clear();

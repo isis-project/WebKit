@@ -35,6 +35,7 @@
 namespace WebCore {
 
 class CCLayerTreeHost;
+class CCSingleThreadProxyAnimationTimer;
 
 class CCSingleThreadProxy : public CCProxy, CCLayerTreeHostImplClient {
 public:
@@ -56,9 +57,10 @@ public:
     virtual void loseContext() OVERRIDE;
     virtual void setNeedsAnimate() OVERRIDE;
     virtual void setNeedsCommit() OVERRIDE;
+    virtual void setNeedsForcedCommit() OVERRIDE;
     virtual void setNeedsRedraw() OVERRIDE;
     virtual bool commitRequested() const OVERRIDE;
-    virtual void setVisible(bool) OVERRIDE;
+    virtual void didAddAnimation() OVERRIDE;
     virtual void start() OVERRIDE;
     virtual void stop() OVERRIDE;
     virtual size_t maxPartialTextureUpdates() const OVERRIDE { return std::numeric_limits<size_t>::max(); }
@@ -69,8 +71,8 @@ public:
     // CCLayerTreeHostImplClient implementation
     virtual void didLoseContextOnImplThread() OVERRIDE { }
     virtual void onSwapBuffersCompleteOnImplThread() OVERRIDE { ASSERT_NOT_REACHED(); }
-    virtual void setNeedsRedrawOnImplThread() OVERRIDE { m_layerTreeHost->setNeedsCommit(); }
-    virtual void setNeedsCommitOnImplThread() OVERRIDE { m_layerTreeHost->setNeedsCommit(); }
+    virtual void setNeedsRedrawOnImplThread() OVERRIDE { m_layerTreeHost->scheduleComposite(); }
+    virtual void setNeedsCommitOnImplThread() OVERRIDE { m_layerTreeHost->scheduleComposite(); }
     virtual void postAnimationEventsToMainThreadOnImplThread(PassOwnPtr<CCAnimationEventsVector>, double wallClockTime) OVERRIDE;
     virtual void postSetContentsMemoryAllocationLimitBytesToMainThreadOnImplThread(size_t) OVERRIDE;
 
@@ -93,6 +95,8 @@ private:
     // Holds on to the context between initializeContext() and initializeLayerRenderer() calls. Shouldn't
     // be used for anything else.
     RefPtr<GraphicsContext3D> m_contextBeforeInitialization;
+
+    OwnPtr<CCSingleThreadProxyAnimationTimer> m_animationTimer;
 
     // Used on the CCThread, but checked on main thread during initialization/shutdown.
     OwnPtr<CCLayerTreeHostImpl> m_layerTreeHostImpl;

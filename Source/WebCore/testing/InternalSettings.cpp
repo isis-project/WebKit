@@ -98,6 +98,12 @@ InternalSettings::InternalSettings(Frame* frame)
 #if ENABLE(SHADOW_DOM)
     , m_originalShadowDOMEnabled(RuntimeEnabledFeatures::shadowDOMEnabled())
 #endif
+    , m_originalEditingBehavior(settings()->editingBehaviorType())
+    , m_originalFixedPositionCreatesStackingContext(settings()->fixedPositionCreatesStackingContext())
+    , m_originalSyncXHRInDocumentsEnabled(settings()->syncXHRInDocumentsEnabled())
+#if ENABLE(INSPECTOR) && ENABLE(JAVASCRIPT_DEBUGGER)
+    , m_originalJavaScriptProfilingEnabled(page() && page()->inspectorController() && page()->inspectorController()->profilerEnabled())
+#endif
 {
 }
 
@@ -108,6 +114,13 @@ void InternalSettings::restoreTo(Settings* settings)
     RuntimeEnabledFeatures::setCSSExclusionsEnabled(m_originalCSSExclusionsEnabled);
 #if ENABLE(SHADOW_DOM)
     RuntimeEnabledFeatures::setShadowDOMEnabled(m_originalShadowDOMEnabled);
+#endif
+    settings->setEditingBehaviorType(m_originalEditingBehavior);
+    settings->setFixedPositionCreatesStackingContext(m_originalFixedPositionCreatesStackingContext);
+    settings->setSyncXHRInDocumentsEnabled(m_originalSyncXHRInDocumentsEnabled);
+#if ENABLE(INSPECTOR) && ENABLE(JAVASCRIPT_DEBUGGER)
+    if (page() && page()->inspectorController())
+        page()->inspectorController()->setProfilerEnabled(m_originalJavaScriptProfilingEnabled);
 #endif
 }
 
@@ -327,6 +340,47 @@ void InternalSettings::setMediaPlaybackRequiresUserGesture(bool enabled, Excepti
 {
     InternalSettingsGuardForSettings();
     settings()->setMediaPlaybackRequiresUserGesture(enabled);
+}
+
+void InternalSettings::setEditingBehavior(const String& editingBehavior, ExceptionCode& ec)
+{
+    InternalSettingsGuardForSettings();
+    if (equalIgnoringCase(editingBehavior, "win"))
+        settings()->setEditingBehaviorType(EditingWindowsBehavior);
+    else if (equalIgnoringCase(editingBehavior, "mac"))
+        settings()->setEditingBehaviorType(EditingMacBehavior);
+    else if (equalIgnoringCase(editingBehavior, "unix"))
+        settings()->setEditingBehaviorType(EditingUnixBehavior);
+    else
+        ec = SYNTAX_ERR;
+}
+
+void InternalSettings::setFixedPositionCreatesStackingContext(bool creates, ExceptionCode& ec)
+{
+    InternalSettingsGuardForFrameView();
+    settings()->setFixedPositionCreatesStackingContext(creates);
+}
+
+void InternalSettings::setSyncXHRInDocumentsEnabled(bool creates, ExceptionCode& ec)
+{
+    InternalSettingsGuardForFrameView();
+    settings()->setSyncXHRInDocumentsEnabled(creates);
+}
+
+void InternalSettings::setJavaScriptProfilingEnabled(bool enabled, ExceptionCode& ec)
+{
+#if ENABLE(INSPECTOR)
+    if (!page() || !page()->inspectorController()) {
+        ec = INVALID_ACCESS_ERR;
+        return;
+    }
+
+    page()->inspectorController()->setProfilerEnabled(enabled);
+#else
+    UNUSED_PARAM(enabled);
+    UNUSED_PARAM(ec);
+    return;
+#endif
 }
 
 }

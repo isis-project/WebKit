@@ -846,24 +846,6 @@ void LayoutTestController::setSmartInsertDeleteEnabled(bool flag)
     viewEditing->setSmartInsertDeleteEnabled(flag ? TRUE : FALSE);
 }
 
-void LayoutTestController::setJavaScriptProfilingEnabled(bool flag)
-{
-    COMPtr<IWebView> webView;
-    if (FAILED(frame->webView(&webView)))
-        return;
-
-    COMPtr<IWebViewPrivate> viewPrivate;
-    if (FAILED(webView->QueryInterface(&viewPrivate)))
-        return;
-
-    COMPtr<IWebInspector> inspector;
-    if (FAILED(viewPrivate->inspector(&inspector)))
-        return;
-
-    setDeveloperExtrasEnabled(flag);
-    inspector->setJavaScriptProfilingEnabled(flag);
-}
-
 void LayoutTestController::setSelectTrailingWhitespaceEnabled(bool flag)
 {
     COMPtr<IWebView> webView;
@@ -1407,25 +1389,6 @@ void LayoutTestController::authenticateSession(JSStringRef, JSStringRef, JSStrin
 {
 }
 
-void LayoutTestController::setEditingBehavior(const char* editingBehavior)
-{
-    COMPtr<IWebView> webView;
-    if (FAILED(frame->webView(&webView)))
-        return;
-
-    COMPtr<IWebPreferences> preferences;
-    if (FAILED(webView->preferences(&preferences)))
-        return;
-
-    string behaviorString(editingBehavior);
-    if (behaviorString == "mac")
-        preferences->setEditingBehavior(WebKitEditingMacBehavior);
-    else if (behaviorString == "win")
-        preferences->setEditingBehavior(WebKitEditingWinBehavior);
-    else if (behaviorString == "unix")
-        preferences->setEditingBehavior(WebKitEditingUnixBehavior);
-}
-
 void LayoutTestController::abortModal()
 {
 }
@@ -1494,10 +1457,6 @@ void LayoutTestController::setTextDirection(JSStringRef direction)
     framePrivate->setTextDirection(bstrT(direction).GetBSTR());
 }
 
-void LayoutTestController::allowRoundingHacks()
-{
-}
-
 void LayoutTestController::addChromeInputField()
 {
 }
@@ -1525,6 +1484,16 @@ void LayoutTestController::resetPageVisibility()
 }
 
 void LayoutTestController::setPageVisibility(const char*)
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::setAutomaticLinkDetectionEnabled(bool)
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::sendWebIntentResponse(JSStringRef)
 {
     // FIXME: Implement this.
 }

@@ -144,16 +144,8 @@ String ShadowRoot::innerHTML() const
 
 void ShadowRoot::setInnerHTML(const String& markup, ExceptionCode& ec)
 {
-    RefPtr<DocumentFragment> fragment = createFragmentFromSource(markup, host(), ec);
-    if (fragment)
+    if (RefPtr<DocumentFragment> fragment = createFragmentForInnerOuterHTML(markup, host(), AllowScriptingContent, ec))
         replaceChildrenWithFragment(this, fragment.release(), ec);
-}
-
-DOMSelection* ShadowRoot::selection()
-{
-    if (document())
-        return document()->getSelection();
-    return 0;
 }
 
 bool ShadowRoot::childTypeAllowed(NodeType type) const
@@ -195,7 +187,11 @@ bool ShadowRoot::applyAuthorStyles() const
 
 void ShadowRoot::setApplyAuthorStyles(bool value)
 {
-    m_applyAuthorStyles = value;
+    if (m_applyAuthorStyles != value) {
+        m_applyAuthorStyles = value;
+        if (attached() && owner())
+            owner()->setNeedsRedistributing();
+    }
 }
 
 void ShadowRoot::attach()

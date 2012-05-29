@@ -170,6 +170,9 @@ BUGWKGTK SKIP : fast/events/clipboard-dataTransferItemList.html = FAIL
 BUGWKGTK SKIP : fast/events/drag-dataTransferItemList.html = FAIL
 BUGWKGTK SKIP : fast/events/drag-dataTransferItemList-file-handling.html = FAIL
 
+// setAutomaticLinkDetectionEnabled is not yet implemented.
+BUGWK85463 SKIP : editing/inserting/typing-space-to-trigger-smart-link.html = FAIL
+
 // Custom MIME type support in DataTransfer is not yet implemented.
 BUGWKGTK SKIP : editing/pasteboard/clipboard-customData.html = FAIL
 BUGWKGTK SKIP : fast/events/drag-customData.html = FAIL
@@ -299,6 +302,12 @@ BUGWK85213 BUGWK85832 : ietestcenter/css3/flexbox/flexbox-ordinal-group-001.htm 
 // These tests require subpixel layout to be enabled
 BUGWK60318 : fast/sub-pixel = FAIL
 
+// Mediastream implementation is not complete yet.
+BUGWK79203 SKIP : fast/mediastream = FAIL
+
+// CSS Variables are not yet enabled.
+BUGWK85580 SKIP : fast/css/variables = PASS FAIL
+
 //////////////////////////////////////////////////////////////////////////////////////////
 // End of Expected failures
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -310,41 +319,11 @@ BUGWK60318 : fast/sub-pixel = FAIL
 BUGWK76814 DEBUG : fast/xmlhttprequest/xmlhttprequest-get.xhtml = CRASH
 
 BUGWK74297 : http/tests/security/cross-origin-xsl-redirect-BLOCKED.html = PASS CRASH
-// BUGWK83679 DEBUG : editing/undo/undo-smart-delete-reversed-selection.html = CRASH
-
-// Crashes on GStreamer side when loading one of the media elements of the test.
-BUGWK50155 : fast/events/tabindex-focus-blur-all.html = CRASH
-
-BUGWK54470 DEBUG : svg/text/select-textLength-spacing-squeeze-1.svg = CRASH
-
-BUGWK56309 : svg/text/text-deco-01-b.svg = CRASH
-
-BUGWK65183 DEBUG : editing/undo/replace-text-in-node-preserving-markers-crash.html = CRASH
-
-BUGWK68686 DEBUG : editing/pasteboard/drag-drop-input-in-svg.svg = CRASH
-
-BUGWK68700 DEBUG : fast/workers/storage/interrupt-database.html = CRASH
-
-BUGWK69001 DEBUG : plugins/js-from-destroy.html = CRASH
-
-BUGWK72245 DEBUG : fast/images/size-failure.html = CRASH
-
-BUGWK81836 DEBUG : inspector/timeline/timeline-injected-script-eval.html = CRASH
-BUGWK81836 DEBUG : inspector/styles/commit-selector.html = CRASH
-BUGWK81836 DEBUG : inspector/console/console-eval-global.html = CRASH
 
 // Crashes due to debug assert until we fix issues with style elements in SVG
 BUGWKGTK DEBUG : svg/custom/use-referencing-style-crash.svg = CRASH
 
-BUGWK30724 DEBUG : fast/loader/opaque-base-url.html = CRASH
-
-BUGWK83881 : fast/dom/gc-11.html = CRASH
-
 BUGWK63611 DEBUG : editing/deleting/smart-delete-003.html = CRASH
-BUGWK63611 DEBUG : editing/deleting/smart-delete-004.html = CRASH
-BUGWK63611 DEBUG : editing/pasteboard/interchange-newline-2.html = CRASH
-BUGWK63611 DEBUG : editing/pasteboard/paste-text-008.html = CRASH
-BUGWK63611 DEBUG : editing/undo/undo-smart-delete-reversed-selection.html = CRASH
 BUGWK63611 DEBUG : editing/selection/directionality-after-undo-replace.html = CRASH
 
 BUGWK84073 DEBUG : plugins/npruntime/object-from-destroyed-plugin.html = CRASH
@@ -354,6 +333,8 @@ BUGWK85811 DEBUG : fast/events/message-port-close.html = CRASH
 
 BUGWK86443 : plugins/npruntime/delete-plugin-within-getProperty.html = CRASH
 BUGWK86443 : plugins/npruntime/delete-plugin-within-invoke.html = CRASH
+
+BUGWK86875 : ietestcenter/css3/valuesandunits/units-000.htm = CRASH IMAGE
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // End of Crashing tests
@@ -515,6 +496,7 @@ BUGWK84676 SKIP : fast/files/file-reader-abort.html = TIMEOUT
 BUGWK84676 SKIP : fast/files/apply-blob-url-to-xhr.html = TIMEOUT
 BUGWK84676 SKIP : fast/files/file-reader-event-listener.html = TIMEOUT
 
+BUGWK87469 : fast/events/domactivate-sets-underlying-click-event-as-handled.html = TIMEOUT
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // End of Tests timing out
@@ -684,12 +666,12 @@ BUGWK27905 : http/tests/loading/redirect-methods.html = FAIL
 
 // New test infrastructure required -- need isolated worlds
 BUGWK31508 : http/tests/security/isolatedWorld = FAIL
-BUGWK31508 : storage/open-database-creation-callback-isolated-world.html = FAIL
-BUGWK31508 : storage/statement-error-callback-isolated-world.html = FAIL
-BUGWK31508 : storage/statement-success-callback-isolated-world.html = FAIL
-BUGWK31508 : storage/transaction-callback-isolated-world.html = FAIL
-BUGWK31508 : storage/transaction-error-callback-isolated-world.html = FAIL
-BUGWK31508 : storage/transaction-success-callback-isolated-world.html = FAIL
+BUGWK31508 : storage/websql/open-database-creation-callback-isolated-world.html = FAIL
+BUGWK31508 : storage/websql/statement-error-callback-isolated-world.html = FAIL
+BUGWK31508 : storage/websql/statement-success-callback-isolated-world.html = FAIL
+BUGWK31508 : storage/websql/transaction-callback-isolated-world.html = FAIL
+BUGWK31508 : storage/websql/transaction-error-callback-isolated-world.html = FAIL
+BUGWK31508 : storage/websql/transaction-success-callback-isolated-world.html = FAIL
 
 BUGWK30577 : editing/selection/move-left-right.html = FAIL
 
@@ -778,7 +760,6 @@ BUGWK83174 SKIP : http/tests/inspector = FAIL
 BUGWK82886 SKIP : inspector/styles/override-screen-size.html = FAIL
 BUGWK72434 SKIP : inspector/styles/svg-style.xhtml = FAIL
 BUGWK43034 SKIP : inspector/debugger/debugger-breakpoints-not-activated-on-reload.html = FAIL
-BUGWK81089 SKIP : inspector/debugger/snippets-model.html = FAIL
 BUGWK43332 SKIP : inspector/debugger/dom-breakpoints.html = FAIL
 BUGWK43332 SKIP : inspector/debugger/event-listener-breakpoints.html = FAIL
 BUGWK43332 SKIP : inspector/debugger/step-through-event-listeners.html = FAIL
@@ -787,6 +768,7 @@ BUGWK40300 SKIP : inspector/debugger/live-edit.html = FAIL
 BUGWK50868 SKIP : inspector/debugger/debugger-step-out.html = FAIL
 BUGWK50868 SKIP : inspector/styles/styles-source-lines-inline.html = FAIL
 BUGWK85709 SKIP : inspector/extensions/extensions-eval-content-script.html = FAIL
+BUGWK85709 SKIP : inspector/extensions/extensions-audits-content-script.html = FAIL
 
 // These inspector tests fell out of the radar after the transition to NRWT
 // Some time out and some are flaky or present different baselines.
@@ -1038,11 +1020,7 @@ BUGWK50740 : editing/spelling/spellcheck-queue.html = FAIL
 BUGWK50740 : editing/spelling/spellcheck-sequencenum.html = FAIL
 BUGWK50740 : editing/spelling/spellcheck-async-mutation.html = FAIL
 
-// These require DRT setSerializeHTTPLoads implementation to be reliable.
-BUGWK50758 : http/tests/local/link-stylesheet-load-order.html = FAIL
-BUGWK50758 : http/tests/local/link-stylesheet-load-order-preload.html = FAIL
-BUGWK50758 : fast/preloader/document-write.html = FAIL
-BUGWK50758 : fast/preloader/document-write-2.html = FAIL
+BUGWK82675 : http/tests/local/link-stylesheet-load-order.html = FAIL
 
 // Passing just a username or just a password to
 // layoutTestController.queueLoad() does not work
@@ -1185,8 +1163,6 @@ BUGWKGTK : svg/css/stars-with-shadow.html = FAIL
 
 BUGWK78673 : svg/animations/animate-text-nested-transforms.html = FAIL
 
-BUGWK73409 : fast/forms/placeholder-set-attribute.html = FAIL
-BUGWK73409 : fast/forms/search-placeholder-value-changed.html = FAIL
 BUGWK73409 : fast/forms/textarea-placeholder-set-attribute.html = FAIL
 
 BUGWK73653 : fast/forms/number/spin-in-multi-column.html = FAIL
@@ -1222,13 +1198,6 @@ BUGWK76564 : fast/workers/worker-crash-with-invalid-location.html = FAIL
 
 BUGWK78819 : fast/workers/shared-worker-load-error.html = FAIL
 
-BUGWK79203 : fast/mediastream/argument-types.html = FAIL
-BUGWK79203 : fast/mediastream/constructors.html = FAIL
-BUGWK79203 : fast/mediastream/MediaStreamConstructor.html = FAIL
-BUGWK79203 : fast/mediastream/peerconnection-argument-types.html = FAIL
-BUGWK79203 : fast/mediastream/peerconnection-iceoptions.html = FAIL
-BUGWK79203 : fast/mediastream/getusermedia.html = FAIL
-
 BUGWK80210 : security/block-test.html = FAIL
 
 BUGWK81320 : editing/pasteboard/copy-two-pasteboard-types-both-work.html = FAIL
@@ -1251,7 +1220,8 @@ BUGWK83909 : ietestcenter/css3/grid/grid-column-003.htm = IMAGE
 BUGWK83912 : ietestcenter/css3/grid/grid-items-002.htm = IMAGE
 BUGWK83913 : ietestcenter/css3/grid/grid-items-003.htm = IMAGE
 
-BUGWK82628 : svg/hittest/svg-ellipse-non-scale-stroke.xhtml = FAIL
+BUGWK86971 : svg/hittest/svg-ellipse-non-scale-stroke.xhtml = FAIL
+BUGWK86971 : svg/custom/non-scaling-stroke.svg = FAIL
 
 BUGWK84678 : fast/spatial-navigation/snav-container-white-space.html = TEXT
 BUGWK84678 : fast/spatial-navigation/snav-fully-aligned-horizontally.html = TEXT
@@ -1300,7 +1270,6 @@ BUGWK85969 : http/tests/loading/post-in-iframe-with-back-navigation.html = FAIL
 // Started failing after it was added in r116563
 BUGWK86061 : http/tests/security/referrer-policy-redirect-link.html = FAIL
 
-BUGWK85308 : ietestcenter/css3/valuesandunits/units-000.htm = IMAGE
 BUGWK85310 : ietestcenter/css3/valuesandunits/units-010.htm = IMAGE
 
 // IETC namespace failures
@@ -1308,17 +1277,10 @@ BUGWK86137 : ietestcenter/css3/namespaces/prefix-007.xml = IMAGE
 BUGWK86139 : ietestcenter/css3/namespaces/prefix-010.xml = IMAGE
 BUGWK86142 : ietestcenter/css3/namespaces/syntax-021.xml = IMAGE
 
-// Web view needs to be redrawn once more and completely before dumping pixel results
-// otherwise pixel results are incomplete/incorrect
-BUGWK86284 : fast/css/tab-size.html = IMAGE
-BUGWK86284 : fast/images/png-suite/test.html = MISSING
-
 BUGWK86310 : media/media-continues-playing-after-replace-source.html = FAIL
 
 BUGWK86328 : media/video-controls-toggling.html = FAIL
 BUGWK86328 : media/video-controls-rendering-toggle-display-none.html = FAIL
-
-BUGWK86442 : fast/dom/DOMException/stack-trace.html = FAIL
 
 BUGWK86443 : plugins/npruntime/delete-plugin-within-hasProperty-return-false.html = FAIL
 BUGWK86443 : plugins/npruntime/delete-plugin-within-hasProperty-return-true.html = FAIL
@@ -1326,10 +1288,34 @@ BUGWK86443 : plugins/npruntime/delete-plugin-within-setProperty.html = FAIL
 
 BUGWK86445 : fast/multicol/split-in-top-margin.html = IMAGE
 
+// Needs rebaseline after bug 86441
+BUGWK86441 : fast/borders/border-antialiasing.html = IMAGE
+BUGWK86441 : fast/multicol/shadow-breaking.html = IMAGE
+
+// Requires rebaseline after https://bugs.webkit.org/show_bug.cgi?id=85405
+BUGWK85405 : tables/mozilla/bugs/bug10296-1.html = TEXT
+
+// This test is affecting other tests and seems to be behaving incorrectly itself
+BUGWK86771 SKIP : fast/dom/gc-10.html = FAIL
+
+BUGWK86971 : svg/hittest/svg-shapes-non-scale-stroke.html = FAIL
+BUGWK86971 : svg/custom/non-scaling-stroke-markers.svg = TEXT PASS
+
+BUGWK87088 : fast/js/names.html = FAIL
+
+BUGWK87363 : fast/frames/flattening/iframe-tiny.html = TEXT PASS
+
+BUGWK87575 : http/tests/media/video-buffered-range-contains-currentTime.html = FAIL
+
+BUGWK87593 : http/tests/cache/cancel-in-progress-load.html = FAIL
+
+BUGWK84102 : fast/profiler/dead-time.html = TEXT
+BUGWK84102 : fast/profiler/stop-profiling-after-setTimeout.html = TEXT
+
+BUGWK87734 : svg/dom/complex-svgView-specification.html = IMAGE
+BUGWK87734 : svg/dom/SVGViewSpec.html = TEXT
+BUGWK87734 : svg/dom/viewspec-parser.html = TEXT
+
 //////////////////////////////////////////////////////////////////////////////////////////
 // End of Tests failing
 //////////////////////////////////////////////////////////////////////////////////////////
-
-// Requires rebaseline after bug 85031
-BUGWK85565 : fast/block/float/016.html = IMAGE
-BUGWK85565 : fast/css/border-solid-single-edge-antialias.html = IMAGE

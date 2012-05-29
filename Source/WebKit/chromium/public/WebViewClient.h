@@ -250,8 +250,7 @@ public:
     virtual void showContextMenu(WebFrame*, const WebContextMenuData&) { }
 
     // Called when a drag-n-drop operation should begin.
-    virtual void startDragging(
-        const WebDragData&, WebDragOperationsMask, const WebImage&, const WebPoint&) { }
+    virtual void startDragging(WebFrame*, const WebDragData&, WebDragOperationsMask, const WebImage&, const WebPoint& dragImageOffset) { }
 
     // Called to determine if drag-n-drop operations may initiate a page
     // navigation.

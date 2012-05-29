@@ -27,6 +27,7 @@
 #include "TreeScope.h"
 
 #include "ContainerNode.h"
+#include "ContextEnabledFeatures.h"
 #include "DOMSelection.h"
 #include "DOMWindow.h"
 #include "Document.h"
@@ -38,6 +39,7 @@
 #include "HTMLMapElement.h"
 #include "HTMLNames.h"
 #include "Page.h"
+#include "ShadowRoot.h"
 #include "TreeScopeAdopter.h"
 #include <wtf/text/AtomicString.h>
 #include <wtf/text/CString.h>
@@ -95,6 +97,19 @@ void TreeScope::removeElementById(const AtomicString& elementId, Element* elemen
     m_elementsById.remove(elementId.impl(), element);
 }
 
+Node* TreeScope::ancestorInThisScope(Node* node) const
+{
+    while (node) {
+        if (node->treeScope() == this)
+            return node;
+        if (!node->isInShadowTree())
+            return 0;
+        node = node->shadowAncestorNode();
+    }
+
+    return 0;
+}
+
 void TreeScope::addImageMap(HTMLMapElement* imageMap)
 {
     AtomicStringImpl* name = imageMap->getName().impl();
@@ -129,6 +144,19 @@ DOMSelection* TreeScope::getSelection() const
 
     if (m_selection)
         return m_selection.get();
+
+    // FIXME: The correct selection in Shadow DOM requires that Position can have a ShadowRoot
+    // as a container. It is now enabled only if runtime Shadow DOM feature is enabled.
+    // See https://bugs.webkit.org/show_bug.cgi?id=82697
+#if ENABLE(SHADOW_DOM)
+    if (ContextEnabledFeatures::shadowDOMEnabled(rootNode()->document()->domWindow())) {
+        m_selection = DOMSelection::create(this);
+        return m_selection.get();
+    }
+#endif
+
+    if (this != rootNode()->document())
+        return rootNode()->document()->getSelection();
 
     m_selection = DOMSelection::create(rootNode()->document());
     return m_selection.get();
@@ -194,7 +222,7 @@ Node* TreeScope::focusedNode()
     TreeScope* treeScope = node->treeScope();
 
     while (treeScope != this && treeScope != document) {
-        node = treeScope->rootNode()->shadowHost();
+        node = toShadowRoot(treeScope->rootNode())->host();
         treeScope = node->treeScope();
     }
     if (this != treeScope)

@@ -17,6 +17,8 @@
     Boston, MA 02110-1301, USA.
 */
 
+#include "config.h"
+
 #include "qglobal.h"
 
 #if defined(HAVE_QQUICK1)
@@ -44,7 +46,11 @@
 
 QT_BEGIN_NAMESPACE
 
+#if QT_VERSION >= 0x050000
+class WebKitQmlPlugin : public QQmlExtensionPlugin {
+#else
 class WebKitQmlPlugin : public QDeclarativeExtensionPlugin {
+#endif
     Q_OBJECT
 public:
 #if defined(HAVE_WEBKIT2)

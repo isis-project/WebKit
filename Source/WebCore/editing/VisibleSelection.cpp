@@ -30,7 +30,6 @@
 #include "Element.h"
 #include "htmlediting.h"
 #include "TextIterator.h"
-#include "TreeScopeAdjuster.h"
 #include "VisiblePosition.h"
 #include "visible_units.h"
 #include "Range.h"
@@ -294,11 +293,11 @@ void VisibleSelection::setStartAndEndFromBaseAndExtentRespectingGranularity(Text
             VisiblePosition start = VisiblePosition(m_start, m_affinity);
             VisiblePosition originalEnd(m_end, m_affinity);
             EWordSide side = RightWordIfOnBoundary;
-            if (isEndOfDocument(start) || (isEndOfLine(start) && !isStartOfLine(start) && !isEndOfParagraph(start)))
+            if (isEndOfEditableOrNonEditableContent(start) || (isEndOfLine(start) && !isStartOfLine(start) && !isEndOfParagraph(start)))
                 side = LeftWordIfOnBoundary;
             m_start = startOfWord(start, side).deepEquivalent();
             side = RightWordIfOnBoundary;
-            if (isEndOfDocument(originalEnd) || (isEndOfLine(originalEnd) && !isStartOfLine(originalEnd) && !isEndOfParagraph(originalEnd)))
+            if (isEndOfEditableOrNonEditableContent(originalEnd) || (isEndOfLine(originalEnd) && !isStartOfLine(originalEnd) && !isEndOfParagraph(originalEnd)))
                 side = LeftWordIfOnBoundary;
                 
             VisiblePosition wordEnd(endOfWord(originalEnd, side));
@@ -350,7 +349,7 @@ void VisibleSelection::setStartAndEndFromBaseAndExtentRespectingGranularity(Text
             break;
         case ParagraphGranularity: {
             VisiblePosition pos(m_start, m_affinity);
-            if (isStartOfLine(pos) && isEndOfDocument(pos))
+            if (isStartOfLine(pos) && isEndOfEditableOrNonEditableContent(pos))
                 pos = pos.previous();
             m_start = startOfParagraph(pos).deepEquivalent();
             VisiblePosition visibleParagraphEnd = endOfParagraph(VisiblePosition(m_end, m_affinity));
@@ -411,6 +410,28 @@ void VisibleSelection::updateSelectionType()
         m_affinity = DOWNSTREAM;
 }
 
+Position VisibleSelection::adjustPositionBefore(TreeScope* treeScope, const Position& currentPosition)
+{
+    if (Node* ancestor = treeScope->ancestorInThisScope(currentPosition.anchorNode()))
+        return positionBeforeNode(ancestor);
+
+    if (Node* lastChild = treeScope->rootNode()->lastChild())
+        return positionAfterNode(lastChild);
+
+    return Position();
+}
+
+Position VisibleSelection::adjustPositionAfter(TreeScope* treeScope, const Position& currentPosition)
+{
+    if (Node* ancestor = treeScope->ancestorInThisScope(currentPosition.anchorNode()))
+        return positionAfterNode(ancestor);
+
+    if (Node* firstChild = treeScope->rootNode()->firstChild())
+        return positionBeforeNode(firstChild);
+
+    return Position();
+}
+
 void VisibleSelection::validate(TextGranularity granularity)
 {
     setBaseAndExtentToDeepEquivalents();
@@ -466,10 +487,10 @@ void VisibleSelection::adjustSelectionToAvoidCrossingShadowBoundaries()
         return;
 
     if (m_baseIsFirst) {
-        m_extent = TreeScopeAdjuster(m_start.anchorNode()->treeScope()).adjustPositionBefore(m_end);
+        m_extent = adjustPositionBefore(m_start.anchorNode()->treeScope(), m_end);
         m_end = m_extent;
     } else {
-        m_extent = TreeScopeAdjuster(m_end.anchorNode()->treeScope()).adjustPositionAfter(m_start);
+        m_extent = adjustPositionAfter(m_end.anchorNode()->treeScope(), m_start);
         m_start = m_extent;
     }
 

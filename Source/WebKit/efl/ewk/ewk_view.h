@@ -60,6 +60,7 @@
  *  - "load,progress", double*: load progress is changed (overall value
  *    from 0.0 to 1.0, connect to individual frames for fine grained).
  *  - "load,provisional", void: view started provisional load.
+ *  - "load,provisional,failed", Ewk_Frame_Load_Error*: view provisional load failed.
  *  - "load,resource,finished", unsigned long*: reports resource load finished and it gives
  *    a pointer to its identifier.
  *  - "load,resource,failed", Ewk_Frame_Load_Error*: reports resource load failure and it
@@ -70,7 +71,9 @@
  *  - "menubar,visible,set", Eina_Bool: sets menubar visibility.
  *  - "mixedcontent,displayed", void: any of the containing frames has loaded and displayed mixed content.
  *  - "mixedcontent,run", void: any of the containing frames has loaded and run mixed content.
+ *  - "protocolhandler,registration,requested", Ewk_Custom_Handler_Data: add a handler url for the given protocol.
  *  - "onload,event", Evas_Object*: a frame onload event has been received.
+ *  - "populate,visited,links": tells the client to fill the visited links set.
  *  - "ready", void: page is fully loaded.
  *  - "resource,request,new", Ewk_Frame_Resource_Request*: reports that
  *    there's a new resource request.
@@ -84,7 +87,7 @@
  *  - "statusbar,visible,get", Eina_Bool *: expects a @c EINA_TRUE if statusbar is
  *    visible; @c EINA_FALSE, otherwise.
  *  - "statusbar,visible,set", Eina_Bool: sets statusbar visibility.
- *  - "title,changed", const char*: title of the main frame was changed.
+ *  - "title,changed", Ewk_Text_With_Direction*: title of the main frame was changed.
  *  - "toolbars,visible,get", Eina_Bool *: expects a @c EINA_TRUE if toolbar
  *    is visible; @c EINA_FALSE, otherwise.
  *  - "toolbars,visible,set", Eina_Bool: sets toolbar visibility.
@@ -174,11 +177,12 @@ struct _Ewk_View_Smart_Class {
     Eina_Bool (*run_javascript_confirm)(Ewk_View_Smart_Data *sd, Evas_Object *frame, const char *message);
     Eina_Bool (*run_javascript_prompt)(Ewk_View_Smart_Data *sd, Evas_Object *frame, const char *message, const char *defaultValue, char **value);
     Eina_Bool (*should_interrupt_javascript)(Ewk_View_Smart_Data *sd);
+    int64_t (*exceeded_application_cache_quota)(Ewk_View_Smart_Data *sd, Ewk_Security_Origin* origin, int64_t defaultOriginQuota, int64_t totalSpaceNeeded);
     uint64_t (*exceeded_database_quota)(Ewk_View_Smart_Data *sd, Evas_Object *frame, const char *databaseName, uint64_t current_size, uint64_t expected_size);
 
     Eina_Bool (*run_open_panel)(Ewk_View_Smart_Data *sd, Evas_Object *frame, Eina_Bool allows_multiple_files, Eina_List *accept_types, Eina_List **selected_filenames);
 
-    Eina_Bool (*navigation_policy_decision)(Ewk_View_Smart_Data *sd, Ewk_Frame_Resource_Request *request);
+    Eina_Bool (*navigation_policy_decision)(Ewk_View_Smart_Data *sd, Ewk_Frame_Resource_Request *request, Ewk_Navigation_Type navigation_type);
     Eina_Bool (*focus_can_cycle)(Ewk_View_Smart_Data *sd, Ewk_Focus_Direction direction);
 };
 
@@ -186,7 +190,7 @@ struct _Ewk_View_Smart_Class {
  * The version you have to put into the version field
  * in the @a Ewk_View_Smart_Class structure.
  */
-#define EWK_VIEW_SMART_CLASS_VERSION 4UL
+#define EWK_VIEW_SMART_CLASS_VERSION 5UL
 
 /**
  * Initializes a whole @a Ewk_View_Smart_Class structure.
@@ -198,7 +202,7 @@ struct _Ewk_View_Smart_Class {
  * @see EWK_VIEW_SMART_CLASS_INIT_VERSION
  * @see EWK_VIEW_SMART_CLASS_INIT_NAME_VERSION
  */
-#define EWK_VIEW_SMART_CLASS_INIT(smart_class_init) {smart_class_init, EWK_VIEW_SMART_CLASS_VERSION, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define EWK_VIEW_SMART_CLASS_INIT(smart_class_init) {smart_class_init, EWK_VIEW_SMART_CLASS_VERSION, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
 
 /**
  * Initializes to zero a whole @a Ewk_View_Smart_Class structure.
@@ -308,6 +312,17 @@ struct _Ewk_Color {
     unsigned char a; /**< Alpha channel. */
 };
 
+/// Creates a type name for @a _Ewk_Custom_Handler_Data.
+typedef struct _Ewk_Custom_Handler_Data Ewk_Custom_Handler_Data;
+/// Contains the target scheme and the url which take care of the target.
+struct _Ewk_Custom_Handler_Data {
+    Evas_Object *ewkView; /**< Reference to the view object. */
+    const char *scheme; /**< Reference to the scheme that will be handled. (eg. "application/x-soup") */
+    const char *base_url; /**< Reference to the resolved url if the url is relative url. (eg. "https://www.example.com/") */
+    const char *url; /**< Reference to the url which will handle the given protocol. (eg. "soup?url=%s") */
+    const char *title; /**< Reference to the descriptive title of the handler. (eg. "SoupWeb") */
+};
+
 /**
  * @brief Contains an internal View data.
  *
@@ -371,6 +386,72 @@ enum _Ewk_Font_Family {
 };
 /// Creates a type name for @a _Ewk_Font_Family.
 typedef enum _Ewk_Font_Family Ewk_Font_Family;
+
+/// Contains commands to execute.
+enum _Ewk_Editor_Command {
+    EWK_EDITOR_COMMAND_NONE = -1,
+    EWK_EDITOR_COMMAND_UNDO = 0,
+    EWK_EDITOR_COMMAND_REDO,
+    EWK_EDITOR_COMMAND_TOGGLE_BOLD,
+    EWK_EDITOR_COMMAND_TOGGLE_ITALIC,
+    EWK_EDITOR_COMMAND_TOGGLE_UNDERLINE,
+    EWK_EDITOR_COMMAND_TOGGLE_STRIKETHROUGH,
+    EWK_EDITOR_COMMAND_TOGGLE_SUBSCRIPT,
+    EWK_EDITOR_COMMAND_TOGGLE_SUPERSCRIPT,
+    EWK_EDITOR_COMMAND_INDENT,
+    EWK_EDITOR_COMMAND_OUTDENT,
+    EWK_EDITOR_COMMAND_INSERT_ORDEREDLIST,
+    EWK_EDITOR_COMMAND_INSERT_UNORDEREDLIST,
+    EWK_EDITOR_COMMAND_INSERT_IMAGE,
+    EWK_EDITOR_COMMAND_INSERT_TEXT,
+    EWK_EDITOR_COMMAND_INSERT_HTML,
+    EWK_EDITOR_COMMAND_INSERT_PARAGRAPH,
+    EWK_EDITOR_COMMAND_INSERT_PARAGRAPH_SEPARATOR,
+    EWK_EDITOR_COMMAND_INSERT_LINE_SEPARATOR,
+    EWK_EDITOR_COMMAND_BACK_COLOR,
+    EWK_EDITOR_COMMAND_FORE_COLOR,
+    EWK_EDITOR_COMMAND_HILITE_COLOR,
+    EWK_EDITOR_COMMAND_FONT_SIZE,
+    EWK_EDITOR_COMMAND_ALIGN_CENTER,
+    EWK_EDITOR_COMMAND_ALIGN_JUSTIFIED,
+    EWK_EDITOR_COMMAND_ALIGN_LEFT,
+    EWK_EDITOR_COMMAND_ALIGN_RIGHT,
+    EWK_EDITOR_COMMAND_MOVE_TO_NEXT_CHAR,
+    EWK_EDITOR_COMMAND_MOVE_TO_PREVIOUS_CHAR,
+    EWK_EDITOR_COMMAND_MOVE_TO_NEXT_WORD,
+    EWK_EDITOR_COMMAND_MOVE_TO_PREVIOUS_WORD,
+    EWK_EDITOR_COMMAND_MOVE_TO_NEXT_LINE,
+    EWK_EDITOR_COMMAND_MOVE_TO_PREVIOUS_LINE,
+    EWK_EDITOR_COMMAND_MOVE_TO_BEGINNING_OF_LINE,
+    EWK_EDITOR_COMMAND_MOVE_TO_END_OF_LINE,
+    EWK_EDITOR_COMMAND_MOVE_TO_BEGINNING_OF_PARAGRAPH,
+    EWK_EDITOR_COMMAND_MOVE_TO_END_OF_PARAGRAPH,
+    EWK_EDITOR_COMMAND_MOVE_TO_BEGINNING_OF_DOCUMENT,
+    EWK_EDITOR_COMMAND_MOVE_TO_END_OF_DOCUMENT,
+    EWK_EDITOR_COMMAND_SELECT_NONE,
+    EWK_EDITOR_COMMAND_SELECT_ALL,
+    EWK_EDITOR_COMMAND_SELECT_PARAGRAPH,
+    EWK_EDITOR_COMMAND_SELECT_SENTENCE,
+    EWK_EDITOR_COMMAND_SELECT_LINE,
+    EWK_EDITOR_COMMAND_SELECT_WORD,
+    EWK_EDITOR_COMMAND_SELECT_NEXT_CHAR,
+    EWK_EDITOR_COMMAND_SELECT_PREVIOUS_CHAR,
+    EWK_EDITOR_COMMAND_SELECT_NEXT_WORD,
+    EWK_EDITOR_COMMAND_SELECT_PREVIOUS_WORD,
+    EWK_EDITOR_COMMAND_SELECT_NEXT_LINE,
+    EWK_EDITOR_COMMAND_SELECT_PREVIOUS_LINE,
+    EWK_EDITOR_COMMAND_SELECT_START_OF_LINE,
+    EWK_EDITOR_COMMAND_SELECT_END_OF_LINE,
+    EWK_EDITOR_COMMAND_SELECT_START_OF_PARAGRAPH,
+    EWK_EDITOR_COMMAND_SELECT_END_OF_PARAGRAPH,
+    EWK_EDITOR_COMMAND_SELECT_START_OF_DOCUMENT,
+    EWK_EDITOR_COMMAND_SELECT_END_OF_DOCUMENT,
+    EWK_EDITOR_COMMAND_DELETE_WORD_BACKWARD,
+    EWK_EDITOR_COMMAND_DELETE_WORD_FORWARD
+};
+
+/// Creates a type name for @a _Ewk_Editor_Command.
+typedef enum _Ewk_Editor_Command Ewk_Editor_Command;
 
 /**
  * @brief Creates a type name for @a _Ewk_Tile_Unused_Cache.
@@ -671,7 +752,7 @@ EAPI const char  *ewk_view_uri_get(const Evas_Object *o);
  *
  * @return current title on success or @c 0 on failure
  */
-EAPI const char  *ewk_view_title_get(const Evas_Object *o);
+EAPI const Ewk_Text_With_Direction  *ewk_view_title_get(const Evas_Object *o);
 
 /**
  * Queries if the main frame is editable.
@@ -748,20 +829,6 @@ EAPI char        *ewk_view_selection_get(const Evas_Object *o);
  */
 EAPI Eina_Bool    ewk_view_context_menu_forward_event(Evas_Object *o, const Evas_Event_Mouse_Down *ev);
 
-/// Contains commands to execute.
-enum _Ewk_Editor_Command {
-    EWK_EDITOR_COMMAND_INSERT_IMAGE = 0,
-    EWK_EDITOR_COMMAND_INSERT_TEXT,
-    EWK_EDITOR_COMMAND_SELECT_NONE,
-    EWK_EDITOR_COMMAND_SELECT_ALL,
-    EWK_EDITOR_COMMAND_SELECT_PARAGRAPH,
-    EWK_EDITOR_COMMAND_SELECT_SENTENCE,
-    EWK_EDITOR_COMMAND_SELECT_LINE,
-    EWK_EDITOR_COMMAND_SELECT_WORD
-};
-/// Creates a type name for @a _Ewk_Editor_Command.
-typedef enum _Ewk_Editor_Command Ewk_Editor_Command;
-
 /**
  * Executes editor command.
  *
@@ -771,7 +838,7 @@ typedef enum _Ewk_Editor_Command Ewk_Editor_Command;
  *
  * @return @c EINA_TRUE on success or @c EINA_FALSE on failure
  */
-EAPI Eina_Bool    ewk_view_execute_editor_command(Evas_Object *o, const Ewk_Editor_Command command, const char *value);
+EAPI Eina_Bool    ewk_view_editor_command_execute(const Evas_Object *o, const Ewk_Editor_Command command, const char *value);
 
 /**
  * Destroys a previously created color chooser.
@@ -1033,6 +1100,19 @@ EAPI Eina_Bool    ewk_view_history_enable_set(Evas_Object *o, Eina_Bool enable);
  * @see ewk_view_history_enable_set()
  */
 EAPI Ewk_History *ewk_view_history_get(const Evas_Object *o);
+
+/**
+ * Adds @a visited_url to the view's visited links cache.
+ *
+ * This function is to be invoked by the client managing persistent history storage
+ * when "populate,visited,links" signal is received.
+ *
+ * @param o view object to add visited links data.
+ * @param visited_url visited url.
+ *
+ * @return @c EINA_TRUE on success, @c EINA_FALSE on failure.
+ */
+EAPI Eina_Bool  ewk_view_visited_link_add(Evas_Object *o, const char *visited_url);
 
 /**
  * Gets the current page zoom level of the main frame.
@@ -1565,6 +1645,9 @@ EAPI Eina_Bool    ewk_view_setting_scripts_can_access_clipboard_get(const Evas_O
 
 /**
  * Sets whether scripts are allowed to access clipboard.
+ *
+ * The default value is @c EINA_FALSE. If set to @c EINA_TRUE, document.execCommand()
+ * allows cut, copy and paste commands. 
  *
  * @param o View whose settings to change.
  * @param allow @c EINA_TRUE to allow scripts access clipboard,
@@ -2550,6 +2633,8 @@ EAPI void ewk_view_setting_enable_xss_auditor_set(Evas_Object *o, Eina_Bool enab
 /**
  * Returns whether video captions display feature is enabled.
  *
+ * Video captions display is disabled by default.
+ *
  * @param o view object to query whether video captions display feature is enabled.
  *
  * @return @c EINA_TRUE if the video captions display feature is enabled,
@@ -2571,6 +2656,8 @@ EAPI void ewk_view_setting_should_display_captions_set(Evas_Object *o, Eina_Bool
 /**
  * Returns whether video subtitles display feature is enabled.
  *
+ * Video subtitles display is disabled by default.
+ *
  * @param o view object to query whether video subtitles display feature is enabled.
  *
  * @return @c EINA_TRUE if the video subtitles display feature is enabled,
@@ -2591,6 +2678,8 @@ EAPI void ewk_view_setting_should_display_subtitles_set(Evas_Object *o, Eina_Boo
 
 /**
  * Returns whether video text descriptions display feature is enabled.
+ *
+ * Video text descriptions display is disabled by default.
  *
  * @param o view object to query whether video text descriptions display feature is enabled.
  *

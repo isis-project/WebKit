@@ -157,7 +157,7 @@ JSObject* JSTestEventConstructor::createPrototype(ExecState* exec, JSGlobalObjec
 
 void JSTestEventConstructor::destroy(JSC::JSCell* cell)
 {
-    JSTestEventConstructor* thisObject = jsCast<JSTestEventConstructor*>(cell);
+    JSTestEventConstructor* thisObject = static_cast<JSTestEventConstructor*>(cell);
     thisObject->JSTestEventConstructor::~JSTestEventConstructor();
 }
 

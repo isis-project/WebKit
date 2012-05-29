@@ -395,16 +395,6 @@ void FrameView::setFrameRect(const IntRect& newRect)
     if (newRect == oldRect)
         return;
 
-#if ENABLE(VIEWPORT)
-    if (useFixedLayout()) {
-        Document* document = m_frame->document();
-        ViewportArguments viewport = document->viewportArguments();
-        Page* page = frame() ? frame()->page() : 0;
-        if (page)
-            page->chrome()->client()->dispatchViewportPropertiesDidChange(viewport);
-    }
-#endif
-
     ScrollView::setFrameRect(newRect);
 
     updateScrollableAreaSet();
@@ -1464,8 +1454,6 @@ IntPoint FrameView::currentMousePosition() const
 
 bool FrameView::scrollContentsFastPath(const IntSize& scrollDelta, const IntRect& rectToScroll, const IntRect& clipRect)
 {
-    const size_t fixedObjectThreshold = 5;
-
     RenderBlock::PositionedObjectsListHashSet* positionedObjects = 0;
     if (RenderView* root = rootRenderer(this))
         positionedObjects = root->positionedObjects();
@@ -1478,8 +1466,7 @@ bool FrameView::scrollContentsFastPath(const IntSize& scrollDelta, const IntRect
     const bool isCompositedContentLayer = contentsInCompositedLayer();
 
     // Get the rects of the fixed objects visible in the rectToScroll
-    Vector<IntRect, fixedObjectThreshold> subRectToUpdate;
-    bool updateInvalidatedSubRect = true;
+    Region regionToUpdate;
     RenderBlock::PositionedObjectsListHashSet::const_iterator end = positionedObjects->end();
     for (RenderBlock::PositionedObjectsListHashSet::const_iterator it = positionedObjects->begin(); it != end; ++it) {
         RenderBox* renderBox = *it;
@@ -1493,45 +1480,40 @@ bool FrameView::scrollContentsFastPath(const IntSize& scrollDelta, const IntRect
         updateRect = contentsToRootView(updateRect);
         if (!isCompositedContentLayer && clipsRepaints())
             updateRect.intersect(rectToScroll);
-        if (!updateRect.isEmpty()) {
-            if (subRectToUpdate.size() >= fixedObjectThreshold) {
-                updateInvalidatedSubRect = false;
-                break;
-            }
-            subRectToUpdate.append(updateRect);
-        }
+        if (!updateRect.isEmpty())
+            regionToUpdate.unite(updateRect);
     }
 
-    // Scroll the view
-    if (updateInvalidatedSubRect) {
-        // 1) scroll
-        hostWindow()->scroll(scrollDelta, rectToScroll, clipRect);
+    // The area to be painted by fixed objects exceeds 50% of the area of the view, we cannot use the fast path.
+    if (regionToUpdate.totalArea() > (clipRect.width() * clipRect.height() * 0.5))
+        return false;
 
-        // 2) update the area of fixed objects that has been invalidated
-        size_t fixObjectsCount = subRectToUpdate.size();
-        for (size_t i = 0; i < fixObjectsCount; ++i) {
-            IntRect updateRect = subRectToUpdate[i];
-            IntRect scrolledRect = updateRect;
-            scrolledRect.move(scrollDelta);
-            updateRect.unite(scrolledRect);
+    // 1) scroll
+    hostWindow()->scroll(scrollDelta, rectToScroll, clipRect);
+
+    // 2) update the area of fixed objects that has been invalidated
+    Vector<IntRect> subRectsToUpdate = regionToUpdate.rects();
+    size_t fixObjectsCount = subRectsToUpdate.size();
+    for (size_t i = 0; i < fixObjectsCount; ++i) {
+        IntRect updateRect = subRectsToUpdate[i];
+        IntRect scrolledRect = updateRect;
+        scrolledRect.move(scrollDelta);
+        updateRect.unite(scrolledRect);
 #if USE(ACCELERATED_COMPOSITING)
-            if (isCompositedContentLayer) {
-                updateRect = rootViewToContents(updateRect);
-                RenderView* root = rootRenderer(this);
-                ASSERT(root);
-                root->layer()->setBackingNeedsRepaintInRect(updateRect);
-                continue;
-            }
-#endif
-            if (clipsRepaints())
-                updateRect.intersect(rectToScroll);
-            hostWindow()->invalidateContentsAndRootView(updateRect, false);
+        if (isCompositedContentLayer) {
+            updateRect = rootViewToContents(updateRect);
+            RenderView* root = rootRenderer(this);
+            ASSERT(root);
+            root->layer()->setBackingNeedsRepaintInRect(updateRect);
+            continue;
         }
-        return true;
+#endif
+        if (clipsRepaints())
+            updateRect.intersect(rectToScroll);
+        hostWindow()->invalidateContentsAndRootView(updateRect, false);
     }
 
-    // the number of fixed objects exceed the threshold, we cannot use the fast path
-    return false;
+    return true;
 }
 
 void FrameView::scrollContentsSlowPath(const IntRect& updateRect)
@@ -1540,7 +1522,14 @@ void FrameView::scrollContentsSlowPath(const IntRect& updateRect)
     if (contentsInCompositedLayer()) {
         RenderView* root = rootRenderer(this);
         ASSERT(root);
-        root->layer()->setBackingNeedsRepaintInRect(visibleContentRect());
+
+        IntRect updateRect = visibleContentRect();
+
+        // Make sure to "apply" the scale factor here since we're converting from frame view
+        // coordinates to layer backing coordinates.
+        updateRect.scale(1 / m_frame->frameScaleFactor());
+
+        root->layer()->setBackingNeedsRepaintInRect(updateRect);
     }
     if (RenderPart* frameRenderer = m_frame->ownerRenderer()) {
         if (isEnclosedInCompositingLayer()) {
@@ -2059,7 +2048,7 @@ void FrameView::scheduleRelayout()
 
     // When frame flattening is enabled, the contents of the frame could affect the layout of the parent frames.
     // Also invalidate parent frame starting from the owner element of this frame.
-    if (isInChildFrameWithFrameFlattening() && m_frame->ownerRenderer())
+    if (m_frame->ownerRenderer() && isInChildFrameWithFrameFlattening())
         m_frame->ownerRenderer()->setNeedsLayout(true, MarkContainingBlockChain);
 
     int delay = m_frame->document()->minimumLayoutDelay();
@@ -2936,18 +2925,21 @@ FrameView* FrameView::parentFrameView() const
 
 bool FrameView::isInChildFrameWithFrameFlattening()
 {
-    if (!parent() || !m_frame->ownerElement() || !m_frame->settings() || !m_frame->settings()->frameFlatteningEnabled())
+    if (!parent() || !m_frame->ownerElement())
         return false;
 
     // Frame flattening applies when the owner element is either in a frameset or
     // an iframe with flattening parameters.
     if (m_frame->ownerElement()->hasTagName(iframeTag)) {
         RenderIFrame* iframeRenderer = toRenderIFrame(m_frame->ownerElement()->renderPart());
-
-        if (iframeRenderer->flattenFrame())
+        if (iframeRenderer->flattenFrame() || iframeRenderer->isSeamless())
             return true;
+    }
 
-    } else if (m_frame->ownerElement()->hasTagName(frameTag))
+    if (!m_frame->settings() || !m_frame->settings()->frameFlatteningEnabled())
+        return false;
+
+    if (m_frame->ownerElement()->hasTagName(frameTag))
         return true;
 
     return false;
@@ -3297,8 +3289,8 @@ void FrameView::adjustPageHeightDeprecated(float *newBottom, float oldTop, float
     if (RenderView* root = rootRenderer(this)) {
         // Use a context with painting disabled.
         GraphicsContext context((PlatformGraphicsContext*)0);
-        root->setTruncatedAt((int)floorf(oldBottom));
-        IntRect dirtyRect(0, (int)floorf(oldTop), root->maxXLayoutOverflow(), (int)ceilf(oldBottom - oldTop));
+        root->setTruncatedAt(static_cast<int>(floorf(oldBottom)));
+        IntRect dirtyRect(0, static_cast<int>(floorf(oldTop)), root->layoutOverflowRect().maxX(), static_cast<int>(ceilf(oldBottom - oldTop)));
         root->setPrintRect(dirtyRect);
         root->layer()->paint(&context, dirtyRect);
         *newBottom = root->bestTruncatedAt();

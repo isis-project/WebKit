@@ -35,11 +35,14 @@
 
 #include "Chrome.h"
 #include "ChromeClientImpl.h"
+#include "FileMetadata.h"
 #include "Page.h"
+#include "WebFileInfo.h"
 #include "WebFileUtilities.h"
 #include "WebFrameClient.h"
 #include "WebFrameImpl.h"
 #include "WebIDBKey.h"
+#include "WebIDBKeyPath.h"
 #include "WebKit.h"
 #include "WebPluginContainerImpl.h"
 #include "WebPluginListBuilderImpl.h"
@@ -48,10 +51,7 @@
 #include "WebViewClient.h"
 #include "WebViewImpl.h"
 #include "WebWorkerClientImpl.h"
-#include "WebWorkerRunLoop.h"
 #include "platform/WebAudioBus.h"
-#include "platform/WebCookie.h"
-#include "platform/WebCookieJar.h"
 #include "platform/WebData.h"
 #include "platform/WebDragData.h"
 #include "platform/WebImage.h"
@@ -61,23 +61,19 @@
 #include "platform/WebURL.h"
 #include "platform/WebVector.h"
 
-#if USE(CG)
-#include <CoreGraphics/CGContext.h>
-#endif
-
 #if OS(WINDOWS)
 #include "platform/WebRect.h"
-#include "platform/win/WebThemeEngine.h"
+#include <public/win/WebThemeEngine.h>
 #endif
 
 #if OS(DARWIN)
-#include "platform/mac/WebThemeEngine.h"
+#include <public/mac/WebThemeEngine.h>
 #elif OS(UNIX) && !OS(ANDROID)
-#include "platform/linux/WebThemeEngine.h"
 #include "WebFontInfo.h"
 #include "WebFontRenderStyle.h"
+#include <public/linux/WebThemeEngine.h>
 #elif OS(ANDROID)
-#include "platform/android/WebThemeEngine.h"
+#include <public/android/WebThemeEngine.h>
 #endif
 
 #include "NativeImageSkia.h"
@@ -99,7 +95,10 @@
 #include "Worker.h"
 #include "WorkerContextProxy.h"
 #include <public/WebClipboard.h>
+#include <public/WebCookie.h>
+#include <public/WebCookieJar.h>
 #include <public/WebMimeRegistry.h>
+#include <public/WebWorkerRunLoop.h>
 #include <wtf/Assertions.h>
 
 // We are part of the WebKit implementation.
@@ -138,7 +137,7 @@ static WebCookieJar* getCookieJar(const Document* document)
         return 0;
     WebCookieJar* cookieJar = frameImpl->client()->cookieJar(frameImpl);
     if (!cookieJar)
-        cookieJar = webKitPlatformSupport()->cookieJar();
+        cookieJar = WebKit::Platform::current()->cookieJar();
     return cookieJar;
 }
 
@@ -305,96 +304,88 @@ bool PlatformSupport::cookiesEnabled(const Document* document)
 
 bool PlatformSupport::fileExists(const String& path)
 {
-    return webKitPlatformSupport()->fileUtilities()->fileExists(path);
+    return WebKit::Platform::current()->fileUtilities()->fileExists(path);
 }
 
 bool PlatformSupport::deleteFile(const String& path)
 {
-    return webKitPlatformSupport()->fileUtilities()->deleteFile(path);
+    return WebKit::Platform::current()->fileUtilities()->deleteFile(path);
 }
 
 bool PlatformSupport::deleteEmptyDirectory(const String& path)
 {
-    return webKitPlatformSupport()->fileUtilities()->deleteEmptyDirectory(path);
+    return WebKit::Platform::current()->fileUtilities()->deleteEmptyDirectory(path);
 }
 
-bool PlatformSupport::getFileSize(const String& path, long long& result)
+bool PlatformSupport::getFileMetadata(const String& path, FileMetadata& result)
 {
-    return webKitPlatformSupport()->fileUtilities()->getFileSize(path, result);
-}
-
-void PlatformSupport::revealFolderInOS(const String& path)
-{
-    webKitPlatformSupport()->fileUtilities()->revealFolderInOS(path);
-}
-
-bool PlatformSupport::getFileModificationTime(const String& path, time_t& result)
-{
-    double modificationTime;
-    if (!webKitPlatformSupport()->fileUtilities()->getFileModificationTime(path, modificationTime))
+    WebFileInfo webFileInfo;
+    if (!webKitPlatformSupport()->fileUtilities()->getFileInfo(path, webFileInfo))
         return false;
-    result = static_cast<time_t>(modificationTime);
+    result.modificationTime = webFileInfo.modificationTime;
+    result.length = webFileInfo.length;
+    result.type = static_cast<FileMetadata::Type>(webFileInfo.type);
     return true;
 }
 
 String PlatformSupport::directoryName(const String& path)
 {
-    return webKitPlatformSupport()->fileUtilities()->directoryName(path);
+    return WebKit::Platform::current()->fileUtilities()->directoryName(path);
 }
 
 String PlatformSupport::pathByAppendingComponent(const String& path, const String& component)
 {
-    return webKitPlatformSupport()->fileUtilities()->pathByAppendingComponent(path, component);
+    return WebKit::Platform::current()->fileUtilities()->pathByAppendingComponent(path, component);
 }
 
 bool PlatformSupport::makeAllDirectories(const String& path)
 {
-    return webKitPlatformSupport()->fileUtilities()->makeAllDirectories(path);
+    return WebKit::Platform::current()->fileUtilities()->makeAllDirectories(path);
 }
 
 String PlatformSupport::getAbsolutePath(const String& path)
 {
-    return webKitPlatformSupport()->fileUtilities()->getAbsolutePath(path);
+    return WebKit::Platform::current()->fileUtilities()->getAbsolutePath(path);
 }
 
 bool PlatformSupport::isDirectory(const String& path)
 {
-    return webKitPlatformSupport()->fileUtilities()->isDirectory(path);
+    return WebKit::Platform::current()->fileUtilities()->isDirectory(path);
 }
 
 KURL PlatformSupport::filePathToURL(const String& path)
 {
-    return webKitPlatformSupport()->fileUtilities()->filePathToURL(path);
+    return WebKit::Platform::current()->fileUtilities()->filePathToURL(path);
 }
 
 PlatformFileHandle PlatformSupport::openFile(const String& path, FileOpenMode mode)
 {
-    return webKitPlatformSupport()->fileUtilities()->openFile(path, mode);
+    return WebKit::Platform::current()->fileUtilities()->openFile(path, mode);
 }
 
 void PlatformSupport::closeFile(PlatformFileHandle& handle)
 {
-    webKitPlatformSupport()->fileUtilities()->closeFile(handle);
+    WebKit::Platform::current()->fileUtilities()->closeFile(handle);
 }
 
 long long PlatformSupport::seekFile(PlatformFileHandle handle, long long offset, FileSeekOrigin origin)
 {
-    return webKitPlatformSupport()->fileUtilities()->seekFile(handle, offset, origin);
+    return WebKit::Platform::current()->fileUtilities()->seekFile(handle, offset, origin);
 }
 
 bool PlatformSupport::truncateFile(PlatformFileHandle handle, long long offset)
 {
-    return webKitPlatformSupport()->fileUtilities()->truncateFile(handle, offset);
+    return WebKit::Platform::current()->fileUtilities()->truncateFile(handle, offset);
 }
 
 int PlatformSupport::readFromFile(PlatformFileHandle handle, char* data, int length)
 {
-    return webKitPlatformSupport()->fileUtilities()->readFromFile(handle, data, length);
+    return WebKit::Platform::current()->fileUtilities()->readFromFile(handle, data, length);
 }
 
 int PlatformSupport::writeToFile(PlatformFileHandle handle, const char* data, int length)
 {
-    return webKitPlatformSupport()->fileUtilities()->writeToFile(handle, data, length);
+    return WebKit::Platform::current()->fileUtilities()->writeToFile(handle, data, length);
 }
 
 #if ENABLE(FILE_SYSTEM)
@@ -409,7 +400,7 @@ PassOwnPtr<AsyncFileSystem> PlatformSupport::createAsyncFileSystem()
 #if OS(WINDOWS)
 bool PlatformSupport::ensureFontLoaded(HFONT font)
 {
-    WebSandboxSupport* ss = webKitPlatformSupport()->sandboxSupport();
+    WebSandboxSupport* ss = WebKit::Platform::current()->sandboxSupport();
 
     // if there is no sandbox, then we can assume the font
     // was able to be loaded successfully already
@@ -420,7 +411,7 @@ bool PlatformSupport::ensureFontLoaded(HFONT font)
 #if OS(DARWIN)
 bool PlatformSupport::loadFont(NSFont* srcFont, CGFontRef* out, uint32_t* fontID)
 {
-    WebSandboxSupport* ss = webKitPlatformSupport()->sandboxSupport();
+    WebSandboxSupport* ss = WebKit::Platform::current()->sandboxSupport();
     if (ss)
         return ss->loadFont(srcFont, out, fontID);
 
@@ -443,8 +434,8 @@ void PlatformSupport::getFontFamilyForCharacters(const UChar* characters, size_t
     family->isItalic = false;
 #else
     WebFontFamily webFamily;
-    if (webKitPlatformSupport()->sandboxSupport())
-        webKitPlatformSupport()->sandboxSupport()->getFontFamilyForCharacters(characters, numCharacters, preferredLocale, &webFamily);
+    if (WebKit::Platform::current()->sandboxSupport())
+        WebKit::Platform::current()->sandboxSupport()->getFontFamilyForCharacters(characters, numCharacters, preferredLocale, &webFamily);
     else
         WebFontInfo::familyForChars(characters, numCharacters, preferredLocale, &webFamily);
     family->name = String::fromUTF8(webFamily.name.data(), webFamily.name.length());
@@ -458,8 +449,8 @@ void PlatformSupport::getRenderStyleForStrike(const char* font, int sizeAndStyle
 #if !OS(ANDROID)
     WebFontRenderStyle style;
 
-    if (webKitPlatformSupport()->sandboxSupport())
-        webKitPlatformSupport()->sandboxSupport()->getRenderStyleForStrike(font, sizeAndStyle, &style);
+    if (WebKit::Platform::current()->sandboxSupport())
+        WebKit::Platform::current()->sandboxSupport()->getRenderStyleForStrike(font, sizeAndStyle, &style);
     else
         WebFontInfo::renderStyleForStrike(font, sizeAndStyle, &style);
 
@@ -504,7 +495,7 @@ PassRefPtr<IDBFactoryBackendInterface> PlatformSupport::idbFactory()
     return IDBFactoryBackendProxy::create();
 }
 
-void PlatformSupport::createIDBKeysFromSerializedValuesAndKeyPath(const Vector<RefPtr<SerializedScriptValue> >& values, const String& keyPath, Vector<RefPtr<IDBKey> >& keys)
+void PlatformSupport::createIDBKeysFromSerializedValuesAndKeyPath(const Vector<RefPtr<SerializedScriptValue> >& values, const IDBKeyPath& keyPath, Vector<RefPtr<IDBKey> >& keys)
 {
     WebVector<WebSerializedScriptValue> webValues = values;
     WebVector<WebIDBKey> webKeys;
@@ -516,7 +507,7 @@ void PlatformSupport::createIDBKeysFromSerializedValuesAndKeyPath(const Vector<R
         keys.append(PassRefPtr<IDBKey>(webKeys[i]));
 }
 
-PassRefPtr<SerializedScriptValue> PlatformSupport::injectIDBKeyIntoSerializedValue(PassRefPtr<IDBKey> key, PassRefPtr<SerializedScriptValue> value, const String& keyPath)
+PassRefPtr<SerializedScriptValue> PlatformSupport::injectIDBKeyIntoSerializedValue(PassRefPtr<IDBKey> key, PassRefPtr<SerializedScriptValue> value, const IDBKeyPath& keyPath)
 {
     return webKitPlatformSupport()->injectIDBKeyIntoSerializedValue(key, value, keyPath);
 }
@@ -579,7 +570,7 @@ void PlatformSupport::paintButton(
     GraphicsContext* gc, int part, int state, int classicState,
     const IntRect& rect)
 {
-    webKitPlatformSupport()->themeEngine()->paintButton(
+    WebKit::Platform::current()->themeEngine()->paintButton(
         gc->platformContext()->canvas(), part, state, classicState, rect);
 }
 
@@ -587,7 +578,7 @@ void PlatformSupport::paintMenuList(
     GraphicsContext* gc, int part, int state, int classicState,
     const IntRect& rect)
 {
-    webKitPlatformSupport()->themeEngine()->paintMenuList(
+    WebKit::Platform::current()->themeEngine()->paintMenuList(
         gc->platformContext()->canvas(), part, state, classicState, rect);
 }
 
@@ -595,7 +586,7 @@ void PlatformSupport::paintScrollbarArrow(
     GraphicsContext* gc, int state, int classicState,
     const IntRect& rect)
 {
-    webKitPlatformSupport()->themeEngine()->paintScrollbarArrow(
+    WebKit::Platform::current()->themeEngine()->paintScrollbarArrow(
         gc->platformContext()->canvas(), state, classicState, rect);
 }
 
@@ -603,7 +594,7 @@ void PlatformSupport::paintScrollbarThumb(
     GraphicsContext* gc, int part, int state, int classicState,
     const IntRect& rect)
 {
-    webKitPlatformSupport()->themeEngine()->paintScrollbarThumb(
+    WebKit::Platform::current()->themeEngine()->paintScrollbarThumb(
         gc->platformContext()->canvas(), part, state, classicState, rect);
 }
 
@@ -611,7 +602,7 @@ void PlatformSupport::paintScrollbarTrack(
     GraphicsContext* gc, int part, int state, int classicState,
     const IntRect& rect, const IntRect& alignRect)
 {
-    webKitPlatformSupport()->themeEngine()->paintScrollbarTrack(
+    WebKit::Platform::current()->themeEngine()->paintScrollbarTrack(
         gc->platformContext()->canvas(), part, state, classicState, rect,
         alignRect);
 }
@@ -620,7 +611,7 @@ void PlatformSupport::paintSpinButton(
     GraphicsContext* gc, int part, int state, int classicState,
     const IntRect& rect)
 {
-    webKitPlatformSupport()->themeEngine()->paintSpinButton(
+    WebKit::Platform::current()->themeEngine()->paintSpinButton(
         gc->platformContext()->canvas(), part, state, classicState, rect);
 }
 
@@ -632,7 +623,7 @@ void PlatformSupport::paintTextField(
     // Fallback to white when |color| is invalid.
     RGBA32 backgroundColor = color.isValid() ? color.rgb() : Color::white;
 
-    webKitPlatformSupport()->themeEngine()->paintTextField(
+    WebKit::Platform::current()->themeEngine()->paintTextField(
         gc->platformContext()->canvas(), part, state, classicState, rect,
         backgroundColor, fillContentArea, drawEdges);
 }
@@ -641,14 +632,14 @@ void PlatformSupport::paintTrackbar(
     GraphicsContext* gc, int part, int state, int classicState,
     const IntRect& rect)
 {
-    webKitPlatformSupport()->themeEngine()->paintTrackbar(
+    WebKit::Platform::current()->themeEngine()->paintTrackbar(
         gc->platformContext()->canvas(), part, state, classicState, rect);
 }
 
 void PlatformSupport::paintProgressBar(
     GraphicsContext* gc, const IntRect& barRect, const IntRect& valueRect, bool determinate, double animatedSeconds)
 {
-    webKitPlatformSupport()->themeEngine()->paintProgressBar(
+    WebKit::Platform::current()->themeEngine()->paintProgressBar(
         gc->platformContext()->canvas(), barRect, valueRect, determinate, animatedSeconds);
 }
 
@@ -667,7 +658,7 @@ void PlatformSupport::paintScrollbarThumb(
     webThemeScrollbarInfo.totalSize = scrollbarInfo.totalSize;
 
     WebKit::WebCanvas* webCanvas = gc->platformContext()->canvas();
-    webKitPlatformSupport()->themeEngine()->paintScrollbarThumb(
+    WebKit::Platform::current()->themeEngine()->paintScrollbarThumb(
         webCanvas,
         static_cast<WebThemeEngine::State>(state),
         static_cast<WebThemeEngine::Size>(size),
@@ -771,7 +762,7 @@ static void GetWebThemeExtraParams(PlatformSupport::ThemePart part, PlatformSupp
 
 IntSize PlatformSupport::getThemePartSize(ThemePart part)
 {
-     return webKitPlatformSupport()->themeEngine()->getSize(WebThemePart(part));
+     return WebKit::Platform::current()->themeEngine()->getSize(WebThemePart(part));
 }
 
 void PlatformSupport::paintThemePart(
@@ -779,7 +770,7 @@ void PlatformSupport::paintThemePart(
 {
     WebThemeEngine::ExtraParams webThemeExtraParams;
     GetWebThemeExtraParams(part, state, extraParams, &webThemeExtraParams);
-    webKitPlatformSupport()->themeEngine()->paint(
+    WebKit::Platform::current()->themeEngine()->paint(
         gc->platformContext()->canvas(), WebThemePart(part), WebThemeState(state), rect, &webThemeExtraParams);
 }
 
@@ -843,6 +834,11 @@ void PlatformSupport::notifyJSOutOfMemory(Frame* frame)
     if (!webFrame->client())
         return;
     webFrame->client()->didExhaustMemoryAvailableForScript(webFrame);
+}
+
+bool PlatformSupport::getProcessMemorySize(size_t* privateBytes, size_t* sharedBytes)
+{
+    return webKitPlatformSupport()->getProcessMemorySize(privateBytes, sharedBytes);
 }
 
 int PlatformSupport::screenHorizontalDPI(Widget* widget)
@@ -910,12 +906,12 @@ bool PlatformSupport::popupsAllowed(NPP npp)
 #if ENABLE(WORKERS)
 void PlatformSupport::didStartWorkerRunLoop(WorkerRunLoop* loop)
 {
-    webKitPlatformSupport()->didStartWorkerRunLoop(WebWorkerRunLoop(loop));
+    WebKit::Platform::current()->didStartWorkerRunLoop(WebWorkerRunLoop(loop));
 }
 
 void PlatformSupport::didStopWorkerRunLoop(WorkerRunLoop* loop)
 {
-    webKitPlatformSupport()->didStopWorkerRunLoop(WebWorkerRunLoop(loop));
+    WebKit::Platform::current()->didStopWorkerRunLoop(WebWorkerRunLoop(loop));
 }
 
 WorkerContextProxy* WorkerContextProxy::create(Worker* worker)
@@ -923,10 +919,5 @@ WorkerContextProxy* WorkerContextProxy::create(Worker* worker)
     return WebWorkerClientImpl::createWorkerContextProxy(worker);
 }
 #endif
-
-bool PlatformSupport::canAccelerate2dCanvas()
-{
-    return webKitPlatformSupport()->canAccelerate2dCanvas();
-}
 
 } // namespace WebCore

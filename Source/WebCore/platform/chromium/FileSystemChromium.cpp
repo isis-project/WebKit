@@ -31,6 +31,7 @@
 #include "config.h"
 #include "FileSystem.h"
 
+#include "FileMetadata.h"
 #include "NotImplemented.h"
 #include "PlatformString.h"
 #include "PlatformSupport.h"
@@ -49,17 +50,25 @@ bool deleteEmptyDirectory(const String& path)
 
 bool getFileSize(const String& path, long long& result)
 {
-    return PlatformSupport::getFileSize(path, result);
+    FileMetadata metadata;
+    if (!PlatformSupport::getFileMetadata(path, metadata))
+        return false;
+    result = metadata.length;
+    return true;
 }
 
 bool getFileModificationTime(const String& path, time_t& result)
 {
-    return PlatformSupport::getFileModificationTime(path, result);
+    FileMetadata metadata;
+    if (!PlatformSupport::getFileMetadata(path, metadata))
+        return false;
+    result = metadata.modificationTime;
+    return true;
 }
 
-void revealFolderInOS(const String& path)
+bool getFileMetadata(const String& path, FileMetadata& metadata)
 {
-    PlatformSupport::revealFolderInOS(path);
+    return PlatformSupport::getFileMetadata(path, metadata);
 }
 
 String directoryName(const String& path)

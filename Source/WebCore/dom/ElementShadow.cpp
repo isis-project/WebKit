@@ -39,7 +39,6 @@
 namespace WebCore {
 
 ElementShadow::ElementShadow()
-    : m_needsRedistributing(false)
 {
 }
 
@@ -53,7 +52,7 @@ static bool validateShadowRoot(Document* document, ShadowRoot* shadowRoot, Excep
     if (!shadowRoot)
         return true;
 
-    if (shadowRoot->shadowHost()) {
+    if (shadowRoot->host()) {
         ec = HIERARCHY_REQUEST_ERR;
         return false;
     }
@@ -74,7 +73,7 @@ void ElementShadow::addShadowRoot(Element* shadowHost, PassRefPtr<ShadowRoot> sh
     if (!validateShadowRoot(shadowHost->document(), shadowRoot.get(), ec))
         return;
 
-    shadowRoot->setShadowHost(shadowHost);
+    shadowRoot->setHost(shadowHost);
     ChildNodeInsertionNotifier(shadowHost).notify(shadowRoot.get());
 
     if (shadowHost->attached()) {
@@ -99,7 +98,7 @@ void ElementShadow::removeAllShadowRoots()
         if (oldRoot->attached())
             oldRoot->detach();
 
-        oldRoot->setShadowHost(0);
+        oldRoot->setHost(0);
         oldRoot->setPrev(0);
         oldRoot->setNext(0);
         shadowHost->document()->adoptIfNeeded(oldRoot.get());
@@ -108,12 +107,6 @@ void ElementShadow::removeAllShadowRoots()
 
     if (shadowHost->attached())
         shadowHost->attachChildrenLazily();
-}
-
-void ElementShadow::setParentTreeScope(TreeScope* scope)
-{
-    for (ShadowRoot* root = youngestShadowRoot(); root; root = root->olderShadowRoot())
-        root->setParentTreeScope(scope);
 }
 
 void ElementShadow::attach()
@@ -130,26 +123,12 @@ void ElementShadow::attach()
     distributor().didDistribute();
 }
 
-void ElementShadow::attachHost(Element* host)
-{
-    attach();
-    host->attachChildrenIfNeeded();
-    host->attachAsNode();
-}
-
 void ElementShadow::detach()
 {
     for (ShadowRoot* root = youngestShadowRoot(); root; root = root->olderShadowRoot()) {
         if (root->attached())
             root->detach();
     }
-}
-
-void ElementShadow::detachHost(Element* host)
-{
-    host->detachChildrenIfNeeded();
-    detach();
-    host->detachAsNode();
 }
 
 InsertionPoint* ElementShadow::insertionPointFor(const Node* node) const
@@ -164,12 +143,6 @@ InsertionPoint* ElementShadow::insertionPointFor(const Node* node) const
     }
 
     return distributor().findInsertionPointFor(node);
-}
-
-void ElementShadow::reattach()
-{
-    detach();
-    attach();
 }
 
 bool ElementShadow::childNeedsStyleRecalc()
@@ -213,7 +186,7 @@ void ElementShadow::recalcStyle(Node::StyleChange change)
         styleResolver->popParentShadowRoot(youngest);
     }
 
-    clearNeedsRedistributing();
+    m_distributor.clearNeedsRedistributing();
     for (ShadowRoot* root = youngestShadowRoot(); root; root = root->olderShadowRoot()) {
         root->clearNeedsStyleRecalc();
         root->clearChildNeedsStyleRecalc();
@@ -222,7 +195,7 @@ void ElementShadow::recalcStyle(Node::StyleChange change)
 
 bool ElementShadow::needsRedistributing()
 {
-    return m_needsRedistributing || (youngestShadowRoot() && youngestShadowRoot()->hasInsertionPoint());
+    return m_distributor.needsRedistributing() || (youngestShadowRoot() && youngestShadowRoot()->hasInsertionPoint());
 }
 
 void ElementShadow::hostChildrenChanged()
@@ -238,8 +211,7 @@ void ElementShadow::hostChildrenChanged()
 
 void ElementShadow::setNeedsRedistributing()
 {
-    m_needsRedistributing = true;
-
+    m_distributor.setNeedsRedistributing();
     host()->setNeedsStyleRecalc();
 }
 
@@ -249,7 +221,8 @@ void ElementShadow::reattachHostChildrenAndShadow()
 
     Element* hostNode = youngestShadowRoot()->host();
     hostNode->detachChildrenIfNeeded();
-    reattach();
+    detach();
+    attach();
     hostNode->attachChildrenIfNeeded();
 }
 

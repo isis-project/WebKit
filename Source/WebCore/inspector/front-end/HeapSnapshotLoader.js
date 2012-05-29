@@ -30,15 +30,35 @@
 
 /**
  * @constructor
+ * @implements {WebInspector.HeapSnapshotReceiver}
  */
 WebInspector.HeapSnapshotLoader = function()
 {
-    this._json = "";
-    this._state = "find-snapshot-info";
-    this._snapshot = {};
+    this._reset();
 }
 
 WebInspector.HeapSnapshotLoader.prototype = {
+    /**
+     * @param {function(WebInspector.HeapSnapshotProxy)} callback
+     * @return {boolean}
+     */
+    startLoading: function(callback)
+    {
+        return true;
+    },
+
+    dispose: function()
+    {
+        this._reset();
+    },
+
+    _reset: function()
+    {
+        this._json = "";
+        this._state = "find-snapshot-info";
+        this._snapshot = {};
+    },
+
     _findBalancedCurlyBrackets: function()
     {
         var counter = 0;
@@ -60,10 +80,8 @@ WebInspector.HeapSnapshotLoader.prototype = {
         if (!this._json)
             return null;
         this._parseStringsArray();
-        this._json = "";
         var result = new WebInspector.HeapSnapshot(this._snapshot);
-        this._json = "";
-        this._snapshot = {};
+        this._reset();
         return result;
     },
 
@@ -101,7 +119,7 @@ WebInspector.HeapSnapshotLoader.prototype = {
                 this._json = this._json.slice(startIndex);
                 return true;
             }
-            this._array.push(nextNumber);
+            this._array[this._arrayIndex++] = nextNumber;
         }
     },
 
@@ -114,6 +132,9 @@ WebInspector.HeapSnapshotLoader.prototype = {
         this._snapshot.strings = JSON.parse(this._json);
     },
 
+    /**
+     * @param {string} chunk
+     */
     pushJSONChunk: function(chunk)
     {
         this._json += chunk;
@@ -149,7 +170,8 @@ WebInspector.HeapSnapshotLoader.prototype = {
             this._json = this._json.slice(bracketIndex + 1);
             var node_fields_count = this._snapshot.snapshot.meta.node_fields.length;
             var nodes_length = this._snapshot.snapshot.node_count * node_fields_count;
-            this._array = new WebInspector.Uint32Array(nodes_length);
+            this._array = new Uint32Array(nodes_length);
+            this._arrayIndex = 0;
             this._state = "parse-nodes";
             this.pushJSONChunk("");
             break;
@@ -157,7 +179,7 @@ WebInspector.HeapSnapshotLoader.prototype = {
         case "parse-nodes": {
             if (this._parseUintArray())
                 return;
-            this._snapshot.nodes = this._array.array;
+            this._snapshot.nodes = this._array;
             this._state = "find-edges";
             this._array = null;
             this.pushJSONChunk("");
@@ -174,7 +196,8 @@ WebInspector.HeapSnapshotLoader.prototype = {
             this._json = this._json.slice(bracketIndex + 1);
             var edge_fields_count = this._snapshot.snapshot.meta.edge_fields.length;
             var edges_length = this._snapshot.snapshot.edge_count * edge_fields_count;
-            this._array = new WebInspector.Uint32Array(edges_length);
+            this._array = new Uint32Array(edges_length);
+            this._arrayIndex = 0;
             this._state = "parse-edges";
             this.pushJSONChunk("");
             break;
@@ -182,7 +205,7 @@ WebInspector.HeapSnapshotLoader.prototype = {
         case "parse-edges": {
             if (this._parseUintArray())
                 return;
-            this._snapshot.edges = this._array.array;
+            this._snapshot.edges = this._array;
             this._array = null;
             this._state = "find-strings";
             this.pushJSONChunk("");

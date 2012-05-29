@@ -126,7 +126,7 @@ public:
     PreloadResult preloadResult() const { return static_cast<PreloadResult>(m_preloadResult); }
 
     virtual void didAddClient(CachedResourceClient*);
-    virtual void allClientsRemoved() { }
+    virtual void allClientsRemoved();
 
     unsigned count() const { return m_clients.size(); }
 
@@ -170,7 +170,6 @@ public:
     void setInCache(bool inCache) { m_inCache = inCache; }
     bool inCache() const { return m_inCache; }
     
-    void setInLiveDecodedResourcesList(bool b) { m_inLiveDecodedResourcesList = b; }
     bool inLiveDecodedResourcesList() { return m_inLiveDecodedResourcesList; }
     
     void stopLoading();

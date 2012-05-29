@@ -507,7 +507,7 @@ static NPError NPN_GetValue(NPP npp, NPNVariable variable, void *value)
             *(NPBool*)value = true;
             break;
 
-#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD) && ENABLE(PLUGIN_PROCESS)
         case WKNVSandboxFunctions:
         {
             *(WKNSandboxFunctions **)value = netscapeSandboxFunctions();

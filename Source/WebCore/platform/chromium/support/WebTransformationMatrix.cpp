@@ -50,12 +50,15 @@ WebTransformationMatrix::WebTransformationMatrix(const WebTransformationMatrix& 
 {
 }
 
-#if WEBKIT_IMPLEMENTATION
 WebTransformationMatrix::WebTransformationMatrix(const TransformationMatrix& t)
     : m_private(new TransformationMatrix(t))
 {
 }
-#endif
+
+void WebTransformationMatrix::reset()
+{
+    m_private.reset(0);
+}
 
 WebTransformationMatrix& WebTransformationMatrix::operator=(const WebTransformationMatrix& t)
 {
@@ -415,7 +418,6 @@ void WebTransformationMatrix::setF(double f)
     m_private->setF(f);
 }
 
-#if WEBKIT_IMPLEMENTATION
 TransformationMatrix& WebTransformationMatrix::toWebCoreTransform() const
 {
     return *m_private.get();
@@ -455,6 +457,5 @@ FloatPoint WebTransformationMatrix::projectPoint(const FloatPoint& p, bool* clam
 {
     return m_private->projectPoint(p, clamped);
 }
-#endif
 
 } // namespace WebKit

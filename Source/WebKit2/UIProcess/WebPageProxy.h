@@ -58,8 +58,6 @@
 #include "WebPopupMenuProxy.h"
 #include "WebResourceLoadClient.h"
 #include "WebUIClient.h"
-#include <WebCore/DragActions.h>
-#include <WebCore/DragSession.h>
 #include <WebCore/HitTestResult.h>
 #include <WebCore/Page.h>
 #include <WebCore/PlatformScreen.h>
@@ -73,6 +71,12 @@
 #include <wtf/RefPtr.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
+
+#if ENABLE(DRAG_SUPPORT)
+#include <WebCore/DragActions.h>
+#include <WebCore/DragSession.h>
+#endif
+
 #if PLATFORM(EFL)
 #include <Evas.h>
 #endif
@@ -332,6 +336,7 @@ public:
     void authenticationRequiredRequest(const String& hostname, const String& realm, const String& prefilledUsername, String& username, String& password);
     void certificateVerificationRequest(const String& hostname, bool& ignoreErrors);
     void proxyAuthenticationRequiredRequest(const String& hostname, uint16_t port, const String& prefilledUsername, String& username, String& password);
+    void setUserScripts(const Vector<String>&);
 #endif // PLATFORM(QT).
 
 #if PLATFORM(QT)
@@ -514,6 +519,7 @@ public:
 
     void backForwardRemovedItem(uint64_t itemID);
 
+#if ENABLE(DRAG_SUPPORT)    
     // Drag and drop support.
     void dragEntered(WebCore::DragData*, const String& dragStorageName = String());
     void dragUpdated(WebCore::DragData*, const String& dragStorageName = String());
@@ -533,6 +539,8 @@ public:
 #if PLATFORM(QT) || PLATFORM(GTK)
     void startDrag(const WebCore::DragData&, const ShareableBitmap::Handle& dragImage);
 #endif
+#endif
+
     void didReceiveMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*);
     void didReceiveSyncMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*, OwnPtr<CoreIPC::ArgumentEncoder>&);
 
@@ -570,8 +578,10 @@ public:
     const String& urlAtProcessExit() const { return m_urlAtProcessExit; }
     WebFrameProxy::LoadState loadStateAtProcessExit() const { return m_loadStateAtProcessExit; }
 
+#if ENABLE(DRAG_SUPPORT)
     WebCore::DragSession dragSession() const { return m_currentDragSession; }
     void resetDragOperation() { m_currentDragSession = WebCore::DragSession(); }
+#endif
 
     void preferencesDidChange();
 
@@ -745,7 +755,7 @@ private:
     void didChangeScrollOffsetPinningForMainFrame(bool pinnedToLeftSide, bool pinnedToRightSide);
     void didChangePageCount(unsigned);
     void didFailToInitializePlugin(const String& mimeType);
-    void didBlockInsecurePluginVersion(const String& mimeType);
+    void didBlockInsecurePluginVersion(const String& mimeType, const String& urlString);
     void setCanShortCircuitHorizontalWheelEvents(bool canShortCircuitHorizontalWheelEvents) { m_canShortCircuitHorizontalWheelEvents = canShortCircuitHorizontalWheelEvents; }
 
     void reattachToWebProcess();
@@ -1056,7 +1066,10 @@ private:
     unsigned m_pendingLearnOrIgnoreWordMessageCount;
 
     bool m_mainFrameHasCustomRepresentation;
+
+#if ENABLE(DRAG_SUPPORT)
     WebCore::DragSession m_currentDragSession;
+#endif
 
     String m_pendingAPIRequestURL;
 

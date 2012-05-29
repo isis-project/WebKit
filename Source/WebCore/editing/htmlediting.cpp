@@ -299,7 +299,7 @@ VisiblePosition lastEditablePositionBeforePositionInRoot(const Position& positio
 // Whether or not content before and after this node will collapse onto the same line as it.
 bool isBlock(const Node* node)
 {
-    return node && node->renderer() && !node->renderer()->isInline();
+    return node && node->renderer() && !node->renderer()->isInline() && !node->renderer()->isRubyText();
 }
 
 bool isInline(const Node* node)
@@ -1093,13 +1093,11 @@ int indexForVisiblePosition(const VisiblePosition& visiblePosition, RefPtr<Conta
 
     Position p(visiblePosition.deepEquivalent());
     Document* document = p.anchorNode()->document();
-    ContainerNode* shadowRoot = p.anchorNode()->shadowTreeRootNode();
+    ShadowRoot* shadowRoot = p.anchorNode()->shadowRoot();
 
-    if (shadowRoot) {
-        // Use the shadow root for form elements, since TextIterators will not enter shadow content.
-        ASSERT(shadowRoot->isElementNode() || shadowRoot->isShadowRoot());
+    if (shadowRoot)
         scope = shadowRoot;
-    } else
+    else
         scope = document->documentElement();
 
     RefPtr<Range> range = Range::create(document, firstPositionInNode(scope.get()), p.parentAnchoredEquivalent());

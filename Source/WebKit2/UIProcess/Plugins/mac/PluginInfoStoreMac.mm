@@ -26,14 +26,11 @@
 #import "config.h"
 #import "PluginInfoStore.h"
 
+#import "NetscapePluginModule.h"
 #import "WebKitSystemInterface.h"
 #import <WebCore/WebCoreNSStringExtras.h>
 #import <wtf/HashSet.h>
 #import <wtf/RetainPtr.h>
-
-#if ENABLE(NETSCAPE_PLUGIN_API)
-#import "NetscapePluginModule.h"
-#endif
 
 using namespace WebCore;
 

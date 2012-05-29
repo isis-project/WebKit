@@ -449,7 +449,7 @@ void NetworkJob::handleNotifyClose(int status)
         else if (isUnauthorized(m_extendedStatusCode))
             purgeCredentials();
 
-        if (shouldNotifyClientFinished()) {
+        if (shouldReleaseClientResource()) {
             if (isRedirect(m_extendedStatusCode) && (m_redirectCount >= s_redirectMaximum))
                 m_extendedStatusCode = BlackBerry::Platform::FilterStream::StatusTooManyRedirects;
 
@@ -457,7 +457,7 @@ void NetworkJob::handleNotifyClose(int status)
             if (isClientAvailable()) {
 
                 RecursionGuard guard(m_callingClient);
-                if (isError(m_extendedStatusCode) && !m_dataReceived && m_handle->firstRequest().httpMethod() != "HEAD") {
+                if (shouldNotifyClientFailed()) {
                     String domain = m_extendedStatusCode < 0 ? ResourceError::platformErrorDomain : ResourceError::httpErrorDomain;
                     ResourceError error(domain, m_extendedStatusCode, m_response.url().string(), m_response.httpStatusText());
                     m_handle->client()->didFail(m_handle.get(), error);
@@ -476,7 +476,7 @@ void NetworkJob::handleNotifyClose(int status)
     m_multipartResponse = nullptr;
 }
 
-bool NetworkJob::shouldNotifyClientFinished()
+bool NetworkJob::shouldReleaseClientResource()
 {
     if (m_redirectCount >= s_redirectMaximum)
         return true;
@@ -488,6 +488,13 @@ bool NetworkJob::shouldNotifyClientFinished()
         return false;
 
     return true;
+}
+
+bool NetworkJob::shouldNotifyClientFailed() const
+{
+    if (m_handle->firstRequest().targetType() == ResourceRequest::TargetIsXHR)
+        return m_extendedStatusCode < 0;
+    return isError(m_extendedStatusCode) && !m_dataReceived;
 }
 
 bool NetworkJob::retryAsFTPDirectory()
@@ -521,8 +528,7 @@ bool NetworkJob::startNewJobWithRequest(ResourceRequest& newRequest, bool increa
 
     // Pass the ownership of the ResourceHandle to the new NetworkJob.
     RefPtr<ResourceHandle> handle = m_handle;
-    m_handle = 0;
-    m_multipartResponse = nullptr;
+    cancelJob();
 
     NetworkManager::instance()->startJob(m_playerId,
         m_pageGroupName,
@@ -574,7 +580,7 @@ void NetworkJob::sendResponseIfNeeded()
 
     m_responseSent = true;
 
-    if (isError(m_extendedStatusCode) && !m_dataReceived)
+    if (shouldNotifyClientFailed())
         return;
 
     String urlFilename;
@@ -754,12 +760,17 @@ bool NetworkJob::sendRequestWithCredentials(ProtectionSpaceServerType type, Prot
         m_handle->getInternal()->m_currentWebChallenge = AuthenticationChallenge(protectionSpace, credential, 0, m_response, ResourceError());
         m_handle->getInternal()->m_currentWebChallenge.setStored(true);
     } else {
+        if (m_handle->firstRequest().targetType() == ResourceRequest::TargetIsFavicon) {
+            // The favicon loading is triggerred after the main resource has been loaded
+            // and parsed, so if we cancel the authentication challenge when loading the main
+            // resource, we should also cancel loading the favicon when it starts to
+            // load. If not we will receive another challenge which may confuse the user.
+            return false;
+        }
+
         // CredentialStore is empty. Ask the user via dialog.
         String username;
         String password;
-
-        if (!m_frame || !m_frame->loader() || !m_frame->loader()->client())
-            return false;
 
         if (type == ProtectionSpaceProxyHTTP) {
             username = BlackBerry::Platform::Client::get()->getProxyUsername().c_str();
@@ -777,14 +788,13 @@ bool NetworkJob::sendRequestWithCredentials(ProtectionSpaceServerType type, Prot
                 m_handle->getInternal()->m_user = "";
                 m_handle->getInternal()->m_pass = "";
             } else {
-                Credential inputCredential = m_frame->page()->chrome()->client()->platformPageClient()->authenticationChallenge(newURL, protectionSpace);
+                Credential inputCredential;
+                if (!m_frame->page()->chrome()->client()->platformPageClient()->authenticationChallenge(newURL, protectionSpace, inputCredential))
+                    return false;
                 username = inputCredential.user();
                 password = inputCredential.password();
             }
         }
-
-        if (username.isEmpty() && password.isEmpty())
-            return false;
 
         credential = Credential(username, password, CredentialPersistenceForSession);
 

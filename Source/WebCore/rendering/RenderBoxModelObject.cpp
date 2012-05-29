@@ -345,10 +345,6 @@ void RenderBoxModelObject::destroyLayer()
 
 void RenderBoxModelObject::willBeDestroyed()
 {
-    // This must be done before we destroy the RenderObject.
-    if (m_layer)
-        m_layer->clearClipRects();
-
     // A continuation of this RenderObject should be destroyed at subclasses.
     ASSERT(!continuation());
 
@@ -463,48 +459,41 @@ void RenderBoxModelObject::updateBoxModelInfoFromStyle()
     setHorizontalWritingMode(styleToUse->isHorizontalWritingMode());
 }
 
-enum RelPosAxis { RelPosX, RelPosY };
-
-static LayoutUnit accumulateRelativePositionOffsets(const RenderObject* child, RelPosAxis axis)
+static LayoutSize accumulateRelativePositionOffsets(const RenderObject* child)
 {
     if (!child->isAnonymousBlock() || !child->isRelPositioned())
-        return 0;
-    LayoutUnit offset = ZERO_LAYOUT_UNIT;
+        return LayoutSize();
+    LayoutSize offset;
     RenderObject* p = toRenderBlock(child)->inlineElementContinuation();
     while (p && p->isRenderInline()) {
-        if (p->isRelPositioned())
-            offset += (axis == RelPosX) ? toRenderInline(p)->relativePositionOffsetX() : toRenderInline(p)->relativePositionOffsetY();
+        if (p->isRelPositioned()) {
+            RenderInline* renderInline = toRenderInline(p);
+            offset += renderInline->relativePositionOffset();
+        }
         p = p->parent();
     }
     return offset;
 }
 
-LayoutUnit RenderBoxModelObject::relativePositionOffsetX() const
+LayoutSize RenderBoxModelObject::relativePositionOffset() const
 {
-    LayoutUnit offset = accumulateRelativePositionOffsets(this, RelPosX);
+    LayoutSize offset = accumulateRelativePositionOffsets(this);
+
+    RenderBlock* containingBlock = this->containingBlock();
 
     // Objects that shrink to avoid floats normally use available line width when computing containing block width.  However
     // in the case of relative positioning using percentages, we can't do this.  The offset should always be resolved using the
     // available width of the containing block.  Therefore we don't use containingBlockLogicalWidthForContent() here, but instead explicitly
     // call availableWidth on our containing block.
     if (!style()->left().isAuto()) {
-        RenderBlock* cb = containingBlock();
-        if (!style()->right().isAuto() && !cb->style()->isLeftToRightDirection())
-            return -valueForLength(style()->right(), cb->availableWidth(), view());
-        return offset + valueForLength(style()->left(), cb->availableWidth(), view());
+        if (!style()->right().isAuto() && !containingBlock->style()->isLeftToRightDirection())
+            offset.setWidth(-valueForLength(style()->right(), containingBlock->availableWidth(), view()));
+        else
+            offset.expand(valueForLength(style()->left(), containingBlock->availableWidth(), view()), 0);
+    } else if (!style()->right().isAuto()) {
+        offset.expand(-valueForLength(style()->right(), containingBlock->availableWidth(), view()), 0);
     }
-    if (!style()->right().isAuto()) {
-        RenderBlock* cb = containingBlock();
-        return offset + -valueForLength(style()->right(), cb->availableWidth(), view());
-    }
-    return offset;
-}
 
-LayoutUnit RenderBoxModelObject::relativePositionOffsetY() const
-{
-    LayoutUnit offset = accumulateRelativePositionOffsets(this, RelPosY);
-    
-    RenderBlock* containingBlock = this->containingBlock();
     // If the containing block of a relatively positioned element does not
     // specify a height, a percentage top or bottom offset should be resolved as
     // auto. An exception to this is if the containing block has the WinIE quirk
@@ -515,13 +504,13 @@ LayoutUnit RenderBoxModelObject::relativePositionOffsetY() const
         && (!containingBlock->style()->height().isAuto()
             || !style()->top().isPercent()
             || containingBlock->stretchesToViewport()))
-        return offset + valueForLength(style()->top(), containingBlock->availableHeight(), view());
+        offset.expand(0, valueForLength(style()->top(), containingBlock->availableHeight(), view()));
 
-    if (!style()->bottom().isAuto()
+    else if (!style()->bottom().isAuto()
         && (!containingBlock->style()->height().isAuto()
             || !style()->bottom().isPercent()
             || containingBlock->stretchesToViewport()))
-        return offset + -valueForLength(style()->bottom(), containingBlock->availableHeight(), view());
+        offset.expand(0, -valueForLength(style()->bottom(), containingBlock->availableHeight(), view()));
 
     return offset;
 }
@@ -1270,17 +1259,17 @@ bool RenderBoxModelObject::paintNinePieceImage(GraphicsContext* graphicsContext,
     ENinePieceImageRule hRule = ninePieceImage.horizontalRule();
     ENinePieceImageRule vRule = ninePieceImage.verticalRule();
 
-    LayoutUnit topWidth = computeBorderImageSide(ninePieceImage.borderSlices().top(), style->borderTopWidth(), topSlice, borderImageRect.height(), renderView);
-    LayoutUnit rightWidth = computeBorderImageSide(ninePieceImage.borderSlices().right(), style->borderRightWidth(), rightSlice, borderImageRect.width(), renderView);
-    LayoutUnit bottomWidth = computeBorderImageSide(ninePieceImage.borderSlices().bottom(), style->borderBottomWidth(), bottomSlice, borderImageRect.height(), renderView);
-    LayoutUnit leftWidth = computeBorderImageSide(ninePieceImage.borderSlices().left(), style->borderLeftWidth(), leftSlice, borderImageRect.width(), renderView);
+    int topWidth = computeBorderImageSide(ninePieceImage.borderSlices().top(), style->borderTopWidth(), topSlice, borderImageRect.height(), renderView);
+    int rightWidth = computeBorderImageSide(ninePieceImage.borderSlices().right(), style->borderRightWidth(), rightSlice, borderImageRect.width(), renderView);
+    int bottomWidth = computeBorderImageSide(ninePieceImage.borderSlices().bottom(), style->borderBottomWidth(), bottomSlice, borderImageRect.height(), renderView);
+    int leftWidth = computeBorderImageSide(ninePieceImage.borderSlices().left(), style->borderLeftWidth(), leftSlice, borderImageRect.width(), renderView);
     
     // Reduce the widths if they're too large.
     // The spec says: Given Lwidth as the width of the border image area, Lheight as its height, and Wside as the border image width
     // offset for the side, let f = min(Lwidth/(Wleft+Wright), Lheight/(Wtop+Wbottom)). If f < 1, then all W are reduced by
     // multiplying them by f.
-    LayoutUnit borderSideWidth = max<LayoutUnit>(1, leftWidth + rightWidth);
-    LayoutUnit borderSideHeight = max<LayoutUnit>(1, topWidth + bottomWidth);
+    int borderSideWidth = max(1, leftWidth + rightWidth);
+    int borderSideHeight = max(1, topWidth + bottomWidth);
     float borderSideScaleFactor = min((float)borderImageRect.width() / borderSideWidth, (float)borderImageRect.height() / borderSideHeight);
     if (borderSideScaleFactor < 1) {
         topWidth *= borderSideScaleFactor;
@@ -1316,13 +1305,13 @@ bool RenderBoxModelObject::paintNinePieceImage(GraphicsContext* graphicsContext,
         // The top left corner rect is (tx, ty, leftWidth, topWidth)
         // The rect to use from within the image is obtained from our slice, and is (0, 0, leftSlice, topSlice)
         if (drawTop)
-            graphicsContext->drawImage(image.get(), colorSpace, LayoutRect(borderImageRect.location(), LayoutSize(leftWidth, topWidth)),
+            graphicsContext->drawImage(image.get(), colorSpace, IntRect(borderImageRect.location(), IntSize(leftWidth, topWidth)),
                                        LayoutRect(0, 0, leftSlice, topSlice), op);
 
         // The bottom left corner rect is (tx, ty + h - bottomWidth, leftWidth, bottomWidth)
         // The rect to use from within the image is (0, imageHeight - bottomSlice, leftSlice, botomSlice)
         if (drawBottom)
-            graphicsContext->drawImage(image.get(), colorSpace, LayoutRect(borderImageRect.x(), borderImageRect.maxY() - bottomWidth, leftWidth, bottomWidth),
+            graphicsContext->drawImage(image.get(), colorSpace, IntRect(borderImageRect.x(), borderImageRect.maxY() - bottomWidth, leftWidth, bottomWidth),
                                        LayoutRect(0, imageHeight - bottomSlice, leftSlice, bottomSlice), op);
 
         // Paint the left edge.
@@ -1339,13 +1328,13 @@ bool RenderBoxModelObject::paintNinePieceImage(GraphicsContext* graphicsContext,
         // The top right corner rect is (tx + w - rightWidth, ty, rightWidth, topWidth)
         // The rect to use from within the image is obtained from our slice, and is (imageWidth - rightSlice, 0, rightSlice, topSlice)
         if (drawTop)
-            graphicsContext->drawImage(image.get(), colorSpace, LayoutRect(borderImageRect.maxX() - rightWidth, borderImageRect.y(), rightWidth, topWidth),
+            graphicsContext->drawImage(image.get(), colorSpace, IntRect(borderImageRect.maxX() - rightWidth, borderImageRect.y(), rightWidth, topWidth),
                                        LayoutRect(imageWidth - rightSlice, 0, rightSlice, topSlice), op);
 
         // The bottom right corner rect is (tx + w - rightWidth, ty + h - bottomWidth, rightWidth, bottomWidth)
         // The rect to use from within the image is (imageWidth - rightSlice, imageHeight - bottomSlice, rightSlice, bottomSlice)
         if (drawBottom)
-            graphicsContext->drawImage(image.get(), colorSpace, LayoutRect(borderImageRect.maxX() - rightWidth, borderImageRect.maxY() - bottomWidth, rightWidth, bottomWidth),
+            graphicsContext->drawImage(image.get(), colorSpace, IntRect(borderImageRect.maxX() - rightWidth, borderImageRect.maxY() - bottomWidth, rightWidth, bottomWidth),
                                        LayoutRect(imageWidth - rightSlice, imageHeight - bottomSlice, rightSlice, bottomSlice), op);
 
         // Paint the right edge.
@@ -3015,6 +3004,29 @@ void RenderBoxModelObject::mapAbsoluteToLocalPoint(bool fixed, bool useTransform
         transformState.applyTransform(t, preserve3D ? TransformState::AccumulateTransform : TransformState::FlattenTransform);
     } else
         transformState.move(containerOffset.width(), containerOffset.height(), preserve3D ? TransformState::AccumulateTransform : TransformState::FlattenTransform);
+}
+
+void RenderBoxModelObject::moveChildTo(RenderBoxModelObject* toBoxModelObject, RenderObject* child, RenderObject* beforeChild, bool fullRemoveInsert)
+{
+    ASSERT(this == child->parent());
+    ASSERT(!beforeChild || toBoxModelObject == beforeChild->parent());
+    if (fullRemoveInsert && (toBoxModelObject->isRenderBlock() || toBoxModelObject->isRenderInline())) {
+        // Takes care of adding the new child correctly if toBlock and fromBlock
+        // have different kind of children (block vs inline).
+        toBoxModelObject->addChild(virtualChildren()->removeChildNode(this, child), beforeChild);
+    } else
+        toBoxModelObject->virtualChildren()->insertChildNode(toBoxModelObject, virtualChildren()->removeChildNode(this, child, fullRemoveInsert), beforeChild, fullRemoveInsert);
+}
+
+void RenderBoxModelObject::moveChildrenTo(RenderBoxModelObject* toBoxModelObject, RenderObject* startChild, RenderObject* endChild, RenderObject* beforeChild, bool fullRemoveInsert)
+{
+    ASSERT(!beforeChild || toBoxModelObject == beforeChild->parent());
+    for (RenderObject* child = startChild; child && child != endChild; ) {
+        // Save our next sibling as moveChildTo will clear it.
+        RenderObject* nextSibling = child->nextSibling();
+        moveChildTo(toBoxModelObject, child, beforeChild, fullRemoveInsert);
+        child = nextSibling;
+    }
 }
 
 } // namespace WebCore

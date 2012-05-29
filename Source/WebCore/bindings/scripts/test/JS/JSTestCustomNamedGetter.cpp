@@ -123,7 +123,7 @@ JSObject* JSTestCustomNamedGetter::createPrototype(ExecState* exec, JSGlobalObje
 
 void JSTestCustomNamedGetter::destroy(JSC::JSCell* cell)
 {
-    JSTestCustomNamedGetter* thisObject = jsCast<JSTestCustomNamedGetter*>(cell);
+    JSTestCustomNamedGetter* thisObject = static_cast<JSTestCustomNamedGetter*>(cell);
     thisObject->JSTestCustomNamedGetter::~JSTestCustomNamedGetter();
 }
 

@@ -34,6 +34,7 @@
 #include "config.h"
 #include "ChromeClientEfl.h"
 
+#include "ApplicationCacheStorage.h"
 #include "FileChooser.h"
 #include "FileIconLoader.h"
 #include "FloatRect.h"
@@ -53,6 +54,7 @@
 #include "WindowFeatures.h"
 #include "ewk_frame_private.h"
 #include "ewk_private.h"
+#include "ewk_security_origin_private.h"
 #include "ewk_view_private.h"
 #include <Ecore_Evas.h>
 #include <Evas.h>
@@ -69,6 +71,10 @@
 
 #if ENABLE(INPUT_TYPE_COLOR)
 #include "ColorChooserEfl.h"
+#endif
+
+#if ENABLE(FULLSCREEN_API)
+#include "Settings.h"
 #endif
 
 using namespace WebCore;
@@ -391,9 +397,21 @@ void ChromeClientEfl::reachedMaxAppCacheSize(int64_t spaceNeeded)
     notImplemented();
 }
 
-void ChromeClientEfl::reachedApplicationCacheOriginQuota(SecurityOrigin*, int64_t)
+void ChromeClientEfl::reachedApplicationCacheOriginQuota(SecurityOrigin* origin, int64_t totalSpaceNeeded)
 {
-    notImplemented();
+    Ewk_Security_Origin* ewkOrigin = ewk_security_origin_new(origin);
+    int64_t defaultOriginQuota = WebCore::cacheStorage().defaultOriginQuota();
+
+    int64_t newQuota = ewk_view_exceeded_application_cache_quota(m_view, ewkOrigin, defaultOriginQuota, totalSpaceNeeded);
+    if (newQuota)
+        ewk_security_origin_application_cache_quota_set(ewkOrigin, newQuota);
+
+    ewk_security_origin_free(ewkOrigin);
+}
+
+void ChromeClientEfl::populateVisitedLinks()
+{
+    evas_object_smart_callback_call(m_view, "populate,visited,links", 0);
 }
 
 #if ENABLE(TOUCH_EVENTS)
@@ -600,10 +618,11 @@ ChromeClient::CompositingTriggerFlags ChromeClientEfl::allowedCompositingTrigger
 #if ENABLE(FULLSCREEN_API)
 bool ChromeClientEfl::supportsFullScreenForElement(const WebCore::Element* element, bool withKeyboard)
 {
-    if (withKeyboard)
-        return false;
+    UNUSED_PARAM(withKeyboard);
 
-    return true;
+    if (!element->document()->page())
+        return false;
+    return element->document()->page()->settings()->fullScreenEnabled();
 }
 
 void ChromeClientEfl::enterFullScreenForElement(WebCore::Element* element)
@@ -618,4 +637,34 @@ void ChromeClientEfl::exitFullScreenForElement(WebCore::Element* element)
     element->document()->webkitDidExitFullScreenForElement(element);
 }
 #endif
+
+#if ENABLE(REGISTER_PROTOCOL_HANDLER)
+static Ewk_Custom_Handler_Data* customHandlerDataCreate(Evas_Object* ewkView, const char* scheme, const char* baseURL, const char* url, const char* title)
+{
+    Ewk_Custom_Handler_Data* data = new Ewk_Custom_Handler_Data;
+    data->ewkView = ewkView;
+    data->scheme = eina_stringshare_add(scheme);
+    data->base_url = eina_stringshare_add(baseURL);
+    data->url = eina_stringshare_add(url);
+    data->title = eina_stringshare_add(title);
+    return data;
+}
+
+static void customHandlerDataDelete(Ewk_Custom_Handler_Data* data)
+{
+    eina_stringshare_del(data->scheme);
+    eina_stringshare_del(data->base_url);
+    eina_stringshare_del(data->url);
+    eina_stringshare_del(data->title);
+    delete data;
+}
+
+void ChromeClientEfl::registerProtocolHandler(const String& scheme, const String& baseURL, const String& url, const String& title)
+{
+    Ewk_Custom_Handler_Data* data = customHandlerDataCreate(m_view, scheme.utf8().data(), baseURL.utf8().data(), url.utf8().data(), title.utf8().data());
+    ewk_custom_handler_register_protocol_handler(data);
+    customHandlerDataDelete(data);
+}
+#endif
+
 }

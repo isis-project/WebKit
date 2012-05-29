@@ -45,9 +45,12 @@ using namespace WebCore;
 
 namespace WebKit {
 
-static NPIdentifier npIdentifierFromIdentifier(PropertyName identifier)
+static NPIdentifier npIdentifierFromIdentifier(PropertyName propertyName)
 {
-    return static_cast<NPIdentifier>(IdentifierRep::get(identifier.ustring().utf8().data()));
+    UString name(propertyName.publicName());
+    if (name.isNull())
+        return 0;
+    return static_cast<NPIdentifier>(IdentifierRep::get(name.utf8().data()));
 }
 
 const ClassInfo JSNPObject::s_info = { "NPObject", &JSNonFinalObject::s_info, 0, 0, CREATE_METHOD_TABLE(JSNPObject) };
@@ -78,7 +81,7 @@ JSNPObject::~JSNPObject()
 
 void JSNPObject::destroy(JSCell* cell)
 {
-    jsCast<JSNPObject*>(cell)->JSNPObject::~JSNPObject();
+    static_cast<JSNPObject*>(cell)->JSNPObject::~JSNPObject();
 }
 
 void JSNPObject::invalidate()
@@ -93,7 +96,6 @@ void JSNPObject::invalidate()
 NPObject* JSNPObject::leakNPObject()
 {
     ASSERT(m_npObject);
-    ASSERT_GC_OBJECT_INHERITS(this, &s_info);
 
     NPObject* object = m_npObject;
     m_npObject = 0;
@@ -474,7 +476,7 @@ JSValue JSNPObject::propertyGetter(ExecState* exec, JSValue slotBase, PropertyNa
     return propertyValue;
 }
 
-JSValue JSNPObject::methodGetter(ExecState* exec, JSValue slotBase, PropertyName methodName)
+JSValue JSNPObject::methodGetter(ExecState* exec, JSValue slotBase, PropertyName propertyName)
 {
     JSNPObject* thisObj = static_cast<JSNPObject*>(asObject(slotBase));
     ASSERT_GC_OBJECT_INHERITS(thisObj, &s_info);
@@ -482,8 +484,8 @@ JSValue JSNPObject::methodGetter(ExecState* exec, JSValue slotBase, PropertyName
     if (!thisObj->m_npObject)
         return throwInvalidAccessError(exec);
 
-    NPIdentifier npIdentifier = npIdentifierFromIdentifier(methodName);
-    return JSNPMethod::create(exec, thisObj->globalObject(), methodName.ustring(), npIdentifier);
+    NPIdentifier npIdentifier = npIdentifierFromIdentifier(propertyName);
+    return JSNPMethod::create(exec, thisObj->globalObject(), propertyName.publicName(), npIdentifier);
 }
 
 JSObject* JSNPObject::throwInvalidAccessError(ExecState* exec)

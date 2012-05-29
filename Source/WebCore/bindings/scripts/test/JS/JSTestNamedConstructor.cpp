@@ -152,7 +152,7 @@ JSObject* JSTestNamedConstructor::createPrototype(ExecState* exec, JSGlobalObjec
 
 void JSTestNamedConstructor::destroy(JSC::JSCell* cell)
 {
-    JSTestNamedConstructor* thisObject = jsCast<JSTestNamedConstructor*>(cell);
+    JSTestNamedConstructor* thisObject = static_cast<JSTestNamedConstructor*>(cell);
     thisObject->JSTestNamedConstructor::~JSTestNamedConstructor();
 }
 

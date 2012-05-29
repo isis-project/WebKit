@@ -76,7 +76,7 @@ public:
     static void executeCoreCommandByName(const Evas_Object* ewkView, const char* name, const char* value);
     static bool findString(const Evas_Object* ewkView, const String& text, WebCore::FindOptions);
     static bool isCommandEnabled(const Evas_Object* ewkView, const char* name);
-    static void setJavaScriptProfilingEnabled(const Evas_Object* ewkView, bool enabled);
+    static void setCSSGridLayoutEnabled(const Evas_Object* ewkView, bool enabled);
     static void setSmartInsertDeleteEnabled(Evas_Object* ewkView, bool enabled);
     static void setSelectTrailingWhitespaceEnabled(Evas_Object* ewkView, bool enabled);
 
@@ -85,20 +85,25 @@ public:
     static size_t javaScriptObjectsCount();
     static unsigned workerThreadCount();
 
+    static void setDeadDecodedDataDeletionInterval(double);
+
     static HistoryItemChildrenVector childHistoryItems(const Ewk_History_Item*);
     static String historyItemTarget(const Ewk_History_Item*);
     static bool isTargetItem(const Ewk_History_Item*);
+    static void evaluateScriptInIsolatedWorld(const Evas_Object* ewkFrame, int worldID, JSObjectRef globalObject, const String& script);
+    static JSGlobalContextRef globalContextRefForFrame(const Evas_Object* ewkFrame);
 
     static void setMockScrollbarsEnabled(bool);
 
     static void dumpConfigurationForViewport(Evas_Object* ewkView, int deviceDPI, const WebCore::IntSize& deviceSize, const WebCore::IntSize& availableSize);
 
     static void deliverAllMutationsIfNecessary();
-    static void setEditingBehavior(Evas_Object* ewkView, const char* editingBehavior);
     static String markerTextForListItem(JSContextRef, JSValueRef nodeObject);
     static void setInteractiveFormValidationEnabled(Evas_Object* ewkView, bool enabled);
+    static void setValidationMessageTimerMagnification(Evas_Object* ewkView, int value);
     static JSValueRef computedStyleIncludingVisitedInfo(JSContextRef, JSValueRef);
     static void setAuthorAndUserStylesEnabled(Evas_Object* ewkView, bool);
+    static void setSerializeHTTPLoads(bool);
 
     // TextInputController
     static void setComposition(Evas_Object*, const char*, int, int);

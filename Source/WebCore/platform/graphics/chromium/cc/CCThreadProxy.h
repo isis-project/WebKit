@@ -65,9 +65,10 @@ public:
     virtual void loseContext() OVERRIDE;
     virtual void setNeedsAnimate() OVERRIDE;
     virtual void setNeedsCommit() OVERRIDE;
+    virtual void setNeedsForcedCommit() OVERRIDE;
     virtual void setNeedsRedraw() OVERRIDE;
     virtual bool commitRequested() const OVERRIDE;
-    virtual void setVisible(bool) OVERRIDE;
+    virtual void didAddAnimation() OVERRIDE { }
     virtual void start() OVERRIDE;
     virtual void stop() OVERRIDE;
     virtual size_t maxPartialTextureUpdates() const OVERRIDE;
@@ -137,7 +138,6 @@ private:
     void setSurfaceReadyOnImplThread();
     void initializeContextOnImplThread(GraphicsContext3D*);
     void initializeLayerRendererOnImplThread(CCCompletionEvent*, bool* initializeSucceeded, LayerRendererCapabilities*);
-    void setVisibleOnImplThread(CCCompletionEvent*, bool visible);
     void layerTreeHostClosedOnImplThread(CCCompletionEvent*);
     void setFullRootLayerDamageOnImplThread();
     void acquireLayerTexturesForMainThreadOnImplThread(CCCompletionEvent*);
@@ -145,10 +145,12 @@ private:
     CCScheduledActionDrawAndSwapResult scheduledActionDrawAndSwapInternal(bool forcedDraw);
     void setFontAtlasOnImplThread(PassOwnPtr<CCFontAtlas>);
     void forceSerializeOnSwapBuffersOnImplThread(CCCompletionEvent*);
+    void setNeedsForcedCommitOnImplThread();
 
     // Accessed on main thread only.
     bool m_animateRequested;
     bool m_commitRequested;
+    bool m_forcedCommitRequested;
     bool m_contextLost;
     OwnPtr<CCThreadProxyContextRecreationTimer> m_contextRecreationTimer;
     CCLayerTreeHost* m_layerTreeHost;

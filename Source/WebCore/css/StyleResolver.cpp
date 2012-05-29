@@ -52,6 +52,7 @@
 #include "CachedImage.h"
 #include "CalculationValue.h"
 #include "ContentData.h"
+#include "ContextEnabledFeatures.h"
 #include "Counter.h"
 #include "CounterContent.h"
 #include "CursorList.h"
@@ -89,7 +90,6 @@
 #include "RenderStyleConstants.h"
 #include "RenderTheme.h"
 #include "RotateTransformOperation.h"
-#include "RuntimeEnabledFeatures.h"
 #include "SVGDocumentExtensions.h"
 #include "SVGFontFaceElement.h"
 #include "ScaleTransformOperation.h"
@@ -104,6 +104,8 @@
 #include "StyleGeneratedImage.h"
 #include "StylePendingImage.h"
 #include "StyleRule.h"
+#include "StyleRuleImport.h"
+#include "StyleSheetContents.h"
 #include "StyleSheetList.h"
 #include "Text.h"
 #include "TransformationMatrix.h"
@@ -148,7 +150,7 @@
 #include "StyleCachedImageSet.h"
 #endif
 
-#if PLATFORM(QT) || PLATFORM(BLACKBERRY)
+#if PLATFORM(BLACKBERRY)
 #define FIXED_POSITION_CREATES_STACKING_CONTEXT 1
 #endif
 
@@ -239,7 +241,7 @@ public:
 
     typedef HashMap<AtomicStringImpl*, OwnPtr<Vector<RuleData> > > AtomRuleMap;
 
-    void addRulesFromSheet(StyleSheetInternal*, const MediaQueryEvaluator&, StyleResolver* = 0, const ContainerNode* = 0);
+    void addRulesFromSheet(StyleSheetContents*, const MediaQueryEvaluator&, StyleResolver* = 0, const ContainerNode* = 0);
 
     void addStyleRule(StyleRule*, bool hasDocumentSecurityOrigin, bool canUseFastCheckSelector, bool isInRegionRule = false);
     void addRule(StyleRule*, CSSSelector*, bool hasDocumentSecurityOrigin, bool canUseFastCheckSelector, bool isInRegionRule = false);
@@ -289,13 +291,13 @@ static RuleSet* defaultStyle;
 static RuleSet* defaultQuirksStyle;
 static RuleSet* defaultPrintStyle;
 static RuleSet* defaultViewSourceStyle;
-static StyleSheetInternal* simpleDefaultStyleSheet;
-static StyleSheetInternal* defaultStyleSheet;
-static StyleSheetInternal* quirksStyleSheet;
-static StyleSheetInternal* svgStyleSheet;
-static StyleSheetInternal* mathMLStyleSheet;
-static StyleSheetInternal* mediaControlsStyleSheet;
-static StyleSheetInternal* fullscreenStyleSheet;
+static StyleSheetContents* simpleDefaultStyleSheet;
+static StyleSheetContents* defaultStyleSheet;
+static StyleSheetContents* quirksStyleSheet;
+static StyleSheetContents* svgStyleSheet;
+static StyleSheetContents* mathMLStyleSheet;
+static StyleSheetContents* mediaControlsStyleSheet;
+static StyleSheetContents* fullscreenStyleSheet;
 
 RenderStyle* StyleResolver::s_styleNotYetAvailable;
 
@@ -403,7 +405,7 @@ StyleResolver::StyleResolver(Document* document, bool matchAuthorAndUserStyles)
     // FIXME: This sucks! The user sheet is reparsed every time!
     OwnPtr<RuleSet> tempUserStyle = RuleSet::create();
     if (CSSStyleSheet* pageUserSheet = document->pageUserSheet())
-        tempUserStyle->addRulesFromSheet(pageUserSheet->internal(), *m_medium, this);
+        tempUserStyle->addRulesFromSheet(pageUserSheet->contents(), *m_medium, this);
     addAuthorRulesAndCollectUserRulesFromSheets(document->pageGroupUserSheets(), *tempUserStyle);
     addAuthorRulesAndCollectUserRulesFromSheets(document->documentUserSheets(), *tempUserStyle);
     if (tempUserStyle->m_ruleCount > 0 || tempUserStyle->m_pageRules.size() > 0)
@@ -444,7 +446,7 @@ void StyleResolver::addAuthorRulesAndCollectUserRulesFromSheets(const Vector<Ref
 
     unsigned length = userSheets->size();
     for (unsigned i = 0; i < length; i++) {
-        StyleSheetInternal* sheet = userSheets->at(i)->internal();
+        StyleSheetContents* sheet = userSheets->at(i)->contents();
         if (sheet->isUserStyleSheet())
             userStyle.addRulesFromSheet(sheet, *m_medium, this);
         else
@@ -488,7 +490,7 @@ const ContainerNode* StyleResolver::determineScope(const CSSStyleSheet* sheet)
 {
     ASSERT(sheet);
 
-    if (!RuntimeEnabledFeatures::styleScopedEnabled())
+    if (!ContextEnabledFeatures::styleScopedEnabled(document()))
         return 0;
 
     Node* ownerNode = sheet->ownerNode();
@@ -528,7 +530,7 @@ void StyleResolver::appendAuthorStylesheets(unsigned firstNew, const Vector<RefP
             continue;
         if (cssSheet->mediaQueries() && !m_medium->eval(cssSheet->mediaQueries(), this))
             continue;
-        StyleSheetInternal* sheet = cssSheet->internal();
+        StyleSheetContents* sheet = cssSheet->contents();
 #if ENABLE(STYLE_SCOPED)
         const ContainerNode* scope = determineScope(cssSheet);
         if (scope) {
@@ -705,14 +707,14 @@ void StyleResolver::Features::clear()
     usesLinkRules = false;
 }
 
-static StyleSheetInternal* parseUASheet(const String& str)
+static StyleSheetContents* parseUASheet(const String& str)
 {
-    StyleSheetInternal* sheet = StyleSheetInternal::create().leakRef(); // leak the sheet on purpose
+    StyleSheetContents* sheet = StyleSheetContents::create().leakRef(); // leak the sheet on purpose
     sheet->parseString(str);
     return sheet;
 }
 
-static StyleSheetInternal* parseUASheet(const char* characters, unsigned size)
+static StyleSheetContents* parseUASheet(const char* characters, unsigned size)
 {
     return parseUASheet(String(characters, size));
 }
@@ -814,11 +816,11 @@ static void ensureDefaultStyleSheetsForElement(Element* element)
     ASSERT(mathMLStyleSheet || defaultStyle->features().siblingRules.isEmpty());
 }
 
-void StyleResolver::addMatchedProperties(MatchResult& matchResult, StylePropertySet* properties, StyleRule* rule, unsigned linkMatchType, bool inRegionRule)
+void StyleResolver::addMatchedProperties(MatchResult& matchResult, const StylePropertySet* properties, StyleRule* rule, unsigned linkMatchType, bool inRegionRule)
 {
     matchResult.matchedProperties.grow(matchResult.matchedProperties.size() + 1);
     MatchedProperties& newProperties = matchResult.matchedProperties.last();
-    newProperties.properties = properties;
+    newProperties.properties = const_cast<StylePropertySet*>(properties);
     newProperties.linkMatchType = linkMatchType;
     newProperties.isInRegionRule = inRegionRule;
     matchResult.matchedRules.append(rule);
@@ -1049,7 +1051,7 @@ void StyleResolver::collectMatchingRulesForList(const Vector<RuleData>* rules, i
                 continue;
             }
             // If the rule has no properties to apply, then ignore it in the non-debug mode.
-            StylePropertySet* properties = rule->properties();
+            const StylePropertySet* properties = rule->properties();
             if (!properties || (properties->isEmpty() && !options.includeEmptyRules)) {
                 InspectorInstrumentation::didMatchRule(cookie, false);
                 continue;
@@ -1388,6 +1390,9 @@ bool StyleResolver::canShareStyleWithElement(StyledElement* element) const
 #endif
 
     if (element->hasTagName(optionTag))
+        return false;
+
+    if (element->hasTagName(optgroupTag) && m_element->disabled() != element->disabled())
         return false;
 
     bool isControl = element->isFormControlElement();
@@ -1912,10 +1917,10 @@ static EDisplay equivalentBlockDisplay(EDisplay display, bool isFloating, bool s
     case BLOCK:
     case TABLE:
     case BOX:
-    case FLEXBOX:
-#if ENABLE(CSS_GRID_LAYOUT)
-    case GRID:
+#if ENABLE(CSS3_FLEXBOX)
+    case FLEX:
 #endif
+    case GRID:
         return display;
 
     case LIST_ITEM:
@@ -1927,12 +1932,12 @@ static EDisplay equivalentBlockDisplay(EDisplay display, bool isFloating, bool s
         return TABLE;
     case INLINE_BOX:
         return BOX;
-    case INLINE_FLEXBOX:
-        return FLEXBOX;
-#if ENABLE(CSS_GRID_LAYOUT)
+#if ENABLE(CSS3_FLEXBOX)
+    case INLINE_FLEX:
+        return FLEX;
+#endif
     case INLINE_GRID:
         return GRID;
-#endif
 
     case INLINE:
     case RUN_IN:
@@ -2051,6 +2056,8 @@ void StyleResolver::adjustRenderStyle(RenderStyle* style, RenderStyle* parentSty
         || style->hasTransformRelatedProperty() || style->hasMask() || style->boxReflect() || style->hasFilter()
 #ifdef FIXED_POSITION_CREATES_STACKING_CONTEXT
         || style->position() == FixedPosition
+#else
+        || (style->position() == FixedPosition && e && e->document()->page()->settings()->fixedPositionCreatesStackingContext())
 #endif
 #if ENABLE(OVERFLOW_SCROLLING)
         // Touch overflow scrolling creates a stacking context.
@@ -2129,6 +2136,10 @@ void StyleResolver::adjustRenderStyle(RenderStyle* style, RenderStyle* parentSty
         || style->overflowY() != OVISIBLE
         || style->hasFilter()))
         style->setTransformStyle3D(TransformStyle3DFlat);
+
+    // Seamless iframes behave like blocks. Map their display to inline-block when marked inline.
+    if (e && e->hasTagName(iframeTag) && style->display() == INLINE && static_cast<HTMLIFrameElement*>(e)->shouldDisplaySeamlessly())
+        style->setDisplay(INLINE_BLOCK);
 
 #if ENABLE(SVG)
     if (e && e->isSVGElement()) {
@@ -2289,7 +2300,7 @@ bool StyleResolver::checkRegionSelector(CSSSelector* regionSelector, Element* re
     return false;
 }
     
-bool StyleResolver::determineStylesheetSelectorScopes(StyleSheetInternal* stylesheet, HashSet<AtomicStringImpl*>& idScopes, HashSet<AtomicStringImpl*>& classScopes)
+bool StyleResolver::determineStylesheetSelectorScopes(StyleSheetContents* stylesheet, HashSet<AtomicStringImpl*>& idScopes, HashSet<AtomicStringImpl*>& classScopes)
 {
     ASSERT(!stylesheet->isLoading());
 
@@ -2515,7 +2526,7 @@ void RuleSet::addRegionRule(StyleRuleRegion* regionRule, bool hasDocumentSecurit
     m_regionSelectorsAndRuleSets.append(RuleSetSelectorPair(regionRule->selectorList().first(), regionRuleSet.release()));
 }
 
-void RuleSet::addRulesFromSheet(StyleSheetInternal* sheet, const MediaQueryEvaluator& medium, StyleResolver* styleSelector, const ContainerNode* scope)
+void RuleSet::addRulesFromSheet(StyleSheetContents* sheet, const MediaQueryEvaluator& medium, StyleResolver* styleSelector, const ContainerNode* scope)
 {
     ASSERT(sheet);
     
@@ -2578,12 +2589,15 @@ void RuleSet::addRulesFromSheet(StyleSheetInternal* sheet, const MediaQueryEvalu
             if (scope)
                 continue;
             styleSelector->addKeyframeStyle(static_cast<StyleRuleKeyframes*>(rule));
-        } else if (rule->isRegionRule() && styleSelector) {
+        }
+#if ENABLE(CSS_REGIONS)
+        else if (rule->isRegionRule() && styleSelector) {
             // FIXME (BUG 72472): We don't add @-webkit-region rules of scoped style sheets for the moment.
             if (scope)
                 continue;
             addRegionRule(static_cast<StyleRuleRegion*>(rule), hasDocumentSecurityOrigin);
         }
+#endif
     }
     if (m_autoShrinkToFitEnabled)
         shrinkToFit();
@@ -2900,7 +2914,7 @@ void StyleResolver::matchPageRulesForList(Vector<StyleRulePage*>& matchedRules, 
             continue;
 
         // If the rule has no properties to apply, then ignore it.
-        StylePropertySet* properties = rule->properties();
+        const StylePropertySet* properties = rule->properties();
         if (!properties || properties->isEmpty())
             continue;
 
@@ -2942,8 +2956,10 @@ static void collectCSSOMWrappers(HashMap<StyleRule*, RefPtr<CSSStyleRule> >& wra
             collectCSSOMWrappers(wrapperMap, static_cast<CSSImportRule*>(cssRule)->styleSheet());
         else if (cssRule->isMediaRule())
             collectCSSOMWrappers(wrapperMap, static_cast<CSSMediaRule*>(cssRule));
+#if ENABLE(CSS_REGIONS)
         else if (cssRule->isRegionRule())
             collectCSSOMWrappers(wrapperMap, static_cast<WebKitCSSRegionRule*>(cssRule));
+#endif
         else if (cssRule->isStyleRule()) {
             CSSStyleRule* cssStyleRule = static_cast<CSSStyleRule*>(cssRule);
             wrapperMap.add(cssStyleRule->styleRule(), cssStyleRule);
@@ -2951,7 +2967,7 @@ static void collectCSSOMWrappers(HashMap<StyleRule*, RefPtr<CSSStyleRule> >& wra
     }
 }
 
-static void collectCSSOMWrappers(HashMap<StyleRule*, RefPtr<CSSStyleRule> >& wrapperMap, HashSet<RefPtr<CSSStyleSheet> >& sheetWrapperSet, StyleSheetInternal* styleSheet)
+static void collectCSSOMWrappers(HashMap<StyleRule*, RefPtr<CSSStyleRule> >& wrapperMap, HashSet<RefPtr<CSSStyleSheet> >& sheetWrapperSet, StyleSheetContents* styleSheet)
 {
     if (!styleSheet)
         return;
@@ -3042,6 +3058,7 @@ inline bool StyleResolver::isValidRegionStyleProperty(CSSPropertyID id)
 {
     switch (id) {
     case CSSPropertyBackgroundColor:
+    case CSSPropertyColor:
         return true;
     default:
         break;
@@ -3062,8 +3079,6 @@ bool StyleResolver::useSVGZoomRules()
 {
     return m_element && m_element->isSVGElement();
 }
-
-#if ENABLE(CSS_GRID_LAYOUT)
 
 static bool createGridTrackBreadth(CSSPrimitiveValue* primitiveValue, StyleResolver* selector, Length& length)
 {
@@ -3123,7 +3138,6 @@ static bool createGridPosition(CSSValue* value, Length& position)
     position.setValue(primitiveValue->getIntValue());
     return true;
 }
-#endif
 
 void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
 {
@@ -3856,7 +3870,7 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
         m_style->setLineBoxContain(lineBoxContainValue->value());
         return;
     }
-
+#if ENABLE(CSS_EXCLUSIONS)
     case CSSPropertyWebkitShapeInside:
         HANDLE_INHERIT_AND_INITIAL(wrapShapeInside, WrapShapeInside);
         if (!primitiveValue)
@@ -3876,7 +3890,7 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
         else if (primitiveValue->isShape())
             m_style->setWrapShapeOutside(primitiveValue->getShapeValue());
         return;
-
+#endif
     // CSS Fonts Module Level 3
     case CSSPropertyWebkitFontFeatureSettings: {
         if (primitiveValue && primitiveValue->getIdent() == CSSValueNormal) {
@@ -3912,7 +3926,6 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
         return;
     }
 #endif
-#if ENABLE(CSS_GRID_LAYOUT)
     case CSSPropertyWebkitGridColumns: {
         Vector<Length> lengths;
         if (!createGridTrackList(value, lengths, this))
@@ -3942,7 +3955,6 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
         m_style->setGridItemRow(row);
         return;
     }
-#endif
 
     // These properties are implemented in the StyleBuilder lookup table.
     case CSSPropertyBackgroundAttachment:
@@ -4100,6 +4112,7 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
     case CSSPropertyWebkitColumns:
     case CSSPropertyWebkitColumnSpan:
     case CSSPropertyWebkitColumnWidth:
+#if ENABLE(CSS3_FLEXBOX)
     case CSSPropertyWebkitFlex:
     case CSSPropertyWebkitFlexAlign:
     case CSSPropertyWebkitFlexDirection:
@@ -4109,8 +4122,11 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
     case CSSPropertyWebkitFlexOrder:
     case CSSPropertyWebkitFlexPack:
     case CSSPropertyWebkitFlexWrap:
+#endif
+#if ENABLE(CSS_REGIONS)
     case CSSPropertyWebkitFlowFrom:
     case CSSPropertyWebkitFlowInto:
+#endif
     case CSSPropertyWebkitFontKerning:
     case CSSPropertyWebkitFontSmoothing:
     case CSSPropertyWebkitFontVariantLigatures:
@@ -4150,10 +4166,12 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
     case CSSPropertyWebkitPerspectiveOriginX:
     case CSSPropertyWebkitPerspectiveOriginY:
     case CSSPropertyWebkitPrintColorAdjust:
+#if ENABLE(CSS_REGIONS)
     case CSSPropertyWebkitRegionBreakAfter:
     case CSSPropertyWebkitRegionBreakBefore:
     case CSSPropertyWebkitRegionBreakInside:
     case CSSPropertyWebkitRegionOverflow:
+#endif
     case CSSPropertyWebkitRtlOrdering:
     case CSSPropertyWebkitTextCombine:
     case CSSPropertyWebkitTextEmphasisColor:
@@ -4175,11 +4193,13 @@ void StyleResolver::applyProperty(CSSPropertyID id, CSSValue *value)
     case CSSPropertyWebkitUserDrag:
     case CSSPropertyWebkitUserModify:
     case CSSPropertyWebkitUserSelect:
+#if ENABLE(CSS_EXCLUSIONS)
     case CSSPropertyWebkitWrap:
     case CSSPropertyWebkitWrapFlow:
     case CSSPropertyWebkitWrapMargin:
     case CSSPropertyWebkitWrapPadding:
     case CSSPropertyWebkitWrapThrough:
+#endif
     case CSSPropertyWhiteSpace:
     case CSSPropertyWidows:
     case CSSPropertyWidth:

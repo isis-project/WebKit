@@ -29,7 +29,7 @@ function setVersionSuccess(evt)
     event = evt;
     debug("setVersionSuccess():");
     self.trans = evalAndLog("trans = event.target.result");
-    shouldBeTrue("trans !== null");
+    shouldBeNonNull("trans");
     trans.onabort = unexpectedAbortCallback;
 
     deleteAllObjectStores(db);
@@ -42,6 +42,7 @@ function setVersionSuccess(evt)
     shouldBeTrue("'keyPath' in store");
     shouldBeTrue("'indexNames' in store");
     shouldBeTrue("'transaction' in store");
+    shouldBeTrue("'autoIncrement' in store");
     shouldBeTrue("'put' in store");
     shouldBeEqualToString("typeof store.put", "function");
     shouldBeTrue("'add' in store");
@@ -65,21 +66,17 @@ function setVersionSuccess(evt)
 
     shouldBeEqualToString("store.name", "storeName");
     shouldBeNull("store.keyPath");
+    shouldBeFalse("store.autoIncrement");
     shouldBe("storeNames.contains('storeName')", "true");
     shouldBe("storeNames.length", "1");
+
+    shouldBeEqualToString("db.createObjectStore('storeWithKeyPath', {keyPath: 'path'}).keyPath", "path");
+    shouldBeTrue("db.createObjectStore('storeWithKeyGenerator', {autoIncrement: true}).autoIncrement");
+
     // FIXME: test all of object store's methods.
 
     debug("Ask for an index that doesn't exist:");
-    try {
-        debug("index = store.index('asdf')");
-        index = store.index('asdf');
-        testFailed("Asking for a store that doesn't exist should have thrown.");
-    } catch (err) {
-        testPassed("Exception thrown.");
-        code = err.code;
-        shouldBe("code", "IDBDatabaseException.NOT_FOUND_ERR");
-    }
-
+    evalAndExpectException("store.index('asdf')", "IDBDatabaseException.NOT_FOUND_ERR");
     createIndex();
 }
 
@@ -87,21 +84,13 @@ function createIndex()
 {
     debug("createIndex():");
     var index = evalAndLog("index = store.createIndex('indexName', 'x', {unique: true})"); // true == unique requirement.
-    shouldBeTrue("index !== null");
+    shouldBeNonNull("index");
     shouldBeTrue("store.indexNames.contains('indexName')");
     index = evalAndLog("index = store.index('indexName')");
-    shouldBeTrue("index !== null");
+    shouldBeNonNull("index");
 
     debug("Ask for an index that doesn't exist:");
-    try {
-        debug("index = store.index('asdf')");
-        index = store.index('asdf');
-        testFailed("Asking for a store that doesn't exist should have thrown.");
-    } catch (err) {
-        testPassed("Exception thrown.");
-        code = err.code
-        shouldBe("code", "IDBDatabaseException.NOT_FOUND_ERR");
-    }
+    evalAndExpectException("store.index('asdf')", "IDBDatabaseException.NOT_FOUND_ERR");
     trans.oncomplete = testSetVersionAbort;
 }
 
@@ -118,7 +107,7 @@ function createAnotherIndex(evt)
     shouldBeEqualToString("db.version", "version fail");
 
     var setVersionTrans = evalAndLog("setVersionTrans = event.target.result");
-    shouldBeTrue("setVersionTrans !== null");
+    shouldBeNonNull("setVersionTrans");
     setVersionTrans.oncomplete = unexpectedCompleteCallback;
     setVersionTrans.onabort = checkMetadata;
     self.store = evalAndLog("store = setVersionTrans.objectStore('storeName')");
@@ -163,17 +152,7 @@ function addDateSuccess(evt)
 {
     event = evt;
     debug("Try to insert a value not handled by structured clone:");
-    try {
-        debug("store.add({x: 'bar', y: self}, 'bar')");
-        store.add({x: 'bar', y: self}, 'bar');
-        testFailed("Passing a DOM node as value should have thrown.");
-    } catch (err) {
-        testPassed("Exception thrown");
-        code = err.code;
-        // FIXME: When we move to DOM4-style exceptions this should look for the
-        // name "DataCloneError".
-        shouldBe("code", "25");
-    }
+    evalAndExpectException("store.add({x: 'bar', y: self}, 'bar')", "DOMException.DATA_CLONE_ERR");
 
     debug("Try to insert data where key path yields a Date key:");
     request = evalAndLog("store.add({x: testDateB, y: 'value'}, 'key')");
@@ -209,13 +188,14 @@ function addAgainFailure(evt)
 
     transaction = evalAndLog("db.transaction(['storeName'], 'readwrite')");
     transaction.onabort = unexpectedErrorCallback;
-    var store = evalAndLog("store = transaction.objectStore('storeName')");
+    store = evalAndLog("store = transaction.objectStore('storeName')");
 
-    evalAndExpectException("store.add({x: null}, 'validkey')", "IDBDatabaseException.DATA_ERR");
+    debug("Ensure invalid key pointed at by index keyPath is ignored");
+    evalAndLog("store.add({x: null}, 'validkey')");
 
     transaction = evalAndLog("db.transaction(['storeName'], 'readwrite')");
     transaction.onabort = unexpectedErrorCallback;
-    var store = evalAndLog("store = transaction.objectStore('storeName')");
+    store = evalAndLog("store = transaction.objectStore('storeName')");
 
     request = evalAndLog("store.get('key')");
     request.addEventListener('success', getSuccess, true);
@@ -307,9 +287,6 @@ function testPreConditions()
         debug("The key parameter was provided but does not contain a valid key.");
         evalAndExpectException("storeWithOutOfLineKeys.put({}, null)", "IDBDatabaseException.DATA_ERR");
 
-        debug("If there are any indexes referencing this object store whose key path is a string, evaluating their key path on the value parameter yields a value, and that value is not a valid key.");
-        evalAndExpectException("storeWithIndex.put({indexKey: null}, 'key')", "IDBDatabaseException.DATA_ERR");
-
         debug("");
         debug("IDBObjectStore.add()");
         debug("The object store uses in-line keys and the key parameter was provided.");
@@ -326,9 +303,6 @@ function testPreConditions()
 
         debug("The key parameter was provided but does not contain a valid key.");
         evalAndExpectException("storeWithOutOfLineKeys.add({}, null)", "IDBDatabaseException.DATA_ERR");
-
-        debug("If there are any indexes referencing this object store whose key path is a string, evaluating their key path on the value parameter yields a value, and that value is not a valid key.");
-        evalAndExpectException("storeWithIndex.add({indexKey: null}, 'key')", "IDBDatabaseException.DATA_ERR");
 
         finishJSTest();
     };

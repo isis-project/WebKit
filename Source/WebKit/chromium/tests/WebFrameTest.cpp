@@ -30,13 +30,17 @@
 
 #include "config.h"
 
+#include "WebFrame.h"
+
+#include "Frame.h"
 #include "FrameTestHelpers.h"
+#include "FrameView.h"
 #include "ResourceError.h"
 #include "WebDocument.h"
 #include "WebFindOptions.h"
 #include "WebFormElement.h"
-#include "WebFrame.h"
 #include "WebFrameClient.h"
+#include "WebFrameImpl.h"
 #include "WebRange.h"
 #include "WebScriptSource.h"
 #include "WebSearchableFormData.h"
@@ -226,18 +230,62 @@ TEST_F(WebFrameTest, DeviceScaleFactorUsesDefaultWithoutViewportTag)
 
     WebView* webView = static_cast<WebView*>(FrameTestHelpers::createWebViewAndLoad(m_baseURL + "no_viewport_tag.html", true, 0, &client));
 
-    webView->resize(WebSize(viewportWidth, viewportHeight));
     webView->settings()->setViewportEnabled(true);
     webView->settings()->setDefaultDeviceScaleFactor(2);
     webView->enableFixedLayoutMode(true);
+    webView->resize(WebSize(viewportWidth, viewportHeight));
     webView->layout();
 
     EXPECT_EQ(2, webView->deviceScaleFactor());
+
+    // Device scale factor should be a component of page scale factor in fixed-layout, so a scale of 1 becomes 2.
+    webView->setPageScaleFactorLimits(1, 2);
+    EXPECT_EQ(2, webView->pageScaleFactor());
+
+    // Force the layout to happen before leaving the test.
+    webView->mainFrame()->contentAsText(1024).utf8();
+}
+
+TEST_F(WebFrameTest, FixedLayoutInitializeAtMinimumPageScale)
+{
+    registerMockedHttpURLLoad("fixed_layout.html");
+
+    FixedLayoutTestWebViewClient client;
+    client.m_screenInfo.horizontalDPI = 160;
+    int viewportWidth = 640;
+    int viewportHeight = 480;
+    client.m_windowRect = WebRect(0, 0, viewportWidth, viewportHeight);
+
+    // Make sure we initialize to minimum scale, even if the window size
+    // only becomes available after the load begins.
+    WebViewImpl* webViewImpl = static_cast<WebViewImpl*>(FrameTestHelpers::createWebViewAndLoad(m_baseURL + "fixed_layout.html", true, 0, &client));
+    webViewImpl->enableFixedLayoutMode(true);
+    webViewImpl->settings()->setViewportEnabled(true);
+    webViewImpl->resize(WebSize(viewportWidth, viewportHeight));
+
+    int defaultFixedLayoutWidth = 980;
+    float minimumPageScaleFactor = viewportWidth / (float) defaultFixedLayoutWidth;
+    EXPECT_EQ(minimumPageScaleFactor, webViewImpl->pageScaleFactor());
+
+    // Assume the user has pinch zoomed to page scale factor 2.
+    float userPinchPageScaleFactor = 2;
+    webViewImpl->setPageScaleFactorPreservingScrollOffset(userPinchPageScaleFactor);
+    webViewImpl->mainFrameImpl()->frameView()->layout();
+
+    // Make sure we don't reset to initial scale if the page continues to load.
+    bool isNewNavigation;
+    webViewImpl->didCommitLoad(&isNewNavigation, false);
+    webViewImpl->didChangeContentsSize();
+    EXPECT_EQ(userPinchPageScaleFactor, webViewImpl->pageScaleFactor());
+
+    // Make sure we don't reset to initial scale if the viewport size changes.
+    webViewImpl->resize(WebSize(viewportWidth, viewportHeight + 100));
+    EXPECT_EQ(userPinchPageScaleFactor, webViewImpl->pageScaleFactor());
 }
 #endif
 
 #if ENABLE(GESTURE_EVENTS)
-TEST_F(WebFrameTest, FAILS_DivAutoZoomParamsTest)
+TEST_F(WebFrameTest, DivAutoZoomParamsTest)
 {
     registerMockedHttpURLLoad("get_scale_for_auto_zoom_into_div_test.html");
 
@@ -297,7 +345,6 @@ TEST_F(WebFrameTest, FAILS_DivAutoZoomParamsTest)
     webViewImpl->computeScaleAndScrollForHitRect(doubleTapPoint, WebViewImpl::DoubleTap, scale, scroll);
     EXPECT_FLOAT_EQ(3, scale);
 
-
     // Test for Non-doubletap scaling
     webViewImpl->setPageScaleFactor(1, WebPoint(0, 0));
     webViewImpl->setDeviceScaleFactor(4);
@@ -305,6 +352,9 @@ TEST_F(WebFrameTest, FAILS_DivAutoZoomParamsTest)
     // Test zooming into div.
     webViewImpl->computeScaleAndScrollForHitRect(WebRect(250, 250, 10, 10), WebViewImpl::FindInPage, scale, scroll);
     EXPECT_NEAR(pageWidth / divWidth, scale, 0.1);
+
+    // Drop any pending fake mouse events from zooming before leaving the test.
+    webViewImpl->page()->mainFrame()->eventHandler()->clear();
 }
 #endif
 

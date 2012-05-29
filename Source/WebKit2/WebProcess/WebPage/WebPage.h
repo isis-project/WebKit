@@ -306,10 +306,10 @@ public:
     void exitAcceleratedCompositingMode();
 #endif
 
-#if PLATFORM(MAC)
     void addPluginView(PluginView*);
     void removePluginView(PluginView*);
 
+#if PLATFORM(MAC)
     LayerHostingMode layerHostingMode() const { return m_layerHostingMode; }
     void setLayerHostingMode(LayerHostingMode);
 
@@ -454,6 +454,8 @@ public:
 
     void replaceSelectionWithText(WebCore::Frame*, const String&);
     void clearSelection();
+
+#if ENABLE(DRAG_SUPPORT)
 #if PLATFORM(WIN)
     void performDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, const WebCore::DragDataMap&, uint32_t flags);
 #elif PLATFORM(QT) || PLATFORM(GTK)
@@ -465,6 +467,7 @@ public:
 
     void willPerformLoadDragDestinationAction();
     void mayPerformUploadDragDestinationAction();
+#endif // ENABLE(DRAG_SUPPORT)
 
     void beginPrinting(uint64_t frameID, const PrintInfo&);
     void endPrinting();
@@ -520,6 +523,7 @@ public:
     void registerApplicationScheme(const String& scheme);
     void applicationSchemeReply(const QtNetworkReplyData&);
     void receivedApplicationSchemeRequest(const QNetworkRequest&, QtNetworkReply*);
+    void setUserScripts(const Vector<String>&);
 #endif
     void wheelEvent(const WebWheelEvent&);
 #if ENABLE(GESTURE_EVENTS)
@@ -704,6 +708,9 @@ private:
 
     WebCore::IntSize m_viewSize;
     OwnPtr<DrawingArea> m_drawingArea;
+
+    HashSet<PluginView*> m_pluginViews;
+
     bool m_useFixedLayout;
 
     bool m_drawsBackground;
@@ -730,9 +737,6 @@ private:
     // The accessibility position of the view.
     WebCore::IntPoint m_accessibilityPosition;
     
-    // All plug-in views on this web page.
-    HashSet<PluginView*> m_pluginViews;
-
     // The layer hosting mode.
     LayerHostingMode m_layerHostingMode;
 

@@ -105,7 +105,7 @@ public:
     void didDrawAllLayers(const FrameData&);
 
     // LayerRendererChromiumClient implementation
-    virtual const IntSize& viewportSize() const OVERRIDE { return m_viewportSize; }
+    virtual const IntSize& deviceViewportSize() const OVERRIDE { return m_deviceViewportSize; }
     virtual const CCSettings& settings() const OVERRIDE { return m_settings; }
     virtual void didLoseContext() OVERRIDE;
     virtual void onSwapBuffersComplete() OVERRIDE;
@@ -144,10 +144,14 @@ public:
     int sourceFrameNumber() const { return m_sourceFrameNumber; }
     void setSourceFrameNumber(int frameNumber) { m_sourceFrameNumber = frameNumber; }
 
+    bool sourceFrameCanBeDrawn() const { return m_sourceFrameCanBeDrawn; }
+    void setSourceFrameCanBeDrawn(bool sourceFrameCanBeDrawn) { m_sourceFrameCanBeDrawn = sourceFrameCanBeDrawn; }
+
+    const IntSize& viewportSize() const { return m_viewportSize; }
     void setViewportSize(const IntSize&);
 
-    void setPageScaleFactorAndLimits(float pageScale, float minPageScale, float maxPageScale);
     float pageScale() const { return m_pageScale; }
+    void setPageScaleFactorAndLimits(float pageScale, float minPageScale, float maxPageScale);
 
     PassOwnPtr<CCScrollAndScaleSet> processScrollDeltas();
 
@@ -170,8 +174,14 @@ protected:
     void animatePageScale(double monotonicTime);
     void animateGestures(double monotonicTime);
 
+    // Exposed for testing.
+    void calculateRenderSurfaceLayerList(CCLayerList&);
+
     // Virtual for testing.
     virtual void animateLayers(double monotonicTime, double wallClockTime);
+
+    // Virtual for testing. Measured in seconds.
+    virtual double lowFrequencyAnimationInterval() const;
 
     CCLayerTreeHostImplClient* m_client;
     int m_sourceFrameNumber;
@@ -187,13 +197,13 @@ private:
     void adjustScrollsForPageScaleChange(float);
     void updateMaxScrollPosition();
     void trackDamageForAllSurfaces(CCLayerImpl* rootDrawLayer, const CCLayerList& renderSurfaceLayerList);
-    void calculateRenderSurfaceLayerList(CCLayerList&);
 
     // Returns false if the frame should not be displayed. This function should
     // only be called from prepareToDraw, as didDrawAllLayers must be called
     // if this helper function is called.
     bool calculateRenderPasses(CCRenderPassList&, CCLayerList& renderSurfaceLayerList);
     void animateLayersRecursive(CCLayerImpl*, double monotonicTime, double wallClockTime, CCAnimationEventsVector*, bool& didAnimate, bool& needsAnimateLayers);
+    void setBackgroundTickingEnabled(bool);
     IntSize contentSize() const;
     void sendDidLoseContextRecursive(CCLayerImpl*);
     void clearRenderSurfacesOnCCLayerImplRecursive(CCLayerImpl*);
@@ -205,7 +215,9 @@ private:
     CCLayerImpl* m_scrollLayerImpl;
     CCSettings m_settings;
     IntSize m_viewportSize;
+    IntSize m_deviceViewportSize;
     bool m_visible;
+    bool m_sourceFrameCanBeDrawn;
 
     OwnPtr<CCHeadsUpDisplay> m_headsUpDisplay;
 

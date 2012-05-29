@@ -561,12 +561,6 @@ void LayoutTestController::setIconDatabaseEnabled(bool iconDatabaseEnabled)
     [sharedWebIconDatabase setEnabled:iconDatabaseEnabled];
 }
 
-void LayoutTestController::setJavaScriptProfilingEnabled(bool profilingEnabled)
-{
-    setDeveloperExtrasEnabled(profilingEnabled);
-    [[[mainFrame webView] inspector] setJavaScriptProfilingEnabled:profilingEnabled];
-}
-
 void LayoutTestController::setMainFrameIsFirstResponder(bool flag)
 {
     NSView *documentView = [[mainFrame frameView] documentView];
@@ -618,6 +612,11 @@ void LayoutTestController::setPluginsEnabled(bool pluginsEnabled)
 void LayoutTestController::setJavaScriptCanAccessClipboard(bool enabled)
 {
     [[[mainFrame webView] preferences] setJavaScriptCanAccessClipboard:enabled];
+}
+
+void LayoutTestController::setAutomaticLinkDetectionEnabled(bool enabled)
+{
+    [[mainFrame webView] setAutomaticLinkDetectionEnabled:enabled];
 }
 
 void LayoutTestController::setTabKeyCyclesThroughElements(bool cycles)
@@ -962,11 +961,6 @@ void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObj
     [mainFrame _stringByEvaluatingJavaScriptFromString:scriptNS withGlobalObject:globalObject inScriptWorld:world];
 }
 
-void LayoutTestController::allowRoundingHacks()
-{
-    [WebView _setAllowsRoundingHacks:YES];
-}
-
 @interface APITestDelegate : NSObject
 {
     bool* m_condition;
@@ -1132,18 +1126,6 @@ void LayoutTestController::authenticateSession(JSStringRef url, JSStringRef user
 #endif
 }
 
-void LayoutTestController::setEditingBehavior(const char* editingBehavior)
-{
-    NSString *editingBehaviorNS = [[NSString alloc] initWithUTF8String:editingBehavior];
-    if ([editingBehaviorNS isEqualToString:@"mac"])
-        [[WebPreferences standardPreferences] setEditingBehavior:WebKitEditingMacBehavior];
-    else if ([editingBehaviorNS isEqualToString:@"win"])
-        [[WebPreferences standardPreferences] setEditingBehavior:WebKitEditingWinBehavior];
-    else if ([editingBehaviorNS isEqualToString:@"unix"])
-        [[WebPreferences standardPreferences] setEditingBehavior:WebKitEditingUnixBehavior];
-    [editingBehaviorNS release];
-}
-
 void LayoutTestController::abortModal()
 {
     [NSApp abortModal];
@@ -1217,6 +1199,11 @@ void LayoutTestController::resetPageVisibility()
 }
 
 void LayoutTestController::setPageVisibility(const char*)
+{
+    // FIXME: Implement.
+}
+
+void LayoutTestController::sendWebIntentResponse(JSStringRef)
 {
     // FIXME: Implement.
 }

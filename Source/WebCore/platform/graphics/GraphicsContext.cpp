@@ -482,8 +482,12 @@ void GraphicsContext::drawImage(Image* image, ColorSpace styleColorSpace, const 
 
     if (useLowQualityScale) {
         previousInterpolationQuality = imageInterpolationQuality();
+#if PLATFORM(CHROMIUM)
+        setImageInterpolationQuality(InterpolationLow);
+#else
         // FIXME (49002): Should be InterpolationLow
         setImageInterpolationQuality(InterpolationNone);
+#endif
     }
 
     if (image->isBitmapImage())
@@ -572,8 +576,12 @@ void GraphicsContext::drawImageBuffer(ImageBuffer* image, ColorSpace styleColorS
 
     if (useLowQualityScale) {
         InterpolationQuality previousInterpolationQuality = imageInterpolationQuality();
+#if PLATFORM(CHROMIUM)
+        setImageInterpolationQuality(InterpolationLow);
+#else
         // FIXME (49002): Should be InterpolationLow
         setImageInterpolationQuality(InterpolationNone);
+#endif
         image->draw(this, styleColorSpace, FloatRect(dest.location(), FloatSize(tw, th)), FloatRect(src.location(), FloatSize(tsw, tsh)), op, useLowQualityScale);
         setImageInterpolationQuality(previousInterpolationQuality);
     } else
@@ -770,6 +778,20 @@ PassOwnPtr<ImageBuffer> GraphicsContext::createCompatibleBuffer(const IntSize& s
         static_cast<float>(scaledSize.height()) / size.height()));
 
     return buffer.release();
+}
+
+bool GraphicsContext::isCompatibleWithBuffer(ImageBuffer* buffer) const
+{
+    AffineTransform localTransform = getCTM();
+    AffineTransform bufferTransform = buffer->context()->getCTM();
+
+    if (localTransform.xScale() != bufferTransform.xScale() || localTransform.yScale() != bufferTransform.yScale())
+        return false;
+
+    if (isAcceleratedContext() != buffer->context()->isAcceleratedContext())
+        return false;
+
+    return true;
 }
 
 #if !USE(CG)

@@ -29,6 +29,9 @@ webkit_web_context_get_cache_model
 webkit_web_context_set_cache_model
 webkit_web_context_download_uri
 webkit_web_context_get_cookie_manager
+webkit_web_context_set_additional_plugins_directory
+webkit_web_context_get_plugins
+webkit_web_context_get_plugins_finish
 
 <SUBSECTION Standard>
 WebKitWebContextClass
@@ -88,6 +91,7 @@ webkit_web_view_can_execute_editing_command
 webkit_web_view_can_execute_editing_command_finish
 webkit_web_view_execute_editing_command
 webkit_web_view_get_find_controller
+webkit_web_view_get_inspector
 webkit_web_view_get_javascript_global_context
 webkit_web_view_run_javascript
 webkit_web_view_run_javascript_finish
@@ -255,6 +259,8 @@ webkit_settings_get_media_playback_requires_user_gesture
 webkit_settings_set_media_playback_requires_user_gesture
 webkit_settings_get_media_playback_allows_inline
 webkit_settings_set_media_playback_allows_inline
+webkit_settings_get_draw_compositing_indicators
+webkit_settings_set_draw_compositing_indicators
 
 <SUBSECTION Standard>
 WebKitSettingsClass
@@ -359,6 +365,23 @@ WEBKIT_DOWNLOAD_GET_CLASS
 <SUBSECTION Private>
 WebKitDownloadPrivate
 webkit_download_get_type
+</SECTION>
+
+<SECTION>
+<FILE>WebKitPermissionRequest</FILE>
+WebKitPermissionRequest
+webkit_permission_request_allow
+webkit_permission_request_deny
+
+<SUBSECTION Standard>
+WebKitPermissionRequestIface
+WEBKIT_TYPE_PERMISSION_REQUEST
+WEBKIT_PERMISSION_REQUEST
+WEBKIT_IS_PERMISSION_REQUEST
+WEBKIT_PERMISSION_REQUEST_GET_IFACE
+
+<SUBSECTION Private>
+webkit_permission_request_get_type
 </SECTION>
 
 <SECTION>
@@ -600,4 +623,62 @@ WEBKIT_COOKIE_MANAGER_GET_CLASS
 <SUBSECTION Private>
 WebKitCookieManagerPrivate
 webkit_cookie_manager_get_type
+</SECTION>
+
+<SECTION>
+<FILE>WebKitPlugin</FILE>
+WebKitPlugin
+webkit_plugin_get_name
+webkit_plugin_get_description
+webkit_plugin_get_path
+webkit_plugin_get_mime_info_list
+
+<SUBSECTION WebKitMimeInfo>
+WebKitMimeInfo
+webkit_mime_info_ref
+webkit_mime_info_unref
+webkit_mime_info_get_mime_type
+webkit_mime_info_get_description
+webkit_mime_info_get_extensions
+
+<SUBSECTION Standard>
+WebKitPluginClass
+WEBKIT_TYPE_PLUGIN
+WEBKIT_PLUGIN
+WEBKIT_IS_PLUGIN
+WEBKIT_PLUGIN_CLASS
+WEBKIT_IS_PLUGIN_CLASS
+WEBKIT_PLUGIN_GET_CLASS
+WEBKIT_TYPE_MIME_INFO
+
+<SUBSECTION Private>
+webkit_plugin_get_type
+webkit_mime_info_get_type
+WebKitPluginPrivate
+</SECTION>
+
+<SECTION>
+<FILE>WebKitWebInspector</FILE>
+WebKitWebInspector
+webkit_web_inspector_get_web_view
+webkit_web_inspector_get_inspected_uri
+webkit_web_inspector_is_attached
+webkit_web_inspector_attach
+webkit_web_inspector_detach
+webkit_web_inspector_show
+webkit_web_inspector_close
+webkit_web_inspector_get_attached_height
+
+<SUBSECTION Standard>
+WebKitWebInspectorClass
+WEBKIT_TYPE_WEB_INSPECTOR
+WEBKIT_WEB_INSPECTOR
+WEBKIT_IS_WEB_INSPECTOR
+WEBKIT_WEB_INSPECTOR_CLASS
+WEBKIT_IS_WEB_INSPECTOR_CLASS
+WEBKIT_WEB_INSPECTOR_GET_CLASS
+
+<SUBSECTION Private>
+webkit_web_inspector_get_type
+WebKitWebInspectorPrivate
 </SECTION>

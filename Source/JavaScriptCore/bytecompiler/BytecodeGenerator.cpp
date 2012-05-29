@@ -189,7 +189,7 @@ JSObject* BytecodeGenerator::generate()
     if ((m_codeType == FunctionCode && !m_codeBlock->needsFullScopeChain() && !m_codeBlock->usesArguments()) || m_codeType == EvalCode)
         symbolTable().clear();
 
-    m_codeBlock->shrinkToFit();
+    m_codeBlock->shrinkToFit(CodeBlock::EarlyShrink);
 
     if (m_expressionTooDeep)
         return createOutOfMemoryError(m_scopeChain->globalObject.get());
@@ -445,8 +445,9 @@ BytecodeGenerator::BytecodeGenerator(FunctionBodyNode* functionBody, ScopeChainN
         emitOpcode(op_create_this);
         instructions().append(m_thisRegister.index());
     } else if (!codeBlock->isStrictMode() && (functionBody->usesThis() || codeBlock->usesEval() || m_shouldEmitDebugHooks)) {
-        emitOpcode(op_convert_this);
+        ValueProfile* profile = emitProfiledOpcode(op_convert_this);
         instructions().append(m_thisRegister.index());
+        instructions().append(profile);
     }
 }
 

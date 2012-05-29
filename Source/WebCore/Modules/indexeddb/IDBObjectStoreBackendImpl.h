@@ -26,6 +26,7 @@
 #ifndef IDBObjectStoreBackendImpl_h
 #define IDBObjectStoreBackendImpl_h
 
+#include "IDBKeyPath.h"
 #include "IDBObjectStoreBackendInterface.h"
 #include <wtf/HashMap.h>
 #include <wtf/text/StringHash.h>
@@ -42,11 +43,11 @@ class ScriptExecutionContext;
 
 class IDBObjectStoreBackendImpl : public IDBObjectStoreBackendInterface {
 public:
-    static PassRefPtr<IDBObjectStoreBackendImpl> create(IDBBackingStore* backingStore, int64_t databaseId, int64_t id, const String& name, const String& keyPath, bool autoIncrement)
+    static PassRefPtr<IDBObjectStoreBackendImpl> create(IDBBackingStore* backingStore, int64_t databaseId, int64_t id, const String& name, const IDBKeyPath& keyPath, bool autoIncrement)
     {
         return adoptRef(new IDBObjectStoreBackendImpl(backingStore, databaseId, id, name, keyPath, autoIncrement));
     }
-    static PassRefPtr<IDBObjectStoreBackendImpl> create(IDBBackingStore* backingStore, int64_t databaseId, const String& name, const String& keyPath, bool autoIncrement)
+    static PassRefPtr<IDBObjectStoreBackendImpl> create(IDBBackingStore* backingStore, int64_t databaseId, const String& name, const IDBKeyPath& keyPath, bool autoIncrement)
     {
         return adoptRef(new IDBObjectStoreBackendImpl(backingStore, databaseId, name, keyPath, autoIncrement));
     }
@@ -59,10 +60,9 @@ public:
         return m_id;
     }
     void setId(int64_t id) { m_id = id; }
-    int64_t databaseId() const { return m_databaseId; }
 
     virtual String name() const { return m_name; }
-    virtual String keyPath() const { return m_keyPath; }
+    virtual IDBKeyPath keyPath() const { return m_keyPath; }
     virtual PassRefPtr<DOMStringList> indexNames() const;
     virtual bool autoIncrement() const { return m_autoIncrement; }
 
@@ -73,7 +73,7 @@ public:
     virtual void deleteFunction(PassRefPtr<IDBKeyRange>, PassRefPtr<IDBCallbacks>, IDBTransactionBackendInterface*, ExceptionCode&);
     virtual void clear(PassRefPtr<IDBCallbacks>, IDBTransactionBackendInterface*, ExceptionCode&);
 
-    virtual PassRefPtr<IDBIndexBackendInterface> createIndex(const String& name, const String& keyPath, bool unique, bool multiEntry, IDBTransactionBackendInterface*, ExceptionCode&);
+    virtual PassRefPtr<IDBIndexBackendInterface> createIndex(const String& name, const IDBKeyPath&, bool unique, bool multiEntry, IDBTransactionBackendInterface*, ExceptionCode&);
     virtual PassRefPtr<IDBIndexBackendInterface> index(const String& name, ExceptionCode&);
     virtual void deleteIndex(const String& name, IDBTransactionBackendInterface*, ExceptionCode&);
 
@@ -83,8 +83,8 @@ public:
     static bool populateIndex(IDBBackingStore&, int64_t databaseId, int64_t objectStoreId, PassRefPtr<IDBIndexBackendImpl>);
 
 private:
-    IDBObjectStoreBackendImpl(IDBBackingStore*, int64_t databaseId, int64_t id, const String& name, const String& keyPath, bool autoIncrement);
-    IDBObjectStoreBackendImpl(IDBBackingStore*, int64_t databaseId, const String& name, const String& keyPath, bool autoIncrement);
+    IDBObjectStoreBackendImpl(IDBBackingStore*, int64_t databaseId, int64_t id, const String& name, const IDBKeyPath&, bool autoIncrement);
+    IDBObjectStoreBackendImpl(IDBBackingStore*, int64_t databaseId, const String& name, const IDBKeyPath&, bool autoIncrement);
 
     void loadIndexes();
     PassRefPtr<IDBKey> genAutoIncrementKey();
@@ -105,12 +105,15 @@ private:
     static void addIndexToMap(ScriptExecutionContext*, PassRefPtr<IDBObjectStoreBackendImpl>, PassRefPtr<IDBIndexBackendImpl>);
     static void revertAutoIncrementKeyCache(ScriptExecutionContext*, PassRefPtr<IDBObjectStoreBackendImpl>);
 
+    PassRefPtr<IDBBackingStore> backingStore() const { return m_backingStore; }
+    int64_t databaseId() const { return m_databaseId; }
+
     RefPtr<IDBBackingStore> m_backingStore;
 
     int64_t m_databaseId;
     int64_t m_id;
     String m_name;
-    String m_keyPath;
+    IDBKeyPath m_keyPath;
     bool m_autoIncrement;
 
     typedef HashMap<String, RefPtr<IDBIndexBackendImpl> > IndexMap;

@@ -536,11 +536,6 @@ void LayoutTestController::authenticateSession(JSStringRef, JSStringRef, JSStrin
 {
 }
 
-void LayoutTestController::setEditingBehavior(const char* editingBehavior)
-{
-    // FIXME: Implement
-}
-
 void LayoutTestController::abortModal()
 {
 }
@@ -613,10 +608,6 @@ void LayoutTestController::setTextDirection(JSStringRef direction)
     // FIXME: Implement.
 }
 
-void LayoutTestController::allowRoundingHacks()
-{
-}
-
 void LayoutTestController::addChromeInputField()
 {
 }
@@ -644,6 +635,16 @@ void LayoutTestController::resetPageVisibility()
 }
 
 void LayoutTestController::setPageVisibility(const char*)
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::setAutomaticLinkDetectionEnabled(bool)
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::sendWebIntentResponse(JSStringRef)
 {
     // FIXME: Implement this.
 }

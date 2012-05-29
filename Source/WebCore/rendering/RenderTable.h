@@ -175,8 +175,10 @@ public:
                (collapseBorders() ? ZERO_LAYOUT_UNIT : (paddingStart() + paddingEnd() + static_cast<LayoutUnit>(numEffCols() + 1) * hBorderSpacing()));
     }
 
+    // Return the first column or column-group.
+    RenderTableCol* firstColumn() const;
+
     RenderTableCol* colElement(unsigned col, bool* startEdge = 0, bool* endEdge = 0) const;
-    RenderTableCol* nextColElement(RenderTableCol* current) const;
 
     bool needsSectionRecalc() const { return m_needsSectionRecalc; }
     void setNeedsSectionRecalc()
@@ -237,7 +239,8 @@ private:
     virtual void computePreferredLogicalWidths();
     virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
     
-    virtual LayoutUnit firstLineBoxBaseline() const;
+    virtual LayoutUnit firstLineBoxBaseline() const OVERRIDE;
+    virtual LayoutUnit lastLineBoxBaseline() const OVERRIDE;
 
     virtual RenderBlock* firstLineBlock() const;
     virtual void updateFirstLetter();

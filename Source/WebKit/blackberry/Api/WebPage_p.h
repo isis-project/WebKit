@@ -32,6 +32,7 @@
 #include "ViewportArguments.h"
 #include "WebPage.h"
 #include "WebSettings.h"
+#include "WebTapHighlight.h"
 
 #include <BlackBerryPlatformMessage.h>
 
@@ -42,6 +43,7 @@ class Document;
 class Frame;
 class GeolocationControllerClientBlackBerry;
 class JavaScriptDebuggerBlackBerry;
+class LayerWebKitThread;
 class Node;
 class Page;
 class PluginView;
@@ -181,7 +183,7 @@ public:
     virtual int showAlertDialog(WebPageClient::AlertType atype);
     virtual bool isActive() const;
     virtual bool isVisible() const { return m_visible; }
-    virtual WebCore::Credential authenticationChallenge(const WebCore::KURL&, const WebCore::ProtectionSpace&);
+    virtual bool authenticationChallenge(const WebCore::KURL&, const WebCore::ProtectionSpace&, WebCore::Credential&);
     virtual SaveCredentialType notifyShouldSaveCredential(bool);
 
     // Called from within WebKit via ChromeClientBlackBerry.
@@ -368,6 +370,7 @@ public:
     void rootLayerCommitTimerFired(WebCore::Timer<WebPagePrivate>*);
     bool commitRootLayerIfNeeded();
     WebCore::LayerRenderingResults lastCompositingResults() const;
+    WebCore::GraphicsLayer* overlayLayer();
 
     // WebKit thread, plumbed through from ChromeClientBlackBerry.
     void setRootLayerWebKitThread(WebCore::Frame*, WebCore::LayerWebKitThread*);
@@ -428,6 +431,8 @@ public:
     WebCore::Frame* m_mainFrame;
     RefPtr<WebCore::Node> m_currentContextNode;
     WebSettings* m_webSettings;
+    OwnPtr<WebTapHighlight> m_tapHighlight;
+    OwnPtr<WebSelectionOverlay> m_selectionOverlay;
 
 #if ENABLE(JAVASCRIPT_DEBUGGER)
     OwnPtr<WebCore::JavaScriptDebuggerBlackBerry> m_scriptDebugger;
@@ -516,6 +521,7 @@ public:
 #if USE(ACCELERATED_COMPOSITING)
     bool m_isAcceleratedCompositingActive;
     OwnPtr<FrameLayers> m_frameLayers; // WebKit thread only.
+    OwnPtr<WebCore::GraphicsLayer> m_overlayLayer;
 
     // Compositing thread only, used only when the WebKit layer created the context.
     // If the API client created the context, this will be null.

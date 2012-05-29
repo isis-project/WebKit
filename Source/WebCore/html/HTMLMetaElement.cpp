@@ -42,19 +42,19 @@ PassRefPtr<HTMLMetaElement> HTMLMetaElement::create(const QualifiedName& tagName
     return adoptRef(new HTMLMetaElement(tagName, document));
 }
 
-void HTMLMetaElement::parseAttribute(Attribute* attr)
+void HTMLMetaElement::parseAttribute(const Attribute& attribute)
 {
-    if (attr->name() == http_equivAttr)
+    if (attribute.name() == http_equivAttr)
         process();
-    else if (attr->name() == contentAttr)
+    else if (attribute.name() == contentAttr)
         process();
-    else if (attr->name() == nameAttr) {
+    else if (attribute.name() == nameAttr) {
         // Do nothing
     } else
-        HTMLElement::parseAttribute(attr);
+        HTMLElement::parseAttribute(attribute);
 }
 
-Node::InsertionNotificationRequest HTMLMetaElement::insertedInto(Node* insertionPoint)
+Node::InsertionNotificationRequest HTMLMetaElement::insertedInto(ContainerNode* insertionPoint)
 {
     HTMLElement::insertedInto(insertionPoint);
     if (insertionPoint->inDocument())

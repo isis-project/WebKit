@@ -827,8 +827,12 @@ void WebFrameLoaderClient::postProgressEstimateChangedNotification()
 void WebFrameLoaderClient::postProgressFinishedNotification()
 {
     if (WebPage* webPage = m_frame->page()) {
-        if (m_frame->isMainFrame())
+        if (m_frame->isMainFrame()) {
+            // Notify the bundle client.
+            webPage->injectedBundleLoaderClient().didFinishProgress(webPage);
+
             webPage->send(Messages::WebPageProxy::DidFinishProgress());
+        }
     }
 }
 
@@ -1124,6 +1128,10 @@ void WebFrameLoaderClient::restoreViewState()
 {
     // Inform the UI process of the scale factor.
     double scaleFactor = m_frame->coreFrame()->loader()->history()->currentItem()->pageScaleFactor();
+
+    // A scale factor of 0.0 means the history item actually has the "default scale factor" of 1.0.
+    if (!scaleFactor)
+        scaleFactor = 1.0;
     m_frame->page()->send(Messages::WebPageProxy::PageScaleFactorDidChange(scaleFactor));
 
     // FIXME: This should not be necessary. WebCore should be correctly invalidating
@@ -1528,6 +1536,15 @@ void WebFrameLoaderClient::didChangeScrollOffset()
         return;
 
     webPage->didChangeScrollOffsetForMainFrame();
+}
+
+bool WebFrameLoaderClient::shouldForceUniversalAccessFromLocalURL(const WebCore::KURL& url)
+{
+    WebPage* webPage = m_frame->page();
+    if (!webPage)
+        return false;
+
+    return webPage->injectedBundleLoaderClient().shouldForceUniversalAccessFromLocalURL(webPage, url.string());
 }
 
 PassRefPtr<FrameNetworkingContext> WebFrameLoaderClient::createNetworkingContext()

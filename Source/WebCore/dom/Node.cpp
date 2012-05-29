@@ -497,17 +497,6 @@ void Node::clearRareData()
     clearFlag(HasRareDataFlag);
 }
 
-Element* Node::shadowHost() const
-{
-    return toElement(isShadowRoot() ? parent() : 0);
-}
-
-void Node::setShadowHost(Element* host)
-{
-    ASSERT(!parentNode() && isShadowRoot());
-    setParent(host);
-}
-
 Node* Node::toNode()
 {
     return this;
@@ -727,7 +716,7 @@ void Node::inspect()
 
 bool Node::rendererIsEditable(EditableLevel editableLevel) const
 {
-    if (document()->frame() && document()->frame()->page() && document()->frame()->page()->isEditable() && !shadowTreeRootNode())
+    if (document()->frame() && document()->frame()->page() && document()->frame()->page()->isEditable() && !shadowRoot())
         return true;
 
     // Ideally we'd call ASSERT(!needsStyleRecalc()) here, but
@@ -976,7 +965,7 @@ void Node::unregisterDynamicSubtreeNodeList(DynamicSubtreeNodeList* list)
     removeNodeListCacheIfPossible(this, data);
 }
 
-void Node::invalidateNodeListsCacheAfterAttributeChanged(const QualifiedName& attrName)
+void Node::invalidateNodeListsCacheAfterAttributeChanged(const QualifiedName& attrName, Element* attributeOwnerElement)
 {
     if (hasRareData() && isAttributeNode()) {
         NodeRareData* data = rareData();
@@ -984,18 +973,25 @@ void Node::invalidateNodeListsCacheAfterAttributeChanged(const QualifiedName& at
         data->clearChildNodeListCache();
     }
 
-    // This list should be sync'ed with NodeListsNodeData.
+    // Modifications to attributes that are not associated with an Element can't invalidate NodeList caches.
+    if (!attributeOwnerElement)
+        return;
+
+    // FIXME: Move the list of attributes each NodeList type cares about to be a static on the
+    // appropriate NodeList class. Then use those lists here and in invalidateCachesThatDependOnAttributes
+    // to only invalidate the cache types that depend on the attribute that changed.
+    // FIXME: Keep track of when we have no caches of a given type so that we can avoid the for-loop
+    // below even if a related attribute changed (e.g. if we have no RadioNodeLists, we don't need
+    // to invalidate any caches when id attributes change.)
     if (attrName != classAttr
 #if ENABLE(MICRODATA)
         && attrName != itemscopeAttr
         && attrName != itempropAttr
         && attrName != itemtypeAttr
 #endif
-        && attrName != idAttr
-        && attrName != typeAttr
-        && attrName != checkedAttr
         && attrName != nameAttr
-        && attrName != forAttr)
+        && attrName != forAttr
+        && (attrName != idAttr || !attributeOwnerElement->isFormControlElement()))
         return;
 
     if (!treeScope()->hasNodeListCaches())
@@ -1495,13 +1491,13 @@ Node* Node::shadowAncestorNode() const
         return const_cast<Node*>(this);
 #endif
 
-    if (ShadowRoot* root = shadowTreeRootNode())
+    if (ShadowRoot* root = shadowRoot())
         return root->host();
 
     return const_cast<Node*>(this);
 }
 
-ShadowRoot* Node::shadowTreeRootNode() const
+ShadowRoot* Node::shadowRoot() const
 {
     Node* root = const_cast<Node*>(this);
     while (root) {
@@ -1545,7 +1541,7 @@ Element* Node::parentOrHostElement() const
         return 0;
 
     if (parent->isShadowRoot())
-        return parent->shadowHost();
+        return toShadowRoot(parent)->host();
 
     if (!parent->isElementNode())
         return 0;
@@ -1697,8 +1693,8 @@ PassRefPtr<Element> Node::querySelector(const String& selectors, ExceptionCode& 
         return 0;
     }
     
-    SelectorQuery selectorQuery(this, querySelectorList);
-    return selectorQuery.queryFirst();
+    SelectorQuery selectorQuery(querySelectorList);
+    return selectorQuery.queryFirst(this);
 }
 
 PassRefPtr<NodeList> Node::querySelectorAll(const String& selectors, ExceptionCode& ec)
@@ -1722,8 +1718,8 @@ PassRefPtr<NodeList> Node::querySelectorAll(const String& selectors, ExceptionCo
         return 0;
     }
 
-    SelectorQuery selectorQuery(this, querySelectorList);
-    return selectorQuery.queryAll();
+    SelectorQuery selectorQuery(querySelectorList);
+    return selectorQuery.queryAll(this);
 }
 
 Document *Node::ownerDocument() const
@@ -2222,6 +2218,57 @@ void Node::showTreeForThis() const
     showTreeAndMark(this, "*");
 }
 
+void Node::showNodePathForThis() const
+{
+    Vector<const Node*, 16> chain;
+    const Node* node = this;
+    while (node->parentOrHostNode()) {
+        chain.append(node);
+        node = node->parentOrHostNode();
+    }
+    for (unsigned index = chain.size(); index > 0; --index) {
+        const Node* node = chain[index - 1];
+        if (node->isShadowRoot()) {
+            int count = 0;
+            for (ShadowRoot* shadowRoot = oldestShadowRootFor(node); shadowRoot && shadowRoot != node; shadowRoot = shadowRoot->youngerShadowRoot())
+                ++count;
+            fprintf(stderr, "/#shadow-root[%d]", count);
+            continue;
+        }
+
+        switch (node->nodeType()) {
+        case ELEMENT_NODE: {
+            fprintf(stderr, "/%s", node->nodeName().utf8().data());
+
+            const Element* element = toElement(node);
+            const AtomicString& idattr = element->getIdAttribute();
+            bool hasIdAttr = !idattr.isNull() && !idattr.isEmpty();
+            if (node->previousSibling() || node->nextSibling()) {
+                int count = 0;
+                for (Node* previous = node->previousSibling(); previous; previous = previous->previousSibling())
+                    if (previous->nodeName() == node->nodeName())
+                        ++count;
+                if (hasIdAttr)
+                    fprintf(stderr, "[@id=\"%s\" and position()=%d]", idattr.string().utf8().data(), count);
+                else
+                    fprintf(stderr, "[%d]", count);
+            } else if (hasIdAttr)
+                fprintf(stderr, "[@id=\"%s\"]", idattr.string().utf8().data());
+            break;
+        }
+        case TEXT_NODE:
+            fprintf(stderr, "/text()");
+            break;
+        case ATTRIBUTE_NODE:
+            fprintf(stderr, "/@%s", node->nodeName().utf8().data());
+            break;
+        default:
+            break;
+        }
+    }
+    fprintf(stderr, "\n");
+}
+
 static void traverseTreeAndMark(const String& baseIndent, const Node* rootNode, const Node* markedNode1, const char* markedLabel1, const Node* markedNode2, const char* markedLabel2)
 {
     for (const Node* node = rootNode; node; node = node->traverseNextNode()) {
@@ -2402,7 +2449,7 @@ ScriptExecutionContext* Node::scriptExecutionContext() const
     return document();
 }
 
-Node::InsertionNotificationRequest Node::insertedInto(Node* insertionPoint)
+Node::InsertionNotificationRequest Node::insertedInto(ContainerNode* insertionPoint)
 {
     ASSERT(insertionPoint->inDocument() || isContainerNode());
     if (insertionPoint->inDocument())
@@ -2410,7 +2457,7 @@ Node::InsertionNotificationRequest Node::insertedInto(Node* insertionPoint)
     return InsertionDone;
 }
 
-void Node::removedFrom(Node* insertionPoint)
+void Node::removedFrom(ContainerNode* insertionPoint)
 {
     ASSERT(insertionPoint->inDocument() || isContainerNode());
     if (insertionPoint->inDocument())
@@ -2702,12 +2749,13 @@ void Node::dispatchFocusOutEvent(const AtomicString& eventType, PassRefPtr<Node>
     dispatchScopedEventDispatchMediator(FocusOutEventDispatchMediator::create(UIEvent::create(eventType, true, false, document()->defaultView(), 0), newFocusedNode));
 }
 
-void Node::dispatchDOMActivateEvent(int detail, PassRefPtr<Event> underlyingEvent)
+bool Node::dispatchDOMActivateEvent(int detail, PassRefPtr<Event> underlyingEvent)
 {
     ASSERT(!eventDispatchForbidden());
     RefPtr<UIEvent> event = UIEvent::create(eventNames().DOMActivateEvent, true, true, document()->defaultView(), detail);
     event->setUnderlyingEvent(underlyingEvent);
-    dispatchScopedEvent(event.release());
+    dispatchScopedEvent(event);
+    return event->defaultHandled();
 }
 
 bool Node::dispatchKeyEvent(const PlatformKeyboardEvent& event)
@@ -2784,7 +2832,8 @@ void Node::defaultEventHandler(Event* event)
                 frame->eventHandler()->defaultKeyboardEventHandler(static_cast<KeyboardEvent*>(event));
     } else if (eventType == eventNames().clickEvent) {
         int detail = event->isUIEvent() ? static_cast<UIEvent*>(event)->detail() : 0;
-        dispatchDOMActivateEvent(detail, event);
+        if (dispatchDOMActivateEvent(detail, event))
+            event->setDefaultHandled();
 #if ENABLE(CONTEXT_MENUS)
     } else if (eventType == eventNames().contextmenuEvent) {
         if (Frame* frame = document()->frame())
@@ -2882,7 +2931,7 @@ void NodeRareData::clearChildNodeListCache()
 
 PassRefPtr<RadioNodeList> Node::radioNodeList(const AtomicString& name)
 {
-    ASSERT(hasTagName(formTag));
+    ASSERT(hasTagName(formTag) || hasTagName(fieldsetTag));
 
     NodeListsNodeData* nodeLists = ensureRareData()->ensureNodeLists(this);
 
@@ -2913,6 +2962,12 @@ void showTree(const WebCore::Node* node)
 {
     if (node)
         node->showTreeForThis();
+}
+
+void showNodePath(const WebCore::Node* node)
+{
+    if (node)
+        node->showNodePathForThis();
 }
 
 #endif

@@ -69,6 +69,7 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/StringExtras.h>
 #include <wtf/UnusedParam.h>
+#include <wtf/text/StringBuilder.h>
 #include <wtf/text/WTFString.h>
 
 #if PLATFORM(CHROMIUM)
@@ -160,7 +161,7 @@ static void handleFatalErrorInV8()
 
 static v8::Local<v8::Value> handleMaxRecursionDepthExceeded()
 {
-    throwError("Maximum call stack size exceeded.", V8Proxy::RangeError);
+    V8Proxy::throwError(V8Proxy::RangeError, "Maximum call stack size exceeded.");
     return v8::Local<v8::Value>();
 }
 
@@ -341,7 +342,7 @@ v8::Local<v8::Value> V8Proxy::evaluate(const ScriptSourceCode& source, Node* nod
 v8::Local<v8::Value> V8Proxy::runScript(v8::Handle<v8::Script> script)
 {
     if (script.IsEmpty())
-        return notHandledByInterceptor();
+        return v8::Local<v8::Value>();
 
     V8GCController::checkMemoryUsage();
     if (V8RecursionScope::recursionLevel() >= kMaxRecursionDepth)
@@ -368,11 +369,11 @@ v8::Local<v8::Value> V8Proxy::runScript(v8::Handle<v8::Script> script)
     // Handle V8 internal error situation (Out-of-memory).
     if (tryCatch.HasCaught()) {
         ASSERT(result.IsEmpty());
-        return notHandledByInterceptor();
+        return v8::Local<v8::Value>();
     }
 
     if (result.IsEmpty())
-        return notHandledByInterceptor();
+        return v8::Local<v8::Value>();
 
     if (v8::V8::IsDead())
         handleFatalErrorInV8();
@@ -387,6 +388,31 @@ v8::Local<v8::Value> V8Proxy::callFunction(v8::Handle<v8::Function> function, v8
     return V8Proxy::instrumentedCallFunction(frame(), function, receiver, argc, args);
 }
 
+static inline void resourceInfo(const v8::Handle<v8::Function> function, String& resourceName, int& lineNumber)
+{
+    v8::ScriptOrigin origin = function->GetScriptOrigin();
+    if (origin.ResourceName().IsEmpty()) {
+        resourceName = "undefined";
+        lineNumber = 1;
+    } else {
+        resourceName = toWebCoreString(origin.ResourceName());
+        lineNumber = function->GetScriptLineNumber() + 1;
+    }
+}
+
+static inline String resourceString(const v8::Handle<v8::Function> function)
+{
+    String resourceName;
+    int lineNumber;
+    resourceInfo(function, resourceName, lineNumber);
+
+    StringBuilder builder;
+    builder.append(resourceName);
+    builder.append(':');
+    builder.append(String::number(lineNumber));
+    return builder.toString();
+}
+
 v8::Local<v8::Value> V8Proxy::instrumentedCallFunction(Frame* frame, v8::Handle<v8::Function> function, v8::Handle<v8::Object> receiver, int argc, v8::Handle<v8::Value> args[])
 {
     V8GCController::checkMemoryUsage();
@@ -398,20 +424,16 @@ v8::Local<v8::Value> V8Proxy::instrumentedCallFunction(Frame* frame, v8::Handle<
 
     InspectorInstrumentationCookie cookie;
     if (InspectorInstrumentation::hasFrontends() && context) {
-        String resourceName("undefined");
-        int lineNumber = 1;
-        v8::ScriptOrigin origin = function->GetScriptOrigin();
-        if (!origin.ResourceName().IsEmpty()) {
-            resourceName = toWebCoreString(origin.ResourceName());
-            lineNumber = function->GetScriptLineNumber() + 1;
-        }
+        String resourceName;
+        int lineNumber;
+        resourceInfo(function, resourceName, lineNumber);
         cookie = InspectorInstrumentation::willCallFunction(context, resourceName, lineNumber);
     }
 
     v8::Local<v8::Value> result;
     {
 #if PLATFORM(CHROMIUM)
-        TRACE_EVENT0("v8", "v8.callFunction");
+        TRACE_EVENT1("v8", "v8.callFunction", "callsite", resourceString(function).utf8());
 #endif
         V8RecursionScope recursionScope(context);
         result = function->Call(receiver, argc, args);
@@ -564,10 +586,10 @@ static void DOMExceptionStackSetter(v8::Local<v8::String> name, v8::Local<v8::Va
         exception = toV8(interfaceName::create(description), isolate); \
         break;
 
-void V8Proxy::setDOMException(int ec, v8::Isolate* isolate)
+v8::Handle<v8::Value> V8Proxy::setDOMException(int ec, v8::Isolate* isolate)
 {
     if (ec <= 0)
-        return;
+        return v8::Handle<v8::Value>();
 
     ExceptionCodeDescription description(ec);
 
@@ -577,7 +599,7 @@ void V8Proxy::setDOMException(int ec, v8::Isolate* isolate)
     }
 
     if (exception.IsEmpty())
-        return;
+        return v8::Handle<v8::Value>();
 
     // Attach an Error object to the DOMException. This is then lazily used to get the stack value.
     v8::Handle<v8::Value> error = v8::Exception::Error(v8String(description.description, isolate));
@@ -585,7 +607,7 @@ void V8Proxy::setDOMException(int ec, v8::Isolate* isolate)
     ASSERT(exception->IsObject());
     exception->ToObject()->SetAccessor(v8String("stack", isolate), DOMExceptionStackGetter, DOMExceptionStackSetter, error);
 
-    v8::ThrowException(exception);
+    return v8::ThrowException(exception);
 }
 
 #undef TRY_TO_CREATE_EXCEPTION
@@ -605,18 +627,18 @@ v8::Handle<v8::Value> V8Proxy::throwError(ErrorType type, const char* message, v
         return v8::ThrowException(v8::Exception::Error(v8String(message, isolate)));
     default:
         ASSERT_NOT_REACHED();
-        return notHandledByInterceptor();
+        return v8::Handle<v8::Value>();
     }
 }
 
-v8::Handle<v8::Value> V8Proxy::throwTypeError()
+v8::Handle<v8::Value> V8Proxy::throwTypeError(const char* message, v8::Isolate* isolate)
 {
-    return throwError(TypeError, "Type error");
+    return throwError(TypeError, (message ? message : "Type error"), isolate);
 }
 
-v8::Handle<v8::Value> V8Proxy::throwNotEnoughArgumentsError()
+v8::Handle<v8::Value> V8Proxy::throwNotEnoughArgumentsError(v8::Isolate* isolate)
 {
-    return throwError(TypeError, "Not enough arguments");
+    return throwError(TypeError, "Not enough arguments", isolate);
 }
 
 v8::Local<v8::Context> V8Proxy::context(Frame* frame)
@@ -690,7 +712,7 @@ v8::Local<v8::Context> V8Proxy::currentContext()
 v8::Handle<v8::Value> V8Proxy::checkNewLegal(const v8::Arguments& args)
 {
     if (ConstructorMode::current() == ConstructorMode::CreateNewObject)
-        return throwError(TypeError, "Illegal constructor");
+        return throwError(TypeError, "Illegal constructor", args.GetIsolate());
 
     return args.This();
 }

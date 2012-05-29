@@ -56,16 +56,12 @@ private:
     virtual void setValueAsNumber(double, TextFieldEventBehavior, ExceptionCode&) const OVERRIDE;
     virtual bool typeMismatchFor(const String&) const OVERRIDE;
     virtual bool typeMismatch() const OVERRIDE;
-    virtual bool rangeUnderflow(const String&) const OVERRIDE;
-    virtual bool rangeOverflow(const String&) const OVERRIDE;
-    virtual bool supportsRangeLimitation() const OVERRIDE;
     virtual double defaultValueForStepUp() const OVERRIDE;
     virtual bool isSteppable() const OVERRIDE;
-    virtual bool stepMismatch(const String&, double) const OVERRIDE;
-    virtual double stepBase() const OVERRIDE;
     virtual void handleWheelEvent(WheelEvent*) OVERRIDE;
     virtual String serialize(double) const OVERRIDE;
     virtual String serializeWithMilliseconds(double) const;
+    virtual String localizeValue(const String&) const OVERRIDE;
     virtual String visibleValue() const OVERRIDE;
     virtual String convertFromVisibleValue(const String&) const OVERRIDE;
     virtual String sanitizeValue(const String&) const OVERRIDE;

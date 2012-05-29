@@ -47,6 +47,7 @@
 #include "JSLock.h"
 #include "LayoutTypes.h"
 #include "PageClientEfl.h"
+#include "PageGroup.h"
 #include "PlatformMouseEvent.h"
 #include "PopupMenuClient.h"
 #include "ProgressTracker.h"
@@ -153,6 +154,79 @@ static const Evas_Smart_Cb_Description _ewk_view_callback_names[] = {
     { 0, 0 }
 };
 
+struct EditorCommand {
+    Ewk_Editor_Command ewkEditorCommand;
+    const char* editorCommandString;
+};
+
+/**
+ * @brief A table grouping Ewk_Editor_Command enums with corresponding command
+ * strings used by WebCore::EditorCommand, keeping both in sync.
+ *
+ * @internal
+ */
+static const EditorCommand editorCommands[] = {
+    { EWK_EDITOR_COMMAND_UNDO, "Undo" },
+    { EWK_EDITOR_COMMAND_REDO, "Redo" },
+    { EWK_EDITOR_COMMAND_TOGGLE_BOLD, "ToggleBold" },
+    { EWK_EDITOR_COMMAND_TOGGLE_ITALIC, "ToggleItalic" },
+    { EWK_EDITOR_COMMAND_TOGGLE_UNDERLINE, "ToggleUnderline" },
+    { EWK_EDITOR_COMMAND_TOGGLE_STRIKETHROUGH, "Strikethrough" },
+    { EWK_EDITOR_COMMAND_TOGGLE_SUBSCRIPT, "SubScript" },
+    { EWK_EDITOR_COMMAND_TOGGLE_SUPERSCRIPT, "SuperScript" },
+    { EWK_EDITOR_COMMAND_INDENT, "Indent" },
+    { EWK_EDITOR_COMMAND_OUTDENT, "Outdent" },
+    { EWK_EDITOR_COMMAND_INSERT_ORDEREDLIST, "InsertOrderedList" },
+    { EWK_EDITOR_COMMAND_INSERT_UNORDEREDLIST, "InsertUnorderedList" },
+    { EWK_EDITOR_COMMAND_INSERT_IMAGE, "InsertImage" },
+    { EWK_EDITOR_COMMAND_INSERT_TEXT, "InsertText" },
+    { EWK_EDITOR_COMMAND_INSERT_HTML, "InsertHTML" },
+    { EWK_EDITOR_COMMAND_INSERT_PARAGRAPH, "InsertParagraph" },
+    { EWK_EDITOR_COMMAND_INSERT_PARAGRAPH_SEPARATOR, "InsertNewLine" },
+    { EWK_EDITOR_COMMAND_INSERT_LINE_SEPARATOR, "InsertLineBreak" },
+    { EWK_EDITOR_COMMAND_BACK_COLOR, "BackColor" },
+    { EWK_EDITOR_COMMAND_FORE_COLOR, "ForeColor" },
+    { EWK_EDITOR_COMMAND_HILITE_COLOR, "HiliteColor" },
+    { EWK_EDITOR_COMMAND_FONT_SIZE, "FontSize" },
+    { EWK_EDITOR_COMMAND_ALIGN_CENTER, "AlignCenter" },
+    { EWK_EDITOR_COMMAND_ALIGN_JUSTIFIED, "AlignJustified" },
+    { EWK_EDITOR_COMMAND_ALIGN_LEFT, "AlignLeft" },
+    { EWK_EDITOR_COMMAND_ALIGN_RIGHT, "AlignRight" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_NEXT_CHAR, "MoveForward" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_PREVIOUS_CHAR, "MoveBackward" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_NEXT_WORD, "MoveWordForward" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_PREVIOUS_WORD, "MoveWordBackward" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_NEXT_LINE, "MoveDown" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_PREVIOUS_LINE, "MoveUp" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_BEGINNING_OF_LINE, "MoveToBeginningOfLine" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_END_OF_LINE, "MoveToEndOfLine" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_BEGINNING_OF_PARAGRAPH, "MoveToBeginningOfParagraph" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_END_OF_PARAGRAPH, "MoveToEndOfParagraph" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_BEGINNING_OF_DOCUMENT, "MoveToBeginningOfDocument" },
+    { EWK_EDITOR_COMMAND_MOVE_TO_END_OF_DOCUMENT, "MoveToEndOfDocument" },
+    { EWK_EDITOR_COMMAND_SELECT_NONE, "SelectNone" },
+    { EWK_EDITOR_COMMAND_SELECT_ALL, "SelectAll" },
+    { EWK_EDITOR_COMMAND_SELECT_PARAGRAPH, "SelectParagraph" },
+    { EWK_EDITOR_COMMAND_SELECT_SENTENCE, "SelectSentence" },
+    { EWK_EDITOR_COMMAND_SELECT_LINE, "SelectLine" },
+    { EWK_EDITOR_COMMAND_SELECT_WORD, "SelectWord" },
+    { EWK_EDITOR_COMMAND_SELECT_NEXT_CHAR, "MoveForwardAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_PREVIOUS_CHAR, "MoveBackwardAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_NEXT_WORD, "MoveWordForwardAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_PREVIOUS_WORD, "MoveWordBackwardAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_NEXT_LINE, "MoveDownAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_PREVIOUS_LINE, "MoveUpAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_START_OF_LINE, "MoveToBeginningOfLineAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_END_OF_LINE, "MoveToEndOfLineAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_START_OF_PARAGRAPH, "MoveToBeginningOfParagraphAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_END_OF_PARAGRAPH, "MoveToEndOfParagraphAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_START_OF_DOCUMENT, "MoveToBeginningOfDocumentAndModifySelection" },
+    { EWK_EDITOR_COMMAND_SELECT_END_OF_DOCUMENT, "MoveToEndOfDocumentAndModifySelection" },
+    { EWK_EDITOR_COMMAND_DELETE_WORD_BACKWARD, "DeleteWordBackward" },
+    { EWK_EDITOR_COMMAND_DELETE_WORD_FORWARD, "DeleteWordForward" },
+    { EWK_EDITOR_COMMAND_NONE, 0 } // EWK_EDITOR_COMMAND_NONE must be the last element.
+};
+
 /**
  * @brief Private data that is used internally by EFL WebKit
  * and should never be modified from outside.
@@ -166,6 +240,9 @@ struct _Ewk_View_Private_Data {
     WebCore::ViewportArguments viewportArguments;
     Ewk_History* history;
     OwnPtr<PageClientEfl> pageClient;
+#if ENABLE(NETWORK_INFO)
+    OwnPtr<WebCore::NetworkInfoClientEfl> networkInfoClient;
+#endif
 #if ENABLE(INPUT_TYPE_COLOR)
     WebCore::ColorChooserClient* colorChooserClient;
 #endif
@@ -627,10 +704,6 @@ static void _ewk_view_on_key_up(void* data, Evas*, Evas_Object*, void* eventInfo
 static WTF::PassRefPtr<WebCore::Frame> _ewk_view_core_frame_new(Ewk_View_Smart_Data* smartData, Ewk_View_Private_Data* priv, WebCore::HTMLFrameOwnerElement* owner)
 {
     WebCore::FrameLoaderClientEfl* frameLoaderClient = new WebCore::FrameLoaderClientEfl(smartData->self);
-    if (!frameLoaderClient) {
-        CRITICAL("Could not create frame loader client.");
-        return 0;
-    }
     frameLoaderClient->setCustomUserAgent(String::fromUTF8(priv->settings.userAgent));
 
     return WebCore::Frame::create(priv->page.get(), owner, frameLoaderClient);
@@ -659,7 +732,8 @@ static Ewk_View_Private_Data* _ewk_view_priv_new(Ewk_View_Smart_Data* smartData)
 #endif
 
 #if ENABLE(NETWORK_INFO)
-    WebCore::provideNetworkInfoTo(priv->page.get(), new WebCore::NetworkInfoClientEfl);
+    priv->networkInfoClient = adoptPtr(new WebCore::NetworkInfoClientEfl);
+    WebCore::provideNetworkInfoTo(priv->page.get(), priv->networkInfoClient.get());
 #endif
 
 #if ENABLE(VIBRATION)
@@ -700,6 +774,9 @@ static Ewk_View_Private_Data* _ewk_view_priv_new(Ewk_View_Smart_Data* smartData)
 #endif
     priv->pageSettings->setWebGLEnabled(true);
     priv->pageSettings->setXSSAuditorEnabled(true);
+#if ENABLE(FULLSCREEN_API)
+    priv->pageSettings->setFullScreenEnabled(true);
+#endif
 
     url = priv->pageSettings->userStyleSheetLocation();
     priv->settings.userStylesheet = eina_stringshare_add(url.string().utf8().data());
@@ -745,7 +822,7 @@ static Ewk_View_Private_Data* _ewk_view_priv_new(Ewk_View_Smart_Data* smartData)
     priv->settings.shouldDisplaySubtitles = priv->pageSettings->shouldDisplaySubtitles();
     priv->settings.shouldDisplayTextDescriptions = priv->pageSettings->shouldDisplayTextDescriptions();
 #endif
-    priv->settings.scriptsCanAccessClipboard = priv->pageSettings->javaScriptCanAccessClipboard();
+    priv->settings.scriptsCanAccessClipboard = priv->pageSettings->javaScriptCanAccessClipboard() && priv->pageSettings->isDOMPasteAllowed();
     priv->settings.resizableTextareas = priv->pageSettings->textAreasAreResizable();
     priv->settings.privateBrowsing = priv->pageSettings->privateBrowsingEnabled();
     priv->settings.caretBrowsing = priv->pageSettings->caretBrowsingEnabled();
@@ -1165,6 +1242,18 @@ static Eina_Bool _ewk_view_smart_enable_render(Ewk_View_Smart_Data* smartData)
     return false;
 }
 
+static const char* _ewk_view_editor_command_string_get(Ewk_View_Private_Data* priv, Ewk_Editor_Command ewkCommand)
+{
+    static OwnPtr<Eina_Hash> editorCommandHash;
+
+    if (!editorCommandHash) {
+        editorCommandHash = adoptPtr(eina_hash_int32_new(0));
+        for (int i = 0; editorCommands[i].ewkEditorCommand != EWK_EDITOR_COMMAND_NONE; i++)
+            eina_hash_add(editorCommandHash.get(), &editorCommands[i].ewkEditorCommand, editorCommands[i].editorCommandString);
+    }
+    return reinterpret_cast<const char*>(eina_hash_find(editorCommandHash.get(), &ewkCommand));
+}
+
 Eina_Bool ewk_view_base_smart_set(Ewk_View_Smart_Class* api)
 {
     EINA_SAFETY_ON_NULL_RETURN_VAL(api, false);
@@ -1316,7 +1405,7 @@ const char* ewk_view_uri_get(const Evas_Object* ewkView)
     return ewk_frame_uri_get(smartData->main_frame);
 }
 
-const char* ewk_view_title_get(const Evas_Object* ewkView)
+const Ewk_Text_With_Direction* ewk_view_title_get(const Evas_Object* ewkView)
 {
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
     return ewk_frame_title_get(smartData->main_frame);
@@ -1482,36 +1571,16 @@ char* ewk_view_selection_get(const Evas_Object* ewkView)
     return strdup(selectedString.data());
 }
 
-static Eina_Bool _ewk_view_editor_command(Ewk_View_Private_Data* priv, const char* command, const char* value = 0)
-{
-    return priv->page->focusController()->focusedOrMainFrame()->editor()->command(WTF::String::fromUTF8(command)).execute(WTF::String::fromUTF8(value));
-}
-
-Eina_Bool ewk_view_execute_editor_command(Evas_Object* ewkView, const Ewk_Editor_Command command, const char* value)
+Eina_Bool ewk_view_editor_command_execute(const Evas_Object* ewkView, const Ewk_Editor_Command command, const char* value)
 {
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
     EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
 
-    switch (command) {
-    case EWK_EDITOR_COMMAND_INSERT_IMAGE:
-        return _ewk_view_editor_command(priv, "InsertImage", value);
-    case EWK_EDITOR_COMMAND_INSERT_TEXT:
-        return _ewk_view_editor_command(priv, "InsertText", value);
-    case EWK_EDITOR_COMMAND_SELECT_NONE:
-        return _ewk_view_editor_command(priv, "Unselect");
-    case EWK_EDITOR_COMMAND_SELECT_ALL:
-        return _ewk_view_editor_command(priv, "SelectAll");
-    case EWK_EDITOR_COMMAND_SELECT_PARAGRAPH:
-        return _ewk_view_editor_command(priv, "SelectParagraph");
-    case EWK_EDITOR_COMMAND_SELECT_SENTENCE:
-        return _ewk_view_editor_command(priv, "SelectSentence");
-    case EWK_EDITOR_COMMAND_SELECT_LINE:
-        return _ewk_view_editor_command(priv, "SelectLine");
-    case EWK_EDITOR_COMMAND_SELECT_WORD:
-        return _ewk_view_editor_command(priv, "SelectWord");
-    default:
+    const char* commandString = _ewk_view_editor_command_string_get(priv, command);
+    if (!commandString)
         return false;
-    }
+
+    return priv->page->focusController()->focusedOrMainFrame()->editor()->command(commandString).execute(WTF::String::fromUTF8(value));
 }
 
 Eina_Bool ewk_view_context_menu_forward_event(Evas_Object* ewkView, const Evas_Event_Mouse_Down* downEvent)
@@ -1635,6 +1704,19 @@ Ewk_History* ewk_view_history_get(const Evas_Object* ewkView)
         return 0;
     }
     return priv->history;
+}
+
+Eina_Bool ewk_view_visited_link_add(Evas_Object* ewkView, const char* visitedUrl)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    EINA_SAFETY_ON_NULL_RETURN_VAL(priv->page, false);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(priv->page->groupPtr(), false);
+
+    WebCore::KURL kurl(WebCore::KURL(), WTF::String::fromUTF8(visitedUrl));
+    priv->page->groupPtr()->addVisitedLink(kurl);
+    return true;
 }
 
 float ewk_view_zoom_get(const Evas_Object* ewkView)
@@ -2127,6 +2209,7 @@ Eina_Bool ewk_view_setting_scripts_can_access_clipboard_set(Evas_Object* ewkView
     allow = !!allow;
     if (priv->settings.scriptsCanAccessClipboard != allow) {
         priv->pageSettings->setJavaScriptCanAccessClipboard(allow);
+        priv->pageSettings->setDOMPasteAllowed(allow);
         priv->settings.scriptsCanAccessClipboard = allow;
     }
     return true;
@@ -2884,9 +2967,9 @@ void ewk_view_input_method_state_set(Evas_Object* ewkView, bool active)
  *
  * Emits signal: "title,changed" with pointer to new title string.
  */
-void ewk_view_title_set(Evas_Object* ewkView, const char* title)
+void ewk_view_title_set(Evas_Object* ewkView, const Ewk_Text_With_Direction* title)
 {
-    DBG("ewkView=%p, title=%s", ewkView, title ? title : "(null)");
+    DBG("ewkView=%p, title=%s", ewkView, (title && title->string) ? title->string : "(null)");
     evas_object_smart_callback_call(ewkView, "title,changed", (void*)title);
 }
 
@@ -2959,6 +3042,21 @@ void ewk_view_load_provisional(Evas_Object* ewkView)
 {
     DBG("ewkView=%p", ewkView);
     evas_object_smart_callback_call(ewkView, "load,provisional", 0);
+}
+
+/**
+ * @internal
+ * Reports the main frame provisional load failed.
+ *
+ * @param ewkView View.
+ * @param error Load error.
+ *
+ * Emits signal: "load,provisional" on View with pointer to Ewk_Frame_Load_Error.
+ */
+void ewk_view_load_provisional_failed(Evas_Object* ewkView, const Ewk_Frame_Load_Error* error)
+{
+    DBG("ewkView=%p, error=%p", ewkView, error);
+    evas_object_smart_callback_call(ewkView, "load,provisional,failed", const_cast<Ewk_Frame_Load_Error*>(error));
 }
 
 /**
@@ -3427,6 +3525,30 @@ bool ewk_view_should_interrupt_javascript(Evas_Object* ewkView)
         return false;
 
     return smartData->api->should_interrupt_javascript(smartData);
+}
+
+/**
+ * @internal
+ * This is called whenever the application is asking to store data to the cache and the
+ * quota allocated to that application is exceeded. Browser may use this to increase the
+ * size of quota before the originating operation fails.
+ *
+ * @param ewkView View.
+ * @param origin Security origin.
+ * @param defaultOriginQuota Default quota for origin.
+ * @param totalSpaceNeeded The total space needed in the cache in order to fulfill
+ * application's requirement.
+ */
+int64_t ewk_view_exceeded_application_cache_quota(Evas_Object* ewkView, Ewk_Security_Origin *origin, int64_t defaultOriginQuota, int64_t totalSpaceNeeded)
+{
+    DBG("ewkView=%p", ewkView);
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(smartData->api, 0);
+    if (!smartData->api->exceeded_application_cache_quota)
+        return 0;
+
+    INF("defaultOriginQuota=%" PRIu64 " totalSpaceNeeded=%" PRIu64, defaultOriginQuota, totalSpaceNeeded);
+    return smartData->api->exceeded_application_cache_quota(smartData, origin, defaultOriginQuota, totalSpaceNeeded);
 }
 
 /**
@@ -3902,8 +4024,9 @@ void ewk_view_transition_to_commited_for_newpage(Evas_Object* ewkView)
  *
  * @param ewkView View to load
  * @param request Request which contain url to navigate
+ * @param navigationType navigation type
  */
-bool ewk_view_navigation_policy_decision(Evas_Object* ewkView, Ewk_Frame_Resource_Request* request)
+bool ewk_view_navigation_policy_decision(Evas_Object* ewkView, Ewk_Frame_Resource_Request* request, Ewk_Navigation_Type navigationType)
 {
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, true);
     EINA_SAFETY_ON_NULL_RETURN_VAL(smartData->api, true);
@@ -3911,7 +4034,7 @@ bool ewk_view_navigation_policy_decision(Evas_Object* ewkView, Ewk_Frame_Resourc
     if (!smartData->api->navigation_policy_decision)
         return true;
 
-    return smartData->api->navigation_policy_decision(smartData, request);
+    return smartData->api->navigation_policy_decision(smartData, request, navigationType);
 }
 
 Eina_Bool ewk_view_js_object_add(Evas_Object* ewkView, Ewk_JS_Object* object, const char* objectName)

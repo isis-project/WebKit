@@ -35,8 +35,8 @@
 #include "Tracing.h"
 #include "WeakSetInlines.h"
 #include <algorithm>
+#include <wtf/RAMSize.h>
 #include <wtf/CurrentTime.h>
-
 
 using namespace std;
 using namespace JSC;
@@ -45,14 +45,8 @@ namespace JSC {
 
 namespace { 
 
-#if CPU(X86) || CPU(X86_64)
-static const size_t largeHeapSize = 16 * 1024 * 1024;
-#elif PLATFORM(IOS)
-static const size_t largeHeapSize = 8 * 1024 * 1024;
-#else
-static const size_t largeHeapSize = 512 * 1024;
-#endif
-static const size_t smallHeapSize = 512 * 1024;
+static const size_t largeHeapSize = 32 * MB; // About 1.5X the average webpage.
+static const size_t smallHeapSize = 1 * MB; // Matches the FastMalloc per-thread cache.
 
 #if ENABLE(GC_LOGGING)
 #if COMPILER(CLANG)
@@ -148,12 +142,21 @@ struct GCCounter {
 #define GCCOUNTER(name, value) do { } while (false)
 #endif
 
-static size_t heapSizeForHint(HeapSize heapSize)
+static inline size_t minHeapSize(HeapType heapType, size_t ramSize)
 {
-    if (heapSize == LargeHeap)
-        return largeHeapSize;
-    ASSERT(heapSize == SmallHeap);
+    if (heapType == LargeHeap)
+        return min(largeHeapSize, ramSize / 4);
     return smallHeapSize;
+}
+
+static inline size_t proportionalHeapSize(size_t heapSize, size_t ramSize)
+{
+    // Try to stay under 1/2 RAM size to leave room for the DOM, rendering, networking, etc.
+    if (heapSize < ramSize / 4)
+        return 2 * heapSize;
+    if (heapSize < ramSize / 2)
+        return 1.5 * heapSize;
+    return 1.25 * heapSize;
 }
 
 static inline bool isValidSharedInstanceThreadState()
@@ -178,99 +181,19 @@ static inline bool isValidThreadState(JSGlobalData* globalData)
     return true;
 }
 
-class CountFunctor {
-public:
-    typedef size_t ReturnType;
-
-    CountFunctor();
-    void count(size_t);
-    ReturnType returnValue();
-
-private:
-    ReturnType m_count;
+struct Count : public MarkedBlock::CountFunctor {
+    void operator()(JSCell*) { count(1); }
 };
 
-inline CountFunctor::CountFunctor()
-    : m_count(0)
-{
-}
-
-inline void CountFunctor::count(size_t count)
-{
-    m_count += count;
-}
-
-inline CountFunctor::ReturnType CountFunctor::returnValue()
-{
-    return m_count;
-}
-
-struct ClearMarks : MarkedBlock::VoidFunctor {
-    void operator()(MarkedBlock*);
+struct CountIfGlobalObject : MarkedBlock::CountFunctor {
+    void operator()(JSCell* cell) {
+        if (!cell->isObject())
+            return;
+        if (!asObject(cell)->isGlobalObject())
+            return;
+        count(1);
+    }
 };
-
-inline void ClearMarks::operator()(MarkedBlock* block)
-{
-    block->clearMarks();
-}
-
-struct Sweep : MarkedBlock::VoidFunctor {
-    void operator()(MarkedBlock*);
-};
-
-inline void Sweep::operator()(MarkedBlock* block)
-{
-    block->sweep();
-}
-
-struct MarkCount : CountFunctor {
-    void operator()(MarkedBlock*);
-};
-
-inline void MarkCount::operator()(MarkedBlock* block)
-{
-    count(block->markCount());
-}
-
-struct Size : CountFunctor {
-    void operator()(MarkedBlock*);
-};
-
-inline void Size::operator()(MarkedBlock* block)
-{
-    count(block->markCount() * block->cellSize());
-}
-
-struct Capacity : CountFunctor {
-    void operator()(MarkedBlock*);
-};
-
-inline void Capacity::operator()(MarkedBlock* block)
-{
-    count(block->capacity());
-}
-
-struct Count : public CountFunctor {
-    void operator()(JSCell*);
-};
-
-inline void Count::operator()(JSCell*)
-{
-    count(1);
-}
-
-struct CountIfGlobalObject : CountFunctor {
-    void operator()(JSCell*);
-};
-
-inline void CountIfGlobalObject::operator()(JSCell* cell)
-{
-    if (!cell->isObject())
-        return;
-    if (!asObject(cell)->isGlobalObject())
-        return;
-    count(1);
-}
 
 class RecordType {
 public:
@@ -310,9 +233,10 @@ inline PassOwnPtr<TypeCountSet> RecordType::returnValue()
 
 } // anonymous namespace
 
-Heap::Heap(JSGlobalData* globalData, HeapSize heapSize)
-    : m_heapSize(heapSize)
-    , m_minBytesPerCycle(heapSizeForHint(heapSize))
+Heap::Heap(JSGlobalData* globalData, HeapType heapType)
+    : m_heapType(heapType)
+    , m_ramSize(ramSize())
+    , m_minBytesPerCycle(minHeapSize(m_heapType, m_ramSize))
     , m_sizeAfterLastCollect(0)
     , m_bytesAllocatedLimit(m_minBytesPerCycle)
     , m_bytesAllocated(0)
@@ -320,12 +244,10 @@ Heap::Heap(JSGlobalData* globalData, HeapSize heapSize)
     , m_operationInProgress(NoOperation)
     , m_objectSpace(this)
     , m_storageSpace(this)
-    , m_markListSet(0)
     , m_activityCallback(DefaultGCActivityCallback::create(this))
     , m_machineThreads(this)
     , m_sharedData(globalData)
     , m_slotVisitor(m_sharedData)
-    , m_weakSet(this)
     , m_handleSet(globalData)
     , m_isSafeToCollect(false)
     , m_globalData(globalData)
@@ -337,13 +259,6 @@ Heap::Heap(JSGlobalData* globalData, HeapSize heapSize)
 
 Heap::~Heap()
 {
-    delete m_markListSet;
-
-    m_objectSpace.shrink();
-    m_storageSpace.freeAllBlocks();
-
-    ASSERT(!size());
-    ASSERT(!capacity());
 }
 
 bool Heap::isPagedOut(double deadline)
@@ -362,11 +277,7 @@ void Heap::lastChanceToFinalize()
     if (size_t size = m_protectedValues.size())
         WTFLogAlways("ERROR: JavaScriptCore heap deallocated while %ld values were still protected", static_cast<unsigned long>(size));
 
-    m_weakSet.finalizeAll();
-    canonicalizeCellLivenessData();
-    clearMarks();
-    sweep();
-    m_globalData->smallStrings.finalizeSmallStrings();
+    m_objectSpace.lastChanceToFinalize();
 
 #if ENABLE(SIMPLE_HEAP_PROFILING)
     m_slotVisitor.m_visitedTypeCounts.dump(WTF::dataFile(), "Visited Type Counts");
@@ -531,6 +442,15 @@ void Heap::markRoots(bool fullGC)
         GCPHASE(GatherRegisterFileRoots);
         registerFile().gatherConservativeRoots(registerFileRoots, m_dfgCodeBlocks);
     }
+
+#if ENABLE(DFG_JIT)
+    ConservativeRoots scratchBufferRoots(&m_objectSpace.blocks(), &m_storageSpace);
+    {
+        GCPHASE(GatherScratchBufferRoots);
+        m_globalData->gatherConservativeRoots(scratchBufferRoots);
+    }
+#endif
+
 #if ENABLE(GGC)
     MarkedBlock::DirtyCellVector dirtyCells;
     if (!fullGC) {
@@ -540,7 +460,7 @@ void Heap::markRoots(bool fullGC)
 #endif
     {
         GCPHASE(clearMarks);
-        clearMarks();
+        m_objectSpace.clearMarks();
     }
 
     m_storageSpace.startedCopying();
@@ -577,6 +497,13 @@ void Heap::markRoots(bool fullGC)
             visitor.append(registerFileRoots);
             visitor.donateAndDrain();
         }
+#if ENABLE(DFG_JIT)
+        {
+            GCPHASE(VisitScratchBufferRoots);
+            visitor.append(scratchBufferRoots);
+            visitor.donateAndDrain();
+        }
+#endif
         {
             GCPHASE(VisitProtectedObjects);
             markProtectedObjects(heapRootVisitor);
@@ -632,7 +559,7 @@ void Heap::markRoots(bool fullGC)
     {
         GCPHASE(VisitingLiveWeakHandles);
         while (true) {
-            m_weakSet.visitLiveWeakImpls(heapRootVisitor);
+            m_objectSpace.visitWeakSets(heapRootVisitor);
             harvestWeakReferences();
             if (visitor.isEmpty())
                 break;
@@ -646,11 +573,6 @@ void Heap::markRoots(bool fullGC)
         }
     }
 
-    {
-        GCPHASE(VisitingDeadWeakHandles);
-        m_weakSet.visitDeadWeakImpls(heapRootVisitor);
-    }
-
     GCCOUNTER(VisitedValueCount, visitor.visitCount());
 
     visitor.doneCopying();
@@ -661,29 +583,19 @@ void Heap::markRoots(bool fullGC)
     m_operationInProgress = NoOperation;
 }
 
-void Heap::clearMarks()
-{
-    m_objectSpace.forEachBlock<ClearMarks>();
-}
-
-void Heap::sweep()
-{
-    m_objectSpace.forEachBlock<Sweep>();
-}
-
 size_t Heap::objectCount()
 {
-    return m_objectSpace.forEachBlock<MarkCount>();
+    return m_objectSpace.objectCount();
 }
 
 size_t Heap::size()
 {
-    return m_objectSpace.forEachBlock<Size>() + m_storageSpace.size();
+    return m_objectSpace.size() + m_storageSpace.size();
 }
 
 size_t Heap::capacity()
 {
-    return m_objectSpace.forEachBlock<Capacity>() + m_storageSpace.capacity();
+    return m_objectSpace.capacity() + m_storageSpace.capacity();
 }
 
 size_t Heap::protectedGlobalObjectCount()
@@ -758,29 +670,29 @@ void Heap::collect(SweepToggle sweepToggle)
 #endif
     {
         GCPHASE(Canonicalize);
-        canonicalizeCellLivenessData();
+        m_objectSpace.canonicalizeCellLivenessData();
     }
 
     markRoots(fullGC);
     
     {
+        GCPHASE(ReapingWeakHandles);
+        m_objectSpace.reapWeakSets();
+    }
+
+    {
         GCPHASE(FinalizeUnconditionalFinalizers);
         finalizeUnconditionalFinalizers();
     }
-        
+
     {
         GCPHASE(FinalizeWeakHandles);
-        m_weakSet.sweep();
+        m_objectSpace.sweepWeakSets();
         m_globalData->smallStrings.finalizeSmallStrings();
     }
     
     JAVASCRIPTCORE_GC_MARKED();
 
-    {
-        GCPHASE(ResetAllocator);
-        resetAllocators();
-    }
-    
     {
         GCPHASE(DeleteCodeBlocks);
         m_dfgCodeBlocks.deleteUnmarkedJettisonedCodeBlocks();
@@ -789,37 +701,30 @@ void Heap::collect(SweepToggle sweepToggle)
     if (sweepToggle == DoSweep) {
         SamplingRegion samplingRegion("Garbage Collection: Sweeping");
         GCPHASE(Sweeping);
-        sweep();
+        m_objectSpace.sweep();
         m_objectSpace.shrink();
-        m_weakSet.shrink();
         m_bytesAbandoned = 0;
     }
 
-    // To avoid pathological GC churn in large heaps, we set the new allocation 
-    // limit to be the current size of the heap. This heuristic 
-    // is a bit arbitrary. Using the current size of the heap after this 
-    // collection gives us a 2X multiplier, which is a 1:1 (heap size :
-    // new bytes allocated) proportion, and seems to work well in benchmarks.
-    size_t newSize = size();
+    {
+        GCPHASE(ResetAllocators);
+        m_objectSpace.resetAllocators();
+    }
+    
+    size_t currentHeapSize = size();
     if (fullGC) {
-        m_sizeAfterLastCollect = newSize;
-        m_bytesAllocatedLimit = max(newSize, m_minBytesPerCycle);
+        m_sizeAfterLastCollect = currentHeapSize;
+
+        // To avoid pathological GC churn in very small and very large heaps, we set
+        // the new allocation limit based on the current size of the heap, with a
+        // fixed minimum.
+        size_t maxHeapSize = max(minHeapSize(m_heapType, m_ramSize), proportionalHeapSize(currentHeapSize, m_ramSize));
+        m_bytesAllocatedLimit = maxHeapSize - currentHeapSize;
     }
     m_bytesAllocated = 0;
     double lastGCEndTime = WTF::currentTime();
     m_lastGCLength = lastGCEndTime - lastGCStartTime;
     JAVASCRIPTCORE_GC_END();
-}
-
-void Heap::canonicalizeCellLivenessData()
-{
-    m_objectSpace.canonicalizeCellLivenessData();
-}
-
-void Heap::resetAllocators()
-{
-    m_objectSpace.resetAllocators();
-    m_weakSet.resetAllocator();
 }
 
 void Heap::setActivityCallback(PassOwnPtr<GCActivityCallback> activityCallback)

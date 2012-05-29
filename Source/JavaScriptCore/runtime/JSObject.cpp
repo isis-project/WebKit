@@ -422,11 +422,6 @@ void JSObject::getOwnPropertyNames(JSObject* object, ExecState* exec, PropertyNa
         getClassPropertyNames(exec, object->classInfo(), propertyNames, mode);
 }
 
-bool JSObject::toBoolean(ExecState*) const
-{
-    return true;
-}
-
 double JSObject::toNumber(ExecState* exec) const
 {
     JSValue primitive = toPrimitive(exec, PreferNumber);
@@ -552,7 +547,7 @@ Structure* JSObject::createInheritorID(JSGlobalData& globalData)
     return m_inheritorID.get();
 }
 
-void JSObject::allocatePropertyStorage(JSGlobalData& globalData, size_t oldSize, size_t newSize)
+PropertyStorage JSObject::growPropertyStorage(JSGlobalData& globalData, size_t oldSize, size_t newSize)
 {
     ASSERT(newSize > oldSize);
 
@@ -580,7 +575,7 @@ void JSObject::allocatePropertyStorage(JSGlobalData& globalData, size_t oldSize,
     }
 
     ASSERT(newPropertyStorage);
-    m_propertyStorage.set(globalData, this, newPropertyStorage);
+    return newPropertyStorage;
 }
 
 bool JSObject::getOwnPropertyDescriptor(JSObject* object, ExecState* exec, PropertyName propertyName, PropertyDescriptor& descriptor)

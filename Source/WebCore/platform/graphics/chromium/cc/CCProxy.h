@@ -83,8 +83,10 @@ public:
 
     virtual void setNeedsAnimate() = 0;
     virtual void setNeedsCommit() = 0;
+    virtual void setNeedsForcedCommit() = 0;
     virtual void setNeedsRedraw() = 0;
-    virtual void setVisible(bool) = 0;
+
+    virtual void didAddAnimation() = 0;
 
     virtual bool commitRequested() const = 0;
 

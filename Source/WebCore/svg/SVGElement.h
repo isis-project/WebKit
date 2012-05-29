@@ -91,7 +91,7 @@ public:
 
     virtual void updateAnimatedSVGAttribute(const QualifiedName&) const;
  
-    virtual PassRefPtr<RenderStyle> customStyleForRenderer();
+    virtual PassRefPtr<RenderStyle> customStyleForRenderer() OVERRIDE;
 
     static void synchronizeRequiredFeatures(void* contextElement);
     static void synchronizeRequiredExtensions(void* contextElement);
@@ -119,18 +119,18 @@ public:
 protected:
     SVGElement(const QualifiedName&, Document*, ConstructionType = CreateSVGElement);
 
-    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual void parseAttribute(const Attribute&) OVERRIDE;
 
     virtual void finishParsingChildren();
-    virtual void attributeChanged(Attribute*) OVERRIDE;
-    virtual bool childShouldCreateRenderer(const NodeRenderingContext&) const;
+    virtual void attributeChanged(const Attribute&) OVERRIDE;
+    virtual bool childShouldCreateRenderer(const NodeRenderingContext&) const OVERRIDE;
     
-    virtual void removedFrom(Node*) OVERRIDE;
+    virtual void removedFrom(ContainerNode*) OVERRIDE;
 
     SVGElementRareData* rareSVGData() const;
     SVGElementRareData* ensureRareSVGData();
 
-    void reportAttributeParsingError(SVGParsingError, Attribute*);
+    void reportAttributeParsingError(SVGParsingError, const Attribute&);
 
 private:
     friend class SVGElementInstance;

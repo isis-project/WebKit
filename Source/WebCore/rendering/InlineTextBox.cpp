@@ -807,6 +807,13 @@ void InlineTextBox::selectionStartEnd(int& sPos, int& ePos)
     ePos = min(endPos - m_start, (int)m_len);
 }
 
+void alignSelectionRectToDevicePixels(FloatRect& rect)
+{
+    float maxX = floorf(rect.maxX());
+    rect.setX(floorf(rect.x()));
+    rect.setWidth(roundf(maxX - rect.x()));
+}
+
 void InlineTextBox::paintSelection(GraphicsContext* context, const FloatPoint& boxOrigin, RenderStyle* style, const Font& font, Color textColor)
 {
     if (context->paintingDisabled())
@@ -844,15 +851,13 @@ void InlineTextBox::paintSelection(GraphicsContext* context, const FloatPoint& b
     LayoutUnit selectionBottom = root()->selectionBottom();
     LayoutUnit selectionTop = root()->selectionTopAdjustedForPrecedingBlock();
 
-    int deltaY = renderer()->style()->isFlippedLinesWritingMode() ? selectionBottom - logicalBottom() : logicalTop() - selectionTop;
-    int selHeight = max<LayoutUnit>(0, selectionBottom - selectionTop);
+    LayoutUnit deltaY = renderer()->style()->isFlippedLinesWritingMode() ? selectionBottom - logicalBottom() : logicalTop() - selectionTop;
+    LayoutUnit selHeight = max<LayoutUnit>(ZERO_LAYOUT_UNIT, selectionBottom - selectionTop);
 
     FloatPoint localOrigin(boxOrigin.x(), boxOrigin.y() - deltaY);
-
     FloatRect clipRect(localOrigin, FloatSize(m_logicalWidth, selHeight));
-    float maxX = floorf(clipRect.maxX());
-    clipRect.setX(floorf(clipRect.x()));
-    clipRect.setWidth(maxX - clipRect.x());
+    alignSelectionRectToDevicePixels(clipRect);
+
     context->clip(clipRect);
 
     context->drawHighlightForText(font, textRun, localOrigin, selHeight, c, style->colorSpace(), sPos, ePos);

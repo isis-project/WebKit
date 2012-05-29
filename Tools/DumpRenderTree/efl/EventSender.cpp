@@ -36,11 +36,14 @@
 
 #include "DumpRenderTree.h"
 #include "DumpRenderTreeChrome.h"
+#include "IntPoint.h"
 #include "JSStringUtils.h"
 #include "NotImplemented.h"
+#include "PlatformEvent.h"
 #include "WebCoreSupport/DumpRenderTreeSupportEfl.h"
 #include "ewk_private.h"
 #include <EWebKit.h>
+#include <Ecore_Input.h>
 #include <JavaScriptCore/JSObjectRef.h>
 #include <JavaScriptCore/JSRetainPtr.h>
 #include <JavaScriptCore/JSStringRef.h>
@@ -109,18 +112,20 @@ enum EventQueueStrategy {
 };
 
 struct KeyEventInfo {
-    KeyEventInfo(const CString& keyName, EvasKeyModifier modifiers)
+    KeyEventInfo(const CString& keyName, unsigned modifiers, const CString& keyString = CString())
         : keyName(keyName)
+        , keyString(keyString)
         , modifiers(modifiers)
     {
     }
 
     const CString keyName;
-    EvasKeyModifier modifiers;
+    const CString keyString;
+    unsigned modifiers;
 };
 
 struct MouseEventInfo {
-    MouseEventInfo(EvasMouseEvent event, EvasKeyModifier modifiers = EvasKeyModifierNone, EvasMouseButton button = EvasMouseButtonNone, int horizontalDelta = 0, int verticalDelta = 0)
+    MouseEventInfo(EvasMouseEvent event, unsigned modifiers = EvasKeyModifierNone, EvasMouseButton button = EvasMouseButtonNone, int horizontalDelta = 0, int verticalDelta = 0)
         : event(event)
         , modifiers(modifiers)
         , button(button)
@@ -130,7 +135,7 @@ struct MouseEventInfo {
     }
 
     EvasMouseEvent event;
-    EvasKeyModifier modifiers;
+    unsigned modifiers;
     EvasMouseButton button;
     int horizontalDelta;
     int verticalDelta;
@@ -147,6 +152,27 @@ struct DelayedEvent {
     unsigned long delay;
 };
 
+struct TouchEventInfo {
+    TouchEventInfo(unsigned id, Ewk_Touch_Point_Type state, const WebCore::IntPoint& point)
+        : state(state)
+        , point(point)
+        , id(id)
+    {
+    }
+
+    unsigned id;
+    Ewk_Touch_Point_Type state;
+    WebCore::IntPoint point;
+};
+
+static unsigned touchModifiers;
+
+WTF::Vector<TouchEventInfo>& touchPointList()
+{
+    DEFINE_STATIC_LOCAL(WTF::Vector<TouchEventInfo>, staticTouchPointList, ());
+    return staticTouchPointList;
+}
+
 WTF::Vector<DelayedEvent>& delayedEventQueue()
 {
     DEFINE_STATIC_LOCAL(WTF::Vector<DelayedEvent>, staticDelayedEventQueue, ());
@@ -158,7 +184,7 @@ static void feedOrQueueMouseEvent(MouseEventInfo*, EventQueueStrategy);
 static void feedMouseEvent(MouseEventInfo*);
 static void feedQueuedMouseEvents();
 
-static void setEvasModifiers(Evas* evas, EvasKeyModifier modifiers)
+static void setEvasModifiers(Evas* evas, unsigned modifiers)
 {
     static const char* modifierNames[] = { "Control", "Shift", "Alt", "Super" };
     for (unsigned modifier = 0; modifier < 4; ++modifier) {
@@ -225,7 +251,7 @@ static EvasKeyModifier modifierFromJSValue(JSContextRef context, const JSValueRe
     return EvasKeyModifierNone;
 }
 
-static EvasKeyModifier modifiersFromJSValue(JSContextRef context, const JSValueRef modifiers)
+static unsigned modifiersFromJSValue(JSContextRef context, const JSValueRef modifiers)
 {
     // The value may either be a string with a single modifier or an array of modifiers.
     if (JSValueIsString(context, modifiers))
@@ -235,12 +261,12 @@ static EvasKeyModifier modifiersFromJSValue(JSContextRef context, const JSValueR
     if (!modifiersArray)
         return EvasKeyModifierNone;
 
-    unsigned modifier = 0;
+    unsigned modifier = EvasKeyModifierNone;
     JSRetainPtr<JSStringRef> lengthProperty(Adopt, JSStringCreateWithUTF8CString("length"));
     int modifiersCount = JSValueToNumber(context, JSObjectGetProperty(context, modifiersArray, lengthProperty.get(), 0), 0);
     for (int i = 0; i < modifiersCount; ++i)
-        modifier |= static_cast<unsigned>(modifierFromJSValue(context, JSObjectGetPropertyAtIndex(context, modifiersArray, i, 0)));
-    return static_cast<EvasKeyModifier>(modifier);
+        modifier |= modifierFromJSValue(context, JSObjectGetPropertyAtIndex(context, modifiersArray, i, 0));
+    return modifier;
 }
 
 static JSValueRef mouseDownCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
@@ -260,7 +286,7 @@ static JSValueRef mouseDownCallback(JSContextRef context, JSObjectRef function, 
 
     updateClickCount(button);
 
-    EvasKeyModifier modifiers = argumentCount >= 2 ? modifiersFromJSValue(context, arguments[1]) : EvasKeyModifierNone;
+    unsigned modifiers = argumentCount >= 2 ? modifiersFromJSValue(context, arguments[1]) : EvasKeyModifierNone;
     MouseEventInfo* eventInfo = new MouseEventInfo(EvasMouseEventDown, modifiers, static_cast<EvasMouseButton>(button));
     feedOrQueueMouseEvent(eventInfo, FeedQueuedEvents);
     gButtonCurrentlyDown = button;
@@ -282,7 +308,7 @@ static JSValueRef mouseUpCallback(JSContextRef context, JSObjectRef function, JS
     gLastClickTimeOffset = gTimeOffset;
     gButtonCurrentlyDown = 0;
 
-    EvasKeyModifier modifiers = argumentCount >= 2 ? modifiersFromJSValue(context, arguments[1]) : EvasKeyModifierNone;
+    unsigned modifiers = argumentCount >= 2 ? modifiersFromJSValue(context, arguments[1]) : EvasKeyModifierNone;
     MouseEventInfo* eventInfo = new MouseEventInfo(EvasMouseEventUp, modifiers, translateMouseButtonNumber(button));
     feedOrQueueMouseEvent(eventInfo, FeedQueuedEvents);
     return JSValueMakeUndefined(context);
@@ -360,94 +386,111 @@ static JSValueRef continuousMouseScrollByCallback(JSContextRef context, JSObject
     return JSValueMakeUndefined(context);
 }
 
-static const CString keyPadNameFromJSValue(JSStringRef character)
+static KeyEventInfo* keyPadNameFromJSValue(JSStringRef character, unsigned modifiers)
 {
     if (equals(character, "leftArrow"))
-        return "KP_Left";
+        return new KeyEventInfo("KP_Left", modifiers);
     if (equals(character, "rightArrow"))
-        return "KP_Right";
+        return new KeyEventInfo("KP_Right", modifiers);
     if (equals(character, "upArrow"))
-        return "KP_Up";
+        return new KeyEventInfo("KP_Up", modifiers);
     if (equals(character, "downArrow"))
-        return "KP_Down";
+        return new KeyEventInfo("KP_Down", modifiers);
     if (equals(character, "pageUp"))
-        return "KP_Prior";
+        return new KeyEventInfo("KP_Prior", modifiers);
     if (equals(character, "pageDown"))
-        return "KP_Next";
+        return new KeyEventInfo("KP_Next", modifiers);
     if (equals(character, "home"))
-        return "KP_Home";
+        return new KeyEventInfo("KP_Home", modifiers);
     if (equals(character, "end"))
-        return "KP_End";
+        return new KeyEventInfo("KP_End", modifiers);
     if (equals(character, "insert"))
-        return "KP_Insert";
+        return new KeyEventInfo("KP_Insert", modifiers);
     if (equals(character, "delete"))
-        return "KP_Delete";
+        return new KeyEventInfo("KP_Delete", modifiers);
 
-    return character->ustring().utf8();
+    return new KeyEventInfo(character->ustring().utf8(), modifiers, character->ustring().utf8());
 }
 
-static const CString keyNameFromJSValue(JSStringRef character)
+static KeyEventInfo* keyNameFromJSValue(JSStringRef character, unsigned modifiers)
 {
     if (equals(character, "leftArrow"))
-        return "Left";
+        return new KeyEventInfo("Left", modifiers);
     if (equals(character, "rightArrow"))
-        return "Right";
+        return new KeyEventInfo("Right", modifiers);
     if (equals(character, "upArrow"))
-        return "Up";
+        return new KeyEventInfo("Up", modifiers);
     if (equals(character, "downArrow"))
-        return "Down";
+        return new KeyEventInfo("Down", modifiers);
     if (equals(character, "pageUp"))
-        return "Prior";
+        return new KeyEventInfo("Prior", modifiers);
     if (equals(character, "pageDown"))
-        return "Next";
+        return new KeyEventInfo("Next", modifiers);
     if (equals(character, "home"))
-        return "Home";
+        return new KeyEventInfo("Home", modifiers);
     if (equals(character, "end"))
-        return "End";
+        return new KeyEventInfo("End", modifiers);
     if (equals(character, "insert"))
-        return "Insert";
+        return new KeyEventInfo("Insert", modifiers);
     if (equals(character, "delete"))
-        return "Delete";
+        return new KeyEventInfo("Delete", modifiers);
     if (equals(character, "printScreen"))
-        return "Print";
+        return new KeyEventInfo("Print", modifiers);
     if (equals(character, "menu"))
-        return "Menu";
+        return new KeyEventInfo("Menu", modifiers);
+    if (equals(character, "leftControl"))
+        return new KeyEventInfo("Control_L", modifiers);
+    if (equals(character, "rightControl"))
+        return new KeyEventInfo("Control_R", modifiers);
+    if (equals(character, "leftShift"))
+        return new KeyEventInfo("Shift_L", modifiers);
+    if (equals(character, "rightShift"))
+        return new KeyEventInfo("Shift_R", modifiers);
+    if (equals(character, "leftAlt"))
+        return new KeyEventInfo("Alt_L", modifiers);
+    if (equals(character, "rightAlt"))
+        return new KeyEventInfo("Alt_R", modifiers);
     if (equals(character, "F1"))
-        return "F1";
+        return new KeyEventInfo("F1", modifiers);
     if (equals(character, "F2"))
-        return "F2";
+        return new KeyEventInfo("F2", modifiers);
     if (equals(character, "F3"))
-        return "F3";
+        return new KeyEventInfo("F3", modifiers);
     if (equals(character, "F4"))
-        return "F4";
+        return new KeyEventInfo("F4", modifiers);
     if (equals(character, "F5"))
-        return "F5";
+        return new KeyEventInfo("F5", modifiers);
     if (equals(character, "F6"))
-        return "F6";
+        return new KeyEventInfo("F6", modifiers);
     if (equals(character, "F7"))
-        return "F7";
+        return new KeyEventInfo("F7", modifiers);
     if (equals(character, "F8"))
-        return "F8";
+        return new KeyEventInfo("F8", modifiers);
     if (equals(character, "F9"))
-        return "F9";
+        return new KeyEventInfo("F9", modifiers);
     if (equals(character, "F10"))
-        return "F10";
+        return new KeyEventInfo("F10", modifiers);
     if (equals(character, "F11"))
-        return "F11";
+        return new KeyEventInfo("F11", modifiers);
     if (equals(character, "F12"))
-        return "F12";
+        return new KeyEventInfo("F12", modifiers);
 
     int charCode = JSStringGetCharactersPtr(character)[0];
     if (charCode == '\n' || charCode == '\r')
-        return "Return";
+        return new KeyEventInfo("Return", modifiers, "\r");
     if (charCode == '\t')
-        return "Tab";
+        return new KeyEventInfo("Tab", modifiers, "\t");
     if (charCode == '\x8')
-        return "BackSpace";
+        return new KeyEventInfo("BackSpace", modifiers, "\x8");
     if (charCode == ' ')
-        return "space";
+        return new KeyEventInfo("space", modifiers, " ");
+    if (charCode == '\x1B')
+        return new KeyEventInfo("Escape", modifiers, "\x1B");
 
-    return character->ustring().utf8();
+    if ((character->length() == 1) && (charCode >= 'A' && charCode <= 'Z'))
+        modifiers |= EvasKeyModifierShift;
+
+    return new KeyEventInfo(character->ustring().utf8(), modifiers, character->ustring().utf8());
 }
 
 static KeyEventInfo* createKeyEventInfo(JSContextRef context, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
@@ -467,12 +510,11 @@ static KeyEventInfo* createKeyEventInfo(JSContextRef context, size_t argumentCou
     if (exception && *exception)
         return 0;
 
-    EvasKeyModifier modifiers = EvasKeyModifierNone;
+    unsigned modifiers = EvasKeyModifierNone;
     if (argumentCount >= 2)
         modifiers = modifiersFromJSValue(context, arguments[1]);
 
-    const CString keyName = (location == DomKeyLocationNumpad) ? keyPadNameFromJSValue(character.get()) : keyNameFromJSValue(character.get());
-    return new KeyEventInfo(keyName, modifiers);
+    return (location == DomKeyLocationNumpad) ? keyPadNameFromJSValue(character.get(), modifiers) : keyNameFromJSValue(character.get(), modifiers);
 }
 
 static void sendKeyDown(Evas* evas, KeyEventInfo* keyEventInfo)
@@ -481,14 +523,15 @@ static void sendKeyDown(Evas* evas, KeyEventInfo* keyEventInfo)
         return;
 
     const char* keyName = keyEventInfo->keyName.data();
-    EvasKeyModifier modifiers = keyEventInfo->modifiers;
+    const char* keyString = keyEventInfo->keyString.data();
+    unsigned modifiers = keyEventInfo->modifiers;
 
     DumpRenderTreeSupportEfl::layoutFrame(browser->mainFrame());
 
     ASSERT(evas);
     setEvasModifiers(evas, modifiers);
-    evas_event_feed_key_down(evas, keyName, keyName, keyName, 0, 0, 0);
-    evas_event_feed_key_up(evas, keyName, keyName, keyName, 0, 1, 0);
+    evas_event_feed_key_down(evas, keyName, keyName, keyString, 0, 0, 0);
+    evas_event_feed_key_up(evas, keyName, keyName, keyString, 0, 1, 0);
     setEvasModifiers(evas, EvasKeyModifierNone);
 
     DumpRenderTreeSupportEfl::deliverAllMutationsIfNecessary();
@@ -587,6 +630,163 @@ static JSValueRef scheduleAsynchronousKeyDownCallback(JSContextRef context, JSOb
     return JSValueMakeUndefined(context);
 }
 
+static void sendTouchEvent(Ewk_Touch_Event_Type type)
+{
+    Eina_List* eventList = 0;
+
+    for (unsigned i = 0; i < touchPointList().size(); ++i) {
+        Ewk_Touch_Point* event = new Ewk_Touch_Point;
+        WebCore::IntPoint point = touchPointList().at(i).point;
+        event->id = touchPointList().at(i).id;
+        event->x = point.x();
+        event->y = point.y();
+        event->state = touchPointList().at(i).state;
+        eventList = eina_list_append(eventList, event);
+    }
+
+    ewk_frame_feed_touch_event(browser->mainFrame(), type, eventList, touchModifiers);
+
+    void* listData;
+    EINA_LIST_FREE(eventList, listData) {
+        Ewk_Touch_Point* event = static_cast<Ewk_Touch_Point*>(listData);
+        delete event;
+    }
+
+    for (unsigned i = 0; i < touchPointList().size(); ) {
+        if (touchPointList().at(i).state == EWK_TOUCH_POINT_RELEASED)
+            touchPointList().remove(i);
+        else {
+            touchPointList().at(i).state = EWK_TOUCH_POINT_STATIONARY;
+            ++i;
+        }
+    }
+}
+
+static JSValueRef addTouchPointCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    if (argumentCount != 2)
+        return JSValueMakeUndefined(context);
+
+    int x = static_cast<int>(JSValueToNumber(context, arguments[0], exception));
+    ASSERT(!exception || !*exception);
+    int y = static_cast<int>(JSValueToNumber(context, arguments[1], exception));
+    ASSERT(!exception || !*exception);
+
+    const WebCore::IntPoint point(x, y);
+    const unsigned id = touchPointList().isEmpty() ? 0 : touchPointList().last().id + 1;
+    TouchEventInfo eventInfo(id, EWK_TOUCH_POINT_PRESSED, point);
+    touchPointList().append(eventInfo);
+
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef touchStartCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    sendTouchEvent(EWK_TOUCH_START);
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef updateTouchPointCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    if (argumentCount != 3)
+        return JSValueMakeUndefined(context);
+
+    int index = static_cast<int>(JSValueToNumber(context, arguments[0], exception));
+    ASSERT(!exception || !*exception);
+    int x = static_cast<int>(JSValueToNumber(context, arguments[1], exception));
+    ASSERT(!exception || !*exception);
+    int y = static_cast<int>(JSValueToNumber(context, arguments[2], exception));
+    ASSERT(!exception || !*exception);
+
+    if (index < 0 || index >= touchPointList().size())
+        return JSValueMakeUndefined(context);
+
+    WebCore::IntPoint& point = touchPointList().at(index).point;
+    point.setX(x);
+    point.setY(y);
+    touchPointList().at(index).state = EWK_TOUCH_POINT_MOVED;
+
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef touchMoveCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    sendTouchEvent(EWK_TOUCH_MOVE);
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef cancelTouchPointCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    if (argumentCount != 1)
+        return JSValueMakeUndefined(context);
+
+    int index = static_cast<int>(JSValueToNumber(context, arguments[0], exception));
+    ASSERT(!exception || !*exception);
+    if (index < 0 || index >= touchPointList().size())
+        return JSValueMakeUndefined(context);
+
+    touchPointList().at(index).state = EWK_TOUCH_POINT_CANCELLED;
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef touchCancelCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    sendTouchEvent(EWK_TOUCH_CANCEL);
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef releaseTouchPointCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    if (argumentCount != 1)
+        return JSValueMakeUndefined(context);
+
+    int index = static_cast<int>(JSValueToNumber(context, arguments[0], exception));
+    ASSERT(!exception || !*exception);
+    if (index < 0 || index >= touchPointList().size())
+        return JSValueMakeUndefined(context);
+
+    touchPointList().at(index).state = EWK_TOUCH_POINT_RELEASED;
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef touchEndCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    sendTouchEvent(EWK_TOUCH_END);
+    touchModifiers = 0;
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef clearTouchPointsCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    touchPointList().clear();
+    return JSValueMakeUndefined(context);
+}
+
+static JSValueRef setTouchModifierCallback(JSContextRef context, JSObjectRef function, JSObjectRef thisObject, size_t argumentCount, const JSValueRef arguments[], JSValueRef* exception)
+{
+    if (argumentCount != 2)
+        return JSValueMakeUndefined(context);
+
+    JSRetainPtr<JSStringRef> jsModifier(Adopt, JSValueToStringCopy(context, arguments[0], exception));
+    unsigned mask = 0;
+
+    if (equals(jsModifier, "alt"))
+        mask |= ECORE_EVENT_MODIFIER_ALT;
+    else if (equals(jsModifier, "ctrl"))
+        mask |= ECORE_EVENT_MODIFIER_CTRL;
+    else if (equals(jsModifier, "meta"))
+        mask |= ECORE_EVENT_MODIFIER_WIN;
+    else if (equals(jsModifier, "shift"))
+        mask |= ECORE_EVENT_MODIFIER_SHIFT;
+
+    if (JSValueToBoolean(context, arguments[1]))
+        touchModifiers |= mask;
+    else
+        touchModifiers &= ~mask;
+
+    return JSValueMakeUndefined(context);
+}
+
 static JSStaticFunction staticFunctions[] = {
     { "mouseScrollBy", mouseScrollByCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
     { "continuousMouseScrollBy", continuousMouseScrollByCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
@@ -602,6 +802,16 @@ static JSStaticFunction staticFunctions[] = {
     { "textZoomOut", textZoomOutCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
     { "zoomPageIn", zoomPageInCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
     { "zoomPageOut", zoomPageOutCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "addTouchPoint", addTouchPointCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "touchStart", touchStartCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "updateTouchPoint", updateTouchPointCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "touchMove", touchMoveCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "releaseTouchPoint", releaseTouchPointCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "touchEnd", touchEndCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "cancelTouchPoint", cancelTouchPointCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "touchCancel", touchCancelCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "clearTouchPoints", clearTouchPointsCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
+    { "setTouchModifier", setTouchModifierCallback, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete },
     { 0, 0, 0 }
 };
 

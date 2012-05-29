@@ -102,6 +102,8 @@ namespace JSC {
         bool isFrozen(JSGlobalData&);
         bool isExtensible() const { return !m_preventExtensions; }
         bool didTransition() const { return m_didTransition; }
+        bool shouldGrowPropertyStorage() { return propertyStorageCapacity() == propertyStorageSize(); }
+        JS_EXPORT_PRIVATE size_t suggestedNewPropertyStorageSize(); 
 
         Structure* flattenDictionaryStructure(JSGlobalData&, JSObject*);
 
@@ -315,7 +317,7 @@ namespace JSC {
         if (!m_propertyTable)
             return notFound;
 
-        PropertyMapEntry* entry = m_propertyTable->find(propertyName.impl()).first;
+        PropertyMapEntry* entry = m_propertyTable->find(propertyName.uid()).first;
         return entry ? entry->offset : notFound;
     }
 
@@ -330,6 +332,13 @@ namespace JSC {
         return entry ? entry->offset : notFound;
     }
     
+    inline JSValue JSValue::structureOrUndefined() const
+    {
+        if (isCell())
+            return JSValue(asCell()->structure());
+        return jsUndefined();
+    }
+
     inline bool JSCell::isObject() const
     {
         return m_structure->isObject();

@@ -54,21 +54,21 @@ namespace WTF {
 #if DUMP_HASHTABLE_STATS
 
     struct HashTableStats {
-        ~HashTableStats();
         // All of the variables are accessed in ~HashTableStats when the static struct is destroyed.
 
         // The following variables are all atomically incremented when modified.
-        static int numAccesses;
-        static int numRehashes;
-        static int numRemoves;
-        static int numReinserts;
+        WTF_EXPORTDATA static int numAccesses;
+        WTF_EXPORTDATA static int numRehashes;
+        WTF_EXPORTDATA static int numRemoves;
+        WTF_EXPORTDATA static int numReinserts;
 
         // The following variables are only modified in the recordCollisionAtCount method within a mutex.
-        static int maxCollisions;
-        static int numCollisions;
-        static int collisionGraph[4096];
+        WTF_EXPORTDATA static int maxCollisions;
+        WTF_EXPORTDATA static int numCollisions;
+        WTF_EXPORTDATA static int collisionGraph[4096];
 
-        static void recordCollisionAtCount(int count);
+        WTF_EXPORT_PRIVATE static void recordCollisionAtCount(int count);
+        WTF_EXPORT_PRIVATE static void dumpStats();
     };
 
 #endif
@@ -334,9 +334,12 @@ namespace WTF {
         void swap(HashTable&);
         HashTable& operator=(const HashTable&);
 
-        iterator begin() { return makeIterator(m_table); }
+        // When the hash table is empty, just return the same iterator for end as for begin.
+        // This is more efficient because we don't have to skip all the empty and deleted
+        // buckets, and iterating an empty table is a common case that's worth optimizing.
+        iterator begin() { return isEmpty() ? end() : makeIterator(m_table); }
         iterator end() { return makeKnownGoodIterator(m_table + m_tableSize); }
-        const_iterator begin() const { return makeConstIterator(m_table); }
+        const_iterator begin() const { return isEmpty() ? end() : makeConstIterator(m_table); }
         const_iterator end() const { return makeKnownGoodConstIterator(m_table + m_tableSize); }
 
         int size() const { return m_keyCount; }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Google Inc. All rights reserved.
+ * Copyright (C) 2012 Google Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -60,6 +60,7 @@
 #include "ShadowRoot.h"
 #include "SpellChecker.h"
 #include "TextIterator.h"
+#include "TextRun.h"
 #include "TreeScope.h"
 
 #if ENABLE(INPUT_TYPE_COLOR)
@@ -399,6 +400,16 @@ void Internals::selectColorInColorChooser(Element* element, const String& colorV
 }
 #endif
 
+PassRefPtr<ClientRect> Internals::absoluteCaretBounds(Document* document, ExceptionCode& ec)
+{
+    if (!document || !document->frame() || !document->frame()->selection()) {
+        ec = INVALID_ACCESS_ERR;
+        return ClientRect::create();
+    }
+
+    return ClientRect::create(document->frame()->selection()->absoluteCaretBounds());
+}
+
 PassRefPtr<ClientRect> Internals::boundingBox(Element* element, ExceptionCode& ec)
 {
     if (!element) {
@@ -463,8 +474,8 @@ void Internals::setBackgroundBlurOnNode(Node* node, int blurLength, ExceptionCod
         return;
     }
 
-    FilterOperations filters;
-    filters.operations().append(BlurFilterOperation::create(Length(blurLength, Fixed), FilterOperation::BLUR));
+    WebKit::WebFilterOperations filters;
+    filters.append(WebKit::WebFilterOperation::createBlurFilter(blurLength));
     platformLayer->setBackgroundFilters(filters);
 }
 #else
@@ -582,6 +593,13 @@ void Internals::reset(Document* document)
         if (document->frame() == page->mainFrame())
             setUserPreferredLanguages(Vector<String>());
     }
+
+    resetDefaultsToConsistentValues();
+}
+
+void Internals::resetDefaultsToConsistentValues()
+{
+    TextRun::setAllowsRoundingHacks(false);
 }
 
 bool Internals::wasLastChangeUserEdit(Element* textField, ExceptionCode& ec)
@@ -632,6 +650,22 @@ void Internals::setSuggestedValue(Element* element, const String& value, Excepti
     }
 
     inputElement->setSuggestedValue(value);
+}
+
+void Internals::setEditingValue(Element* element, const String& value, ExceptionCode& ec)
+{
+    if (!element) {
+        ec = INVALID_ACCESS_ERR;
+        return;
+    }
+
+    HTMLInputElement* inputElement = element->toInputElement();
+    if (!inputElement) {
+        ec = INVALID_NODE_TYPE_ERR;
+        return;
+    }
+
+    inputElement->setEditingValue(value);
 }
 
 void Internals::scrollElementToRect(Element* element, long x, long y, long w, long h, ExceptionCode& ec)
@@ -1024,6 +1058,10 @@ void Internals::resumeAnimations(Document* document, ExceptionCode& ec) const
     controller->resumeAnimations();
 }
 
+void Internals::allowRoundingHacks() const
+{
+    TextRun::setAllowsRoundingHacks(true);
+}
 
 #if ENABLE(FULLSCREEN_API)
 void Internals::webkitWillEnterFullScreenForElement(Document* document, Element* element)

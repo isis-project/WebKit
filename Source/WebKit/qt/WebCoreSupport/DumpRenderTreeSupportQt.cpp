@@ -303,20 +303,6 @@ void DumpRenderTreeSupportQt::setAutofilled(const QWebElement& element, bool isA
     inputElement->setAutofilled(isAutofilled);
 }
 
-void DumpRenderTreeSupportQt::setJavaScriptProfilingEnabled(QWebFrame* frame, bool enabled)
-{
-#if ENABLE(JAVASCRIPT_DEBUGGER) && ENABLE(INSPECTOR)
-    Frame* coreFrame = QWebFramePrivate::core(frame);
-    InspectorController* controller = coreFrame->page()->inspectorController();
-    if (!controller)
-        return;
-    if (enabled)
-        controller->enableProfiler();
-    else
-        controller->disableProfiler();
-#endif
-}
-
 void DumpRenderTreeSupportQt::setValueForUser(const QWebElement& element, const QString& value)
 {
     WebCore::Element* webElement = element.m_element;
@@ -656,26 +642,12 @@ bool DumpRenderTreeSupportQt::elementDoesAutoCompleteForElementWithId(QWebFrame*
     return inputElement->isTextField() && !inputElement->isPasswordField() && inputElement->shouldAutocomplete();
 }
 
-void DumpRenderTreeSupportQt::setEditingBehavior(QWebPage* page, const QString& editingBehavior)
+void DumpRenderTreeSupportQt::setWindowsBehaviorAsEditingBehavior(QWebPage* page)
 {
-    WebCore::EditingBehaviorType coreEditingBehavior;
-
-    if (editingBehavior == QLatin1String("win"))
-        coreEditingBehavior = EditingWindowsBehavior;
-    else if (editingBehavior == QLatin1String("mac"))
-        coreEditingBehavior = EditingMacBehavior;
-    else if (editingBehavior == QLatin1String("unix"))
-        coreEditingBehavior = EditingUnixBehavior;
-    else {
-        ASSERT_NOT_REACHED();
-        return;
-    }
-
     Page* corePage = QWebPagePrivate::core(page);
     if (!corePage)
         return;
-
-    corePage->settings()->setEditingBehaviorType(coreEditingBehavior);
+    corePage->settings()->setEditingBehaviorType(EditingWindowsBehavior);
 }
 
 void DumpRenderTreeSupportQt::clearAllApplicationCaches()
@@ -977,7 +949,8 @@ void DumpRenderTreeSupportQt::evaluateScriptInIsolatedWorld(QWebFrame* frame, in
     ScriptSourceCode source(script);
     Vector<ScriptSourceCode> sources;
     sources.append(source);
-    proxy->evaluateInIsolatedWorld(0, sources, true);
+    Vector<ScriptValue> result;
+    proxy->evaluateInIsolatedWorld(0, sources, &result);
 #endif
 }
 
@@ -1330,11 +1303,6 @@ void QWEBKIT_EXPORT qt_drt_resetOriginAccessWhiteLists()
 void QWEBKIT_EXPORT qt_drt_run(bool b)
 {
     DumpRenderTreeSupportQt::setDumpRenderTreeModeEnabled(b);
-}
-
-void QWEBKIT_EXPORT qt_drt_setJavaScriptProfilingEnabled(QWebFrame* frame, bool enabled)
-{
-    DumpRenderTreeSupportQt::setJavaScriptProfilingEnabled(frame, enabled);
 }
 
 void QWEBKIT_EXPORT qt_drt_whiteListAccessFromOrigin(const QString& sourceOrigin, const QString& destinationProtocol, const QString& destinationHost, bool allowDestinationSubdomains)

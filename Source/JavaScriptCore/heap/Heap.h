@@ -32,7 +32,6 @@
 #include "MarkedSpace.h"
 #include "SlotVisitor.h"
 #include "WeakHandleOwner.h"
-#include "WeakSet.h"
 #include "WriteBarrierSupport.h"
 #include <wtf/HashCountedSet.h>
 #include <wtf/HashSet.h>
@@ -65,8 +64,7 @@ namespace JSC {
 
     enum OperationInProgress { NoOperation, Allocation, Collection };
 
-    // Heap size hint.
-    enum HeapSize { SmallHeap, LargeHeap };
+    enum HeapType { SmallHeap, LargeHeap };
 
     class Heap {
         WTF_MAKE_NONCOPYABLE(Heap);
@@ -90,7 +88,7 @@ namespace JSC {
         static void writeBarrier(const JSCell*, JSCell*);
         static uint8_t* addressOfCardFor(JSCell*);
 
-        Heap(JSGlobalData*, HeapSize);
+        Heap(JSGlobalData*, HeapType);
         ~Heap();
         JS_EXPORT_PRIVATE void lastChanceToFinalize();
 
@@ -144,12 +142,11 @@ namespace JSC {
         void pushTempSortVector(Vector<ValueStringPair>*);
         void popTempSortVector(Vector<ValueStringPair>*);
     
-        HashSet<MarkedArgumentBuffer*>& markListSet() { if (!m_markListSet) m_markListSet = new HashSet<MarkedArgumentBuffer*>; return *m_markListSet; }
+        HashSet<MarkedArgumentBuffer*>& markListSet() { if (!m_markListSet) m_markListSet = adoptPtr(new HashSet<MarkedArgumentBuffer*>); return *m_markListSet; }
         
         template<typename Functor> typename Functor::ReturnType forEachProtectedCell(Functor&);
         template<typename Functor> typename Functor::ReturnType forEachProtectedCell();
 
-        WeakSet* weakSet() { return &m_weakSet; }
         HandleSet* handleSet() { return &m_handleSet; }
         HandleStack* handleStack() { return &m_handleStack; }
 
@@ -188,26 +185,17 @@ namespace JSC {
         JS_EXPORT_PRIVATE bool isValidAllocation(size_t);
         JS_EXPORT_PRIVATE void reportExtraMemoryCostSlowCase(size_t);
 
-        // Call this function before any operation that needs to know which cells
-        // in the heap are live. (For example, call this function before
-        // conservative marking, eager sweeping, or iterating the cells in a MarkedBlock.)
-        void canonicalizeCellLivenessData();
-
-        void resetAllocators();
-
-        void clearMarks();
         void markRoots(bool fullGC);
         void markProtectedObjects(HeapRootVisitor&);
         void markTempSortVectors(HeapRootVisitor&);
         void harvestWeakReferences();
         void finalizeUnconditionalFinalizers();
         
-        void sweep();
-
         RegisterFile& registerFile();
         BlockAllocator& blockAllocator();
 
-        const HeapSize m_heapSize;
+        const HeapType m_heapType;
+        const size_t m_ramSize;
         const size_t m_minBytesPerCycle;
         size_t m_sizeAfterLastCollect;
 
@@ -216,10 +204,9 @@ namespace JSC {
         size_t m_bytesAbandoned;
         
         OperationInProgress m_operationInProgress;
+        BlockAllocator m_blockAllocator;
         MarkedSpace m_objectSpace;
         CopiedSpace m_storageSpace;
-
-        BlockAllocator m_blockAllocator;
 
 #if ENABLE(SIMPLE_HEAP_PROFILING)
         VTableSpectrum m_destroyedTypeCounts;
@@ -227,7 +214,7 @@ namespace JSC {
 
         ProtectCountSet m_protectedValues;
         Vector<Vector<ValueStringPair>* > m_tempSortingVectors;
-        HashSet<MarkedArgumentBuffer*>* m_markListSet;
+        OwnPtr<HashSet<MarkedArgumentBuffer*> > m_markListSet;
 
         OwnPtr<GCActivityCallback> m_activityCallback;
         
@@ -236,7 +223,6 @@ namespace JSC {
         MarkStackThreadSharedData m_sharedData;
         SlotVisitor m_slotVisitor;
 
-        WeakSet m_weakSet;
         HandleSet m_handleSet;
         HandleStack m_handleStack;
         DFGCodeBlocks m_dfgCodeBlocks;

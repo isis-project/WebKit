@@ -132,9 +132,6 @@ public:
     virtual void notifyContentRendered(const Platform::IntRect&) = 0;
     virtual void notifyScreenRotated() = 0;
 
-    virtual void drawTapHighlight(const Platform::IntRectRegion&, int red, int green, int blue, int alpha, bool hideAfterScroll) = 0;
-    virtual void hideTapHighlight() = 0;
-
     virtual void inputFocusGained(Platform::BlackBerryInputType, int inputStyle) = 0;
     virtual void inputFocusLost() = 0;
     virtual void inputTextChanged() = 0;
@@ -162,7 +159,6 @@ public:
 
     virtual void resetBackForwardList(unsigned listSize, unsigned currentIndex) = 0;
 
-    virtual void openPopupList(bool multiple, int size, const ScopeArray<WebString>& labels, bool* enableds, const int* itemType, bool* selecteds) = 0;
     virtual void openDateTimePopup(int type, const WebString& value, const WebString& min, const WebString& max, double step) = 0;
     virtual void openColorPopup(const WebString& value) = 0;
 
@@ -211,7 +207,7 @@ public:
     virtual void animateBlockZoom(const Platform::FloatPoint& finalPoint, double finalScale) = 0;
 
     virtual void setPreventsScreenIdleDimming(bool noDimming) = 0;
-    virtual void authenticationChallenge(const unsigned short* realm, unsigned int realmLength, WebString& username, WebString& password) = 0;
+    virtual bool authenticationChallenge(const unsigned short* realm, unsigned int realmLength, WebString& username, WebString& password) = 0;
     virtual SaveCredentialType notifyShouldSaveCredential(bool isNew) = 0;
     virtual void notifyPopupAutofillDialog(const std::vector<std::string>&, const Platform::IntRect&) = 0;
 

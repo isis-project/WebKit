@@ -31,9 +31,14 @@
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
+namespace WTF {
+class OrdinalNumber;
+}
+
 namespace WebCore {
 
 class CSPDirectiveList;
+class ScriptCallStack;
 class ScriptExecutionContext;
 class KURL;
 
@@ -61,11 +66,11 @@ public:
     const String& deprecatedHeader() const;
     HeaderType deprecatedHeaderType() const;
 
-    bool allowJavaScriptURLs() const;
-    bool allowInlineEventHandlers() const;
-    bool allowInlineScript() const;
-    bool allowInlineStyle() const;
-    bool allowEval() const;
+    bool allowJavaScriptURLs(const String& contextURL, const WTF::OrdinalNumber& contextLine) const;
+    bool allowInlineEventHandlers(const String& contextURL, const WTF::OrdinalNumber& contextLine) const;
+    bool allowInlineScript(const String& contextURL, const WTF::OrdinalNumber& contextLine) const;
+    bool allowInlineStyle(const String& contextURL, const WTF::OrdinalNumber& contextLine) const;
+    bool allowEval(PassRefPtr<ScriptCallStack>) const;
 
     bool allowScriptFromSource(const KURL&) const;
     bool allowObjectFromSource(const KURL&) const;

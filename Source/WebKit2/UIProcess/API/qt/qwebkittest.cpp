@@ -22,9 +22,10 @@
 #include "qwebkittest_p.h"
 
 #include "QtViewportInteractionEngine.h"
-#include "QtWebPageEventHandler.h"
-#include "qquickwebview_p.h"
 #include "qquickwebview_p_p.h"
+#include "qwindowsysteminterface_qpa.h"
+#include <QMutableListIterator>
+#include <QTouchEvent>
 
 using namespace WebKit;
 
@@ -38,26 +39,76 @@ QWebKitTest::~QWebKitTest()
 {
 }
 
-bool QWebKitTest::touchDoubleTap(QObject* item, qreal x, qreal y, int delay)
+static QTouchEvent::TouchPoint touchPoint(qreal x, qreal y)
 {
-    if (!qobject_cast<QQuickWebView*>(item)) {
-        // FIXME: We only support the actual web view for now.
-        qWarning("Touch event \"DoubleTap\" not accepted by receiving item");
+    QPointF localPos(x, y);
+
+    QTouchEvent::TouchPoint point;
+    point.setId(1);
+    point.setLastPos(localPos);
+    QRectF touchRect(0, 0, 40, 40);
+    touchRect.moveCenter(localPos);
+    point.setRect(touchRect);
+    point.setPressure(1);
+
+    return point;
+}
+
+bool QWebKitTest::sendTouchEvent(QQuickWebView* window, QEvent::Type type, const QList<QTouchEvent::TouchPoint>& points, ulong timestamp)
+{
+    ASSERT(window);
+
+    static QTouchDevice* device = 0;
+    if (!device) {
+        device = new QTouchDevice;
+        device->setType(QTouchDevice::TouchScreen);
+        QWindowSystemInterface::registerTouchDevice(device);
+    }
+
+    Qt::TouchPointStates touchPointStates = 0;
+    foreach (const QTouchEvent::TouchPoint& touchPoint, points)
+        touchPointStates |= touchPoint.state();
+
+    QTouchEvent event(type, device, Qt::NoModifier, touchPointStates, points);
+    event.setTimestamp(timestamp);
+    event.setAccepted(false);
+
+    window->touchEvent(&event);
+
+    return event.isAccepted();
+}
+
+bool QWebKitTest::touchTap(QObject* item, qreal x, qreal y, int delay)
+{
+    QQuickWebView* window = qobject_cast<QQuickWebView*>(item);
+
+    if (!window) {
+        qWarning("Touch event \"TouchBegin\" not accepted by receiving item");
         return false;
     }
 
     // FIXME: implement delay using QTest::qWait() or similar.
     Q_UNUSED(delay);
 
-    QPointF localPos(x, y);
+    QList<QTouchEvent::TouchPoint> points;
+    points.append(touchPoint(x, y));
 
-    QTouchEvent::TouchPoint point;
-    point.setLastPos(localPos);
-    QRectF touchRect(0, 0, 40, 40);
-    touchRect.moveCenter(localPos);
-    point.setRect(touchRect);
+    points[0].setState(Qt::TouchPointPressed);
+    sendTouchEvent(window, QEvent::TouchBegin, points, QDateTime::currentMSecsSinceEpoch());
 
-    m_webViewPrivate->pageView->eventHandler()->handleDoubleTapEvent(point);
+    points[0].setState(Qt::TouchPointReleased);
+    sendTouchEvent(window, QEvent::TouchEnd, points, QDateTime::currentMSecsSinceEpoch());
+
+    return true;
+}
+
+bool QWebKitTest::touchDoubleTap(QObject* item, qreal x, qreal y, int delay)
+{
+    if (!touchTap(item, x, y, delay))
+        return false;
+
+    if (!touchTap(item, x, y, delay))
+        return false;
 
     return true;
 }
@@ -108,5 +159,5 @@ QVariant QWebKitTest::isScalable() const
 
 QVariant QWebKitTest::layoutSize() const
 {
-    return QSizeF(m_webViewPrivate->attributes.layoutSize.width(), m_webViewPrivate->attributes.layoutSize.height());
+    return QSizeF(m_webViewPrivate->attributes.layoutSize);
 }

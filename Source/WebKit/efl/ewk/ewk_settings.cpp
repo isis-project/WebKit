@@ -105,13 +105,6 @@ void ewk_settings_web_database_default_quota_set(uint64_t maximumSize)
     s_webDatabaseQuota = maximumSize;
 }
 
-void ewk_settings_web_database_clear()
-{
-#if ENABLE(SQL_DATABASE)
-    WebCore::DatabaseTracker::tracker().deleteAllDatabases();
-#endif
-}
-
 void ewk_settings_local_storage_path_set(const char* path)
 {
     WebCore::StorageTracker::tracker().setDatabaseDirectoryPath(WTF::String::fromUTF8(path));
@@ -253,6 +246,16 @@ Eina_Bool ewk_settings_object_cache_enable_get()
 void ewk_settings_object_cache_enable_set(Eina_Bool enable)
 {
     WebCore::memoryCache()->setDisabled(!enable);
+}
+
+unsigned ewk_settings_page_cache_capacity_get()
+{
+    return WebCore::pageCache()->capacity();
+}
+
+void ewk_settings_page_cache_capacity_set(unsigned pages)
+{
+    WebCore::pageCache()->setCapacity(pages);
 }
 
 void ewk_settings_memory_cache_clear()

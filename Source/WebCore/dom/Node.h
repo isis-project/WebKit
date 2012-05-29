@@ -214,30 +214,30 @@ public:
     bool isStyledElement() const { return getFlag(IsStyledElementFlag); }
     virtual bool isAttributeNode() const { return false; }
     virtual bool isCharacterDataNode() const { return false; }
+    virtual bool isFrameOwnerElement() const { return false; }
     bool isDocumentNode() const;
     bool isShadowRoot() const { return getFlag(IsShadowRootFlag); }
     bool inNamedFlow() const { return getFlag(InNamedFlowFlag); }
     bool hasAttrList() const { return getFlag(HasAttrListFlag); }
-    bool isFrameOwnerElement() const { return getFlag(IsFrameOwnerElementFlag); }
+    bool hasCustomCallbacks() const { return getFlag(HasCustomCallbacksFlag); }
 
     Node* shadowAncestorNode() const;
-    // Returns 0, a ShadowRoot, or a legacy shadow root.
-    ShadowRoot* shadowTreeRootNode() const;
+    ShadowRoot* shadowRoot() const;
+    ShadowRoot* youngestShadowRoot() const;
+
     // Returns 0, a child of ShadowRoot, or a legacy shadow root.
     Node* nonBoundaryShadowTreeRootNode();
     bool isInShadowTree() const;
     // Node's parent, shadow tree host.
     ContainerNode* parentOrHostNode() const;
     Element* parentOrHostElement() const;
+    void setParentOrHostNode(ContainerNode*);
     Node* highestAncestor() const;
 
     // Use when it's guaranteed to that shadowHost is 0.
     ContainerNode* parentNodeGuaranteedHostFree() const;
     // Returns the parent node, but 0 if the parent node is a ShadowRoot.
     ContainerNode* nonShadowBoundaryParentNode() const;
-
-    Element* shadowHost() const;
-    void setShadowHost(Element*);
 
     bool selfOrAncestorHasDirAutoAttribute() const { return getFlag(SelfOrAncestorHasDirAutoFlag); }
     void setSelfOrAncestorHasDirAutoAttribute(bool flag) { setFlag(flag, SelfOrAncestorHasDirAutoFlag); }
@@ -523,41 +523,42 @@ public:
     // This is similar to the DOMNodeInsertedIntoDocument DOM event, but does not require the overhead of event
     // dispatching.
     //
-    // Webkit notifies this callback regardless if the subtree of the node is a document tree or a floating subtree.
+    // WebKit notifies this callback regardless if the subtree of the node is a document tree or a floating subtree.
     // Implementation can determine the type of subtree by seeing insertionPoint->inDocument().
     // For a performance reason, notifications are delivered only to ContainerNode subclasses if the insertionPoint is out of document.
     //
-    // There are another callback named didNotifyDescendantInseretions(), which is called after all the descendant is notified.
-    // Only a few subclasses actually need this. To utilize this, the node should return InsertionShouldCallDidNotifyDescendantInseretions
+    // There are another callback named didNotifyDescendantInsertions(), which is called after all the descendant is notified.
+    // Only a few subclasses actually need this. To utilize this, the node should return InsertionShouldCallDidNotifyDescendantInsertions
     // from insrtedInto().
     //
     enum InsertionNotificationRequest {
         InsertionDone,
-        InsertionShouldCallDidNotifyDescendantInseretions
+        InsertionShouldCallDidNotifyDescendantInsertions
     };
 
-    virtual InsertionNotificationRequest insertedInto(Node* insertionPoint);
-    virtual void didNotifyDescendantInseretions(Node*) { }
+    virtual InsertionNotificationRequest insertedInto(ContainerNode* insertionPoint);
+    virtual void didNotifyDescendantInsertions(ContainerNode*) { }
 
     // Notifies the node that it is no longer part of the tree.
     //
     // This is a dual of insertedInto(), and is similar to the DOMNodeRemovedFromDocument DOM event, but does not require the overhead of event
     // dispatching, and is called _after_ the node is removed from the tree.
     //
-    virtual void removedFrom(Node* insertionPoint);
+    virtual void removedFrom(ContainerNode* insertionPoint);
 
 #ifndef NDEBUG
     virtual void formatForDebugger(char* buffer, unsigned length) const;
 
     void showNode(const char* prefix = "") const;
     void showTreeForThis() const;
+    void showNodePathForThis() const;
     void showTreeAndMark(const Node* markedNode1, const char* markedLabel1, const Node* markedNode2 = 0, const char* markedLabel2 = 0) const;
     void showTreeForThisAcrossFrame() const;
 #endif
 
     void registerDynamicSubtreeNodeList(DynamicSubtreeNodeList*);
     void unregisterDynamicSubtreeNodeList(DynamicSubtreeNodeList*);
-    void invalidateNodeListsCacheAfterAttributeChanged(const QualifiedName&);
+    void invalidateNodeListsCacheAfterAttributeChanged(const QualifiedName&, Element* attributeOwnerElement);
     void invalidateNodeListsCacheAfterChildrenChanged();
     void removeCachedClassNodeList(ClassNodeList*, const String&);
 
@@ -605,7 +606,7 @@ public:
     void dispatchRegionLayoutUpdateEvent();
 
     void dispatchSubtreeModifiedEvent();
-    void dispatchDOMActivateEvent(int detail, PassRefPtr<Event> underlyingEvent);
+    bool dispatchDOMActivateEvent(int detail, PassRefPtr<Event> underlyingEvent);
     void dispatchFocusInEvent(const AtomicString& eventType, PassRefPtr<Node> oldFocusedNode);
     void dispatchFocusOutEvent(const AtomicString& eventType, PassRefPtr<Node> newFocusedNode);
 
@@ -687,24 +688,22 @@ private:
         StyleChangeMask = 1 << nodeStyleChangeShift | 1 << (nodeStyleChangeShift + 1),
 
         SelfOrAncestorHasDirAutoFlag = 1 << 22,
-        HasCustomWillOrDidRecalcStyleFlag = 1 << 23,
-        HasCustomStyleForRendererFlag = 1 << 24,
 
-        HasNameFlag = 1 << 25,
+        HasNameFlag = 1 << 23,
 
-        AttributeStyleDirtyFlag = 1 << 26,
+        AttributeStyleDirtyFlag = 1 << 24,
 
 #if ENABLE(SVG)
         DefaultNodeFlags = IsParsingChildrenFinishedFlag | IsStyleAttributeValidFlag | AreSVGAttributesValidFlag,
 #else
         DefaultNodeFlags = IsParsingChildrenFinishedFlag | IsStyleAttributeValidFlag,
 #endif
-        InNamedFlowFlag = 1 << 28,
-        HasAttrListFlag = 1 << 29,
-        IsFrameOwnerElementFlag = 1 << 30
+        InNamedFlowFlag = 1 << 26,
+        HasAttrListFlag = 1 << 27,
+        HasCustomCallbacksFlag = 1 << 28
     };
 
-    // 2 bits remaining
+    // 4 bits remaining
 
     bool getFlag(NodeFlags mask) const { return m_nodeFlags & mask; }
     void setFlag(bool f, NodeFlags mask) const { m_nodeFlags = (m_nodeFlags & ~mask) | (-(int32_t)f & mask); } 
@@ -720,7 +719,7 @@ protected:
         CreateShadowRoot = CreateContainer | IsShadowRootFlag,
         CreateStyledElement = CreateElement | IsStyledElementFlag, 
         CreateHTMLElement = CreateStyledElement | IsHTMLFlag, 
-        CreateFrameOwnerElement = CreateHTMLElement | IsFrameOwnerElementFlag,
+        CreateFrameOwnerElement = CreateHTMLElement | HasCustomCallbacksFlag,
         CreateSVGElement = CreateStyledElement | IsSVGFlag,
         CreateDocument = CreateContainer | InDocumentFlag
     };
@@ -738,12 +737,7 @@ protected:
     NodeRareData* ensureRareData();
     void clearRareData();
 
-    bool hasCustomWillOrDidRecalcStyle() const { return getFlag(HasCustomWillOrDidRecalcStyleFlag); }
-    void setHasCustomWillOrDidRecalcStyle() { setFlag(true, HasCustomWillOrDidRecalcStyleFlag); }
-    
-    bool hasCustomStyleForRenderer() const { return getFlag(HasCustomStyleForRendererFlag); }
-    void setHasCustomStyleForRenderer() { setFlag(true, HasCustomStyleForRendererFlag); }
-    void clearHasCustomStyleForRenderer() { clearFlag(HasCustomStyleForRendererFlag); }
+    void setHasCustomCallbacks() { setFlag(true, HasCustomCallbacksFlag); }
 
 private:
     // These API should be only used for a tree scope migration.
@@ -782,6 +776,7 @@ private:
     // This method is made private to ensure a compiler error on call sites that
     // don't follow this rule.
     using TreeShared<ContainerNode>::parent;
+    using TreeShared<ContainerNode>::setParent;
 
     void trackForDebugging();
 
@@ -797,14 +792,16 @@ private:
     Node* m_next;
     RenderObject* m_renderer;
 
-protected:
-    bool isParsingChildrenFinished() const { return getFlag(IsParsingChildrenFinishedFlag); }
-    void setIsParsingChildrenFinished() { setFlag(IsParsingChildrenFinishedFlag); }
-    void clearIsParsingChildrenFinished() { clearFlag(IsParsingChildrenFinishedFlag); }
+public:
     bool isStyleAttributeValid() const { return getFlag(IsStyleAttributeValidFlag); }
     void setIsStyleAttributeValid(bool f) { setFlag(f, IsStyleAttributeValidFlag); }
     void setIsStyleAttributeValid() const { setFlag(IsStyleAttributeValidFlag); }
     void clearIsStyleAttributeValid() { clearFlag(IsStyleAttributeValidFlag); }
+
+protected:
+    bool isParsingChildrenFinished() const { return getFlag(IsParsingChildrenFinishedFlag); }
+    void setIsParsingChildrenFinished() { setFlag(IsParsingChildrenFinishedFlag); }
+    void clearIsParsingChildrenFinished() { clearFlag(IsParsingChildrenFinishedFlag); }
 
 #if ENABLE(SVG)
     bool areSVGAttributesValid() const { return getFlag(AreSVGAttributesValidFlag); }
@@ -837,6 +834,11 @@ inline ContainerNode* Node::parentNode() const
     return getFlag(IsShadowRootFlag) ? 0 : parent();
 }
 
+inline void Node::setParentOrHostNode(ContainerNode* parent)
+{
+    setParent(parent);
+}
+
 inline ContainerNode* Node::parentOrHostNode() const
 {
     return parent();
@@ -866,6 +868,7 @@ inline void Node::reattachIfAttached()
 #ifndef NDEBUG
 // Outside the WebCore namespace for ease of invocation from gdb.
 void showTree(const WebCore::Node*);
+void showNodePath(const WebCore::Node*);
 #endif
 
 #endif

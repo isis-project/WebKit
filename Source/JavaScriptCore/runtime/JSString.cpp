@@ -47,7 +47,7 @@ void JSRopeString::RopeBuilder::expand()
 
 void JSString::destroy(JSCell* cell)
 {
-    JSString* thisObject = jsCast<JSString*>(cell);
+    JSString* thisObject = static_cast<JSString*>(cell);
     thisObject->JSString::~JSString();
 }
 
@@ -230,7 +230,7 @@ bool JSString::getPrimitiveNumber(ExecState* exec, double& number, JSValue& resu
     return false;
 }
 
-bool JSString::toBoolean(ExecState*) const
+bool JSString::toBoolean() const
 {
     return m_length;
 }

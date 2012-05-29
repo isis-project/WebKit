@@ -155,7 +155,7 @@ InspectorTest._resumedScript = function()
 
 InspectorTest.showScriptSourceOnScriptsPanel = function(panel, scriptName, callback)
 {
-    var uiSourceCodes = panel._presentationModel.uiSourceCodes();
+    var uiSourceCodes = panel._uiSourceCodeProvider.uiSourceCodes();
     for (var i = 0; i < uiSourceCodes.length; ++i) {
         if (uiSourceCodes[i].parsedURL.lastPathComponent === scriptName) {
             panel.showUISourceCode(uiSourceCodes[i]);
@@ -217,7 +217,7 @@ InspectorTest.setBreakpoint = function(sourceFrame, lineNumber, condition, enabl
 
 InspectorTest.removeBreakpoint = function(sourceFrame, lineNumber)
 {
-    sourceFrame._breakpointManager.findBreakpoint(sourceFrame._uiSourceCode, lineNumber).remove();
+    sourceFrame._breakpointManager.findBreakpoint(sourceFrame._javaScriptSource, lineNumber).remove();
 };
 
 

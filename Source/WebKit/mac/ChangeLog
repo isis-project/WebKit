@@ -1,3 +1,290 @@
+2012-05-29  David Barr  <davidbarr@chromium.org>
+
+        Introduce ENABLE_CSS_IMAGE_RESOLUTION compile flag
+        https://bugs.webkit.org/show_bug.cgi?id=87685
+
+        Reviewed by Eric Seidel.
+
+        Add a configuration option for CSS image-resolution support, disabling it by default.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-05-29  Nikolas Zimmermann  <nzimmermann@rim.com>
+
+        SVGViewSpec DOM bindings aka SVGSVGElement.currentView is unimplemented
+        https://bugs.webkit.org/show_bug.cgi?id=15495
+
+        Reviewed by Rob Buis.
+
+        * MigrateHeaders.make: Copy DOMSVGViewSpec*.h headers.
+
+2012-05-25  Jesus Sanchez-Palencia  <jesus.palencia@openbossa.org>
+
+        WebKitTestRunner needs to support layoutTestController.setJavaScriptProfilingEnabled
+        https://bugs.webkit.org/show_bug.cgi?id=42328
+
+        Reviewed by Eric Seidel.
+
+        * WebInspector/WebInspector.mm:
+        (-[WebInspector setJavaScriptProfilingEnabled:]):
+
+2012-05-24  Tim Horton  <timothy_horton@apple.com>
+
+        Add feature defines for web-facing parts of CSS Regions and Exclusions
+        https://bugs.webkit.org/show_bug.cgi?id=87442
+        <rdar://problem/10887709>
+
+        Reviewed by Dan Bernstein.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-05-24  John Mellor  <johnme@chromium.org>
+
+        Font Boosting: Add compile flag and runtime setting
+        https://bugs.webkit.org/show_bug.cgi?id=87394
+
+        Reviewed by Adam Barth.
+
+        Add ENABLE_FONT_BOOSTING.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-05-23  Ojan Vafai  <ojan@chromium.org>
+
+        add back the ability to disable flexbox
+        https://bugs.webkit.org/show_bug.cgi?id=87147
+
+        Reviewed by Tony Chang.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-05-22  Tim Horton  <timothy_horton@apple.com>
+
+        Add a quirk for applications that depend on the relative ordering of progressCompleted/didFinishLoad
+        https://bugs.webkit.org/show_bug.cgi?id=87178
+        <rdar://problem/11468434>
+
+        Reviewed by Maciej Stachowiak.
+
+        Add plumbing for the quirk to flip the relative ordering of progressCompleted/didFinishLoad back
+        to the behavior before http://trac.webkit.org/changeset/94105. Make it apply to any Mail.app linked
+        against WebKit before that revision.
+
+        * Misc/WebKitVersionChecks.h:
+        * WebView/WebView.mm:
+        (-[WebView _needsDidFinishLoadOrderQuirk]):
+        (-[WebView _preferencesChanged:]):
+
+2012-05-21  Gavin Barraclough  <barraclough@apple.com>
+
+        Disable private names by default in WebCore
+        https://bugs.webkit.org/show_bug.cgi?id=87088
+
+        Reviewed by Geoff Garen.
+
+        r117859 introduced a preliminary implementation of ES6-like private name objects to JSC.
+        These are probably not yet ready to be web-facing, so disabling by default in WebCore.
+        Opting-in for JSC & DumpRenderTree so that we can still run the fast/js/names.html test.
+
+        * WebView/WebPreferenceKeysPrivate.h:
+        * WebView/WebPreferences.mm:
+        (+[WebPreferences initialize]):
+        (-[WebPreferences setJavaScriptExperimentsEnabled:]):
+        (-[WebPreferences javaScriptExperimentsEnabled]):
+        * WebView/WebPreferencesPrivate.h:
+        * WebView/WebView.mm:
+        (-[WebView _preferencesChanged:]):
+            - Added JavaScriptExperimentsEnabled to WebPreferences.
+
+2012-05-15  Gavin Barraclough  <barraclough@apple.com>
+
+        Add support for private names
+        https://bugs.webkit.org/show_bug.cgi?id=86509
+
+        Reviewed by Oliver Hunt.
+
+        The spec isn't final, but we can start adding support to allow property maps
+        to contain keys that aren't identifiers.
+
+        * Plugins/Hosted/ProxyInstance.mm:
+        (WebKit::ProxyClass::methodsNamed):
+        (WebKit::ProxyClass::fieldNamed):
+        (WebKit::ProxyInstance::getMethod):
+        (WebKit::ProxyInstance::methodsNamed):
+        (WebKit::ProxyInstance::fieldNamed):
+            - Removed PropertyName::impl(), call publicName() to get the string associated with a name.
+
+2012-05-21  Caio Marcelo de Oliveira Filho  <caio.oliveira@openbossa.org>
+
+        Move setEditingBehavior() from layoutTestController to window.internals
+        https://bugs.webkit.org/show_bug.cgi?id=42689
+
+        Reviewed by Hajime Morita and Kenneth Rohde Christiansen.
+
+        Remove Mac private API to get/set the editing behavior, since it was only there
+        for the DRT.
+
+        * WebKit.order:
+        * WebView/WebFrame.mm:
+        * WebView/WebFrameInternal.h:
+        * WebView/WebPreferenceKeysPrivate.h:
+        * WebView/WebPreferences.mm:
+        (+[WebPreferences initialize]):
+        * WebView/WebPreferencesPrivate.h:
+        * WebView/WebView.mm:
+        (-[WebView _preferencesChanged:]):
+
+2012-05-20  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Using createContextualFragment to insert a <script> does not cause the script to execute
+        https://bugs.webkit.org/show_bug.cgi?id=12234
+
+        Reviewed by Adam Barth.
+
+        Renamed FragmentScriptingNotAllowed to DisallowScriptingContent.
+
+        * WebView/WebFrame.mm:
+        (-[WebFrame _documentFragmentWithMarkupString:baseURLString:]):
+
+2012-05-19  Andy Estes  <aestes@apple.com>
+
+        Fix build errors found when disabling ENABLE_DRAG_SUPPORT
+        https://bugs.webkit.org/show_bug.cgi?id=86947
+
+        Reviewed by Jon Honeycutt.
+
+        * WebCoreSupport/WebDragClient.h:
+        * WebCoreSupport/WebDragClient.mm:
+        * WebView/WebFrame.mm:
+        * WebView/WebFrameInternal.h:
+        * WebView/WebFrameView.mm:
+        (-[WebFrameView _setDocumentView:]):
+        * WebView/WebHTMLView.mm:
+        (-[WebHTMLView acceptsFirstMouse:]):
+        (-[WebHTMLView shouldDelayWindowOrderingForEvent:]):
+        (matchesExtensionOrEquivalent):
+        * WebView/WebView.mm:
+        (-[WebView _commonInitializationWithFrameName:groupName:]):
+        (-[WebView moveDragCaretToPoint:]):
+        (-[WebView removeDragCaret]):
+
+2012-04-27  Filip Pizlo  <fpizlo@apple.com>
+
+        DFG should have control flow graph simplification
+        https://bugs.webkit.org/show_bug.cgi?id=84553
+
+        Reviewed by Oliver Hunt.
+        
+        Merged r115512 from dfgopt.
+
+        JSValue::toBoolean(ExecState*) -> JSValue::toBoolean()
+        
+        * Plugins/Hosted/NetscapePluginInstanceProxy.mm:
+        (WebKit::NetscapePluginInstanceProxy::addValueToArray):
+
+2012-05-18  Tony Chang  <tony@chromium.org>
+
+        remove the CSS_GRID_LAYOUT compiler define, but default grid layout to off
+        https://bugs.webkit.org/show_bug.cgi?id=86767
+
+        Reviewed by Ojan Vafai.
+
+        * Configurations/FeatureDefines.xcconfig:
+        * WebView/WebPreferenceKeysPrivate.h:
+        * WebView/WebPreferences.mm:
+        (+[WebPreferences initialize]):
+        (-[WebPreferences cssGridLayoutEnabled]):
+        (-[WebPreferences setCSSGridLayoutEnabled:]):
+        * WebView/WebPreferencesPrivate.h:
+        * WebView/WebView.mm:
+        (-[WebView _preferencesChanged:]):
+
+2012-05-18  MORITA Hajime <morrita@google.com>
+
+        Another unreviewed attempt to fix build breakage on r117572.
+
+        * WebCoreSupport/WebEditorClient.h:
+
+2012-05-18  MORITA Hajime  <morrita@google.com>
+
+        https://bugs.webkit.org/show_bug.cgi?id=85515
+        Stale frame in WebCore::SpellChecker::didCheckSucceeded
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebCoreSupport/WebEditorClient.h:
+
+2012-05-17  Andy Estes  <aestes@apple.com>
+
+        Don't let -[CALayer renderInContext:] try to render WebView's root layer
+        https://bugs.webkit.org/show_bug.cgi?id=86773
+        <rdar://problem/10950075>
+
+        Reviewed by Dan Bernstein.
+
+        -[CALayer renderInContext:] doesn't correctly render our layer tree, so
+        don't let it try. Calling drawRect: with a bitmap context will already
+        do the right thing for WebViews.
+
+        * WebView/WebHTMLView.mm: Create a subclass of CALayer called WebLayerHostingLayer.
+        (-[WebLayerHostingLayer renderInContext:]): override renderInContext: to be a NOOP.
+        (-[WebHTMLView attachRootLayer:]): Create a WebLayerHostingLayer rather than a CALayer.
+
+2012-05-17  Hironori Bono  <hbono@chromium.org>
+
+        [Refactoring] Move platform-specific code in Editor::respondToChangedSelection to the WebKit layer
+        https://bugs.webkit.org/show_bug.cgi?id=86591
+
+        Reviewed by Ryosuke Niwa.
+
+        This change adds a TextCheckerClient::shouldEraseMarkersAfterChangeSelection
+        function to remove platform-specific code from Editor::respondToChangedSelection
+        function.
+
+        No new tests, no change in behavior.
+
+        * WebCoreSupport/WebEditorClient.h:
+        * WebCoreSupport/WebEditorClient.mm:
+        (WebEditorClient::shouldEraseMarkersAfterChangeSelection):
+
+2012-05-17  Dan Bernstein  <mitz@apple.com>
+
+        REGRESSION (r117428): WebKit API/SPI was removed
+        https://bugs.webkit.org/show_bug.cgi?id=86748
+
+        Reverted r117428.
+
+        * WebKit.order:
+        * WebView/WebView.mm:
+        (+[WebView _setDomainRelaxationForbidden:forURLScheme:]):
+        * WebView/WebViewPrivate.h:
+
+2012-05-17  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        Convert setDomainRelaxationForbiddenForURLScheme to use InternalSettings interface
+        https://bugs.webkit.org/show_bug.cgi?id=86704
+
+        Reviewed by Eric Seidel.
+
+        Remove setDomainRelaxationForbiddenForURLScheme functions, because it is able to work in the
+        cross-port way through the InternalSettings interface.
+
+        * WebKit.order:
+        * WebView/WebView.mm:
+        * WebView/WebViewPrivate.h:
+
+2012-05-15  Anders Carlsson  <andersca@apple.com>
+
+        Use unaccelerated scrolling deltas when rubber-banding
+        https://bugs.webkit.org/show_bug.cgi?id=86503
+        <rdar://problem/11378742>
+
+        Reviewed by Sam Weinig.
+
+        * WebCoreSupport/WebSystemInterface.mm:
+        (InitWebCoreSystemInterface):
+        Init new WKSI functions.
+
 2012-05-14  Luke Macpherson  <macpherson@chromium.org>
 
         Introduce ENABLE_CSS_VARIABLES compile flag.

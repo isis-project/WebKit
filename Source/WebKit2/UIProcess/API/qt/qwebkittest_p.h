@@ -22,6 +22,7 @@
 #define qwebkittest_p_h
 
 #include "qwebkitglobal.h"
+#include "qquickwebview_p.h"
 
 #include <QtCore/QObject>
 #include <QtCore/QPointer>
@@ -53,11 +54,14 @@ signals:
     void viewportChanged();
 
 public slots:
+    bool touchTap(QObject* item, qreal x, qreal y, int delay = -1);
     bool touchDoubleTap(QObject* item, qreal x, qreal y, int delay = -1);
 
 public:
     QWebKitTest(QQuickWebViewPrivate* webviewPrivate, QObject* parent = 0);
     virtual ~QWebKitTest();
+
+    bool sendTouchEvent(QQuickWebView* window, QEvent::Type type, const QList<QTouchEvent::TouchPoint>& points, ulong timestamp);
 
     QSize contentsSize() const;
     QVariant contentsScale() const;

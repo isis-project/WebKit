@@ -173,8 +173,6 @@
       '../svg/SVGStylable.idl',
       '../svg/SVGTests.idl',
       '../svg/SVGTransformable.idl',
-      '../svg/SVGViewSpec.idl',
-      '../svg/SVGZoomAndPan.idl',
 
       # FIXME: I don't know why these are excluded, either.
       # Someone (me?) should figure it out and add appropriate comments.
@@ -576,6 +574,7 @@
         {
           'action_name': 'HTMLEntityTable',
           'inputs': [
+            '../html/parser/create-html-entity-table',
             '../html/parser/HTMLEntityNames.in',
           ],
           'outputs': [
@@ -1021,6 +1020,7 @@
             'generator_include_dirs': [
               '--include', '../Modules/filesystem',
               '--include', '../Modules/indexeddb',
+              '--include', '../Modules/intents',
               '--include', '../Modules/mediastream',
               '--include', '../Modules/webaudio',
               '--include', '../Modules/webdatabase',
@@ -1203,6 +1203,7 @@
         '../../ThirdParty/glu/glu.gyp:libtess',
         '../../JavaScriptCore/JavaScriptCore.gyp/JavaScriptCore.gyp:yarr',
         '../../WTF/WTF.gyp/WTF.gyp:wtf',
+        '../../Platform/Platform.gyp/Platform.gyp:webkit_platform',
         '<(chromium_src_dir)/build/temp_gyp/googleurl.gyp:googleurl',
         '<(chromium_src_dir)/skia/skia.gyp:skia',
         '<(chromium_src_dir)/third_party/iccjpeg/iccjpeg.gyp:iccjpeg',
@@ -1221,6 +1222,7 @@
       'export_dependent_settings': [
         '../../JavaScriptCore/JavaScriptCore.gyp/JavaScriptCore.gyp:yarr',
         '../../WTF/WTF.gyp/WTF.gyp:wtf',
+        '../../Platform/Platform.gyp/Platform.gyp:webkit_platform',
         '<(chromium_src_dir)/build/temp_gyp/googleurl.gyp:googleurl',
         '<(chromium_src_dir)/skia/skia.gyp:skia',
         '<(chromium_src_dir)/third_party/iccjpeg/iccjpeg.gyp:iccjpeg',
@@ -1250,9 +1252,6 @@
           '<(chromium_src_dir)/third_party/angle/include/GLSLANG',
           '<(SHARED_INTERMEDIATE_DIR)/webkit',
           '<(SHARED_INTERMEDIATE_DIR)/webkit/bindings',
-        ],
-        'mac_framework_dirs': [
-          '$(SDKROOT)/System/Library/Frameworks/ApplicationServices.framework/Frameworks',
         ],
         'msvs_disabled_warnings': [
           4138, 4244, 4291, 4305, 4344, 4355, 4521, 4099,
@@ -1304,16 +1303,10 @@
             '<(chromium_src_dir)/build/linux/system.gyp:gtk',
           ],
         }],
-        ['OS=="linux"', {
-          'direct_dependent_settings': {
-            'defines': [
-              # Mozilla on Linux effectively uses uname -sm, but when running
-              # 32-bit x86 code on an x86_64 processor, it uses
-              # "Linux i686 (x86_64)".  Matching that would require making a
-              # run-time determination.
-              'WEBCORE_NAVIGATOR_PLATFORM="Linux i686"',
-            ],
-          },
+        ['OS=="android"', {
+          'sources/': [
+            ['exclude', 'accessibility/'],
+          ],
         }],
         ['OS=="mac"', {
           'dependencies': [
@@ -1479,7 +1472,6 @@
       'type': 'static_library',
       'dependencies': [
         'webcore_prerequisites',
-        '../../Platform/Platform.gyp/Platform.gyp:webkit_platform',
       ],
       'defines': [ 
         'WEBKIT_IMPLEMENTATION=1', 
@@ -1997,16 +1989,6 @@
         'include_dirs': [
           '<@(webcore_include_dirs)',
         ],
-        'mac_framework_dirs': [
-          '$(SDKROOT)/System/Library/Frameworks/ApplicationServices.framework/Frameworks',
-          '$(SDKROOT)/System/Library/Frameworks/Accelerate.framework',
-          '$(SDKROOT)/System/Library/Frameworks/CoreServices.framework',
-          '$(SDKROOT)/System/Library/Frameworks/Foundation.framework',
-          '$(SDKROOT)/System/Library/Frameworks/CoreFoundation.framework',
-          '$(SDKROOT)/System/Library/Frameworks/AudioToolbox.framework',
-          '$(SDKROOT)/System/Library/Frameworks/AudioUnit.framework',
-          '$(SDKROOT)/System/Library/Frameworks/CoreAudio.framework',
-        ],
       },
       'conditions': [
         ['OS=="mac"', {
@@ -2053,6 +2035,7 @@
         '<@(webcore_include_dirs)',
         '../testing',
         '../testing/v8',
+        '../../Platform/chromium',
       ],
       'sources': [
         '<@(webcore_test_support_files)',

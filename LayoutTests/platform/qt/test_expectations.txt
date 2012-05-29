@@ -11,6 +11,7 @@ BUG_QT_SLOW SLOW DEBUG: editing/selection/dump-as-markup.html = PASS
 BUG_QT_SLOW DEBUG: fast/js/array-sort-modifying-tostring.html = TIMEOUT PASS
 BUG_QT_SLOW SLOW DEBUG: fast/overflow/lots-of-sibling-inline-boxes.html = PASS
 BUG_QT_SLOW SLOW DEBUG: fast/js/dfg-inline-function-dot-caller.html = PASS
+BUGWK69511 SLOW : svg/as-image/svg-nested.html = PASS
 
 BUGWK62662 DEBUG : inspector/cookie-parser.html = CRASH PASS
 
@@ -65,3 +66,16 @@ BUGWK85310 : ietestcenter/css3/valuesandunits/units-010.htm = IMAGE
 BUGWK86137 : ietestcenter/css3/namespaces/prefix-007.xml = IMAGE
 BUGWK86139 : ietestcenter/css3/namespaces/prefix-010.xml = IMAGE
 BUGWK86142 : ietestcenter/css3/namespaces/syntax-021.xml = IMAGE
+
+// CSS Variables are not yet enabled.
+BUGWK85580 SKIP : fast/css/variables = PASS FAIL
+
+// Needs rebaseline after bug 86441
+BUGWK86441 : fast/borders/border-antialiasing.html = IMAGE
+BUGWK86441 : fast/multicol/shadow-breaking.html = IMAGE
+
+// Requires rebaseline after https://bugs.webkit.org/show_bug.cgi?id=85405
+BUGWK85405 : tables/mozilla/bugs/bug10296-1.html = TEXT
+
+// LayoutTestController::setAutomaticLinkDetectionEnabled isn't implemented
+BUGWK85463 SKIP : editing/inserting/typing-space-to-trigger-smart-link.html = FAIL

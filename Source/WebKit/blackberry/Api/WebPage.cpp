@@ -42,6 +42,7 @@
 #include "Database.h"
 #include "DatabaseSync.h"
 #include "DatabaseTracker.h"
+#include "DefaultTapHighlight.h"
 #include "DeviceMotionClientBlackBerry.h"
 #include "DeviceOrientationClientBlackBerry.h"
 #include "DragClientBlackBerry.h"
@@ -100,6 +101,7 @@
 #include "ScriptValue.h"
 #include "ScrollTypes.h"
 #include "SelectionHandler.h"
+#include "SelectionOverlay.h"
 #include "Settings.h"
 #include "Storage.h"
 #include "StorageNamespace.h"
@@ -116,6 +118,8 @@
 #include "WebDOMDocument.h"
 #endif
 #include "WebKitVersion.h"
+#include "WebOverlay.h"
+#include "WebOverlay_p.h"
 #include "WebPageClient.h"
 #include "WebSocket.h"
 #include "WebViewportArguments.h"
@@ -123,7 +127,6 @@
 #include "runtime_root.h"
 
 #if ENABLE(VIDEO)
-#include "HTMLMediaElement.h"
 #include "MediaPlayer.h"
 #include "MediaPlayerPrivateBlackBerry.h"
 #endif
@@ -505,6 +508,11 @@ void WebPagePrivate::init(const WebString& pageGroupName)
     m_webSettings = WebSettings::createFromStandardSettings();
     m_webSettings->setUserAgentString(defaultUserAgent());
 
+#if USE(ACCELERATED_COMPOSITING)
+    m_tapHighlight = DefaultTapHighlight::create(this);
+    m_selectionOverlay = SelectionOverlay::create(this);
+#endif
+
     // FIXME: We explicitly call setDelegate() instead of passing ourself in createFromStandardSettings()
     // so that we only get one didChangeSettings() callback when we set the page group name. This causes us
     // to make a copy of the WebSettings since some WebSettings method make use of the page group name.
@@ -551,6 +559,14 @@ void WebPagePrivate::init(const WebString& pageGroupName)
 
 #if ENABLE(WEB_TIMING)
     m_page->settings()->setMemoryInfoEnabled(true);
+#endif
+
+#if USE(ACCELERATED_COMPOSITING)
+    // The compositor will be needed for overlay rendering, so create it
+    // unconditionally. It will allocate OpenGL objects lazily, so this incurs
+    // no overhead in the unlikely case where the compositor is not needed.
+    Platform::userInterfaceThreadMessageClient()->dispatchSyncMessage(
+            createMethodCallMessage(&WebPagePrivate::createCompositor, this));
 #endif
 }
 
@@ -639,7 +655,13 @@ void WebPage::loadFile(const char* path, const char* overrideContentType)
 
 void WebPage::download(const Platform::NetworkRequest& request)
 {
-    d->load(request.getUrlRef().c_str(), 0, "GET", Platform::NetworkRequest::UseProtocolCachePolicy, 0, 0, 0, 0, false, false, true, "", request.getSuggestedSaveName().c_str());
+    vector<const char*> headers;
+    Platform::NetworkRequest::HeaderList& list = request.getHeaderListRef();
+    for (unsigned i = 0; i < list.size(); i++) {
+        headers.push_back(list[i].first.c_str());
+        headers.push_back(list[i].second.c_str());
+    }
+    d->load(request.getUrlRef().c_str(), 0, "GET", Platform::NetworkRequest::UseProtocolCachePolicy, 0, 0, headers.empty() ? 0 : &headers[0], headers.size(), false, false, true, "", request.getSuggestedSaveName().c_str());
 }
 
 void WebPagePrivate::loadString(const char* string, const char* baseURL, const char* contentType, const char* failingURL)
@@ -874,8 +896,10 @@ void WebPagePrivate::setLoadState(LoadState state)
 #endif
 
 #if USE(ACCELERATED_COMPOSITING)
-            if (isAcceleratedCompositingActive() && !compositorDrawsRootLayer())
-                syncDestroyCompositorOnCompositingThread();
+            if (isAcceleratedCompositingActive()) {
+                Platform::userInterfaceThreadMessageClient()->dispatchSyncMessage(
+                    Platform::createMethodCallMessage(&WebPagePrivate::destroyLayerResources, this));
+            }
 #endif
             m_previousContentsSize = IntSize();
             m_backingStore->d->resetRenderQueue();
@@ -892,8 +916,18 @@ void WebPagePrivate::setLoadState(LoadState state)
                 m_virtualViewportWidth = m_webSettings->viewportWidth();
                 m_virtualViewportHeight = m_defaultLayoutSize.height();
             }
-            // Check if we have already process the meta viewport tag, this only happens on history navigation
-            if (!m_didRestoreFromPageCache) {
+            // Check if we have already process the meta viewport tag, this only happens on history navigation.
+            // For back/forward history navigation, we should only keep these previous values if the document
+            // has the meta viewport tag when the state is Committed in setLoadState.
+            // Refreshing should keep these previous values as well.
+            static ViewportArguments defaultViewportArguments;
+            bool documentHasViewportArguments = false;
+            FrameLoadType frameLoadType = FrameLoadTypeStandard;
+            if (m_mainFrame && m_mainFrame->document() && !(m_mainFrame->document()->viewportArguments() == defaultViewportArguments))
+                documentHasViewportArguments = true;
+            if (m_mainFrame && m_mainFrame->loader())
+                frameLoadType = m_mainFrame->loader()->loadType();
+            if (!((m_didRestoreFromPageCache && documentHasViewportArguments) || (frameLoadType == FrameLoadTypeReload || frameLoadType == FrameLoadTypeReloadFromOrigin))) {
                 m_viewportArguments = ViewportArguments();
 
                 // At the moment we commit a new load, set the viewport arguments
@@ -2105,26 +2139,32 @@ bool WebPagePrivate::isActive() const
     return m_client->isActive();
 }
 
-Credential WebPagePrivate::authenticationChallenge(const KURL& url, const ProtectionSpace& protectionSpace)
+bool WebPagePrivate::authenticationChallenge(const KURL& url, const ProtectionSpace& protectionSpace, Credential& inputCredential)
 {
     WebString username;
     WebString password;
+
+#if ENABLE_DRT
+    if (m_dumpRenderTree)
+        return m_dumpRenderTree->didReceiveAuthenticationChallenge(inputCredential);
+#endif
 
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
     if (!m_webSettings->isPrivateBrowsingEnabled())
         credentialManager().autofillAuthenticationChallenge(protectionSpace, username, password);
 #endif
 
-    m_client->authenticationChallenge(protectionSpace.realm().characters(), protectionSpace.realm().length(), username, password);
+    bool isConfirmed = m_client->authenticationChallenge(protectionSpace.realm().characters(), protectionSpace.realm().length(), username, password);
 
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
-    Credential inputCredential(username, password, CredentialPersistencePermanent);
-    if (!m_webSettings->isPrivateBrowsingEnabled())
-        credentialManager().saveCredentialIfConfirmed(this, CredentialTransformData(url, protectionSpace, inputCredential));
+    Credential credential(username, password, CredentialPersistencePermanent);
+    if (!m_webSettings->isPrivateBrowsingEnabled() && isConfirmed)
+        credentialManager().saveCredentialIfConfirmed(this, CredentialTransformData(url, protectionSpace, credential));
 #else
-    Credential inputCredential(username, password, CredentialPersistenceNone);
+    Credential credential(username, password, CredentialPersistenceNone);
 #endif
-    return inputCredential;
+    inputCredential = credential;
+    return isConfirmed;
 }
 
 PageClientBlackBerry::SaveCredentialType WebPagePrivate::notifyShouldSaveCredential(bool isNew)
@@ -2381,6 +2421,9 @@ void WebPagePrivate::clearDocumentData(const Document* documentGoingAway)
 
     if (m_inRegionScrollStartingNode && m_inRegionScrollStartingNode->document() == documentGoingAway)
         m_inRegionScrollStartingNode = 0;
+
+    if (documentGoingAway->frame())
+        m_inputHandler->frameUnloaded(documentGoingAway->frame());
 
     Node* nodeUnderFatFinger = m_touchEventHandler->lastFatFingersResult().node();
     if (nodeUnderFatFinger && nodeUnderFatFinger->document() == documentGoingAway)
@@ -3511,9 +3554,26 @@ void WebPagePrivate::setViewportSize(const IntSize& transformedActualVisibleSize
     if (!m_visible || !m_backingStore->d->isActive())
         setShouldResetTilesWhenShown(true);
 
+    bool needsLayout = false;
+
     bool hasPendingOrientation = m_pendingOrientation != -1;
     if (hasPendingOrientation)
         screenRotated();
+    else {
+        // If we are not rotating and we've started a viewport resize with
+        // the Render tree in dirty state (i.e. it needs layout), lets
+        // reset the needsLayout flag for now but set our own 'needsLayout'.
+        //
+        // Reason: calls like ScrollView::setFixedLayoutSize can trigger a layout
+        // if the render tree needs it. We want to avoid it till the viewport resize
+        // is actually done (i.e. ScrollView::setViewportSize gets called
+        // further down the method).
+        if (m_mainFrame->view()->needsLayout()) {
+            m_mainFrame->view()->unscheduleRelayout();
+            m_mainFrame->contentRenderer()->setNeedsLayout(false);
+            needsLayout = true;
+        }
+    }
 
     // The window buffers might have been recreated, cleared, moved, etc., so:
     m_backingStore->d->windowFrontBufferState()->clearBlittedRegion();
@@ -3538,7 +3598,6 @@ void WebPagePrivate::setViewportSize(const IntSize& transformedActualVisibleSize
     setDefaultLayoutSize(transformedActualVisibleSize);
 
     // Recompute our virtual viewport.
-    bool needsLayout = false;
     static ViewportArguments defaultViewportArguments;
     if (!(m_viewportArguments == defaultViewportArguments)) {
         // We may need to infer the width and height for the viewport with respect to the rotation.
@@ -4093,13 +4152,6 @@ void WebPage::touchEventCancel()
     if (d->m_page->defersLoading())
         return;
     d->m_touchEventHandler->touchEventCancel();
-}
-
-void WebPage::touchEventCancelAndClearFocusedNode()
-{
-    if (d->m_page->defersLoading())
-        return;
-    d->m_touchEventHandler->touchEventCancelAndClearFocusedNode();
 }
 
 Frame* WebPagePrivate::focusedOrMainFrame() const
@@ -5555,7 +5607,7 @@ void WebPagePrivate::drawLayersOnCommit()
 
 void WebPagePrivate::scheduleRootLayerCommit()
 {
-    if (!m_frameLayers || !m_frameLayers->hasLayer())
+    if (!(m_frameLayers && m_frameLayers->hasLayer()) && !m_overlayLayer)
         return;
 
     m_needsCommit = true;
@@ -5591,6 +5643,16 @@ LayerRenderingResults WebPagePrivate::lastCompositingResults() const
     return LayerRenderingResults();
 }
 
+GraphicsLayer* WebPagePrivate::overlayLayer()
+{
+    // The overlay layer has no GraphicsLayerClient, it's just a container
+    // for various overlays.
+    if (!m_overlayLayer)
+        m_overlayLayer = GraphicsLayer::create(0);
+
+    return m_overlayLayer.get();
+}
+
 void WebPagePrivate::setCompositor(PassRefPtr<WebPageCompositorPrivate> compositor)
 {
     using namespace BlackBerry::Platform;
@@ -5603,6 +5665,8 @@ void WebPagePrivate::setCompositor(PassRefPtr<WebPageCompositorPrivate> composit
     }
 
     m_compositor = compositor;
+    if (m_compositor)
+        m_compositor->setPage(this);
 
     // The previous compositor, if any, has now released it's OpenGL resources,
     // so we can safely free the owned context, if any.
@@ -5618,16 +5682,34 @@ void WebPagePrivate::commitRootLayer(const IntRect& layoutRectForCompositing,
             WTF_PRETTY_FUNCTION, m_compositor.get());
 #endif
 
-    if (!m_frameLayers || !m_compositor)
+    if (!m_compositor)
         return;
 
-    if (m_frameLayers->rootLayer() && m_frameLayers->rootLayer()->layerCompositingThread() != m_compositor->rootLayer())
-        m_compositor->setRootLayer(m_frameLayers->rootLayer()->layerCompositingThread());
+    // Frame layers
+    LayerWebKitThread* rootLayer = 0;
+    if (m_frameLayers)
+        rootLayer = m_frameLayers->rootLayer();
+
+    if (rootLayer && rootLayer->layerCompositingThread() != m_compositor->rootLayer())
+        m_compositor->setRootLayer(rootLayer->layerCompositingThread());
+
+    // Overlay layers
+    LayerWebKitThread* overlayLayer = 0;
+    if (m_overlayLayer)
+        overlayLayer = m_overlayLayer->platformLayer();
+
+    if (overlayLayer && overlayLayer->layerCompositingThread() != m_compositor->overlayLayer())
+        m_compositor->setOverlayLayer(overlayLayer->layerCompositingThread());
 
     m_compositor->setLayoutRectForCompositing(layoutRectForCompositing);
     m_compositor->setContentsSizeForCompositing(contentsSizeForCompositing);
     m_compositor->setDrawsRootLayer(drawsRootLayer);
-    m_compositor->commit(m_frameLayers->rootLayer());
+
+    if (rootLayer)
+        rootLayer->commitOnCompositingThread();
+
+    if (overlayLayer)
+        overlayLayer->commitOnCompositingThread();
 }
 
 bool WebPagePrivate::commitRootLayerIfNeeded()
@@ -5648,7 +5730,7 @@ bool WebPagePrivate::commitRootLayerIfNeeded()
     if (!m_needsCommit)
         return false;
 
-    if (!m_frameLayers || !m_frameLayers->hasLayer())
+    if (!(m_frameLayers && m_frameLayers->hasLayer()) && !m_overlayLayer)
         return false;
 
     FrameView* view = m_mainFrame->view();
@@ -5673,8 +5755,12 @@ bool WebPagePrivate::commitRootLayerIfNeeded()
     if (m_rootLayerCommitTimer->isActive())
         m_rootLayerCommitTimer->stop();
 
-    m_frameLayers->commitOnWebKitThread(currentScale());
+    double scale = currentScale();
+    if (m_frameLayers && m_frameLayers->hasLayer())
+        m_frameLayers->commitOnWebKitThread(scale);
     updateDelegatedOverlays();
+    if (m_overlayLayer)
+        m_overlayLayer->platformLayer()->commitOnWebKitThread(scale);
 
     // Stash the visible content rect according to webkit thread
     // This is the rectangle used to layout fixed positioned elements,
@@ -5819,22 +5905,14 @@ bool WebPagePrivate::createCompositor()
     m_compositor = WebPageCompositorPrivate::create(this, 0);
     m_compositor->setContext(m_ownedContext.get());
 
-    if (!m_compositor->hardwareCompositing()) {
-        destroyCompositor();
-        return false;
-    }
-
     return true;
 }
 
 void WebPagePrivate::destroyCompositor()
 {
-    // We shouldn't release the compositor unless we created and own the
-    // context. If the compositor was created from the WebPageCompositor API,
-    // keep it around and reuse it later.
-    if (!m_ownedContext)
-        return;
-
+    // m_compositor is a RefPtr, so it may live on beyond this point.
+    // Disconnect the compositor from us
+    m_compositor->setPage(0);
     m_compositor.clear();
     m_ownedContext.clear();
 }
@@ -6019,6 +6097,11 @@ void WebPagePrivate::didChangeSettings(WebSettings* webSettings)
     WebSocket::setIsAvailable(webSettings->areWebSocketsEnabled());
 #endif
 
+#if ENABLE(FULLSCREEN_API)
+    // This allows Javascript to call webkitRequestFullScreen() on an element.
+    coreSettings->setFullScreenEnabled(true);
+#endif
+
 #if ENABLE(VIEWPORT_REFLOW)
     coreSettings->setTextReflowEnabled(webSettings->textReflowMode() == WebSettings::TextReflowEnabled);
 #endif
@@ -6115,6 +6198,61 @@ const String& WebPagePrivate::defaultUserAgent()
     }
 
     return *defaultUserAgent;
+}
+
+WebTapHighlight* WebPage::tapHighlight() const
+{
+    return d->m_tapHighlight.get();
+}
+
+void WebPage::setTapHighlight(WebTapHighlight* tapHighlight)
+{
+    d->m_tapHighlight = adoptPtr(tapHighlight);
+}
+
+WebSelectionOverlay* WebPage::selectionOverlay() const
+{
+    return d->m_selectionOverlay.get();
+}
+
+void WebPage::addOverlay(WebOverlay* overlay)
+{
+#if USE(ACCELERATED_COMPOSITING)
+    if (overlay->d->graphicsLayer()) {
+        overlay->d->setPage(d);
+        d->overlayLayer()->addChild(overlay->d->graphicsLayer());
+    }
+#endif
+}
+
+void WebPage::removeOverlay(WebOverlay* overlay)
+{
+#if USE(ACCELERATED_COMPOSITING)
+    if (overlay->d->graphicsLayer() == d->overlayLayer()) {
+        overlay->removeFromParent();
+        overlay->d->clear();
+        overlay->d->setPage(0);
+    }
+#endif
+}
+
+void WebPage::addCompositingThreadOverlay(WebOverlay* overlay)
+{
+#if USE(ACCELERATED_COMPOSITING)
+    ASSERT(userInterfaceThreadMessageClient()->isCurrentThread());
+    overlay->d->setPage(d);
+    d->compositor()->addOverlay(overlay->d->layerCompositingThread());
+#endif
+}
+
+void WebPage::removeCompositingThreadOverlay(WebOverlay* overlay)
+{
+#if USE(ACCELERATED_COMPOSITING)
+    ASSERT(userInterfaceThreadMessageClient()->isCurrentThread());
+    d->compositor()->removeOverlay(overlay->d->layerCompositingThread());
+    overlay->d->clear();
+    overlay->d->setPage(0);
+#endif
 }
 
 void WebPage::popupOpened(PagePopupBlackBerry* webPopup)

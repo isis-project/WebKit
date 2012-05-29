@@ -449,14 +449,6 @@ void LayoutTestController::setIconDatabaseEnabled(bool enabled)
         ewk_settings_icon_database_path_set(databasePath.utf8().data());
 }
 
-void LayoutTestController::setJavaScriptProfilingEnabled(bool enabled)
-{
-    if (enabled)
-        setDeveloperExtrasEnabled(enabled);
-
-    DumpRenderTreeSupportEfl::setJavaScriptProfilingEnabled(browser->mainView(), enabled);
-}
-
 void LayoutTestController::setSelectTrailingWhitespaceEnabled(bool flag)
 {
     DumpRenderTreeSupportEfl::setSelectTrailingWhitespaceEnabled(browser->mainView(), flag);
@@ -523,9 +515,45 @@ bool LayoutTestController::isCommandEnabled(JSStringRef name)
     return DumpRenderTreeSupportEfl::isCommandEnabled(browser->mainView(), name->ustring().utf8().data());
 }
 
-void LayoutTestController::setCacheModel(int)
+void LayoutTestController::setCacheModel(int cacheModel)
 {
-    notImplemented();
+    unsigned int cacheTotalCapacity;
+    unsigned int cacheMinDeadCapacity;
+    unsigned int cacheMaxDeadCapacity;
+    double deadDecodedDataDeletionInterval;
+    unsigned int pageCacheCapacity;
+
+    // These constants are derived from the Mac cache model enum in Source/WebKit/mac/WebView/WebPreferences.h.
+    switch (cacheModel) {
+    case 0: // WebCacheModelDocumentViewer
+        pageCacheCapacity = 0;
+        cacheTotalCapacity = 0;
+        cacheMinDeadCapacity = 0;
+        cacheMaxDeadCapacity = 0;
+        deadDecodedDataDeletionInterval = 0;
+        break;
+    case 1: // WebCacheModelDocumentBrowser
+        pageCacheCapacity = 2;
+        cacheTotalCapacity = 16 * 1024 * 1024;
+        cacheMinDeadCapacity = cacheTotalCapacity / 8;
+        cacheMaxDeadCapacity = cacheTotalCapacity / 4;
+        deadDecodedDataDeletionInterval = 0;
+        break;
+    case 3: // WebCacheModelPrimaryWebBrowser
+        pageCacheCapacity = 3;
+        cacheTotalCapacity = 32 * 1024 * 1024;
+        cacheMinDeadCapacity = cacheTotalCapacity / 4;
+        cacheMaxDeadCapacity = cacheTotalCapacity / 2;
+        deadDecodedDataDeletionInterval = 60;
+        break;
+    default:
+        fprintf(stderr, "trying to set an invalid value %d for the Cache model.", cacheModel);
+        return;
+    }
+
+    ewk_settings_object_cache_capacity_set(cacheMinDeadCapacity, cacheMaxDeadCapacity, cacheTotalCapacity);
+    DumpRenderTreeSupportEfl::setDeadDecodedDataDeletionInterval(deadDecodedDataDeletionInterval);
+    ewk_settings_page_cache_capacity_set(pageCacheCapacity);
 }
 
 void LayoutTestController::setPersistentUserStyleSheetLocation(JSStringRef)
@@ -543,10 +571,11 @@ void LayoutTestController::clearAllApplicationCaches()
     ewk_settings_application_cache_clear();
 }
 
-void LayoutTestController::setApplicationCacheOriginQuota(unsigned long long)
+void LayoutTestController::setApplicationCacheOriginQuota(unsigned long long quota)
 {
-    // FIXME: Implement to support application cache quotas.
-    notImplemented();
+    Ewk_Security_Origin* origin = ewk_frame_security_origin_get(browser->mainFrame());
+    ewk_security_origin_application_cache_quota_set(origin, quota);
+    ewk_security_origin_free(origin);
 }
 
 void LayoutTestController::clearApplicationCacheForOrigin(OpaqueJSString*)
@@ -577,7 +606,7 @@ long long LayoutTestController::applicationCacheDiskUsageForOrigin(JSStringRef)
 
 void LayoutTestController::clearAllDatabases()
 {
-    ewk_settings_web_database_clear();
+    ewk_web_database_remove_all();
 }
 
 void LayoutTestController::setDatabaseQuota(unsigned long long quota)
@@ -678,8 +707,12 @@ void LayoutTestController::overridePreference(JSStringRef key, JSStringRef value
         ewk_view_setting_enable_hyperlink_auditing_set(browser->mainView(), toBool(value));
     else if (equals(key, "WebKitTabToLinksPreferenceKey"))
         ewk_view_setting_include_links_in_focus_chain_set(browser->mainView(), toBool(value));
+    else if (equals(key, "WebKitOfflineWebApplicationCacheEnabled"))
+        ewk_view_setting_application_cache_set(browser->mainView(), toBool(value));
     else if (equals(key, "WebKitLoadSiteIconsKey"))
         DumpRenderTreeSupportEfl::setLoadsSiteIconsIgnoringImageLoadingSetting(browser->mainView(), toBool(value));
+    else if (equals(key, "WebKitCSSGridLayoutEnabled"))
+        DumpRenderTreeSupportEfl::setCSSGridLayoutEnabled(browser->mainView(), toBool(value));
     else
         fprintf(stderr, "LayoutTestController::overridePreference tried to override unknown preference '%s'.\n", value->ustring().utf8().data());
 }
@@ -724,9 +757,9 @@ void LayoutTestController::evaluateScriptInIsolatedWorldAndReturnValue(unsigned,
     notImplemented();
 }
 
-void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned, JSObjectRef, JSStringRef)
+void LayoutTestController::evaluateScriptInIsolatedWorld(unsigned worldID, JSObjectRef globalObject, JSStringRef script)
 {
-    notImplemented();
+    DumpRenderTreeSupportEfl::evaluateScriptInIsolatedWorld(browser->mainFrame(), worldID, globalObject, String(script->ustring().impl()));
 }
 
 void LayoutTestController::removeAllVisitedLinks()
@@ -769,11 +802,6 @@ void LayoutTestController::authenticateSession(JSStringRef, JSStringRef, JSStrin
     notImplemented();
 }
 
-void LayoutTestController::setEditingBehavior(const char* editingBehavior)
-{
-    DumpRenderTreeSupportEfl::setEditingBehavior(browser->mainView(), editingBehavior);
-}
-
 void LayoutTestController::abortModal()
 {
     notImplemented();
@@ -787,10 +815,9 @@ void LayoutTestController::dumpConfigurationForViewport(int deviceDPI, int devic
             WebCore::IntSize(availableWidth, availableHeight));
 }
 
-void LayoutTestController::setSerializeHTTPLoads(bool)
+void LayoutTestController::setSerializeHTTPLoads(bool serialize)
 {
-    // FIXME: Implement if needed for https://bugs.webkit.org/show_bug.cgi?id=50758.
-    notImplemented();
+    DumpRenderTreeSupportEfl::setSerializeHTTPLoads(serialize);
 }
 
 void LayoutTestController::setMinimumTimerInterval(double minimumTimerInterval)
@@ -799,11 +826,6 @@ void LayoutTestController::setMinimumTimerInterval(double minimumTimerInterval)
 }
 
 void LayoutTestController::setTextDirection(JSStringRef)
-{
-    notImplemented();
-}
-
-void LayoutTestController::allowRoundingHacks()
 {
     notImplemented();
 }
@@ -848,4 +870,22 @@ void LayoutTestController::setPageVisibility(const char* visibility)
         ewk_view_visibility_state_set(browser->mainView(), EWK_PAGE_VISIBILITY_STATE_PRERENDER, false);
     else if (newVisibility == "preview")
         ewk_view_visibility_state_set(browser->mainView(), EWK_PAGE_VISIBILITY_STATE_PREVIEW, false);
+}
+
+void LayoutTestController::setAutomaticLinkDetectionEnabled(bool)
+{
+    notImplemented();
+}
+
+void LayoutTestController::sendWebIntentResponse(JSStringRef response)
+{
+    Ewk_Intent_Request* request = browser->currentIntentRequest();
+    if (!request)
+        return;
+
+    JSC::UString responseString = response->ustring();
+    if (responseString.isNull())
+        ewk_intent_request_failure_post(request, "ERROR");
+    else
+        ewk_intent_request_result_post(request, responseString.utf8().data());
 }

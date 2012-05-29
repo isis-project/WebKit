@@ -1,6 +1,7 @@
 /*
     Copyright (C) 2009-2010 ProFUSION embedded systems
     Copyright (C) 2009-2012 Samsung Electronics
+    Copyright (C) 2012 Intel Corporation
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -48,11 +49,12 @@ const char ewkViewSingleName[] = "Ewk_View_Single";
 
 void ewk_view_ready(Evas_Object* ewkView);
 void ewk_view_input_method_state_set(Evas_Object* ewkView, bool active);
-void ewk_view_title_set(Evas_Object* ewkView, const char* title);
+void ewk_view_title_set(Evas_Object* ewkView, const Ewk_Text_With_Direction* title);
 void ewk_view_uri_changed(Evas_Object* ewkView);
 void ewk_view_load_document_finished(Evas_Object* ewkView, Evas_Object* frame);
 void ewk_view_load_started(Evas_Object* ewkView, Evas_Object* ewkFrame);
 void ewk_view_load_provisional(Evas_Object* ewkView);
+void ewk_view_load_provisional_failed(Evas_Object* ewkView, const Ewk_Frame_Load_Error* error);
 void ewk_view_frame_main_load_started(Evas_Object* ewkView);
 void ewk_view_frame_main_cleared(Evas_Object* ewkView);
 void ewk_view_frame_main_icon_received(Evas_Object* ewkView);
@@ -89,6 +91,7 @@ void ewk_view_run_javascript_alert(Evas_Object* ewkView, Evas_Object* frame, con
 bool ewk_view_run_javascript_confirm(Evas_Object* ewkView, Evas_Object* frame, const char* message);
 bool ewk_view_run_javascript_prompt(Evas_Object* ewkView, Evas_Object* frame, const char* message, const char* defaultValue, char** value);
 bool ewk_view_should_interrupt_javascript(Evas_Object* ewkView);
+int64_t ewk_view_exceeded_application_cache_quota(Evas_Object* ewkView, Ewk_Security_Origin *origin, int64_t defaultOriginQuota, int64_t totalSpaceNeeded);
 uint64_t ewk_view_exceeded_database_quota(Evas_Object* ewkView, Evas_Object* frame, const char* databaseName, uint64_t currentSize, uint64_t expectedSize);
 
 bool ewk_view_run_open_panel(Evas_Object* ewkView, Evas_Object* frame, bool allowsMultipleFiles, const Vector<String>& acceptMIMETypes, Eina_List** selectedFilenames);
@@ -133,7 +136,7 @@ void ewk_view_repaint_add(Ewk_View_Private_Data* priv, Evas_Coord x, Evas_Coord 
 
 void ewk_view_layout_if_needed_recursive(Ewk_View_Private_Data* priv);
 
-bool ewk_view_navigation_policy_decision(Evas_Object* ewkView, Ewk_Frame_Resource_Request* request);
+bool ewk_view_navigation_policy_decision(Evas_Object* ewkView, Ewk_Frame_Resource_Request* request, Ewk_Navigation_Type navigationType);
 
 void ewk_view_contents_size_changed(Evas_Object* ewkView, Evas_Coord width, Evas_Coord height);
 
@@ -145,6 +148,10 @@ void ewk_view_mixed_content_run_set(Evas_Object* ewkView, bool hasRun);
 #if USE(ACCELERATED_COMPOSITING)
 bool ewk_view_accelerated_compositing_object_create(Evas_Object* ewkView, Evas_Native_Surface* nativeSurface, const WebCore::IntRect& rect);
 WebCore::GraphicsContext3D* ewk_view_accelerated_compositing_context_get(Evas_Object* ewkView);
+#endif
+
+#if ENABLE(REGISTER_PROTOCOL_HANDLER)
+bool ewk_custom_handler_register_protocol_handler(Ewk_Custom_Handler_Data* data);
 #endif
 
 namespace EWKPrivate {

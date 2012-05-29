@@ -132,7 +132,7 @@ Length RenderTableCell::styleOrColLogicalWidth() const
 
             colWidthSum = Length(colWidthSum.value() + colWidth.value(), Fixed);
 
-            tableCol = table()->nextColElement(tableCol);
+            tableCol = tableCol->nextColumn();
             // If no next <col> tag found for the span we just return what we have for now.
             if (!tableCol)
                 break;
@@ -186,6 +186,7 @@ void RenderTableCell::updateLogicalWidth(LayoutUnit w)
 
 void RenderTableCell::layout()
 {
+    updateFirstLetter();
     layoutBlock(cellWidthChanged());
     setCellWidthChanged(false);
 }
@@ -239,11 +240,11 @@ void RenderTableCell::setOverrideHeightFromRowHeight(LayoutUnit rowHeight)
     RenderBlock::setOverrideHeight(max<LayoutUnit>(0, rowHeight - borderBefore() - paddingBefore() - borderAfter() - paddingAfter()));
 }
 
-LayoutSize RenderTableCell::offsetFromContainer(RenderObject* o, const LayoutPoint& point) const
+LayoutSize RenderTableCell::offsetFromContainer(RenderObject* o, const LayoutPoint& point, bool* offsetDependsOnPoint) const
 {
     ASSERT(o == container());
 
-    LayoutSize offset = RenderBlock::offsetFromContainer(o, point);
+    LayoutSize offset = RenderBlock::offsetFromContainer(o, point, offsetDependsOnPoint);
     if (parent())
         offset.expand(-parentBox()->x(), -parentBox()->y());
 
@@ -289,8 +290,8 @@ LayoutRect RenderTableCell::clippedOverflowRectForRepaint(RenderBoxModelObject* 
             right = max(right, below->borderHalfRight(true));
         }
     }
-    LayoutPoint location(max<LayoutUnit>(left, -minXVisualOverflow()), max<LayoutUnit>(top, -minYVisualOverflow()));
-    LayoutRect r(-location.x(), -location.y(), location.x() + max(width() + right, maxXVisualOverflow()), location.y() + max(height() + bottom, maxYVisualOverflow()));
+    LayoutPoint location(max<LayoutUnit>(left, -visualOverflowRect().x()), max<LayoutUnit>(top, -visualOverflowRect().y()));
+    LayoutRect r(-location.x(), -location.y(), location.x() + max(width() + right, visualOverflowRect().maxX()), location.y() + max(height() + bottom, visualOverflowRect().maxY()));
 
     if (RenderView* v = view()) {
         // FIXME: layoutDelta needs to be applied in parts before/after transforms and
@@ -604,7 +605,7 @@ CollapsedBorderValue RenderTableCell::computeCollapsedBeforeBorder(IncludeBorder
             return result;
         
         // (6) Previous row group's after border.
-        currSection = table->sectionAbove(currSection);
+        currSection = table->sectionAbove(currSection, SkipEmptySections);
         if (currSection) {
             result = chooseBorder(CollapsedBorderValue(currSection->style()->borderAfter(), includeColor ? currSection->style()->visitedDependentColor(afterColorProperty) : Color(), BROWGROUP), result);
             if (!result.exists())
@@ -682,7 +683,7 @@ CollapsedBorderValue RenderTableCell::computeCollapsedAfterBorder(IncludeBorderC
             return result;
         
         // (6) Following row group's before border.
-        currSection = table->sectionBelow(currSection);
+        currSection = table->sectionBelow(currSection, SkipEmptySections);
         if (currSection) {
             result = chooseBorder(result, CollapsedBorderValue(currSection->style()->borderBefore(), includeColor ? currSection->style()->visitedDependentColor(beforeColorProperty) : Color(), BROWGROUP));
             if (!result.exists())

@@ -216,6 +216,7 @@ IDL_BINDINGS += \
     $$PWD/dom/Document.idl \
     $$PWD/dom/DocumentType.idl \
     $$PWD/dom/DOMCoreException.idl \
+    $$PWD/dom/DOMError.idl \
     $$PWD/dom/DOMImplementation.idl \
     $$PWD/dom/DOMStringList.idl \
     $$PWD/dom/DOMStringMap.idl \
@@ -470,7 +471,6 @@ v8 {
 
 contains(DEFINES, ENABLE_SVG=1) {
   IDL_BINDINGS += \
-    $$PWD/svg/SVGZoomEvent.idl \
     $$PWD/svg/SVGAElement.idl \
     $$PWD/svg/SVGAltGlyphDefElement.idl \
     $$PWD/svg/SVGAltGlyphElement.idl \
@@ -610,7 +610,10 @@ contains(DEFINES, ENABLE_SVG=1) {
     $$PWD/svg/SVGUnitTypes.idl \
     $$PWD/svg/SVGUseElement.idl \
     $$PWD/svg/SVGViewElement.idl \
-    $$PWD/svg/SVGVKernElement.idl
+    $$PWD/svg/SVGVKernElement.idl \
+    $$PWD/svg/SVGViewSpec.idl \
+    $$PWD/svg/SVGZoomAndPan.idl \
+    $$PWD/svg/SVGZoomEvent.idl
 }
 
 contains(DEFINES, ENABLE_VIDEO_TRACK=1) {

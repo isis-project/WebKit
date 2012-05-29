@@ -1632,7 +1632,7 @@ void FrameLoader::commitProvisionalLoad()
     // Check to see if we need to cache the page we are navigating away from into the back/forward cache.
     // We are doing this here because we know for sure that a new page is about to be loaded.
     HistoryItem* item = history()->currentItem();
-    if (!m_frame->tree()->parent() && PageCache::canCache(m_frame->page()) && !item->isInPageCache())
+    if (!m_frame->tree()->parent() && pageCache()->canCache(m_frame->page()) && !item->isInPageCache())
         pageCache()->add(item, m_frame->page());
 
     if (m_loadType != FrameLoadTypeReplace)
@@ -2017,6 +2017,8 @@ void FrameLoader::checkLoadCompleteForThisFrame()
 {
     ASSERT(m_client->hasWebView());
 
+    Settings* settings = m_frame->settings();
+
     switch (m_state) {
         case FrameStateProvisional: {
             if (m_delegateIsHandlingProvisionalLoadError)
@@ -2091,11 +2093,13 @@ void FrameLoader::checkLoadCompleteForThisFrame()
             if (m_stateMachine.creatingInitialEmptyDocument() || !m_stateMachine.committedFirstRealDocumentLoad())
                 return;
 
-            if (Page* page = m_frame->page()) {
-                page->progress()->progressCompleted(m_frame);
+            if (!settings->needsDidFinishLoadOrderQuirk()) {
+                if (Page* page = m_frame->page()) {
+                    page->progress()->progressCompleted(m_frame);
 
-                if (m_frame == page->mainFrame())
-                    page->resetRelevantPaintedObjectCounter();
+                    if (m_frame == page->mainFrame())
+                        page->resetRelevantPaintedObjectCounter();
+                }
             }
 
             const ResourceError& error = dl->mainDocumentError();
@@ -2107,6 +2111,15 @@ void FrameLoader::checkLoadCompleteForThisFrame()
             } else {
                 m_client->dispatchDidFinishLoad();
                 loadingEvent = AXObjectCache::AXLoadingFinished;
+            }
+
+            if (settings->needsDidFinishLoadOrderQuirk()) {
+                if (Page* page = m_frame->page()) {
+                    page->progress()->progressCompleted(m_frame);
+
+                    if (m_frame == page->mainFrame())
+                        page->resetRelevantPaintedObjectCounter();
+                }
             }
 
             // Notify accessibility.

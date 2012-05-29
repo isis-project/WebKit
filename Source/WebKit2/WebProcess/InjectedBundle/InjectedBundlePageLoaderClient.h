@@ -56,6 +56,7 @@ public:
     void didCommitLoadForFrame(WebPage*, WebFrame*, RefPtr<APIObject>& userData);
     void didFinishDocumentLoadForFrame(WebPage*, WebFrame*, RefPtr<APIObject>& userData);
     void didFinishLoadForFrame(WebPage*, WebFrame*, RefPtr<APIObject>& userData);
+    void didFinishProgress(WebPage*);
     void didFailLoadWithErrorForFrame(WebPage*, WebFrame*, const WebCore::ResourceError&, RefPtr<APIObject>& userData);
     void didSameDocumentNavigationForFrame(WebPage*, WebFrame*, SameDocumentNavigationType, RefPtr<APIObject>& userData);
     void didReceiveTitleForFrame(WebPage*, const String&, WebFrame*, RefPtr<APIObject>& userData);
@@ -78,6 +79,8 @@ public:
     void willDisconnectDOMWindowExtensionFromGlobalObject(WebPage*, WebCore::DOMWindowExtension*);
     void didReconnectDOMWindowExtensionToGlobalObject(WebPage*, WebCore::DOMWindowExtension*);
     void willDestroyGlobalObjectForDOMWindowExtension(WebPage*, WebCore::DOMWindowExtension*);
+
+    bool shouldForceUniversalAccessFromLocalURL(WebPage*, const String& url);
 };
 
 } // namespace WebKit

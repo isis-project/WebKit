@@ -48,6 +48,7 @@ namespace WebKit {
 class WebIntent {
 public:
     WebIntent() { }
+    WEBKIT_EXPORT WebIntent(const WebString& action, const WebString& type, const WebString& data);
     WebIntent(const WebIntent& other) { assign(other); }
     ~WebIntent() { reset(); }
 
@@ -65,6 +66,7 @@ public:
     WEBKIT_EXPORT WebString type() const;
     WEBKIT_EXPORT WebString data() const;
     WEBKIT_EXPORT WebURL service() const;
+    WEBKIT_EXPORT WebVector<WebURL> suggestions() const;
 
     // Retrieve a list of the names of extra metadata associated with the
     // intent.
@@ -80,6 +82,7 @@ public:
 
 #if WEBKIT_IMPLEMENTATION
     WebIntent(const WTF::PassRefPtr<WebCore::Intent>&);
+    operator WebCore::Intent*() const;
 #endif
 
 private:

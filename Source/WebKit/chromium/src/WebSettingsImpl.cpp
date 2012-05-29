@@ -51,6 +51,9 @@ WebSettingsImpl::WebSettingsImpl(Settings* settings)
     , m_showPlatformLayerTree(false)
     , m_showPaintRects(false)
     , m_viewportEnabled(false)
+    , m_applyDefaultDeviceScaleFactorInCompositor(false)
+    , m_defaultTileSize(WebSize(256, 256))
+    , m_maxUntiledLayerSize(WebSize(512, 512))
 {
     ASSERT(settings);
 }
@@ -113,6 +116,31 @@ void WebSettingsImpl::setMinimumLogicalFontSize(int size)
 void WebSettingsImpl::setDefaultDeviceScaleFactor(int defaultDeviceScaleFactor)
 {
     m_settings->setDefaultDeviceScaleFactor(defaultDeviceScaleFactor);
+}
+
+int WebSettingsImpl::defaultDeviceScaleFactor()
+{
+    return m_settings->defaultDeviceScaleFactor();
+}
+
+void WebSettingsImpl::setDeviceSupportsTouch(bool deviceSupportsTouch)
+{
+    m_settings->setDeviceSupportsTouch(deviceSupportsTouch);
+}
+
+bool WebSettingsImpl::deviceSupportsTouch()
+{
+    return m_settings->deviceSupportsTouch();
+}
+
+void WebSettingsImpl::setApplyDefaultDeviceScaleFactorInCompositor(bool applyDefaultDeviceScaleFactorInCompositor)
+{
+    m_applyDefaultDeviceScaleFactorInCompositor = applyDefaultDeviceScaleFactorInCompositor;
+}
+
+void WebSettingsImpl::setFontBoostingEnabled(bool enabled)
+{
+    m_settings->setFontBoostingEnabled(enabled);
 }
 
 void WebSettingsImpl::setDefaultTextEncodingName(const WebString& encoding)
@@ -297,6 +325,11 @@ void WebSettingsImpl::setExperimentalWebGLEnabled(bool enabled)
 void WebSettingsImpl::setExperimentalCSSRegionsEnabled(bool enabled)
 {
     m_settings->setCSSRegionsEnabled(enabled);
+}
+
+void WebSettingsImpl::setExperimentalCSSGridLayoutEnabled(bool enabled)
+{
+    m_settings->setCSSGridLayoutEnabled(enabled);
 }
 
 void WebSettingsImpl::setExperimentalCSSCustomFilterEnabled(bool enabled)
@@ -568,9 +601,35 @@ void WebSettingsImpl::setThreadedAnimationEnabled(bool enabled)
     m_settings->setThreadedAnimationEnabled(enabled);
 }
 
+void WebSettingsImpl::setMediaPlaybackRequiresUserGesture(bool required)
+{
+    m_settings->setMediaPlaybackRequiresUserGesture(required);
+}
+
+void WebSettingsImpl::setFixedPositionCreatesStackingContext(bool creates)
+{
+    m_settings->setFixedPositionCreatesStackingContext(creates);
+}
+
 void WebSettingsImpl::setViewportEnabled(bool enabled)
 {
     m_viewportEnabled = enabled;
 }
+
+void WebSettingsImpl::setDefaultTileSize(WebSize size)
+{
+    m_defaultTileSize = size;
+}
+
+void WebSettingsImpl::setMaxUntiledLayerSize(WebSize size)
+{
+    m_maxUntiledLayerSize = size;
+}
+
+void WebSettingsImpl::setSyncXHRInDocumentsEnabled(bool enabled)
+{
+    m_settings->setSyncXHRInDocumentsEnabled(enabled);
+}
+
 
 } // namespace WebKit

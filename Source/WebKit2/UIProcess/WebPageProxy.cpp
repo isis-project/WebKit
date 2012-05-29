@@ -164,7 +164,11 @@ WebPageProxy::WebPageProxy(PageClient* pageClient, PassRefPtr<WebProcessProxy> p
     , m_pageScaleFactor(1)
     , m_intrinsicDeviceScaleFactor(1)
     , m_customDeviceScaleFactor(0)
+#if HAVE(LAYER_HOSTING_IN_WINDOW_SERVER)
+    , m_layerHostingMode(LayerHostingModeInWindowServer)
+#else
     , m_layerHostingMode(LayerHostingModeDefault)
+#endif
     , m_drawsBackground(true)
     , m_drawsTransparentBackground(false)
     , m_areMemoryCacheClientCallsEnabled(true)
@@ -891,6 +895,7 @@ void WebPageProxy::setViewportSize(const IntSize& size)
 }
 #endif
 
+#if ENABLE(DRAG_SUPPORT)
 void WebPageProxy::dragEntered(DragData* dragData, const String& dragStorageName)
 {
     SandboxExtension::Handle sandboxExtensionHandle;
@@ -957,6 +962,7 @@ void WebPageProxy::dragEnded(const IntPoint& clientPosition, const IntPoint& glo
         return;
     process()->send(Messages::WebPage::DragEnded(clientPosition, globalPosition, operation), m_pageID);
 }
+#endif // ENABLE(DRAG_SUPPORT)
 
 void WebPageProxy::handleMouseEvent(const NativeWebMouseEvent& event)
 {
@@ -1021,7 +1027,9 @@ static WebWheelEvent coalesce(const WebWheelEvent& a, const WebWheelEvent& b)
     FloatSize mergedWheelTicks = a.wheelTicks() + b.wheelTicks();
 
 #if PLATFORM(MAC)
-    return WebWheelEvent(WebEvent::Wheel, b.position(), b.globalPosition(), mergedDelta, mergedWheelTicks, b.granularity(), b.phase(), b.momentumPhase(), b.hasPreciseScrollingDeltas(), b.modifiers(), b.timestamp(), b.directionInvertedFromDevice());
+    FloatSize mergedUnacceleratedScrollingDelta = a.unacceleratedScrollingDelta() + b.unacceleratedScrollingDelta();
+
+    return WebWheelEvent(WebEvent::Wheel, b.position(), b.globalPosition(), mergedDelta, mergedWheelTicks, b.granularity(), b.directionInvertedFromDevice(), b.phase(), b.momentumPhase(), b.hasPreciseScrollingDeltas(), b.scrollCount(), mergedUnacceleratedScrollingDelta, b.modifiers(), b.timestamp());
 #else
     return WebWheelEvent(WebEvent::Wheel, b.position(), b.globalPosition(), mergedDelta, mergedWheelTicks, b.granularity(), b.modifiers(), b.timestamp());
 #endif
@@ -3459,6 +3467,7 @@ WebPageCreationParameters WebPageProxy::creationParameters() const
 
 #if PLATFORM(MAC)
     parameters.isSmartInsertDeleteEnabled = m_isSmartInsertDeleteEnabled;
+    parameters.layerHostingMode = m_layerHostingMode;
 #endif
 
 #if PLATFORM(WIN)
@@ -3621,20 +3630,20 @@ void WebPageProxy::didFailToInitializePlugin(const String& mimeType)
     m_loaderClient.didFailToInitializePlugin(this, mimeType);
 }
 
-void WebPageProxy::didBlockInsecurePluginVersion(const String& mimeType)
+void WebPageProxy::didBlockInsecurePluginVersion(const String& mimeType, const String& urlString)
 {
     String pluginIdentifier;
     String pluginVersion;
+    String newMimeType = mimeType;
 
 #if PLATFORM(MAC)
-    String newMimeType = mimeType;
-    PluginModuleInfo plugin = m_process->context()->pluginInfoStore().findPlugin(newMimeType, KURL());
+    PluginModuleInfo plugin = m_process->context()->pluginInfoStore().findPlugin(newMimeType, KURL(KURL(), urlString));
 
     pluginIdentifier = plugin.bundleIdentifier;
     pluginVersion = plugin.versionString;
 #endif
 
-    m_loaderClient.didBlockInsecurePluginVersion(this, mimeType, pluginIdentifier, pluginVersion);
+    m_loaderClient.didBlockInsecurePluginVersion(this, newMimeType, pluginIdentifier, pluginVersion);
 }
 
 bool WebPageProxy::willHandleHorizontalScrollEvents() const

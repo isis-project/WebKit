@@ -136,8 +136,7 @@ StylePropertySet* ElementAttributeData::ensureInlineStyle(StyledElement* element
 {
     if (!m_inlineStyleDecl) {
         ASSERT(element->isStyledElement());
-        m_inlineStyleDecl = StylePropertySet::create();
-        m_inlineStyleDecl->setCSSParserMode(strictToCSSParserMode(element->isHTMLElement() && !element->document()->inQuirksMode()));
+        m_inlineStyleDecl = StylePropertySet::create(strictToCSSParserMode(element->isHTMLElement() && !element->document()->inQuirksMode()));
     }
     return m_inlineStyleDecl.get();
 }
@@ -157,11 +156,9 @@ void ElementAttributeData::updateInlineStyleAvoidingMutation(StyledElement* elem
     // This makes wrapperless property sets immutable and so cacheable.
     if (m_inlineStyleDecl && !m_inlineStyleDecl->isMutable())
         m_inlineStyleDecl.clear();
-    if (!m_inlineStyleDecl) {
-        m_inlineStyleDecl = StylePropertySet::create();
-        m_inlineStyleDecl->setCSSParserMode(strictToCSSParserMode(element->isHTMLElement() && !element->document()->inQuirksMode()));
-    }
-    m_inlineStyleDecl->parseDeclaration(text, element->document()->elementSheet()->internal());
+    if (!m_inlineStyleDecl)
+        m_inlineStyleDecl = StylePropertySet::create(strictToCSSParserMode(element->isHTMLElement() && !element->document()->inQuirksMode()));
+    m_inlineStyleDecl->parseDeclaration(text, element->document()->elementSheet()->contents());
 }
 
 void ElementAttributeData::destroyInlineStyle(StyledElement* element)
@@ -180,7 +177,7 @@ void ElementAttributeData::addAttribute(const Attribute& attribute, Element* ele
     m_attributes.append(attribute);
 
     if (element && inUpdateStyleAttribute == NotInUpdateStyleAttribute)
-        element->didAddAttribute(const_cast<Attribute*>(&attribute));
+        element->didAddAttribute(attribute);
 }
 
 void ElementAttributeData::removeAttribute(size_t index, Element* element, EInUpdateStyleAttribute inUpdateStyleAttribute)
@@ -220,10 +217,9 @@ bool ElementAttributeData::isEquivalent(const ElementAttributeData* other) const
     return true;
 }
 
-void ElementAttributeData::detachAttributesFromElement(Element* element)
+void ElementAttributeData::detachAttrObjectsFromElement(Element* element)
 {
-    if (!element->hasAttrList())
-        return;
+    ASSERT(element->hasAttrList());
 
     for (unsigned i = 0; i < m_attributes.size(); ++i) {
         if (RefPtr<Attr> attr = attrIfExists(element, m_attributes[i].name()))
@@ -252,34 +248,44 @@ size_t ElementAttributeData::getAttributeItemIndexSlowCase(const String& name, b
     return notFound;
 }
 
-void ElementAttributeData::setAttributes(const ElementAttributeData& other, Element* element)
+void ElementAttributeData::cloneDataFrom(const ElementAttributeData& sourceData, const Element& sourceElement, Element& targetElement)
 {
-    ASSERT(element);
+    const AtomicString& oldID = targetElement.getIdAttribute();
+    const AtomicString& newID = sourceElement.getIdAttribute();
 
-    // If assigning the map changes the id attribute, we need to call
-    // updateId.
-    Attribute* oldId = getAttributeItem(element->document()->idAttributeName());
-    Attribute* newId = other.getAttributeItem(element->document()->idAttributeName());
+    if (!oldID.isNull() || !newID.isNull())
+        targetElement.updateId(oldID, newID);
 
-    if (oldId || newId)
-        element->updateId(oldId ? oldId->value() : nullAtom, newId ? newId->value() : nullAtom);
+    const AtomicString& oldName = targetElement.getNameAttribute();
+    const AtomicString& newName = sourceElement.getNameAttribute();
 
-    Attribute* oldName = getAttributeItem(HTMLNames::nameAttr);
-    Attribute* newName = other.getAttributeItem(HTMLNames::nameAttr);
+    if (!oldName.isNull() || !newName.isNull())
+        targetElement.updateName(oldName, newName);
 
-    if (oldName || newName)
-        element->updateName(oldName ? oldName->value() : nullAtom, newName ? newName->value() : nullAtom);
+    clearAttributes(&targetElement);
+    m_attributes = sourceData.m_attributes;
+    for (unsigned i = 0; i < m_attributes.size(); ++i) {
+        if (targetElement.isStyledElement() && m_attributes[i].name() == HTMLNames::styleAttr) {
+            static_cast<StyledElement&>(targetElement).styleAttributeChanged(m_attributes[i].value(), StyledElement::DoNotReparseStyleAttribute);
+            continue;
+        }
+        targetElement.attributeChanged(m_attributes[i]);
+    }
 
-    clearAttributes(element);
-    m_attributes = other.m_attributes;
-    for (unsigned i = 0; i < m_attributes.size(); ++i)
-        element->attributeChanged(&m_attributes[i]);
+    if (targetElement.isStyledElement() && sourceData.m_inlineStyleDecl) {
+        StylePropertySet* inlineStyle = ensureMutableInlineStyle(static_cast<StyledElement*>(&targetElement));
+        inlineStyle->copyPropertiesFrom(*sourceData.m_inlineStyleDecl);
+        inlineStyle->setCSSParserMode(sourceData.m_inlineStyleDecl->cssParserMode());
+        targetElement.setIsStyleAttributeValid(sourceElement.isStyleAttributeValid());
+    }
 }
 
 void ElementAttributeData::clearAttributes(Element* element)
 {
+    if (element->hasAttrList())
+        detachAttrObjectsFromElement(element);
+
     clearClass();
-    detachAttributesFromElement(element);
     m_attributes.clear();
 }
 
@@ -290,7 +296,7 @@ void ElementAttributeData::replaceAttribute(size_t index, const Attribute& attri
 
     element->willModifyAttribute(attribute.name(), m_attributes[index].value(), attribute.value());
     m_attributes[index] = attribute;
-    element->didModifyAttribute(const_cast<Attribute*>(&attribute));
+    element->didModifyAttribute(attribute);
 }
 
 PassRefPtr<Attr> ElementAttributeData::getAttributeNode(const String& name, bool shouldIgnoreAttributeCase, Element* element) const

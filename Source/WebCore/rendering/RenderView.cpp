@@ -32,6 +32,7 @@
 #include "HTMLFrameOwnerElement.h"
 #include "HitTestResult.h"
 #include "Page.h"
+#include "RenderGeometryMap.h"
 #include "RenderLayer.h"
 #include "RenderNamedFlowThread.h"
 #include "RenderSelectionInfo.h"
@@ -84,13 +85,13 @@ bool RenderView::hitTest(const HitTestRequest& request, HitTestResult& result)
 
 void RenderView::computeLogicalHeight()
 {
-    if (!printing() && m_frameView)
+    if (!shouldUsePrintingLayout() && m_frameView)
         setLogicalHeight(viewLogicalHeight());
 }
 
 void RenderView::computeLogicalWidth()
 {
-    if (!printing() && m_frameView)
+    if (!shouldUsePrintingLayout() && m_frameView)
         setLogicalWidth(viewLogicalWidth());
 }
 
@@ -111,11 +112,11 @@ void RenderView::layout()
     if (!document()->paginated())
         setPageLogicalHeight(0);
 
-    if (printing())
+    if (shouldUsePrintingLayout())
         m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth = logicalWidth();
 
     // Use calcWidth/Height to get the new width/height, since this will take the full page zoom factor into account.
-    bool relayoutChildren = !printing() && (!m_frameView || width() != viewWidth() || height() != viewHeight());
+    bool relayoutChildren = !shouldUsePrintingLayout() && (!m_frameView || width() != viewWidth() || height() != viewHeight());
     if (relayoutChildren) {
         setChildNeedsLayout(true, MarkOnlyThis);
         for (RenderObject* child = firstChild(); child; child = child->nextSibling()) {
@@ -165,6 +166,27 @@ void RenderView::mapLocalToContainer(RenderBoxModelObject* repaintContainer, boo
     
     if (fixed && m_frameView)
         transformState.move(m_frameView->scrollOffsetForFixedPosition());
+}
+
+const RenderObject* RenderView::pushMappingToContainer(const RenderBoxModelObject* ancestorToStopAt, RenderGeometryMap& geometryMap) const
+{
+    // If a container was specified, and was not 0 or the RenderView,
+    // then we should have found it by now.
+    ASSERT_ARG(ancestorToStopAt, !ancestorToStopAt || ancestorToStopAt == this);
+
+    LayoutSize scrollOffset;
+
+    if (m_frameView)
+        scrollOffset = m_frameView->scrollOffsetForFixedPosition();
+
+    if (!ancestorToStopAt && shouldUseTransformFromContainer(0)) {
+        TransformationMatrix t;
+        getTransformFromContainer(0, LayoutSize(), t);
+        geometryMap.pushView(this, scrollOffset, &t);
+    } else
+        geometryMap.pushView(this, scrollOffset);
+
+    return 0;
 }
 
 void RenderView::mapAbsoluteToLocalPoint(bool fixed, bool useTransforms, TransformState& transformState) const
@@ -629,6 +651,15 @@ bool RenderView::printing() const
     return document()->printing();
 }
 
+bool RenderView::shouldUsePrintingLayout() const
+{
+    if (!printing() || !m_frameView)
+        return false;
+    Frame* frame = m_frameView->frame();
+    // Only root frame should have special handling for printing.
+    return frame && !frame->tree()->parent();
+}
+
 size_t RenderView::getRetainedWidgets(Vector<RenderWidget*>& renderWidgets)
 {
     size_t size = m_widgets.size();
@@ -693,7 +724,7 @@ void RenderView::notifyWidgets(WidgetNotification notification)
 
 LayoutRect RenderView::viewRect() const
 {
-    if (printing())
+    if (shouldUsePrintingLayout())
         return LayoutRect(LayoutPoint(), size());
     if (m_frameView)
         return m_frameView->visibleContentRect();
@@ -724,16 +755,16 @@ LayoutRect RenderView::backgroundRect(RenderBox* backgroundRenderer) const
 
 IntRect RenderView::documentRect() const
 {
-    IntRect overflowRect(unscaledDocumentRect());
+    FloatRect overflowRect(unscaledDocumentRect());
     if (hasTransform())
         overflowRect = layer()->currentTransform().mapRect(overflowRect);
-    return overflowRect;
+    return IntRect(overflowRect);
 }
 
 int RenderView::viewHeight() const
 {
     int height = 0;
-    if (!printing() && m_frameView) {
+    if (!shouldUsePrintingLayout() && m_frameView) {
         height = m_frameView->layoutHeight();
         height = m_frameView->useFixedLayout() ? ceilf(style()->effectiveZoom() * float(height)) : height;
     }
@@ -743,7 +774,7 @@ int RenderView::viewHeight() const
 int RenderView::viewWidth() const
 {
     int width = 0;
-    if (!printing() && m_frameView) {
+    if (!shouldUsePrintingLayout() && m_frameView) {
         width = m_frameView->layoutWidth();
         width = m_frameView->useFixedLayout() ? ceilf(style()->effectiveZoom() * float(width)) : width;
     }

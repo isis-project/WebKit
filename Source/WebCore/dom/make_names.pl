@@ -186,7 +186,7 @@ sub defaultTagPropertyHash
         'mapToTagName' => '',
         'wrapperOnlyIfMediaIsAvailable' => 0,
         'conditional' => 0,
-        'runtimeConditional' => 0
+        'contextConditional' => 0
     );
 }
 
@@ -375,10 +375,10 @@ END
 ;
     }
 
-    my $runtimeConditional = $enabledTags{$tagName}{runtimeConditional};
-    if ($runtimeConditional) {
+    my $contextConditional = $enabledTags{$tagName}{contextConditional};
+    if ($contextConditional) {
         print F <<END
-    if (!RuntimeEnabledFeatures::${runtimeConditional}Enabled())
+    if (!ContextEnabledFeatures::${contextConditional}Enabled(document->domWindow()))
         return 0;
 END
 ;
@@ -804,7 +804,7 @@ printConditionalElementIncludes($F);
 
 print F <<END
 
-#include "RuntimeEnabledFeatures.h"
+#include "ContextEnabledFeatures.h"
 
 #if ENABLE(DASHBOARD_SUPPORT) || ENABLE(VIDEO)
 #include "Document.h"
@@ -1008,12 +1008,12 @@ static JSDOMWrapper* create${JSInterfaceName}Wrapper(ExecState* exec, JSDOMGloba
 
 END
 ;
-            } elsif ($enabledTags{$tagName}{runtimeConditional}) {
-                my $runtimeConditional = $enabledTags{$tagName}{runtimeConditional};
+            } elsif ($enabledTags{$tagName}{contextConditional}) {
+                my $contextConditional = $enabledTags{$tagName}{contextConditional};
                 print F <<END
 static JSDOMWrapper* create${JSInterfaceName}Wrapper(ExecState* exec, JSDOMGlobalObject* globalObject, PassRefPtr<$parameters{namespace}Element> element)
 {
-    if (!RuntimeEnabledFeatures::${runtimeConditional}Enabled()) {
+    if (!ContextEnabledFeatures::${contextConditional}Enabled(element->document()->domWindow())) {
         ASSERT(!element || element->is$parameters{fallbackInterfaceName}());
         return CREATE_DOM_WRAPPER(exec, globalObject, $parameters{fallbackInterfaceName}, element.get());
     }
@@ -1035,41 +1035,41 @@ END
         } elsif ($wrapperFactoryType eq "V8") {
             if ($enabledTags{$tagName}{wrapperOnlyIfMediaIsAvailable}) {
                 print F <<END
-static v8::Handle<v8::Value> create${JSInterfaceName}Wrapper($parameters{namespace}Element* element)
+static v8::Handle<v8::Value> create${JSInterfaceName}Wrapper($parameters{namespace}Element* element, v8::Isolate* isolate)
 {
     Settings* settings = element->document()->settings();
     if (!MediaPlayer::isAvailable() || (settings && !settings->isMediaEnabled()))
-        return V8$parameters{namespace}Element::wrap(element);
-    return toV8(static_cast<${JSInterfaceName}*>(element));
+        return V8$parameters{namespace}Element::wrap(element, isolate);
+    return toV8(static_cast<${JSInterfaceName}*>(element), isolate);
 }
 
 END
 ;
-            } elsif ($enabledTags{$tagName}{runtimeConditional}) {
-                my $runtimeConditional = $enabledTags{$tagName}{runtimeConditional};
+            } elsif ($enabledTags{$tagName}{contextConditional}) {
+                my $contextConditional = $enabledTags{$tagName}{contextConditional};
                 print F <<END
-static v8::Handle<v8::Value> create${JSInterfaceName}Wrapper($parameters{namespace}Element* element)
+static v8::Handle<v8::Value> create${JSInterfaceName}Wrapper($parameters{namespace}Element* element, v8::Isolate* isolate)
 {
-    if (!RuntimeEnabledFeatures::${runtimeConditional}Enabled())
-        return V8$parameters{fallbackInterfaceName}::wrap(to$parameters{fallbackInterfaceName}(element));
-    return toV8(static_cast<${JSInterfaceName}*>(element));
+    if (!ContextEnabledFeatures::${contextConditional}Enabled(element->document()->domWindow()))
+        return V8$parameters{fallbackInterfaceName}::wrap(to$parameters{fallbackInterfaceName}(element), isolate);
+    return toV8(static_cast<${JSInterfaceName}*>(element), isolate);
 }
 END
 ;
             } elsif (${JSInterfaceName} eq "HTMLElement") {
                 print F <<END
-static v8::Handle<v8::Value> create${JSInterfaceName}Wrapper($parameters{namespace}Element* element)
+static v8::Handle<v8::Value> create${JSInterfaceName}Wrapper($parameters{namespace}Element* element, v8::Isolate* isolate)
 {
-    return V8$parameters{namespace}Element::wrap(element);
+    return V8$parameters{namespace}Element::wrap(element, isolate);
 }
 
 END
 ;
              } else {
             print F <<END
-static v8::Handle<v8::Value> create${JSInterfaceName}Wrapper($parameters{namespace}Element* element)
+static v8::Handle<v8::Value> create${JSInterfaceName}Wrapper($parameters{namespace}Element* element, v8::Isolate* isolate)
 {
-    return toV8(static_cast<${JSInterfaceName}*>(element));
+    return toV8(static_cast<${JSInterfaceName}*>(element), isolate);
 }
 
 
@@ -1111,7 +1111,7 @@ sub printWrapperFactoryCppFile
 
     print F <<END
 
-#include "RuntimeEnabledFeatures.h"
+#include "ContextEnabledFeatures.h"
 
 #if ENABLE(VIDEO)
 #include "Document.h"
@@ -1151,7 +1151,7 @@ END
 ;
     } elsif ($wrapperFactoryType eq "V8") {
         print F <<END
-typedef v8::Handle<v8::Value> (*Create$parameters{namespace}ElementWrapperFunction)($parameters{namespace}Element*);
+typedef v8::Handle<v8::Value> (*Create$parameters{namespace}ElementWrapperFunction)($parameters{namespace}Element*, v8::Isolate*);
 
 END
 ;
@@ -1170,7 +1170,7 @@ END
 ;
     } elsif ($wrapperFactoryType eq "V8") {
         print F <<END
-v8::Handle<v8::Value> createV8$parameters{namespace}Wrapper($parameters{namespace}Element* element, bool forceNewObject)
+v8::Handle<v8::Value> createV8$parameters{namespace}Wrapper($parameters{namespace}Element* element, v8::Isolate* isolate, bool forceNewObject)
 {
     typedef HashMap<WTF::AtomicStringImpl*, Create$parameters{namespace}ElementWrapperFunction> FunctionMap;
     DEFINE_STATIC_LOCAL(FunctionMap, map, ());
@@ -1211,7 +1211,7 @@ END
 ;
     } elsif ($wrapperFactoryType eq "V8") {
         print F <<END
-        return createWrapperFunction(element);
+        return createWrapperFunction(element, isolate);
     return V8$parameters{fallbackInterfaceName}::wrap(to$parameters{fallbackInterfaceName}(element), 0, forceNewObject);
 END
 ;
@@ -1272,7 +1272,7 @@ namespace WebCore {
 
     class $parameters{namespace}Element;
 
-    v8::Handle<v8::Value> createV8$parameters{namespace}Wrapper($parameters{namespace}Element*, bool);
+    v8::Handle<v8::Value> createV8$parameters{namespace}Wrapper($parameters{namespace}Element*, v8::Isolate*, bool);
 }
 END
 ;

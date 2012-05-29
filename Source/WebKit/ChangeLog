@@ -1,3 +1,131 @@
+2012-05-29  Arvid Nilsson  <anilsson@rim.com>
+
+        [BlackBerry] WebKit-side implementation of SelectionOverlay
+        https://bugs.webkit.org/show_bug.cgi?id=87605
+
+        Reviewed by Rob Buis.
+
+        Add SelectionOverlay to the build system.
+
+        PR #160263
+
+        * PlatformBlackBerry.cmake:
+
+2012-05-29  Arvid Nilsson  <anilsson@rim.com>
+
+        [BlackBerry] WebOverlay API
+        https://bugs.webkit.org/show_bug.cgi?id=87603
+
+        Reviewed by Rob Buis.
+
+        Add WebOverlay related files to the build system.
+
+        PR #156812
+
+        * PlatformBlackBerry.cmake:
+
+2012-05-28  Arvid Nilsson  <anilsson@rim.com>
+
+        [BlackBerry] Add a default tap highlight
+        https://bugs.webkit.org/show_bug.cgi?id=87569
+
+        Reviewed by Rob Buis.
+
+        Add DefaultTapHighlight to the build system
+
+        Reviewed internally by Mike Lattanzio and Mike Fenton.
+
+        PR #154329
+
+        * PlatformBlackBerry.cmake:
+
+2012-05-24  Crystal Zhang  <haizhang@rim.com>
+
+        [BlackBerry] Implement select popup and remove old hook to air popup
+        https://bugs.webkit.org/show_bug.cgi?id=87419
+
+        Reviewed by Rob Buis.
+
+        Add new files to make file.
+
+        * PlatformBlackBerry.cmake:
+
+2012-05-24  Raphael Kubo da Costa  <rakuco@webkit.org>
+
+        [EFL] Unreviewed, unbreak `make install' after r117046.
+
+        * PlatformEfl.cmake: Remove ewk_auth_soup.h from the list of
+        installed headers, since it has been made private and renamed.
+
+2012-05-22  Dongwoo Im  <dw.im@samsung.com>
+
+        [EFL] Implements the registerProtocolHandler method and option.
+        https://bugs.webkit.org/show_bug.cgi?id=73638
+
+        Reviewed by Andreas Kling.
+
+        The registerProtocolHandler() method allows Web sites to register themselves
+        as possible handlers for particular schemes.
+
+        http://dev.w3.org/html5/spec/Overview.html#dom-navigator-registerprotocolhandler
+
+        * PlatformEfl.cmake: Adds the new file into the source list.
+
+2012-05-21  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Minor style fixes in web intents code are needed
+        https://bugs.webkit.org/show_bug.cgi?id=86986
+
+        Reviewed by Adam Barth.
+
+        Fix minor ordering issues in CMake files.
+
+        * CMakeLists.txt:
+        * PlatformEfl.cmake:
+
+2012-05-18  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Add simple implementation of Web Intents
+        https://bugs.webkit.org/show_bug.cgi?id=86354
+
+        Reviewed by Eric Seidel.
+
+        Add new ewk_intent.* and ewk_intent_request.* files to CMake.
+
+        * CMakeLists.txt:
+        * PlatformEfl.cmake:
+
+2012-05-17  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [EFL] Add API for Web Database handling
+        https://bugs.webkit.org/show_bug.cgi?id=85178
+
+        Reviewed by Antonio Gomes.
+
+        Added the new Web Database API to the buildsystem.
+
+        * PlatformEfl.cmake:
+
+2012-05-17  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [EFL] Fix link error caused by not directly linking with edbus
+        https://bugs.webkit.org/show_bug.cgi?id=86747
+
+        Unreviewed build fix.
+
+        * PlatformEfl.cmake:
+
+2012-05-16  Kihong Kwon  <kihong.kwon@samsung.com>
+
+        [EFL] Support for Battery Status API on the WebKit-Efl
+        https://bugs.webkit.org/show_bug.cgi?id=83254
+
+        Reviewed by Chang Shu.
+
+        Add e_ukit library and include directory to get battery status of device.
+
+        * PlatformEfl.cmake:
+
 2012-05-15  Tomasz Morawski  <t.morawski@samsung.com>
 
         [EFL] Split ewk_private.h file to multiple private files.

@@ -141,10 +141,6 @@ public:
 
     static void platformInitialize(); // Only needed by WTR.
 
-    // Internal API used by WebPage.
-    void updateContentsSize(const QSizeF&);
-    QPointF pageItemPos();
-
     // Private C++-only API.
     qreal zoomFactor() const;
     void setZoomFactor(qreal);
@@ -154,7 +150,7 @@ public:
     void setAllowAnyHTTPSCertificateForLocalHost(bool allow);
 
 public Q_SLOTS:
-    void loadHtml(const QString& html, const QUrl& baseUrl = QUrl());
+    void loadHtml(const QString& html, const QUrl& baseUrl = QUrl(), const QUrl& unreachableUrl = QUrl());
 
     void goBack();
     void goForward();
@@ -207,18 +203,21 @@ private:
     QQuickWebView(WKContextRef, WKPageGroupRef, QQuickItem* parent = 0);
     WKPageRef pageRef() const;
 
+    void emitUrlChangeIfNeeded();
+
     Q_PRIVATE_SLOT(d_func(), void _q_suspend());
     Q_PRIVATE_SLOT(d_func(), void _q_resume());
-    Q_PRIVATE_SLOT(d_func(), void _q_contentViewportChanged(const QPointF&));
+    Q_PRIVATE_SLOT(d_func(), void _q_onInformVisibleContentChange(const QPointF&));
 
     Q_PRIVATE_SLOT(d_func(), void _q_onVisibleChanged());
     Q_PRIVATE_SLOT(d_func(), void _q_onUrlChanged());
     Q_PRIVATE_SLOT(d_func(), void _q_onReceivedResponseFromDownload(QWebDownloadItem*));
-    Q_PRIVATE_SLOT(d_func(), void _q_onIconChangedForPageURL(const QUrl&, const QUrl&));
+    Q_PRIVATE_SLOT(d_func(), void _q_onIconChangedForPageURL(const QString&));
     // Hides QObject::d_ptr allowing us to use the convenience macros.
     QScopedPointer<QQuickWebViewPrivate> d_ptr;
     QQuickWebViewExperimental* m_experimental;
 
+    friend class QWebKitTest;
     friend class WebKit::QtViewportInteractionEngine;
     friend class WebKit::QtWebPageLoadClient;
     friend class WebKit::QtWebPagePolicyClient;
@@ -270,6 +269,7 @@ class QWEBKIT_EXPORT QQuickWebViewExperimental : public QObject {
     Q_PROPERTY(QQmlListProperty<QQuickUrlSchemeDelegate> urlSchemeDelegates READ schemeDelegates)
     Q_PROPERTY(QString userAgent READ userAgent WRITE setUserAgent NOTIFY userAgentChanged)
     Q_PROPERTY(double devicePixelRatio READ devicePixelRatio WRITE setDevicePixelRatio NOTIFY devicePixelRatioChanged)
+    Q_PROPERTY(QList<QUrl> userScripts READ userScripts WRITE setUserScripts NOTIFY userScriptsChanged)
     Q_ENUMS(NavigationRequestActionExperimental)
 
 public:
@@ -302,6 +302,8 @@ public:
     void setUserAgent(const QString& userAgent);
     double devicePixelRatio() const;
     void setDevicePixelRatio(double);
+    QList<QUrl> userScripts() const;
+    void setUserScripts(const QList<QUrl>& userScripts);
 
     QWebKitTest* test();
 
@@ -355,6 +357,7 @@ Q_SIGNALS:
     void devicePixelRatioChanged();
     void enterFullScreenRequested();
     void exitFullScreenRequested();
+    void userScriptsChanged();
 
 private:
     QQuickWebView* q_ptr;

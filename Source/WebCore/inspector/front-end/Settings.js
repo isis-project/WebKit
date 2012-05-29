@@ -182,7 +182,7 @@ WebInspector.ExperimentsSettings = function()
     // Add currently running experiments here.
     this.showShadowDOM = this._createExperiment("showShadowDOM", "Show shadow DOM");
     this.snippetsSupport = this._createExperiment("snippetsSupport", "Snippets support");
-    this.showStylesPanel = this._createExperiment("stylesPanel", "Show styles panel");
+    this.nativeMemorySnapshots = this._createExperiment("nativeMemorySnapshots", "Native memory profiling");
 
     this._cleanUpSetting();
 }

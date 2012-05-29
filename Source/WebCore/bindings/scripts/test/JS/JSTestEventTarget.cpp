@@ -132,7 +132,7 @@ JSObject* JSTestEventTarget::createPrototype(ExecState* exec, JSGlobalObject* gl
 
 void JSTestEventTarget::destroy(JSC::JSCell* cell)
 {
-    JSTestEventTarget* thisObject = jsCast<JSTestEventTarget*>(cell);
+    JSTestEventTarget* thisObject = static_cast<JSTestEventTarget*>(cell);
     thisObject->JSTestEventTarget::~JSTestEventTarget();
 }
 
@@ -150,9 +150,8 @@ bool JSTestEventTarget::getOwnPropertySlot(JSCell* cell, ExecState* exec, Proper
         slot.setCustom(thisObject, entry->propertyGetter());
         return true;
     }
-    bool ok;
-    unsigned index = propertyName.toUInt32(ok);
-    if (ok && index < static_cast<TestEventTarget*>(thisObject->impl())->length()) {
+    unsigned index = propertyName.asIndex();
+    if (index != PropertyName::NotAnIndex && index < static_cast<TestEventTarget*>(thisObject->impl())->length()) {
         slot.setCustomIndex(thisObject, index, indexGetter);
         return true;
     }
@@ -174,9 +173,8 @@ bool JSTestEventTarget::getOwnPropertyDescriptor(JSObject* object, ExecState* ex
         descriptor.setDescriptor(slot.getValue(exec, propertyName), entry->attributes());
         return true;
     }
-    bool ok;
-    unsigned index = propertyName.toUInt32(ok);
-    if (ok && index < static_cast<TestEventTarget*>(thisObject->impl())->length()) {
+    unsigned index = propertyName.asIndex();
+    if (index != PropertyName::NotAnIndex && index < static_cast<TestEventTarget*>(thisObject->impl())->length()) {
         PropertySlot slot;
         slot.setCustomIndex(thisObject, index, indexGetter);
         descriptor.setDescriptor(slot.getValue(exec, propertyName), DontDelete | ReadOnly);
@@ -255,7 +253,7 @@ EncodedJSValue JSC_HOST_CALL jsTestEventTargetPrototypeFunctionAddEventListener(
     JSValue listener = exec->argument(1);
     if (!listener.isObject())
         return JSValue::encode(jsUndefined());
-    impl->addEventListener(ustringToAtomicString(exec->argument(0).toString(exec)->value(exec)), JSEventListener::create(asObject(listener), castedThis, false, currentWorld(exec)), exec->argument(2).toBoolean(exec));
+    impl->addEventListener(ustringToAtomicString(exec->argument(0).toString(exec)->value(exec)), JSEventListener::create(asObject(listener), castedThis, false, currentWorld(exec)), exec->argument(2).toBoolean());
     return JSValue::encode(jsUndefined());
 }
 
@@ -270,7 +268,7 @@ EncodedJSValue JSC_HOST_CALL jsTestEventTargetPrototypeFunctionRemoveEventListen
     JSValue listener = exec->argument(1);
     if (!listener.isObject())
         return JSValue::encode(jsUndefined());
-    impl->removeEventListener(ustringToAtomicString(exec->argument(0).toString(exec)->value(exec)), JSEventListener::create(asObject(listener), castedThis, false, currentWorld(exec)).get(), exec->argument(2).toBoolean(exec));
+    impl->removeEventListener(ustringToAtomicString(exec->argument(0).toString(exec)->value(exec)), JSEventListener::create(asObject(listener), castedThis, false, currentWorld(exec)).get(), exec->argument(2).toBoolean());
     return JSValue::encode(jsUndefined());
 }
 

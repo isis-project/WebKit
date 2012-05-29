@@ -43,6 +43,7 @@
 
 #include "CppBoundClass.h"
 #include "Task.h"
+#include "WebDeliveredIntentClient.h"
 #include "platform/WebArrayBufferView.h"
 #include "platform/WebString.h"
 #include "WebTextDirection.h"
@@ -256,7 +257,6 @@ public:
 
     void setDomainRelaxationForbiddenForURLScheme(const CppArgumentList&, CppVariant*);
     void setDeferMainResourceDataLoad(const CppArgumentList&, CppVariant*);
-    void setEditingBehavior(const CppArgumentList&, CppVariant*);
 
     // Deals with Web Audio WAV file data.
     void setAudioData(const CppArgumentList&, CppVariant*);
@@ -349,9 +349,6 @@ public:
     // Gets the number of geolocation permissions requests pending.
     void numberOfPendingGeolocationPermissionRequests(const CppArgumentList&, CppVariant*);
 
-    // Allows layout tests to start JavaScript profiling.
-    void setJavaScriptProfilingEnabled(const CppArgumentList&, CppVariant*);
-
     // Allows layout tests to exec scripts at WebInspector side.
     void evaluateInWebInspector(const CppArgumentList&, CppVariant*);
 
@@ -429,6 +426,9 @@ public:
 
     void selectionAsMarkup(const CppArgumentList&, CppVariant*);
 
+    // Switch the link detection.
+    void setAutomaticLinkDetectionEnabled(bool);
+
 #if ENABLE(POINTER_LOCK)
     void didLosePointerLock(const CppArgumentList&, CppVariant*);
     void setPointerLockWillFailSynchronously(const CppArgumentList&, CppVariant*);
@@ -438,8 +438,11 @@ public:
     void workerThreadCount(CppVariant*);
 
     // Expects one string argument for sending successful result, zero
-    // for sending a failure result.
+    // arguments for sending a failure result.
     void sendWebIntentResponse(const CppArgumentList&, CppVariant*);
+
+    // Cause the web intent to be delivered to this context.
+    void deliverWebIntent(const CppArgumentList&, CppVariant*);
 
 public:
     // The following methods are not exposed to JavaScript.
@@ -704,6 +707,9 @@ private:
 
     // WAV audio data is stored here.
     WebKit::WebArrayBufferView m_audioData;
+
+    // Mock object for testing delivering web intents.
+    OwnPtr<WebKit::WebDeliveredIntentClient> m_intentClient;
 
     bool m_shouldStayOnPageAfterHandlingBeforeUnload;
 

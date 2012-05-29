@@ -193,7 +193,7 @@ void SVGSMILElement::reset()
     resolveFirstInterval();
 }
 
-Node::InsertionNotificationRequest SVGSMILElement::insertedInto(Node* rootParent)
+Node::InsertionNotificationRequest SVGSMILElement::insertedInto(ContainerNode* rootParent)
 {
     SVGElement::insertedInto(rootParent);
     if (!rootParent->inDocument())
@@ -222,7 +222,7 @@ Node::InsertionNotificationRequest SVGSMILElement::insertedInto(Node* rootParent
     return InsertionDone;
 }
 
-void SVGSMILElement::removedFrom(Node* rootParent)
+void SVGSMILElement::removedFrom(ContainerNode* rootParent)
 {
     if (rootParent->inDocument()) {
         if (m_timeContainer) {
@@ -420,28 +420,28 @@ bool SVGSMILElement::isSupportedAttribute(const QualifiedName& attrName)
     return supportedAttributes.contains<QualifiedName, SVGAttributeHashTranslator>(attrName);
 }
 
-void SVGSMILElement::parseAttribute(Attribute* attr)
+void SVGSMILElement::parseAttribute(const Attribute& attribute)
 {
-    if (attr->name() == SVGNames::beginAttr) {
+    if (attribute.name() == SVGNames::beginAttr) {
         if (!m_conditions.isEmpty()) {
             disconnectConditions();
             m_conditions.clear();
             parseBeginOrEnd(fastGetAttribute(SVGNames::endAttr), End);
         }
-        parseBeginOrEnd(attr->value().string(), Begin);
+        parseBeginOrEnd(attribute.value().string(), Begin);
         if (inDocument())
             connectConditions();
-    } else if (attr->name() == SVGNames::endAttr) {
+    } else if (attribute.name() == SVGNames::endAttr) {
         if (!m_conditions.isEmpty()) {
             disconnectConditions();
             m_conditions.clear();
             parseBeginOrEnd(fastGetAttribute(SVGNames::beginAttr), Begin);
         }
-        parseBeginOrEnd(attr->value().string(), End);
+        parseBeginOrEnd(attribute.value().string(), End);
         if (inDocument())
             connectConditions();
     } else
-        SVGElement::parseAttribute(attr);
+        SVGElement::parseAttribute(attribute);
 }
 
 void SVGSMILElement::svgAttributeChanged(const QualifiedName& attrName)
@@ -1055,8 +1055,8 @@ bool SVGSMILElement::progress(SMILTime elapsed, SVGSMILElement* resultElement, b
     m_activeState = determineActiveState(elapsed);
     bool animationIsContributing = isContributing(elapsed);
 
-    // Only reset the animated type to the base value once for the lowest priority animation that animates a particular element/attribute pair.
-    if (this == resultElement)
+    // Only reset the animated type to the base value once for the lowest priority animation that animates and contributes to a particular element/attribute pair.
+    if (this == resultElement && animationIsContributing)
         resetAnimatedType();
 
     if (animationIsContributing) {

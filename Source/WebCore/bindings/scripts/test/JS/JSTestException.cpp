@@ -109,7 +109,7 @@ JSObject* JSTestException::createPrototype(ExecState* exec, JSGlobalObject* glob
 
 void JSTestException::destroy(JSC::JSCell* cell)
 {
-    JSTestException* thisObject = jsCast<JSTestException*>(cell);
+    JSTestException* thisObject = static_cast<JSTestException*>(cell);
     thisObject->JSTestException::~JSTestException();
 }
 

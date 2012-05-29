@@ -15,31 +15,36 @@ InspectorTest.createHeapSnapshotMockObject = function()
         _edgeNameOffset: 1,
         _edgeToNodeOffset: 2,
         _nodeTypes: ["hidden", "object"],
-        _edgeTypes: ["element", "property"],
+        _edgeTypes: ["element", "property", "shortcut"],
         _edgeShortcutType: -1,
         _edgeHiddenType: -1,
         _edgeElementType: 0,
+        _realNodesLength: 18,
         // Represents the following graph:
         //   (numbers in parentheses indicate node offset)
         // 
-        //         A (3) --ac- C (9) -ce- E(15)
-        //       a/|         /
-        //  "" (0) 1      bc
-        //       b\v    /
-        //         B (6) -bd- D (12)
+        //         -> A (3) --ac- C (9) -ce- E(15)
+        //       a/   |          /
+        //  "" (0)    1    - bc -
+        //       b\   v   /
+        //         -> B (6) -bd- D (12)
         //
         _nodes: [
-            0, 0, 0,
-            1, 1, 6,
-            1, 2, 12,
-            1, 3, 18,
-            1, 4, 21,
-            1, 5, 21],
+            0, 0, 0,    //  0: root
+            1, 1, 6,    //  3: A
+            1, 2, 12,   //  6: B
+            1, 3, 18,   //  9: C
+            1, 4, 21,   // 12: D
+            1, 5, 21,   // 15: E
+            0, 0, 21],  // 18: (extra node)
         _containmentEdges: [
-            1,  6, 3, 1,  7, 6,
-            0,  1, 6, 1,  8, 9,
-            1,  9, 9, 1, 10, 12,
-            1, 11, 15],
+            2,  6, 3,   //  0: shortcut 'a' to node 'A'
+            1,  7, 6,   //  3: property 'b' to node 'B'
+            0,  1, 6,   //  6: element '1' to node 'B'
+            1,  8, 9,   //  9: property 'ac' to node 'C'
+            1,  9, 9,   // 12: property 'bc' to node 'C'
+            1, 10, 12,  // 15: property 'bd' to node 'D'
+            1, 11, 15], // 18: property 'ce' to node 'E'
         _strings: ["", "A", "B", "C", "D", "E", "a", "b", "ac", "bc", "bd", "ce"]
     };
 };
@@ -64,30 +69,40 @@ InspectorTest.createHeapSnapshotMockRaw = function()
                 node_fields: ["type", "name", "id", "self_size", "retained_size", "dominator", "edges_index"],
                 node_types: [["hidden", "object"], "", "", "", "", "", ""],
                 edge_fields: ["type", "name_or_index", "to_node"],
-                edge_types: [["element", "property"], "", ""]
+                edge_types: [["element", "property", "shortcut"], "", ""]
             },
             node_count: 6,
             edge_count: 7},
         nodes: [
-            0, 0, 1, 0, 20,  0,  0,
-            1, 1, 2, 2,  2,  0,  6,
-            1, 2, 3, 3,  8,  0, 12,
-            1, 3, 4, 4, 10,  0, 18,
-            1, 4, 5, 5,  5, 14, 21,
-            1, 5, 6, 6,  6, 21, 21],
+            0, 0, 1, 0, 20,  0,  0, // root (0)
+            1, 1, 2, 2,  2,  0,  6, // A (7)
+            1, 2, 3, 3,  8,  0, 12, // B (14)
+            1, 3, 4, 4, 10,  0, 18, // C (21)
+            1, 4, 5, 5,  5, 14, 21, // D (28)
+            1, 5, 6, 6,  6, 21, 21],// E (35)
         edges: [
-            1,  6,  7, 1,  7, 14,
-            0,  1, 14, 1,  8, 21,
-            1,  9, 21, 1, 10, 28,
-            1, 11, 35],
+            // root node edges
+            2,  6,  7, // shortcut 'a' to node 'A'
+            1,  7, 14, // property 'b' to node 'B'
+
+            // A node edges
+            0,  1, 14, // element 1 to node 'B'
+            1,  8, 21, // property 'ac' to node 'C'
+
+            // B node edges
+            1,  9, 21, // property 'bc' to node 'C'
+            1, 10, 28, // property 'bd' to node 'D'
+
+            // C node edges
+            1, 11, 35], // property 'ce' to node 'E'
         strings: ["", "A", "B", "C", "D", "E", "a", "b", "ac", "bc", "bd", "ce"]
     };
 };
 
 InspectorTest._postprocessHeapSnapshotMock = function(mock)
 {
-    mock.nodes = new Int32Array(mock.nodes);
-    mock.edges = new Int32Array(mock.edges);
+    mock.nodes = new Uint32Array(mock.nodes);
+    mock.edges = new Uint32Array(mock.edges);
     return mock;
 };
 
@@ -160,7 +175,7 @@ InspectorTest.startProfilerTest = function(callback)
         // and test share the same heap. Taking a snapshot takes too long for a test,
         // so we provide synthetic snapshots.
         InspectorTest._panelReset = InspectorTest.override(WebInspector.panels.profiles, "_reset", function(){}, true);
-        InspectorTest.addSniffer(WebInspector.HeapSnapshotView.prototype, "_loadProfile", InspectorTest._snapshotViewShown, true);
+        InspectorTest.addSniffer(WebInspector.HeapSnapshotView.prototype, "show", InspectorTest._snapshotViewShown, true);
 
         detailedHeapProfilesEnabled();
     }
@@ -368,6 +383,200 @@ InspectorTest.countDataRows = function(row, filter)
     return result;
 };
 
+InspectorTest.HeapNode = function(name, selfSize, type, id)
+{
+    this._type = type || InspectorTest.HeapNode.Type.object;
+    this._name = name;
+    this._selfSize = selfSize || 0;
+    this._builder = null;
+    this._edges = {};
+    this._edgesCount = 0;
+    this._id = id;
+}
+
+InspectorTest.HeapNode.Type = {
+    "hidden": "hidden",
+    "array": "array",
+    "string": "string",
+    "object": "object",
+    "code": "code",
+    "closure": "closure",
+    "regexp": "regexp",
+    "number": "number",
+    "native": "native"
+};
+
+InspectorTest.HeapNode.prototype = {
+    linkNode: function(node, type, nameOrIndex)
+    {
+        if (!this._builder)
+            throw new Error("parent node is not connected to a snapshot");
+
+        if (!node._builder)
+            node._setBuilder(this._builder);
+
+        if (nameOrIndex === undefined)
+            nameOrIndex = this._edgesCount;
+        ++this._edgesCount;
+
+        if (nameOrIndex in this._edges)
+            throw new Error("Can't add edge with the same nameOrIndex. nameOrIndex: " + nameOrIndex + " oldNodeName: " + this._edges[nameOrIndex]._name + " newNodeName: " + node._name);
+        this._edges[nameOrIndex] = new InspectorTest.HeapEdge(node, type, nameOrIndex);
+    },
+
+    _setBuilder: function(builder)
+    {
+        if (this._builder)
+            throw new Error("node reusing is prohibited");
+
+        this._builder = builder;
+        this._ordinal = this._builder._registerNode(this);
+    },
+
+    _serialize: function(rawSnapshot)
+    {
+        rawSnapshot.nodes.push(this._builder.lookupNodeType(this._type));
+        rawSnapshot.nodes.push(this._builder.lookupOrAddString(this._name));
+        // JS engine snapshot impementation generates monotonicaly increasing odd id for JS objects,
+        // and even ids based on a hash for native DOMObject groups.
+        rawSnapshot.nodes.push(this._id || this._ordinal * 2 + 1);
+        rawSnapshot.nodes.push(this._selfSize);
+        rawSnapshot.nodes.push(0);                        // retained_size
+        rawSnapshot.nodes.push(0);                        // dominator
+        rawSnapshot.nodes.push(rawSnapshot.edges.length); // edges_index
+
+        for (var i in this._edges)
+            this._edges[i]._serialize(rawSnapshot);
+    }
+}
+
+InspectorTest.HeapEdge = function(targetNode, type, nameOrIndex)
+{
+    this._targetNode = targetNode;
+    this._type = type;
+    this._nameOrIndex = nameOrIndex;
+}
+
+InspectorTest.HeapEdge.prototype = {
+    _serialize: function(rawSnapshot)
+    {
+        if (!this._targetNode._builder)
+            throw new Error("Inconsistent state of node: " + this._name + " no builder assigned");
+        var builder = this._targetNode._builder;
+        rawSnapshot.edges.push(builder.lookupEdgeType(this._type));
+        rawSnapshot.edges.push(typeof this._nameOrIndex === "string" ? builder.lookupOrAddString(this._nameOrIndex) : this._nameOrIndex);
+        rawSnapshot.edges.push(this._targetNode._ordinal * builder.nodeFieldsCount); // index
+    }
+}
+
+InspectorTest.HeapEdge.Type = {
+    "context": "context",
+    "element": "element",
+    "property": "property",
+    "internal": "internal",
+    "hidden": "hidden",
+    "shortcut": "shortcut"
+};
+
+InspectorTest.HeapSnapshotBuilder = function()
+{
+    this._nodes = [];
+    this._string2id = {};
+    this._strings = [];
+    this.nodeFieldsCount = 7;
+
+    this._nodeTypesMap = {};
+    this._nodeTypesArray = [];
+    for (var nodeType in InspectorTest.HeapNode.Type) {
+        this._nodeTypesMap[nodeType] = this._nodeTypesArray.length
+        this._nodeTypesArray.push(nodeType);
+    }
+
+    this._edgeTypesMap = {};
+    this._edgeTypesArray = [];
+    for (var edgeType in InspectorTest.HeapEdge.Type) {
+        this._edgeTypesMap[edgeType] = this._edgeTypesArray.length
+        this._edgeTypesArray.push(edgeType);
+    }
+
+    this.rootNode = new InspectorTest.HeapNode("root", 0, "object");
+    this.rootNode._setBuilder(this);
+}
+
+InspectorTest.HeapSnapshotBuilder.prototype = {
+    generateSnapshot: function()
+    {
+        var rawSnapshot = {
+            "snapshot": {
+                "meta": {
+                    "node_fields": ["type","name","id","self_size","retained_size","dominator","edges_index"],
+                    "node_types": [
+                        this._nodeTypesArray,
+                        "string",
+                        "number",
+                        "number",
+                        "number",
+                        "number",
+                        "number"
+                    ],
+                    "edge_fields": ["type","name_or_index","to_node"],
+                    "edge_types": [
+                        this._edgeTypesArray,
+                        "string_or_number",
+                        "node"
+                    ]
+                }
+            },
+            "nodes": [],
+            "edges":[],
+            "strings": [],
+            maxJSObjectId: this._nodes.length * 2 + 1
+        };
+
+        for (var i = 0; i < this._nodes.length; ++i)
+            this._nodes[i]._serialize(rawSnapshot);
+
+        rawSnapshot.strings = this._strings.slice();
+
+        var meta = rawSnapshot.snapshot.meta;
+        rawSnapshot.snapshot.edge_count = rawSnapshot.edges.length / meta.edge_fields.length;
+        rawSnapshot.snapshot.node_count = rawSnapshot.nodes.length / meta.node_fields.length;
+
+        return rawSnapshot;
+    },
+
+    _registerNode: function(node)
+    {
+        this._nodes.push(node);
+        return this._nodes.length - 1;
+    },
+
+    lookupNodeType: function(typeName)
+    {
+        if (typeName === undefined)
+            throw new Error("wrong node type: " + typeName);
+        if (!typeName in this._nodeTypesMap)
+            throw new Error("wrong node type name: " + typeName);
+        return this._nodeTypesMap[typeName];
+    },
+
+    lookupEdgeType: function(typeName)
+    {
+        if (!typeName in this._edgeTypesMap)
+            throw new Error("wrong edge type name: " + typeName);
+        return this._edgeTypesMap[typeName];
+    },
+
+    lookupOrAddString: function(string)
+    {
+        if (string in this._string2id)
+            return this._string2id[string];
+        this._string2id[string] = this._strings.length;
+        this._strings.push(string);
+        return this._strings.length - 1;
+    }
+}
+
 InspectorTest.createHeapSnapshot = function(instanceCount, firstId)
 {
     // Mocking results of running the following code:
@@ -379,59 +588,26 @@ InspectorTest.createHeapSnapshot = function(instanceCount, firstId)
     // Instances of A have 12 bytes size, instances of B has 16 bytes size.
     var sizeOfA = 12;
     var sizeOfB = 16;
-    var nodes = [];
-    var edges = [];
 
-    function addEdge(type, nameOrIndex, toNode) {
-      var edgeIndex = edges.length;
-      edges.push(type, nameOrIndex, toNode);
-      return edgeIndex;
-    }
+    var builder = new InspectorTest.HeapSnapshotBuilder();
+    var rootNode = builder.rootNode;
 
-    nodes.push(0, 0, 1, 0, (sizeOfA + sizeOfB) * instanceCount, 0, addEdge(4, 1, null));
-    // Push instances of A and B.
-    var indexesOfB = [];
-    var nextId = firstId || 5;
-    for (var i = 0; i < instanceCount; ++i) {
-        var indexOfA = nodes.length;
-        nodes.push(3, 1, nextId++, sizeOfA, sizeOfA, null, addEdge(2, 3, indexOfA));
-        var indexOfB = nodes.length;
-        // Set dominator of A.
-        nodes[indexOfA + 5] = indexOfB;
-        nodes.push(3, 2, nextId++, sizeOfB, sizeOfB + sizeOfA, null, addEdge(2, 3, indexOfA));
-        indexesOfB.push(indexOfB);
-    }
-    var indexOfGCRoots = nodes.length;
-    nodes.push(3, 4, 3, 0, (sizeOfA + sizeOfB) * instanceCount, 0, edges.length);
-    // Set dominator of B.
-    for (var i = 0; i < instanceCount; ++i) {
-        nodes[indexesOfB[i] + 5] = indexOfGCRoots;
-    }
-    // Set (GC roots) as child of meta-root.
-    edges[2] = indexOfGCRoots;
-    // Push instances of B as children of GC roots.
-    for (var i = 0; i < instanceCount; ++i) {
-        addEdge(1, i + 1, indexesOfB[i]);
-    }
+    var gcRootsNode = new InspectorTest.HeapNode("(GC roots)");
+    rootNode.linkNode(gcRootsNode, InspectorTest.HeapEdge.Type.element);
 
-    var result = {
-        "snapshot": {
-            "meta": {
-                "node_fields": ["type","name","id","self_size","retained_size","dominator","edges_index"],
-                "node_types": [["hidden","array","string","object","code","closure","regexp","number","native"],"string","number","number","number","number","number"],
-                "edge_fields": ["type","name_or_index","to_node"],
-                "edge_types": [["context","element","property","internal","hidden","shortcut"],"string_or_number","node"]
-            }
-        },
-        "nodes": nodes,
-        "edges": edges,
-        "strings": ["", "A", "B", "a", "(GC roots)"],
-        maxJSObjectId: nextId - 1
-    };
-    result.snapshot.node_count = result.nodes.length / result.snapshot.meta.node_fields.length;
-    result.snapshot.edge_count = result.edges.length / result.snapshot.meta.edge_fields.length;
-    return result;
-};
+    var windowNode = new InspectorTest.HeapNode("Window");
+    rootNode.linkNode(windowNode, InspectorTest.HeapEdge.Type.shortcut);
+    gcRootsNode.linkNode(windowNode, InspectorTest.HeapEdge.Type.element);
+
+    for (var i = 0; i < instanceCount; ++i) {
+        var nodeB = new InspectorTest.HeapNode("B", sizeOfB, undefined, firstId++);
+        windowNode.linkNode(nodeB, InspectorTest.HeapEdge.Type.element);
+        var nodeA = new InspectorTest.HeapNode("A", sizeOfA, undefined, firstId++);
+        nodeB.linkNode(nodeA, InspectorTest.HeapEdge.Type.property, "a");
+        nodeA.linkNode(nodeA, InspectorTest.HeapEdge.Type.property, "a");
+    }
+    return builder.generateSnapshot();
+}
 
 InspectorTest.expandRow = function(row, callback)
 {
@@ -457,15 +633,25 @@ InspectorTest.expandRow = function(row, callback)
 
 InspectorTest.findAndExpandGCRoots = function(callback)
 {
+    InspectorTest.findAndExpandRow("(GC roots)", callback);
+};
+
+InspectorTest.findAndExpandWindow = function(callback)
+{
+    InspectorTest.findAndExpandRow("Window", callback);
+};
+
+InspectorTest.findAndExpandRow = function(name, callback)
+{
     callback = InspectorTest.safeWrap(callback);
     function propertyMatcher(data)
     {
-        return data.value === "(GC roots)";
+        return data.value === name;
     }
-    var gcRoots = InspectorTest.findRow("object", propertyMatcher);
-    InspectorTest.assertEquals(true, !!gcRoots, "GC roots row");
-    InspectorTest.expandRow(gcRoots, callback);
-}
+    var row = InspectorTest.findRow("object", propertyMatcher);
+    InspectorTest.assertEquals(true, !!row, '"' + name + '" row');
+    InspectorTest.expandRow(row, callback);
+};
 
 InspectorTest.findButtonsNode = function(row, startNode)
 {
@@ -513,7 +699,12 @@ InspectorTest.takeAndOpenSnapshot = function(generator, callback)
     callback = InspectorTest.safeWrap(callback);
     var uid = InspectorTest._nextUid++;
     var snapshot = generator();
-    var profile = new WebInspector.HeapProfileHeader(UserInitiatedProfileName + "." + uid, uid, snapshot.maxJSObjectId);
+    var profileType = WebInspector.panels.profiles.getProfileType(WebInspector.HeapSnapshotProfileType.TypeId);
+    var profile = profileType.createProfile({
+        title: UserInitiatedProfileName + "." + uid,
+        uid: uid,
+        maxJSObjectId: snapshot.maxJSObjectId
+    });
     delete snapshot.maxJSObjectId;
     function pushGeneratedSnapshot(typeId, uid)
     {
@@ -525,8 +716,6 @@ InspectorTest.takeAndOpenSnapshot = function(generator, callback)
     }
     InspectorTest.override(ProfilerAgent, "getProfile", pushGeneratedSnapshot);
     InspectorTest._takeAndOpenSnapshotCallback = callback;
-    var profileType = WebInspector.panels.profiles.getProfileType(profile.typeId);
-    profile = profileType.createProfile(profile);
     WebInspector.panels.profiles.addProfileHeader(profile);
     WebInspector.panels.profiles.showProfile(profile);
 };

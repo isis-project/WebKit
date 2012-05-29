@@ -58,6 +58,7 @@ class WebGeolocationClient;
 class WebGeolocationClientMock;
 class WebGeolocationServiceMock;
 class WebIntentServiceInfo;
+class WebSerializedScriptValue;
 class WebSharedWorkerClient;
 class WebSpeechInputController;
 class WebSpeechInputListener;
@@ -110,7 +111,9 @@ class WebViewHost : public WebKit::WebSpellCheckClient, public WebKit::WebViewCl
     WebKit::WebContextMenuData* lastContextMenuData() const;
     void clearContextMenuData();
 
+#if ENABLE(INPUT_SPEECH)
     MockWebSpeechInputController* speechInputControllerMock() { return m_speechInputControllerMock.get(); }
+#endif
 
 #if ENABLE(POINTER_LOCK)
     void didLosePointerLock();
@@ -155,15 +158,19 @@ class WebViewHost : public WebKit::WebSpellCheckClient, public WebKit::WebViewCl
     virtual bool runModalBeforeUnloadDialog(WebKit::WebFrame*, const WebKit::WebString&);
     virtual void showContextMenu(WebKit::WebFrame*, const WebKit::WebContextMenuData&);
     virtual void setStatusText(const WebKit::WebString&);
-    virtual void startDragging(const WebKit::WebDragData&, WebKit::WebDragOperationsMask, const WebKit::WebImage&, const WebKit::WebPoint&);
+    virtual void startDragging(WebKit::WebFrame*, const WebKit::WebDragData&, WebKit::WebDragOperationsMask, const WebKit::WebImage&, const WebKit::WebPoint&);
     virtual void didUpdateLayout();
     virtual void navigateBackForwardSoon(int offset);
     virtual int historyBackListCount();
     virtual int historyForwardListCount();
     virtual void postAccessibilityNotification(const WebKit::WebAccessibilityObject&, WebKit::WebAccessibilityNotification);
+#if ENABLE(NOTIFICATIONS)
     virtual WebKit::WebNotificationPresenter* notificationPresenter();
+#endif
     virtual WebKit::WebGeolocationClient* geolocationClient();
+#if ENABLE(INPUT_SPEECH)
     virtual WebKit::WebSpeechInputController* speechInputController(WebKit::WebSpeechInputListener*);
+#endif
     virtual WebKit::WebDeviceOrientationClient* deviceOrientationClient();
 #if ENABLE(MEDIA_STREAM)
     virtual WebKit::WebUserMediaClient* userMediaClient();
@@ -242,6 +249,8 @@ class WebViewHost : public WebKit::WebSpellCheckClient, public WebKit::WebViewCl
     virtual bool willCheckAndDispatchMessageEvent(WebKit::WebFrame* source, WebKit::WebSecurityOrigin target, WebKit::WebDOMMessageEvent);
     virtual void registerIntentService(WebKit::WebFrame*, const WebKit::WebIntentServiceInfo&);
     virtual void dispatchIntent(WebKit::WebFrame*, const WebKit::WebIntentRequest&);
+    virtual void deliveredIntentResult(WebKit::WebFrame*, int, const WebKit::WebSerializedScriptValue&);
+    virtual void deliveredIntentFailure(WebKit::WebFrame*, int, const WebKit::WebSerializedScriptValue&);
 
     WebKit::WebDeviceOrientationClientMock* deviceOrientationClientMock();
     
@@ -394,7 +403,9 @@ private:
     OwnPtr<WebKit::WebGeolocationClientMock> m_geolocationClientMock;
 
     OwnPtr<WebKit::WebDeviceOrientationClientMock> m_deviceOrientationClientMock;
+#if ENABLE(INPUT_SPEECH)
     OwnPtr<MockWebSpeechInputController> m_speechInputControllerMock;
+#endif
 
 #if ENABLE(MEDIA_STREAM)
     OwnPtr<WebKit::WebUserMediaClientMock> m_userMediaClientMock;

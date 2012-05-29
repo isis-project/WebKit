@@ -310,6 +310,10 @@ rect: style.getPropertyValue(-webkit-font-smoothing) : auto
 rect: style.getPropertyCSSValue(-webkit-font-smoothing) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-font-variant-ligatures) : normal
 rect: style.getPropertyCSSValue(-webkit-font-variant-ligatures) : [object CSSPrimitiveValue]
+rect: style.getPropertyValue(-webkit-grid-column) : auto
+rect: style.getPropertyCSSValue(-webkit-grid-column) : [object CSSPrimitiveValue]
+rect: style.getPropertyValue(-webkit-grid-row) : auto
+rect: style.getPropertyCSSValue(-webkit-grid-row) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-highlight) : none
 rect: style.getPropertyCSSValue(-webkit-highlight) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-hyphenate-character) : auto
@@ -378,8 +382,6 @@ rect: style.getPropertyValue(-webkit-mask-size) : auto
 rect: style.getPropertyCSSValue(-webkit-mask-size) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-nbsp-mode) : normal
 rect: style.getPropertyCSSValue(-webkit-nbsp-mode) : [object CSSPrimitiveValue]
-rect: style.getPropertyValue(-webkit-overflow-scrolling) : auto
-rect: style.getPropertyCSSValue(-webkit-overflow-scrolling) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-perspective) : none
 rect: style.getPropertyCSSValue(-webkit-perspective) : [object CSSPrimitiveValue]
 rect: style.getPropertyValue(-webkit-perspective-origin) : 0px 0px
@@ -840,6 +842,10 @@ g: style.getPropertyValue(-webkit-font-smoothing) : auto
 g: style.getPropertyCSSValue(-webkit-font-smoothing) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-font-variant-ligatures) : normal
 g: style.getPropertyCSSValue(-webkit-font-variant-ligatures) : [object CSSPrimitiveValue]
+g: style.getPropertyValue(-webkit-grid-column) : auto
+g: style.getPropertyCSSValue(-webkit-grid-column) : [object CSSPrimitiveValue]
+g: style.getPropertyValue(-webkit-grid-row) : auto
+g: style.getPropertyCSSValue(-webkit-grid-row) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-highlight) : none
 g: style.getPropertyCSSValue(-webkit-highlight) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-hyphenate-character) : auto
@@ -908,8 +914,6 @@ g: style.getPropertyValue(-webkit-mask-size) : auto
 g: style.getPropertyCSSValue(-webkit-mask-size) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-nbsp-mode) : normal
 g: style.getPropertyCSSValue(-webkit-nbsp-mode) : [object CSSPrimitiveValue]
-g: style.getPropertyValue(-webkit-overflow-scrolling) : auto
-g: style.getPropertyCSSValue(-webkit-overflow-scrolling) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-perspective) : none
 g: style.getPropertyCSSValue(-webkit-perspective) : [object CSSPrimitiveValue]
 g: style.getPropertyValue(-webkit-perspective-origin) : 0px 0px

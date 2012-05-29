@@ -60,7 +60,6 @@
                     { "name": "google-linux-2", "platform": "chromium-linux" },
                     { "name": "google-linux-perf", "platform": "chromium-linux" },
                     { "name": "google-linux-android", "platform": "chromium-android" },
-                    { "name": "google-linux-flexbox", "platform": "chromium-linux" },
 
                     { "name": "wincairo-1", "platform": "wincairo" },
 
@@ -68,6 +67,7 @@
                     
                     { "name": "efl-linux-slave-1", "platform": "efl" },
                     { "name": "efl-linux-slave-2", "platform": "efl" },
+                    { "name": "efl-linux-slave-3", "platform": "efl" },
 
                     { "name": "hfreyther-mipsel-linux1", "platform": "qt"},
                     { "name": "hfreyther-sh4-linux1", "platform": "qt"}
@@ -274,11 +274,6 @@
                       "slavenames": ["google-linux-perf"]
                     },
                     {
-                      "name": "Chromium Linux Release (Grid Layout)", "type": "NewBuildAndTest", "builddir": "chromium-linux-flexbox",
-                      "platform": "chromium-linux", "configuration": "release", "architectures": ["i386"],
-                      "slavenames": ["google-linux-flexbox"]
-                    },
-                    {
                       "name": "Chromium Android Release", "type": "Build", "builddir": "chromium-linux-android",
                       "platform": "chromium-android", "configuration": "release", "architectures": ["i386"],
                       "slavenames": ["google-linux-android"]
@@ -294,14 +289,19 @@
                       "slavenames": ["wince-1"]
                     },
                     {
-                      "name": "EFL Linux Release", "type": "BuildAndTest", "builddir": "efl-linux-release",
+                      "name": "EFL Linux 64-bit Release", "type": "BuildAndTest", "builddir": "efl-linux-64-release",
                       "platform": "efl", "configuration": "release", "architectures": ["x86_64"],
                       "slavenames": ["efl-linux-slave-1"]
                     },
                     {
-                      "name": "EFL Linux Debug", "type": "BuildAndTest", "builddir": "efl-linux-debug",
+                      "name": "EFL Linux 64-bit Debug", "type": "BuildAndTest", "builddir": "efl-linux-64-debug",
                       "platform": "efl", "configuration": "debug", "architectures": ["x86_64"],
                       "slavenames": ["efl-linux-slave-2"]
+                    },
+                    {
+                      "name": "EFL Linux 32-bit Release (Build)", "type": "Build", "builddir": "efl-linux-32-release",
+                      "platform": "efl", "configuration": "release", "architectures": ["i386"],
+                      "slavenames": ["efl-linux-slave-3"]
                     }
                   ],
 
@@ -312,8 +312,9 @@
                                        "Qt Windows 32-bit Release", "Qt Windows 32-bit Debug", "Qt SnowLeopard Release",
                                        "Qt Linux MIPS Release", "Qt Linux SH4 Release",
                                        "Chromium Win Release", "Chromium Mac Release", "Chromium Linux Release",
-                                       "Chromium Linux Release (Grid Layout)", "Chromium Android Release",
-                                       "WinCairo Release", "WinCE Release (Build)", "EFL Linux Release", "EFL Linux Debug"]
+                                       "Chromium Android Release",
+                                       "EFL Linux 64-bit Release", "EFL Linux 64-bit Debug", "EFL Linux 32-bit Release (Build)",
+                                       "WinCairo Release", "WinCE Release (Build)"]
                     },
                     { "type": "PlatformSpecificScheduler", "platform": "mac-snowleopard", "branch": "trunk", "treeStableTimer": 45.0, 
                       "builderNames": ["SnowLeopard Intel Release (Build)", "SnowLeopard Intel Debug (Build)"] 
@@ -377,9 +378,6 @@
                     },
                     { "type": "Triggerable", "name": "chromium-linux-perf-tests",
                       "builderNames": ["Chromium Linux Release (Perf)"]
-                    },
-                    { "type": "Triggerable", "name": "efl-linux-debug",
-                      "builderNames": ["EFL Linux Debug"]
                     }
                   ]
 }

@@ -165,7 +165,7 @@ END
     JSValue listener = exec->argument(1);
     if (!listener.isObject())
         return JSValue::encode(jsUndefined());
-    impl->${functionName}EventListener(ustringToAtomicString(exec->argument(0).toString(exec)->value(exec)), JSEventListener::create(asObject(listener), $wrapperObject, false, currentWorld(exec))$passRefPtrHandling, exec->argument(2).toBoolean(exec));
+    impl->${functionName}EventListener(ustringToAtomicString(exec->argument(0).toString(exec)->value(exec)), JSEventListener::create(asObject(listener), $wrapperObject, false, currentWorld(exec))$passRefPtrHandling, exec->argument(2).toBoolean());
     return JSValue::encode(jsUndefined());
 END
     return @GenerateEventListenerImpl;
@@ -606,6 +606,22 @@ my %usesToJSNewlyCreated = (
     "TouchList" => 1
 );
 
+sub ShouldGenerateToJSDeclaration
+{
+    my ($hasParent, $dataNode) = @_;
+    return 0 if ($dataNode->extendedAttributes->{"SuppressToJSObject"});
+    return 1 if (!$hasParent or $dataNode->extendedAttributes->{"JSGenerateToJSObject"} or ($dataNode->extendedAttributes->{"CustomToJSObject"} or $dataNode->extendedAttributes->{"JSCustomToJSObject"}));
+    return 0;
+}
+
+sub ShouldGenerateToJSImplementation
+{
+    my ($hasParent, $dataNode) = @_;
+    return 0 if ($dataNode->extendedAttributes->{"SuppressToJSObject"});
+    return 1 if ((!$hasParent or $dataNode->extendedAttributes->{"JSGenerateToJSObject"}) and !($dataNode->extendedAttributes->{"CustomToJSObject"} or $dataNode->extendedAttributes->{"JSCustomToJSObject"}));
+    return 0;
+}
+
 sub GetFunctionName
 {
     my ($className, $function) = @_;
@@ -776,8 +792,11 @@ sub GenerateHeader
     }
 
     # Class info
-    push(@headerContent, "    static const JSC::ClassInfo s_info;\n\n");
-
+    if ($interfaceName eq "Node") {
+        push(@headerContent, "    static WEBKIT_EXPORTDATA const JSC::ClassInfo s_info;\n\n");
+    } else {
+        push(@headerContent, "    static const JSC::ClassInfo s_info;\n\n");
+    }
     # Structure ID
     if ($interfaceName eq "DOMWindow") {
         $structureFlags{"JSC::ImplementsHasInstance"} = 1;
@@ -991,8 +1010,7 @@ sub GenerateHeader
         push(@headerContent, "}\n");
         push(@headerContent, "\n");
     }
-
-    if (!$hasParent || $dataNode->extendedAttributes->{"JSGenerateToJSObject"} || ($dataNode->extendedAttributes->{"CustomToJSObject"} || $dataNode->extendedAttributes->{"JSCustomToJSObject"})) {
+    if (ShouldGenerateToJSDeclaration($hasParent, $dataNode)) {
         push(@headerContent, "JSC::JSValue toJS(JSC::ExecState*, JSDOMGlobalObject*, $implType*);\n");
     }
     if (!$hasParent || $dataNode->extendedAttributes->{"JSGenerateToNativeObject"}) {
@@ -1608,7 +1626,7 @@ sub GenerateImplementation
         # the finalizer issue is being tracked in http://webkit.org/b/75451
         push(@implContent, "void ${className}::destroy(JSC::JSCell* cell)\n");
         push(@implContent, "{\n");
-        push(@implContent, "    ${className}* thisObject = jsCast<${className}*>(cell);\n");
+        push(@implContent, "    ${className}* thisObject = static_cast<${className}*>(cell);\n");
         push(@implContent, "    thisObject->${className}::~${className}();\n");
         push(@implContent, "}\n\n");
 
@@ -1866,6 +1884,7 @@ sub GenerateImplementation
 
                         push(@implContent, "void ${putFunctionName}(ExecState* exec, JSObject* thisObject, JSValue value)\n");
                         push(@implContent, "{\n");
+                        push(@implContent, "    UNUSED_PARAM(exec);\n");
 
                         if ($dataNode->extendedAttributes->{"CheckSecurity"} && !$attribute->signature->extendedAttributes->{"DoNotCheckSecurity"}) {
                             if ($interfaceName eq "DOMWindow") {
@@ -1937,7 +1956,7 @@ sub GenerateImplementation
                             my $nativeValue = JSValueToNative($attribute->signature, "value");
                             if ($svgPropertyOrListPropertyType) {
                                 if ($svgPropertyType) {
-                                    push(@implContent, "    if (impl->role() == AnimValRole) {\n");
+                                    push(@implContent, "    if (impl->isReadOnly()) {\n");
                                     push(@implContent, "        setDOMException(exec, NO_MODIFICATION_ALLOWED_ERR);\n");
                                     push(@implContent, "        return;\n");
                                     push(@implContent, "    }\n");
@@ -2110,7 +2129,7 @@ sub GenerateImplementation
                 } else {
                     push(@implContent, "    $implType* impl = static_cast<$implType*>(castedThis->impl());\n");
                     if ($svgPropertyType) {
-                        push(@implContent, "    if (impl->role() == AnimValRole) {\n");
+                        push(@implContent, "    if (impl->isReadOnly()) {\n");
                         push(@implContent, "        setDOMException(exec, NO_MODIFICATION_ALLOWED_ERR);\n");
                         push(@implContent, "        return JSValue::encode(jsUndefined());\n");
                         push(@implContent, "    }\n");
@@ -2336,7 +2355,7 @@ sub GenerateImplementation
         push(@implContent, "}\n\n");
     }
 
-    if ((!$hasParent or $dataNode->extendedAttributes->{"JSGenerateToJSObject"}) and !($dataNode->extendedAttributes->{"CustomToJSObject"} or $dataNode->extendedAttributes->{"JSCustomToJSObject"})) {
+    if (ShouldGenerateToJSImplementation($hasParent, $dataNode)) {
         push(@implContent, "JSC::JSValue toJS(JSC::ExecState* exec, JSDOMGlobalObject* globalObject, $implType* impl)\n");
         push(@implContent, "{\n");
         if ($svgPropertyType) {
@@ -2902,7 +2921,7 @@ sub JSValueToNative
     my $conditional = $signature->extendedAttributes->{"Conditional"};
     my $type = $codeGenerator->StripModule($signature->type);
 
-    return "$value.toBoolean(exec)" if $type eq "boolean";
+    return "$value.toBoolean()" if $type eq "boolean";
     return "$value.toNumber(exec)" if $type eq "double";
     return "$value.toFloat(exec)" if $type eq "float";
     return "$value.toInt32(exec)" if $type eq "long" or $type eq "short";
@@ -2941,7 +2960,7 @@ sub JSValueToNative
 
     if ($type eq "SerializedScriptValue" or $type eq "any") {
         AddToImplIncludes("SerializedScriptValue.h", $conditional);
-        return "SerializedScriptValue::create(exec, $value)";
+        return "SerializedScriptValue::create(exec, $value, 0, 0)";
     }
 
     if ($type eq "IDBKey") {
@@ -3059,6 +3078,11 @@ sub NativeToJSValue
         return "$value ? $value->deserialize(exec, castedThis->globalObject(), 0) : jsNull()";
     } elsif ($type eq "unsigned long[]") {
         AddToImplIncludes("<wrt/Vector.h>", $conditional);
+    } elsif ($type eq "MessagePortArray") {
+        AddToImplIncludes("MessagePort.h", $conditional);
+        AddToImplIncludes("JSMessagePort.h", $conditional);
+        AddToImplIncludes("<runtime/JSArray.h>", $conditional);
+        return "jsArray(exec, $globalObject, *$value)";
     } else {
         # Default, include header with same name.
         AddToImplIncludes("JS$type.h", $conditional);
@@ -3075,7 +3099,7 @@ sub NativeToJSValue
         return "toJSNewlyCreated(exec, $globalObject, WTF::getPtr($value))";
     }
 
-    if ($codeGenerator->IsSVGAnimatedType($implClassName)) {
+    if ($codeGenerator->IsSVGAnimatedType($implClassName) or $implClassName eq "SVGViewSpec") {
         # Convert from abstract SVGProperty to real type, so the right toJS() method can be invoked.
         $value = "static_cast<" . GetNativeType($type) . ">($value)";
     } elsif ($codeGenerator->IsSVGTypeNeedingTearOff($type) and not $implClassName =~ /List$/) {

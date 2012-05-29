@@ -290,18 +290,55 @@ class ChromiumPortTest(port_testcase.PortTestCase):
         port._filesystem = filesystem
         port.path_from_chromium_base = lambda *comps: '/' + '/'.join(comps)
 
-        overrides_path = port.path_from_chromium_base('webkit', 'tools', 'layout_tests', 'test_expectations.txt')
-        OVERRIDES = 'foo'
-        filesystem.files[overrides_path] = OVERRIDES
+        chromium_overrides_path = port.path_from_chromium_base(
+            'webkit', 'tools', 'layout_tests', 'test_expectations.txt')
+        CHROMIUM_OVERRIDES = 'contents of %s\n' % chromium_overrides_path
+        filesystem.write_text_file(chromium_overrides_path, CHROMIUM_OVERRIDES)
+        skia_overrides_path = port.path_from_chromium_base(
+            'skia', 'skia_test_expectations.txt')
+        SKIA_OVERRIDES = 'contents of %s\n' % skia_overrides_path
+        filesystem.write_text_file(skia_overrides_path, SKIA_OVERRIDES)
+
+        additional_expectations_path = port.path_from_chromium_base(
+            'additional_expectations.txt')
+        ADDITIONAL_EXPECTATIONS = 'contents of %s\n' % additional_expectations_path
+        filesystem.write_text_file(additional_expectations_path, ADDITIONAL_EXPECTATIONS)
 
         port._options.builder_name = 'DUMMY_BUILDER_NAME'
-        self.assertEquals(port.test_expectations_overrides(), OVERRIDES)
+        port._options.additional_expectations = []
+        self.assertEquals(port.test_expectations_overrides(),
+                          SKIA_OVERRIDES + CHROMIUM_OVERRIDES)
+        port._options.additional_expectations = [additional_expectations_path]
+        self.assertEquals(port.test_expectations_overrides(),
+                          SKIA_OVERRIDES + CHROMIUM_OVERRIDES + ADDITIONAL_EXPECTATIONS)
 
         port._options.builder_name = 'builder (deps)'
-        self.assertEquals(port.test_expectations_overrides(), OVERRIDES)
+        port._options.additional_expectations = []
+        self.assertEquals(port.test_expectations_overrides(),
+                          SKIA_OVERRIDES + CHROMIUM_OVERRIDES)
+        port._options.additional_expectations = [additional_expectations_path]
+        self.assertEquals(port.test_expectations_overrides(),
+                          SKIA_OVERRIDES + CHROMIUM_OVERRIDES + ADDITIONAL_EXPECTATIONS)
 
+        # A builder which does NOT observe the Chromium test_expectations,
+        # but still observes the Skia test_expectations...
         port._options.builder_name = 'builder'
-        self.assertEquals(port.test_expectations_overrides(), None)
+        port._options.additional_expectations = []
+        self.assertEquals(port.test_expectations_overrides(),
+                          SKIA_OVERRIDES)
+        port._options.additional_expectations = [additional_expectations_path]
+        self.assertEquals(port.test_expectations_overrides(),
+                          SKIA_OVERRIDES + ADDITIONAL_EXPECTATIONS)
+
+    def test_driver_name_option(self):
+        self.assertTrue(ChromiumPortTest.TestLinuxPort()._path_to_driver().endswith('/out/default/DumpRenderTree'))
+        self.assertTrue(ChromiumPortTest.TestMacPort()._path_to_driver().endswith('/xcodebuild/default/DumpRenderTree.app/Contents/MacOS/DumpRenderTree'))
+        self.assertTrue(ChromiumPortTest.TestWinPort()._path_to_driver().endswith('/default/DumpRenderTree.exe'))
+
+        options = MockOptions(driver_name='OtherDriver')
+        self.assertTrue(ChromiumPortTest.TestLinuxPort(options)._path_to_driver().endswith('/out/default/OtherDriver'))
+        self.assertTrue(ChromiumPortTest.TestMacPort(options)._path_to_driver().endswith('/xcodebuild/default/OtherDriver.app/Contents/MacOS/OtherDriver'))
+        self.assertTrue(ChromiumPortTest.TestWinPort(options)._path_to_driver().endswith('/default/OtherDriver.exe'))
 
 
 class ChromiumPortLoggingTest(logtesting.LoggingTestCase):

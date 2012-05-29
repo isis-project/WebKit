@@ -75,6 +75,11 @@ unsigned DragData::numberOfFiles() const
     return m_platformDragData->filenames().size();
 }
 
+int DragData::modifierKeyState() const
+{
+    return m_platformDragData->modifierKeyState();
+}
+
 void DragData::asFilenames(Vector<String>& result) const
 {
     const Vector<String>& filenames = m_platformDragData->filenames();
@@ -141,7 +146,7 @@ PassRefPtr<DocumentFragment> DragData::asFragment(Frame* frame, PassRefPtr<Range
         String html;
         KURL baseURL;
         m_platformDragData->htmlAndBaseURL(html, baseURL);
-        RefPtr<DocumentFragment> fragment = createFragmentFromMarkup(frame->document(), html, baseURL, FragmentScriptingNotAllowed);
+        RefPtr<DocumentFragment> fragment = createFragmentFromMarkup(frame->document(), html, baseURL, DisallowScriptingContent);
         return fragment.release();
     }
 

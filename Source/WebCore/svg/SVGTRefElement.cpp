@@ -129,7 +129,7 @@ private:
     SVGShadowText(Document* document, const String& data)
         : Text(document, data)
     {
-         setHasCustomWillOrDidRecalcStyle();
+        setHasCustomCallbacks();
     }
     virtual RenderObject* createRenderer(RenderArena*, RenderStyle*);
     virtual void willRecalcTextStyle(StyleChange);
@@ -142,9 +142,9 @@ RenderObject* SVGShadowText::createRenderer(RenderArena* arena, RenderStyle*)
 
 void SVGShadowText::willRecalcTextStyle(StyleChange change)
 {
-    if (change != NoChange && parentNode()->shadowHost()) {
+    if (change != NoChange && parentNode()->isShadowRoot()) {
         if (renderer())
-            renderer()->setStyle(parentNode()->shadowHost()->renderer()->style());
+            renderer()->setStyle(toShadowRoot(parentNode())->host()->renderer()->style());
     }
 }
 
@@ -200,14 +200,14 @@ bool SVGTRefElement::isSupportedAttribute(const QualifiedName& attrName)
     return supportedAttributes.contains<QualifiedName, SVGAttributeHashTranslator>(attrName);
 }
 
-void SVGTRefElement::parseAttribute(Attribute* attr)
+void SVGTRefElement::parseAttribute(const Attribute& attribute)
 {
-    if (!isSupportedAttribute(attr->name())) {
-        SVGTextPositioningElement::parseAttribute(attr);
+    if (!isSupportedAttribute(attribute.name())) {
+        SVGTextPositioningElement::parseAttribute(attribute);
         return;
     }
 
-    if (SVGURIReference::parseAttribute(attr)) {
+    if (SVGURIReference::parseAttribute(attribute)) {
         return;
     }
 
@@ -292,7 +292,7 @@ void SVGTRefElement::buildPendingResource()
     }
 }
 
-Node::InsertionNotificationRequest SVGTRefElement::insertedInto(Node* rootParent)
+Node::InsertionNotificationRequest SVGTRefElement::insertedInto(ContainerNode* rootParent)
 {
     SVGStyledElement::insertedInto(rootParent);
     if (rootParent->inDocument())
@@ -300,7 +300,7 @@ Node::InsertionNotificationRequest SVGTRefElement::insertedInto(Node* rootParent
     return InsertionDone;
 }
 
-void SVGTRefElement::removedFrom(Node* rootParent)
+void SVGTRefElement::removedFrom(ContainerNode* rootParent)
 {
     SVGStyledElement::removedFrom(rootParent);
     if (rootParent->inDocument())

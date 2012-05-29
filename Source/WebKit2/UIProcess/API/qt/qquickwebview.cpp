@@ -44,6 +44,7 @@
 #include "qquickwebpage_p_p.h"
 #include "qquickwebview_p_p.h"
 #include "qwebdownloaditem_p_p.h"
+#include "qwebiconimageprovider_p.h"
 #include "qwebkittest_p.h"
 #include "qwebloadrequest_p.h"
 #include "qwebnavigationhistory_p.h"
@@ -54,13 +55,16 @@
 #include <JavaScriptCore/JSBase.h>
 #include <JavaScriptCore/JSRetainPtr.h>
 #include <QDateTime>
+#include <QtCore/QFile>
 #include <QtQml/QJSValue>
+#include <QtQuick/QQuickView>
 #include <WKOpenPanelResultListener.h>
 #include <WKSerializedScriptValue.h>
 #include <WebCore/IntPoint.h>
 #include <WebCore/IntRect.h>
 #include <wtf/Assertions.h>
 #include <wtf/MainThread.h>
+#include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
 using namespace WebCore;
@@ -303,7 +307,7 @@ void QQuickWebViewPrivate::initialize(WKContextRef contextRef, WKPageGroupRef pa
     navigationHistory = adoptPtr(QWebNavigationHistoryPrivate::createHistory(toAPI(webPageProxy.get())));
 
     QtWebIconDatabaseClient* iconDatabase = context->iconDatabase();
-    QObject::connect(iconDatabase, SIGNAL(iconChangedForPageURL(QUrl, QUrl)), q_ptr, SLOT(_q_onIconChangedForPageURL(QUrl, QUrl)));
+    QObject::connect(iconDatabase, SIGNAL(iconChangedForPageURL(QString)), q_ptr, SLOT(_q_onIconChangedForPageURL(QString)));
 
     // Any page setting should preferrable be set before creating the page.
     webPageProxy->pageGroup()->preferences()->setAcceleratedCompositingEnabled(true);
@@ -324,22 +328,25 @@ bool QQuickWebViewPrivate::transparentBackground() const
     return webPageProxy->drawsTransparentBackground();
 }
 
-QPointF QQuickWebViewPrivate::pageItemPos()
-{
-    ASSERT(pageView);
-    return pageView->pos();
-}
-
 /*!
     \qmlsignal WebView::loadingChanged(WebLoadRequest request)
 */
 
-void QQuickWebViewPrivate::provisionalLoadDidStart(const QUrl& url)
+void QQuickWebViewPrivate::provisionalLoadDidStart(const WTF::String& url)
 {
     Q_Q(QQuickWebView);
 
-    QWebLoadRequest loadRequest(url, QQuickWebView::LoadStartedStatus);
+    q->emitUrlChangeIfNeeded();
+
+    QWebLoadRequest loadRequest(QString(url), QQuickWebView::LoadStartedStatus);
     emit q->loadingChanged(&loadRequest);
+}
+
+void QQuickWebViewPrivate::didReceiveServerRedirectForProvisionalLoad(const WTF::String&)
+{
+    Q_Q(QQuickWebView);
+
+    q->emitUrlChangeIfNeeded();
 }
 
 void QQuickWebViewPrivate::loadDidCommit()
@@ -348,7 +355,6 @@ void QQuickWebViewPrivate::loadDidCommit()
     ASSERT(q->loading());
 
     emit q->navigationHistoryChanged();
-    emit q->urlChanged();
     emit q->titleChanged();
 }
 
@@ -356,8 +362,8 @@ void QQuickWebViewPrivate::didSameDocumentNavigation()
 {
     Q_Q(QQuickWebView);
 
+    q->emitUrlChangeIfNeeded();
     emit q->navigationHistoryChanged();
-    emit q->urlChanged();
 }
 
 void QQuickWebViewPrivate::titleDidChange()
@@ -370,9 +376,6 @@ void QQuickWebViewPrivate::titleDidChange()
 void QQuickWebViewPrivate::loadProgressDidChange(int loadProgress)
 {
     Q_Q(QQuickWebView);
-
-    if (!loadProgress)
-        setIcon(QUrl());
 
     m_loadProgress = loadProgress;
 
@@ -416,15 +419,6 @@ void QQuickWebViewPrivate::setNeedsDisplay()
     q->page()->update();
 }
 
-void QQuickWebViewPrivate::_q_onIconChangedForPageURL(const QUrl& pageURL, const QUrl& iconURL)
-{
-    Q_Q(QQuickWebView);
-    if (q->url() != pageURL)
-        return;
-
-    setIcon(iconURL);
-}
-
 void QQuickWebViewPrivate::processDidCrash()
 {
     Q_Q(QQuickWebView);
@@ -449,6 +443,7 @@ void QQuickWebViewPrivate::didRelaunchProcess()
 
     webPageProxy->drawingArea()->setSize(viewSize(), IntSize());
     updateViewportSize();
+    updateUserScripts();
 }
 
 PassOwnPtr<DrawingAreaProxy> QQuickWebViewPrivate::createDrawingAreaProxy()
@@ -477,8 +472,38 @@ void QQuickWebViewPrivate::_q_onVisibleChanged()
 
 void QQuickWebViewPrivate::_q_onUrlChanged()
 {
+    updateIcon();
+}
+
+void QQuickWebViewPrivate::_q_onIconChangedForPageURL(const QString& pageUrl)
+{
+    if (pageUrl != QString(m_currentUrl))
+        return;
+
+    updateIcon();
+}
+
+/* Called either when the url changes, or when the icon for the current page changes */
+void QQuickWebViewPrivate::updateIcon()
+{
     Q_Q(QQuickWebView);
-    context->iconDatabase()->requestIconForPageURL(q->url());
+
+    QQuickView* view = qobject_cast<QQuickView*>(q->canvas());
+    if (!view)
+        return;
+
+    QWebIconImageProvider* provider = static_cast<QWebIconImageProvider*>(
+                view->engine()->imageProvider(QWebIconImageProvider::identifier()));
+    if (!provider)
+        return;
+
+    WTF::String iconUrl = provider->iconURLForPageURLInContext(m_currentUrl, context.get());
+
+    if (iconUrl == m_iconUrl)
+        return;
+
+    m_iconUrl = iconUrl;
+    emit q->iconChanged();
 }
 
 void QQuickWebViewPrivate::_q_onReceivedResponseFromDownload(QWebDownloadItem* downloadItem)
@@ -638,28 +663,6 @@ void QQuickWebViewPrivate::addAttachedPropertyTo(QObject* object)
     attached->setView(q);
 }
 
-void QQuickWebViewPrivate::setIcon(const QUrl& iconURL)
-{
-    Q_Q(QQuickWebView);
-    if (m_iconURL == iconURL)
-        return;
-
-    String oldPageURL = QUrl::fromPercentEncoding(m_iconURL.encodedFragment());
-    String newPageURL = webPageProxy->mainFrame()->url();
-
-    if (oldPageURL != newPageURL) {
-        QtWebIconDatabaseClient* iconDatabase = context->iconDatabase();
-        if (!oldPageURL.isEmpty())
-            iconDatabase->releaseIconForPageURL(oldPageURL);
-
-        if (!newPageURL.isEmpty())
-            iconDatabase->retainIconForPageURL(newPageURL);
-    }
-
-    m_iconURL = iconURL;
-    emit q->iconChanged();
-}
-
 bool QQuickWebViewPrivate::navigatorQtObjectEnabled() const
 {
     return m_navigatorQtObjectEnabled;
@@ -671,6 +674,52 @@ void QQuickWebViewPrivate::setNavigatorQtObjectEnabled(bool enabled)
     // FIXME: Currently we have to keep this information in both processes and the setting is asynchronous.
     m_navigatorQtObjectEnabled = enabled;
     context->setNavigatorQtObjectEnabled(webPageProxy.get(), enabled);
+}
+
+static QString readUserScript(const QUrl& url)
+{
+    QString path;
+    if (url.isLocalFile())
+        path = url.toLocalFile();
+    else if (url.scheme() == QLatin1String("qrc"))
+        path = QStringLiteral(":") + url.path();
+    else {
+        qWarning("QQuickWebView: Couldn't open '%s' as user script because only file:/// and qrc:/// URLs are supported.", qPrintable(url.toString()));
+        return QString();
+    }
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        qWarning("QQuickWebView: Couldn't open '%s' as user script due to error '%s'.", qPrintable(url.toString()), qPrintable(file.errorString()));
+        return QString();
+    }
+
+    QString contents = QString::fromUtf8(file.readAll());
+    if (contents.isEmpty())
+        qWarning("QQuickWebView: Ignoring '%s' as user script because file is empty.", qPrintable(url.toString()));
+
+    return contents;
+}
+
+void QQuickWebViewPrivate::updateUserScripts()
+{
+    Vector<String> scripts;
+    scripts.reserveCapacity(userScripts.size());
+
+    for (unsigned i = 0; i < userScripts.size(); ++i) {
+        const QUrl& url = userScripts.at(i);
+        if (!url.isValid()) {
+            qWarning("QQuickWebView: Couldn't open '%s' as user script because URL is invalid.", qPrintable(url.toString()));
+            continue;
+        }
+
+        QString contents = readUserScript(url);
+        if (contents.isEmpty())
+            continue;
+        scripts.append(String(contents));
+    }
+
+    webPageProxy->setUserScripts(scripts);
 }
 
 QPointF QQuickWebViewPrivate::contentPos() const
@@ -776,7 +825,8 @@ void QQuickWebViewLegacyPrivate::setZoomFactor(qreal factor)
 
 QQuickWebViewFlickablePrivate::QQuickWebViewFlickablePrivate(QQuickWebView* viewport)
     : QQuickWebViewPrivate(viewport)
-    , pageIsSuspended(true)
+    , pageIsSuspended(false)
+    , lastCommittedScale(-1)
 {
     // Disable mouse events on the flickable web view so we do not
     // select text during pan gestures on platforms which send both
@@ -798,34 +848,6 @@ void QQuickWebViewFlickablePrivate::initialize(WKContextRef contextRef, WKPageGr
     webPageProxy->setUseFixedLayout(true);
 }
 
-QPointF QQuickWebViewFlickablePrivate::pageItemPos()
-{
-    Q_Q(QQuickWebView);
-    // Flickable moves its contentItem so we need to take that position into account,
-    // as well as the potential displacement of the page on the contentItem because
-    // of additional QML items.
-    qreal xPos = q->contentItem()->x() + pageView->x();
-    qreal yPos = q->contentItem()->y() + pageView->y();
-    return QPointF(xPos, yPos);
-}
-
-void QQuickWebViewFlickablePrivate::updateContentsSize(const QSizeF& size)
-{
-    Q_Q(QQuickWebView);
-
-    // Make sure that the contentItem is sized to the page
-    // if the user did not add other flickable items in QML.
-    // If the user adds items in QML he has to make sure to
-    // disable the default content item size property on the WebView
-    // and bind the contentWidth and contentHeight accordingly.
-    // This is in accordance with normal QML Flickable behaviour.
-    if (!m_useDefaultContentItemSize)
-        return;
-
-    q->setContentWidth(size.width());
-    q->setContentHeight(size.height());
-}
-
 void QQuickWebViewFlickablePrivate::onComponentComplete()
 {
     Q_Q(QQuickWebView);
@@ -835,7 +857,7 @@ void QQuickWebViewFlickablePrivate::onComponentComplete()
 
     QObject::connect(interactionEngine.data(), SIGNAL(contentSuspendRequested()), q, SLOT(_q_suspend()));
     QObject::connect(interactionEngine.data(), SIGNAL(contentResumeRequested()), q, SLOT(_q_resume()));
-    QObject::connect(interactionEngine.data(), SIGNAL(contentViewportChanged(QPointF)), q, SLOT(_q_contentViewportChanged(QPointF)));
+    QObject::connect(interactionEngine.data(), SIGNAL(informVisibleContentChange(QPointF)), q, SLOT(_q_onInformVisibleContentChange(QPointF)));
 
     _q_resume();
 
@@ -868,7 +890,7 @@ void QQuickWebViewFlickablePrivate::didChangeViewportProperties(const WebCore::V
 
     // If the web app successively changes the viewport on purpose
     // it wants to be in control and we should disable animations.
-    interactionEngine->ensureContentWithinViewportBoundary(/*immediate*/ true);
+    interactionEngine->setItemRectVisible(interactionEngine->nearestValidBounds());
 }
 
 void QQuickWebViewFlickablePrivate::updateViewportSize()
@@ -887,10 +909,10 @@ void QQuickWebViewFlickablePrivate::updateViewportSize()
     // it can resize the content accordingly.
     webPageProxy->setViewportSize(viewportSize);
 
-    _q_contentViewportChanged(QPointF());
+    _q_onInformVisibleContentChange(QPointF());
 }
 
-void QQuickWebViewFlickablePrivate::_q_contentViewportChanged(const QPointF& trajectoryVector)
+void QQuickWebViewFlickablePrivate::_q_onInformVisibleContentChange(const QPointF& trajectoryVector)
 {
     Q_Q(QQuickWebView);
 
@@ -898,14 +920,19 @@ void QQuickWebViewFlickablePrivate::_q_contentViewportChanged(const QPointF& tra
     if (!drawingArea)
         return;
 
-    const QRect visibleRect(visibleContentsRect());
-    float scale = pageView->contentsScale();
-
-    emit q->experimental()->test()->contentsScaleChanged();
-
     QRectF accurateVisibleRect(q->boundingRect());
     accurateVisibleRect.translate(contentPos());
-    drawingArea->setVisibleContentsRect(visibleRect, scale, trajectoryVector, FloatPoint(accurateVisibleRect.x(), accurateVisibleRect.y()));
+
+    if (accurateVisibleRect == drawingArea->contentsRect())
+        return;
+
+    float scale = pageView->contentsScale();
+
+    if (scale != lastCommittedScale)
+        emit q->experimental()->test()->contentsScaleCommitted();
+    lastCommittedScale = scale;
+
+    drawingArea->setVisibleContentsRect(QRect(visibleContentsRect()), scale, trajectoryVector, FloatPoint(accurateVisibleRect.x(), accurateVisibleRect.y()));
 
     // Ensure that updatePaintNode is always called before painting.
     pageView->update();
@@ -925,7 +952,7 @@ void QQuickWebViewFlickablePrivate::_q_resume()
     pageIsSuspended = false;
     webPageProxy->resumeActiveDOMObjectsAndAnimations();
 
-    _q_contentViewportChanged(QPointF());
+    _q_onInformVisibleContentChange(QPointF());
 }
 
 void QQuickWebViewFlickablePrivate::pageDidRequestScroll(const QPoint& pos)
@@ -946,9 +973,16 @@ void QQuickWebViewFlickablePrivate::didChangeContentsSize(const QSize& newSize)
         interactionEngine->setCSSScaleBounds(minimumScale, attributes.maximumScale);
         emit q->experimental()->test()->viewportChanged();
 
-        if (!interactionEngine->hadUserInteraction() && !pageIsSuspended)
+        if (!interactionEngine->hadUserInteraction() && !pageIsSuspended) {
+            // Emits contentsScaleChanged();
             interactionEngine->setCSSScale(minimumScale);
+        }
     }
+
+    // Emit for testing purposes, so that it can be verified that
+    // we didn't do scale adjustment.
+    interactionEngine->setItemRectVisible(interactionEngine->nearestValidBounds());
+    emit q->experimental()->test()->contentsScaleCommitted();
 }
 
 /*!
@@ -1307,6 +1341,22 @@ void QQuickWebViewExperimental::evaluateJavaScript(const QString& script, const 
     d_ptr->webPageProxy.get()->runJavaScriptInMainFrame(script, ScriptValueCallback::create(closure, javaScriptCallback));
 }
 
+QList<QUrl> QQuickWebViewExperimental::userScripts() const
+{
+    Q_D(const QQuickWebView);
+    return d->userScripts;
+}
+
+void QQuickWebViewExperimental::setUserScripts(const QList<QUrl>& userScripts)
+{
+    Q_D(QQuickWebView);
+    if (d->userScripts == userScripts)
+        return;
+    d->userScripts = userScripts;
+    d->updateUserScripts();
+    emit userScriptsChanged();
+}
+
 QQuickUrlSchemeDelegate* QQuickWebViewExperimental::schemeDelegates_At(QQmlListProperty<QQuickUrlSchemeDelegate>* property, int index)
 {
     const QObjectList children = property->object->children();
@@ -1452,6 +1502,19 @@ void QQuickWebView::stop()
 void QQuickWebView::reload()
 {
     Q_D(QQuickWebView);
+
+    WebFrameProxy* mainFrame = d->webPageProxy->mainFrame();
+    if (mainFrame && !mainFrame->unreachableURL().isEmpty() && mainFrame->url() != blankURL()) {
+        // We are aware of the unreachable url on the UI process side, but since we haven't
+        // loaded alternative/subsitute data for it (an error page eg.) WebCore doesn't know
+        // about the unreachable url yet. If we just do a reload at this point WebCore will try to
+        // reload the currently committed url instead of the unrachable url. To work around this
+        // we override the reload here by doing a manual load.
+        d->webPageProxy->loadURL(mainFrame->unreachableURL());
+        // FIXME: We should make WebCore aware of the unreachable url regardless of substitute-loads
+        return;
+    }
+
     const bool reloadFromOrigin = true;
     d->webPageProxy->reload(reloadFromOrigin);
 }
@@ -1459,10 +1522,11 @@ void QQuickWebView::reload()
 QUrl QQuickWebView::url() const
 {
     Q_D(const QQuickWebView);
-    RefPtr<WebFrameProxy> mainFrame = d->webPageProxy->mainFrame();
-    if (!mainFrame)
-        return QUrl();
-    return QUrl(QString(mainFrame->url()));
+
+    // FIXME: Enable once we are sure this should not trigger
+    // Q_ASSERT(d->m_currentUrl == d->webPageProxy->activeURL());
+
+    return QUrl(d->m_currentUrl);
 }
 
 void QQuickWebView::setUrl(const QUrl& url)
@@ -1473,12 +1537,25 @@ void QQuickWebView::setUrl(const QUrl& url)
         return;
 
     d->webPageProxy->loadURL(url.toString());
+    emitUrlChangeIfNeeded();
+}
+
+// Make sure we don't emit urlChanged unless it actually changed
+void QQuickWebView::emitUrlChangeIfNeeded()
+{
+    Q_D(QQuickWebView);
+
+    WTF::String activeUrl = d->webPageProxy->activeURL();
+    if (activeUrl != d->m_currentUrl) {
+        d->m_currentUrl = activeUrl;
+        emit urlChanged();
+    }
 }
 
 QUrl QQuickWebView::icon() const
 {
     Q_D(const QQuickWebView);
-    return d->m_iconURL;
+    return QUrl(d->m_iconUrl);
 }
 
 /*!
@@ -1708,6 +1785,7 @@ void QQuickWebView::mouseDoubleClickEvent(QMouseEvent* event)
 {
     Q_D(QQuickWebView);
 
+    forceActiveFocus();
     // If a MouseButtonDblClick was received then we got a MouseButtonPress before
     // handleMousePressEvent will take care of double clicks.
     d->pageView->eventHandler()->handleMousePressEvent(event);
@@ -1819,24 +1897,19 @@ void QQuickWebView::handleFlickableMouseRelease(const QPointF& position, qint64 
     External objects such as stylesheets or images referenced in the HTML
     document are located relative to \a baseUrl.
 
+    If an \a unreachableUrl is passed it is used as the url for the loaded
+    content. This is typically used to display error pages for a failed
+    load.
+
     \sa WebView::url
 */
-void QQuickWebView::loadHtml(const QString& html, const QUrl& baseUrl)
+void QQuickWebView::loadHtml(const QString& html, const QUrl& baseUrl, const QUrl& unreachableUrl)
 {
     Q_D(QQuickWebView);
-    d->webPageProxy->loadHTMLString(html, baseUrl.toString());
-}
-
-QPointF QQuickWebView::pageItemPos()
-{
-    Q_D(QQuickWebView);
-    return d->pageItemPos();
-}
-
-void QQuickWebView::updateContentsSize(const QSizeF& size)
-{
-    Q_D(QQuickWebView);
-    d->updateContentsSize(size);
+    if (unreachableUrl.isValid())
+        d->webPageProxy->loadAlternateHTMLString(html, baseUrl.toString(), unreachableUrl.toString());
+    else
+        d->webPageProxy->loadHTMLString(html, baseUrl.toString());
 }
 
 qreal QQuickWebView::zoomFactor() const

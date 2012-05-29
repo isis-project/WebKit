@@ -109,6 +109,14 @@ void InjectedBundlePageLoaderClient::didFinishLoadForFrame(WebPage* page, WebFra
     userData = adoptRef(toImpl(userDataToPass));
 }
 
+void InjectedBundlePageLoaderClient::didFinishProgress(WebPage* page)
+{
+    if (!m_client.didFinishProgress)
+        return;
+
+    m_client.didFinishProgress(toAPI(page), m_client.clientInfo);
+}
+
 void InjectedBundlePageLoaderClient::didFailLoadWithErrorForFrame(WebPage* page, WebFrame* frame, const ResourceError& error, RefPtr<APIObject>& userData)
 {
     if (!m_client.didFailLoadWithErrorForFrame)
@@ -286,6 +294,14 @@ void InjectedBundlePageLoaderClient::willDestroyGlobalObjectForDOMWindowExtensio
     RefPtr<InjectedBundleDOMWindowExtension> extension = InjectedBundleDOMWindowExtension::get(coreExtension);
     ASSERT(extension);
     m_client.willDestroyGlobalObjectForDOMWindowExtension(toAPI(page), toAPI(extension.get()), m_client.clientInfo);
+}
+
+bool InjectedBundlePageLoaderClient::shouldForceUniversalAccessFromLocalURL(WebPage* page, const String& url)
+{
+    if (!m_client.shouldForceUniversalAccessFromLocalURL)
+        return false;
+
+    return m_client.shouldForceUniversalAccessFromLocalURL(toAPI(page), toAPI(url.impl()), m_client.clientInfo);
 }
 
 } // namespace WebKit

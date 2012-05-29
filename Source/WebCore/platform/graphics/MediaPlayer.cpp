@@ -150,10 +150,12 @@ public:
     virtual bool hasSingleSecurityOrigin() const { return true; }
 
 #if ENABLE(MEDIA_SOURCE)
-    virtual MediaPlayer::AddIdStatus sourceAddId(const String& id, const String& type) { return MediaPlayer::NotSupported; }
-    virtual bool sourceRemoveId(const String& id) { return false; }
-    virtual bool sourceAppend(const unsigned char*, unsigned) { return false; }
-    virtual void sourceEndOfStream(MediaPlayer::EndOfStreamStatus status) { }
+    virtual MediaPlayer::AddIdStatus sourceAddId(const String& id, const String& type, const Vector<String>& codecs) { return MediaPlayer::NotSupported; }
+    virtual PassRefPtr<TimeRanges> sourceBuffered(const String&) { return TimeRanges::create(); }
+    virtual bool sourceRemoveId(const String&) { return false; }
+    virtual bool sourceAppend(const String&, const unsigned char*, unsigned) { return false; }
+    virtual bool sourceAbort(const String&) { return false; }
+    virtual void sourceEndOfStream(MediaPlayer::EndOfStreamStatus) { }
 #endif
 
 #if ENABLE(ENCRYPTED_MEDIA)
@@ -462,9 +464,14 @@ void MediaPlayer::pause()
 
 #if ENABLE(MEDIA_SOURCE)
 
-MediaPlayer::AddIdStatus MediaPlayer::sourceAddId(const String& id, const String& type)
+MediaPlayer::AddIdStatus MediaPlayer::sourceAddId(const String& id, const String& type, const Vector<String>& codecs)
 {
-    return m_private->sourceAddId(id, type);
+    return m_private->sourceAddId(id, type, codecs);
+}
+
+PassRefPtr<TimeRanges> MediaPlayer::sourceBuffered(const String& id)
+{
+    return m_private->sourceBuffered(id);
 }
 
 bool MediaPlayer::sourceRemoveId(const String& id)
@@ -472,9 +479,14 @@ bool MediaPlayer::sourceRemoveId(const String& id)
     return m_private->sourceRemoveId(id);
 }
 
-bool MediaPlayer::sourceAppend(const unsigned char* data, unsigned length)
+bool MediaPlayer::sourceAppend(const String& id, const unsigned char* data, unsigned length)
 {
-    return m_private->sourceAppend(data, length);
+    return m_private->sourceAppend(id, data, length);
+}
+
+bool MediaPlayer::sourceAbort(const String& id)
+{
+    return m_private->sourceAbort(id);
 }
 
 void MediaPlayer::sourceEndOfStream(MediaPlayer::EndOfStreamStatus status)
@@ -713,7 +725,7 @@ void MediaPlayer::paintCurrentFrameInContext(GraphicsContext* p, const IntRect& 
     m_private->paintCurrentFrameInContext(p, r);
 }
 
-MediaPlayer::SupportsType MediaPlayer::supportsType(const ContentType& contentType, const String& keySystem)
+MediaPlayer::SupportsType MediaPlayer::supportsType(const ContentType& contentType, const String& keySystem, const MediaPlayerSupportsTypeClient* client)
 {
     String type = contentType.type().lower();
     // The codecs string is not lower-cased because MP4 values are case sensitive
@@ -729,6 +741,21 @@ MediaPlayer::SupportsType MediaPlayer::supportsType(const ContentType& contentTy
     MediaPlayerFactory* engine = bestMediaEngineForTypeAndCodecs(type, typeCodecs, system);
     if (!engine)
         return IsNotSupported;
+
+#if PLATFORM(MAC)
+    // YouTube will ask if the HTMLMediaElement canPlayType video/webm, then
+    // video/x-flv, then finally video/mp4, and will then load a URL of the first type
+    // in that list which returns "probably". When Perian is installed,
+    // MediaPlayerPrivateQTKit claims to support both video/webm and video/x-flv, but
+    // due to a bug in Perian, loading media in these formats will sometimes fail on
+    // slow connections. <https://bugs.webkit.org/show_bug.cgi?id=86409>
+    if (client && client->mediaPlayerNeedsSiteSpecificHacks()) {
+        String host = client->mediaPlayerDocumentHost();
+        if ((host.endsWith(".youtube.com", false) || equalIgnoringCase("youtube.com", host))
+            && (contentType.type().startsWith("video/webm", false) || contentType.type().startsWith("video/x-flv", false)))
+            return IsNotSupported;
+    }
+#endif
 
 #if ENABLE(ENCRYPTED_MEDIA)
     return engine->supportsTypeAndCodecs(type, typeCodecs, system);

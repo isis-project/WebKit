@@ -109,7 +109,7 @@ http/tests/media/video-referer.html
 
 # Fails intermittently on Leopard and Tiger.
 # https://bugs.webkit.org/show_bug.cgi?id=29154
-storage/database-lock-after-reload.html
+storage/websql/database-lock-after-reload.html
 
 # Accept header is handled by the browser
 http/tests/misc/image-checks-for-accept.html
@@ -281,6 +281,7 @@ inspector/debugger/xhr-breakpoints.html
 # https://bugs.webkit.org/show_bug.cgi?id=50485
 inspector/profiler/heap-snapshot-inspect-dom-wrapper.html
 inspector/profiler/heap-snapshot-comparison-dom-groups-change.html
+inspector/profiler/heap-snapshot-loader.html
 inspector/profiler/heap-snapshot-reveal-in-dominators-view.html
 inspector/profiler/heap-snapshot-summary-show-ranges.html
 
@@ -642,9 +643,6 @@ fast/repaint/scroll-inside-table-cell.html
 fast/repaint/scroll-relative-table-inside-table-cell.html
 fast/table/cell-pref-width-invalidation.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=82628
-svg/hittest/svg-ellipse-non-scale-stroke.xhtml
-
 # The inner <input> should now grow to take the full cell's height.
 fast/table/colspanMinWidth-vertical.html
 
@@ -808,6 +806,7 @@ scrollbars/scrollbar-miss-mousemove-disabled.html
 
 # Fail until SUBPIXEL_LAYOUT is enabled
 # https://bugs.webkit.org/show_bug.cgi?id=85532
+fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
 fast/sub-pixel/layout-boxes-with-zoom.html
 fast/sub-pixel/size-of-box-with-zoom.html
@@ -842,8 +841,37 @@ ietestcenter/css3/valuesandunits/units-000.htm
 
 # Inspector only supports evaluation in content script world with v8, see https://bugs.webkit.org/show_bug.cgi?id=85709
 inspector/extensions/extensions-eval-content-script.html
+inspector/extensions/extensions-audits-content-script.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=86480
 plugins/npruntime/delete-plugin-within-setProperty.html
 plugins/npruntime/delete-plugin-within-hasProperty-return-true.html
 plugins/npruntime/delete-plugin-within-hasProperty-return-false.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=86786
+mathml/presentation/mo-stretch.html
+mathml/presentation/mroot-pref-width.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=86859
+editing/spelling/spellcheck-async-remove-frame.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=87199
+compositing/video/video-poster.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=87208  New test http/tests/cookies/js-get-and-set-http-only-cookie.php fails on Mac, GTK, Qt (87208)
+http/tests/cookies/js-get-and-set-http-only-cookie.php
+
+# https://bugs.webkit.org/show_bug.cgi?id=87347
+fast/frames/flattening/iframe-tiny.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=87541
+fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgb565.html
+fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgba4444.html
+fast/canvas/webgl/tex-image-and-sub-image-2d-with-video-rgba5551.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=87728
+http/tests/cache/cancel-in-progress-load.html
+
+# Asserts in MessagePort::contextDestroyed
+# https://bugs.webkit.org/show_bug.cgi?id=85811
+fast/events/message-port-constructor-for-deleted-document.html

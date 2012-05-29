@@ -302,10 +302,6 @@ sub determineArchitecture
         if ($host_triple =~ m/^host = ([^-]+)-/) {
             # We have a configured build tree; use it.
             $architecture = $1;
-        } else {
-            # Fall back to output of `arch', if it is present.
-            $architecture = `arch`;
-            chomp $architecture;
         }
     } elsif (isAppleMacWebKit()) {
         if (open ARCHITECTURE, "$baseProductDir/Architecture") {
@@ -317,9 +313,22 @@ sub determineArchitecture
         } else {
             my $supports64Bit = `sysctl -n hw.optional.x86_64`;
             chomp $supports64Bit;
-            $architecture = $supports64Bit ? 'x86_64' : `arch`;
-            chomp $architecture;
+            $architecture = 'x86_64' if $supports64Bit;
         }
+    } elsif (isEfl()) {
+        my $host_processor = "";
+        $host_processor = `cmake --system-information | grep CMAKE_SYSTEM_PROCESSOR`;
+        if ($host_processor =~ m/^CMAKE_SYSTEM_PROCESSOR \"([^"]+)\"/) {
+            # We have a configured build tree; use it.
+            $architecture = $1;
+            $architecture = 'x86_64' if $architecture eq 'amd64';
+        }
+    }
+
+    if (!$architecture && (isGtk() || isAppleMacWebKit() || isEfl())) {
+        # Fall back to output of `arch', if it is present.
+        $architecture = `arch`;
+        chomp $architecture;
     }
 }
 
@@ -930,7 +939,6 @@ sub blackberryCMakeArguments()
     if ($cpu eq "a9") {
         $cpu = $arch . "v7le";
         push @cmakeExtraOptions, '-DTARGETING_PLAYBOOK=1';
-        push @cmakeExtraOptions, '-DENABLE_GLES2=1';
     }
 
     my $stageDir = $ENV{"STAGE_DIR"};
@@ -957,7 +965,7 @@ sub blackberryCMakeArguments()
 
     push @cmakeExtraOptions, "-DCMAKE_SKIP_RPATH='ON'" if isDarwin();
     push @cmakeExtraOptions, "-DENABLE_DRT=1" if $ENV{"ENABLE_DRT"};
-    push @cmakeExtraOptions, "-DENABLE_GLES2=1" if $ENV{"ENABLE_GLES2"};
+    push @cmakeExtraOptions, "-DENABLE_GLES2=1" unless $ENV{"DISABLE_GLES2"};
 
     my @includeSystemDirectories;
     push @includeSystemDirectories, File::Spec->catdir($stageInc, "grskia", "skia");
@@ -1860,7 +1868,7 @@ sub runAutogenForAutotoolsProjectIfNecessary($@)
     # used on Chromium build.
     determineArchitecture();
     if ($architecture ne "x86_64" && !isARM()) {
-        $ENV{'CXXFLAGS'} = "-march=pentium4 -msse2 -mfpmath=sse";
+        $ENV{'CXXFLAGS'} = "-march=pentium4 -msse2 -mfpmath=sse " . ($ENV{'CXXFLAGS'} || "");
     }
 
     # Prefix the command with jhbuild run.
@@ -2079,6 +2087,13 @@ sub generateBuildSystemFromCMakeProject
     push @args, $additionalCMakeArgs if $additionalCMakeArgs;
 
     push @args, '"' . sourceDir() . '"';
+
+    # Compiler options to keep floating point values consistent
+    # between 32-bit and 64-bit architectures.
+    determineArchitecture();
+    if ($architecture ne "x86_64" && !isARM()) {
+        $ENV{'CXXFLAGS'} = "-march=pentium4 -msse2 -mfpmath=sse " . ($ENV{'CXXFLAGS'} || "");
+    }
 
     # We call system("cmake @args") instead of system("cmake", @args) so that @args is
     # parsed for shell metacharacters.

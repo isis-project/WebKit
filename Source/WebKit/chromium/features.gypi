@@ -37,8 +37,12 @@
       'ENABLE_BLOB=1',
       'ENABLE_BLOB_SLICE=1',
       'ENABLE_CHANNEL_MESSAGING=1',
+      'ENABLE_CSS3_FLEXBOX=1',
+      'ENABLE_CSS_EXCLUSIONS=1',
       'ENABLE_CSS_FILTERS=1',
       'ENABLE_CSS_IMAGE_SET=1',
+      'ENABLE_CSS_IMAGE_RESOLUTION=0',
+      'ENABLE_CSS_REGIONS=1',
       'ENABLE_CSS_SHADERS=1',
       'ENABLE_CSS_VARIABLES=0',
       'ENABLE_DATALIST=1',
@@ -81,7 +85,6 @@
       'ENABLE_MUTATION_OBSERVERS=<(enable_mutation_observers)',
       'ENABLE_NOTIFICATIONS=1',
       'ENABLE_ORIENTATION_EVENTS=0',
-      'ENABLE_OVERFLOW_SCROLLING=1',
       'ENABLE_PAGE_VISIBILITY_API=1',
       'ENABLE_POINTER_LOCK=1',
       'ENABLE_PROGRESS_TAG=1',
@@ -98,6 +101,7 @@
       'ENABLE_STYLE_SCOPED=1',
       'ENABLE_SVG=<(enable_svg)',
       'ENABLE_SVG_FONTS=<(enable_svg)',
+      'ENABLE_TOUCH_ADJUSTMENT=1',
       'ENABLE_TOUCH_EVENTS=<(enable_touch_events)',
       'ENABLE_TOUCH_ICON_LOADING=<(enable_touch_icon_loading)',
       'ENABLE_V8_SCRIPT_DEBUG_SERVER=1',
@@ -105,6 +109,7 @@
       'ENABLE_VIDEO_TRACK=1',
       'ENABLE_VIEWPORT=1',
       'ENABLE_WEBGL=1',
+      'ENABLE_WEB_INTENTS=1',
       'ENABLE_WEB_SOCKETS=1',
       'ENABLE_WEB_TIMING=1',
       'ENABLE_WORKERS=1',
@@ -140,6 +145,7 @@
       ['OS=="android"', {
         'feature_defines': [
           'ENABLE_CALENDAR_PICKER=0',
+          'ENABLE_FONT_BOOSTING=1',
           'ENABLE_MEDIA_CAPTURE=1',
           'ENABLE_PAGE_POPUP=0',
           'ENABLE_WEB_AUDIO=0',
@@ -148,6 +154,7 @@
       }, {
         'feature_defines': [
           'ENABLE_CALENDAR_PICKER=1',
+          'ENABLE_FONT_BOOSTING=0',
           'ENABLE_MEDIA_CAPTURE=0',
           'ENABLE_PAGE_POPUP=1',
           'ENABLE_WEB_AUDIO=1',

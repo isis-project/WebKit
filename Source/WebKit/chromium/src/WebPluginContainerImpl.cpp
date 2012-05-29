@@ -72,6 +72,7 @@
 #include "ScrollView.h"
 #include "ScrollbarTheme.h"
 #include "UserGestureIndicator.h"
+#include "WebPrintParams.h"
 #include "WheelEvent.h"
 #include <public/Platform.h>
 #include <public/WebClipboard.h>
@@ -233,6 +234,14 @@ void WebPluginContainerImpl::setParent(ScrollView* view)
         reportGeometry();
 }
 
+void WebPluginContainerImpl::setPlugin(WebPlugin* plugin)
+{
+    if (plugin != m_webPlugin) {
+        m_element->resetInstance();
+        m_webPlugin = plugin;
+    }
+}
+
 bool WebPluginContainerImpl::supportsPaginatedPrint() const
 {
     return m_webPlugin->supportsPaginatedPrint();
@@ -243,10 +252,9 @@ bool WebPluginContainerImpl::isPrintScalingDisabled() const
     return m_webPlugin->isPrintScalingDisabled();
 }
 
-int WebPluginContainerImpl::printBegin(const IntRect& printableArea,
-                                       int printerDPI) const
+int WebPluginContainerImpl::printBegin(const WebPrintParams& printParams) const
 {
-    return m_webPlugin->printBegin(printableArea, printerDPI);
+    return m_webPlugin->printBegin(printParams);
 }
 
 bool WebPluginContainerImpl::printPage(int pageNumber,

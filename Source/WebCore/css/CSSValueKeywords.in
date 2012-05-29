@@ -332,12 +332,12 @@ table-cell
 table-caption
 -webkit-box
 -webkit-inline-box
--webkit-flexbox
--webkit-inline-flexbox
-#if defined(ENABLE_CSS_GRID_LAYOUT) && ENABLE_CSS_GRID_LAYOUT
+#if defined(ENABLE_CSS3_FLEXBOX) && ENABLE_CSS3_FLEXBOX
+-webkit-flex
+-webkit-inline-flex
+#endif
 -webkit-grid
 -webkit-inline-grid
-#endif
 //none
 //
 // CSS_PROP_CURSOR:
@@ -483,6 +483,7 @@ block-axis
 single
 multiple
 
+#if defined(ENABLE_CSS3_FLEXBOX) && ENABLE_CSS3_FLEXBOX
 // CSS_PROP_FLEX_ALIGN
 // start
 // end
@@ -513,6 +514,7 @@ wrap-reverse
 // justify
 // distribute
 // stretch
+#endif
 
 // CSS_PROP_MARQUEE_DIRECTION
 forwards

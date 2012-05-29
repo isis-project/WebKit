@@ -586,15 +586,6 @@ void ChromeClientImpl::contentsSizeChanged(Frame* frame, const IntSize& size) co
 
 void ChromeClientImpl::layoutUpdated(Frame* frame) const
 {
-#if ENABLE(VIEWPORT)
-    if (!m_webView->isPageScaleFactorSet() && frame == frame->page()->mainFrame()) {
-        // If the page does not have a viewport tag, then compute a scale
-        // factor to make the page width fit the device width based on the
-        // default viewport parameters.
-        ViewportArguments viewport = frame->document()->viewportArguments();
-        dispatchViewportPropertiesDidChange(viewport);
-    }
-#endif
     m_webView->layoutUpdated(WebFrameImpl::fromFrame(frame));
 }
 
@@ -674,14 +665,14 @@ void ChromeClientImpl::dispatchViewportPropertiesDidChange(const ViewportArgumen
     int layoutHeight = computed.layoutSize.height();
     m_webView->setFixedLayoutSize(IntSize(layoutWidth, layoutHeight));
 
-    // FIXME: Investigate the impact this has on layout/rendering if any.
-    // This exposes the correct device scale to javascript and media queries.
+    bool needInitializePageScale = !m_webView->isPageScaleFactorSet();
     if (useDefaultDeviceScaleFactor && settings->defaultDeviceScaleFactor())
         m_webView->setDeviceScaleFactor(settings->defaultDeviceScaleFactor());
     else
         m_webView->setDeviceScaleFactor(computed.devicePixelRatio);
     m_webView->setPageScaleFactorLimits(computed.minimumScale, computed.maximumScale);
-    m_webView->setPageScaleFactorPreservingScrollOffset(computed.initialScale * computed.devicePixelRatio);
+    if (needInitializePageScale)
+        m_webView->setPageScaleFactorPreservingScrollOffset(computed.initialScale * computed.devicePixelRatio);
 #endif
 }
 
@@ -734,7 +725,8 @@ void ChromeClientImpl::runOpenPanel(Frame* frame, PassRefPtr<FileChooser> fileCh
 #else
     params.directory = false;
 #endif
-    params.acceptMIMETypes = fileChooser->settings().acceptMIMETypes;
+    params.acceptTypes = fileChooser->settings().acceptMIMETypes;
+    params.acceptMIMETypes = fileChooser->settings().acceptMIMETypes; // FIXME: Remove this once https://chromiumcodereview.appspot.com/10414085 lands.
     params.selectedFiles = fileChooser->settings().selectedFiles;
     if (params.selectedFiles.size() > 0)
         params.initialValue = params.selectedFiles[0];
@@ -1045,7 +1037,7 @@ void ChromeClientImpl::addTextFieldDecorationsTo(HTMLInputElement* input)
         if (!decorators[i]->willAddDecorationTo(input))
             continue;
         RefPtr<TextFieldDecorationElement> decoration = TextFieldDecorationElement::create(input->document(), decorators[i].get());
-        decoration->decorate(input);
+        decoration->decorate(input, decorators[i]->visibleByDefault());
     }
 }
 

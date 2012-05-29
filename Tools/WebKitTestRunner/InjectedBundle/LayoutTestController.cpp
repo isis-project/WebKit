@@ -103,6 +103,7 @@ LayoutTestController::LayoutTestController()
     , m_dumpPixels(true)
     , m_dumpFullScreenCallbacks(false)
     , m_dumpFrameLoadCallbacks(false)
+    , m_dumpProgressFinishedCallback(false)
     , m_waitToDump(false)
     , m_testRepaint(false)
     , m_testRepaintSweepHorizontally(false)
@@ -477,13 +478,6 @@ void LayoutTestController::evaluateInWebInspector(long callID, JSStringRef scrip
 #endif // ENABLE(INSPECTOR)
 }
 
-void LayoutTestController::setJavaScriptProfilingEnabled(bool enabled)
-{
-#if ENABLE(INSPECTOR)
-    WKBundleInspectorSetJavaScriptProfilingEnabled(WKBundlePageGetInspector(InjectedBundle::shared().page()->page()), enabled);
-#endif // ENABLE(INSPECTOR)
-}
-
 typedef WTF::HashMap<unsigned, WKRetainPtr<WKBundleScriptWorldRef> > WorldMap;
 static WorldMap& worldMap()
 {
@@ -542,22 +536,28 @@ void LayoutTestController::setShouldStayOnPageAfterHandlingBeforeUnload(bool sho
     InjectedBundle::shared().postNewBeforeUnloadReturnValue(!shouldStayOnPage);
 }
 
+void LayoutTestController::setDefersLoading(bool shouldDeferLoading)
+{
+    WKBundlePageSetDefersLoading(InjectedBundle::shared().page()->page(), shouldDeferLoading);
+}
+
 void LayoutTestController::setPageVisibility(JSStringRef state)
 {
-    WKStringRef visibilityStateKey = toWK(state).get();
     WebCore::PageVisibilityState visibilityState = WebCore::PageVisibilityStateVisible;
 
-    if (WKStringIsEqualToUTF8CString(visibilityStateKey, "hidden"))
+    if (JSStringIsEqualToUTF8CString(state, "hidden"))
         visibilityState = WebCore::PageVisibilityStateHidden;
-    else if (WKStringIsEqualToUTF8CString(visibilityStateKey, "prerender"))
+    else if (JSStringIsEqualToUTF8CString(state, "prerender"))
         visibilityState = WebCore::PageVisibilityStatePrerender;
+    else if (JSStringIsEqualToUTF8CString(state, "preview"))
+        visibilityState = WebCore::PageVisibilityStatePreview;
 
-    WKBundleSetPageVisibilityState(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), visibilityState, /* isInitialState */ false);
+    WKBundleSetPageVisibilityState(InjectedBundle::shared().bundle(), InjectedBundle::shared().page()->page(), visibilityState, /* isInitialState */ false);
 }
 
 void LayoutTestController::resetPageVisibility()
 {
-    WKBundleSetPageVisibilityState(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), WebCore::PageVisibilityStateVisible, /* isInitialState */ true);
+    WKBundleSetPageVisibilityState(InjectedBundle::shared().bundle(), InjectedBundle::shared().page()->page(), WebCore::PageVisibilityStateVisible, /* isInitialState */ true);
 }
 
 void LayoutTestController::dumpConfigurationForViewport(int deviceDPI, int deviceWidth, int deviceHeight, int availableWidth, int availableHeight)

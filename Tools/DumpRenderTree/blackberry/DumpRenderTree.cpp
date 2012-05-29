@@ -19,10 +19,12 @@
 #include "config.h"
 #include "DumpRenderTree.h"
 
+#include "APICast.h"
 #include "AccessibilityController.h"
 #include "BackForwardController.h"
 #include "BackForwardListImpl.h"
 #include "CString.h"
+#include "Credential.h"
 #include "DatabaseTracker.h"
 #include "DocumentLoader.h"
 #include "DumpRenderTree/GCController.h"
@@ -38,6 +40,7 @@
 #include "FrameView.h"
 #include "HistoryItem.h"
 #include "IntSize.h"
+#include "JSDOMBinding.h"
 #include "LayoutTestController.h"
 #include "NotImplemented.h"
 #include "OwnArrayPtr.h"
@@ -120,6 +123,12 @@ static String drtFrameDescription(WebCore::Frame* frame)
     if (!name.isNull())
         return String::format("frame \"%s\"", name.utf8().data());
     return "frame (anonymous)";
+}
+
+static WTF::String drtCredentialDescription(WebCore::Credential&)
+{
+    // TODO: Implementation needed.
+    return "<unknown>";
 }
 
 static bool shouldLogFrameLoadDelegates(const String& url)
@@ -307,7 +316,10 @@ void DumpRenderTree::resetToConsistentStateBeforeTesting()
 
     if (WebCore::Page* page = DumpRenderTreeSupport::corePage(m_page)) {
         page->setTabKeyCyclesThroughElements(true);
+
+        // FIXME: Remove this once BlackBerry uses resetInternalsObject: https://bugs.webkit.org/show_bug.cgi?id=86899.
         page->settings()->setEditingBehaviorType(WebCore::EditingUnixBehavior);
+
         page->settings()->setDOMPasteAllowed(true);
         page->settings()->setValidationMessageTimerMagnification(-1);
         page->settings()->setInteractiveFormValidationEnabled(true);
@@ -320,6 +332,9 @@ void DumpRenderTree::resetToConsistentStateBeforeTesting()
         if (mainFrame = page->mainFrame()) {
             mainFrame->tree()->clearName();
             mainFrame->loader()->setOpener(0);
+            // [WebKit bug #86899] Reset JS state settings.
+            JSGlobalContextRef jsContext = toGlobalRef(mainFrame->script()->globalObject(WebCore::mainThreadNormalWorld())->globalExec());
+            WebCoreTestSupport::resetInternalsObject(jsContext);
         }
     }
 
@@ -847,6 +862,20 @@ void DumpRenderTree::didReceiveResponseForFrame(WebCore::Frame* frame, const Web
 {
     if (!testDone && gLayoutTestController->dumpResourceResponseMIMETypes())
         printf("%s has MIME type %s\n", response.url().lastPathComponent().utf8().data(), response.mimeType().utf8().data());
+}
+
+bool DumpRenderTree::didReceiveAuthenticationChallenge(WebCore::Credential& credential)
+{
+    if (!gLayoutTestController->handlesAuthenticationChallenges()) {
+        credential = WebCore::Credential();
+        printf("%s - didReceiveAuthenticationChallenge - Simulating cancelled authentication\n", drtCredentialDescription(credential).utf8().data());
+        return false;
+    }
+    const char* user = gLayoutTestController->authenticationUsername().c_str();
+    const char* password = gLayoutTestController->authenticationPassword().c_str();
+    credential = WebCore::Credential(user, password, WebCore::CredentialPersistenceForSession);
+    printf("%s - didReceiveAuthenticationChallenge - Responding with %s:%s\n", drtCredentialDescription(credential).utf8().data(), user, password);
+    return true;
 }
 
 }

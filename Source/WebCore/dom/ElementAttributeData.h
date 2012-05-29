@@ -110,10 +110,10 @@ private:
     const Vector<Attribute>& attributeVector() const { return m_attributes; }
     Vector<Attribute> clonedAttributeVector() const { return m_attributes; }
 
-    void detachAttributesFromElement(Element*);
+    void detachAttrObjectsFromElement(Element*);
     Attribute* getAttributeItem(const String& name, bool shouldIgnoreAttributeCase) const;
     size_t getAttributeItemIndexSlowCase(const String& name, bool shouldIgnoreAttributeCase) const;
-    void setAttributes(const ElementAttributeData& other, Element*);
+    void cloneDataFrom(const ElementAttributeData& sourceData, const Element& sourceElement, Element& targetElement);
     void clearAttributes(Element*);
     void replaceAttribute(size_t index, const Attribute&, Element*);
 

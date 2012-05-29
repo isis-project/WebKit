@@ -48,8 +48,11 @@ my (
     $batteryStatusSupport,
     $blobSupport,
     $channelMessagingSupport,
+    $css3FlexboxSupport,
+    $cssExclusionsSupport,
     $cssFiltersSupport,
-    $cssGridLayoutSupport,
+    $cssImageResolutionSupport,
+    $cssRegionsSupport,
     $cssShadersSupport,
     $cssVariablesSupport,
     $dataTransferItemsSupport,
@@ -60,6 +63,7 @@ my (
     $downloadAttributeSupport,
     $fileSystemSupport,
     $filtersSupport,
+    $fontBoostingSupport,
     $ftpDirSupport,
     $fullscreenAPISupport,
     $gamepadSupport,
@@ -137,16 +141,25 @@ my @features = (
       define => "ENABLE_BATTERY_STATUS", default => (isEfl() || isBlackBerry()), value => \$batteryStatusSupport },
 
     { option => "blob", desc => "Toggle Blob support",
-      define => "ENABLE_BLOB", default => (isAppleMacWebKit() || isGtk() || isChromium() || isBlackBerry()), value => \$blobSupport },
+      define => "ENABLE_BLOB", default => (isAppleMacWebKit() || isGtk() || isChromium() || isBlackBerry() || isEfl()), value => \$blobSupport },
 
     { option => "channel-messaging", desc => "Toggle Channel Messaging support",
       define => "ENABLE_CHANNEL_MESSAGING", default => 1, value => \$channelMessagingSupport },
 
+    { option => "css-exclusions", desc => "Toggle CSS Exclusions support",
+      define => "ENABLE_CSS_EXCLUSIONS", default => 1, value => \$cssExclusionsSupport },
+
     { option => "css-filters", desc => "Toggle CSS Filters support",
       define => "ENABLE_CSS_FILTERS", default => isAppleWebKit(), value => \$cssFiltersSupport },
 
-    { option => "css-grid-layout", desc => "Toggle CSS Grid Layout support",
-      define => "ENABLE_CSS_GRID_LAYOUT", default => 0, value => \$cssGridLayoutSupport },
+    { option => "css3-flexbox", desc => "Toggle CSS3 Flexbox support",
+      define => "ENABLE_CSS3_FLEXBOX", default => 1, value => \$css3FlexboxSupport },
+
+    { option => "css-image-resolution", desc => "Toggle CSS image-resolution support",
+      define => "ENABLE_CSS_IMAGE_RESOLUTION", default => 0, value => \$cssImageResolutionSupport },
+
+    { option => "css-regions", desc => "Toggle CSS Regions support",
+      define => "ENABLE_CSS_REGIONS", default => 1, value => \$cssRegionsSupport },
 
     { option => "css-shaders", desc => "Toggle CSS Shaders support",
       define => "ENABLE_CSS_SHADERS", default => 0, value => \$cssShadersSupport },
@@ -178,11 +191,14 @@ my @features = (
     { option => "filters", desc => "Toggle Filters support",
       define => "ENABLE_FILTERS", default => (isAppleWebKit() || isGtk() || isQt() || isEfl() || isBlackBerry()), value => \$filtersSupport },
 
+    { option => "font-boosting", desc => "Toggle Font Boosting support",
+      define => "ENABLE_FONT_BOOSTING", default => 0, value => \$fontBoostingSupport },
+
     { option => "ftpdir", desc => "Toggle FTP Directory support",
       define => "ENABLE_FTPDIR", default => !isWinCE(), value => \$ftpDirSupport },
 
     { option => "fullscreen-api", desc => "Toggle Fullscreen API support",
-      define => "ENABLE_FULLSCREEN_API", default => (isAppleMacWebKit() || isGtk() || isBlackBerry() || isQt()), value => \$fullscreenAPISupport },
+      define => "ENABLE_FULLSCREEN_API", default => (isAppleMacWebKit() || isEfl() || isGtk() || isBlackBerry() || isQt()), value => \$fullscreenAPISupport },
 
     { option => "gamepad", desc => "Toggle Gamepad support",
       define => "ENABLE_GAMEPAD", default => 0, value => \$gamepadSupport },
@@ -290,7 +306,7 @@ my @features = (
       define => "ENABLE_QUOTA", default => 0, value => \$quotaSupport },
 
     { option => "register-protocol-handler", desc => "Toggle Register Protocol Handler support",
-      define => "ENABLE_REGISTER_PROTOCOL_HANDLER", default => 0, value => \$registerProtocolHandlerSupport },
+      define => "ENABLE_REGISTER_PROTOCOL_HANDLER", default => isEfl(), value => \$registerProtocolHandlerSupport },
 
     { option => "request-animation-frame", desc => "Toggle Request Animation Frame support",
       define => "ENABLE_REQUEST_ANIMATION_FRAME", default => (isAppleMacWebKit() || isGtk() || isEfl() || isBlackBerry()), value => \$requestAnimationFrameSupport },
@@ -326,7 +342,7 @@ my @features = (
       define => "WTF_USE_TILED_BACKING_STORE", default => isQt(), value => \$tiledBackingStoreSupport },
 
     { option => "touch-events", desc => "Toggle Touch Events support",
-      define => "ENABLE_TOUCH_EVENTS", default => (isQt() || isBlackBerry()), value => \$touchEventsSupport },
+      define => "ENABLE_TOUCH_EVENTS", default => (isQt() || isBlackBerry() || isEfl()), value => \$touchEventsSupport },
 
     { option => "touch-icon-loading", desc => "Toggle Touch Icon Loading Support",
       define => "ENABLE_TOUCH_ICON_LOADING", default => 0, value => \$touchIconLoadingSupport },

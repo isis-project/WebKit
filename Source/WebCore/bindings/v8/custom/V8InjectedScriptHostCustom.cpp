@@ -37,6 +37,7 @@
 #include "InjectedScriptHost.h"
 #include "InspectorDOMAgent.h"
 #include "InspectorValues.h"
+#include "ScriptDebugServer.h"
 #include "ScriptValue.h"
 #include "V8Binding.h"
 #include "V8BindingState.h"
@@ -82,10 +83,8 @@ v8::Handle<v8::Value> V8InjectedScriptHost::inspectedObjectCallback(const v8::Ar
     if (args.Length() < 1)
         return v8::Undefined();
 
-    if (!args[0]->IsInt32()) {
-        throwError("argument has to be an integer");
-        return v8::Undefined();
-    }
+    if (!args[0]->IsInt32())
+        return V8Proxy::throwTypeError("argument has to be an integer", args.GetIsolate());
 
     InjectedScriptHost* host = V8InjectedScriptHost::toNative(args.Holder());
     InjectedScriptHost::InspectableObject* object = host->inspectedObject(args[0]->ToInt32()->Value());
@@ -183,6 +182,13 @@ v8::Handle<v8::Value> V8InjectedScriptHost::functionDetailsCallback(const v8::Ar
     v8::Handle<v8::Value> inferredName = function->GetInferredName();
     if (inferredName->IsString() && v8::Handle<v8::String>::Cast(inferredName)->Length())
         result->Set(v8::String::New("inferredName"), inferredName);
+
+    InjectedScriptHost* host = V8InjectedScriptHost::toNative(args.Holder());
+    ScriptDebugServer& debugServer = host->scriptDebugServer();
+    v8::Handle<v8::Value> scopes = debugServer.functionScopes(function);
+    if (!scopes.IsEmpty() && scopes->IsArray())
+        result->Set(v8::String::New("rawScopes"), scopes);
+
     return result;
 }
 

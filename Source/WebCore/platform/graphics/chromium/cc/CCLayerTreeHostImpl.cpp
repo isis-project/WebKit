@@ -43,11 +43,11 @@
 #include "cc/CCLayerTreeHostCommon.h"
 #include "cc/CCPageScaleAnimation.h"
 #include "cc/CCRenderSurfaceDrawQuad.h"
+#include "cc/CCSingleThreadProxy.h"
 #include "cc/CCThreadTask.h"
 #include <wtf/CurrentTime.h>
 
 namespace {
-const double lowFrequencyAnimationInterval = 1;
 
 void didVisibilityChange(WebCore::CCLayerTreeHostImpl* id, bool visible)
 {
@@ -78,6 +78,11 @@ public:
 
     virtual void onTimerTick() OVERRIDE
     {
+        // FIXME: We require that animate be called on the impl thread. This
+        // avoids asserts in single threaded mode. Ideally background ticking
+        // would be handled by the proxy/scheduler and this could be removed.
+        DebugScopedSetImplThread impl;
+
         m_layerTreeHostImpl->animate(monotonicallyIncreasingTime(), currentTime());
     }
 
@@ -111,6 +116,7 @@ CCLayerTreeHostImpl::CCLayerTreeHostImpl(const CCSettings& settings, CCLayerTree
     , m_scrollLayerImpl(0)
     , m_settings(settings)
     , m_visible(true)
+    , m_sourceFrameCanBeDrawn(true)
     , m_headsUpDisplay(CCHeadsUpDisplay::create())
     , m_pageScale(1)
     , m_pageScaleDelta(1)
@@ -119,7 +125,6 @@ CCLayerTreeHostImpl::CCLayerTreeHostImpl(const CCSettings& settings, CCLayerTree
     , m_maxPageScale(0)
     , m_needsAnimateLayers(false)
     , m_pinchGestureActive(false)
-    , m_timeSourceClientAdapter(CCLayerTreeHostImplTimeSourceAdapter::create(this, CCDelayBasedTimeSource::create(lowFrequencyAnimationInterval * 1000.0, CCProxy::currentThread())))
     , m_fpsCounter(CCFrameRateCounter::create())
     , m_debugRectHistory(CCDebugRectHistory::create())
 {
@@ -154,6 +159,8 @@ bool CCLayerTreeHostImpl::canDraw()
     if (viewportSize().isEmpty())
         return false;
     if (!m_layerRenderer)
+        return false;
+    if (!m_sourceFrameCanBeDrawn)
         return false;
     return true;
 }
@@ -251,14 +258,16 @@ void CCLayerTreeHostImpl::calculateRenderSurfaceLayerList(CCLayerList& renderSur
     if (!m_rootLayerImpl->renderSurface())
         m_rootLayerImpl->createRenderSurface();
     m_rootLayerImpl->renderSurface()->clearLayerList();
-    m_rootLayerImpl->renderSurface()->setContentRect(IntRect(IntPoint(), viewportSize()));
+    m_rootLayerImpl->renderSurface()->setContentRect(IntRect(IntPoint(), deviceViewportSize()));
 
-    m_rootLayerImpl->setClipRect(IntRect(IntPoint(), viewportSize()));
+    m_rootLayerImpl->setClipRect(IntRect(IntPoint(), deviceViewportSize()));
 
     {
-        TransformationMatrix identityMatrix;
         TRACE_EVENT("CCLayerTreeHostImpl::calcDrawEtc", this, 0);
-        CCLayerTreeHostCommon::calculateDrawTransformsAndVisibility(m_rootLayerImpl.get(), m_rootLayerImpl.get(), identityMatrix, identityMatrix, renderSurfaceLayerList, m_rootLayerImpl->renderSurface()->layerList(), &m_layerSorter, layerRendererCapabilities().maxTextureSize);
+        TransformationMatrix identityMatrix;
+        TransformationMatrix deviceScaleTransform;
+        deviceScaleTransform.scale(m_settings.deviceScaleFactor);
+        CCLayerTreeHostCommon::calculateDrawTransformsAndVisibility(m_rootLayerImpl.get(), m_rootLayerImpl.get(), deviceScaleTransform, identityMatrix, renderSurfaceLayerList, m_rootLayerImpl->renderSurface()->layerList(), &m_layerSorter, layerRendererCapabilities().maxTextureSize);
     }
 }
 
@@ -295,7 +304,7 @@ bool CCLayerTreeHostImpl::calculateRenderPasses(CCRenderPassList& passes, CCLaye
     if (layerRendererCapabilities().usingPartialSwap)
         scissorRect = enclosingIntRect(m_rootDamageRect);
     else
-        scissorRect = IntRect(IntPoint(), viewportSize());
+        scissorRect = IntRect(IntPoint(), deviceViewportSize());
 
     bool recordMetricsForFrame = true; // FIXME: In the future, disable this when about:tracing is off.
     CCOcclusionTrackerImpl occlusionTracker(scissorRect, recordMetricsForFrame);
@@ -366,6 +375,15 @@ void CCLayerTreeHostImpl::animateLayersRecursive(CCLayerImpl* current, double mo
     }
 
     needsAnimateLayers = subtreeNeedsAnimateLayers;
+}
+
+void CCLayerTreeHostImpl::setBackgroundTickingEnabled(bool enabled)
+{
+    // Lazily create the timeSource adapter so that we can vary the interval for testing.
+    if (!m_timeSourceClientAdapter)
+        m_timeSourceClientAdapter = CCLayerTreeHostImplTimeSourceAdapter::create(this, CCDelayBasedTimeSource::create(lowFrequencyAnimationInterval(), CCProxy::currentThread()));
+
+    m_timeSourceClientAdapter->setActive(enabled);
 }
 
 IntSize CCLayerTreeHostImpl::contentSize() const
@@ -512,6 +530,8 @@ void CCLayerTreeHostImpl::setRootLayer(PassOwnPtr<CCLayerImpl> layer)
 
 void CCLayerTreeHostImpl::setVisible(bool visible)
 {
+    ASSERT(CCProxy::isImplThread());
+
     if (m_visible == visible)
         return;
     m_visible = visible;
@@ -522,8 +542,7 @@ void CCLayerTreeHostImpl::setVisible(bool visible)
 
     m_layerRenderer->setVisible(visible);
 
-    const bool shouldTickInBackground = !visible && m_needsAnimateLayers;
-    m_timeSourceClientAdapter->setActive(shouldTickInBackground);
+    setBackgroundTickingEnabled(!m_visible && m_needsAnimateLayers);
 }
 
 bool CCLayerTreeHostImpl::initializeLayerRenderer(PassRefPtr<GraphicsContext3D> context, TextureUploaderOption textureUploader)
@@ -552,6 +571,10 @@ void CCLayerTreeHostImpl::setViewportSize(const IntSize& viewportSize)
         return;
 
     m_viewportSize = viewportSize;
+
+    m_deviceViewportSize = viewportSize;
+    m_deviceViewportSize.scale(m_settings.deviceScaleFactor);
+
     updateMaxScrollPosition();
 
     if (m_layerRenderer)
@@ -628,8 +651,11 @@ void CCLayerTreeHostImpl::updateMaxScrollPosition()
             viewBounds = clipLayer->bounds();
     }
     viewBounds.scale(1 / m_pageScaleDelta);
+    viewBounds.scale(m_settings.deviceScaleFactor);
 
+    // maxScroll is computed in physical pixels, but scroll positions are in layout pixels.
     IntSize maxScroll = contentSize() - expandedIntSize(viewBounds);
+    maxScroll.scale(1 / m_settings.deviceScaleFactor);
     // The viewport may be larger than the contents in some cases, such as
     // having a vertical scrollbar but no horizontal overflow.
     maxScroll.clampNegativeToZero();
@@ -657,8 +683,13 @@ CCInputHandlerClient::ScrollStatus CCLayerTreeHostImpl::scrollBegin(const IntPoi
         return ScrollFailed;
     }
 
-    IntPoint scrollLayerContentPoint(m_scrollLayerImpl->screenSpaceTransform().inverse().mapPoint(viewportPoint));
-    if (m_scrollLayerImpl->nonFastScrollableRegion().contains(scrollLayerContentPoint)) {
+    IntPoint deviceViewportPoint = viewportPoint;
+    deviceViewportPoint.scale(m_settings.deviceScaleFactor, m_settings.deviceScaleFactor);
+
+    // The inverse of the screen space transform takes us from physical pixels to layout pixels.
+    IntPoint scrollLayerPoint(m_scrollLayerImpl->screenSpaceTransform().inverse().mapPoint(deviceViewportPoint));
+
+    if (m_scrollLayerImpl->nonFastScrollableRegion().contains(scrollLayerPoint)) {
         TRACE_EVENT("scrollBegin Failed nonFastScrollableRegion", this, 0);
         return ScrollFailed;
     }
@@ -757,8 +788,9 @@ void CCLayerTreeHostImpl::computePinchZoomDeltas(CCScrollAndScaleSet* scrollInfo
     FloatSize scrollEnd = scrollBegin + anchor;
     scrollEnd.scale(m_minPageScale / scaleBegin);
     scrollEnd -= anchor;
-    scrollEnd = scrollEnd.shrunkTo(roundedIntSize(scaledContentsSize - m_viewportSize)).expandedTo(FloatSize(0, 0));
+    scrollEnd = scrollEnd.shrunkTo(roundedIntSize(scaledContentsSize - m_deviceViewportSize)).expandedTo(FloatSize(0, 0));
     scrollEnd.scale(1 / pageScaleDeltaToSend);
+    scrollEnd.scale(m_settings.deviceScaleFactor);
 
     makeScrollAndScaleSet(scrollInfo, roundedIntSize(scrollEnd), m_minPageScale);
 }
@@ -848,8 +880,12 @@ void CCLayerTreeHostImpl::animateLayers(double monotonicTime, double wallClockTi
     if (didAnimate)
         m_client->setNeedsRedrawOnImplThread();
 
-    const bool shouldTickInBackground = m_needsAnimateLayers && !m_visible;
-    m_timeSourceClientAdapter->setActive(shouldTickInBackground);
+    setBackgroundTickingEnabled(!m_visible && m_needsAnimateLayers);
+}
+
+double CCLayerTreeHostImpl::lowFrequencyAnimationInterval() const
+{
+    return 1;
 }
 
 void CCLayerTreeHostImpl::sendDidLoseContextRecursive(CCLayerImpl* current)

@@ -26,6 +26,7 @@
 #ifndef InternalSettings_h
 #define InternalSettings_h
 
+#include "EditingBehaviorTypes.h"
 #include "FrameDestructionObserver.h"
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
@@ -74,8 +75,13 @@ public:
     bool scrollAnimatorEnabled(ExceptionCode&);
     void setCSSExclusionsEnabled(bool enabled, ExceptionCode&);
     void setMediaPlaybackRequiresUserGesture(bool, ExceptionCode&);
+    void setEditingBehavior(const String&, ExceptionCode&);
+    void setFixedPositionCreatesStackingContext(bool, ExceptionCode&);
+    void setSyncXHRInDocumentsEnabled(bool, ExceptionCode&);
 
     void restoreTo(Settings*);
+
+    void setJavaScriptProfilingEnabled(bool enabled, ExceptionCode&);
 
 private:
     InternalSettings(Frame*);
@@ -89,6 +95,12 @@ private:
     bool m_originalCSSExclusionsEnabled;
 #if ENABLE(SHADOW_DOM)
     bool m_originalShadowDOMEnabled;
+#endif
+    EditingBehaviorType m_originalEditingBehavior;
+    bool m_originalFixedPositionCreatesStackingContext;
+    bool m_originalSyncXHRInDocumentsEnabled;
+#if ENABLE(INSPECTOR) && ENABLE(JAVASCRIPT_DEBUGGER)
+    bool m_originalJavaScriptProfilingEnabled;
 #endif
 };
 

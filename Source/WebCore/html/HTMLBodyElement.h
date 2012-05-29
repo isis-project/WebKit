@@ -70,12 +70,12 @@ public:
 private:
     HTMLBodyElement(const QualifiedName&, Document*);
 
-    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual void parseAttribute(const Attribute&) OVERRIDE;
     virtual bool isPresentationAttribute(const QualifiedName&) const OVERRIDE;
-    virtual void collectStyleForAttribute(Attribute*, StylePropertySet*) OVERRIDE;
+    virtual void collectStyleForAttribute(const Attribute&, StylePropertySet*) OVERRIDE;
 
-    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
-    virtual void didNotifyDescendantInseretions(Node*) OVERRIDE;
+    virtual InsertionNotificationRequest insertedInto(ContainerNode*) OVERRIDE;
+    virtual void didNotifyDescendantInsertions(ContainerNode*) OVERRIDE;
     
     virtual bool isURLAttribute(const Attribute&) const OVERRIDE;
     

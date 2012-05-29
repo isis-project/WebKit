@@ -32,12 +32,14 @@
  * @constructor
  * @extends {WebInspector.UISourceCode}
  * @param {string} url
+ * @param {WebInspector.Resource} resource
  * @param {WebInspector.ContentProvider} contentProvider
  * @param {WebInspector.SourceMapping} sourceMapping
  */
-WebInspector.JavaScriptSource = function(url, contentProvider, sourceMapping)
+WebInspector.JavaScriptSource = function(url, resource, contentProvider, sourceMapping, isEditable)
 {
-    WebInspector.UISourceCode.call(this, url, contentProvider, sourceMapping);
+    WebInspector.UISourceCode.call(this, url, resource, contentProvider, sourceMapping);
+    this._isEditable = isEditable;
 
     this._formatterMapping = new WebInspector.IdentityFormatterSourceMapping();
     // FIXME: postpone breakpoints restore to after the mapping has been established.
@@ -45,7 +47,11 @@ WebInspector.JavaScriptSource = function(url, contentProvider, sourceMapping)
         if (!this._formatted)
             WebInspector.breakpointManager.restoreBreakpoints(this);
     }.bind(this), 0);
+    if (resource)
+        WebInspector.JavaScriptSource.javaScriptSourceForResource.put(resource, this);
 }
+
+WebInspector.JavaScriptSource.javaScriptSourceForResource = new Map();
 
 WebInspector.JavaScriptSource.prototype = {
     /**
@@ -96,7 +102,7 @@ WebInspector.JavaScriptSource.prototype = {
         {
             if (!formatted) {
                 this._togglingFormatter = true;
-                this.contentChanged(content || "");
+                this.contentChanged(content || "", mimeType);
                 delete this._togglingFormatter;
                 this._formatterMapping = new WebInspector.IdentityFormatterSourceMapping();
                 this.updateLiveLocations();
@@ -115,7 +121,7 @@ WebInspector.JavaScriptSource.prototype = {
             function didFormatContent(formattedContent, formatterMapping)
             {
                 this._togglingFormatter = true;
-                this.contentChanged(formattedContent);
+                this.contentChanged(formattedContent, mimeType);
                 delete this._togglingFormatter;
                 this._formatterMapping = formatterMapping;
                 this.updateLiveLocations();
@@ -161,6 +167,35 @@ WebInspector.JavaScriptSource.prototype = {
     breakpointStorageId: function()
     {
         return this._formatted ? "deobfuscated:" + this.url : this.url;
+    },
+
+    /**
+     * @return {boolean}
+     */
+    isEditable: function()
+    {
+        return this._isEditable && WebInspector.debuggerModel.canSetScriptSource();
+    },
+
+    /**
+     * @param {function(?string)} callback
+     */
+    workingCopyCommitted: function(callback)
+    {  
+        WebInspector.DebuggerResourceBinding.setScriptSource(this, this.workingCopy(), callback);
+    },
+
+    /**
+     * @param {string} query
+     * @param {boolean} caseSensitive
+     * @param {boolean} isRegex
+     * @param {function(Array.<WebInspector.ContentProvider.SearchMatch>)} callback
+     */
+    searchInContent: function(query, caseSensitive, isRegex, callback)
+    {
+        var content = this.content();
+        var provider = content ? new WebInspector.StaticContentProvider(this._contentProvider.contentType(), content) : this._contentProvider;
+        provider.searchInContent(query, caseSensitive, isRegex, callback);
     }
 }
 

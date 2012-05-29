@@ -76,7 +76,7 @@ typedef Vector<CueIntervalTree::IntervalType> CueList;
 // But it can't be until the Chromium WebMediaPlayerClientImpl class is fixed so it
 // no longer depends on typecasting a MediaPlayerClient to an HTMLMediaElement.
 
-class HTMLMediaElement : public HTMLElement, public MediaPlayerClient, private MediaCanStartListener, public ActiveDOMObject, public MediaControllerInterface
+class HTMLMediaElement : public HTMLElement, public MediaPlayerClient, public MediaPlayerSupportsTypeClient, private MediaCanStartListener, public ActiveDOMObject, public MediaControllerInterface
 #if ENABLE(VIDEO_TRACK)
     , private TextTrackClient
 #endif
@@ -174,12 +174,18 @@ public:
     const KURL& webkitMediaSourceURL() const { return m_mediaSourceURL; }
     void webkitSourceAddId(const String&, const String&, ExceptionCode&);
     void webkitSourceRemoveId(const String&, ExceptionCode&);
-    void webkitSourceAppend(PassRefPtr<Uint8Array> data, ExceptionCode&);
+    PassRefPtr<TimeRanges> webkitSourceBuffered(const String&, ExceptionCode&);
+    void webkitSourceAppend(const String&, PassRefPtr<Uint8Array> data, ExceptionCode&);
+    void webkitSourceAbort(const String&, ExceptionCode&);
     enum EndOfStreamStatus { EOS_NO_ERROR, EOS_NETWORK_ERR, EOS_DECODE_ERR };
     void webkitSourceEndOfStream(unsigned short, ExceptionCode&);
     enum SourceState { SOURCE_CLOSED, SOURCE_OPEN, SOURCE_ENDED };
     SourceState webkitSourceState() const;
     void setSourceState(SourceState);
+
+    DEFINE_ATTRIBUTE_EVENT_LISTENER(webkitsourceopen);
+    DEFINE_ATTRIBUTE_EVENT_LISTENER(webkitsourceended);
+    DEFINE_ATTRIBUTE_EVENT_LISTENER(webkitsourceclose);
 #endif 
 
 #if ENABLE(ENCRYPTED_MEDIA)
@@ -323,7 +329,7 @@ protected:
     HTMLMediaElement(const QualifiedName&, Document*, bool);
     virtual ~HTMLMediaElement();
 
-    virtual void parseAttribute(Attribute*) OVERRIDE;
+    virtual void parseAttribute(const Attribute&) OVERRIDE;
     virtual void finishParsingChildren();
     virtual bool isURLAttribute(const Attribute&) const OVERRIDE;
     virtual void attach();
@@ -362,8 +368,8 @@ private:
     virtual bool rendererIsNeeded(const NodeRenderingContext&);
     virtual RenderObject* createRenderer(RenderArena*, RenderStyle*);
     virtual bool childShouldCreateRenderer(const NodeRenderingContext&) const OVERRIDE;
-    virtual InsertionNotificationRequest insertedInto(Node*) OVERRIDE;
-    virtual void removedFrom(Node*) OVERRIDE;
+    virtual InsertionNotificationRequest insertedInto(ContainerNode*) OVERRIDE;
+    virtual void removedFrom(ContainerNode*) OVERRIDE;
     virtual void didRecalcStyle(StyleChange);
     
     virtual void defaultEventHandler(Event*);
@@ -421,6 +427,9 @@ private:
 
     virtual String mediaPlayerReferrer() const OVERRIDE;
     virtual String mediaPlayerUserAgent() const OVERRIDE;
+
+    virtual bool mediaPlayerNeedsSiteSpecificHacks() const OVERRIDE;
+    virtual String mediaPlayerDocumentHost() const OVERRIDE;
 
     void loadTimerFired(Timer<HTMLMediaElement>*);
     void progressEventTimerFired(Timer<HTMLMediaElement>*);

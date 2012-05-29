@@ -31,11 +31,16 @@
 #include "config.h"
 #include "WebInputElement.h"
 
+#include "ElementShadow.h"
 #include "HTMLDataListElement.h"
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
+#include "ShadowRoot.h"
 #include "TextControlInnerElements.h"
+#include "TextFieldDecorationElement.h"
+#include "TextFieldDecoratorImpl.h"
 #include "WebNodeCollection.h"
+#include "WebTextFieldDecoratorClient.h"
 #include "platform/WebString.h"
 #include <wtf/PassRefPtr.h>
 
@@ -96,6 +101,16 @@ void WebInputElement::setValue(const WebString& value, bool sendChangeEvent)
 WebString WebInputElement::value() const
 {
     return constUnwrap<HTMLInputElement>()->value();
+}
+
+WebString WebInputElement::editingValue() const
+{
+    return constUnwrap<HTMLInputElement>()->innerTextValue();
+}
+
+void WebInputElement::setEditingValue(const WebString& value)
+{
+    unwrap<HTMLInputElement>()->setEditingValue(value);
 }
 
 void WebInputElement::setSuggestedValue(const WebString& value)
@@ -168,6 +183,11 @@ WebNodeCollection WebInputElement::dataListOptions() const
     return WebNodeCollection();
 }
 
+WebString WebInputElement::localizeValue(const WebString& proposedValue) const
+{
+    return constUnwrap<HTMLInputElement>()->localizeValue(proposedValue);
+}
+
 bool WebInputElement::isSpeechInputEnabled() const
 {
 #if ENABLE(INPUT_SPEECH)
@@ -209,6 +229,18 @@ void WebInputElement::stopSpeechInput()
 int WebInputElement::defaultMaxLength()
 {
     return HTMLInputElement::maximumLength;
+}
+
+WebElement WebInputElement::decorationElementFor(WebTextFieldDecoratorClient* decoratorClient)
+{
+    ShadowRoot* shadowRoot = unwrap<HTMLInputElement>()->youngestShadowRoot();
+    while (shadowRoot) {
+        TextFieldDecorationElement* decoration = TextFieldDecorationElement::fromShadowRoot(shadowRoot);
+        if (decoration && decoratorClient->isClientFor(decoration->textFieldDecorator()))
+            return WebElement(decoration);
+        shadowRoot = shadowRoot->olderShadowRoot();
+    }
+    return WebElement();
 }
 
 WebInputElement::WebInputElement(const PassRefPtr<HTMLInputElement>& elem)

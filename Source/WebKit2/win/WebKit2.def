@@ -172,6 +172,7 @@ EXPORTS
         ?find@StringImpl@WTF@@QAEIPAV12@I@Z
         ?find@StringImpl@WTF@@QAEIPAV12@@Z
         ?frameDestroyed@FrameDestructionObserver@WebCore@@UAEXXZ
+        ?absoluteCaretBounds@FrameSelection@WebCore@@QAE?AVIntRect@2@XZ
         ?fromUTF8WithLatin1Fallback@String@WTF@@SA?AV12@PBEI@Z
         ?getCachedDOMStructure@WebCore@@YAPAVStructure@JSC@@PAVJSDOMGlobalObject@1@PBUClassInfo@3@@Z
         ?getData16SlowCase@StringImpl@WTF@@ABEPB_WXZ
@@ -203,8 +204,6 @@ EXPORTS
         ?remove@String@WTF@@QAEXIH@Z
         ?reverseFind@StringImpl@WTF@@QAEI_WI@Z
         ?s_frontendCounter@InspectorInstrumentation@WebCore@@0HA
-        ?s_info@JSNode@WebCore@@2UClassInfo@JSC@@B
-        ?s_info@JSDOMGlobalObject@WebCore@@2UClassInfo@JSC@@B
         ?scriptExecutionContext@JSDOMGlobalObject@WebCore@@QBEPAVScriptExecutionContext@2@XZ
         ?scriptNameToCode@WebCore@@YA?AW4UScriptCode@@ABVString@WTF@@@Z
         ?scrollElementToRect@FrameView@WebCore@@QAEXPAVElement@2@ABVIntRect@2@@Z
@@ -224,6 +223,7 @@ EXPORTS
         ?setSerifFontFamily@Settings@WebCore@@QAEXABVAtomicString@WTF@@W4UScriptCode@@@Z
         ?setStandardFontFamily@Settings@WebCore@@QAEXABVAtomicString@WTF@@W4UScriptCode@@@Z
         ?setSuggestedValue@HTMLInputElement@WebCore@@QAEXABVString@WTF@@@Z
+        ?setEditingValue@HTMLInputElement@WebCore@@QAEXABVString@WTF@@@Z
         ?settings@Document@WebCore@@QBEPAVSettings@2@XZ
         ?settings@Frame@WebCore@@QBEPAVSettings@2@XZ
         ?setFixedElementsLayoutRelativeToFrame@Settings@WebCore@@QAEX_N@Z
@@ -255,3 +255,6 @@ EXPORTS
         ?isPageBoxVisible@Document@WebCore@@QAE_NH@Z
         ?suspendAnimations@AnimationController@WebCore@@QAEXXZ
         ?resumeAnimations@AnimationController@WebCore@@QAEXXZ
+        ?setAllowsRoundingHacks@TextRun@WebCore@@SAX_N@Z
+        ?profilerEnabled@InspectorController@WebCore@@QAE_NXZ
+        ?setProfilerEnabled@InspectorController@WebCore@@QAEX_N@Z

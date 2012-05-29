@@ -123,7 +123,7 @@ JSObject* JSTestMediaQueryListListener::createPrototype(ExecState* exec, JSGloba
 
 void JSTestMediaQueryListListener::destroy(JSC::JSCell* cell)
 {
-    JSTestMediaQueryListListener* thisObject = jsCast<JSTestMediaQueryListListener*>(cell);
+    JSTestMediaQueryListListener* thisObject = static_cast<JSTestMediaQueryListListener*>(cell);
     thisObject->JSTestMediaQueryListListener::~JSTestMediaQueryListListener();
 }
 

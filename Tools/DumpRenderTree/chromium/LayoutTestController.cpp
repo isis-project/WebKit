@@ -49,10 +49,12 @@
 #include "WebGeolocationClientMock.h"
 #include "WebIDBFactory.h"
 #include "WebInputElement.h"
+#include "WebIntent.h"
 #include "WebIntentRequest.h"
 #include "WebKit.h"
 #include "WebNotificationPresenter.h"
 #include "WebPermissions.h"
+#include "WebPrintParams.h"
 #include "WebScriptSource.h"
 #include "WebSecurityPolicy.h"
 #include "platform/WebSerializedScriptValue.h"
@@ -79,12 +81,23 @@ using namespace WebCore;
 using namespace WebKit;
 using namespace std;
 
+class EmptyWebDeliveredIntentClient : public WebKit::WebDeliveredIntentClient {
+public:
+    EmptyWebDeliveredIntentClient() { }
+    ~EmptyWebDeliveredIntentClient() { }
+
+    virtual void postResult(const WebSerializedScriptValue& data) const { }
+    virtual void postFailure(const WebSerializedScriptValue& data) const { }
+    virtual void destroy() { }
+};
+
 LayoutTestController::LayoutTestController(TestShell* shell)
     : m_shell(shell)
     , m_closeRemainingWindows(false)
     , m_deferMainResourceDataLoad(false)
     , m_showDebugLayerTree(false)
     , m_workQueue(this)
+    , m_intentClient(adoptPtr(new EmptyWebDeliveredIntentClient))
     , m_shouldStayOnPageAfterHandlingBeforeUnload(false)
 {
 
@@ -179,12 +192,10 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("setDatabaseQuota", &LayoutTestController::setDatabaseQuota);
     bindMethod("setDeferMainResourceDataLoad", &LayoutTestController::setDeferMainResourceDataLoad);
     bindMethod("setDomainRelaxationForbiddenForURLScheme", &LayoutTestController::setDomainRelaxationForbiddenForURLScheme);
-    bindMethod("setEditingBehavior", &LayoutTestController::setEditingBehavior);
     bindMethod("setAudioData", &LayoutTestController::setAudioData);
     bindMethod("setGeolocationPermission", &LayoutTestController::setGeolocationPermission);
     bindMethod("setIconDatabaseEnabled", &LayoutTestController::setIconDatabaseEnabled);
     bindMethod("setJavaScriptCanAccessClipboard", &LayoutTestController::setJavaScriptCanAccessClipboard);
-    bindMethod("setJavaScriptProfilingEnabled", &LayoutTestController::setJavaScriptProfilingEnabled);
     bindMethod("setMinimumTimerInterval", &LayoutTestController::setMinimumTimerInterval);
     bindMethod("setMockDeviceOrientation", &LayoutTestController::setMockDeviceOrientation);
     bindMethod("setMockGeolocationError", &LayoutTestController::setMockGeolocationError);
@@ -271,6 +282,7 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindProperty("interceptPostMessage", &m_interceptPostMessage);
     bindProperty("workerThreadCount", &LayoutTestController::workerThreadCount);
     bindMethod("sendWebIntentResponse", &LayoutTestController::sendWebIntentResponse);
+    bindMethod("deliverWebIntent", &LayoutTestController::deliverWebIntent);
 }
 
 LayoutTestController::~LayoutTestController()
@@ -1544,6 +1556,8 @@ void LayoutTestController::overridePreference(const CppArgumentList& arguments, 
         prefs->experimentalWebGLEnabled = cppVariantToBool(value);
     else if (key == "WebKitCSSRegionsEnabled")
         prefs->experimentalCSSRegionsEnabled = cppVariantToBool(value);
+    else if (key == "WebKitCSSGridLayoutEnabled")
+        prefs->experimentalCSSGridLayoutEnabled = cppVariantToBool(value);
     else if (key == "WebKitHyperlinkAuditingEnabled")
         prefs->hyperlinkAuditingEnabled = cppVariantToBool(value);
     else if (key == "WebKitEnableCaretBrowsing")
@@ -1793,8 +1807,8 @@ void LayoutTestController::numberOfPages(const CppArgumentList& arguments, CppVa
     WebFrame* frame = m_shell->webView()->mainFrame();
     if (!frame)
         return;
-    WebSize size(pageWidthInPixels, pageHeightInPixels);
-    int numberOfPages = frame->printBegin(size);
+    WebPrintParams printParams(WebSize(pageWidthInPixels, pageHeightInPixels));
+    int numberOfPages = frame->printBegin(printParams);
     frame->printEnd();
     result->set(numberOfPages);
 }
@@ -1814,14 +1828,6 @@ void LayoutTestController::logErrorToConsole(const std::string& text)
     m_shell->webViewHost()->didAddMessageToConsole(
         WebConsoleMessage(WebConsoleMessage::LevelError, WebString::fromUTF8(text)),
         WebString(), 0);
-}
-
-void LayoutTestController::setJavaScriptProfilingEnabled(const CppArgumentList& arguments, CppVariant* result)
-{
-    result->setNull();
-    if (arguments.size() < 1 || !arguments[0].isBool())
-        return;
-    m_shell->drtDevToolsAgent()->setJavaScriptProfilingEnabled(arguments[0].toBoolean());
 }
 
 void LayoutTestController::evaluateInWebInspector(const CppArgumentList& arguments, CppVariant* result)
@@ -1860,22 +1866,6 @@ void LayoutTestController::addUserStyleSheet(const CppArgumentList& arguments, C
         // Chromium defaults to InjectInSubsequentDocuments, but for compatibility
         // with the other ports' DRTs, we use UserStyleInjectInExistingDocuments.
         WebView::UserStyleInjectInExistingDocuments);
-}
-
-void LayoutTestController::setEditingBehavior(const CppArgumentList& arguments, CppVariant* results)
-{
-    string key = arguments[0].toString();
-    if (key == "mac") {
-        m_shell->preferences()->editingBehavior = WebSettings::EditingBehaviorMac;
-        m_shell->applyPreferences();
-    } else if (key == "win") {
-        m_shell->preferences()->editingBehavior = WebSettings::EditingBehaviorWin;
-        m_shell->applyPreferences();
-    } else if (key == "unix") {
-        m_shell->preferences()->editingBehavior = WebSettings::EditingBehaviorUnix;
-        m_shell->applyPreferences();
-    } else
-        logErrorToConsole("Passed invalid editing behavior. Should be 'mac', 'win', or 'unix'.");
 }
 
 void LayoutTestController::setMockDeviceOrientation(const CppArgumentList& arguments, CppVariant* result)
@@ -2153,6 +2143,27 @@ void LayoutTestController::sendWebIntentResponse(const CppArgumentList& argument
     result->setNull();
 }
 
+void LayoutTestController::deliverWebIntent(const CppArgumentList& arguments, CppVariant* result)
+{
+    if (arguments.size() <  3)
+        return;
+
+    v8::HandleScope scope;
+    v8::Local<v8::Context> ctx = m_shell->webView()->mainFrame()->mainWorldScriptContext();
+    result->set(m_shell->webView()->mainFrame()->selectionAsMarkup().utf8());
+    v8::Context::Scope cscope(ctx);
+
+    WebString action = cppVariantToWebString(arguments[0]);
+    WebString type = cppVariantToWebString(arguments[1]);
+    WebKit::WebCString data = cppVariantToWebString(arguments[2]).utf8();
+    WebSerializedScriptValue serializedData = WebSerializedScriptValue::serialize(
+        v8::String::New(data.data(), data.length()));
+
+    WebIntent intent(action, type, serializedData.toString());
+
+    m_shell->webView()->mainFrame()->deliverIntent(intent, m_intentClient.get());
+}
+
 void LayoutTestController::setPluginsEnabled(const CppArgumentList& arguments, CppVariant* result)
 {
     if (arguments.size() > 0 && arguments[0].isBool()) {
@@ -2180,6 +2191,11 @@ void LayoutTestController::setPageVisibility(const CppArgumentList& arguments, C
         else if (newVisibility == "preview")
             m_shell->webView()->setVisibilityState(WebPageVisibilityStatePreview, false);
     }
+}
+
+void LayoutTestController::setAutomaticLinkDetectionEnabled(bool)
+{
+    // Not Implemented
 }
 
 void LayoutTestController::setTextDirection(const CppArgumentList& arguments, CppVariant* result)

@@ -85,7 +85,7 @@
 #if HAVE(QT5)
 #include "QtX11ImageConversion.h"
 #include <QGuiApplication>
-#include <QPlatformNativeInterface>
+#include <qpa/qplatformnativeinterface.h>
 #include <QWindow>
 #else
 #include "PluginContainerQt.h"
