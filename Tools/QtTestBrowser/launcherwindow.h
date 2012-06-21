@@ -126,6 +126,8 @@ public:
 protected slots:
     void loadStarted();
     void loadFinished();
+    void enterFullScreenRequested();
+    void exitFullScreenRequested();
 
     void showLinkHover(const QString &link, const QString &toolTip);
 
