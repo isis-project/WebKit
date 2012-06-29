@@ -29,7 +29,6 @@
 #include <wtf/PassOwnArrayPtr.h>
 #include <wtf/PassRefPtr.h>
 #include <wtf/RefCounted.h>
-#include <QDebug>
 
 #if PLATFORM(QT)
 #if QT_VERSION >= 0x050000
@@ -246,7 +245,6 @@ TextureMapperGL::TextureMapperGL()
     : m_data(new TextureMapperGLData)
     , m_context(0)
 {
-    qDebug()<<__PRETTY_FUNCTION__;
 }
 
 TextureMapperGL::ClipStack& TextureMapperGL::clipStack()
@@ -256,7 +254,6 @@ TextureMapperGL::ClipStack& TextureMapperGL::clipStack()
 
 void TextureMapperGL::beginPainting(PaintFlags flags)
 {
-    qDebug()<<"XXWK"<<__PRETTY_FUNCTION__;
     // Make sure that no GL error code stays from previous operations.
     glGetError();
 
@@ -288,7 +285,6 @@ void TextureMapperGL::beginPainting(PaintFlags flags)
 
 void TextureMapperGL::endPainting()
 {
-    qDebug()<<"XXWK"<<__PRETTY_FUNCTION__;
     if (data().didModifyStencil) {
         glClearStencil(1);
         glClear(GL_STENCIL_BUFFER_BIT);
@@ -368,10 +364,8 @@ void TextureMapperGL::drawBorder(const Color& color, float width, const FloatRec
 
 void TextureMapperGL::drawTexture(const BitmapTexture& texture, const FloatRect& targetRect, const TransformationMatrix& matrix, float opacity, const BitmapTexture* mask)
 {
-    if (!texture.isValid()) {
-        qDebug()<<"++++++++++++invalid texture!";
+    if (!texture.isValid())
         return;
-    }
 
     if (clipStack().current().scissorBox.isEmpty())
         return;
@@ -474,7 +468,6 @@ void BitmapTextureGL::didReset()
 
 void BitmapTextureGL::updateContents(const void* data, const IntRect& targetRect, const IntPoint& sourceOffset, int bytesPerLine)
 {
-    qDebug()<<__PRETTY_FUNCTION__;
     GLuint glFormat = GL_RGBA;
     GL_CMD(glBindTexture(GL_TEXTURE_2D, m_id));
 
@@ -515,7 +508,6 @@ void BitmapTextureGL::updateContents(const void* data, const IntRect& targetRect
 
 void BitmapTextureGL::updateContents(Image* image, const IntRect& targetRect, const IntPoint& offset)
 {
-    qDebug()<<__PRETTY_FUNCTION__<<"image:"<<image<<"frameImage:"<<image->nativeImageForCurrentFrame();
     if (!image)
         return;
     NativeImagePtr frameImage = image->nativeImageForCurrentFrame();
@@ -525,13 +517,6 @@ void BitmapTextureGL::updateContents(Image* image, const IntRect& targetRect, co
     int bytesPerLine;
     const char* imageData;
 
-/*    if(frameImage && targetRect == sourceRect) {
-        qDebug()<<"REMAPPING"<<m_id;
-            glDeleteTextures(1, &m_id);
-            m_id = QGLContext::currentContext()->bindTexture(*frameImage, GL_TEXTURE_2D, frameImage->hasAlpha()?GL_RGBA:GL_RGB);
-            qDebug()<<"TO"<<m_id;
-    }
-*/
 #if PLATFORM(QT)
     QImage qtImage;
 #if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
