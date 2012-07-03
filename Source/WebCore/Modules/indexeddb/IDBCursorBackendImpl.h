@@ -42,7 +42,6 @@ class IDBDatabaseBackendImpl;
 class IDBIndexBackendImpl;
 class IDBKeyRange;
 class IDBObjectStoreBackendInterface;
-class IDBBackingStore;
 class IDBTransactionBackendInterface;
 class SerializedScriptValue;
 
@@ -54,7 +53,6 @@ public:
     }
     virtual ~IDBCursorBackendImpl();
 
-    virtual unsigned short direction() const;
     virtual PassRefPtr<IDBKey> key() const;
     virtual PassRefPtr<IDBKey> primaryKey() const;
     virtual PassRefPtr<SerializedScriptValue> value() const;

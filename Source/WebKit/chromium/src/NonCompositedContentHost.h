@@ -29,6 +29,7 @@
 #include "GraphicsLayerClient.h"
 #include "IntSize.h"
 
+#include <public/WebScrollableLayer.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/OwnPtr.h>
 #include <wtf/PassOwnPtr.h>
@@ -39,31 +40,31 @@ class GraphicsLayer;
 class GraphicsContext;
 class IntPoint;
 class IntRect;
-class LayerChromium;
-class LayerPainterChromium;
 }
 
 namespace WebKit {
+class WebViewImpl;
 
 class NonCompositedContentHost : public WebCore::GraphicsLayerClient {
 WTF_MAKE_NONCOPYABLE(NonCompositedContentHost);
 public:
-    static PassOwnPtr<NonCompositedContentHost> create(PassOwnPtr<WebCore::LayerPainterChromium> contentPaint)
+    static PassOwnPtr<NonCompositedContentHost> create(WebViewImpl* webView)
     {
-        return adoptPtr(new NonCompositedContentHost(contentPaint));
+        return adoptPtr(new NonCompositedContentHost(webView));
     }
     virtual ~NonCompositedContentHost();
 
     void invalidateRect(const WebCore::IntRect&);
     void setBackgroundColor(const WebCore::Color&);
+    void setOpaque(bool);
     void setScrollLayer(WebCore::GraphicsLayer*);
-    void setViewport(const WebCore::IntSize& viewportSize, const WebCore::IntSize& contentsSize, const WebCore::IntPoint& scrollPosition, float deviceScale, int layerAdjustX);
+    void setViewport(const WebCore::IntSize& viewportSize, const WebCore::IntSize& contentsSize, const WebCore::IntPoint& scrollPosition, const WebCore::IntPoint& scrollOrigin, float deviceScale);
     WebCore::GraphicsLayer* topLevelRootLayer() const { return m_graphicsLayer.get(); }
 
     void setShowDebugBorders(bool);
 
 protected:
-    explicit NonCompositedContentHost(PassOwnPtr<WebCore::LayerPainterChromium> contentPaint);
+    explicit NonCompositedContentHost(WebViewImpl*);
 
 private:
     // GraphicsLayerClient
@@ -78,12 +79,15 @@ private:
     // size, so it is always 1 for the GraphicsLayer.
     virtual float deviceScaleFactor() const OVERRIDE { return m_deviceScaleFactor; }
 
-    WebCore::LayerChromium* scrollLayer();
+    bool haveScrollLayer();
+    WebScrollableLayer scrollLayer();
 
     OwnPtr<WebCore::GraphicsLayer> m_graphicsLayer;
-    OwnPtr<WebCore::LayerPainterChromium> m_contentPaint;
+    WebViewImpl* m_webView;
     WebCore::IntSize m_viewportSize;
-    int m_layerAdjustX;
+    WebCore::IntSize m_layerAdjust;
+
+    bool m_opaque;
     bool m_showDebugBorders;
     float m_deviceScaleFactor;
 };

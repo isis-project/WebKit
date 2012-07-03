@@ -43,6 +43,16 @@
 
 namespace JSC {
 
+JSCell* getCallableObjectSlow(JSCell* cell)
+{
+    Structure* structure = cell->structure();
+    if (structure->typeInfo().type() == JSFunctionType)
+        return cell;
+    if (structure->classInfo()->isSubClassOf(&InternalFunction::s_info))
+        return cell;
+    return 0;
+}
+
 ASSERT_CLASS_FITS_IN_CELL(JSObject);
 ASSERT_CLASS_FITS_IN_CELL(JSNonFinalObject);
 ASSERT_CLASS_FITS_IN_CELL(JSFinalObject);
@@ -56,7 +66,7 @@ const ClassInfo JSObject::s_info = { "Object", 0, 0, 0, CREATE_METHOD_TABLE(JSOb
 
 const ClassInfo JSFinalObject::s_info = { "Object", &Base::s_info, 0, 0, CREATE_METHOD_TABLE(JSFinalObject) };
 
-static inline void getClassPropertyNames(ExecState* exec, const ClassInfo* classInfo, PropertyNameArray& propertyNames, EnumerationMode mode)
+static inline void getClassPropertyNames(ExecState* exec, const ClassInfo* classInfo, PropertyNameArray& propertyNames, EnumerationMode mode, bool didReify)
 {
     // Add properties from the static hashtables of properties
     for (; classInfo; classInfo = classInfo->parentClass) {
@@ -69,7 +79,7 @@ static inline void getClassPropertyNames(ExecState* exec, const ClassInfo* class
         int hashSizeMask = table->compactSize - 1;
         const HashEntry* entry = table->table;
         for (int i = 0; i <= hashSizeMask; ++i, ++entry) {
-            if (entry->key() && (!(entry->attributes() & DontEnum) || (mode == IncludeDontEnumProperties)))
+            if (entry->key() && (!(entry->attributes() & DontEnum) || (mode == IncludeDontEnumProperties)) && !((entry->attributes() & Function) && didReify))
                 propertyNames.add(entry->key());
         }
     }
@@ -133,7 +143,7 @@ void JSObject::put(JSCell* cell, ExecState* exec, PropertyName propertyName, JSV
         for (JSObject* obj = thisObject; !obj->structure()->hasReadOnlyOrGetterSetterPropertiesExcludingProto(); obj = asObject(prototype)) {
             prototype = obj->prototype();
             if (prototype.isNull()) {
-                if (!thisObject->putDirectInternal<PutModePut>(globalData, propertyName, value, 0, slot, getJSFunction(value)) && slot.isStrictMode())
+                if (!thisObject->putDirectInternal<PutModePut>(globalData, propertyName, value, 0, slot, getCallableObject(value)) && slot.isStrictMode())
                     throwTypeError(exec, StrictModeReadonlyPropertyWriteError);
                 return;
             }
@@ -180,7 +190,7 @@ void JSObject::put(JSCell* cell, ExecState* exec, PropertyName propertyName, JSV
             break;
     }
     
-    if (!thisObject->putDirectInternal<PutModePut>(globalData, propertyName, value, 0, slot, getJSFunction(value)) && slot.isStrictMode())
+    if (!thisObject->putDirectInternal<PutModePut>(globalData, propertyName, value, 0, slot, getCallableObject(value)) && slot.isStrictMode())
         throwTypeError(exec, StrictModeReadonlyPropertyWriteError);
     return;
 }
@@ -196,7 +206,7 @@ void JSObject::putDirectVirtual(JSObject* object, ExecState* exec, PropertyName 
 {
     ASSERT(!value.isGetterSetter() && !(attributes & Accessor));
     PutPropertySlot slot;
-    object->putDirectInternal<PutModeDefineOwnProperty>(exec->globalData(), propertyName, value, attributes, slot, getJSFunction(value));
+    object->putDirectInternal<PutModeDefineOwnProperty>(exec->globalData(), propertyName, value, attributes, slot, getCallableObject(value));
 }
 
 bool JSObject::setPrototypeWithCycleCheck(JSGlobalData& globalData, JSValue prototype)
@@ -226,7 +236,7 @@ void JSObject::putDirectAccessor(JSGlobalData& globalData, PropertyName property
     ASSERT(value.isGetterSetter() && (attributes & Accessor));
 
     PutPropertySlot slot;
-    putDirectInternal<PutModeDefineOwnProperty>(globalData, propertyName, value, attributes, slot, getJSFunction(value));
+    putDirectInternal<PutModeDefineOwnProperty>(globalData, propertyName, value, attributes, slot, getCallableObject(value));
 
     // putDirect will change our Structure if we add a new property. For
     // getters and setters, though, we also need to change our Structure
@@ -417,9 +427,8 @@ void JSObject::getPropertyNames(JSObject* object, ExecState* exec, PropertyNameA
 
 void JSObject::getOwnPropertyNames(JSObject* object, ExecState* exec, PropertyNameArray& propertyNames, EnumerationMode mode)
 {
+    getClassPropertyNames(exec, object->classInfo(), propertyNames, mode, object->staticFunctionsReified());
     object->structure()->getPropertyNamesFromStructure(exec->globalData(), propertyNames, mode);
-    if (!object->staticFunctionsReified())
-        getClassPropertyNames(exec, object->classInfo(), propertyNames, mode);
 }
 
 double JSObject::toNumber(ExecState* exec) const
@@ -505,22 +514,25 @@ void JSObject::reifyStaticFunctionsForDelete(ExecState* exec)
     structure()->setStaticFunctionsReified();
 }
 
-void JSObject::removeDirect(JSGlobalData& globalData, PropertyName propertyName)
+bool JSObject::removeDirect(JSGlobalData& globalData, PropertyName propertyName)
 {
     if (structure()->get(globalData, propertyName) == WTF::notFound)
-        return;
+        return false;
 
     size_t offset;
     if (structure()->isUncacheableDictionary()) {
         offset = structure()->removePropertyWithoutTransition(globalData, propertyName);
-        if (offset != WTF::notFound)
-            putUndefinedAtDirectOffset(offset);
-        return;
+        if (offset == WTF::notFound)
+            return false;
+        putUndefinedAtDirectOffset(offset);
+        return true;
     }
 
     setStructure(globalData, Structure::removePropertyTransition(globalData, structure(), propertyName, offset));
-    if (offset != WTF::notFound)
-        putUndefinedAtDirectOffset(offset);
+    if (offset == WTF::notFound)
+        return false;
+    putUndefinedAtDirectOffset(offset);
+    return true;
 }
 
 NEVER_INLINE void JSObject::fillGetterPropertySlot(PropertySlot& slot, WriteBarrierBase<Unknown>* location)

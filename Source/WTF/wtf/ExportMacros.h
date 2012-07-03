@@ -32,6 +32,22 @@
 
 #include <wtf/Platform.h>
 
+// Different platforms have different defaults for symbol visibility. Usually
+// the compiler and the linker just take care of it. However for references to
+// runtime routines from JIT stubs, it matters to be able to declare a symbol as
+// being local to the target being generated, and thus not subject to (e.g.) ELF
+// symbol interposition rules.
+
+#if !PLATFORM(CHROMIUM) && OS(WINDOWS) && !COMPILER(GCC)
+#define HAVE_INTERNAL_VISIBILITY 1
+#define WTF_INTERNAL
+#elif defined(__GNUC__) && !defined(__CC_ARM) && !defined(__ARMCC__)
+#define HAVE_INTERNAL_VISIBILITY 1
+#define WTF_INTERNAL __attribute__((visibility("hidden")))
+#else
+#define WTF_INTERNAL
+#endif
+
 // See note in wtf/Platform.h for more info on EXPORT_MACROS.
 #if USE(EXPORT_MACROS)
 
@@ -49,14 +65,9 @@
 #define WTF_HIDDEN
 #endif
 
-// Currently WTF is embedded statically in JSCore, which exports 
-// WTF symbols in the JSCore shared library.
-// Because of this, we need to make sure that we use WTF_EXPORT
-// when building JavaScriptCore as well as WTF.
-
 // FIXME: When all ports are using the export macros, we should replace
 // WTF_EXPORTDATA with WTF_EXPORT_PRIVATE macros.
-#if defined(BUILDING_WTF)  || defined(BUILDING_JavaScriptCore)
+#if defined(BUILDING_WTF) || defined(STATICALLY_LINKED_WITH_WTF) || (PLATFORM(WX) && defined(BUILDING_JavaScriptCore))
 #define WTF_EXPORTDATA WTF_EXPORT
 #else
 #define WTF_EXPORTDATA WTF_IMPORT
@@ -65,7 +76,7 @@
 #else // !USE(EXPORT_MACROS)
 
 #if !PLATFORM(CHROMIUM) && OS(WINDOWS) && !COMPILER(GCC)
-#if defined(BUILDING_WTF) || defined(BUILDING_JavaScriptCore)
+#if defined(BUILDING_WTF) || defined(STATICALLY_LINKED_WITH_WTF)
 #define WTF_EXPORTDATA __declspec(dllexport)
 #else
 #define WTF_EXPORTDATA __declspec(dllimport)
@@ -82,7 +93,7 @@
 
 #endif // USE(EXPORT_MACROS)
 
-#if defined(BUILDING_WTF)  || defined(BUILDING_JavaScriptCore)
+#if defined(BUILDING_WTF) || defined(STATICALLY_LINKED_WITH_WTF) || (PLATFORM(WX) && defined(BUILDING_JavaScriptCore))
 #define WTF_EXPORT_PRIVATE WTF_EXPORT
 #else
 #define WTF_EXPORT_PRIVATE WTF_IMPORT

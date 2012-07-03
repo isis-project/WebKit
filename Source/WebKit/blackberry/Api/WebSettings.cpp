@@ -24,8 +24,13 @@
 
 #include "WebString.h"
 #include <Base64.h>
+#include <BlackBerryPlatformDeviceInfo.h>
+#include <BlackBerryPlatformFontInfo.h>
+#include <BlackBerryPlatformScreen.h>
 #include <Color.h>
+#include <FloatSize.h>
 #include <PageCache.h>
+#include <ViewportArguments.h>
 #include <wtf/HashSet.h>
 #include <wtf/Vector.h>
 
@@ -55,6 +60,9 @@ DEFINE_STATIC_LOCAL(String, BlackBerryUserScalableEnabled, ("BlackBerryUserScala
 DEFINE_STATIC_LOCAL(String, BlackBerryViewportWidth, ("BlackBerryViewportWidth"));
 DEFINE_STATIC_LOCAL(String, BlackBerryZoomToFitOnLoadEnabled, ("BlackBerryZoomToFitOnLoadEnabled"));
 DEFINE_STATIC_LOCAL(String, BlackBerryFullScreenVideoCapable, ("BlackBerryFullScreenVideoCapable"));
+DEFINE_STATIC_LOCAL(String, BlackBerryCredentialAutofillEnabled, ("BlackBerryCredentialAutofillEnabled"));
+DEFINE_STATIC_LOCAL(String, BlackBerryFormAutofillEnabled, ("BlackBerryFormAutofillEnabled"));
+DEFINE_STATIC_LOCAL(String, BlackBerryDevicePixelRatio, ("BlackBerryDevicePixelRatio"));
 DEFINE_STATIC_LOCAL(String, SpatialNavigationEnabled, ("SpatialNavigationEnabled"));
 DEFINE_STATIC_LOCAL(String, WebKitDatabasePath, ("WebKitDatabasePath"));
 DEFINE_STATIC_LOCAL(String, WebKitDatabasesEnabled, ("WebKitDatabasesEnabled"));
@@ -66,12 +74,14 @@ DEFINE_STATIC_LOCAL(String, WebKitFirstScheduledLayoutDelay, ("WebKitFirstSchedu
 DEFINE_STATIC_LOCAL(String, WebKitFixedFontFamily, ("WebKitFixedFontFamily"));
 DEFINE_STATIC_LOCAL(String, WebKitFrameFlatteningEnabled, ("WebKitFrameFlatteningEnabled"));
 DEFINE_STATIC_LOCAL(String, WebKitGeolocationEnabled, ("WebKitGeolocationEnabled"));
+DEFINE_STATIC_LOCAL(String, WebKitIndexedDataBasePath, ("WebKitIndexedDataBasePath"));
 DEFINE_STATIC_LOCAL(String, WebKitJavaScriptCanOpenWindowsAutomaticallyEnabled, ("WebKitJavaScriptCanOpenWindowsAutomaticallyEnabled"));
 DEFINE_STATIC_LOCAL(String, WebKitJavaScriptEnabled, ("WebKitJavaScriptEnabled"));
 DEFINE_STATIC_LOCAL(String, WebKitLoadsImagesAutomatically, ("WebKitLoadsImagesAutomatically"));
 DEFINE_STATIC_LOCAL(String, WebKitLocalStorageEnabled, ("WebKitLocalStorageEnabled"));
 DEFINE_STATIC_LOCAL(String, WebKitLocalStoragePath, ("WebKitLocalStoragePath"));
 DEFINE_STATIC_LOCAL(String, WebKitLocalStorageQuota, ("WebKitLocalStorageQuota"));
+DEFINE_STATIC_LOCAL(String, WebKitSessionStorageQuota, ("WebKitSessionStorageQuota"));
 DEFINE_STATIC_LOCAL(String, WebKitMaximumPagesInCache, ("WebKitMaximumPagesInCache"));
 DEFINE_STATIC_LOCAL(String, WebKitMinimumFontSize, ("WebKitMinimumFontSize"));
 DEFINE_STATIC_LOCAL(String, WebKitOfflineWebApplicationCacheEnabled, ("WebKitOfflineWebApplicationCacheEnabled"));
@@ -79,6 +89,7 @@ DEFINE_STATIC_LOCAL(String, WebKitOfflineWebApplicationCachePath, ("WebKitOfflin
 DEFINE_STATIC_LOCAL(String, WebKitPageGroupName, ("WebKitPageGroupName"));
 DEFINE_STATIC_LOCAL(String, WebKitPluginsEnabled, ("WebKitPluginsEnabled"));
 DEFINE_STATIC_LOCAL(String, WebKitPrivateBrowsingEnabled, ("WebKitPrivateBrowsingEnabled"));
+DEFINE_STATIC_LOCAL(String, WebKitDeviceSupportsMouse, ("WebKitDeviceSupportsMouse"));
 DEFINE_STATIC_LOCAL(String, WebKitSansSeriffFontFamily, ("WebKitSansSeriffFontFamily"));
 DEFINE_STATIC_LOCAL(String, WebKitSeriffFontFamily, ("WebKitSeriffFontFamily"));
 DEFINE_STATIC_LOCAL(String, WebKitStandardFontFamily, ("WebKitStandardFontFamily"));
@@ -164,6 +175,15 @@ WebSettings* WebSettings::standardSettings()
     settings->m_private->setBoolean(BlackBerryUserScalableEnabled, true);
     settings->m_private->setBoolean(BlackBerryZoomToFitOnLoadEnabled, true);
     settings->m_private->setBoolean(BlackBerryFullScreenVideoCapable, false);
+    settings->m_private->setBoolean(BlackBerryCredentialAutofillEnabled, false);
+    settings->m_private->setBoolean(BlackBerryFormAutofillEnabled, false);
+
+    if (BlackBerry::Platform::DeviceInfo::instance()->isMobile()) {
+        WebCore::FloatSize currentPPI = Platform::Graphics::Screen::primaryScreen()->pixelsPerInch(-1);
+        int deviceDPI = int(roundf((currentPPI.width() + currentPPI.height()) / 2));
+        settings->m_private->setDouble(BlackBerryDevicePixelRatio, deviceDPI / WebCore::ViewportArguments::deprecatedTargetDPI);
+    } else
+        settings->m_private->setDouble(BlackBerryDevicePixelRatio, 1);
 
     settings->m_private->setInteger(WebKitDefaultFontSize, 16);
     settings->m_private->setInteger(WebKitDefaultFixedFontSize, 13);
@@ -173,9 +193,15 @@ WebSettings* WebSettings::standardSettings()
     settings->m_private->setBoolean(WebKitJavaScriptEnabled, true);
     settings->m_private->setBoolean(WebKitLoadsImagesAutomatically, true);
     settings->m_private->setUnsignedLongLong(WebKitLocalStorageQuota, 5 * 1024 * 1024);
+    settings->m_private->setUnsignedLongLong(WebKitSessionStorageQuota, 5 * 1024 * 1024);
     settings->m_private->setInteger(WebKitMaximumPagesInCache, 0);
     settings->m_private->setInteger(WebKitMinimumFontSize, 8);
     settings->m_private->setBoolean(WebKitWebSocketsEnabled, true);
+
+    settings->m_private->setString(WebKitFixedFontFamily, BlackBerry::Platform::fontFamily("-webkit-monospace", "").c_str());
+    settings->m_private->setString(WebKitSansSeriffFontFamily, BlackBerry::Platform::fontFamily("-webkit-sans-serif", "").c_str());
+    settings->m_private->setString(WebKitSeriffFontFamily, BlackBerry::Platform::fontFamily("-webkit-serif", "").c_str());
+    settings->m_private->setString(WebKitStandardFontFamily, BlackBerry::Platform::fontFamily("-webkit-standard", "").c_str());
 
     return settings;
 }
@@ -257,6 +283,16 @@ bool WebSettings::isPrivateBrowsingEnabled() const
 void WebSettings::setPrivateBrowsingEnabled(bool enabled)
 {
     m_private->setBoolean(WebKitPrivateBrowsingEnabled, enabled);
+}
+
+bool WebSettings::deviceSupportsMouse() const
+{
+    return m_private->getBoolean(WebKitDeviceSupportsMouse);
+}
+
+void WebSettings::setDeviceSupportsMouse(bool enabled)
+{
+    m_private->setBoolean(WebKitDeviceSupportsMouse, enabled);
 }
 
 int WebSettings::defaultFixedFontSize() const
@@ -577,6 +613,16 @@ void WebSettings::setLocalStorageQuota(unsigned long long quota)
     m_private->setUnsignedLongLong(WebKitLocalStorageQuota, quota);
 }
 
+unsigned long long WebSettings::sessionStorageQuota() const
+{
+    return m_private->getUnsignedLongLong(WebKitSessionStorageQuota);
+}
+
+void WebSettings::setSessionStorageQuota(unsigned long long quota)
+{
+    m_private->setUnsignedLongLong(WebKitSessionStorageQuota, quota);
+}
+
 int WebSettings::maximumPagesInCache() const
 {
     // FIXME: We shouldn't be calling into WebCore from here. This class should just be a state store.
@@ -599,6 +645,16 @@ WebString WebSettings::localStoragePath() const
 void WebSettings::setLocalStoragePath(const WebString& path)
 {
     m_private->setString(WebKitLocalStoragePath, path);
+}
+
+WebString WebSettings::indexedDataBasePath() const
+{
+    return m_private->getString(WebKitIndexedDataBasePath);
+}
+
+void WebSettings::setIndexedDataBasePath(const WebString& path)
+{
+    m_private->setString(WebKitIndexedDataBasePath, path);
 }
 
 WebString WebSettings::databasePath() const
@@ -759,6 +815,36 @@ bool WebSettings::fullScreenVideoCapable() const
 void WebSettings::setFullScreenVideoCapable(bool enable)
 {
     m_private->setBoolean(BlackBerryFullScreenVideoCapable, enable);
+}
+
+bool WebSettings::isCredentialAutofillEnabled() const
+{
+    return m_private->getBoolean(BlackBerryCredentialAutofillEnabled);
+}
+
+void WebSettings::setCredentialAutofillEnabled(bool enable)
+{
+    return m_private->setBoolean(BlackBerryCredentialAutofillEnabled, enable);
+}
+
+bool WebSettings::isFormAutofillEnabled() const
+{
+    return m_private->getBoolean(BlackBerryFormAutofillEnabled);
+}
+
+void WebSettings::setFormAutofillEnabled(bool enable)
+{
+    return m_private->setBoolean(BlackBerryFormAutofillEnabled, enable);
+}
+
+double WebSettings::devicePixelRatio() const
+{
+    return m_private->getDouble(BlackBerryDevicePixelRatio);
+}
+
+void WebSettings::setDevicePixelRatio(double ratio)
+{
+    m_private->setDouble(BlackBerryDevicePixelRatio, ratio);
 }
 
 } // namespace WebKit

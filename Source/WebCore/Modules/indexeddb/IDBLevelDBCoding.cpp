@@ -194,9 +194,10 @@ bool decodeBool(const char* begin, const char* end)
     return *begin;
 }
 
-Vector<char> encodeInt(int64_t n)
+Vector<char> encodeInt(int64_t nParam)
 {
-    ASSERT(n >= 0);
+    ASSERT(nParam >= 0);
+    uint64_t n = static_cast<uint64_t>(nParam);
     Vector<char> ret; // FIXME: Size this at creation.
 
     do {
@@ -236,8 +237,10 @@ static int compareInts(int64_t a, int64_t b)
     return 0;
 }
 
-Vector<char> encodeVarInt(int64_t n)
+Vector<char> encodeVarInt(int64_t nParam)
 {
+    ASSERT(nParam >= 0);
+    uint64_t n = static_cast<uint64_t>(nParam);
     Vector<char> ret; // FIXME: Size this at creation.
 
     do {
@@ -387,6 +390,7 @@ Vector<char> encodeIDBKey(const IDBKey& key)
 void encodeIDBKey(const IDBKey& key, Vector<char>& into)
 {
     size_t previousSize = into.size();
+    ASSERT(key.isValid());
     switch (key.type()) {
     case IDBKey::InvalidType:
     case IDBKey::MinType:
@@ -1113,7 +1117,10 @@ int ObjectStoreMetaDataKey::compare(const ObjectStoreMetaDataKey& other)
     ASSERT(m_metaDataType >= 0);
     if (int x = compareInts(m_objectStoreId, other.m_objectStoreId))
         return x;
-    return m_metaDataType - other.m_metaDataType;
+    int64_t result = m_metaDataType - other.m_metaDataType;
+    if (result < 0)
+        return -1;
+    return (result > 0) ? 1 : result;
 }
 
 IndexMetaDataKey::IndexMetaDataKey()

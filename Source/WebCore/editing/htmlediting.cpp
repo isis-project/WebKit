@@ -72,32 +72,28 @@ bool isAtomicNode(const Node *node)
 // could be inside a shadow tree. Only works for non-null values.
 int comparePositions(const Position& a, const Position& b)
 {
-    Node* nodeA = a.deprecatedNode();
-    ASSERT(nodeA);
-    Node* nodeB = b.deprecatedNode();
-    ASSERT(nodeB);
-    int offsetA = a.deprecatedEditingOffset();
-    int offsetB = b.deprecatedEditingOffset();
+    TreeScope* commonScope = commonTreeScope(a.containerNode(), b.containerNode());
 
-    Node* shadowAncestorA = nodeA->shadowAncestorNode();
-    if (shadowAncestorA == nodeA)
-        shadowAncestorA = 0;
-    Node* shadowAncestorB = nodeB->shadowAncestorNode();
-    if (shadowAncestorB == nodeB)
-        shadowAncestorB = 0;
+    ASSERT(commonScope);
+    if (!commonScope)
+        return 0;
+
+    Node* nodeA = commonScope->ancestorInThisScope(a.containerNode());
+    ASSERT(nodeA);
+    bool hasDescendentA = nodeA != a.containerNode();
+    int offsetA = hasDescendentA ? 0 : a.computeOffsetInContainerNode();
+
+    Node* nodeB = commonScope->ancestorInThisScope(b.containerNode());
+    ASSERT(nodeB);
+    bool hasDescendentB = nodeB != b.containerNode();
+    int offsetB = hasDescendentB ? 0 : b.computeOffsetInContainerNode();
 
     int bias = 0;
-    if (shadowAncestorA != shadowAncestorB) {
-        if (shadowAncestorA) {
-            nodeA = shadowAncestorA;
-            offsetA = 0;
-            bias = 1;
-        }
-        if (shadowAncestorB) {
-            nodeB = shadowAncestorB;
-            offsetB = 0;
+    if (nodeA == nodeB) {
+        if (hasDescendentA)
             bias = -1;
-        }
+        else if (hasDescendentB)
+            bias = 1;
     }
 
     ExceptionCode ec;
@@ -149,12 +145,16 @@ Node* lowestEditableAncestor(Node* node)
     return lowestRoot;
 }
 
-bool isEditablePosition(const Position& p, EditableType editableType)
+bool isEditablePosition(const Position& p, EditableType editableType, EUpdateStyle updateStyle)
 {
     Node* node = p.deprecatedNode();
     if (!node)
         return false;
-        
+    if (updateStyle == UpdateStyle)
+        node->document()->updateLayoutIgnorePendingStylesheets();
+    else
+        ASSERT(updateStyle == DoNotUpdateStyle);
+
     if (node->renderer() && node->renderer()->isTable())
         node = node->parentNode();
     
@@ -259,11 +259,15 @@ VisiblePosition firstEditablePositionAfterPositionInRoot(const Position& positio
         return firstPositionInNode(highestRoot);
 
     Position p = position;
-    
-    if (Node* shadowAncestor = p.deprecatedNode()->shadowAncestorNode())
-        if (shadowAncestor != p.deprecatedNode())
-            p = positionAfterNode(shadowAncestor);
-    
+
+    if (position.deprecatedNode()->treeScope() != highestRoot->treeScope()) {
+        Node* shadowAncestor = highestRoot->treeScope()->ancestorInThisScope(p.deprecatedNode());
+        if (!shadowAncestor)
+            return VisiblePosition();
+
+        p = positionAfterNode(shadowAncestor);
+    }
+
     while (p.deprecatedNode() && !isEditablePosition(p) && p.deprecatedNode()->isDescendantOf(highestRoot))
         p = isAtomicNode(p.deprecatedNode()) ? positionInParentAfterNode(p.deprecatedNode()) : nextVisuallyDistinctCandidate(p);
     
@@ -281,9 +285,12 @@ VisiblePosition lastEditablePositionBeforePositionInRoot(const Position& positio
 
     Position p = position;
 
-    if (Node* shadowAncestor = p.deprecatedNode()->shadowAncestorNode()) {
-        if (shadowAncestor != p.deprecatedNode())
-            p = firstPositionInOrBeforeNode(shadowAncestor);
+    if (position.deprecatedNode()->treeScope() != highestRoot->treeScope()) {
+        Node* shadowAncestor = highestRoot->treeScope()->ancestorInThisScope(p.deprecatedNode());
+        if (!shadowAncestor)
+            return VisiblePosition();
+
+        p = firstPositionInOrBeforeNode(shadowAncestor);
     }
     
     while (p.deprecatedNode() && !isEditablePosition(p) && p.deprecatedNode()->isDescendantOf(highestRoot))
@@ -375,8 +382,8 @@ String stringWithRebalancedWhitespace(const String& string, bool startIsStartOfP
 
 bool isTableStructureNode(const Node *node)
 {
-    RenderObject *r = node->renderer();
-    return (r && (r->isTableCell() || r->isTableRow() || r->isTableSection() || r->isTableCol()));
+    RenderObject* renderer = node->renderer();
+    return (renderer && (renderer->isTableCell() || renderer->isTableRow() || renderer->isTableSection() || renderer->isRenderTableCol()));
 }
 
 const String& nonBreakingSpaceString()

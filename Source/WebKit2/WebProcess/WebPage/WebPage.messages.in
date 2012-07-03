@@ -40,8 +40,14 @@ messages -> WebPage {
 #if ENABLE(TOUCH_EVENTS)
     TouchEvent(WebKit::WebTouchEvent event)
     TouchEventSyncForTesting(WebKit::WebTouchEvent event) -> (bool handled)
+#endif
 #if ENABLE(TOUCH_EVENTS) && PLATFORM(QT)
     HighlightPotentialActivation(WebCore::IntPoint point, WebCore::IntSize area)
+#endif
+
+#if ENABLE(INPUT_TYPE_COLOR)
+    DidEndColorChooser();
+    DidChooseColor(WebCore::Color color);
 #endif
 
 #if ENABLE(CONTEXT_MENUS)
@@ -141,17 +147,17 @@ messages -> WebPage {
     HideFindUI()
     CountStringMatches(WTF::String string, uint32_t findOptions, unsigned maxMatchCount)
 
-#if ENABLE(DRAG_SUPPORT)
     # Drag and drop.
-#if PLATFORM(WIN)
+#if PLATFORM(WIN) && ENABLE(DRAG_SUPPORT)
     PerformDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, HashMap<UINT,Vector<String>> dataMap, uint32_t flags)
 #endif
-#if PLATFORM(QT) || PLATFORM(GTK)
+#if (PLATFORM(QT) || PLATFORM(GTK)) && ENABLE(DRAG_SUPPORT)
     PerformDragControllerAction(uint64_t action, WebCore::DragData dragData)
 #endif
-#if !PLATFORM(WIN) && !PLATFORM(QT) && !PLATFORM(GTK)
+#if !PLATFORM(WIN) && !PLATFORM(QT) && !PLATFORM(GTK) && ENABLE(DRAG_SUPPORT)
     PerformDragControllerAction(uint64_t action, WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t draggingSourceOperationMask, WTF::String dragStorageName, uint32_t flags, WebKit::SandboxExtension::Handle sandboxExtensionHandle, WebKit::SandboxExtension::HandleArray sandboxExtensionsForUpload)
 #endif
+#if ENABLE(DRAG_SUPPORT)
     DragEnded(WebCore::IntPoint clientPosition, WebCore::IntPoint globalPosition, uint64_t operation)
 #endif
 
@@ -177,7 +183,7 @@ messages -> WebPage {
     # Spelling and grammar.
     AdvanceToNextMisspelling(bool startBeforeSelection)
     ChangeSpellingToWord(WTF::String word)
-#if PLATFORM(MAC)
+#if USE(APPKIT)
     UppercaseWord();
     LowercaseWord();
     CapitalizeWord();
@@ -219,6 +225,11 @@ messages -> WebPage {
     SetCanRunBeforeUnloadConfirmPanel(bool canRunBeforeUnloadConfirmPanel)
     SetCanRunModal(bool canRunModal)
 
+    # Web Intents
+#if ENABLE(WEB_INTENTS)
+    DeliverIntentToFrame(uint64_t frameID, WebKit::IntentData intentData);
+#endif
+
 #if PLATFORM(QT)
     SetComposition(WTF::String text, WTF::Vector<WebCore::CompositionUnderline> underlines, uint64_t selectionStart, uint64_t selectionEnd, uint64_t replacementRangeStart, uint64_t replacementRangeEnd)
     ConfirmComposition(WTF::String text, int64_t selectionStart, int64_t selectionLength)
@@ -249,6 +260,7 @@ messages -> WebPage {
     ExecuteKeypressCommands(Vector<WebCore::KeypressCommand> savedCommands) -> (bool handled, WebKit::EditorState newState)
     ShouldDelayWindowOrderingEvent(WebKit::WebMouseEvent event) -> (bool result)
     AcceptsFirstMouse(int eventNumber, WebKit::WebMouseEvent event) -> (bool result)
+    InsertDictatedText(WTF::String text, uint64_t replacementRangeStart, uint64_t replacementRangeEnd, WTF::Vector<WebCore::DictationAlternative> dictationAlternatives) -> (bool handled, WebKit::EditorState newState)
 #endif
 #if PLATFORM(WIN)
     // FIXME: Unify with Mac counterparts.
@@ -271,5 +283,9 @@ messages -> WebPage {
 
 #if ENABLE(PAGE_VISIBILITY_API)
     SetVisibilityState(int visibilityState, bool isInitialState);
+#endif
+
+#if PLATFORM(GTK) && USE(TEXTURE_MAPPER_GL)
+    WidgetMapped(int64_t id)
 #endif
 }

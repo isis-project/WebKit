@@ -161,7 +161,9 @@ WebProcess::WebProcess()
     WebPlatformStrategies::initialize();
 #endif // USE(PLATFORM_STRATEGIES)
 
+#if !LOG_DISABLED
     WebCore::initializeLoggingChannelsIfNecessary();
+#endif // !LOG_DISABLED
 }
 
 void WebProcess::initialize(CoreIPC::Connection::Identifier serverIdentifier, RunLoop* runLoop)
@@ -920,7 +922,7 @@ void WebProcess::getWebCoreStatistics(uint64_t callbackID)
     
     // Gather JavaScript statistics.
     {
-        JSLock lock(SilenceAssertionsOnly);
+        JSLockHolder lock(JSDOMWindow::commonJSGlobalData());
         data.statisticsNumbers.set("JavaScriptObjectsCount", JSDOMWindow::commonJSGlobalData()->heap.objectCount());
         data.statisticsNumbers.set("JavaScriptGlobalObjectsCount", JSDOMWindow::commonJSGlobalData()->heap.globalObjectCount());
         data.statisticsNumbers.set("JavaScriptProtectedObjectsCount", JSDOMWindow::commonJSGlobalData()->heap.protectedObjectCount());
@@ -1044,8 +1046,10 @@ void WebProcess::setTextCheckerState(const TextCheckerState& textCheckerState)
 
 void WebProcess::didGetPlugins(CoreIPC::Connection*, uint64_t requestID, const Vector<WebCore::PluginInfo>& plugins)
 {
+#if USE(PLATFORM_STRATEGIES)
     // Pass this to WebPlatformStrategies.cpp.
     handleDidGetPlugins(requestID, plugins);
+#endif
 }
 
 } // namespace WebKit

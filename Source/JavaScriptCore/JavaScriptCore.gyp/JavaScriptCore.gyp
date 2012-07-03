@@ -47,7 +47,7 @@
     ],
   },
   'conditions': [
-    ['os_posix == 1 and OS != "mac" and OS != "android" and gcc_version==46', {
+    ['os_posix == 1 and OS != "mac" and gcc_version==46', {
       'target_defaults': {
         # Disable warnings about c++0x compatibility, as some names (such as nullptr) conflict
         # with upcoming c++0x types.
@@ -84,15 +84,7 @@
         '../runtime',
       ],
       'sources': [
-        '<@(javascriptcore_files)',
-      ],
-      'sources/': [
-        # First exclude everything ...
-        ['exclude', '../'],
-        # ... Then include what we want.
-        ['include', '../yarr/'],
-        # The Yarr JIT isn't used in WebCore.
-        ['exclude', '../yarr/YarrJIT\\.(h|cpp)$'],
+        '<@(javascriptcore_yarr_files)',
       ],
       'export_dependent_settings': [
         '../../WTF/WTF.gyp/WTF.gyp:wtf',

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -32,6 +32,9 @@ namespace JSC { namespace Options {
 
 extern bool useJIT;
 
+extern bool showDisassembly;
+extern bool showDFGDisassembly; // showDisassembly implies showDFGDisassembly.
+
 extern unsigned maximumOptimizationCandidateInstructionCount;
 
 extern unsigned maximumFunctionForCallInlineCandidateInstructionCount;
@@ -50,7 +53,8 @@ extern int32_t thresholdForOptimizeNextInvocation;
 extern int32_t executionCounterIncrementForLoop;
 extern int32_t executionCounterIncrementForReturn;
 
-extern unsigned desiredSpeculativeSuccessFailRatio;
+extern bool randomizeExecutionCountsBetweenCheckpoints;
+extern int32_t maximumExecutionCountsBetweenCheckpoints;
 
 extern double likelyToTakeSlowCaseThreshold;
 extern double couldTakeSlowCaseThreshold;
@@ -58,10 +62,8 @@ extern unsigned likelyToTakeSlowCaseMinimumCount;
 extern unsigned couldTakeSlowCaseMinimumCount;
 
 extern double osrExitProminenceForFrequentExitSite;
-
-extern unsigned largeFailCountThresholdBase;
-extern unsigned largeFailCountThresholdBaseForLoop;
-extern unsigned forcedOSRExitCountForReoptimization;
+extern unsigned osrExitCountForReoptimization;
+extern unsigned osrExitCountForReoptimizationFromLoop;
 
 extern unsigned reoptimizationRetryCounterMax;
 extern unsigned reoptimizationRetryCounterStep;
@@ -75,11 +77,11 @@ extern double doubleVoteRatioForDoubleFormat;
 
 extern unsigned minimumNumberOfScansBetweenRebalance;
 extern unsigned gcMarkStackSegmentSize;
-extern unsigned minimumNumberOfCellsToKeep;
-extern unsigned maximumNumberOfSharedSegments;
-extern unsigned sharedStackWakeupThreshold;
 JS_EXPORTDATA extern unsigned numberOfGCMarkers;
 JS_EXPORTDATA extern unsigned opaqueRootMergeThreshold;
+
+extern bool forceWeakRandomSeed;
+extern unsigned forcedWeakRandomSeed;
 
 void initializeOptions();
 

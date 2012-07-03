@@ -79,6 +79,12 @@ void resetClickCountState()
     gLastClickButton = WebKit::WebMouseEvent::ButtonNone;
 }
 
+bool isKeyPadKeyval(guint keyval)
+{
+    // Keypad keyvals all fall into one range.
+    return keyval >= GDK_KP_Space && keyval <= GDK_KP_9;
+}
+
 }  // namespace
 
 namespace WebKit {
@@ -266,6 +272,39 @@ static int gdkEventToWindowsKeyCode(const GdkEventKey* event)
     return WebCore::windowsKeyCodeForKeyEvent(event->keyval);
 }
 
+// Normalizes event->state to make it Windows/Mac compatible. Since the way
+// of setting modifier mask on X is very different than Windows/Mac as shown
+// in http://crbug.com/127142#c8, the normalization is necessary.
+static guint normalizeEventState(const GdkEventKey* event)
+{
+    guint mask = 0;
+    switch (gdkEventToWindowsKeyCode(event)) {
+    case WebCore::VKEY_CONTROL:
+    case WebCore::VKEY_LCONTROL:
+    case WebCore::VKEY_RCONTROL:
+        mask = GDK_CONTROL_MASK;
+        break;
+    case WebCore::VKEY_SHIFT:
+    case WebCore::VKEY_LSHIFT:
+    case WebCore::VKEY_RSHIFT:
+        mask = GDK_SHIFT_MASK;
+        break;
+    case WebCore::VKEY_MENU:
+    case WebCore::VKEY_LMENU:
+    case WebCore::VKEY_RMENU:
+        mask = GDK_MOD1_MASK;
+        break;
+    case WebCore::VKEY_CAPITAL:
+        mask = GDK_LOCK_MASK;
+        break;
+    default:
+        return event->state;
+    }
+    if (event->type == GDK_KEY_PRESS)
+        return event->state | mask;
+    return event->state & ~mask;
+}
+
 // Gets the corresponding control character of a specified key code. See:
 // http://en.wikipedia.org/wiki/Control_characters
 // We emulate Windows behavior here.
@@ -319,7 +358,7 @@ WebKeyboardEvent WebInputEventFactory::keyboardEvent(const GdkEventKey* event)
     WebKeyboardEvent result;
 
     result.timeStampSeconds = gdkEventTimeToWebEventTime(event->time);
-    result.modifiers = gdkStateToWebEventModifiers(event->state);
+    result.modifiers = gdkStateToWebEventModifiers(normalizeEventState(event));
 
     switch (event->type) {
     case GDK_KEY_RELEASE:
@@ -365,7 +404,9 @@ WebKeyboardEvent WebInputEventFactory::keyboardEvent(const GdkEventKey* event)
 
     result.setKeyIdentifierFromWindowsKeyCode();
 
-    // FIXME: Do we need to set IsAutoRepeat or IsKeyPad?
+    // FIXME: Do we need to set IsAutoRepeat?
+    if (isKeyPadKeyval(event->keyval))
+        result.modifiers |= WebInputEvent::IsKeyPad;
 
     return result;
 }

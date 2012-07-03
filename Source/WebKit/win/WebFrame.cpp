@@ -126,7 +126,6 @@ using namespace std;
 using JSC::JSGlobalObject;
 using JSC::JSLock;
 using JSC::JSValue;
-using JSC::SilenceAssertionsOnly;
 
 #define FLASH_REDRAW 0
 
@@ -298,22 +297,12 @@ HRESULT STDMETHODCALLTYPE WebFrame::allowsScrolling(
 HRESULT STDMETHODCALLTYPE WebFrame::setIsDisconnected(
     /* [in] */ BOOL flag)
 {
-    if (Frame* frame = core(this)) {
-        frame->setIsDisconnected(flag);
-        return S_OK;
-    }
-
     return E_FAIL;
 }
 
 HRESULT STDMETHODCALLTYPE WebFrame::setExcludeFromTextSearch(
     /* [in] */ BOOL flag)
 {
-    if (Frame* frame = core(this)) {
-        frame->setExcludeFromTextSearch(flag);
-        return S_OK;
-    }
-
     return E_FAIL;
 }
 
@@ -885,25 +874,6 @@ HRESULT WebFrame::renderTreeAsExternalRepresentation(BOOL forPrinting, BSTR *res
         return E_FAIL;
 
     *result = BString(externalRepresentation(coreFrame, forPrinting ? RenderAsTextPrintingMode : RenderAsTextBehaviorNormal)).release();
-    return S_OK;
-}
-
-HRESULT STDMETHODCALLTYPE WebFrame::counterValueForElementById(
-    /* [in] */ BSTR id, /* [retval][out] */ BSTR *result)
-{
-    if (!result)
-        return E_POINTER;
-
-    Frame* coreFrame = core(this);
-    if (!coreFrame)
-        return E_FAIL;
-
-    String coreId = String(id, SysStringLen(id));
-
-    Element* element = coreFrame->document()->getElementById(coreId);
-    if (!element)
-        return E_FAIL;
-    *result = BString(counterValueForElement(element)).release();
     return S_OK;
 }
 
@@ -2557,8 +2527,8 @@ HRESULT WebFrame::stringByEvaluatingJavaScriptInScriptWorld(IWebScriptWorld* iWo
     if (!result || !result.isBoolean() && !result.isString() && !result.isNumber())
         return S_OK;
 
-    JSLock lock(SilenceAssertionsOnly);
     JSC::ExecState* exec = anyWorldGlobalObject->globalExec();
+    JSC::JSLockHolder lock(exec);
     String resultString = ustringToString(result.toString(exec)->value(exec));
     *evaluationResult = BString(resultString).release();
 

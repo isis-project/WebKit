@@ -46,12 +46,12 @@ extern WTFLogChannel LogView;
 
 void initializeLogChannel(WTFLogChannel*);
 void initializeLogChannelsIfNecessary(void);
-#if PLATFORM(GTK)
+#if PLATFORM(GTK) || PLATFORM(QT)
 WTFLogChannel* getChannelFromName(const String& channelName);
 #endif
 
 } // namespace WebKit
 
-#endif // LOG_DISABLED
+#endif // !LOG_DISABLED
 
 #endif // Logging_h

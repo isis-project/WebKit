@@ -48,7 +48,7 @@ public:
     {
     }
     
-    void compileExit(const OSRExit&, SpeculationRecovery*);
+    void compileExit(const OSRExit&, const Operands<ValueRecovery>&, SpeculationRecovery*);
 
 private:
 #if !ASSERT_DISABLED
@@ -78,7 +78,7 @@ private:
 };
 
 extern "C" {
-void DFG_OPERATION compileOSRExit(ExecState*);
+void DFG_OPERATION compileOSRExit(ExecState*) WTF_INTERNAL;
 }
 
 } } // namespace JSC::DFG

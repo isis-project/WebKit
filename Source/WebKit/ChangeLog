@@ -1,3 +1,214 @@
+2012-07-02  Xiaobo Wang  <xbwang@torchmobile.com.cn>
+
+        [BlackBerry] Use PUBLIC_BUILD to enable/disable DRT
+        https://bugs.webkit.org/show_bug.cgi?id=90271
+
+        Reviewed by George Staikos.
+
+        RIM PR #154707
+
+        Currently DRT code will be compiled only if ENABLE_DRT is set, and it's not
+        defined by default.
+        We should enable DRT by default unless PUBLIC_BUILD is set. In this way we don't
+        need to rebuild webkit before running DRT.
+
+        * PlatformBlackBerry.cmake:
+
+2012-07-02  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [EFL][CMake] Integrate API unit tests with CTest
+        https://bugs.webkit.org/show_bug.cgi?id=87251
+
+        Reviewed by Daniel Bates.
+
+        Add every test to the test runner build target.
+
+        * PlatformEfl.cmake:
+
+2012-07-02  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        [EFL] Rename NotificationPresenterEfl with NotificationClientEfl
+        https://bugs.webkit.org/show_bug.cgi?id=90370
+
+        Reviewed by Csaba Osztrogonác.
+
+        Bug 80488 renamed NotificationPresenter with NotificationClient. So, EFL port needs to adjust
+        it as well.
+
+        * PlatformEfl.cmake:
+
+2012-06-29  Krzysztof Czech  <k.czech@samsung.com>
+
+        [EFL] Add support for Unit Tests, based on the gtest library.
+        https://bugs.webkit.org/show_bug.cgi?id=68509
+
+        Reviewed by Chang Shu.
+
+        Add configuration for building gtest library, testing framework and unit tests.
+
+        * PlatformEfl.cmake:
+
+2012-06-27  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r121398.
+        http://trac.webkit.org/changeset/121398
+        https://bugs.webkit.org/show_bug.cgi?id=90136
+
+        broke efl build (Requested by ryuan on #webkit).
+
+        * PlatformEfl.cmake:
+
+2012-06-27  Krzysztof Czech  <k.czech@samsung.com>
+
+        [EFL] Add support for Unit Tests, based on the gtest library.
+        https://bugs.webkit.org/show_bug.cgi?id=68509
+
+        Reviewed by Chang Shu.
+
+        Add configuration for building gtest library, testing framework and unit tests.
+
+        * PlatformEfl.cmake:
+
+2012-06-26  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt][Win] Symbols are not exported in QtWebKit5.dll
+        https://bugs.webkit.org/show_bug.cgi?id=88873
+
+        Reviewed by Tor Arne Vestbø.
+
+        * api.pri: Remove MAKEDLL setting done now in win32/default_post.prf.
+
+2012-06-25  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        Unreviewed build fix: Don't do QT += widgets with Qt 4
+
+        * WebKit1.pro: This is already done in WebKit1.pri.
+
+2012-06-25  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Make it possible to build WebKit without QtWidgets
+        https://bugs.webkit.org/show_bug.cgi?id=78109
+
+        Reviewed by Tor Arne Vestbø.
+
+        Moved WebKit1 sources into a separate static library. Only WK1
+        depends on QtWidgets.
+
+        * WebKit1.pri: Added.
+        * WebKit1.pro: Added.
+
+2012-06-25  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        [EFL] Implement Network Information API
+        https://bugs.webkit.org/show_bug.cgi?id=87067
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * PlatformEfl.cmake: Add dependency of eeze library.
+
+2012-06-22  Joshua Netterfield  <jnetterfield@rim.com>
+
+        [BlackBerry] Sanitize GLSL code using ANGLE.
+
+        BlackBerry port does not sanitize GLSL code with ANGLE
+        https://bugs.webkit.org/show_bug.cgi?id=89583
+
+        Reviewed by Rob Buis.
+
+        * PlatformBlackBerry.cmake: Add ANGLE sources to BlackBerry builds.
+
+2012-06-19  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [CMake] Unreviewed speculative buildfix after r120786.
+
+        * CMakeLists.txt:
+
+2012-06-13  Robin Cao  <robin.cao@torchmobile.com.cn>
+
+        [BlackBerry] Enable MEDIA_STREAM by default
+        https://bugs.webkit.org/show_bug.cgi?id=88849
+
+        Reviewed by Antonio Gomes.
+
+        * PlatformBlackBerry.cmake:
+
+2012-06-12  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Enable SHADOW_DOM flag
+        https://bugs.webkit.org/show_bug.cgi?id=87732
+
+        Reviewed by Kentaro Hara.
+
+        Add WebCore/bindings/generic to include directories so
+        that we can include RuntimeEnabledFeatures.h.
+
+        * CMakeLists.txt:
+
+2012-06-04  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Don't use WebKit HAVE() macro in public Qt headers
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * WebKit.pri:
+
+2012-06-04  Tomasz Morawski  <t.morawski@samsung.com>
+
+        [EFL] Refactor ewk_view_context_paint code.
+        https://bugs.webkit.org/show_bug.cgi?id=85588
+
+        Reviewed by Hajime Morita.
+
+        Added new ewk_paint_context.cpp file to source list.
+
+        * PlatformEfl.cmake:
+
+2012-06-01  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] EFL's LayoutTestController needs to implement deliverWebIntent
+        https://bugs.webkit.org/show_bug.cgi?id=86865
+
+        Reviewed by Adam Barth.
+
+        Add "${WEBCORE_DIR}/dom/default" to include directories in
+        CMakeLists.txt.
+
+        * CMakeLists.txt:
+
+2012-06-01  Sudarsana Nagineni  <sudarsana.nagineni@linux.intel.com>
+
+        [EFL] Implement PlatformStrategies
+        https://bugs.webkit.org/show_bug.cgi?id=86946
+
+        Reviewed by Carlos Garcia Campos.
+
+        * PlatformEfl.cmake: Add PlatformStrategiesEfl file to the build
+        system.
+
+2012-05-31  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        [CMAKE][EFL] Remove unneeded include path
+        https://bugs.webkit.org/show_bug.cgi?id=87927 
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Though *wtf* directory was moved to Source/WTF, PlatformEfl.cmake is still including the previous
+        path. In addition, files on EFL port are using <wtf/gobject/XXX> directly in #include line.
+        So, EFL port doesn't need to include ${JAVASCRIPTCORE_DIR}/wtf/gobject path anymore.
+
+        * PlatformEfl.cmake: Remove '${JAVASCRIPTCORE_DIR}/wtf/gobject' path from include path list.
+
+2012-05-30  Konrad Piascik  <kpiascik@rim.com>
+
+        [BlackBerry] Add an Accelerated Compositing layer for Web Inspector DOM highlight.
+        https://bugs.webkit.org/show_bug.cgi?id=81001
+
+        Reviewed by Antonio Gomes
+        
+        Added new InspectorOverlay class
+
+        * PlatformBlackBerry.cmake:
+
 2012-05-29  Arvid Nilsson  <anilsson@rim.com>
 
         [BlackBerry] WebKit-side implementation of SelectionOverlay

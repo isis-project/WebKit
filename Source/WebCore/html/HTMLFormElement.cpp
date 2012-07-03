@@ -34,6 +34,7 @@
 #include "EventNames.h"
 #include "FileList.h"
 #include "FileSystem.h"
+#include "FormController.h"
 #include "FormData.h"
 #include "FormDataList.h"
 #include "FormState.h"
@@ -91,6 +92,7 @@ PassRefPtr<HTMLFormElement> HTMLFormElement::create(const QualifiedName& tagName
 
 HTMLFormElement::~HTMLFormElement()
 {
+    document()->formController()->willDeleteForm(this);
     if (!shouldAutocomplete())
         document()->unregisterForPageCacheSuspensionCallbacks(this);
 
@@ -112,10 +114,11 @@ bool HTMLFormElement::rendererIsNeeded(const NodeRenderingContext& context)
 
     ContainerNode* node = parentNode();
     RenderObject* parentRenderer = node->renderer();
+    // FIXME: Shouldn't we also check for table caption (see |formIsTablePart| below).
     bool parentIsTableElementPart = (parentRenderer->isTable() && node->hasTagName(tableTag))
         || (parentRenderer->isTableRow() && node->hasTagName(trTag))
         || (parentRenderer->isTableSection() && node->hasTagName(tbodyTag))
-        || (parentRenderer->isTableCol() && node->hasTagName(colTag))
+        || (parentRenderer->isRenderTableCol() && node->hasTagName(colTag))
         || (parentRenderer->isTableCell() && node->hasTagName(trTag));
 
     if (!parentIsTableElementPart)
@@ -143,7 +146,7 @@ void HTMLFormElement::didNotifyDescendantInsertions(ContainerNode* insertionPoin
     ASSERT(insertionPoint->inDocument());
     HTMLElement::didNotifyDescendantInsertions(insertionPoint);
     if (hasID())
-        document()->resetFormElementsOwner();
+        document()->formController()->resetFormElementsOwner();
 }
 
 static inline Node* findRoot(Node* n)
@@ -162,7 +165,7 @@ void HTMLFormElement::removedFrom(ContainerNode* insertionPoint)
         associatedElements[i]->formRemovedFromTree(root);
     HTMLElement::removedFrom(insertionPoint);
     if (insertionPoint->inDocument() && hasID())
-        document()->resetFormElementsOwner();
+        document()->formController()->resetFormElementsOwner();
 }
 
 void HTMLFormElement::handleLocalEvents(Event* event)
@@ -534,9 +537,7 @@ void HTMLFormElement::removeImgElement(HTMLImageElement* e)
 
 HTMLCollection* HTMLFormElement::elements()
 {
-    if (!m_elementsCollection)
-        m_elementsCollection = HTMLFormCollection::create(this);
-    return m_elementsCollection.get();
+    return ensureCachedHTMLCollection(FormControls);
 }
 
 String HTMLFormElement::name() const

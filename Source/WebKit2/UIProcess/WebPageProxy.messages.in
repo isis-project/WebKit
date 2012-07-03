@@ -83,11 +83,25 @@ messages -> WebPageProxy {
     NeedTouchEvents(bool needTouchEvents)
 #endif
 
+#if ENABLE(INPUT_TYPE_COLOR)
+    ShowColorChooser(WebCore::Color initialColor);
+    SetColorChooserColor(WebCore::Color color);
+    EndColorChooser();
+#endif
+
     # Policy messages
     DecidePolicyForResponse(uint64_t frameID, WebCore::ResourceResponse response, WebCore::ResourceRequest request, uint64_t listenerID, WebKit::InjectedBundleUserMessageEncoder userData) -> (bool receivedPolicyAction, uint64_t policyAction, uint64_t downloadID)
     DecidePolicyForNavigationAction(uint64_t frameID, uint32_t navigationType, uint32_t modifiers, int32_t mouseButton, WebCore::ResourceRequest request, uint64_t listenerID, WebKit::InjectedBundleUserMessageEncoder userData) -> (bool receivedPolicyAction, uint64_t policyAction, uint64_t downloadID)
     DecidePolicyForNewWindowAction(uint64_t frameID, uint32_t navigationType, uint32_t modifiers, int32_t mouseButton, WebCore::ResourceRequest request, WTF::String frameName, uint64_t listenerID, WebKit::InjectedBundleUserMessageEncoder userData)
     UnableToImplementPolicy(uint64_t frameID, WebCore::ResourceError error, WebKit::InjectedBundleUserMessageEncoder userData)
+
+    # Intent messages
+#if ENABLE(WEB_INTENTS)
+    DidReceiveIntentForFrame(uint64_t frameID, WebKit::IntentData intent)
+#endif
+#if ENABLE(WEB_INTENTS_TAG)
+    RegisterIntentServiceForFrame(uint64_t frameID, WebKit::IntentServiceInfo serviceInfo);
+#endif
 
     # Progress messages
     DidChangeProgress(double value)
@@ -232,16 +246,16 @@ messages -> WebPageProxy {
     # Drag and drop messages
 #if ENABLE(DRAG_SUPPORT)
     DidPerformDragControllerAction(WebCore::DragSession dragSession)
-#if PLATFORM(MAC)
+#endif
+#if PLATFORM(MAC) && ENABLE(DRAG_SUPPORT)
     SetDragImage(WebCore::IntPoint clientPosition, WebKit::ShareableBitmap::Handle dragImage, bool linkDrag)
     SetPromisedData(WTF::String pasteboardName, WebKit::SharedMemory::Handle imageHandle, uint64_t imageSize, WTF::String filename, WTF::String extension, WTF::String title, WTF::String url, WTF::String visibleURL, WebKit::SharedMemory::Handle archiveHandle, uint64_t archiveSize)
 #endif
-#if PLATFORM(WIN)
+#if PLATFORM(WIN) && ENABLE(DRAG_SUPPORT)
     StartDragDrop(WebCore::IntPoint imagePoint, WebCore::IntPoint dragPoint, uint64_t okEffect, HashMap<UINT,Vector<String> > dataMap, uint64_t fileSize, String pathname, WebKit::SharedMemory::Handle fileContentHandle, WebCore::IntSize dragImageSize, WebKit::SharedMemory::Handle dragImage, bool linkDrag)
 #endif
-#if PLATFORM(QT) || PLATFORM(GTK)
+#if (PLATFORM(QT) || PLATFORM(GTK)) && ENABLE(DRAG_SUPPORT)
     StartDrag(WebCore::DragData dragData, WebKit::ShareableBitmap::Handle dragImage)
-#endif
 #endif
 
 #if PLATFORM(MAC)
@@ -279,6 +293,13 @@ messages -> WebPageProxy {
     DismissCorrectionPanel(int32_t reason)
     DismissCorrectionPanelSoon(int32_t reason) -> (String result)
     RecordAutocorrectionResponse(int32_t responseType, String replacedString, String replacementString);
+#endif
+
+#if USE(DICTATION_ALTERNATIVES)
+    ShowDictationAlternativeUI(WebCore::FloatRect boundingBoxOfDictatedText, uint64_t dictationContext)
+    DismissDictationAlternativeUI()
+    RemoveDictationAlternatives(uint64_t dictationContext)
+    DictationAlternatives(uint64_t dictationContext) -> (Vector<String> alternatives)
 #endif
 
 #if PLATFORM(WIN)

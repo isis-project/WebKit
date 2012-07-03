@@ -28,27 +28,22 @@
 
 namespace WebCore {
 
-DynamicSubtreeNodeList::DynamicSubtreeNodeList(PassRefPtr<Node> node)
-    : DynamicNodeList(node)
-{
-}
-
 DynamicSubtreeNodeList::~DynamicSubtreeNodeList()
 {
 }
 
 unsigned DynamicSubtreeNodeList::length() const
 {
-    if (m_caches.isLengthCacheValid)
-        return m_caches.cachedLength;
+    if (isLengthCacheValid())
+        return cachedLength();
 
     unsigned length = 0;
+    Node* rootNode = this->rootNode();
 
-    for (Node* n = node()->firstChild(); n; n = n->traverseNextNode(rootNode()))
+    for (Node* n = rootNode->firstChild(); n; n = n->traverseNextNode(rootNode))
         length += n->isElementNode() && nodeMatches(static_cast<Element*>(n));
 
-    m_caches.cachedLength = length;
-    m_caches.isLengthCacheValid = true;
+    setLengthCache(length);
 
     return length;
 }
@@ -56,12 +51,11 @@ unsigned DynamicSubtreeNodeList::length() const
 Node* DynamicSubtreeNodeList::itemForwardsFromCurrent(Node* start, unsigned offset, int remainingOffset) const
 {
     ASSERT(remainingOffset >= 0);
-    for (Node* n = start; n; n = n->traverseNextNode(rootNode())) {
+    Node* rootNode = this->rootNode();
+    for (Node* n = start; n; n = n->traverseNextNode(rootNode)) {
         if (n->isElementNode() && nodeMatches(static_cast<Element*>(n))) {
             if (!remainingOffset) {
-                m_caches.lastItem = n;
-                m_caches.lastItemOffset = offset;
-                m_caches.isItemCacheValid = true;
+                setItemCache(n, offset);
                 return n;
             }
             --remainingOffset;
@@ -74,12 +68,11 @@ Node* DynamicSubtreeNodeList::itemForwardsFromCurrent(Node* start, unsigned offs
 Node* DynamicSubtreeNodeList::itemBackwardsFromCurrent(Node* start, unsigned offset, int remainingOffset) const
 {
     ASSERT(remainingOffset < 0);
-    for (Node* n = start; n; n = n->traversePreviousNode(rootNode())) {
+    Node* rootNode = this->rootNode();
+    for (Node* n = start; n; n = n->traversePreviousNode(rootNode)) {
         if (n->isElementNode() && nodeMatches(static_cast<Element*>(n))) {
             if (!remainingOffset) {
-                m_caches.lastItem = n;
-                m_caches.lastItemOffset = offset;
-                m_caches.isItemCacheValid = true;
+                setItemCache(n, offset);
                 return n;
             }
             ++remainingOffset;
@@ -92,13 +85,13 @@ Node* DynamicSubtreeNodeList::itemBackwardsFromCurrent(Node* start, unsigned off
 Node* DynamicSubtreeNodeList::item(unsigned offset) const
 {
     int remainingOffset = offset;
-    Node* start = node()->firstChild();
-    if (m_caches.isItemCacheValid) {
-        if (offset == m_caches.lastItemOffset)
-            return m_caches.lastItem;
-        if (offset > m_caches.lastItemOffset || m_caches.lastItemOffset - offset < offset) {
-            start = m_caches.lastItem;
-            remainingOffset -= m_caches.lastItemOffset;
+    Node* start = rootNode()->firstChild();
+    if (isItemCacheValid()) {
+        if (offset == cachedItemOffset())
+            return cachedItem();
+        if (offset > cachedItemOffset() || cachedItemOffset() - offset < offset) {
+            start = cachedItem();
+            remainingOffset -= cachedItemOffset();
         }
     }
 
@@ -109,11 +102,13 @@ Node* DynamicSubtreeNodeList::item(unsigned offset) const
 
 Node* DynamicNodeList::itemWithName(const AtomicString& elementId) const
 {
-    if (node()->isDocumentNode() || node()->inDocument()) {
-        Element* node = this->node()->treeScope()->getElementById(elementId);
-        if (node && nodeMatches(node) && node->isDescendantOf(this->node()))
-            return node;
-        if (!node)
+    Node* rootNode = this->rootNode();
+
+    if (rootNode->inDocument()) {
+        Element* element = rootNode->treeScope()->getElementById(elementId);
+        if (element && nodeMatches(element) && element->isDescendantOf(rootNode))
+            return element;
+        if (!element)
             return 0;
         // In the case of multiple nodes with the same name, just fall through.
     }

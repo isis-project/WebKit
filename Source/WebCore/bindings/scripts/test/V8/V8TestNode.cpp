@@ -21,7 +21,7 @@
 #include "config.h"
 #include "V8TestNode.h"
 
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "RuntimeEnabledFeatures.h"
 #include "V8Binding.h"
 #include "V8BindingState.h"
@@ -33,7 +33,7 @@
 
 namespace WebCore {
 
-WrapperTypeInfo V8TestNode::info = { V8TestNode::GetTemplate, V8TestNode::derefObject, 0, &V8Node::info };
+WrapperTypeInfo V8TestNode::info = { V8TestNode::GetTemplate, V8TestNode::derefObject, 0, 0, &V8Node::info, WrapperTypeObjectPrototype };
 
 namespace TestNodeV8Internal {
 

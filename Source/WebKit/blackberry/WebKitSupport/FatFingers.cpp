@@ -450,10 +450,10 @@ bool FatFingers::checkForText(Node* curNode, Vector<IntersectingRegion>& interse
 
 void FatFingers::getPaddings(unsigned& top, unsigned& right, unsigned& bottom, unsigned& left) const
 {
-    static unsigned topPadding = Platform::Settings::get()->topFatFingerPadding();
-    static unsigned rightPadding = Platform::Settings::get()->rightFatFingerPadding();
-    static unsigned bottomPadding = Platform::Settings::get()->bottomFatFingerPadding();
-    static unsigned leftPadding = Platform::Settings::get()->leftFatFingerPadding();
+    static unsigned topPadding = Platform::Settings::instance()->topFatFingerPadding();
+    static unsigned rightPadding = Platform::Settings::instance()->rightFatFingerPadding();
+    static unsigned bottomPadding = Platform::Settings::instance()->bottomFatFingerPadding();
+    static unsigned leftPadding = Platform::Settings::instance()->leftFatFingerPadding();
 
     double currentScale = m_webPage->currentScale();
     top = topPadding / currentScale;
@@ -492,7 +492,10 @@ void FatFingers::getNodesFromRect(Document* document, const IntPoint& contentPos
     getPaddings(topPadding, rightPadding, bottomPadding, leftPadding);
 
     HitTestRequest request(HitTestRequest::ReadOnly | HitTestRequest::Active | HitTestRequest::IgnoreClipping);
-    HitTestResult result(contentPos, topPadding, rightPadding, bottomPadding, leftPadding, HitTestShadowDOM);
+    // The user functions checkForText() and findIntersectingRegions() uses the Node.wholeText() to checkFingerIntersection()
+    // not the text in its shadow tree.
+    ShadowContentFilterPolicy allowShadow = m_targetType == Text ? DoNotAllowShadowContent : AllowShadowContent;
+    HitTestResult result(contentPos, topPadding, rightPadding, bottomPadding, leftPadding, allowShadow);
 
     document->renderView()->layer()->hitTest(request, result);
     intersectedNodes = result.rectBasedTestResult();

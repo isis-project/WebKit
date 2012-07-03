@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2008, 2009, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -100,9 +100,10 @@ void JIT::emitOptimizationCheck(OptimizationCheckKind kind)
         return;
     
     Jump skipOptimize = branchAdd32(Signed, TrustedImm32(kind == LoopOptimizationCheck ? Options::executionCounterIncrementForLoop : Options::executionCounterIncrementForReturn), AbsoluteAddress(m_codeBlock->addressOfJITExecuteCounter()));
-    JITStubCall stubCall(this, kind == LoopOptimizationCheck ? cti_optimize_from_loop : cti_optimize_from_ret);
-    if (kind == LoopOptimizationCheck)
-        stubCall.addArgument(TrustedImm32(m_bytecodeOffset));
+    JITStubCall stubCall(this, cti_optimize);
+    stubCall.addArgument(TrustedImm32(m_bytecodeOffset));
+    if (kind == EnterOptimizationCheck)
+        ASSERT(!m_bytecodeOffset);
     stubCall.call();
     skipOptimize.link(this);
 }
@@ -259,6 +260,7 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_get_by_val)
         DEFINE_OP(op_get_argument_by_val)
         DEFINE_OP(op_get_by_pname)
+        DEFINE_OP(op_get_global_var_watchable)
         DEFINE_OP(op_get_global_var)
         DEFINE_OP(op_get_pnames)
         DEFINE_OP(op_get_scoped_var)
@@ -324,6 +326,7 @@ void JIT::privateCompileMainPass()
         DEFINE_OP(op_put_by_val)
         DEFINE_OP(op_put_getter_setter)
         DEFINE_OP(op_put_global_var)
+        DEFINE_OP(op_put_global_var_check)
         DEFINE_OP(op_put_scoped_var)
         DEFINE_OP(op_resolve)
         DEFINE_OP(op_resolve_base)
@@ -469,8 +472,6 @@ void JIT::privateCompileSlowCases()
         DEFINE_SLOWCASE_OP(op_neq)
         DEFINE_SLOWCASE_OP(op_new_array)
         DEFINE_SLOWCASE_OP(op_new_object)
-        DEFINE_SLOWCASE_OP(op_new_func)
-        DEFINE_SLOWCASE_OP(op_new_func_exp)
         DEFINE_SLOWCASE_OP(op_not)
         DEFINE_SLOWCASE_OP(op_nstricteq)
         DEFINE_SLOWCASE_OP(op_post_dec)
@@ -481,6 +482,7 @@ void JIT::privateCompileSlowCases()
         case op_put_by_id_transition_normal:
         DEFINE_SLOWCASE_OP(op_put_by_id)
         DEFINE_SLOWCASE_OP(op_put_by_val)
+        DEFINE_SLOWCASE_OP(op_put_global_var_check);
         DEFINE_SLOWCASE_OP(op_resolve_global)
         DEFINE_SLOWCASE_OP(op_resolve_global_dynamic)
         DEFINE_SLOWCASE_OP(op_rshift)
@@ -715,11 +717,9 @@ JITCode JIT::privateCompile(CodePtr* functionEntryArityCheck, JITCompilationEffo
             patchBuffer.link(iter->from, FunctionPtr(iter->to));
     }
 
-    if (m_codeBlock->needsCallReturnIndices()) {
-        m_codeBlock->callReturnIndexVector().reserveCapacity(m_calls.size());
-        for (Vector<CallRecord>::iterator iter = m_calls.begin(); iter != m_calls.end(); ++iter)
-            m_codeBlock->callReturnIndexVector().append(CallReturnOffsetToBytecodeOffset(patchBuffer.returnAddressOffset(iter->from), iter->bytecodeOffset));
-    }
+    m_codeBlock->callReturnIndexVector().reserveCapacity(m_calls.size());
+    for (Vector<CallRecord>::iterator iter = m_calls.begin(); iter != m_calls.end(); ++iter)
+        m_codeBlock->callReturnIndexVector().append(CallReturnOffsetToBytecodeOffset(patchBuffer.returnAddressOffset(iter->from), iter->bytecodeOffset));
 
     m_codeBlock->setNumberOfStructureStubInfos(m_propertyAccessCompilationInfo.size());
     for (unsigned i = 0; i < m_propertyAccessCompilationInfo.size(); ++i)
@@ -760,7 +760,10 @@ JITCode JIT::privateCompile(CodePtr* functionEntryArityCheck, JITCompilationEffo
     if (m_codeBlock->codeType() == FunctionCode && functionEntryArityCheck)
         *functionEntryArityCheck = patchBuffer.locationOf(arityCheck);
     
-    CodeRef result = patchBuffer.finalizeCode();
+    CodeRef result = FINALIZE_CODE(
+        patchBuffer,
+        ("Baseline JIT code for CodeBlock %p, instruction count = %u",
+         m_codeBlock, m_codeBlock->instructionCount()));
     
     m_globalData->machineCodeBytesPerBytecodeWordForBaselineJIT.add(
         static_cast<double>(result.size()) /

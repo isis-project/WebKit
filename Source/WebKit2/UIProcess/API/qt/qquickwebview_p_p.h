@@ -39,7 +39,7 @@ namespace WebKit {
 class DownloadProxy;
 class DrawingAreaProxy;
 class QtDialogRunner;
-class QtViewportInteractionEngine;
+class QtViewportHandler;
 class QtWebContext;
 class QtWebError;
 class QtWebPageLoadClient;
@@ -89,13 +89,9 @@ public:
     int loadProgress() const { return m_loadProgress; }
     void setNeedsDisplay();
 
-    virtual WebKit::QtViewportInteractionEngine* viewportInteractionEngine() { return 0; }
+    virtual WebKit::QtViewportHandler* viewportHandler() { return 0; }
     virtual void updateViewportSize() { }
     void updateTouchViewportSize();
-
-    virtual void _q_suspend() { }
-    virtual void _q_resume() { }
-    virtual void _q_onInformVisibleContentChange(const QPointF& trajectory) { };
 
     virtual qreal zoomFactor() const { return 1; }
     virtual void setZoomFactor(qreal) { }
@@ -127,8 +123,6 @@ public:
 
     QPointF contentPos() const;
     void setContentPos(const QPointF&);
-
-    QRect visibleContentsRect() const;
 
     void setDialogActive(bool active) { m_dialogActive = active; }
 
@@ -191,8 +185,7 @@ protected:
     QQmlComponent* proxyAuthenticationDialog;
     QQmlComponent* filePicker;
     QQmlComponent* databaseQuotaDialog;
-
-    WebCore::ViewportAttributes attributes;
+    QQmlComponent* colorChooser;
 
     QList<QUrl> userScripts;
 
@@ -230,20 +223,14 @@ public:
     virtual void onComponentComplete();
 
     virtual void didChangeViewportProperties(const WebCore::ViewportAttributes&);
-    virtual WebKit::QtViewportInteractionEngine* viewportInteractionEngine() { return interactionEngine.data(); }
+    virtual WebKit::QtViewportHandler* viewportHandler() { return m_viewportHandler.data(); }
     virtual void updateViewportSize();
-
-    virtual void _q_suspend();
-    virtual void _q_resume();
-    virtual void _q_onInformVisibleContentChange(const QPointF& trajectory);
 
     virtual void pageDidRequestScroll(const QPoint& pos);
     virtual void didChangeContentsSize(const QSize& newSize);
 
 private:
-    QScopedPointer<WebKit::QtViewportInteractionEngine> interactionEngine;
-    bool pageIsSuspended;
-    float lastCommittedScale;
+    QScopedPointer<WebKit::QtViewportHandler> m_viewportHandler;
 };
 
 #endif // qquickwebview_p_p_h

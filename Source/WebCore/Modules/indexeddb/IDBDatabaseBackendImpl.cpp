@@ -109,6 +109,7 @@ IDBDatabaseBackendImpl::IDBDatabaseBackendImpl(const String& name, IDBBackingSto
     , m_identifier(uniqueIdentifier)
     , m_factory(factory)
     , m_transactionCoordinator(coordinator)
+    , m_pendingConnectionCount(0)
 {
     ASSERT(!m_name.isNull());
 }
@@ -126,7 +127,6 @@ bool IDBDatabaseBackendImpl::openInternal()
 
 IDBDatabaseBackendImpl::~IDBDatabaseBackendImpl()
 {
-    m_factory->removeIDBDatabaseBackend(m_identifier);
 }
 
 PassRefPtr<IDBBackingStore> IDBDatabaseBackendImpl::backingStore() const
@@ -134,32 +134,27 @@ PassRefPtr<IDBBackingStore> IDBDatabaseBackendImpl::backingStore() const
     return m_backingStore;
 }
 
-PassRefPtr<DOMStringList> IDBDatabaseBackendImpl::objectStoreNames() const
+IDBDatabaseMetadata IDBDatabaseBackendImpl::metadata() const
 {
-    RefPtr<DOMStringList> objectStoreNames = DOMStringList::create();
+    IDBDatabaseMetadata metadata(m_name, m_version);
     for (ObjectStoreMap::const_iterator it = m_objectStores.begin(); it != m_objectStores.end(); ++it)
-        objectStoreNames->append(it->first);
-    objectStoreNames->sort();
-    return objectStoreNames.release();
+        metadata.objectStores.set(it->first, it->second->metadata());
+    return metadata;
 }
 
 PassRefPtr<IDBObjectStoreBackendInterface> IDBDatabaseBackendImpl::createObjectStore(const String& name, const IDBKeyPath& keyPath, bool autoIncrement, IDBTransactionBackendInterface* transactionPtr, ExceptionCode& ec)
 {
     ASSERT(transactionPtr->mode() == IDBTransaction::VERSION_CHANGE);
+    ASSERT(!m_objectStores.contains(name));
 
-    if (m_objectStores.contains(name)) {
-        ec = IDBDatabaseException::CONSTRAINT_ERR;
-        return 0;
-    }
-
-    RefPtr<IDBObjectStoreBackendImpl> objectStore = IDBObjectStoreBackendImpl::create(m_backingStore.get(), m_id, name, keyPath, autoIncrement);
+    RefPtr<IDBObjectStoreBackendImpl> objectStore = IDBObjectStoreBackendImpl::create(this, name, keyPath, autoIncrement);
     ASSERT(objectStore->name() == name);
 
     RefPtr<IDBDatabaseBackendImpl> database = this;
     RefPtr<IDBTransactionBackendInterface> transaction = transactionPtr;
     if (!transaction->scheduleTask(createCallbackTask(&IDBDatabaseBackendImpl::createObjectStoreInternal, database, objectStore, transaction),
                                    createCallbackTask(&IDBDatabaseBackendImpl::removeObjectStoreFromMap, database, objectStore))) {
-        ec = IDBDatabaseException::NOT_ALLOWED_ERR;
+        ec = IDBDatabaseException::TRANSACTION_INACTIVE_ERR;
         return 0;
     }
 
@@ -187,16 +182,15 @@ PassRefPtr<IDBObjectStoreBackendInterface> IDBDatabaseBackendImpl::objectStore(c
 
 void IDBDatabaseBackendImpl::deleteObjectStore(const String& name, IDBTransactionBackendInterface* transactionPtr, ExceptionCode& ec)
 {
-    RefPtr<IDBObjectStoreBackendImpl> objectStore = m_objectStores.get(name);
-    if (!objectStore) {
-        ec = IDBDatabaseException::NOT_FOUND_ERR;
-        return;
-    }
+    ASSERT(transactionPtr->mode() == IDBTransaction::VERSION_CHANGE);
+    ASSERT(m_objectStores.contains(name));
+
     RefPtr<IDBDatabaseBackendImpl> database = this;
+    RefPtr<IDBObjectStoreBackendImpl> objectStore = m_objectStores.get(name);
     RefPtr<IDBTransactionBackendInterface> transaction = transactionPtr;
     if (!transaction->scheduleTask(createCallbackTask(&IDBDatabaseBackendImpl::deleteObjectStoreInternal, database, objectStore, transaction),
                                    createCallbackTask(&IDBDatabaseBackendImpl::addObjectStoreToMap, database, objectStore))) {
-        ec = IDBDatabaseException::NOT_ALLOWED_ERR;
+        ec = IDBDatabaseException::TRANSACTION_INACTIVE_ERR;
         return;
     }
     m_objectStores.remove(name);
@@ -213,7 +207,7 @@ void IDBDatabaseBackendImpl::setVersion(const String& version, PassRefPtr<IDBCal
     RefPtr<IDBCallbacks> callbacks = prpCallbacks;
     RefPtr<IDBDatabaseCallbacks> databaseCallbacks = prpDatabaseCallbacks;
     if (!m_databaseCallbacksSet.contains(databaseCallbacks)) {
-        callbacks->onError(IDBDatabaseError::create(IDBDatabaseException::ABORT_ERR, "Connection was closed before set version transaction was created"));
+        callbacks->onError(IDBDatabaseError::create(IDBDatabaseException::IDB_ABORT_ERR, "Connection was closed before set version transaction was created"));
         return;
     }
     for (DatabaseCallbacksSet::const_iterator it = m_databaseCallbacksSet.begin(); it != m_databaseCallbacksSet.end(); ++it) {
@@ -223,7 +217,7 @@ void IDBDatabaseBackendImpl::setVersion(const String& version, PassRefPtr<IDBCal
     // FIXME: Only fire onBlocked if there are open connections after the
     // VersionChangeEvents are received, not just set up to fire.
     // https://bugs.webkit.org/show_bug.cgi?id=71130
-    if (m_databaseCallbacksSet.size() > 1) {
+    if (connectionCount() > 1) {
         callbacks->onBlocked();
         RefPtr<PendingSetVersionCall> pendingSetVersionCall = PendingSetVersionCall::create(version, callbacks, databaseCallbacks);
         m_pendingSetVersionCalls.append(pendingSetVersionCall);
@@ -236,11 +230,13 @@ void IDBDatabaseBackendImpl::setVersion(const String& version, PassRefPtr<IDBCal
     }
 
     RefPtr<DOMStringList> objectStoreNames = DOMStringList::create();
+    RefPtr<IDBTransactionBackendInterface> transaction = this->transaction(objectStoreNames.get(), IDBTransaction::VERSION_CHANGE, ec);
+    ASSERT(!ec);
+
     RefPtr<IDBDatabaseBackendImpl> database = this;
-    RefPtr<IDBTransactionBackendInterface> transaction = IDBTransactionBackendImpl::create(objectStoreNames.get(), IDBTransaction::VERSION_CHANGE, this);
     if (!transaction->scheduleTask(createCallbackTask(&IDBDatabaseBackendImpl::setVersionInternal, database, version, callbacks, transaction),
                                    createCallbackTask(&IDBDatabaseBackendImpl::resetVersion, database, m_version))) {
-        ec = IDBDatabaseException::NOT_ALLOWED_ERR;
+        ec = IDBDatabaseException::TRANSACTION_INACTIVE_ERR;
     }
 }
 
@@ -249,7 +245,6 @@ void IDBDatabaseBackendImpl::setVersionInternal(ScriptExecutionContext*, PassRef
     int64_t databaseId = database->id();
     database->m_version = version;
     if (!database->m_backingStore->updateIDBDatabaseMetaData(databaseId, database->m_version)) {
-        // FIXME: The Indexed Database specification does not have an error code dedicated to I/O errors.
         callbacks->onError(IDBDatabaseError::create(IDBDatabaseException::UNKNOWN_ERR, "Error writing data to stable storage."));
         transaction->abort();
         return;
@@ -269,6 +264,8 @@ void IDBDatabaseBackendImpl::transactionStarted(PassRefPtr<IDBTransactionBackend
 void IDBDatabaseBackendImpl::transactionFinished(PassRefPtr<IDBTransactionBackendInterface> prpTransaction)
 {
     RefPtr<IDBTransactionBackendInterface> transaction = prpTransaction;
+    ASSERT(m_transactions.contains(transaction.get()));
+    m_transactions.remove(transaction.get());
     if (transaction->mode() == IDBTransaction::VERSION_CHANGE) {
         ASSERT(transaction.get() == m_runningVersionChangeTransaction.get());
         m_runningVersionChangeTransaction.clear();
@@ -276,8 +273,15 @@ void IDBDatabaseBackendImpl::transactionFinished(PassRefPtr<IDBTransactionBacken
     }
 }
 
+int32_t IDBDatabaseBackendImpl::connectionCount()
+{
+    return m_databaseCallbacksSet.size() + m_pendingConnectionCount;
+}
+
 void IDBDatabaseBackendImpl::processPendingCalls()
 {
+    ASSERT(connectionCount() <= 1);
+
     // Pending calls may be requeued or aborted
     Deque<RefPtr<PendingSetVersionCall> > pendingSetVersionCalls;
     m_pendingSetVersionCalls.swap(pendingSetVersionCalls);
@@ -288,6 +292,17 @@ void IDBDatabaseBackendImpl::processPendingCalls()
         ASSERT(!ec);
     }
 
+    // If there were any pending set version calls, we better have started one.
+    ASSERT(m_pendingSetVersionCalls.isEmpty() || m_runningVersionChangeTransaction);
+
+    // m_pendingSetVersionCalls is non-empty in two cases:
+    // 1) When two versionchange transactions are requested while another
+    //    version change transaction is running.
+    // 2) When three versionchange transactions are requested in a row, before
+    //    any of their event handlers are run.
+    // Note that this check is only an optimization to reduce queue-churn and
+    // not necessary for correctness; deleteDatabase and openConnection will
+    // requeue their calls if this condition is true.
     if (m_runningVersionChangeTransaction || !m_pendingSetVersionCalls.isEmpty())
         return;
 
@@ -299,42 +314,55 @@ void IDBDatabaseBackendImpl::processPendingCalls()
         deleteDatabase(pendingDeleteCall->callbacks());
     }
 
+    // This check is also not really needed, openConnection would just requeue its calls.
     if (m_runningVersionChangeTransaction || !m_pendingSetVersionCalls.isEmpty() || !m_pendingDeleteCalls.isEmpty())
         return;
 
-    while (!m_pendingOpenCalls.isEmpty()) {
-        RefPtr<PendingOpenCall> pendingOpenCall = m_pendingOpenCalls.takeFirst();
+    // Given the check above, it appears that calls cannot be requeued by
+    // openConnection, but use a different queue for iteration to be safe.
+    Deque<RefPtr<PendingOpenCall> > pendingOpenCalls;
+    m_pendingOpenCalls.swap(pendingOpenCalls);
+    while (!pendingOpenCalls.isEmpty()) {
+        RefPtr<PendingOpenCall> pendingOpenCall = pendingOpenCalls.takeFirst();
         openConnection(pendingOpenCall->callbacks());
     }
+    ASSERT(m_pendingOpenCalls.isEmpty());
 }
 
 PassRefPtr<IDBTransactionBackendInterface> IDBDatabaseBackendImpl::transaction(DOMStringList* objectStoreNames, unsigned short mode, ExceptionCode& ec)
 {
     for (size_t i = 0; i < objectStoreNames->length(); ++i) {
         if (!m_objectStores.contains(objectStoreNames->item(i))) {
-            ec = IDBDatabaseException::NOT_FOUND_ERR;
+            ec = IDBDatabaseException::IDB_NOT_FOUND_ERR;
             return 0;
         }
     }
 
-    // FIXME: Return not allowed err if close has been called.
-    return IDBTransactionBackendImpl::create(objectStoreNames, mode, this);
+    RefPtr<IDBTransactionBackendInterface> transaction = IDBTransactionBackendImpl::create(objectStoreNames, mode, this);
+    m_transactions.add(transaction.get());
+    return transaction.release();
 }
 
-void IDBDatabaseBackendImpl::open(PassRefPtr<IDBDatabaseCallbacks> callbacks)
+void IDBDatabaseBackendImpl::registerFrontendCallbacks(PassRefPtr<IDBDatabaseCallbacks> callbacks)
 {
+    ASSERT(m_backingStore.get());
+    ASSERT(m_pendingConnectionCount);
+    --m_pendingConnectionCount;
     m_databaseCallbacksSet.add(RefPtr<IDBDatabaseCallbacks>(callbacks));
 }
 
 void IDBDatabaseBackendImpl::openConnection(PassRefPtr<IDBCallbacks> callbacks)
 {
+    ASSERT(m_backingStore.get());
     if (!m_pendingDeleteCalls.isEmpty() || m_runningVersionChangeTransaction || !m_pendingSetVersionCalls.isEmpty())
         m_pendingOpenCalls.append(PendingOpenCall::create(callbacks));
     else {
         if (m_id == InvalidId && !openInternal())
             callbacks->onError(IDBDatabaseError::create(IDBDatabaseException::UNKNOWN_ERR, "Internal error."));
-        else
+        else {
+            ++m_pendingConnectionCount;
             callbacks->onSuccess(this);
+        }
     }
 }
 
@@ -373,10 +401,22 @@ void IDBDatabaseBackendImpl::close(PassRefPtr<IDBDatabaseCallbacks> prpCallbacks
     RefPtr<IDBDatabaseCallbacks> callbacks = prpCallbacks;
     ASSERT(m_databaseCallbacksSet.contains(callbacks));
     m_databaseCallbacksSet.remove(callbacks);
-    if (m_databaseCallbacksSet.size() > 1)
+    if (connectionCount() > 1)
         return;
 
     processPendingCalls();
+
+    if (!connectionCount()) {
+        TransactionSet transactions(m_transactions);
+        for (TransactionSet::const_iterator it = transactions.begin(); it != transactions.end(); ++it)
+            (*it)->abort();
+        ASSERT(m_transactions.isEmpty());
+
+        m_backingStore.clear();
+        // This check should only be false in tests.
+        if (m_factory)
+            m_factory->removeIDBDatabaseBackend(m_identifier);
+    }
 }
 
 void IDBDatabaseBackendImpl::loadObjectStores()
@@ -392,11 +432,12 @@ void IDBDatabaseBackendImpl::loadObjectStores()
     ASSERT(autoIncrementFlags.size() == ids.size());
 
     for (size_t i = 0; i < ids.size(); i++)
-        m_objectStores.set(names[i], IDBObjectStoreBackendImpl::create(m_backingStore.get(), m_id, ids[i], names[i], keyPaths[i], autoIncrementFlags[i]));
+        m_objectStores.set(names[i], IDBObjectStoreBackendImpl::create(this, ids[i], names[i], keyPaths[i], autoIncrementFlags[i]));
 }
 
-void IDBDatabaseBackendImpl::removeObjectStoreFromMap(ScriptExecutionContext*, PassRefPtr<IDBDatabaseBackendImpl> database, PassRefPtr<IDBObjectStoreBackendImpl> objectStore)
+void IDBDatabaseBackendImpl::removeObjectStoreFromMap(ScriptExecutionContext*, PassRefPtr<IDBDatabaseBackendImpl> database, PassRefPtr<IDBObjectStoreBackendImpl> prpObjectStore)
 {
+    RefPtr<IDBObjectStoreBackendImpl> objectStore = prpObjectStore;
     ASSERT(database->m_objectStores.contains(objectStore->name()));
     database->m_objectStores.remove(objectStore->name());
 }

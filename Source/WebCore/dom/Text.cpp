@@ -198,8 +198,8 @@ bool Text::rendererIsNeeded(const NodeRenderingContext& context)
     if (!onlyWS)
         return true;
 
-    RenderObject* par = context.parentRenderer();
-    if (par->isTable() || par->isTableRow() || par->isTableSection() || par->isTableCol() || par->isFrameSet())
+    RenderObject* parent = context.parentRenderer();
+    if (parent->isTable() || parent->isTableRow() || parent->isTableSection() || parent->isRenderTableCol() || parent->isFrameSet())
         return false;
     
     if (context.style()->preserveNewline()) // pre/pre-wrap/pre-line always make renderers.
@@ -209,16 +209,16 @@ bool Text::rendererIsNeeded(const NodeRenderingContext& context)
     if (prev && prev->isBR()) // <span><br/> <br/></span>
         return false;
         
-    if (par->isRenderInline()) {
+    if (parent->isRenderInline()) {
         // <span><div/> <div/></span>
         if (prev && !prev->isInline())
             return false;
     } else {
-        if (par->isRenderBlock() && !par->childrenInline() && (!prev || !prev->isInline()))
+        if (parent->isRenderBlock() && !parent->childrenInline() && (!prev || !prev->isInline()))
             return false;
         
-        RenderObject* first = par->firstChild();
-        while (first && first->isFloatingOrPositioned())
+        RenderObject* first = parent->firstChild();
+        while (first && first->isFloatingOrOutOfFlowPositioned())
             first = first->nextSibling();
         RenderObject* next = context.nextRenderer();
         if (!first || next == first)

@@ -31,14 +31,14 @@ class QGraphicsVideoItem;
 class QGraphicsScene;
 QT_END_NAMESPACE
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
 #include "TextureMapper.h"
 #endif
 
 namespace WebCore {
 
 class MediaPlayerPrivateQt : public QObject, public MediaPlayerPrivateInterface
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
         , public TextureMapperPlatformLayer
 #endif
 {
@@ -51,7 +51,7 @@ public:
 
     static void registerMediaEngine(MediaEngineRegistrar);
     static void getSupportedTypes(HashSet<String>&);
-    static MediaPlayer::SupportsType supportsType(const String&, const String&);
+    static MediaPlayer::SupportsType supportsType(const String&, const String&, const KURL&);
     static bool isAvailable() { return true; }
 
     bool hasVideo() const;
@@ -86,7 +86,7 @@ public:
 
     PassRefPtr<TimeRanges> buffered() const;
     float maxTimeSeekable() const;
-    unsigned bytesLoaded() const;
+    bool didLoadingProgress() const;
     unsigned totalBytes() const;
 
     void setVisible(bool);
@@ -101,7 +101,6 @@ public:
     bool supportsFullscreen() const { return true; }
 
 #if USE(ACCELERATED_COMPOSITING)
-#if USE(TEXTURE_MAPPER)
     // whether accelerated rendering is supported by the media engine for the current media.
     virtual bool supportsAcceleratedRendering() const { return false; }
     // called when the rendering system flips the into or out of accelerated rendering mode.
@@ -109,11 +108,6 @@ public:
     // Const-casting here is safe, since all of TextureMapperPlatformLayer's functions are const.g
     virtual PlatformLayer* platformLayer() const { return 0; }
     virtual void paintToTextureMapper(TextureMapper*, const FloatRect& targetRect, const TransformationMatrix&, float opacity, BitmapTexture* mask) const;
-#else
-    virtual bool supportsAcceleratedRendering() const { return false; }
-    virtual void acceleratedRenderingStateChanged() { }
-    virtual PlatformLayer* platformLayer() const { return 0; }
-#endif
 #endif
 
     virtual PlatformMedia platformMedia() const;
@@ -156,6 +150,7 @@ private:
     bool m_isSeeking;
     bool m_composited;
     MediaPlayer::Preload m_preload;
+    mutable unsigned m_bytesLoadedAtLastDidLoadingProgress;
     bool m_delayingLoad;
     String m_mediaUrl;
     bool m_suppressNextPlaybackChanged;

@@ -44,7 +44,7 @@
 
 namespace WebCore {
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
 class TextureMapperLayerClientQt {
 public:
     TextureMapperLayerClientQt(QWebFrame*, GraphicsLayer*);
@@ -64,7 +64,7 @@ public:
     PageClientQWidget(QWidget* newView, QWebPage* newPage)
         : view(newView)
         , page(newPage)
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
         , syncTimer(this, &PageClientQWidget::syncLayers)
 #endif
     {
@@ -112,19 +112,19 @@ public:
     QWidget* view;
     QWebPage* page;
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
     virtual void setRootGraphicsLayer(GraphicsLayer*);
     virtual void markForSync(bool scheduleSync);
     void syncLayers(Timer<PageClientQWidget>*);
 #endif
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
     virtual bool allowsAcceleratedCompositing() const { return true; }
 #else
     virtual bool allowsAcceleratedCompositing() const { return false; }
 #endif
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
     Timer<PageClientQWidget> syncTimer;
     OwnPtr<TextureMapperLayerClientQt> TextureMapperLayerClient;
 #endif
@@ -217,8 +217,6 @@ public:
                                                  PlatformGraphicsSurface3D*);
 #endif
 
-    void createOrDeleteOverlay();
-
 #if USE(TILED_BACKING_STORE)
     void updateTiledBackingStoreScale();
     virtual QRectF graphicsItemVisibleRect() const;
@@ -245,11 +243,7 @@ public:
     bool viewResizesToContents;
 
 #if USE(ACCELERATED_COMPOSITING)
-#if USE(TEXTURE_MAPPER)
     OwnPtr<TextureMapperLayerClientQt> TextureMapperLayerClient;
-#else
-    QWeakPointer<QGraphicsObject> rootGraphicsLayer;
-#endif
     // we have to flush quite often, so we use a meta-method instead of QTimer::singleShot for putting the event in the queue
     Timer<PageClientQGraphicsWidget> syncTimer;
 #endif

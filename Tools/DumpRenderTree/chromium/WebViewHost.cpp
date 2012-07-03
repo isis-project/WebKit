@@ -34,6 +34,7 @@
 #include "LayoutTestController.h"
 #include "MockGrammarCheck.h"
 #include "MockWebSpeechInputController.h"
+#include "MockWebSpeechRecognizer.h"
 #include "TestNavigationController.h"
 #include "TestShell.h"
 #include "TestWebPlugin.h"
@@ -261,6 +262,7 @@ WebWidget* WebViewHost::createPopupMenu(WebPopupType type)
     switch (type) {
     case WebKit::WebPopupTypeNone:
     case WebKit::WebPopupTypePage:
+    case WebKit::WebPopupTypeHelperPlugin:
         break;
     case WebKit::WebPopupTypeSelect:
     case WebKit::WebPopupTypeSuggestion:
@@ -286,7 +288,7 @@ WebKit::WebGraphicsContext3D* WebViewHost::createGraphicsContext3D(const WebKit:
 {
     if (!webView())
         return 0;
-    return webkit_support::CreateGraphicsContext3D(attributes, webView(), true);
+    return webkit_support::CreateGraphicsContext3D(attributes, webView());
 }
 
 void WebViewHost::didAddMessageToConsole(const WebConsoleMessage& message, const WebString& sourceName, unsigned sourceLine)
@@ -450,10 +452,45 @@ bool WebViewHost::handleCurrentKeyboardEvent()
     return frame->executeCommand(WebString::fromUTF8(m_editCommandName), WebString::fromUTF8(m_editCommandValue));
 }
 
+// WebKit::WebPrerendererClient
+
+void WebViewHost::willAddPrerender(WebKit::WebPrerender*)
+{
+}
+
+
+// WebKit::WebSpellCheckClient
+
 void WebViewHost::spellCheck(const WebString& text, int& misspelledOffset, int& misspelledLength, WebVector<WebString>* optionalSuggestions)
 {
     // Check the spelling of the given text.
     m_spellcheck.spellCheckWord(text, &misspelledOffset, &misspelledLength);
+}
+
+void WebViewHost::checkTextOfParagraph(const WebString& text, WebTextCheckingTypeMask mask, WebVector<WebTextCheckingResult>* webResults)
+{
+    Vector<WebTextCheckingResult> results;
+    if (mask & WebTextCheckingTypeSpelling) {
+        size_t offset = 0;
+        size_t length = text.length();
+        const WebUChar* data = text.data();
+        while (offset < length) {
+            int misspelledPosition = 0;
+            int misspelledLength = 0;
+            m_spellcheck.spellCheckWord(WebString(&data[offset], length - offset), &misspelledPosition, &misspelledLength);
+            if (!misspelledLength)
+                break;
+            WebTextCheckingResult result;
+            result.type = WebTextCheckingTypeSpelling;
+            result.location = offset + misspelledPosition;
+            result.length = misspelledLength;
+            results.append(result);
+            offset += misspelledPosition + misspelledLength;
+        }
+    }
+    if (mask & WebTextCheckingTypeGrammar)
+        MockGrammarCheck::checkGrammarOfString(text, &results);
+    webResults->assign(results);
 }
 
 void WebViewHost::requestCheckingOfText(const WebString& text, WebTextCheckingCompletion* completion)
@@ -705,6 +742,15 @@ WebSpeechInputController* WebViewHost::speechInputController(WebKit::WebSpeechIn
 }
 #endif
 
+#if ENABLE(SCRIPTED_SPEECH)
+WebSpeechRecognizer* WebViewHost::speechRecognizer()
+{
+    if (!m_mockSpeechRecognizer)
+        m_mockSpeechRecognizer = MockWebSpeechRecognizer::create();
+    return m_mockSpeechRecognizer.get();
+}
+#endif
+
 WebDeviceOrientationClientMock* WebViewHost::deviceOrientationClientMock()
 {
     if (!m_deviceOrientationClientMock.get())
@@ -848,9 +894,10 @@ void WebViewHost::didNotAcquirePointerLock()
 
 void WebViewHost::didLosePointerLock()
 {
-    ASSERT(m_pointerLocked);
+    bool wasLocked = m_pointerLocked;
     m_pointerLocked = false;
-    webWidget()->didLosePointerLock();
+    if (wasLocked)
+        webWidget()->didLosePointerLock();
 }
 #endif
 
@@ -1206,6 +1253,21 @@ void WebViewHost::removeIdentifierForRequest(unsigned identifier)
     m_resourceIdentifierMap.remove(identifier);
 }
 
+static void blockRequest(WebURLRequest& request)
+{
+    request.setURL(WebURL());
+}
+
+static bool isLocalhost(const string& host)
+{
+    return host == "127.0.0.1" || host == "localhost";
+}
+
+static bool hostIsUsedBySomeTestsToGenerateError(const string& host)
+{
+    return host == "255.255.255.255";
+}
+
 void WebViewHost::willSendRequest(WebFrame* frame, unsigned identifier, WebURLRequest& request, const WebURLResponse& redirectResponse)
 {
     // Need to use GURL for host() and SchemeIs()
@@ -1228,29 +1290,25 @@ void WebViewHost::willSendRequest(WebFrame* frame, unsigned identifier, WebURLRe
 
     if (!redirectResponse.isNull() && m_blocksRedirects) {
         fputs("Returning null for this redirect\n", stdout);
-        // To block the request, we set its URL to an empty one.
-        request.setURL(WebURL());
+        blockRequest(request);
         return;
     }
 
     if (m_requestReturnNull) {
-        // To block the request, we set its URL to an empty one.
-        request.setURL(WebURL());
+        blockRequest(request);
         return;
     }
 
     string host = url.host();
-    // 255.255.255.255 is used in some tests that expect to get back an error.
-    if (!host.empty() && (url.SchemeIs("http") || url.SchemeIs("https"))
-        && host != "127.0.0.1"
-        && host != "255.255.255.255"
-        && host != "localhost"
-        && !m_shell->allowExternalPages()) {
-        printf("Blocked access to external URL %s\n", requestURL.c_str());
-
-        // To block the request, we set its URL to an empty one.
-        request.setURL(WebURL());
-        return;
+    if (!host.empty() && (url.SchemeIs("http") || url.SchemeIs("https"))) {
+        GURL testURL = webView()->mainFrame()->document().url();
+        const string& testHost = testURL.host();
+        if (!isLocalhost(host) && !hostIsUsedBySomeTestsToGenerateError(host) && ((!testURL.SchemeIs("http") && !testURL.SchemeIs("https")) || isLocalhost(testHost))
+            && !m_shell->allowExternalPages()) {
+            printf("Blocked access to external URL %s\n", requestURL.c_str());
+            blockRequest(request);
+            return;
+        }
     }
 
     HashSet<String>::const_iterator end = m_clearHeaders.end();
@@ -1409,6 +1467,7 @@ void WebViewHost::setWebWidget(WebKit::WebWidget* widget)
 {
     m_webWidget = widget;
     webView()->setSpellCheckClient(this);
+    webView()->setPrerendererClient(this);
     webView()->setCompositorSurfaceReady();
 }
 

@@ -24,6 +24,7 @@
 #include "FrameLoaderClientEfl.h"
 #include "ewk_frame_private.h"
 #include "ewk_history_private.h"
+#include "ewk_intent_private.h"
 #include "ewk_private.h"
 #include "ewk_view_private.h"
 
@@ -41,13 +42,16 @@
 #include <HTMLInputElement.h>
 #include <InspectorController.h>
 #include <IntRect.h>
+#include <Intent.h>
 #include <JSCSSStyleDeclaration.h>
 #include <JSElement.h>
+#include <JavaScriptCore/OpaqueJSString.h>
 #include <MemoryCache.h>
 #include <PageGroup.h>
 #include <PrintContext.h>
 #include <RenderTreeAsText.h>
 #include <ResourceLoadScheduler.h>
+#include <SchemeRegistry.h>
 #include <ScriptValue.h>
 #include <Settings.h>
 #include <TextIterator.h>
@@ -92,21 +96,6 @@ void DumpRenderTreeSupportEfl::clearOpener(Evas_Object* ewkFrame)
 {
     if (WebCore::Frame* frame = EWKPrivate::coreFrame(ewkFrame))
         frame->loader()->setOpener(0);
-}
-
-String DumpRenderTreeSupportEfl::counterValueByElementId(const Evas_Object* ewkFrame, const char* elementId)
-{
-    WebCore::Frame* frame = EWKPrivate::coreFrame(ewkFrame);
-
-    if (!frame)
-        return String();
-
-    WebCore::Element* element = frame->document()->getElementById(elementId);
-
-    if (!element)
-        return String();
-
-    return WebCore::counterValueForElement(element);
 }
 
 bool DumpRenderTreeSupportEfl::elementDoesAutoCompleteForElementWithId(const Evas_Object* ewkFrame, const String& elementId)
@@ -598,7 +587,7 @@ void DumpRenderTreeSupportEfl::dumpConfigurationForViewport(Evas_Object* ewkView
     WebCore::ViewportAttributes attributes = computeViewportAttributes(arguments,
             /* default layout width for non-mobile pages */ 980,
             deviceSize.width(), deviceSize.height(),
-            deviceDPI,
+            deviceDPI / WebCore::ViewportArguments::deprecatedTargetDPI,
             availableSize);
     restrictMinimumScaleFactorToViewportSize(attributes, availableSize);
     restrictScaleFactorToInitialScaleIfNotUserScalable(attributes);
@@ -664,6 +653,42 @@ void DumpRenderTreeSupportEfl::setAuthorAndUserStylesEnabled(Evas_Object* ewkVie
 void DumpRenderTreeSupportEfl::setSerializeHTTPLoads(bool enabled)
 {
     WebCore::resourceLoadScheduler()->setSerialLoadingEnabled(enabled);
+}
+
+void DumpRenderTreeSupportEfl::sendWebIntentResponse(Ewk_Intent_Request* request, JSStringRef response)
+{
+#if ENABLE(WEB_INTENTS)
+    JSC::UString responseString = response->ustring();
+    if (responseString.isNull())
+        ewk_intent_request_failure_post(request, WebCore::SerializedScriptValue::create(String::fromUTF8("ERROR")));
+    else
+        ewk_intent_request_result_post(request, WebCore::SerializedScriptValue::create(String(responseString.impl())));
+#endif
+}
+
+WebCore::MessagePortChannelArray* DumpRenderTreeSupportEfl::intentMessagePorts(const Ewk_Intent* intent)
+{
+#if ENABLE(WEB_INTENTS)
+    const WebCore::Intent* coreIntent = EWKPrivate::coreIntent(intent);
+    return coreIntent ? coreIntent->messagePorts() : 0;
+#else
+    return 0;
+#endif
+}
+
+void DumpRenderTreeSupportEfl::deliverWebIntent(Evas_Object* ewkFrame, JSStringRef action, JSStringRef type, JSStringRef data)
+{
+#if ENABLE(WEB_INTENTS)
+    RefPtr<WebCore::SerializedScriptValue> serializedData = WebCore::SerializedScriptValue::create(String(data->ustring().impl()));
+    WebCore::ExceptionCode ec = 0;
+    WebCore::MessagePortArray ports;
+    RefPtr<WebCore::Intent> coreIntent = WebCore::Intent::create(String(action->ustring().impl()), String(type->ustring().impl()), serializedData.get(), ports, ec);
+    if (ec)
+        return;
+    Ewk_Intent* ewkIntent = ewk_intent_new(coreIntent.get());
+    ewk_frame_intent_deliver(ewkFrame, ewkIntent);
+    ewk_intent_free(ewkIntent);
+#endif
 }
 
 void DumpRenderTreeSupportEfl::setComposition(Evas_Object* ewkView, const char* text, int start, int length)
@@ -778,4 +803,9 @@ bool DumpRenderTreeSupportEfl::selectedRange(Evas_Object* ewkView, int* start, i
     *length = WebCore::TextIterator::rangeLength(testRange.get());
 
     return true;
+}
+
+void DumpRenderTreeSupportEfl::setDomainRelaxationForbiddenForURLScheme(bool forbidden, const String& scheme)
+{
+    WebCore::SchemeRegistry::setDomainRelaxationForbiddenForURLScheme(forbidden, scheme);
 }

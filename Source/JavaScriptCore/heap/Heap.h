@@ -42,11 +42,12 @@ namespace JSC {
 
     class CopiedSpace;
     class CodeBlock;
-    class FunctionExecutable;
+    class ExecutableBase;
     class GCActivityCallback;
     class GlobalCodeBlock;
     class Heap;
     class HeapRootVisitor;
+    class IncrementalSweeper;
     class JSCell;
     class JSGlobalData;
     class JSValue;
@@ -84,6 +85,7 @@ namespace JSC {
         static bool testAndSetMarked(const void*);
         static void setMarked(const void*);
 
+        static bool isWriteBarrierEnabled();
         static void writeBarrier(const JSCell*, JSValue);
         static void writeBarrier(const JSCell*, JSCell*);
         static uint8_t* addressOfCardFor(JSCell*);
@@ -97,8 +99,10 @@ namespace JSC {
         MachineThreads& machineThreads() { return m_machineThreads; }
 
         JS_EXPORT_PRIVATE GCActivityCallback* activityCallback();
-        JS_EXPORT_PRIVATE void setActivityCallback(PassOwnPtr<GCActivityCallback>);
+        JS_EXPORT_PRIVATE void setActivityCallback(GCActivityCallback*);
         JS_EXPORT_PRIVATE void setGarbageCollectionTimerEnabled(bool);
+
+        JS_EXPORT_PRIVATE IncrementalSweeper* sweeper();
 
         // true if an allocation or collection is in progress
         inline bool isBusy();
@@ -112,10 +116,10 @@ namespace JSC {
 
         typedef void (*Finalizer)(JSCell*);
         JS_EXPORT_PRIVATE void addFinalizer(JSCell*, Finalizer);
-        void addFunctionExecutable(FunctionExecutable*);
-        void removeFunctionExecutable(FunctionExecutable*);
+        void addCompiledCode(ExecutableBase*);
 
         void notifyIsSafeToCollect() { m_isSafeToCollect = true; }
+        bool isSafeToCollect() const { return m_isSafeToCollect; }
 
         JS_EXPORT_PRIVATE void collectAllGarbage();
         enum SweepToggle { DoNotSweep, DoSweep };
@@ -155,7 +159,7 @@ namespace JSC {
         double lastGCLength() { return m_lastGCLength; }
         void increaseLastGCLength(double amount) { m_lastGCLength += amount; }
 
-        JS_EXPORT_PRIVATE void discardAllCompiledCode();
+        JS_EXPORT_PRIVATE void deleteAllCompiledCode();
 
         void didAllocate(size_t);
         void didAbandon(size_t);
@@ -190,6 +194,7 @@ namespace JSC {
         void markTempSortVectors(HeapRootVisitor&);
         void harvestWeakReferences();
         void finalizeUnconditionalFinalizers();
+        void deleteUnmarkedCompiledCode();
         
         RegisterFile& registerFile();
         BlockAllocator& blockAllocator();
@@ -216,8 +221,6 @@ namespace JSC {
         Vector<Vector<ValueStringPair>* > m_tempSortingVectors;
         OwnPtr<HashSet<MarkedArgumentBuffer*> > m_markListSet;
 
-        OwnPtr<GCActivityCallback> m_activityCallback;
-        
         MachineThreads m_machineThreads;
         
         MarkStackThreadSharedData m_sharedData;
@@ -234,15 +237,18 @@ namespace JSC {
         double m_lastGCLength;
         double m_lastCodeDiscardTime;
 
-        DoublyLinkedList<FunctionExecutable> m_functions;
+        DoublyLinkedList<ExecutableBase> m_compiledCode;
+        
+        GCActivityCallback* m_activityCallback;
+        IncrementalSweeper* m_sweeper;
     };
 
     inline bool Heap::shouldCollect()
     {
 #if ENABLE(GGC)
-        return m_objectSpace.nurseryWaterMark() >= m_minBytesPerCycle && m_isSafeToCollect;
+        return m_objectSpace.nurseryWaterMark() >= m_minBytesPerCycle && m_isSafeToCollect && m_operationInProgress == NoOperation;
 #else
-        return m_bytesAllocated > m_bytesAllocatedLimit && m_isSafeToCollect;
+        return m_bytesAllocated > m_bytesAllocatedLimit && m_isSafeToCollect && m_operationInProgress == NoOperation;
 #endif
     }
 
@@ -276,6 +282,15 @@ namespace JSC {
     inline void Heap::setMarked(const void* cell)
     {
         MarkedBlock::blockFor(cell)->setMarked(cell);
+    }
+
+    inline bool Heap::isWriteBarrierEnabled()
+    {
+#if ENABLE(GGC) || ENABLE(WRITE_BARRIER_PROFILING)
+        return true;
+#else
+        return false;
+#endif
     }
 
 #if ENABLE(GGC)

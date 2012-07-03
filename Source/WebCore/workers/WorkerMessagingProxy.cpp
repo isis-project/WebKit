@@ -42,6 +42,7 @@
 #include "InspectorInstrumentation.h"
 #include "MessageEvent.h"
 #include "NotImplemented.h"
+#include "PageGroup.h"
 #include "ScriptCallStack.h"
 #include "ScriptExecutionContext.h"
 #include "Worker.h"
@@ -250,6 +251,7 @@ WorkerContextProxy* WorkerContextProxy::create(Worker* worker)
 WorkerMessagingProxy::WorkerMessagingProxy(Worker* workerObject)
     : m_scriptExecutionContext(workerObject->scriptExecutionContext())
     , m_workerObject(workerObject)
+    , m_mayBeDestroyed(false)
     , m_unconfirmedMessageCount(0)
     , m_workerThreadHadPendingActivity(false)
     , m_askedToTerminate(false)
@@ -271,7 +273,13 @@ WorkerMessagingProxy::~WorkerMessagingProxy()
 
 void WorkerMessagingProxy::startWorkerContext(const KURL& scriptURL, const String& userAgent, const String& sourceCode, WorkerThreadStartMode startMode)
 {
-    RefPtr<DedicatedWorkerThread> thread = DedicatedWorkerThread::create(scriptURL, userAgent, sourceCode, *this, *this, startMode,
+    // FIXME: This need to be revisited when we support nested worker one day
+    ASSERT(m_scriptExecutionContext->isDocument());
+    Document* document = static_cast<Document*>(m_scriptExecutionContext.get());
+    GroupSettings* settings = 0;
+    if (document->page())
+        settings = document->page()->group().groupSettings();
+    RefPtr<DedicatedWorkerThread> thread = DedicatedWorkerThread::create(scriptURL, userAgent, settings, sourceCode, *this, *this, startMode,
                                                                          m_scriptExecutionContext->contentSecurityPolicy()->deprecatedHeader(),
                                                                          m_scriptExecutionContext->contentSecurityPolicy()->deprecatedHeaderType());
     workerThreadCreated(thread);
@@ -354,10 +362,16 @@ void WorkerMessagingProxy::workerThreadCreated(PassRefPtr<DedicatedWorkerThread>
 void WorkerMessagingProxy::workerObjectDestroyed()
 {
     m_workerObject = 0;
-    if (m_workerThread)
-        terminateWorkerContext();
+    m_scriptExecutionContext->postTask(createCallbackTask(&workerObjectDestroyedInternal, AllowCrossThreadAccess(this)));
+}
+
+void WorkerMessagingProxy::workerObjectDestroyedInternal(ScriptExecutionContext*, WorkerMessagingProxy* proxy)
+{
+    proxy->m_mayBeDestroyed = true;
+    if (proxy->m_workerThread)
+        proxy->terminateWorkerContext();
     else
-        workerContextDestroyedInternal();
+        proxy->workerContextDestroyedInternal();
 }
 
 #if ENABLE(INSPECTOR)
@@ -438,7 +452,7 @@ void WorkerMessagingProxy::workerContextDestroyedInternal()
 
     InspectorInstrumentation::workerContextTerminated(m_scriptExecutionContext.get(), this);
 
-    if (!m_workerObject)
+    if (m_mayBeDestroyed)
         delete this;
 }
 

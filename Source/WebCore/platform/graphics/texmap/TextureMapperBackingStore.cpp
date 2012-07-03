@@ -24,7 +24,47 @@
 #include "ImageBuffer.h"
 #include "TextureMapper.h"
 
+#if USE(GRAPHICS_SURFACE)
+#include "GraphicsSurface.h"
+#include "TextureMapperGL.h"
+#endif
+
 namespace WebCore {
+
+#if USE(GRAPHICS_SURFACE)
+void TextureMapperSurfaceBackingStore::setGraphicsSurface(uint32_t graphicsSurfaceToken, const IntSize& surfaceSize)
+{
+    if (graphicsSurfaceToken != m_backBufferGraphicsSurfaceData.m_graphicsSurfaceToken) {
+        GraphicsSurface::Flags surfaceFlags = GraphicsSurface::SupportsTextureTarget
+                                            | GraphicsSurface::SupportsSharing;
+        m_backBufferGraphicsSurfaceData.setSurface(GraphicsSurface::create(surfaceSize, surfaceFlags, graphicsSurfaceToken));
+        m_graphicsSurfaceSize = surfaceSize;
+    }
+
+    std::swap(m_backBufferGraphicsSurfaceData, m_frontBufferGraphicsSurfaceData);
+}
+
+PassRefPtr<BitmapTexture> TextureMapperSurfaceBackingStore::texture() const
+{
+    // FIXME: Instead of just returning an empty texture, we should wrap the texture contents into a BitmapTexture.
+    RefPtr<BitmapTexture> emptyTexture;
+    return emptyTexture;
+}
+
+void TextureMapperSurfaceBackingStore::paintToTextureMapper(TextureMapper* textureMapper, const FloatRect& targetRect, const TransformationMatrix& transform, float opacity, BitmapTexture* mask)
+{
+    TransformationMatrix adjustedTransform = transform;
+    adjustedTransform.multiply(TransformationMatrix::rectToRect(FloatRect(FloatPoint::zero(), m_graphicsSurfaceSize), targetRect));
+#if OS(DARWIN)
+    // This is specific to the Mac implementation of GraphicsSurface. IOSurface requires GL_TEXTURE_RECTANGLE_ARB to be used.
+    static_cast<TextureMapperGL*>(textureMapper)->drawTextureRectangleARB(m_frontBufferGraphicsSurfaceData.m_textureID, 0, m_graphicsSurfaceSize, targetRect, adjustedTransform, opacity, mask);
+#else
+    UNUSED_PARAM(textureMapper);
+    UNUSED_PARAM(opacity);
+    UNUSED_PARAM(mask);
+#endif
+}
+#endif
 
 void TextureMapperTile::updateContents(TextureMapper* textureMapper, Image* image, const IntRect& dirtyRect)
 {
@@ -47,9 +87,10 @@ void TextureMapperTile::updateContents(TextureMapper* textureMapper, Image* imag
     m_texture->updateContents(image, targetRect, sourceOffset);
 }
 
-void TextureMapperTile::paint(TextureMapper* textureMapper, const TransformationMatrix& transform, float opacity, BitmapTexture* mask)
+void TextureMapperTile::paint(TextureMapper* textureMapper, const TransformationMatrix& transform, float opacity, BitmapTexture* mask, const unsigned exposedEdges)
 {
-    textureMapper->drawTexture(*texture().get(), rect(), transform, opacity, mask);
+    if (texture().get())
+        textureMapper->drawTexture(*texture().get(), rect(), transform, opacity, mask, exposedEdges);
 }
 
 TextureMapperTiledBackingStore::TextureMapperTiledBackingStore()
@@ -66,13 +107,27 @@ void TextureMapperTiledBackingStore::updateContentsFromImageIfNeeded(TextureMapp
     m_image.clear();
 }
 
+unsigned TextureMapperBackingStore::calculateExposedTileEdges(const FloatRect& totalRect, const FloatRect& tileRect)
+{
+    unsigned exposedEdges = TextureMapper::NoEdges;
+    if (!tileRect.x())
+        exposedEdges |= TextureMapper::LeftEdge;
+    if (!tileRect.y())
+        exposedEdges |= TextureMapper::TopEdge;
+    if (tileRect.width() + tileRect.x() >= totalRect.width())
+        exposedEdges |= TextureMapper::RightEdge;
+    if (tileRect.height() + tileRect.y() >= totalRect.height())
+        exposedEdges |= TextureMapper::BottomEdge;
+    return exposedEdges;
+}
+
 void TextureMapperTiledBackingStore::paintToTextureMapper(TextureMapper* textureMapper, const FloatRect& targetRect, const TransformationMatrix& transform, float opacity, BitmapTexture* mask)
 {
     updateContentsFromImageIfNeeded(textureMapper);
     TransformationMatrix adjustedTransform = transform;
     adjustedTransform.multiply(TransformationMatrix::rectToRect(rect(), targetRect));
     for (size_t i = 0; i < m_tiles.size(); ++i) {
-        m_tiles[i].paint(textureMapper, adjustedTransform, opacity, mask);
+        m_tiles[i].paint(textureMapper, adjustedTransform, opacity, mask, calculateExposedTileEdges(rect(), m_tiles[i].rect()));
         if (m_drawsDebugBorders)
             textureMapper->drawBorder(m_debugBorderColor, m_debugBorderWidth, m_tiles[i].rect(), adjustedTransform);
     }

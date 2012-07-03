@@ -46,9 +46,10 @@
 namespace WebCore {
 
     class DOMStringList;
-    class DOMWrapperVisitor;
     class EventListener;
     class EventTarget;
+    class ExternalStringVisitor;
+    class MemoryInstrumentation;
 
     // FIXME: Remove V8Binding.
     class V8Binding {
@@ -59,7 +60,7 @@ namespace WebCore {
     public:
         StringCache() { }
 
-        v8::Local<v8::String> v8ExternalString(StringImpl* stringImpl) 
+        v8::Local<v8::String> v8ExternalString(StringImpl* stringImpl, v8::Isolate* isolate)
         {
             if (m_lastStringImpl.get() == stringImpl) {
                 ASSERT(!m_lastV8String.IsNearDeath());
@@ -67,7 +68,7 @@ namespace WebCore {
                 return v8::Local<v8::String>::New(m_lastV8String);
             }
 
-            return v8ExternalStringSlow(stringImpl);
+            return v8ExternalStringSlow(stringImpl, isolate);
         }
 
         void clearOnGC() 
@@ -78,8 +79,10 @@ namespace WebCore {
 
         void remove(StringImpl*);
 
+        void reportMemoryUsage(MemoryInstrumentation*);
+
     private:
-        v8::Local<v8::String> v8ExternalStringSlow(StringImpl*);
+        v8::Local<v8::String> v8ExternalStringSlow(StringImpl*, v8::Isolate*);
 
         HashMap<StringImpl*, v8::String*> m_stringCache;
         v8::Persistent<v8::String> m_lastV8String;
@@ -87,6 +90,38 @@ namespace WebCore {
         // hence lastStringImpl might be not a key of the cache (in sense of identity)
         // and hence it's not refed on addition.
         RefPtr<StringImpl> m_lastStringImpl;
+    };
+
+    const int numberOfCachedSmallIntegers = 64;
+
+    class IntegerCache {
+    public:
+        IntegerCache() : m_initialized(false) { };
+        ~IntegerCache();
+
+        v8::Handle<v8::Integer> v8Integer(int value)
+        {
+            if (!m_initialized)
+                createSmallIntegers();
+            if (0 <= value && value < numberOfCachedSmallIntegers)
+                return m_smallIntegers[value];
+            return v8::Integer::New(value);
+        }
+
+        v8::Handle<v8::Integer> v8UnsignedInteger(unsigned value)
+        {
+            if (!m_initialized)
+                createSmallIntegers();
+            if (value < static_cast<unsigned>(numberOfCachedSmallIntegers))
+                return m_smallIntegers[value];
+            return v8::Integer::NewFromUnsigned(value);
+        }
+
+    private:
+        void createSmallIntegers();
+
+        v8::Persistent<v8::Integer> m_smallIntegers[numberOfCachedSmallIntegers];
+        bool m_initialized;
     };
 
     class ScriptGCEventListener;
@@ -120,15 +155,12 @@ namespace WebCore {
     public:
         static V8BindingPerIsolateData* create(v8::Isolate*);
         static void ensureInitialized(v8::Isolate*);
-        static V8BindingPerIsolateData* get(v8::Isolate* isolate)
-        {
-            ASSERT(isolate->GetData());
-            return static_cast<V8BindingPerIsolateData*>(isolate->GetData()); 
-        }
-
         static V8BindingPerIsolateData* current(v8::Isolate* isolate = 0)
         {
-            return isolate ? static_cast<V8BindingPerIsolateData*>(isolate->GetData()) : get(v8::Isolate::GetCurrent());
+            if (UNLIKELY(!isolate))
+                isolate = v8::Isolate::GetCurrent();
+            ASSERT(isolate->GetData());
+            return static_cast<V8BindingPerIsolateData*>(isolate->GetData()); 
         }
         static void dispose(v8::Isolate*);
 
@@ -145,8 +177,10 @@ namespace WebCore {
         }
 
         StringCache* stringCache() { return &m_stringCache; }
+        IntegerCache* integerCache() { return &m_integerCache; }
+
 #if ENABLE(INSPECTOR)
-        void visitJSExternalStrings(DOMWrapperVisitor*);
+        void visitExternalStrings(ExternalStringVisitor*);
 #endif
         DOMDataList& allStores() { return m_domDataList; }
 
@@ -183,6 +217,8 @@ namespace WebCore {
 
         GCEventData& gcEventData() { return m_gcEventData; }
 
+        void reportMemoryUsage(MemoryInstrumentation*);
+
     private:
         explicit V8BindingPerIsolateData(v8::Isolate*);
         ~V8BindingPerIsolateData();
@@ -193,6 +229,7 @@ namespace WebCore {
         v8::Persistent<v8::FunctionTemplate> m_toStringTemplate;
         v8::Persistent<v8::FunctionTemplate> m_lazyEventListenerToStringTemplate;
         StringCache m_stringCache;
+        IntegerCache m_integerCache;
 
         DOMDataList m_domDataList;
         DOMDataStore* m_domDataStore;
@@ -248,10 +285,10 @@ namespace WebCore {
     StringType v8StringToWebCoreString(v8::Handle<v8::String> v8String, ExternalMode external);
 
     // Since v8::Null(isolate) crashes if we pass a null isolate,
-    // we need to instead use v8Null(isolate).
+    // we need to use v8NullWithCheck(isolate) if an isolate can be null.
     //
-    // FIXME: Remove all null isolates from V8 bindings, and remove v8Null(isolate).
-    inline v8::Handle<v8::Value> v8Null(v8::Isolate* isolate)
+    // FIXME: Remove all null isolates from V8 bindings, and remove v8NullWithCheck(isolate).
+    inline v8::Handle<v8::Value> v8NullWithCheck(v8::Isolate* isolate)
     {
         return isolate ? v8::Null(isolate) : v8::Null();
     }
@@ -281,10 +318,10 @@ namespace WebCore {
     {
         StringImpl* stringImpl = string.impl();
         if (!stringImpl)
-            return v8::String::Empty();
+            return isolate ? v8::String::Empty(isolate) : v8::String::Empty();
 
         V8BindingPerIsolateData* data = V8BindingPerIsolateData::current(isolate);
-        return data->stringCache()->v8ExternalString(stringImpl);
+        return data->stringCache()->v8ExternalString(stringImpl, isolate);
     }
 
     // Convert a string to a V8 string.
@@ -293,27 +330,97 @@ namespace WebCore {
         return v8ExternalString(string, isolate);
     }
 
+    inline v8::Handle<v8::Integer> v8Integer(int value, v8::Isolate* isolate = 0)
+    {
+        V8BindingPerIsolateData* data = V8BindingPerIsolateData::current(isolate);
+        return data->integerCache()->v8Integer(value);
+    }
+
+    inline v8::Handle<v8::Integer> v8UnsignedInteger(unsigned value, v8::Isolate* isolate = 0)
+    {
+        V8BindingPerIsolateData* data = V8BindingPerIsolateData::current(isolate);
+        return data->integerCache()->v8UnsignedInteger(value);
+    }
+
+    template <class T>
+    struct V8ValueTraits {
+        static inline v8::Handle<v8::Value> arrayV8Value(const T& value, v8::Isolate* isolate)
+        {
+            return toV8(WTF::getPtr(value), isolate);
+        }
+    };
+
+    template<>
+    struct V8ValueTraits<String> {
+        static inline v8::Handle<v8::Value> arrayV8Value(const String& value, v8::Isolate* isolate)
+        {
+            return v8String(value, isolate);
+        }
+    };
+
+    template<>
+    struct V8ValueTraits<unsigned long> {
+        static inline v8::Handle<v8::Value> arrayV8Value(const unsigned long& value, v8::Isolate* isolate)
+        {
+            return v8UnsignedInteger(value, isolate);
+        }
+    };
+
+    template<>
+    struct V8ValueTraits<float> {
+        static inline v8::Handle<v8::Value> arrayV8Value(const float& value, v8::Isolate*)
+        {
+            return v8::Number::New(value);
+        }
+    };
+
+    template<>
+    struct V8ValueTraits<double> {
+        static inline v8::Handle<v8::Value> arrayV8Value(const double& value, v8::Isolate*)
+        {
+            return v8::Number::New(value);
+        }
+    };
+
     template<typename T>
     v8::Handle<v8::Value> v8Array(const Vector<T>& iterator, v8::Isolate* isolate)
     {
         v8::Local<v8::Array> result = v8::Array::New(iterator.size());
         int index = 0;
         typename Vector<T>::const_iterator end = iterator.end();
+        typedef V8ValueTraits<T> TraitsType;
         for (typename Vector<T>::const_iterator iter = iterator.begin(); iter != end; ++iter)
-            result->Set(v8::Integer::New(index++), toV8(WTF::getPtr(*iter), isolate));
+            result->Set(v8Integer(index++, isolate), TraitsType::arrayV8Value(*iter, isolate));
         return result;
     }
 
+    v8::Handle<v8::Value> v8Array(PassRefPtr<DOMStringList>, v8::Isolate*);
+
+    template<class T> struct NativeValueTraits;
+
     template<>
-    inline v8::Handle<v8::Value> v8Array(const Vector<String>& iterator, v8::Isolate* isolate)
-    {
-        v8::Local<v8::Array> array = v8::Array::New(iterator.size());
-        Vector<String>::const_iterator end = iterator.end();
-        int index = 0;
-        for (Vector<String>::const_iterator iter = iterator.begin(); iter != end; ++iter)
-            array->Set(v8::Integer::New(index++), v8String(*iter, isolate));
-        return array;
-    }
+    struct NativeValueTraits<String> {
+        static inline String arrayNativeValue(const v8::Local<v8::Array>& array, size_t i)
+        {
+            return v8ValueToWebCoreString(array->Get(i));
+        }
+    };
+
+    template<>
+    struct NativeValueTraits<float> {
+        static inline float arrayNativeValue(const v8::Local<v8::Array>& array, size_t i)
+        {
+            return static_cast<float>(array->Get(v8Integer(i))->NumberValue());
+        }
+    };
+
+    template<>
+    struct NativeValueTraits<double> {
+        static inline double arrayNativeValue(const v8::Local<v8::Array>& array, size_t i)
+        {
+            return static_cast<double>(array->Get(v8Integer(i))->NumberValue());
+        }
+    };
 
     template <class T>
     Vector<T> toNativeArray(v8::Handle<v8::Value> value)
@@ -322,12 +429,12 @@ namespace WebCore {
             return Vector<T>();
 
         Vector<T> result;
+        typedef NativeValueTraits<T> TraitsType;
         v8::Local<v8::Value> v8Value(v8::Local<v8::Value>::New(value));
         v8::Local<v8::Array> array = v8::Local<v8::Array>::Cast(v8Value);
         size_t length = array->Length();
-
         for (size_t i = 0; i < length; ++i) {
-            result.append(v8ValueToWebCoreString(array->Get(i)));
+            result.append(TraitsType::arrayNativeValue(array, i));
         }
         return result;
     }
@@ -408,6 +515,20 @@ namespace WebCore {
         return value ? v8::True() : v8::False();
     }
 
+    inline v8::Handle<v8::Boolean> v8Boolean(bool value, v8::Isolate* isolate)
+    {
+        return value ? v8::True(isolate) : v8::False(isolate);
+    }
+
+    // Since v8Boolean(value, isolate) crashes if we pass a null isolate,
+    // we need to use v8BooleanWithCheck(value, isolate) if an isolate can be null.
+    //
+    // FIXME: Remove all null isolates from V8 bindings, and remove v8BooleanWithCheck(value, isolate).
+    inline v8::Handle<v8::Boolean> v8BooleanWithCheck(bool value, v8::Isolate* isolate)
+    {
+        return isolate ? v8Boolean(value, isolate) : v8Boolean(value);
+    }
+
     inline String toWebCoreStringWithNullCheck(v8::Handle<v8::Value> value)
     {
         return value->IsNull() ? String() : v8ValueToWebCoreString(value);
@@ -440,16 +561,7 @@ namespace WebCore {
 
     inline v8::Handle<v8::Value> v8StringOrFalse(const String& str, v8::Isolate* isolate = 0)
     {
-        return str.isNull() ? v8::Handle<v8::Value>(v8::False()) : v8::Handle<v8::Value>(v8String(str, isolate));
-    }
-
-    template <class T> v8::Handle<v8::Value> v8NumberArray(const Vector<T>& values)
-    {
-        size_t size = values.size();
-        v8::Local<v8::Array> result = v8::Array::New(size);
-        for (size_t i = 0; i < size; ++i)
-            result->Set(i, v8::Number::New(values[i]));
-        return result;
+        return str.isNull() ? v8::Handle<v8::Value>(v8Boolean(false)) : v8::Handle<v8::Value>(v8String(str, isolate));
     }
 
     inline double toWebCoreDate(v8::Handle<v8::Value> object)
@@ -459,7 +571,7 @@ namespace WebCore {
 
     inline v8::Handle<v8::Value> v8DateOrNull(double value, v8::Isolate* isolate = 0)
     {
-        return isfinite(value) ? v8::Date::New(value) : v8Null(isolate);
+        return isfinite(value) ? v8::Date::New(value) : v8NullWithCheck(isolate);
     }
 
     v8::Persistent<v8::FunctionTemplate> createRawTemplate();
@@ -476,33 +588,10 @@ namespace WebCore {
                                                const BatchedCallback*,
                                                size_t callbackCount);
 
-    v8::Handle<v8::Value> getElementStringAttr(const v8::AccessorInfo&,
-                                               const QualifiedName&);
-    void setElementStringAttr(const v8::AccessorInfo&,
-                              const QualifiedName&,
-                              v8::Local<v8::Value>);
-
-
     v8::Persistent<v8::String> getToStringName();
     v8::Persistent<v8::FunctionTemplate> getToStringTemplate();
 
     String int32ToWebCoreString(int value);
-
-    template <class T> Vector<T> v8NumberArrayToVector(v8::Handle<v8::Value> value)
-    {
-        v8::Local<v8::Value> v8Value(v8::Local<v8::Value>::New(value));
-        if (!v8Value->IsArray())
-            return Vector<T>();
-
-        Vector<T> result;
-        v8::Local<v8::Array> v8Array = v8::Local<v8::Array>::Cast(v8Value);
-        size_t length = v8Array->Length();
-        for (size_t i = 0; i < length; ++i) {
-            v8::Local<v8::Value> indexedValue = v8Array->Get(v8::Integer::New(i));
-            result.append(static_cast<T>(indexedValue->NumberValue()));
-        }
-        return result;
-    }
 
     PassRefPtr<DOMStringList> v8ValueToWebCoreDOMStringList(v8::Handle<v8::Value>);
 

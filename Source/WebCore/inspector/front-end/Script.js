@@ -138,6 +138,7 @@ WebInspector.Script.prototype = {
          */
         function didEditScriptSource(error, callFrames, debugData)
         {
+            // FIXME: support debugData.stack_update_needs_step_in flag by calling WebInspector.debugger_model.callStackModified
             if (!error)
                 this._source = newSource;
             callback(error, callFrames);
@@ -173,7 +174,7 @@ WebInspector.Script.prototype = {
      */
     rawLocationToUILocation: function(lineNumber, columnNumber)
     {
-        var uiLocation = this._sourceMapping.rawLocationToUILocation(new WebInspector.DebuggerModel.Location(this, lineNumber, columnNumber || 0));
+        var uiLocation = this._sourceMapping.rawLocationToUILocation(new WebInspector.DebuggerModel.Location(this.scriptId, lineNumber, columnNumber || 0));
         return uiLocation.uiSourceCode.overrideLocation(uiLocation);
     },
 
@@ -188,7 +189,7 @@ WebInspector.Script.prototype = {
     },
 
     /**
-     * @param {DebuggerAgent.Location} rawLocation
+     * @param {WebInspector.DebuggerModel.Location} rawLocation
      * @param {function(WebInspector.UILocation):(boolean|undefined)} updateDelegate
      * @return {WebInspector.Script.Location}
      */
@@ -205,7 +206,7 @@ WebInspector.Script.prototype = {
 /**
  * @constructor
  * @param {WebInspector.Script} script
- * @param {DebuggerAgent.Location} rawLocation
+ * @param {WebInspector.DebuggerModel.Location} rawLocation
  * @param {function(WebInspector.UILocation):(boolean|undefined)} updateDelegate
  */
 WebInspector.Script.Location = function(script, rawLocation, updateDelegate)

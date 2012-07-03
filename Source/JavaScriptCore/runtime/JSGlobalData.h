@@ -35,6 +35,7 @@
 #include "Heap.h"
 #include "Intrinsic.h"
 #include "JITStubs.h"
+#include "JSLock.h"
 #include "JSValue.h"
 #include "LLIntData.h"
 #include "NumericStrings.h"
@@ -46,8 +47,8 @@
 #include <wtf/BumpPointerAllocator.h>
 #include <wtf/Forward.h>
 #include <wtf/HashMap.h>
-#include <wtf/RefCounted.h>
 #include <wtf/SimpleStats.h>
+#include <wtf/ThreadSafeRefCounted.h>
 #include <wtf/ThreadSpecific.h>
 #include <wtf/WTFThreadData.h>
 #if ENABLE(REGEXP_TRACING)
@@ -70,6 +71,7 @@ namespace JSC {
     class LLIntOffsetsExtractor;
     class NativeExecutable;
     class ParserArena;
+    class Profiler;
     class RegExpCache;
     class Stringifier;
     class Structure;
@@ -151,7 +153,7 @@ namespace JSC {
     };
 #endif
 
-    class JSGlobalData : public RefCounted<JSGlobalData> {
+    class JSGlobalData : public ThreadSafeRefCounted<JSGlobalData> {
     public:
         // WebCore has a one-to-one mapping of threads to JSGlobalDatas;
         // either create() or createLeaked() should only be called once
@@ -179,6 +181,10 @@ namespace JSC {
 
         void makeUsableFromMultipleThreads() { heap.machineThreads().makeUsableFromMultipleThreads(); }
 
+    private:
+        JSLock m_apiLock;
+
+    public:
         Heap heap; // The heap is our first data member to ensure that it's destructed after all the objects that reference it.
 
         GlobalDataType globalDataType;
@@ -253,6 +259,11 @@ namespace JSC {
         bool isInDefineOwnProperty()
         {
             return m_inDefineOwnProperty;
+        }
+
+        Profiler* enabledProfiler()
+        {
+            return m_enabledProfiler;
         }
 
 #if ENABLE(ASSEMBLER)
@@ -346,6 +357,7 @@ namespace JSC {
 
         int maxReentryDepth;
 
+        Profiler* m_enabledProfiler;
         RegExpCache* m_regExpCache;
         BumpPointerAllocator m_regExpAllocator;
 
@@ -401,6 +413,8 @@ namespace JSC {
         registerTypedArrayFunction(float32, Float32);
         registerTypedArrayFunction(float64, Float64);
 #undef registerTypedArrayFunction
+
+        JSLock& apiLock() { return m_apiLock; }
 
     private:
         friend class LLIntOffsetsExtractor;

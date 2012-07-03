@@ -59,6 +59,7 @@
 #include "V8WebGLCompressedTextureS3TC.h"
 #include "V8WebGLDebugRendererInfo.h"
 #include "V8WebGLDebugShaders.h"
+#include "V8WebGLDepthTexture.h"
 #include "V8WebGLFramebuffer.h"
 #include "V8WebGLLoseContext.h"
 #include "V8WebGLProgram.h"
@@ -124,19 +125,19 @@ static v8::Handle<v8::Value> toV8Object(const WebGLGetInfo& info, v8::Isolate* i
         const Vector<bool>& value = info.getBoolArray();
         v8::Local<v8::Array> array = v8::Array::New(value.size());
         for (size_t ii = 0; ii < value.size(); ++ii)
-            array->Set(v8::Integer::New(ii), v8::Boolean::New(value[ii]));
+            array->Set(v8Integer(ii, isolate), v8::Boolean::New(value[ii]));
         return array;
     }
     case WebGLGetInfo::kTypeFloat:
         return v8::Number::New(info.getFloat());
     case WebGLGetInfo::kTypeInt:
-        return v8::Integer::New(info.getInt());
+        return v8Integer(info.getInt(), isolate);
     case WebGLGetInfo::kTypeNull:
-        return v8::Null();
+        return v8::Null(isolate);
     case WebGLGetInfo::kTypeString:
         return v8::String::New(fromWebCoreString(info.getString()), info.getString().length());
     case WebGLGetInfo::kTypeUnsignedInt:
-        return v8::Integer::NewFromUnsigned(info.getUnsignedInt());
+        return v8UnsignedInteger(info.getUnsignedInt(), isolate);
     case WebGLGetInfo::kTypeWebGLBuffer:
         return toV8(info.getWebGLBuffer(), isolate);
     case WebGLGetInfo::kTypeWebGLFloatArray:
@@ -168,7 +169,7 @@ static v8::Handle<v8::Value> toV8Object(const WebGLGetInfo& info, v8::Isolate* i
 static v8::Handle<v8::Value> toV8Object(WebGLExtension* extension, v8::Handle<v8::Object> contextObject, v8::Isolate* isolate)
 {
     if (!extension)
-        return v8::Null();
+        return v8::Null(isolate);
     v8::Handle<v8::Value> extensionObject;
     const char* referenceName = 0;
     switch (extension->getName()) {
@@ -203,6 +204,10 @@ static v8::Handle<v8::Value> toV8Object(WebGLExtension* extension, v8::Handle<v8
     case WebGLExtension::WebKitWebGLCompressedTextureS3TCName:
         extensionObject = toV8(static_cast<WebGLCompressedTextureS3TC*>(extension), isolate);
         referenceName = "webKitWebGLCompressedTextureS3TCName";
+        break;
+    case WebGLExtension::WebKitWebGLDepthTextureName:
+        extensionObject = toV8(static_cast<WebGLDepthTexture*>(extension), isolate);
+        referenceName = "webKitWebGLDepthTextureName";
         break;
     }
     ASSERT(!extensionObject.IsEmpty());
@@ -278,13 +283,13 @@ v8::Handle<v8::Value> V8WebGLRenderingContext::getAttachedShadersCallback(const 
     bool succeed = context->getAttachedShaders(program, shaders, ec);
     if (ec) {
         V8Proxy::setDOMException(ec, args.GetIsolate());
-        return v8::Null();
+        return v8::Null(args.GetIsolate());
     }
     if (!succeed)
-        return v8::Null();
+        return v8::Null(args.GetIsolate());
     v8::Local<v8::Array> array = v8::Array::New(shaders.size());
     for (size_t ii = 0; ii < shaders.size(); ++ii)
-        array->Set(v8::Integer::New(ii), toV8(shaders[ii].get(), args.GetIsolate()));
+        array->Set(v8Integer(ii, args.GetIsolate()), toV8(shaders[ii].get(), args.GetIsolate()));
     return array;
 }
 
@@ -388,12 +393,12 @@ v8::Handle<v8::Value> V8WebGLRenderingContext::getSupportedExtensionsCallback(co
     INC_STATS("DOM.WebGLRenderingContext.getSupportedExtensionsCallback()");
     WebGLRenderingContext* imp = V8WebGLRenderingContext::toNative(args.Holder());
     if (imp->isContextLost())
-        return v8::Null();
+        return v8::Null(args.GetIsolate());
 
     Vector<String> value = imp->getSupportedExtensions();
     v8::Local<v8::Array> array = v8::Array::New(value.size());
     for (size_t ii = 0; ii < value.size(); ++ii)
-        array->Set(v8::Integer::New(ii), v8::String::New(fromWebCoreString(value[ii]), value[ii].length()));
+        array->Set(v8Integer(ii, args.GetIsolate()), v8::String::New(fromWebCoreString(value[ii]), value[ii].length()));
     return array;
 }
 

@@ -117,7 +117,7 @@ void WebPreferences::reset()
     acceleratedPaintingEnabled = false;
     forceCompositingMode = false;
     hixie76WebSocketProtocolEnabled = true;
-    perTilePaintingEnabled = false;
+    mediaPlaybackRequiresUserGesture = false;
     mockScrollbarsEnabled = false;
     cssCustomFilterEnabled = false;
 }
@@ -226,7 +226,7 @@ void WebPreferences::applyTo(WebView* webView)
     settings->setDeferred2dCanvasEnabled(deferred2dCanvasEnabled);
     settings->setAcceleratedPaintingEnabled(acceleratedPaintingEnabled);
     settings->setHixie76WebSocketProtocolEnabled(hixie76WebSocketProtocolEnabled);
-    settings->setPerTilePaintingEnabled(perTilePaintingEnabled);
+    settings->setMediaPlaybackRequiresUserGesture(mediaPlaybackRequiresUserGesture);
     settings->setMockScrollbarsEnabled(mockScrollbarsEnabled);
 
     // Fixed values.

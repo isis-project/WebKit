@@ -28,12 +28,14 @@
 #include "WebCompositorImpl.h"
 
 #include "CCThreadImpl.h"
+#include "GraphicsContext3D.h"
 #include "WebKit.h"
 #include "platform/WebKitPlatformSupport.h"
 #include "WebCompositorClient.h"
 #include "WebInputEvent.h"
 #include "cc/CCLayerTreeHost.h"
 #include "cc/CCProxy.h"
+#include "cc/CCSettings.h"
 #include <wtf/ThreadingPrimitives.h>
 
 using namespace WebCore;
@@ -51,6 +53,25 @@ void WebCompositor::initialize(WebThread* implThread)
 void WebCompositor::shutdown()
 {
     WebCompositorImpl::shutdown();
+    CCSettings::reset();
+}
+
+void WebCompositor::setPerTilePaintingEnabled(bool enabled)
+{
+    ASSERT(!WebCompositorImpl::initialized());
+    CCSettings::setPerTilePaintingEnabled(enabled);
+}
+
+void WebCompositor::setPartialSwapEnabled(bool enabled)
+{
+    ASSERT(!WebCompositorImpl::initialized());
+    CCSettings::setPartialSwapEnabled(enabled);
+}
+
+void WebCompositor::setAcceleratedAnimationEnabled(bool enabled)
+{
+    ASSERT(!WebCompositorImpl::initialized());
+    CCSettings::setAcceleratedAnimationEnabled(enabled);
 }
 
 void WebCompositorImpl::initialize(WebThread* implThread)

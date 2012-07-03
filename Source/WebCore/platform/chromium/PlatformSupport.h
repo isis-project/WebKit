@@ -38,7 +38,6 @@
 #include "FileSystem.h"
 #include "ImageSource.h"
 #include "LinkHash.h"
-#include "PasteboardPrivate.h"
 #include "PluginData.h"
 
 #include <wtf/Forward.h>
@@ -66,8 +65,6 @@ typedef struct HFONT__* HFONT;
 
 namespace WebCore {
 
-class AsyncFileSystem;
-class Clipboard;
 class Color;
 class Cursor;
 class Document;
@@ -83,7 +80,6 @@ class IntRect;
 class KURL;
 class SerializedScriptValue;
 class Widget;
-class WorkerRunLoop;
 
 struct Cookie;
 struct FontRenderStyle;
@@ -94,26 +90,6 @@ struct FontRenderStyle;
 
 class PlatformSupport {
 public:
-    // Clipboard ----------------------------------------------------------
-    static uint64_t clipboardSequenceNumber(PasteboardPrivate::ClipboardBuffer);
-
-    static bool clipboardIsFormatAvailable(PasteboardPrivate::ClipboardFormat, PasteboardPrivate::ClipboardBuffer);
-    static HashSet<String> clipboardReadAvailableTypes(PasteboardPrivate::ClipboardBuffer, bool* containsFilenames);
-
-    static String clipboardReadPlainText(PasteboardPrivate::ClipboardBuffer);
-    static void clipboardReadHTML(PasteboardPrivate::ClipboardBuffer, String*, KURL*, unsigned* fragmentStart, unsigned* fragmentEnd);
-    static PassRefPtr<SharedBuffer> clipboardReadImage(PasteboardPrivate::ClipboardBuffer);
-    static String clipboardReadCustomData(PasteboardPrivate::ClipboardBuffer, const String& type);
-
-    // Only the clipboardRead functions take a buffer argument because
-    // Chromium currently uses a different technique to write to alternate
-    // clipboard buffers.
-    static void clipboardWriteSelection(const String&, const KURL&, const String&, bool);
-    static void clipboardWritePlainText(const String&);
-    static void clipboardWriteURL(const KURL&, const String&);
-    static void clipboardWriteImage(NativeImagePtr, const KURL&, const String&);
-    static void clipboardWriteDataObject(Clipboard*);
-
     // Cookies ------------------------------------------------------------
     static void setCookies(const Document*, const KURL&, const String& value);
     static String cookies(const Document*, const KURL&);
@@ -121,28 +97,6 @@ public:
     static bool rawCookies(const Document*, const KURL&, Vector<Cookie>&);
     static void deleteCookie(const Document*, const KURL&, const String& cookieName);
     static bool cookiesEnabled(const Document*);
-
-    // File ---------------------------------------------------------------
-    static bool fileExists(const String&);
-    static bool deleteFile(const String&);
-    static bool deleteEmptyDirectory(const String&);
-    static bool getFileMetadata(const String&, FileMetadata& result);
-    static String directoryName(const String& path);
-    static String pathByAppendingComponent(const String& path, const String& component);
-    static bool makeAllDirectories(const String& path);
-    static String getAbsolutePath(const String&);
-    static bool isDirectory(const String&);
-    static KURL filePathToURL(const String&);
-    static PlatformFileHandle openFile(const String& path, FileOpenMode);
-    static void closeFile(PlatformFileHandle&);
-    static long long seekFile(PlatformFileHandle, long long offset, FileSeekOrigin);
-    static bool truncateFile(PlatformFileHandle, long long offset);
-    static int readFromFile(PlatformFileHandle, char* data, int length);
-    static int writeToFile(PlatformFileHandle, const char* data, int length);
-
-#if ENABLE(FILE_SYSTEM)
-    static PassOwnPtr<AsyncFileSystem> createAsyncFileSystem();
-#endif
 
     // Font ---------------------------------------------------------------
 #if OS(WINDOWS)
@@ -207,10 +161,6 @@ public:
     static bool screenIsMonochrome(Widget*);
     static IntRect screenRect(Widget*);
     static IntRect screenAvailableRect(Widget*);
-
-    // SharedTimers -------------------------------------------------------
-    static void setSharedTimerFiredFunction(void (*func)());
-    static void setSharedTimerFireInterval(double);
 
     // Returns private and shared usage, in bytes. Private bytes is the amount of
     // memory currently allocated to this process that cannot be shared. Returns
@@ -371,9 +321,6 @@ public:
     // Visited links ------------------------------------------------------
     static LinkHash visitedLinkHash(const UChar* url, unsigned length);
     static LinkHash visitedLinkHash(const KURL& base, const AtomicString& attributeURL);
-
-    static void didStartWorkerRunLoop(WorkerRunLoop*);
-    static void didStopWorkerRunLoop(WorkerRunLoop*);
 };
 
 } // namespace WebCore

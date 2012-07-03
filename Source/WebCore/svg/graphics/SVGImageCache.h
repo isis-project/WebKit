@@ -31,9 +31,10 @@
 namespace WebCore {
 
 class CachedImage;
+class CachedImageClient;
 class ImageBuffer;
-class RenderObject;
 class SVGImage;
+class RenderObject;
 
 class SVGImageCache {
 public:
@@ -47,7 +48,7 @@ public:
     struct SizeAndScales {
         SizeAndScales()
             : zoom(1)
-            , scale(1)
+            , scale(0)
         {
         }
 
@@ -58,15 +59,22 @@ public:
         {
         }
 
+        SizeAndScales(const IntSize& newSize, float newZoom)
+            : size(newSize)
+            , zoom(newZoom)
+            , scale(0)
+        {
+        }
+
         IntSize size;
         float zoom;
-        float scale;
+        float scale; // A scale of 0 indicates that the default scale should be used.
     };
 
-    void removeRendererFromCache(const RenderObject*);
+    void removeClientFromCache(const CachedImageClient*);
 
-    void setRequestedSizeAndScales(const RenderObject*, const SizeAndScales&);
-    SizeAndScales requestedSizeAndScales(const RenderObject*) const;
+    void setRequestedSizeAndScales(const CachedImageClient*, const SizeAndScales&);
+    SizeAndScales requestedSizeAndScales(const CachedImageClient*) const;
 
     Image* lookupOrCreateBitmapImageForRenderer(const RenderObject*);
     void imageContentChanged();
@@ -98,8 +106,8 @@ private:
         RefPtr<Image> image;
     };
 
-    typedef HashMap<const RenderObject*, SizeAndScales> SizeAndScalesMap;
-    typedef HashMap<const RenderObject*, ImageData> ImageDataMap;
+    typedef HashMap<const CachedImageClient*, SizeAndScales> SizeAndScalesMap;
+    typedef HashMap<const CachedImageClient*, ImageData> ImageDataMap;
 
     SVGImage* m_svgImage;
     SizeAndScalesMap m_sizeAndScalesMap;

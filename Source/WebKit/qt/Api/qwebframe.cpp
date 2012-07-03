@@ -46,6 +46,7 @@
 #include "V8GCController.h"
 #endif
 #include "GraphicsContext.h"
+#include "HTMLFormElement.h"
 #include "HTMLMetaElement.h"
 #include "HitTestResult.h"
 #include "HTTPParsers.h"
@@ -117,7 +118,7 @@
 #include <qregion.h>
 #include <qnetworkrequest.h>
 
-#if ENABLE(ORIENTATION_EVENTS) && QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
+#if ENABLE(ORIENTATION_EVENTS) && !HAVE(QT5)
 QTM_USE_NAMESPACE
 #endif
 
@@ -322,14 +323,14 @@ void QWebFramePrivate::renderFromTiledBackingStore(GraphicsContext* context, con
         painter->restore();
     }
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
     renderCompositedLayers(context, IntRect(clip.boundingRect()));
     renderFrameExtras(context, QFlags<QWebFrame::RenderLayer>(QWebFrame::ScrollBarLayer) | QWebFrame::PanIconLayer, clip);
 #endif
 }
 #endif
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
 void QWebFramePrivate::renderCompositedLayers(GraphicsContext* context, const IntRect& clip)
 {
     if (!rootTextureMapperLayer || !textureMapper)
@@ -395,7 +396,7 @@ void QWebFramePrivate::renderRelativeCoords(GraphicsContext* context, QFlags<QWe
 
             context->restore();
         }
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
         renderCompositedLayers(context, IntRect(clip.boundingRect()));
 #endif
     }
@@ -500,19 +501,18 @@ static JSValueRef qtSenderCallback(JSContextRef context, JSObjectRef, JSObjectRe
 
     JSC::ExecState* exec = ::toJS(context);
     RefPtr<JSC::Bindings::RootObject> rootObject = JSC::Bindings::findRootObject(exec->dynamicGlobalObject());
-    JSC::JSObject* jsSender = JSC::Bindings::QtInstance::getQtInstance(sender, rootObject, QScriptEngine::QtOwnership)->createRuntimeObject(exec);
+    JSC::JSObject* jsSender = JSC::Bindings::QtInstance::getQtInstance(sender, rootObject, JSC::Bindings::QtInstance::QtOwnership)->createRuntimeObject(exec);
     return ::toRef(jsSender);
 }
 
 void QWebFramePrivate::addQtSenderToGlobalObject()
 {
-    JSC::JSLock lock(JSC::SilenceAssertionsOnly);
-
     JSDOMWindow* window = toJSDOMWindow(frame, mainThreadNormalWorld());
     Q_ASSERT(window);
 
     JSC::ExecState* exec = window->globalExec();
     Q_ASSERT(exec);
+    JSC::JSLockHolder lock(exec);
 
     JSContextRef context = ::toRef(exec);
     JSRetainPtr<JSStringRef> propertyName(Adopt, JSStringCreateWithUTF8CString("__qt_sender__"));
@@ -629,30 +629,7 @@ QWebFrame::~QWebFrame()
 }
 
 /*!
-    Make \a object available under \a name from within the frame's JavaScript
-    context. The \a object will be inserted as a child of the frame's window
-    object.
-
-    Qt properties will be exposed as JavaScript properties and slots as
-    JavaScript methods.
-    The interaction between C++ and JavaScript is explained in the documentation of the \l{The QtWebKit Bridge}{QtWebKit bridge}.
-
-    If you want to ensure that your QObjects remain accessible after loading a
-    new URL, you should add them in a slot connected to the
-    javaScriptWindowObjectCleared() signal.
-
-    If Javascript is not enabled for this page, then this method does nothing.
-
-    The \a object will never be explicitly deleted by QtWebKit.
-*/
-void QWebFrame::addToJavaScriptWindowObject(const QString &name, QObject *object)
-{
-    addToJavaScriptWindowObject(name, object, QScriptEngine::QtOwnership);
-}
-
-/*!
-    \fn void QWebFrame::addToJavaScriptWindowObject(const QString &name, QObject *object, QScriptEngine::ValueOwnership own)
-    \overload
+    \fn void QWebFrame::addToJavaScriptWindowObject(const QString &name, QObject *object, ValueOwnership own)
 
     Make \a object available under \a name from within the frame's JavaScript
     context. The \a object will be inserted as a child of the frame's window
@@ -670,15 +647,19 @@ void QWebFrame::addToJavaScriptWindowObject(const QString &name, QObject *object
 
     The ownership of \a object is specified using \a own.
 */
+#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+void QWebFrame::addToJavaScriptWindowObject(const QString &name, QObject *object, ValueOwnership ownership)
+#else
 void QWebFrame::addToJavaScriptWindowObject(const QString &name, QObject *object, QScriptEngine::ValueOwnership ownership)
+#endif
 {
     if (!page()->settings()->testAttribute(QWebSettings::JavascriptEnabled))
         return;
 #if USE(JSC)
-    JSC::JSLock lock(JSC::SilenceAssertionsOnly);
+    JSC::Bindings::QtInstance::ValueOwnership valueOwnership = static_cast<JSC::Bindings::QtInstance::ValueOwnership>(ownership);
     JSDOMWindow* window = toJSDOMWindow(d->frame, mainThreadNormalWorld());
     JSC::Bindings::RootObject* root;
-    if (ownership == QScriptEngine::QtOwnership)
+    if (valueOwnership == JSC::Bindings::QtInstance::QtOwnership)
         root = d->frame->script()->cacheableBindingRootObject();
     else
         root = d->frame->script()->bindingRootObject();
@@ -693,9 +674,10 @@ void QWebFrame::addToJavaScriptWindowObject(const QString &name, QObject *object
     }
 
     JSC::ExecState* exec = window->globalExec();
+    JSC::JSLockHolder lock(exec);
 
     JSC::JSObject* runtimeObject =
-            JSC::Bindings::QtInstance::getQtInstance(object, root, ownership)->createRuntimeObject(exec);
+            JSC::Bindings::QtInstance::getQtInstance(object, root, valueOwnership)->createRuntimeObject(exec);
 
     JSC::PutPropertySlot slot;
     window->methodTable()->put(window, exec, JSC::Identifier(&exec->globalData(), reinterpret_cast_ptr<const UChar*>(name.constData()), name.length()), runtimeObject, slot);

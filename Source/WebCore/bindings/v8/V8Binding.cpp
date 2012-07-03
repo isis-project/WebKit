@@ -31,9 +31,10 @@
 #include "config.h"
 #include "V8Binding.h"
 
+#include "BindingVisitors.h"
 #include "DOMStringList.h"
-#include "DOMWrapperVisitor.h"
 #include "Element.h"
+#include "MemoryInstrumentation.h"
 #include "PlatformString.h"
 #include "QualifiedName.h"
 #include "V8DOMStringList.h"
@@ -89,7 +90,16 @@ void V8BindingPerIsolateData::dispose(v8::Isolate* isolate)
     isolate->SetData(0);
 }
 
+void V8BindingPerIsolateData::reportMemoryUsage(MemoryInstrumentation* instrumentation)
+{
+    instrumentation->reportPointer(this, MemoryInstrumentation::Binding);
+    instrumentation->reportHashMap(m_rawTemplates, MemoryInstrumentation::Binding);
+    instrumentation->reportHashMap(m_templates, MemoryInstrumentation::Binding);
+    m_stringCache.reportMemoryUsage(instrumentation);
 
+    for (size_t i = 0; i < m_domDataList.size(); i++)
+        m_domDataList[i]->reportMemoryUsage(instrumentation);
+}
 
 // WebCoreStringResource is a helper class for v8ExternalString. It is used
 // to manage the life-cycle of the underlying buffer of the external string.
@@ -150,7 +160,7 @@ public:
         return m_atomicString;
     }
 
-    void visitStrings(DOMWrapperVisitor* visitor)
+    void visitStrings(ExternalStringVisitor* visitor)
     {
         visitor->visitJSExternalString(m_plainString.impl());
         if (m_plainString.impl() != m_atomicString.impl() && !m_atomicString.isNull())
@@ -178,12 +188,12 @@ private:
 };
 
 #if ENABLE(INSPECTOR)
-void V8BindingPerIsolateData::visitJSExternalStrings(DOMWrapperVisitor* visitor)
+void V8BindingPerIsolateData::visitExternalStrings(ExternalStringVisitor* visitor)
 {
     v8::HandleScope handleScope;
     class VisitorImpl : public v8::ExternalResourceVisitor {
     public:
-        VisitorImpl(DOMWrapperVisitor* visitor) : m_visitor(visitor) { }
+        VisitorImpl(ExternalStringVisitor* visitor) : m_visitor(visitor) { }
         virtual ~VisitorImpl() { }
         virtual void VisitExternalString(v8::Handle<v8::String> string)
         {
@@ -192,7 +202,7 @@ void V8BindingPerIsolateData::visitJSExternalStrings(DOMWrapperVisitor* visitor)
                 resource->visitStrings(m_visitor);
         }
     private:
-        DOMWrapperVisitor* m_visitor;
+        ExternalStringVisitor* m_visitor;
     } v8Visitor(visitor);
     v8::V8::VisitExternalResources(&v8Visitor);
 }
@@ -210,6 +220,16 @@ AtomicString v8ValueToAtomicWebCoreString(v8::Handle<v8::Value> value)
     if (value->IsString())
         return v8StringToAtomicWebCoreString(v8::Handle<v8::String>::Cast(value));
     return v8NonStringValueToAtomicWebCoreString(value);
+}
+
+v8::Handle<v8::Value> v8Array(PassRefPtr<DOMStringList> stringList, v8::Isolate* isolate)
+{
+    if (!stringList)
+        return v8::Array::New();
+    v8::Local<v8::Array> result = v8::Array::New(stringList->length());
+    for (unsigned i = 0; i < stringList->length(); ++i)
+        result->Set(v8Integer(i, isolate), v8String(stringList->item(i), isolate));
+    return result;
 }
 
 int toInt32(v8::Handle<v8::Value> value, bool& ok)
@@ -448,10 +468,10 @@ void StringCache::remove(StringImpl* stringImpl)
     m_stringCache.remove(stringImpl);
 }
 
-v8::Local<v8::String> StringCache::v8ExternalStringSlow(StringImpl* stringImpl)
+v8::Local<v8::String> StringCache::v8ExternalStringSlow(StringImpl* stringImpl, v8::Isolate* isolate)
 {
     if (!stringImpl->length())
-        return v8::String::Empty();
+        return isolate ? v8::String::Empty(isolate) : v8::String::Empty();
 
     v8::String* cachedV8String = m_stringCache.get(stringImpl);
     if (cachedV8String) {
@@ -480,7 +500,27 @@ v8::Local<v8::String> StringCache::v8ExternalStringSlow(StringImpl* stringImpl)
 
     return newString;
 }
-    
+
+void IntegerCache::createSmallIntegers()
+{
+    ASSERT(!m_initialized);
+    // We initialize m_smallIntegers not in a constructor but in v8Integer(),
+    // because Integer::New() requires a HandleScope. At the point where
+    // IntegerCache is constructed, a HandleScope might not exist.
+    for (int value = 0; value < numberOfCachedSmallIntegers; value++)
+        m_smallIntegers[value] = v8::Persistent<v8::Integer>::New(v8::Integer::New(value));
+    m_initialized = true;
+}
+
+IntegerCache::~IntegerCache()
+{
+    if (m_initialized) {
+        for (int value = 0; value < numberOfCachedSmallIntegers; value++)
+            m_smallIntegers[value].Dispose();
+        m_initialized = false;
+    }
+}
+
 v8::Persistent<v8::FunctionTemplate> createRawTemplate()
 {
     v8::HandleScope scope;
@@ -546,23 +586,12 @@ v8::Persistent<v8::FunctionTemplate> getToStringTemplate()
         toStringTemplate = v8::Persistent<v8::FunctionTemplate>::New(v8::FunctionTemplate::New(constructorToString));
     return toStringTemplate;
 }
+
+void StringCache::reportMemoryUsage(MemoryInstrumentation* instrumentation)
+{
+    instrumentation->reportHashMap(m_stringCache, MemoryInstrumentation::Binding);
+}
     
-v8::Handle<v8::Value> getElementStringAttr(const v8::AccessorInfo& info,
-                                           const QualifiedName& name) 
-{
-    Element* imp = V8Element::toNative(info.Holder());
-    return v8ExternalString(imp->getAttribute(name), info.GetIsolate());
-}
-
-void setElementStringAttr(const v8::AccessorInfo& info,
-                          const QualifiedName& name,
-                          v8::Local<v8::Value> value)
-{
-    Element* imp = V8Element::toNative(info.Holder());
-    AtomicString v = toAtomicWebCoreStringWithNullCheck(value);
-    imp->setAttribute(name, v);
-}
-
 PassRefPtr<DOMStringList> v8ValueToWebCoreDOMStringList(v8::Handle<v8::Value> value)
 {
     v8::Local<v8::Value> v8Value(v8::Local<v8::Value>::New(value));
@@ -578,7 +607,7 @@ PassRefPtr<DOMStringList> v8ValueToWebCoreDOMStringList(v8::Handle<v8::Value> va
     RefPtr<DOMStringList> ret = DOMStringList::create();
     v8::Local<v8::Array> v8Array = v8::Local<v8::Array>::Cast(v8Value);
     for (size_t i = 0; i < v8Array->Length(); ++i) {
-        v8::Local<v8::Value> indexedValue = v8Array->Get(v8::Integer::New(i));
+        v8::Local<v8::Value> indexedValue = v8Array->Get(v8Integer(i));
         ret->append(v8ValueToWebCoreString(indexedValue));
     }
     return ret.release();

@@ -40,11 +40,24 @@
 
 namespace JSC { namespace DFG {
 
+JITCompiler::JITCompiler(Graph& dfg)
+    : CCallHelpers(&dfg.m_globalData, dfg.m_codeBlock)
+    , m_graph(dfg)
+    , m_currentCodeOriginIndex(0)
+{
+    if (shouldShowDisassembly())
+        m_disassembler = adoptPtr(new Disassembler(dfg));
+}
+
 void JITCompiler::linkOSRExits()
 {
     for (unsigned i = 0; i < codeBlock()->numberOfOSRExits(); ++i) {
         OSRExit& exit = codeBlock()->osrExit(i);
-        exit.m_check.initialJump().link(this);
+        ASSERT(!exit.m_check.isSet() == (exit.m_watchpointIndex != std::numeric_limits<unsigned>::max()));
+        if (exit.m_watchpointIndex == std::numeric_limits<unsigned>::max())
+            exit.m_check.initialJump().link(this);
+        else
+            codeBlock()->watchpoint(exit.m_watchpointIndex).setDestination(label());
         jitAssertHasValidCallFrame();
         store32(TrustedImm32(i), &globalData()->osrExitIndex);
         exit.m_check.switchToLateJump(patchableJump());
@@ -75,8 +88,6 @@ void JITCompiler::compileBody(SpeculativeJIT& speculative)
     breakpoint();
 #endif
     
-    addPtr(TrustedImm32(1), AbsoluteAddress(codeBlock()->addressOfSpeculativeSuccessCounter()));
-
     bool compiledSpeculative = speculative.compile();
     ASSERT_UNUSED(compiledSpeculative, compiledSpeculative);
 }
@@ -124,16 +135,14 @@ void JITCompiler::link(LinkBuffer& linkBuffer)
     for (unsigned i = 0; i < m_calls.size(); ++i)
         linkBuffer.link(m_calls[i].m_call, m_calls[i].m_function);
 
-    if (m_codeBlock->needsCallReturnIndices()) {
-        m_codeBlock->callReturnIndexVector().reserveCapacity(m_exceptionChecks.size());
-        for (unsigned i = 0; i < m_exceptionChecks.size(); ++i) {
-            unsigned returnAddressOffset = linkBuffer.returnAddressOffset(m_exceptionChecks[i].m_call);
-            CodeOrigin codeOrigin = m_exceptionChecks[i].m_codeOrigin;
-            while (codeOrigin.inlineCallFrame)
-                codeOrigin = codeOrigin.inlineCallFrame->caller;
-            unsigned exceptionInfo = codeOrigin.bytecodeIndex;
-            m_codeBlock->callReturnIndexVector().append(CallReturnOffsetToBytecodeOffset(returnAddressOffset, exceptionInfo));
-        }
+    m_codeBlock->callReturnIndexVector().reserveCapacity(m_exceptionChecks.size());
+    for (unsigned i = 0; i < m_exceptionChecks.size(); ++i) {
+        unsigned returnAddressOffset = linkBuffer.returnAddressOffset(m_exceptionChecks[i].m_call);
+        CodeOrigin codeOrigin = m_exceptionChecks[i].m_codeOrigin;
+        while (codeOrigin.inlineCallFrame)
+            codeOrigin = codeOrigin.inlineCallFrame->caller;
+        unsigned exceptionInfo = codeOrigin.bytecodeIndex;
+        m_codeBlock->callReturnIndexVector().append(CallReturnOffsetToBytecodeOffset(returnAddressOffset, exceptionInfo));
     }
 
     Vector<CodeOriginAtCallReturnOffset>& codeOrigins = m_codeBlock->codeOrigins();
@@ -190,16 +199,23 @@ void JITCompiler::link(LinkBuffer& linkBuffer)
         OSRExit& exit = codeBlock()->osrExit(i);
         linkBuffer.link(exit.m_check.lateJump(), target);
         exit.m_check.correctLateJump(linkBuffer);
+        if (exit.m_watchpointIndex != std::numeric_limits<unsigned>::max())
+            codeBlock()->watchpoint(exit.m_watchpointIndex).correctLabels(linkBuffer);
     }
     
+    codeBlock()->minifiedDFG().setOriginalGraphSize(m_graph.size());
     codeBlock()->shrinkToFit(CodeBlock::LateShrink);
 }
 
 bool JITCompiler::compile(JITCode& entry)
 {
+    SamplingRegion samplingRegion("DFG Backend");
+
+    setStartOfCode();
     compileEntry();
     SpeculativeJIT speculative(*this);
     compileBody(speculative);
+    setEndOfMainPath();
 
     // Generate slow path code.
     speculative.runSlowPathGenerators();
@@ -209,6 +225,7 @@ bool JITCompiler::compile(JITCode& entry)
     
     // Create OSR entry trampolines if necessary.
     speculative.createOSREntries();
+    setEndOfCode();
 
     LinkBuffer linkBuffer(*m_globalData, this, m_codeBlock, JITCompilationCanFail);
     if (linkBuffer.didFailToAllocate())
@@ -216,12 +233,20 @@ bool JITCompiler::compile(JITCode& entry)
     link(linkBuffer);
     speculative.linkOSREntries(linkBuffer);
 
-    entry = JITCode(linkBuffer.finalizeCode(), JITCode::DFGJIT);
+    if (m_disassembler)
+        m_disassembler->dump(linkBuffer);
+
+    entry = JITCode(
+        linkBuffer.finalizeCodeWithoutDisassembly(),
+        JITCode::DFGJIT);
     return true;
 }
 
 bool JITCompiler::compileFunction(JITCode& entry, MacroAssemblerCodePtr& entryWithArityCheck)
 {
+    SamplingRegion samplingRegion("DFG Backend");
+    
+    setStartOfCode();
     compileEntry();
 
     // === Function header code generation ===
@@ -240,6 +265,7 @@ bool JITCompiler::compileFunction(JITCode& entry, MacroAssemblerCodePtr& entryWi
     // === Function body code generation ===
     SpeculativeJIT speculative(*this);
     compileBody(speculative);
+    setEndOfMainPath();
 
     // === Function footer code generation ===
     //
@@ -284,7 +310,7 @@ bool JITCompiler::compileFunction(JITCode& entry, MacroAssemblerCodePtr& entryWi
     
     // Create OSR entry trampolines if necessary.
     speculative.createOSREntries();
-
+    setEndOfCode();
 
     // === Link ===
     LinkBuffer linkBuffer(*m_globalData, this, m_codeBlock, JITCompilationCanFail);
@@ -296,9 +322,14 @@ bool JITCompiler::compileFunction(JITCode& entry, MacroAssemblerCodePtr& entryWi
     // FIXME: switch the register file check & arity check over to DFGOpertaion style calls, not JIT stubs.
     linkBuffer.link(callRegisterFileCheck, cti_register_file_check);
     linkBuffer.link(callArityCheck, m_codeBlock->m_isConstructor ? cti_op_construct_arityCheck : cti_op_call_arityCheck);
+    
+    if (m_disassembler)
+        m_disassembler->dump(linkBuffer);
 
     entryWithArityCheck = linkBuffer.locationOf(arityCheck);
-    entry = JITCode(linkBuffer.finalizeCode(), JITCode::DFGJIT);
+    entry = JITCode(
+        linkBuffer.finalizeCodeWithoutDisassembly(),
+        JITCode::DFGJIT);
     return true;
 }
 

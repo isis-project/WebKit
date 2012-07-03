@@ -298,11 +298,7 @@ void QGraphicsWebView::paint(QPainter* painter, const QStyleOptionGraphicsItem* 
         return;
     }
 #endif
-#if USE(ACCELERATED_COMPOSITING) && !USE(TEXTURE_MAPPER)
-    page()->mainFrame()->render(painter, d->overlay() ? QWebFrame::ContentsLayer : QWebFrame::AllLayers, option->exposedRect.toAlignedRect());
-#else
     page()->mainFrame()->render(painter, QWebFrame::AllLayers, option->exposedRect.toRect());
-#endif
     painter->setRenderHints(oldHints);
 }
 
@@ -315,7 +311,7 @@ bool QGraphicsWebView::sceneEvent(QEvent* event)
     if (d->page && (event->type() == QEvent::TouchBegin
                 || event->type() == QEvent::TouchEnd
                 || event->type() == QEvent::TouchUpdate
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+#if HAVE(QT5)
                 || event->type() == QEvent::TouchCancel
 #endif
        )) {
@@ -478,7 +474,7 @@ void QGraphicsWebViewPrivate::detachCurrentPage()
     if (!page)
         return;
 
-    page->d->view.clear();
+    page->d->view = 0;
     page->d->client = nullptr;
 
     // if the page was created by us, we own it and need to

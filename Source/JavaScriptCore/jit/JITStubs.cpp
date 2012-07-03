@@ -112,7 +112,7 @@ asm (
 HIDE_SYMBOL(ctiVMThrowTrampoline) "\n"
 SYMBOL_STRING(ctiVMThrowTrampoline) ":" "\n"
     "movl %esp, %ecx" "\n"
-    "call " SYMBOL_STRING_RELOCATION(cti_vm_throw) "\n"
+    "call " LOCAL_REFERENCE(cti_vm_throw) "\n"
     "int3" "\n"
 );
     
@@ -172,7 +172,7 @@ asm (
 HIDE_SYMBOL(ctiVMThrowTrampoline) "\n"
 SYMBOL_STRING(ctiVMThrowTrampoline) ":" "\n"
     "movq %rsp, %rdi" "\n"
-    "call " SYMBOL_STRING_RELOCATION(cti_vm_throw) "\n"
+    "call " LOCAL_REFERENCE(cti_vm_throw) "\n"
     "int3" "\n"
 );
 
@@ -205,7 +205,7 @@ SYMBOL_STRING(ctiOpThrowNotCaught) ":" "\n"
 #define REGISTER_FILE_OFFSET             0x60
 #define CALLFRAME_OFFSET                 0x64
 #define EXCEPTION_OFFSET                 0x64
-#define ENABLE_PROFILER_REFERENCE_OFFSET 0x68
+#define FIRST_STACK_ARGUMENT             0x68
 
 #elif (COMPILER(GCC) || COMPILER(MSVC) || COMPILER(RVCT)) && CPU(ARM_TRADITIONAL)
 
@@ -225,7 +225,7 @@ COMPILE_ASSERT(offsetof(struct JITStackFrame, code) == 0x50, JITStackFrame_code_
 
 extern "C" {
 
-    __declspec(naked) EncodedJSValue ctiTrampoline(void* code, RegisterFile*, CallFrame*, void* /*unused1*/, Profiler**, JSGlobalData*)
+    __declspec(naked) EncodedJSValue ctiTrampoline(void* code, RegisterFile*, CallFrame*, void* /*unused1*/, void* /*unused2*/, JSGlobalData*)
     {
         __asm {
             push ebp;
@@ -284,12 +284,11 @@ extern "C" {
 #define REGISTER_FILE_OFFSET        84
 #define CALLFRAME_OFFSET            88
 #define EXCEPTION_OFFSET            92
-#define ENABLE_PROFILER_REFERENCE_OFFSET 96
 #define GLOBAL_DATA_OFFSET         100
 #define STACK_LENGTH               104
 #elif CPU(SH4)
 #define SYMBOL_STRING(name) #name
-/* code (r4), RegisterFile* (r5), CallFrame* (r6), JSValue* exception (r7), Profiler**(sp), JSGlobalData (sp)*/
+/* code (r4), RegisterFile* (r5), CallFrame* (r6), void* unused1 (r7), void* unused2(sp), JSGlobalData (sp)*/
 
 asm volatile (
 ".text\n"
@@ -417,7 +416,7 @@ asm (
 HIDE_SYMBOL(ctiVMThrowTrampoline) "\n"
 SYMBOL_STRING(ctiVMThrowTrampoline) ":" "\n"
     "movq %rsp, %rdi" "\n"
-    "call " SYMBOL_STRING_RELOCATION(cti_vm_throw) "\n"
+    "call " LOCAL_REFERENCE(cti_vm_throw) "\n"
     "int3" "\n"
 );
 
@@ -465,9 +464,7 @@ SYMBOL_STRING(ctiTrampoline) ":" "\n"
     "sw    $5," STRINGIZE_VALUE_OF(REGISTER_FILE_OFFSET) "($29) # store registerFile to current stack" "\n"
     "sw    $6," STRINGIZE_VALUE_OF(CALLFRAME_OFFSET) "($29)     # store callFrame to curent stack" "\n"
     "sw    $7," STRINGIZE_VALUE_OF(EXCEPTION_OFFSET) "($29)     # store exception to current stack" "\n"
-    "lw    $8," STRINGIZE_VALUE_OF(STACK_LENGTH + 16) "($29)    # load enableProfilerReference from previous stack" "\n"
     "lw    $9," STRINGIZE_VALUE_OF(STACK_LENGTH + 20) "($29)    # load globalData from previous stack" "\n"
-    "sw    $8," STRINGIZE_VALUE_OF(ENABLE_PROFILER_REFERENCE_OFFSET) "($29)   # store enableProfilerReference to current stack" "\n"
     "jalr  $25" "\n"
     "sw    $9," STRINGIZE_VALUE_OF(GLOBAL_DATA_OFFSET) "($29)   # store globalData to current stack" "\n"
     "lw    $16," STRINGIZE_VALUE_OF(PRESERVED_S0_OFFSET) "($29)" "\n"
@@ -543,7 +540,7 @@ HIDE_SYMBOL(ctiTrampoline) "\n"
 ".thumb" "\n"
 ".thumb_func " THUMB_FUNC_PARAM(ctiTrampoline) "\n"
 SYMBOL_STRING(ctiTrampoline) ":" "\n"
-    "sub sp, sp, #" STRINGIZE_VALUE_OF(ENABLE_PROFILER_REFERENCE_OFFSET) "\n"
+    "sub sp, sp, #" STRINGIZE_VALUE_OF(FIRST_STACK_ARGUMENT) "\n"
     "str lr, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_RETURN_ADDRESS_OFFSET) "]" "\n"
     "str r4, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R4_OFFSET) "]" "\n"
     "str r5, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R5_OFFSET) "]" "\n"
@@ -568,7 +565,7 @@ SYMBOL_STRING(ctiTrampoline) ":" "\n"
     "ldr r5, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R5_OFFSET) "]" "\n"
     "ldr r4, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R4_OFFSET) "]" "\n"
     "ldr lr, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_RETURN_ADDRESS_OFFSET) "]" "\n"
-    "add sp, sp, #" STRINGIZE_VALUE_OF(ENABLE_PROFILER_REFERENCE_OFFSET) "\n"
+    "add sp, sp, #" STRINGIZE_VALUE_OF(FIRST_STACK_ARGUMENT) "\n"
     "bx lr" "\n"
 ".align 2" "\n"
 ".globl " SYMBOL_STRING(ctiTrampolineEnd) "\n"
@@ -587,7 +584,7 @@ HIDE_SYMBOL(ctiVMThrowTrampoline) "\n"
 ".thumb_func " THUMB_FUNC_PARAM(ctiVMThrowTrampoline) "\n"
 SYMBOL_STRING(ctiVMThrowTrampoline) ":" "\n"
     "mov r0, sp" "\n"
-    "bl " SYMBOL_STRING_RELOCATION(cti_vm_throw) "\n"
+    "bl " LOCAL_REFERENCE(cti_vm_throw) "\n"
     "ldr r11, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R11_OFFSET) "]" "\n"
     "ldr r10, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R10_OFFSET) "]" "\n"
     "ldr r9, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R9_OFFSET) "]" "\n"
@@ -597,7 +594,7 @@ SYMBOL_STRING(ctiVMThrowTrampoline) ":" "\n"
     "ldr r5, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R5_OFFSET) "]" "\n"
     "ldr r4, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R4_OFFSET) "]" "\n"
     "ldr lr, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_RETURN_ADDRESS_OFFSET) "]" "\n"
-    "add sp, sp, #" STRINGIZE_VALUE_OF(ENABLE_PROFILER_REFERENCE_OFFSET) "\n"
+    "add sp, sp, #" STRINGIZE_VALUE_OF(FIRST_STACK_ARGUMENT) "\n"
     "bx lr" "\n"
 );
 
@@ -618,7 +615,7 @@ SYMBOL_STRING(ctiOpThrowNotCaught) ":" "\n"
     "ldr r5, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R5_OFFSET) "]" "\n"
     "ldr r4, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_R4_OFFSET) "]" "\n"
     "ldr lr, [sp, #" STRINGIZE_VALUE_OF(PRESERVED_RETURN_ADDRESS_OFFSET) "]" "\n"
-    "add sp, sp, #" STRINGIZE_VALUE_OF(ENABLE_PROFILER_REFERENCE_OFFSET) "\n"
+    "add sp, sp, #" STRINGIZE_VALUE_OF(FIRST_STACK_ARGUMENT) "\n"
     "bx lr" "\n"
 );
 
@@ -661,10 +658,10 @@ SYMBOL_STRING(ctiOpThrowNotCaught) ":" "\n"
 
 #elif COMPILER(RVCT) && CPU(ARM_THUMB2)
 
-__asm EncodedJSValue ctiTrampoline(void*, RegisterFile*, CallFrame*, JSValue*, Profiler**, JSGlobalData*)
+__asm EncodedJSValue ctiTrampoline(void*, RegisterFile*, CallFrame*, void* /*unused1*/, void* /*unused2*/, JSGlobalData*)
 {
     PRESERVE8
-    sub sp, sp, # ENABLE_PROFILER_REFERENCE_OFFSET
+    sub sp, sp, # FIRST_STACK_ARGUMENT
     str lr, [sp, # PRESERVED_RETURN_ADDRESS_OFFSET ]
     str r4, [sp, # PRESERVED_R4_OFFSET ]
     str r5, [sp, # PRESERVED_R5_OFFSET ]
@@ -689,7 +686,7 @@ __asm EncodedJSValue ctiTrampoline(void*, RegisterFile*, CallFrame*, JSValue*, P
     ldr r5, [sp, # PRESERVED_R5_OFFSET ]
     ldr r4, [sp, # PRESERVED_R4_OFFSET ]
     ldr lr, [sp, # PRESERVED_RETURN_ADDRESS_OFFSET ]
-    add sp, sp, # ENABLE_PROFILER_REFERENCE_OFFSET
+    add sp, sp, # FIRST_STACK_ARGUMENT
     bx lr
 }
 
@@ -708,7 +705,7 @@ __asm void ctiVMThrowTrampoline()
     ldr r5, [sp, # PRESERVED_R5_OFFSET ]
     ldr r4, [sp, # PRESERVED_R4_OFFSET ]
     ldr lr, [sp, # PRESERVED_RETURN_ADDRESS_OFFSET ]
-    add sp, sp, # ENABLE_PROFILER_REFERENCE_OFFSET
+    add sp, sp, # FIRST_STACK_ARGUMENT
     bx lr
 }
 
@@ -725,13 +722,13 @@ __asm void ctiOpThrowNotCaught()
     ldr r5, [sp, # PRESERVED_R5_OFFSET ]
     ldr r4, [sp, # PRESERVED_R4_OFFSET ]
     ldr lr, [sp, # PRESERVED_RETURN_ADDRESS_OFFSET ]
-    add sp, sp, # ENABLE_PROFILER_REFERENCE_OFFSET
+    add sp, sp, # FIRST_STACK_ARGUMENT
     bx lr
 }
 
 #elif COMPILER(RVCT) && CPU(ARM_TRADITIONAL)
 
-__asm EncodedJSValue ctiTrampoline(void*, RegisterFile*, CallFrame*, void* /*unused1*/, Profiler**, JSGlobalData*)
+__asm EncodedJSValue ctiTrampoline(void*, RegisterFile*, CallFrame*, void* /*unused1*/, void* /*unused2*/, JSGlobalData*)
 {
     ARM
     stmdb sp!, {r1-r3}
@@ -800,7 +797,7 @@ JITThunks::JITThunks(JSGlobalData* globalData)
     ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, registerFile) == REGISTER_FILE_OFFSET);
     ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, callFrame) == CALLFRAME_OFFSET);
     // The fifth argument is the first item already on the stack.
-    ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, enabledProfilerReference) == ENABLE_PROFILER_REFERENCE_OFFSET);
+    ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, unused1) == FIRST_STACK_ARGUMENT);
 
     ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, thunkReturnAddress) == THUNK_RETURN_ADDRESS_OFFSET);
 
@@ -820,7 +817,6 @@ JITThunks::JITThunks(JSGlobalData* globalData)
     ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, registerFile) == REGISTER_FILE_OFFSET);
     ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, callFrame) == CALLFRAME_OFFSET);
     ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, unused1) == EXCEPTION_OFFSET);
-    ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, enabledProfilerReference) == ENABLE_PROFILER_REFERENCE_OFFSET);
     ASSERT(OBJECT_OFFSETOF(struct JITStackFrame, globalData) == GLOBAL_DATA_OFFSET);
 
 #endif
@@ -870,6 +866,7 @@ NEVER_INLINE void JITThunks::tryCachePutByID(CallFrame* callFrame, CodeBlock* co
         normalizePrototypeChain(callFrame, baseCell);
 
         StructureChain* prototypeChain = structure->prototypeChain(callFrame);
+        ASSERT(structure->previousID()->transitionWatchpointSetHasBeenInvalidated());
         stubInfo->initPutByIdTransition(callFrame->globalData(), codeBlock->ownerExecutable(), structure->previousID(), structure, prototypeChain, direct);
         JIT::compilePutByIdTransition(callFrame->scopeChain()->globalData, codeBlock, stubInfo, structure->previousID(), structure, slot.cachedOffset(), prototypeChain, returnAddress, direct);
         return;
@@ -949,7 +946,7 @@ NEVER_INLINE void JITThunks::tryCacheGetByID(CallFrame* callFrame, CodeBlock* co
             offset = slotBaseObject->structure()->get(callFrame->globalData(), propertyName);
         }
         
-        stubInfo->initGetByIdProto(callFrame->globalData(), codeBlock->ownerExecutable(), structure, slotBaseObject->structure());
+        stubInfo->initGetByIdProto(callFrame->globalData(), codeBlock->ownerExecutable(), structure, slotBaseObject->structure(), slot.cachedPropertyType() == PropertySlot::Value);
 
         ASSERT(!structure->isDictionary());
         ASSERT(!slotBaseObject->structure()->isDictionary());
@@ -965,7 +962,7 @@ NEVER_INLINE void JITThunks::tryCacheGetByID(CallFrame* callFrame, CodeBlock* co
     }
 
     StructureChain* prototypeChain = structure->prototypeChain(callFrame);
-    stubInfo->initGetByIdChain(callFrame->globalData(), codeBlock->ownerExecutable(), structure, prototypeChain);
+    stubInfo->initGetByIdChain(callFrame->globalData(), codeBlock->ownerExecutable(), structure, prototypeChain, count, slot.cachedPropertyType() == PropertySlot::Value);
     JIT::compileGetByIdChain(callFrame->scopeChain()->globalData, callFrame, codeBlock, stubInfo, structure, prototypeChain, count, propertyName, slot, offset, returnAddress);
 }
 
@@ -1922,26 +1919,45 @@ DEFINE_STUB_FUNCTION(void, op_check_has_instance)
 }
 
 #if ENABLE(DFG_JIT)
-DEFINE_STUB_FUNCTION(void, optimize_from_loop)
+DEFINE_STUB_FUNCTION(void, optimize)
 {
     STUB_INIT_STACK_FRAME(stackFrame);
     
     CallFrame* callFrame = stackFrame.callFrame;
     CodeBlock* codeBlock = callFrame->codeBlock();
-
     unsigned bytecodeIndex = stackFrame.args[0].int32();
-    
+
 #if ENABLE(JIT_VERBOSE_OSR)
-    dataLog("%p: Entered optimize_from_loop with executeCounter = %d, reoptimizationRetryCounter = %u, optimizationDelayCounter = %u\n", codeBlock, codeBlock->jitExecuteCounter(), codeBlock->reoptimizationRetryCounter(), codeBlock->optimizationDelayCounter());
+    dataLog("%p: Entered optimize with bytecodeIndex = %u, executeCounter = %s, reoptimizationRetryCounter = %u, optimizationDelayCounter = %u, exitCounter = ", codeBlock, bytecodeIndex, codeBlock->jitExecuteCounter().status(), codeBlock->reoptimizationRetryCounter(), codeBlock->optimizationDelayCounter());
+    if (codeBlock->hasOptimizedReplacement())
+        dataLog("%u", codeBlock->replacement()->osrExitCounter());
+    else
+        dataLog("N/A");
+    dataLog("\n");
 #endif
 
-    if (!codeBlock->checkIfOptimizationThresholdReached())
+    if (!codeBlock->checkIfOptimizationThresholdReached()) {
+        codeBlock->updateAllPredictions();
         return;
+    }
 
     if (codeBlock->hasOptimizedReplacement()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        dataLog("Considering loop OSR into %p(%p) with success/fail %u/%u.\n", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
+        dataLog("Considering OSR into %p(%p).\n", codeBlock, codeBlock->replacement());
 #endif
+        // If we have an optimized replacement, then it must be the case that we entered
+        // cti_optimize from a loop. That's because is there's an optimized replacement,
+        // then all calls to this function will be relinked to the replacement and so
+        // the prologue OSR will never fire.
+        
+        // This is an interesting threshold check. Consider that a function OSR exits
+        // in the middle of a loop, while having a relatively low exit count. The exit
+        // will reset the execution counter to some target threshold, meaning that this
+        // code won't be reached until that loop heats up for >=1000 executions. But then
+        // we do a second check here, to see if we should either reoptimize, or just
+        // attempt OSR entry. Hence it might even be correct for
+        // shouldReoptimizeFromLoopNow() to always return true. But we make it do some
+        // additional checking anyway, to reduce the amount of recompilation thrashing.
         if (codeBlock->replacement()->shouldReoptimizeFromLoopNow()) {
 #if ENABLE(JIT_VERBOSE_OSR)
             dataLog("Triggering reoptimization of %p(%p) (in loop).\n", codeBlock, codeBlock->replacement());
@@ -1962,14 +1978,14 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
         JSObject* error = codeBlock->compileOptimized(callFrame, scopeChain);
 #if ENABLE(JIT_VERBOSE_OSR)
         if (error)
-            dataLog("WARNING: optimized compilation from loop failed.\n");
+            dataLog("WARNING: optimized compilation failed.\n");
 #else
         UNUSED_PARAM(error);
 #endif
         
         if (codeBlock->replacement() == codeBlock) {
 #if ENABLE(JIT_VERBOSE_OSR)
-            dataLog("Optimizing %p from loop failed.\n", codeBlock);
+            dataLog("Optimizing %p failed.\n", codeBlock);
 #endif
             
             ASSERT(codeBlock->getJITType() == JITCode::BaselineJIT);
@@ -1983,25 +1999,24 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     
     if (void* address = DFG::prepareOSREntry(callFrame, optimizedCodeBlock, bytecodeIndex)) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        dataLog("Optimizing %p from loop succeeded, performing OSR after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
+        dataLog("Optimizing %p succeeded, performing OSR after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
 #endif
 
         codeBlock->optimizeSoon();
-        optimizedCodeBlock->countSpeculationSuccess();
         STUB_SET_RETURN_ADDRESS(address);
         return;
     }
     
 #if ENABLE(JIT_VERBOSE_OSR)
-    dataLog("Optimizing %p from loop succeeded, OSR failed, after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
+    dataLog("Optimizing %p succeeded, OSR failed, after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
 #endif
 
     // Count the OSR failure as a speculation failure. If this happens a lot, then
     // reoptimize.
-    optimizedCodeBlock->countSpeculationFailure();
+    optimizedCodeBlock->countOSRExit();
     
 #if ENABLE(JIT_VERBOSE_OSR)
-    dataLog("Encountered loop OSR failure into %p(%p) with success/fail %u/%u.\n", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
+    dataLog("Encountered OSR failure into %p(%p).\n", codeBlock, codeBlock->replacement());
 #endif
 
     // We are a lot more conservative about triggering reoptimization after OSR failure than
@@ -2014,7 +2029,7 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     // reoptimization trigger.
     if (optimizedCodeBlock->shouldReoptimizeNow()) {
 #if ENABLE(JIT_VERBOSE_OSR)
-        dataLog("Triggering reoptimization of %p(%p) (in loop after OSR fail).\n", codeBlock, codeBlock->replacement());
+        dataLog("Triggering reoptimization of %p(%p) (after OSR fail).\n", codeBlock, codeBlock->replacement());
 #endif
         codeBlock->reoptimize();
         return;
@@ -2023,71 +2038,6 @@ DEFINE_STUB_FUNCTION(void, optimize_from_loop)
     // OSR failed this time, but it might succeed next time! Let the code run a bit
     // longer and then try again.
     codeBlock->optimizeAfterWarmUp();
-}
-
-DEFINE_STUB_FUNCTION(void, optimize_from_ret)
-{
-    STUB_INIT_STACK_FRAME(stackFrame);
-    
-    CallFrame* callFrame = stackFrame.callFrame;
-    CodeBlock* codeBlock = callFrame->codeBlock();
-    
-#if ENABLE(JIT_VERBOSE_OSR)
-    dataLog("Entered optimize_from_ret with executeCounter = %d, reoptimizationRetryCounter = %u, optimizationDelayCounter = %u\n", codeBlock->jitExecuteCounter(), codeBlock->reoptimizationRetryCounter(), codeBlock->optimizationDelayCounter());
-#endif
-
-    if (!codeBlock->checkIfOptimizationThresholdReached())
-        return;
-
-    if (codeBlock->hasOptimizedReplacement()) {
-#if ENABLE(JIT_VERBOSE_OSR)
-        dataLog("Returning from old JIT call frame with optimized replacement %p(%p), with success/fail %u/%u", codeBlock, codeBlock->replacement(), codeBlock->replacement()->speculativeSuccessCounter(), codeBlock->replacement()->speculativeFailCounter());
-        CallFrame* callerFrame = callFrame->callerFrame();
-        if (callerFrame)
-            dataLog(", callerFrame = %p, returnPC = %p, caller code block = %p", callerFrame, callFrame->returnPC().value(), callerFrame->codeBlock());
-        dataLog("\n");
-#endif
-        if (codeBlock->replacement()->shouldReoptimizeNow()) {
-#if ENABLE(JIT_VERBOSE_OSR)
-            dataLog("Triggering reoptimization of %p(%p) (in return).\n", codeBlock, codeBlock->replacement());
-#endif
-            codeBlock->reoptimize();
-        }
-        
-        codeBlock->optimizeSoon();
-        return;
-    }
-    
-    if (!codeBlock->shouldOptimizeNow()) {
-#if ENABLE(JIT_VERBOSE_OSR)
-        dataLog("Delaying optimization for %p (in return) because of insufficient profiling.\n", codeBlock);
-#endif
-        return;
-    }
-    
-    ScopeChainNode* scopeChain = callFrame->scopeChain();
-
-    JSObject* error = codeBlock->compileOptimized(callFrame, scopeChain);
-    if (error)
-        dataLog("WARNING: optimized compilation from ret failed.\n");
-    
-    if (codeBlock->replacement() == codeBlock) {
-#if ENABLE(JIT_VERBOSE_OSR)
-        dataLog("Optimizing %p from return failed.\n", codeBlock);
-#endif
-
-        ASSERT(codeBlock->getJITType() == JITCode::BaselineJIT);
-        codeBlock->dontOptimizeAnytimeSoon();
-        return;
-    }
-    
-    ASSERT(codeBlock->replacement()->getJITType() == JITCode::DFGJIT);
-
-#if ENABLE(JIT_VERBOSE_OSR)
-    dataLog("Optimizing %p from return succeeded after a delay of %u.\n", codeBlock, codeBlock->optimizationDelayCounter());
-#endif
-    
-    codeBlock->optimizeSoon();
 }
 #endif // ENABLE(DFG_JIT)
 
@@ -2355,16 +2305,16 @@ DEFINE_STUB_FUNCTION(void, op_profile_will_call)
 {
     STUB_INIT_STACK_FRAME(stackFrame);
 
-    ASSERT(*stackFrame.enabledProfilerReference);
-    (*stackFrame.enabledProfilerReference)->willExecute(stackFrame.callFrame, stackFrame.args[0].jsValue());
+    if (Profiler* profiler = stackFrame.globalData->enabledProfiler())
+        profiler->willExecute(stackFrame.callFrame, stackFrame.args[0].jsValue());
 }
 
 DEFINE_STUB_FUNCTION(void, op_profile_did_call)
 {
     STUB_INIT_STACK_FRAME(stackFrame);
 
-    ASSERT(*stackFrame.enabledProfilerReference);
-    (*stackFrame.enabledProfilerReference)->didExecute(stackFrame.callFrame, stackFrame.args[0].jsValue());
+    if (Profiler* profiler = stackFrame.globalData->enabledProfiler())
+        profiler->didExecute(stackFrame.callFrame, stackFrame.args[0].jsValue());
 }
 
 DEFINE_STUB_FUNCTION(JSObject*, op_new_array)
@@ -2379,6 +2329,15 @@ DEFINE_STUB_FUNCTION(JSObject*, op_new_array_buffer)
     STUB_INIT_STACK_FRAME(stackFrame);
     
     return constructArray(stackFrame.callFrame, stackFrame.callFrame->codeBlock()->constantBuffer(stackFrame.args[0].int32()), stackFrame.args[1].int32());
+}
+
+DEFINE_STUB_FUNCTION(void, op_put_global_var_check)
+{
+    STUB_INIT_STACK_FRAME(stackFrame);
+    
+    CallFrame* callFrame = stackFrame.callFrame;
+    CodeBlock* codeBlock = callFrame->codeBlock();
+    symbolTablePut(codeBlock->globalObject(), callFrame, codeBlock->identifier(stackFrame.args[1].int32()), stackFrame.args[0].jsValue(), true);
 }
 
 DEFINE_STUB_FUNCTION(EncodedJSValue, op_resolve)

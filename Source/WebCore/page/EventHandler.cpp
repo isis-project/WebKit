@@ -1084,7 +1084,7 @@ HitTestResult EventHandler::hitTestResultAtPoint(const LayoutPoint& point, bool 
     Frame* resultFrame = result.innerNonSharedNode() ? result.innerNonSharedNode()->document()->frame() : 0;
     if (Page* page = m_frame->page()) {
         Frame* mainFrame = page->mainFrame();
-        if (m_frame != mainFrame && resultFrame && resultFrame != mainFrame && !resultFrame->editor()->insideVisibleArea(result.point())) {
+        if (m_frame != mainFrame && resultFrame && resultFrame != mainFrame) {
             FrameView* resultView = resultFrame->view();
             FrameView* mainView = mainFrame->view();
             if (resultView && mainView) {
@@ -1489,6 +1489,11 @@ bool EventHandler::handleMousePressEvent(const PlatformMouseEvent& mouseEvent)
 {
     RefPtr<FrameView> protector(m_frame->view());
 
+    if (InspectorInstrumentation::handleMousePress(m_frame->page())) {
+        invalidateClick();
+        return true;
+    }
+
 #if ENABLE(TOUCH_EVENTS)
     bool defaultPrevented = dispatchSyntheticTouchEventIfEnabled(mouseEvent);
     if (defaultPrevented)
@@ -1532,11 +1537,6 @@ bool EventHandler::handleMousePressEvent(const PlatformMouseEvent& mouseEvent)
 
     m_mousePressNode = targetNode(mev);
 
-    if (InspectorInstrumentation::handleMousePress(m_frame->page())) {
-        invalidateClick();
-        return true;
-    }
-        
     Frame* subframe = subframeForHitTestResult(mev);
     if (subframe && passMousePressEventToSubframe(mev, subframe)) {
         // Start capturing future events for this frame.  We only do this if we didn't clear
@@ -2123,7 +2123,7 @@ void EventHandler::updateMouseEventTargetNode(Node* targetNode, const PlatformMo
     else {
         // If the target node is a text node, dispatch on the parent node - rdar://4196646
         if (result && result->isTextNode()) {
-            ComposedShadowTreeWalker walker(result);
+            ComposedShadowTreeParentWalker walker(result);
             walker.parentIncludingInsertionPointAndShadowRoot();
             result = walker.get();
         }
@@ -2488,11 +2488,19 @@ bool EventHandler::bestClickableNodeForTouchPoint(const IntPoint& touchCenter, c
 {
     HitTestRequest::HitTestRequestType hitType = HitTestRequest::ReadOnly | HitTestRequest::Active;
     IntPoint hitTestPoint = m_frame->view()->windowToContents(touchCenter);
-    HitTestResult result = hitTestResultAtPoint(hitTestPoint, /*allowShadowContent*/ false, /*ignoreClipping*/ false, DontHitTestScrollbars, hitType, touchRadius);
+    HitTestResult result = hitTestResultAtPoint(hitTestPoint, /*allowShadowContent*/ true, /*ignoreClipping*/ false, DontHitTestScrollbars, hitType, touchRadius);
 
-    IntRect touchRect = result.rectForPoint(touchCenter);
+    IntRect touchRect(touchCenter - touchRadius, touchRadius + touchRadius);
     RefPtr<StaticHashSetNodeList> nodeList = StaticHashSetNodeList::adopt(result.rectBasedTestResult());
-    return findBestClickableCandidate(targetNode, targetPoint, touchCenter, touchRect, *nodeList.get());
+
+    // FIXME: Should be able to handle targetNode being a shadow DOM node to avoid performing uncessary hit tests
+    // in the case where further processing on the node is required. Returning the shadow ancestor prevents a
+    // regression in touchadjustment/html-label.html. Some refinement is required to testing/internals to
+    // handle targetNode being a shadow DOM node. 
+    bool success = findBestClickableCandidate(targetNode, targetPoint, touchCenter, touchRect, *nodeList.get());
+    if (success && targetNode)
+        targetNode = targetNode->shadowAncestorNode();
+    return success;
 }
 
 bool EventHandler::bestZoomableAreaForTouchPoint(const IntPoint& touchCenter, const IntSize& touchRadius, IntRect& targetArea, Node*& targetNode)
@@ -2501,7 +2509,7 @@ bool EventHandler::bestZoomableAreaForTouchPoint(const IntPoint& touchCenter, co
     IntPoint hitTestPoint = m_frame->view()->windowToContents(touchCenter);
     HitTestResult result = hitTestResultAtPoint(hitTestPoint, /*allowShadowContent*/ false, /*ignoreClipping*/ false, DontHitTestScrollbars, hitType, touchRadius);
 
-    IntRect touchRect = result.rectForPoint(touchCenter);
+    IntRect touchRect(touchCenter - touchRadius, touchRadius + touchRadius);
     RefPtr<StaticHashSetNodeList> nodeList = StaticHashSetNodeList::adopt(result.rectBasedTestResult());
     return findBestZoomableArea(targetNode, targetArea, touchCenter, touchRect, *nodeList.get());
 }
@@ -2633,6 +2641,10 @@ void EventHandler::dispatchFakeMouseMoveEventSoon()
     if (m_mousePressed)
         return;
 
+    Settings* settings = m_frame->settings();
+    if (settings && !settings->deviceSupportsMouse())
+        return;
+
     // If the content has ever taken longer than fakeMouseMoveShortInterval we
     // reschedule the timer and use a longer time. This will cause the content
     // to receive these moves only after the user is done scrolling, reducing
@@ -2668,6 +2680,10 @@ void EventHandler::fakeMouseMoveEventTimerFired(Timer<EventHandler>* timer)
 {
     ASSERT_UNUSED(timer, timer == &m_fakeMouseMoveEventTimer);
     ASSERT(!m_mousePressed);
+
+    Settings* settings = m_frame->settings();
+    if (settings && !settings->deviceSupportsMouse())
+        return;
 
     FrameView* view = m_frame->view();
     if (!view)
@@ -3652,7 +3668,7 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
     m_touchPressed = touches->length() > 0;
 
     // Now iterate the changedTouches list and m_targets within it, sending events to the targets as required.
-    bool defaultPrevented = false;
+    bool swallowedEvent = false;
     RefPtr<TouchList> emptyList = TouchList::create();
     for (unsigned state = 0; state != PlatformTouchPoint::TouchStateEnd; ++state) {
         if (!changedTouches[state].m_touches)
@@ -3675,11 +3691,11 @@ bool EventHandler::handleTouchEvent(const PlatformTouchEvent& event)
                                    0, 0, 0, 0, event.ctrlKey(), event.altKey(), event.shiftKey(), event.metaKey());
             ExceptionCode ec = 0;
             touchEventTarget->dispatchEvent(touchEvent.get(), ec);
-            defaultPrevented |= touchEvent->defaultPrevented();
+            swallowedEvent = swallowedEvent || touchEvent->defaultPrevented() || touchEvent->defaultHandled();
         }
     }
 
-    return defaultPrevented;
+    return swallowedEvent;
 }
 
 bool EventHandler::dispatchSyntheticTouchEventIfEnabled(const PlatformMouseEvent& event)

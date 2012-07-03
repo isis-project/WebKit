@@ -26,8 +26,9 @@
 #include "config.h"
 #include "TreeScope.h"
 
+#include "ComposedShadowTreeWalker.h"
 #include "ContainerNode.h"
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "DOMSelection.h"
 #include "DOMWindow.h"
 #include "Document.h"
@@ -38,9 +39,11 @@
 #include "HTMLFrameOwnerElement.h"
 #include "HTMLMapElement.h"
 #include "HTMLNames.h"
+#include "InsertionPoint.h"
 #include "Page.h"
 #include "ShadowRoot.h"
 #include "TreeScopeAdopter.h"
+#include <wtf/Vector.h>
 #include <wtf/text/AtomicString.h>
 #include <wtf/text/CString.h>
 
@@ -149,7 +152,7 @@ DOMSelection* TreeScope::getSelection() const
     // as a container. It is now enabled only if runtime Shadow DOM feature is enabled.
     // See https://bugs.webkit.org/show_bug.cgi?id=82697
 #if ENABLE(SHADOW_DOM)
-    if (ContextEnabledFeatures::shadowDOMEnabled(rootNode()->document()->domWindow())) {
+    if (ContextFeatures::shadowDOMEnabled(rootNode()->document())) {
         m_selection = DOMSelection::create(this);
         return m_selection.get();
     }
@@ -190,6 +193,11 @@ bool TreeScope::applyAuthorStyles() const
     return true;
 }
 
+bool TreeScope::resetStyleInheritance() const
+{
+    return false;
+}
+
 void TreeScope::adoptIfNeeded(Node* node)
 {
     ASSERT(this);
@@ -218,17 +226,56 @@ Node* TreeScope::focusedNode()
         node = focusedFrameOwnerElement(document->page()->focusController()->focusedFrame(), document->frame());
     if (!node)
         return 0;
-
-    TreeScope* treeScope = node->treeScope();
-
-    while (treeScope != this && treeScope != document) {
-        node = toShadowRoot(treeScope->rootNode())->host();
-        treeScope = node->treeScope();
+    Vector<Node*> targetStack;
+    Node* last = 0;
+    for (ComposedShadowTreeParentWalker walker(node); walker.get(); walker.parentIncludingInsertionPointAndShadowRoot()) {
+        Node* node = walker.get();
+        if (targetStack.isEmpty())
+            targetStack.append(node);
+        else if (isInsertionPoint(node) && toInsertionPoint(node)->contains(last))
+            targetStack.append(targetStack.last());
+        if (node == rootNode())
+            return targetStack.last();
+        last = node;
+        if (node->isShadowRoot()) {
+            ASSERT(!targetStack.isEmpty());
+            targetStack.removeLast();
+        }
     }
-    if (this != treeScope)
+    return 0;
+}
+
+static void listTreeScopes(Node* node, Vector<TreeScope*, 5>& treeScopes)
+{
+    while (true) {
+        treeScopes.append(node->treeScope());
+        Node* ancestor = node->shadowAncestorNode();
+        if (node == ancestor)
+            break;
+        node = ancestor;
+    }
+}
+
+TreeScope* commonTreeScope(Node* nodeA, Node* nodeB)
+{
+    if (!nodeA || !nodeB)
         return 0;
 
-    return node;
+    if (nodeA->treeScope() == nodeB->treeScope())
+        return nodeA->treeScope();
+
+    Vector<TreeScope*, 5> treeScopesA;
+    listTreeScopes(nodeA, treeScopesA);
+
+    Vector<TreeScope*, 5> treeScopesB;
+    listTreeScopes(nodeB, treeScopesB);
+
+    size_t indexA = treeScopesA.size();
+    size_t indexB = treeScopesB.size();
+
+    for (; indexA > 0 && indexB > 0 && treeScopesA[indexA - 1] == treeScopesB[indexB - 1]; --indexA, --indexB) { }
+
+    return treeScopesA[indexA] == treeScopesB[indexB] ? treeScopesA[indexA] : 0;
 }
 
 } // namespace WebCore

@@ -20,8 +20,13 @@ haveQt(5) {
 
     load(qt_module_config)
 
-    # Make sure the module config doesn't override our preferred build config
-    debug_and_release:if(!debug|!release): CONFIG -= debug_and_release
+    # Make sure the module config doesn't override our preferred build config.
+    debug_and_release:if(!debug|!release) {
+        # Removing debug_and_release causes issues with lib suffixes when building debug on Windows.
+        # Work around it by only removing build_all, and still create the Makefiles for both configurations.
+        win32*: CONFIG -= build_all
+        else: CONFIG -= debug_and_release
+    }
 
     # Allow doing a debug-only build of WebKit (not supported by Qt)
     macx:!debug_and_release:debug: TARGET = $$BASE_TARGET
@@ -42,14 +47,10 @@ haveQt(5) {
     # have to make sure the rpath/install_name of the libraries are relative
     # to the webkit build dir.
 
-    # We use private_tests to detect developer build, since the destdir will
-    # always be our webkit build dir. This might change as configure changes.
-    contains(QT_CONFIG, private_tests): CONFIG += qt_developer_build
-
     !build_pass {
         # Make a more accessible copy of the module forward file
         # in the WebKit build directory.
-        convenience_module_path = $${ROOT_BUILD_DIR}/modules
+        convenience_module_path = $$toSystemPath($${ROOT_BUILD_DIR})$${QMAKE_DIR_SEP}modules
         module_filename = $$basename(QT.webkit.module_pri)
 
         # The QMAKE_EXTRA_MODULE_FORWARDS might contain more than one path,
@@ -65,10 +66,10 @@ haveQt(5) {
         isEmpty(webkit_module_forward) {
             warning(Could not resolve QMAKE_EXTRA_MODULE_FORWARDS path!)
         } else {
-            make_module_fwd_convenience.target = $$convenience_module_path/$$module_filename
+            make_module_fwd_convenience.target = $$convenience_module_path$${QMAKE_DIR_SEP}$$module_filename
             make_module_fwd_convenience.commands = $$QMAKE_MKDIR $$convenience_module_path \
-                && echo \"include($$webkit_module_forward/$$module_filename)\" > $$convenience_module_path/$$module_filename
-            make_module_fwd_convenience.depends = $$webkit_module_forward/$$module_filename
+                && echo \"include($$webkit_module_forward$${QMAKE_DIR_SEP}$$module_filename)\" > $$convenience_module_path$${QMAKE_DIR_SEP}$$module_filename
+            make_module_fwd_convenience.depends = $$webkit_module_forward$${QMAKE_DIR_SEP}$$module_filename
 
             QMAKE_EXTRA_TARGETS += make_module_fwd_convenience
             DEFAULT_TARGETS += make_module_fwd_convenience
@@ -77,12 +78,12 @@ haveQt(5) {
         qt_developer_build {
             # Copy the module forward file into Qt so that the module
             # is immediately accessible.
-            qt_modules_path = $$[QT_INSTALL_PREFIX]/mkspecs/modules
+            qt_modules_path = $$[QT_INSTALL_PREFIX]$${QMAKE_DIR_SEP}mkspecs$${QMAKE_DIR_SEP}modules
 
-            copy_module_fwd_file.target = $$qt_modules_path/$$module_filename
-            copy_module_fwd_file.commands = $$QMAKE_COPY $$QMAKE_EXTRA_MODULE_FORWARDS/$$module_filename $$qt_modules_path
+            copy_module_fwd_file.target = $$qt_modules_path$${QMAKE_DIR_SEP}$$module_filename
+            copy_module_fwd_file.commands = $$QMAKE_COPY  $$toSystemPath($$QMAKE_EXTRA_MODULE_FORWARDS)$${QMAKE_DIR_SEP}$$module_filename $$qt_modules_path
             # FIXME: Add dependendy that ensures we copy the forward file if the target is updated
-            copy_module_fwd_file.depends = $$QMAKE_EXTRA_MODULE_FORWARDS/$$module_filename
+            copy_module_fwd_file.depends = $$QMAKE_EXTRA_MODULE_FORWARDS$${QMAKE_DIR_SEP}$$module_filename
 
             QMAKE_EXTRA_TARGETS += copy_module_fwd_file
             DEFAULT_TARGETS += copy_module_fwd_file
@@ -123,10 +124,6 @@ haveQt(5) {
 
 runSyncQt() # Generate forwarding headers for the QtWebKit API
 
-load(features)
-
-include(WebKit/WebKit.pri)
-
 WEBKIT += wtf
 
 !v8:WEBKIT += javascriptcore
@@ -137,150 +134,13 @@ WEBKIT += webcore
     WEBKIT += webkit2
     QT += declarative
 
-    # Ensure that changes to the WebKit2 API will trigger a qmake of this
+    # Ensure that changes to the WebKit1 and WebKit2 API will trigger a qmake of this
     # file, which in turn runs syncqt to update the forwarding headers.
     QMAKE_INTERNAL_INCLUDED_FILES *= WebKit2/Target.pri
+    QMAKE_INTERNAL_INCLUDED_FILES *= WebKit/WebKit1.pro
 }
 
-QT += network
-haveQt(5): QT += widgets printsupport quick
-
-contains(DEFINES, WTF_USE_TEXTURE_MAPPER_GL=1)|contains(DEFINES, ENABLE_WEBGL=1) {
-    QT *= opengl
-    # Make sure OpenGL libs are after the webcore lib so MinGW can resolve symbols
-    win32*:!win32-msvc*: LIBS += $$QMAKE_LIBS_OPENGL
-}
-
-!static: DEFINES += QT_MAKEDLL
-
-SOURCES += \
-    $$PWD/WebKit/qt/WebCoreSupport/QtFallbackWebPopup.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/QtWebComboBox.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/ChromeClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/ContextMenuClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/DragClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/DumpRenderTreeSupportQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/EditorClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/UndoStepQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/FrameLoaderClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/FrameNetworkingContextQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/GeolocationPermissionClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/InitWebCoreQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/InspectorClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/InspectorServerQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/NotificationPresenterClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/PageClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/PopupMenuQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/QtPlatformPlugin.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/RenderThemeQStyle.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/ScrollbarThemeQStyle.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/SearchPopupMenuQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/TextCheckerClientQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/PlatformStrategiesQt.cpp \
-    $$PWD/WebKit/qt/WebCoreSupport/WebEventConversion.cpp
-
-HEADERS += \
-    $$PWD/WebKit/qt/WebCoreSupport/InitWebCoreQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/InspectorServerQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/QtFallbackWebPopup.h \
-    $$PWD/WebKit/qt/WebCoreSupport/QtWebComboBox.h \
-    $$PWD/WebKit/qt/WebCoreSupport/FrameLoaderClientQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/FrameNetworkingContextQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/GeolocationPermissionClientQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/NotificationPresenterClientQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/PageClientQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/PopupMenuQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/QtPlatformPlugin.h \
-    $$PWD/WebKit/qt/WebCoreSupport/RenderThemeQStyle.h \
-    $$PWD/WebKit/qt/WebCoreSupport/ScrollbarThemeQStyle.h \
-    $$PWD/WebKit/qt/WebCoreSupport/SearchPopupMenuQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/TextCheckerClientQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/PlatformStrategiesQt.h \
-    $$PWD/WebKit/qt/WebCoreSupport/WebEventConversion.h
-
-INCLUDEPATH += \
-    $$PWD/WebKit/qt/Api \
-    $$PWD/WebKit/qt/WebCoreSupport \
-    $$PWD/WTF/wtf/qt
-
-contains(DEFINES, ENABLE_VIDEO=1) {
-    !contains(DEFINES, WTF_USE_QTKIT=1):!contains(DEFINES, WTF_USE_GSTREAMER=1):contains(DEFINES, WTF_USE_QT_MULTIMEDIA=1) {
-        HEADERS += $$PWD/WebKit/qt/WebCoreSupport/FullScreenVideoWidget.h
-        SOURCES += $$PWD/WebKit/qt/WebCoreSupport/FullScreenVideoWidget.cpp
-    }
-
-    contains(DEFINES, WTF_USE_QTKIT=1) | contains(DEFINES, WTF_USE_GSTREAMER=1) | contains(DEFINES, WTF_USE_QT_MULTIMEDIA=1) {
-        HEADERS += $$PWD/WebKit/qt/WebCoreSupport/FullScreenVideoQt.h
-        SOURCES += $$PWD/WebKit/qt/WebCoreSupport/FullScreenVideoQt.cpp
-    }
-
-    contains(DEFINES, WTF_USE_QTKIT=1) {
-        INCLUDEPATH += \
-            $$PWD/WebCore/platform/qt/ \
-            $$PWD/WebCore/platform/mac/ \
-            $$PWD/../WebKitLibraries/
-
-        DEFINES += NSGEOMETRY_TYPES_SAME_AS_CGGEOMETRY_TYPES
-
-        contains(CONFIG, "x86") {
-            DEFINES+=NS_BUILD_32_LIKE_64
-        }
-
-        HEADERS += \
-            $$PWD/WebKit/qt/WebCoreSupport/WebSystemInterface.h \
-            $$PWD/WebKit/qt/WebCoreSupport/QTKitFullScreenVideoHandler.h
-
-        OBJECTIVE_SOURCES += \
-            $$PWD/WebKit/qt/WebCoreSupport/WebSystemInterface.mm \
-            $$PWD/WebKit/qt/WebCoreSupport/QTKitFullScreenVideoHandler.mm
-
-        LIBS += -framework Security -framework IOKit
-
-        # We can know the Mac OS version by using the Darwin major version
-        DARWIN_VERSION = $$split(QMAKE_HOST.version, ".")
-        DARWIN_MAJOR_VERSION = $$first(DARWIN_VERSION)
-        equals(DARWIN_MAJOR_VERSION, "11") {
-            LIBS += $${ROOT_WEBKIT_DIR}/WebKitLibraries/libWebKitSystemInterfaceLion.a
-        } else:equals(DARWIN_MAJOR_VERSION, "10") {
-            LIBS += $${ROOT_WEBKIT_DIR}/WebKitLibraries/libWebKitSystemInterfaceSnowLeopard.a
-        } else:equals(DARWIN_MAJOR_VERSION, "9") {
-            LIBS += $${ROOT_WEBKIT_DIR}/WebKitLibraries/libWebKitSystemInterfaceLeopard.a
-        }
-    }
-}
-
-contains(DEFINES, ENABLE_ICONDATABASE=1) {
-    HEADERS += \
-        $$PWD/WebCore/loader/icon/IconDatabaseClient.h \
-        $$PWD/WebKit/qt/WebCoreSupport/IconDatabaseClientQt.h
-
-    SOURCES += \
-        $$PWD/WebKit/qt/WebCoreSupport/IconDatabaseClientQt.cpp
-}
-
-contains(DEFINES, ENABLE_DEVICE_ORIENTATION=1) || contains(DEFINES, ENABLE_ORIENTATION_EVENTS=1) {
-    haveQt(5) {
-        QT += sensors
-    } else {
-        CONFIG *= mobility
-        MOBILITY *= sensors
-    }
-}
-
-contains(DEFINES, ENABLE_GEOLOCATION=1) {
-     haveQt(5): QT += location
-
-     HEADERS += \
-        $$PWD/WebKit/qt/WebCoreSupport/GeolocationClientQt.h
-     SOURCES += \
-        $$PWD/WebKit/qt/WebCoreSupport/GeolocationClientQt.cpp
-}
-
-contains(CONFIG, texmap) {
-    DEFINES += WTF_USE_TEXTURE_MAPPER=1
-}
-
-plugin_backend_xlib: PKGCONFIG += x11
+!no_webkit1: WEBKIT += webkit1
 
 # ------------- Install rules -------------
 

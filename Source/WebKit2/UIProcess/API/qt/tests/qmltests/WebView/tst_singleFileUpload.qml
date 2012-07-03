@@ -11,23 +11,21 @@ TestWebView {
     height: 400
 
     property bool selectFile
+    property bool returnEmpty: false
     property bool acceptMultiple: false
 
     experimental.filePicker: Item {
-        Timer {
-            running: true
-            interval: 1
-            onTriggered: {
-                var selectedFiles = ["filename1", "filename2"]
-                if (selectFile) {
-                    if (acceptMultiple)
-                        model.accept(selectedFiles)
-                    else
-                        model.accept("acceptedfilename");
-                }
+        Component.onCompleted: {
+            if (returnEmpty)
+                model.accept("");
+            else if (selectFile) {
+                var selectedFiles = ["filename1", "filename2"];
+                if (acceptMultiple)
+                    model.accept(selectedFiles);
                 else
-                    model.reject();
-            }
+                    model.accept("acceptedfilename");
+            } else
+                model.reject();
         }
     }
 
@@ -61,10 +59,19 @@ TestWebView {
 
         function test_multiple() {
             webView.selectFile = true;
+            webView.returnEmpty = false;
             webView.acceptMultiple = true;
             openItemSelector()
             titleSpy.wait()
             compare(webView.title, "filename1")
+        }
+
+        function test_rejectIfEmptyAccept() {
+            var oldTitle = webView.title
+            webView.selectFile = false;
+            webView.returnEmpty = true;
+            openItemSelector()
+            compare(webView.title, oldTitle)
         }
 
         function test_reject() {

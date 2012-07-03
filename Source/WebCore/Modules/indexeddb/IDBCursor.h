@@ -59,10 +59,10 @@ public:
     static const AtomicString& directionPrev();
     static const AtomicString& directionPrevUnique();
 
-    static unsigned short stringToDirection(const String& modeString, ExceptionCode&);
+    static IDBCursor::Direction stringToDirection(const String& modeString, ExceptionCode&);
     static const AtomicString& directionToString(unsigned short mode, ExceptionCode&);
 
-    static PassRefPtr<IDBCursor> create(PassRefPtr<IDBCursorBackendInterface>, IDBRequest*, IDBAny* source, IDBTransaction*);
+    static PassRefPtr<IDBCursor> create(PassRefPtr<IDBCursorBackendInterface>, Direction, IDBRequest*, IDBAny* source, IDBTransaction*);
     virtual ~IDBCursor();
 
     // FIXME: Try to modify the code generator so this is unneeded.
@@ -72,7 +72,7 @@ public:
     const String& direction() const;
     PassRefPtr<IDBKey> key() const;
     PassRefPtr<IDBKey> primaryKey() const;
-    PassRefPtr<IDBAny> value() const;
+    PassRefPtr<IDBAny> value();
     IDBAny* source() const;
 
     PassRefPtr<IDBRequest> update(ScriptExecutionContext*, PassRefPtr<SerializedScriptValue>, ExceptionCode&);
@@ -84,12 +84,21 @@ public:
     void close();
     void setValueReady();
 
+    // The spec requires that the script object that wraps the value
+    // be unchanged until the value changes as a result of the cursor
+    // advancing.
+    bool valueIsDirty() { return m_valueIsDirty; }
+
 protected:
-    IDBCursor(PassRefPtr<IDBCursorBackendInterface>, IDBRequest*, IDBAny* source, IDBTransaction*);
+    IDBCursor(PassRefPtr<IDBCursorBackendInterface>, Direction, IDBRequest*, IDBAny* source, IDBTransaction*);
+    virtual bool isKeyCursor() const { return true; }
 
 private:
+    PassRefPtr<IDBObjectStore> effectiveObjectStore();
+
     RefPtr<IDBCursorBackendInterface> m_backend;
     RefPtr<IDBRequest> m_request;
+    const Direction m_direction;
     RefPtr<IDBAny> m_source;
     RefPtr<IDBTransaction> m_transaction;
     IDBTransaction::OpenCursorNotifier m_transactionNotifier;
@@ -99,6 +108,7 @@ private:
     RefPtr<IDBKey> m_currentKey;
     RefPtr<IDBKey> m_currentPrimaryKey;
     RefPtr<IDBAny> m_currentValue;
+    bool m_valueIsDirty;
 };
 
 } // namespace WebCore

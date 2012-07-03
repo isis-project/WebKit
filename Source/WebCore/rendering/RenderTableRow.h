@@ -66,6 +66,22 @@ public:
         return m_rowIndex;
     }
 
+    const BorderValue& borderAdjoiningTableStart() const
+    {
+        if (section()->hasSameDirectionAsTable())
+            return style()->borderStart();
+
+        return style()->borderEnd();
+    }
+
+    const BorderValue& borderAdjoiningTableEnd() const
+    {
+        if (section()->hasSameDirectionAsTable())
+            return style()->borderEnd();
+
+        return style()->borderStart();
+    }
+
 private:
     virtual RenderObjectChildList* virtualChildren() { return children(); }
     virtual const RenderObjectChildList* virtualChildren() const { return children(); }
@@ -79,7 +95,7 @@ private:
     virtual void addChild(RenderObject* child, RenderObject* beforeChild = 0);
     virtual void layout();
     virtual LayoutRect clippedOverflowRectForRepaint(RenderBoxModelObject* repaintContainer) const;
-    virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
+    virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const HitTestPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction) OVERRIDE;
 
     virtual bool requiresLayer() const OVERRIDE { return isTransparent() || hasOverflowClip() || hasTransform() || hasHiddenBackface() || hasMask() || hasFilter(); }
 

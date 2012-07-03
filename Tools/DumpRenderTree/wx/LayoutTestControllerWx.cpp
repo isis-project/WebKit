@@ -155,10 +155,6 @@ void LayoutTestController::setSmartInsertDeleteEnabled(bool flag)
     // FIXME: implement
 }
 
-void LayoutTestController::setJavaScriptProfilingEnabled(bool flag)
-{
-}
-
 void LayoutTestController::setWaitToDump(bool waitUntilDone)
 {
     static const int timeoutSeconds = 10;
@@ -476,11 +472,6 @@ void LayoutTestController::setScrollbarPolicy(JSStringRef orientation, JSStringR
     // FIXME: implement
 }
 
-JSRetainPtr<JSStringRef> LayoutTestController::counterValueForElementById(JSStringRef id)
-{
-    return 0;
-}
-
 int LayoutTestController::pageNumberForElementById(JSStringRef, float, float)
 {
     // FIXME: implement
@@ -645,6 +636,11 @@ void LayoutTestController::setAutomaticLinkDetectionEnabled(bool)
 }
 
 void LayoutTestController::sendWebIntentResponse(JSStringRef)
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::deliverWebIntent(JSStringRef, JSStringRef, JSStringRef)
 {
     // FIXME: Implement this.
 }

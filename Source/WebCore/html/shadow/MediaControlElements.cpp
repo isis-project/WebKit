@@ -256,6 +256,7 @@ void MediaControlPanelElement::makeTransparent()
     setInlineStyleProperty(CSSPropertyOpacity, 0.0, CSSPrimitiveValue::CSS_NUMBER);
 
     m_opaque = false;
+    startTimer();
 }
 
 void MediaControlPanelElement::defaultEventHandler(Event* event)
@@ -900,6 +901,7 @@ const AtomicString& MediaControlTimelineElement::shadowPseudoId() const
 
 inline MediaControlVolumeSliderElement::MediaControlVolumeSliderElement(Document* document)
     : MediaControlInputElement(document, MediaVolumeSlider)
+    , m_clearMutedOnUserInteraction(false)
 {
 }
 
@@ -933,12 +935,19 @@ void MediaControlVolumeSliderElement::defaultEventHandler(Event* event)
         mediaController()->setVolume(volume, ec);
         ASSERT(!ec);
     }
+    if (m_clearMutedOnUserInteraction)
+        mediaController()->setMuted(false);
 }
 
 void MediaControlVolumeSliderElement::setVolume(float volume)
 {
     if (value().toFloat() != volume)
         setValue(String::number(volume));
+}
+
+void MediaControlVolumeSliderElement::setClearMutedOnUserInteraction(bool clearMute)
+{
+    m_clearMutedOnUserInteraction = clearMute;
 }
 
 const AtomicString& MediaControlVolumeSliderElement::shadowPseudoId() const
@@ -972,9 +981,8 @@ const AtomicString& MediaControlFullscreenVolumeSliderElement::shadowPseudoId() 
 
 // ----------------------------
 
-inline MediaControlFullscreenButtonElement::MediaControlFullscreenButtonElement(Document* document, MediaControls* controls)
+inline MediaControlFullscreenButtonElement::MediaControlFullscreenButtonElement(Document* document, MediaControls*)
     : MediaControlInputElement(document, MediaEnterFullscreenButton)
-    , m_controls(controls)
 {
 }
 

@@ -46,6 +46,7 @@
 #include <WebCore/DataObjectGtk.h>
 #include <WebCore/DragData.h>
 #include <WebCore/DragIcon.h>
+#include <WebCore/GOwnPtrGtk.h>
 #include <WebCore/GtkClickCounter.h>
 #include <WebCore/GtkDragAndDropHelper.h>
 #include <WebCore/GtkUtilities.h>
@@ -63,6 +64,10 @@
 
 #if ENABLE(FULLSCREEN_API)
 #include "WebFullScreenManagerProxy.h"
+#endif
+
+#if USE(TEXTURE_MAPPER_GL) && defined(GDK_WINDOWING_X11)
+#include <gdk/gdkx.h>
 #endif
 
 using namespace WebKit;
@@ -90,6 +95,8 @@ struct _WebKitWebViewBasePrivate {
 #endif
     GtkWidget* inspectorView;
     unsigned inspectorViewHeight;
+    GOwnPtr<GdkEvent> contextMenuEvent;
+    WebContextMenuProxyGtk* activeContextMenuProxy;
 };
 
 G_DEFINE_TYPE(WebKitWebViewBase, webkit_web_view_base, GTK_TYPE_CONTAINER)
@@ -154,6 +161,9 @@ static void webkitWebViewBaseRealize(GtkWidget* widget)
     gint attributesMask = GDK_WA_X | GDK_WA_Y | GDK_WA_VISUAL;
 
     GdkWindow* window = gdk_window_new(gtk_widget_get_parent_window(widget), &attributes, attributesMask);
+#if USE(TEXTURE_MAPPER_GL)
+    gdk_window_ensure_native(window);
+#endif
     gtk_widget_set_window(widget, window);
     gdk_window_set_user_data(window, widget);
 
@@ -339,6 +349,13 @@ static void webkitWebViewBaseMap(GtkWidget* widget)
     GTK_WIDGET_CLASS(webkit_web_view_base_parent_class)->map(widget);
 
     WebKitWebViewBase* webViewBase = WEBKIT_WEB_VIEW_BASE(widget);
+#if USE(TEXTURE_MAPPER_GL) && defined(GDK_WINDOWING_X11)
+    GdkWindow* gdkWindow = gtk_widget_get_window(widget);
+    ASSERT(gdkWindow);
+    if (gdk_window_has_native(gdkWindow))
+        webViewBase->priv->pageProxy->widgetMapped(GDK_WINDOW_XID(gdkWindow));
+#endif
+
     if (!webViewBase->priv->needsResizeOnMap)
         return;
 
@@ -433,6 +450,10 @@ static gboolean webkitWebViewBaseButtonPressEvent(GtkWidget* widget, GdkEventBut
 
     if (!priv->clickCounter.shouldProcessButtonEvent(buttonEvent))
         return TRUE;
+
+    // If it's a right click event save it as a possible context menu event.
+    if (buttonEvent->button == 3)
+        priv->contextMenuEvent.set(gdk_event_copy(reinterpret_cast<GdkEvent*>(buttonEvent)));
     priv->pageProxy->handleMouseEvent(NativeWebMouseEvent(reinterpret_cast<GdkEvent*>(buttonEvent),
                                                      priv->clickCounter.clickCountForGdkButtonEvent(widget, buttonEvent)));
     return TRUE;
@@ -675,8 +696,8 @@ void webkitWebViewBaseStartDrag(WebKitWebViewBase* webViewBase, const DragData& 
 {
     WebKitWebViewBasePrivate* priv = webViewBase->priv;
 
-    RefPtr<DataObjectGtk> dataObject(dragData.platformData());
-    GRefPtr<GtkTargetList> targetList(PasteboardHelper::defaultPasteboardHelper()->targetListForDataObject(dataObject.get()));
+    RefPtr<DataObjectGtk> dataObject = adoptRef(dragData.platformData());
+    GRefPtr<GtkTargetList> targetList = adoptGRef(PasteboardHelper::defaultPasteboardHelper()->targetListForDataObject(dataObject.get()));
     GOwnPtr<GdkEvent> currentEvent(gtk_get_current_event());
     GdkDragContext* context = gtk_drag_begin(GTK_WIDGET(webViewBase),
                                              targetList.get(),
@@ -758,4 +779,19 @@ void webkitWebViewBaseSetInspectorViewHeight(WebKitWebViewBase* webkitWebViewBas
         return;
     webkitWebViewBase->priv->inspectorViewHeight = height;
     gtk_widget_queue_resize_no_redraw(GTK_WIDGET(webkitWebViewBase));
+}
+
+void webkitWebViewBaseSetActiveContextMenuProxy(WebKitWebViewBase* webkitWebViewBase, WebContextMenuProxyGtk* contextMenuProxy)
+{
+    webkitWebViewBase->priv->activeContextMenuProxy = contextMenuProxy;
+}
+
+WebContextMenuProxyGtk* webkitWebViewBaseGetActiveContextMenuProxy(WebKitWebViewBase* webkitWebViewBase)
+{
+    return webkitWebViewBase->priv->activeContextMenuProxy;
+}
+
+GdkEvent* webkitWebViewBaseTakeContextMenuEvent(WebKitWebViewBase* webkitWebViewBase)
+{
+    return webkitWebViewBase->priv->contextMenuEvent.release();
 }

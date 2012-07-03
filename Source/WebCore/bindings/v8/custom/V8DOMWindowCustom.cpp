@@ -131,7 +131,7 @@ v8::Handle<v8::Value> WindowSetTimeoutImpl(const v8::Arguments& args, bool singl
     } else {
         RefPtr<ScriptCallStack> callStack(createScriptCallStackForInspector());
         if (imp->document() && !imp->document()->contentSecurityPolicy()->allowEval(callStack.release()))
-            return v8::Integer::New(0);
+            return v8Integer(0, args.GetIsolate());
         id = DOMTimer::install(scriptContext, adoptPtr(new ScheduledAction(V8Proxy::context(imp->frame()), functionString)), timeout, singleShot);
     }
 
@@ -142,7 +142,7 @@ v8::Handle<v8::Value> WindowSetTimeoutImpl(const v8::Arguments& args, bool singl
         V8GCForContextDispose::instance().notifyIdleSooner(maximumFireInterval);
     }
 
-    return v8::Integer::New(id);
+    return v8Integer(id, args.GetIsolate());
 }
 
 v8::Handle<v8::Value> V8DOMWindow::eventAccessorGetter(v8::Local<v8::String> name, const v8::AccessorInfo& info)
@@ -303,6 +303,10 @@ static v8::Handle<v8::Value> handlePostMessageCallback(const v8::Arguments& args
     // to hold on to them.
     DOMWindow* window = V8DOMWindow::toNative(args.Holder());
     DOMWindow* source = V8Proxy::retrieveWindowForCallingContext();
+
+    // If called directly by WebCore we don't have a calling context.
+    if (!source)
+        return V8Proxy::throwTypeError(0, args.GetIsolate());
 
     // This function has variable arguments and can be:
     // Per current spec:
@@ -517,9 +521,9 @@ v8::Handle<v8::Value> V8DOMWindow::namedPropertyGetter(v8::Local<v8::String> nam
     if (doc && doc->isHTMLDocument()) {
         if (static_cast<HTMLDocument*>(doc)->hasNamedItem(propName.impl()) || doc->hasElementWithId(propName.impl())) {
             HTMLCollection* items = doc->windowNamedItems(propName);
-            if (items->length() >= 1) {
-                if (items->length() == 1)
-                    return toV8(items->firstItem(), info.GetIsolate());
+            if (!items->isEmpty()) {
+                if (items->hasExactlyOneItem())
+                    return toV8(items->item(0), info.GetIsolate());
                 return toV8(items, info.GetIsolate());
             }
         }
@@ -603,7 +607,7 @@ bool V8DOMWindow::indexedSecurityCheck(v8::Local<v8::Object> host, uint32_t inde
 v8::Handle<v8::Value> toV8(DOMWindow* window, v8::Isolate* isolate)
 {
     if (!window)
-        return v8::Null();
+        return v8NullWithCheck(isolate);
     // Initializes environment of a frame, and return the global object
     // of the frame.
     Frame* frame = window->frame();

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2008, 2009 Apple Inc. All rights reserved.
+ * Copyright (C) 2008, 2009, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,6 +37,7 @@
 #include "StructureTransitionTable.h"
 #include "JSTypeInfo.h"
 #include "UString.h"
+#include "Watchpoint.h"
 #include "Weak.h"
 #include <wtf/PassOwnPtr.h>
 #include <wtf/PassRefPtr.h>
@@ -102,7 +103,23 @@ namespace JSC {
         bool isFrozen(JSGlobalData&);
         bool isExtensible() const { return !m_preventExtensions; }
         bool didTransition() const { return m_didTransition; }
-        bool shouldGrowPropertyStorage() { return propertyStorageCapacity() == propertyStorageSize(); }
+        bool putWillGrowPropertyStorage()
+        {
+            ASSERT(propertyStorageCapacity() >= propertyStorageSize());
+            
+            if (!m_propertyTable) {
+                unsigned currentSize = static_cast<unsigned>(m_offset + 1);
+                ASSERT(propertyStorageCapacity() >= currentSize);
+                return currentSize == propertyStorageCapacity();
+            }
+            
+            ASSERT(propertyStorageCapacity() >= m_propertyTable->propertyStorageSize());
+            if (m_propertyTable->hasDeletedOffset())
+                return false;
+            
+            ASSERT(propertyStorageCapacity() >= m_propertyTable->size());
+            return m_propertyTable->size() == propertyStorageCapacity();
+        }
         JS_EXPORT_PRIVATE size_t suggestedNewPropertyStorageSize(); 
 
         Structure* flattenDictionaryStructure(JSGlobalData&, JSObject*);
@@ -127,6 +144,8 @@ namespace JSC {
         
         JSValue storedPrototype() const { return m_prototype.get(); }
         JSValue prototypeForLookup(ExecState*) const;
+        JSValue prototypeForLookup(JSGlobalObject*) const;
+        JSValue prototypeForLookup(CodeBlock*) const;
         StructureChain* prototypeChain(ExecState*) const;
         static void visitChildren(JSCell*, SlotVisitor&);
 
@@ -136,6 +155,7 @@ namespace JSC {
         void growPropertyStorageCapacity();
         unsigned propertyStorageCapacity() const { ASSERT(structure()->classInfo() == &s_info); return m_propertyStorageCapacity; }
         unsigned propertyStorageSize() const { ASSERT(structure()->classInfo() == &s_info); return (m_propertyTable ? m_propertyTable->propertyStorageSize() : static_cast<unsigned>(m_offset + 1)); }
+        size_t inlineStorageCapacity() const;
         bool isUsingInlineStorage() const;
 
         size_t get(JSGlobalData&, PropertyName);
@@ -206,6 +226,27 @@ namespace JSC {
             Structure* structure = new (NotNull, allocateCell<Structure>(globalData.heap)) Structure(globalData);
             structure->finishCreation(globalData, CreatingEarlyCell);
             return structure;
+        }
+        
+        bool transitionWatchpointSetHasBeenInvalidated() const
+        {
+            return m_transitionWatchpointSet.hasBeenInvalidated();
+        }
+        
+        bool transitionWatchpointSetIsStillValid() const
+        {
+            return m_transitionWatchpointSet.isStillValid();
+        }
+        
+        void addTransitionWatchpoint(Watchpoint* watchpoint) const
+        {
+            ASSERT(transitionWatchpointSetIsStillValid());
+            m_transitionWatchpointSet.add(watchpoint);
+        }
+        
+        void notifyTransitionFromThisStructure() const
+        {
+            m_transitionWatchpointSet.notifyWrite();
         }
         
         static JS_EXPORTDATA const ClassInfo s_info;
@@ -291,9 +332,11 @@ namespace JSC {
 
         OwnPtr<PropertyTable> m_propertyTable;
 
-        uint32_t m_propertyStorageCapacity;
-
         WriteBarrier<JSString> m_objectToStringValue;
+        
+        mutable InlineWatchpointSet m_transitionWatchpointSet;
+
+        uint32_t m_propertyStorageCapacity;
 
         // m_offset does not account for anonymous slots
         int m_offset;
@@ -363,6 +406,9 @@ namespace JSC {
     {
         ASSERT(structure->typeInfo().overridesVisitChildren() == this->structure()->typeInfo().overridesVisitChildren());
         ASSERT(structure->classInfo() == m_structure->classInfo());
+        ASSERT(!m_structure
+               || m_structure->transitionWatchpointSetHasBeenInvalidated()
+               || m_structure.get() == structure);
         m_structure.set(globalData, this, structure);
     }
 
@@ -382,10 +428,13 @@ namespace JSC {
 #if ENABLE(GC_VALIDATION)
         validate(cell);
 #endif
-        m_visitCount++;
         if (Heap::testAndSetMarked(cell) || !cell->structure())
             return;
+
+        m_visitCount++;
         
+        MARK_LOG_CHILD(*this, cell);
+
         // Should never attempt to mark something that is zapped.
         ASSERT(!cell->isZapped());
         

@@ -183,6 +183,7 @@ MediaPlayerPrivateQuickTimeVisualContext::MediaPlayerPrivateQuickTimeVisualConte
     , m_delayingLoad(false)
     , m_privateBrowsing(false)
     , m_preload(MediaPlayer::Auto)
+    , m_maxTimeLoadedAtLastDidLoadingProgress(0)
 {
 }
 
@@ -262,7 +263,7 @@ void MediaPlayerPrivateQuickTimeVisualContext::setUpCookiesForQuickTime(const St
     // download the movie into WinInet before asking QuickTime to open it.
     Document* document = m_player->mediaPlayerClient()->mediaPlayerOwningDocument();
     Frame* frame = document ? document->frame() : 0;
-    if (!frame || !frame->page() || !frame->page()->cookieEnabled())
+    if (!frame || !frame->page() || !frame->page()->settings()->cookieEnabled())
         return;
 
     KURL movieURL = KURL(KURL(), url);
@@ -583,15 +584,14 @@ float MediaPlayerPrivateQuickTimeVisualContext::maxTimeLoaded() const
     return m_movie->maxTimeLoaded(); 
 }
 
-unsigned MediaPlayerPrivateQuickTimeVisualContext::bytesLoaded() const
+bool MediaPlayerPrivateQuickTimeVisualContext::didLoadingProgress() const
 {
-    if (!m_movie)
-        return 0;
-    float dur = duration();
-    float maxTime = maxTimeLoaded();
-    if (!dur)
-        return 0;
-    return totalBytes() * maxTime / dur;
+    if (!m_movie || !duration())
+        return false;
+    float currentMaxTimeLoaded = maxTimeLoaded();
+    bool didLoadingProgress = currentMaxTimeLoaded != m_maxTimeLoadedAtLastDidLoadingProgress;
+    m_maxTimeLoadedAtLastDidLoadingProgress = currentMaxTimeLoaded;
+    return didLoadingProgress;
 }
 
 unsigned MediaPlayerPrivateQuickTimeVisualContext::totalBytes() const
@@ -1011,7 +1011,7 @@ bool MediaPlayerPrivateQuickTimeVisualContext::isAvailable()
     return QTMovie::initializeQuickTime();
 }
 
-MediaPlayer::SupportsType MediaPlayerPrivateQuickTimeVisualContext::supportsType(const String& type, const String& codecs)
+MediaPlayer::SupportsType MediaPlayerPrivateQuickTimeVisualContext::supportsType(const String& type, const String& codecs, const KURL&)
 {
     // only return "IsSupported" if there is no codecs parameter for now as there is no way to ask QT if it supports an
     //  extended MIME type

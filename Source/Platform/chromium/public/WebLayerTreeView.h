@@ -34,7 +34,7 @@
 
 namespace WebCore {
 class CCLayerTreeHost;
-struct CCSettings;
+struct CCLayerTreeSettings;
 }
 
 namespace WebKit {
@@ -44,38 +44,33 @@ class WebLayerTreeViewClient;
 class WebLayerTreeViewImpl;
 struct WebPoint;
 struct WebRect;
+struct WebRenderingStats;
 
 class WebLayerTreeView : public WebNonCopyable {
 public:
     struct Settings {
         Settings()
             : acceleratePainting(false)
+            , forceSoftwareCompositing(false)
             , showFPSCounter(false)
             , showPlatformLayerTree(false)
             , showPaintRects(false)
             , refreshRate(0)
-            , perTilePainting(false)
-            , partialSwapEnabled(false)
-            , threadedAnimationEnabled(false)
             , defaultTileSize(WebSize(256, 256))
             , maxUntiledLayerSize(WebSize(512, 512))
-            , deviceScaleFactor(1)
         {
         }
 
         bool acceleratePainting;
+        bool forceSoftwareCompositing;
         bool showFPSCounter;
         bool showPlatformLayerTree;
         bool showPaintRects;
         double refreshRate;
-        bool perTilePainting;
-        bool partialSwapEnabled;
-        bool threadedAnimationEnabled;
         WebSize defaultTileSize;
         WebSize maxUntiledLayerSize;
-        float deviceScaleFactor;
 #if WEBKIT_IMPLEMENTATION
-        operator WebCore::CCSettings() const;
+        operator WebCore::CCLayerTreeSettings() const;
 #endif
     };
 
@@ -113,8 +108,14 @@ public:
     WEBKIT_EXPORT void setViewportSize(const WebSize&);
     WEBKIT_EXPORT WebSize viewportSize() const;
 
+    WEBKIT_EXPORT void setDeviceScaleFactor(float);
+    WEBKIT_EXPORT float deviceScaleFactor() const;
+
     // Sets the background color for the viewport.
     WEBKIT_EXPORT void setBackgroundColor(WebColor);
+
+    // Sets the background transparency for the viewport. The default is 'false'.
+    WEBKIT_EXPORT void setHasTransparentBackground(bool);
 
     // Sets whether this view is visible. In threaded mode, a view that is not visible will not
     // composite or trigger updateAnimations() or layout() calls until it becomes visible.
@@ -166,12 +167,11 @@ public:
     // This can have a significant performance impact and should be used with care.
     WEBKIT_EXPORT void finishAllRendering();
 
-    // Returns the context being used for rendering this view. In threaded compositing mode, it is
-    // not safe to use this context for anything on the main thread, other than passing the pointer to
-    // the compositor thread.
-    WEBKIT_EXPORT WebGraphicsContext3D* context();
-
     // Debugging / dangerous ---------------------------------------------
+
+    // Fills in a WebRenderingStats struct containing information about the state of the compositor.
+    // This call is relatively expensive in threaded mode as it blocks on the compositor thread.
+    WEBKIT_EXPORT void renderingStats(WebRenderingStats&) const;
 
     // Simulates a lost context. For testing only.
     WEBKIT_EXPORT void loseCompositorContext(int numTimes);

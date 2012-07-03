@@ -100,9 +100,15 @@ public:
         MediaKeyExceptionKeySystemNotSupported,
     };
 
+    enum CORSMode {
+        CORSModeUnspecified,
+        CORSModeAnonymous,
+        CORSModeUseCredentials,
+    };
+
     virtual ~WebMediaPlayer() {}
 
-    virtual void load(const WebURL&) = 0;
+    virtual void load(const WebURL&, CORSMode) = 0;
     virtual void cancelLoad() = 0;
 
     // Playback controls.
@@ -144,10 +150,11 @@ public:
     virtual NetworkState networkState() const = 0;
     virtual ReadyState readyState() const = 0;
 
-    virtual unsigned long long bytesLoaded() const = 0;
+    virtual bool didLoadingProgress() const = 0;
     virtual unsigned long long totalBytes() const = 0;
 
     virtual bool hasSingleSecurityOrigin() const = 0;
+    virtual bool didPassCORSAccessCheck() const = 0;
     virtual MovieLoadType movieLoadType() const = 0;
 
     virtual float mediaTimeForTimeValue(float timeValue) const = 0;

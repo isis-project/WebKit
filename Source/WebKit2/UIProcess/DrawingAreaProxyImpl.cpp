@@ -37,7 +37,7 @@
 #include <WebCore/Region.h>
 
 #if USE(UI_SIDE_COMPOSITING)
-#include "LayerTreeHostProxy.h"
+#include "LayerTreeCoordinatorProxy.h"
 #endif
 
 using namespace WebCore;
@@ -61,7 +61,7 @@ DrawingAreaProxyImpl::DrawingAreaProxyImpl(WebPageProxy* webPageProxy)
 #if USE(UI_SIDE_COMPOSITING)
     // Construct the proxy early to allow messages to be sent to the web process while AC is entered there.
     if (webPageProxy->pageGroup()->preferences()->forceCompositingMode())
-        m_layerTreeHostProxy = adoptPtr(new LayerTreeHostProxy(this));
+        m_layerTreeCoordinatorProxy = adoptPtr(new LayerTreeCoordinatorProxy(this));
 #endif
 }
 
@@ -134,14 +134,16 @@ void DrawingAreaProxyImpl::layerHostingModeDidChange()
 
 void DrawingAreaProxyImpl::visibilityDidChange()
 {
-    if (!m_webPageProxy->isViewVisible()) {
-        // Suspend painting.
-        m_webPageProxy->process()->send(Messages::DrawingArea::SuspendPainting(), m_webPageProxy->pageID());
-        return;
-    }
+    if (!m_webPageProxy->suppressVisibilityUpdates()) {
+        if (!m_webPageProxy->isViewVisible()) {
+            // Suspend painting.
+            m_webPageProxy->process()->send(Messages::DrawingArea::SuspendPainting(), m_webPageProxy->pageID());
+            return;
+        }
 
-    // Resume painting.
-    m_webPageProxy->process()->send(Messages::DrawingArea::ResumePainting(), m_webPageProxy->pageID());
+        // Resume painting.
+        m_webPageProxy->process()->send(Messages::DrawingArea::ResumePainting(), m_webPageProxy->pageID());
+    }
 
 #if USE(ACCELERATED_COMPOSITING)
     // If we don't have a backing store, go ahead and mark the backing store as being changed so
@@ -352,22 +354,22 @@ void DrawingAreaProxyImpl::enterAcceleratedCompositingMode(const LayerTreeContex
     m_layerTreeContext = layerTreeContext;
     m_webPageProxy->enterAcceleratedCompositingMode(layerTreeContext);
 #if USE(UI_SIDE_COMPOSITING)
-    if (!m_layerTreeHostProxy)
-        m_layerTreeHostProxy = adoptPtr(new LayerTreeHostProxy(this));
+    if (!m_layerTreeCoordinatorProxy)
+        m_layerTreeCoordinatorProxy = adoptPtr(new LayerTreeCoordinatorProxy(this));
 #endif
 }
 
 #if USE(UI_SIDE_COMPOSITING)
-void DrawingAreaProxyImpl::didReceiveLayerTreeHostProxyMessage(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments)
+void DrawingAreaProxyImpl::didReceiveLayerTreeCoordinatorProxyMessage(CoreIPC::Connection* connection, CoreIPC::MessageID messageID, CoreIPC::ArgumentDecoder* arguments)
 {
-    if (m_layerTreeHostProxy)
-        m_layerTreeHostProxy->didReceiveLayerTreeHostProxyMessage(connection, messageID, arguments);
+    if (m_layerTreeCoordinatorProxy)
+        m_layerTreeCoordinatorProxy->didReceiveLayerTreeCoordinatorProxyMessage(connection, messageID, arguments);
 }
 
 void DrawingAreaProxyImpl::setVisibleContentsRect(const WebCore::IntRect& visibleContentsRect, float scale, const WebCore::FloatPoint& trajectoryVector, const WebCore::FloatPoint& accurateVisibleContentsPosition)
 {
-    if (m_layerTreeHostProxy)
-        m_layerTreeHostProxy->setVisibleContentsRect(visibleContentsRect, scale, trajectoryVector, accurateVisibleContentsPosition);
+    if (m_layerTreeCoordinatorProxy)
+        m_layerTreeCoordinatorProxy->setVisibleContentsRect(visibleContentsRect, scale, trajectoryVector, accurateVisibleContentsPosition);
 }
 
 #endif

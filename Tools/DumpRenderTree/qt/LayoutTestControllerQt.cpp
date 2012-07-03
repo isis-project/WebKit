@@ -155,11 +155,6 @@ void LayoutTestController::waitUntilDone()
     m_timeoutTimer.start(m_timeout, this);
 }
 
-QString LayoutTestController::counterValueForElementById(const QString& id)
-{
-    return DumpRenderTreeSupportQt::counterValueForElementById(m_drt->webPage()->mainFrame(), id);
-}
-
 void LayoutTestController::setViewModeMediaFeature(const QString& mode)
 {
     m_drt->webPage()->setProperty("_q_viewMode", mode);
@@ -447,6 +442,11 @@ void LayoutTestController::setFrameFlatteningEnabled(bool enabled)
     DumpRenderTreeSupportQt::setFrameFlatteningEnabled(m_drt->webPage(), enabled);
 }
 
+void LayoutTestController::setMockScrollbarsEnabled(bool enabled)
+{
+    DumpRenderTreeSupportQt::setMockScrollbarsEnabled(m_drt->webPage(), enabled);
+}
+
 void LayoutTestController::goBack()
 {
     DumpRenderTreeSupportQt::goBack(m_drt->webPage());
@@ -674,6 +674,8 @@ void LayoutTestController::overridePreference(const QString& name, const QVarian
         settings->setAttribute(QWebSettings::WebGLEnabled, value.toBool());
     else if (name == "WebKitCSSRegionsEnabled")
         settings->setAttribute(QWebSettings::CSSRegionsEnabled, value.toBool());
+    else if (name == "WebKitCSSGridLayoutEnabled")
+        settings->setAttribute(QWebSettings::CSSGridLayoutEnabled, value.toBool());
     else if (name == "WebKitHyperlinkAuditingEnabled")
         settings->setAttribute(QWebSettings::HyperlinkAuditingEnabled, value.toBool());
     else if (name == "WebKitHixie76WebSocketProtocolEnabled")

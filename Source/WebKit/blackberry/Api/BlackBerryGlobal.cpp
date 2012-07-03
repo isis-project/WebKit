@@ -60,8 +60,10 @@ void globalInitialize()
     blackberryDebugInitialize();
 #endif
 
+#if !LOG_DISABLED
     // Turn on logging.
     initializeLoggingChannelsIfNecessary();
+#endif // !LOG_DISABLED
 
     // Initialize threading/
     JSC::initializeThreading();
@@ -75,7 +77,7 @@ void globalInitialize()
 
     CacheClientBlackBerry::get()->initialize();
 
-    BlackBerry::Platform::Settings* settings = BlackBerry::Platform::Settings::get();
+    BlackBerry::Platform::Settings* settings = BlackBerry::Platform::Settings::instance();
 
     ImageSource::setMaxPixelsPerDecodedImage(settings->maxPixelsPerDecodedImage());
 }
@@ -106,9 +108,8 @@ void clearMemoryCaches()
 #endif
 
     {
-        JSC::JSLock lock(JSC::SilenceAssertionsOnly);
-        // This function also performs a GC.
-        JSC::releaseExecutableMemory(*JSDOMWindow::commonJSGlobalData());
+        JSC::JSLockHolder lock(JSDOMWindow::commonJSGlobalData());
+        collectJavascriptGarbageNow();
     }
 
     // Clean caches after JS garbage collection because JS GC can

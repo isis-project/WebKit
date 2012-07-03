@@ -99,7 +99,8 @@ public:
 
     virtual void notifyRunLayoutTestsFinished() = 0;
 
-    virtual void notifyInRegionScrollingStartingPointChanged(std::vector<Platform::ScrollViewBase>) = 0;
+    // Client is responsible for deleting the vector elements.
+    virtual void notifyInRegionScrollingStartingPointChanged(std::vector<Platform::ScrollViewBase*>) = 0;
 
     virtual void notifyDocumentOnLoad() = 0;
 
@@ -130,7 +131,7 @@ public:
     virtual Platform::Graphics::Window* window() const = 0;
 
     virtual void notifyContentRendered(const Platform::IntRect&) = 0;
-    virtual void notifyScreenRotated() = 0;
+    virtual void resizeSurfaceIfNeeded() = 0;
 
     virtual void inputFocusGained(Platform::BlackBerryInputType, int inputStyle) = 0;
     virtual void inputFocusLost() = 0;
@@ -142,6 +143,8 @@ public:
 
     virtual void checkSpellingOfString(const unsigned short* text, int length, int& misspellingLocation, int& misspellingLength) = 0;
     virtual void requestSpellingSuggestionsForString(unsigned start, unsigned end) = 0;
+
+    virtual int32_t checkSpellingOfStringAsync(wchar_t* text, int length) = 0;
 
     virtual void notifySelectionDetailsChanged(const Platform::IntRect& start, const Platform::IntRect& end, const Platform::IntRectRegion&, bool overrideTouchHandling = false) = 0;
     virtual void cancelSelectionVisuals() = 0;
@@ -159,6 +162,7 @@ public:
 
     virtual void resetBackForwardList(unsigned listSize, unsigned currentIndex) = 0;
 
+    virtual void openPopupList(bool multiple, int size, const ScopeArray<WebString>& labels, const bool* enableds, const int* itemType, const bool* selecteds) = 0;
     virtual void openDateTimePopup(int type, const WebString& value, const WebString& min, const WebString& max, double step) = 0;
     virtual void openColorPopup(const WebString& value) = 0;
 
@@ -210,6 +214,7 @@ public:
     virtual bool authenticationChallenge(const unsigned short* realm, unsigned int realmLength, WebString& username, WebString& password) = 0;
     virtual SaveCredentialType notifyShouldSaveCredential(bool isNew) = 0;
     virtual void notifyPopupAutofillDialog(const std::vector<std::string>&, const Platform::IntRect&) = 0;
+    virtual void notifyDismissAutofillDialog() = 0;
 
     virtual bool shouldPluginEnterFullScreen() = 0;
     virtual void didPluginEnterFullScreen() = 0;
@@ -231,6 +236,7 @@ public:
     virtual bool downloadAllowed(const char* url) = 0;
     virtual void downloadRequested(Platform::FilterStream*, const WebString& suggestedFilename) = 0;
 
+    virtual int fullscreenStart() = 0;
     virtual int fullscreenStart(const char* contextName, Platform::Graphics::Window*, unsigned x, unsigned y, unsigned width, unsigned height) = 0;
 
     virtual int fullscreenStop() = 0;
@@ -248,7 +254,7 @@ public:
     virtual void clearCache() = 0;
 
     virtual bool hasKeyboardFocus() = 0;
-    virtual void createPopupWebView(const Platform::IntRect& webViewRect) = 0;
+    virtual bool createPopupWebView(const Platform::IntRect&) = 0;
     virtual void closePopupWebView() = 0;
 };
 } // namespace WebKit

@@ -25,13 +25,13 @@
 #ifndef CCActiveAnimation_h
 #define CCActiveAnimation_h
 
-#include "cc/CCAnimationCurve.h"
-
 #include <wtf/Noncopyable.h>
 #include <wtf/OwnPtr.h>
 #include <wtf/PassOwnPtr.h>
 
 namespace WebCore {
+
+class CCAnimationCurve;
 
 // A CCActiveAnimation, contains all the state required to play a CCAnimationCurve.
 // Specifically, the affected property, the run state (paused, finished, etc.),
@@ -52,6 +52,7 @@ public:
         WaitingForNextTick = 1,
         WaitingForTargetAvailability,
         WaitingForStartTime,
+        WaitingForDeletion,
         Running,
         Paused,
         Finished,
@@ -95,7 +96,9 @@ public:
     void setAlternatesDirection(bool alternates) { m_alternatesDirection = alternates; }
 
     bool isFinishedAt(double monotonicTime) const;
-    bool isFinished() const { return m_runState == Finished || m_runState == Aborted; }
+    bool isFinished() const { return m_runState == Finished
+                                  || m_runState == Aborted
+                                  || m_runState == WaitingForDeletion; }
 
     CCAnimationCurve* curve() { return m_curve.get(); }
     const CCAnimationCurve* curve() const { return m_curve.get(); }

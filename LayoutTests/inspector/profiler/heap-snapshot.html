@@ -95,6 +95,17 @@ function test()
             next();
         },
 
+        function heapSnapshotContainmentEdgeIndexesTest(next)
+        {
+            var snapshot = new WebInspector.HeapSnapshot(InspectorTest.createHeapSnapshotMock());
+            var actual = snapshot._firstEdgeIndexes;
+            var expected = [0, 6, 12, 18, 21, 21, 21];
+            InspectorTest.assertEquals(expected.length, actual.length, "Edge indexes size");
+            for (var i = 0; i < expected.length; ++i)
+                InspectorTest.assertEquals(expected[i], actual[i], "Edge indexes");
+            next();
+        },
+
         function heapSnapshotPostOrderIndexTest(next)
         {
             var snapshot = new WebInspector.HeapSnapshot(InspectorTest.createHeapSnapshotMock());
@@ -121,7 +132,7 @@ function test()
             var snapshot = new WebInspector.HeapSnapshot(InspectorTest.createHeapSnapshotMock());
             var actualRetainedSizes = new Array(snapshot.nodeCount);
             for (var nodeOrdinal = 0; nodeOrdinal < snapshot.nodeCount; ++nodeOrdinal)
-                actualRetainedSizes[nodeOrdinal] = snapshot._retainedSizes[nodeOrdinal];
+                actualRetainedSizes[nodeOrdinal] = snapshot._nodes[nodeOrdinal * snapshot._nodeFieldCount + snapshot._nodeRetainedSizeOffset];
             var expectedRetainedSizes = [20, 2, 8, 10, 5, 6];
             InspectorTest.assertEquals(JSON.stringify(expectedRetainedSizes), JSON.stringify(actualRetainedSizes), "Retained sizes");
             next();

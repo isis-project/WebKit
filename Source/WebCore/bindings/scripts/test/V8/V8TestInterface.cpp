@@ -23,7 +23,7 @@
 
 #if ENABLE(Condition1) || ENABLE(Condition2)
 
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "ExceptionCode.h"
 #include "RuntimeEnabledFeatures.h"
 #include "TestSupplemental.h"
@@ -42,7 +42,7 @@
 
 namespace WebCore {
 
-WrapperTypeInfo V8TestInterface::info = { V8TestInterface::GetTemplate, V8TestInterface::derefObject, V8TestInterface::toActiveDOMObject, 0 };
+WrapperTypeInfo V8TestInterface::info = { V8TestInterface::GetTemplate, V8TestInterface::derefObject, V8TestInterface::toActiveDOMObject, 0, 0, WrapperTypeObjectPrototype };
 
 namespace TestInterfaceV8Internal {
 

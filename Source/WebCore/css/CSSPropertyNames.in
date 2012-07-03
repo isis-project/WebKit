@@ -6,7 +6,7 @@
 //
 // Microsoft extensions are documented here:
 // http://msdn.microsoft.com/workshop/author/css/reference/attributes.asp
-//
+// 
 
 // high-priority property names have to be listed first, to simplify the check
 // for applying them first.
@@ -104,6 +104,9 @@ float
 font-stretch
 height
 image-rendering
+#if defined(ENABLE_CSS_IMAGE_RESOLUTION) && ENABLE_CSS_IMAGE_RESOLUTION
+image-resolution
+#endif
 left
 letter-spacing
 list-style
@@ -246,6 +249,7 @@ z-index
 -webkit-column-break-inside
 -webkit-column-count
 -webkit-column-gap
+-webkit-column-progression
 -webkit-column-rule
 -webkit-column-rule-color
 -webkit-column-rule-style
@@ -253,19 +257,24 @@ z-index
 -webkit-column-span
 -webkit-column-width
 -webkit-columns
+#if defined(ENABLE_CSS_BOX_DECORATION_BREAK) && ENABLE_CSS_BOX_DECORATION_BREAK
+-webkit-box-decoration-break
+#endif
 #if defined(ENABLE_CSS_FILTERS) && ENABLE_CSS_FILTERS
 -webkit-filter
 #endif
 #if defined(ENABLE_CSS3_FLEXBOX) && ENABLE_CSS3_FLEXBOX
+-webkit-align-content
+-webkit-align-items
+-webkit-align-self
 -webkit-flex
--webkit-flex-align
+-webkit-flex-basis
 -webkit-flex-direction
 -webkit-flex-flow
--webkit-flex-item-align
--webkit-flex-line-pack
--webkit-flex-order
--webkit-flex-pack
+-webkit-flex-grow
+-webkit-flex-shrink
 -webkit-flex-wrap
+-webkit-justify-content
 #endif
 -webkit-font-size-delta
 -webkit-grid-columns
@@ -321,12 +330,12 @@ z-index
 -webkit-mask-repeat-x
 -webkit-mask-repeat-y
 -webkit-mask-size
--webkit-match-nearest-mail-blockquote-color
 -webkit-max-logical-width
 -webkit-max-logical-height
 -webkit-min-logical-width
 -webkit-min-logical-height
 -webkit-nbsp-mode
+-webkit-order
 -webkit-padding-after
 -webkit-padding-before
 -webkit-padding-end
@@ -389,6 +398,6 @@ z-index
 #if defined(ENABLE_DASHBOARD_SUPPORT) && ENABLE_DASHBOARD_SUPPORT
 -webkit-dashboard-region
 #endif
-#if defined(ENABLE_OVERFLOW_SCROLLING)
+#if defined(ENABLE_OVERFLOW_SCROLLING) && ENABLE_OVERFLOW_SCROLLING
 -webkit-overflow-scrolling
 #endif

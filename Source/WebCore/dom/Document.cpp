@@ -44,6 +44,7 @@
 #include "Comment.h"
 #include "Console.h"
 #include "ContentSecurityPolicy.h"
+#include "ContextFeatures.h"
 #include "CookieJar.h"
 #include "DOMImplementation.h"
 #include "DOMSelection.h"
@@ -71,7 +72,7 @@
 #include "ExceptionCode.h"
 #include "FlowThreadController.h"
 #include "FocusController.h"
-#include "FormAssociatedElement.h"
+#include "FormController.h"
 #include "Frame.h"
 #include "FrameLoader.h"
 #include "FrameLoaderClient.h"
@@ -92,7 +93,6 @@
 #include "HTMLFrameOwnerElement.h"
 #include "HTMLHeadElement.h"
 #include "HTMLIFrameElement.h"
-#include "HTMLInputElement.h"
 #include "HTMLLinkElement.h"
 #include "HTMLMapElement.h"
 #include "HTMLNameCollection.h"
@@ -115,12 +115,14 @@
 #include "NewXMLDocumentParser.h"
 #include "NodeFilter.h"
 #include "NodeIterator.h"
+#include "NodeRareData.h"
 #include "NodeWithIndex.h"
 #include "Page.h"
 #include "PageGroup.h"
 #include "PageTransitionEvent.h"
 #include "PlatformKeyboardEvent.h"
 #include "PluginDocument.h"
+#include "PointerLockController.h"
 #include "PopStateEvent.h"
 #include "ProcessingInstruction.h"
 #include "RegisteredEventListener.h"
@@ -140,6 +142,7 @@
 #include "SecurityOrigin.h"
 #include "SecurityPolicy.h"
 #include "SegmentedString.h"
+#include "SelectorQuery.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "StaticHashSetNodeList.h"
@@ -150,6 +153,7 @@
 #include "Timer.h"
 #include "TransformSource.h"
 #include "TreeWalker.h"
+#include "UndoManager.h"
 #include "UserContentURLPattern.h"
 #include "WebKitNamedFlow.h"
 #include "XMLDocumentParser.h"
@@ -338,19 +342,6 @@ static bool acceptsEditingFocus(Node* node)
     return frame->editor()->shouldBeginEditing(rangeOfContents(root).get());
 }
 
-static bool disableRangeMutation(Page* page)
-{
-    // This check is made on super-hot code paths, so we only want this on Leopard.
-#ifdef TARGETING_LEOPARD
-    // Disable Range mutation on document modifications in Leopard Mail.
-    // See <rdar://problem/5865171>
-    return page && page->settings()->needsLeopardMailQuirks();
-#else
-    UNUSED_PARAM(page);
-    return false;
-#endif
-}
-
 static bool canAccessAncestor(const SecurityOrigin* activeSecurityOrigin, Frame* targetFrame)
 {
     // targetFrame can be 0 when we're trying to navigate a top-level frame
@@ -426,6 +417,7 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     : ContainerNode(0, CreateDocument)
     , TreeScope(this)
     , m_guardRefCount(0)
+    , m_contextFeatures(ContextFeatures::defaultSwitch())
     , m_compatibilityMode(NoQuirksMode)
     , m_compatibilityModeLocked(false)
     , m_domTreeVersion(++s_globalTreeVersion)
@@ -465,6 +457,7 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     , m_isViewSource(false)
     , m_sawElementsInKnownNamespaces(false)
     , m_isSrcdocDocument(false)
+    , m_documentRareData(0)
     , m_eventQueue(DocumentEventQueue::create(this))
     , m_weakReference(DocumentWeakReference::create(this))
     , m_idAttributeName(idAttr)
@@ -483,6 +476,9 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     , m_writeRecursionDepth(0)
     , m_wheelEventHandlerCount(0)
     , m_touchEventHandlerCount(0)
+#if ENABLE(UNDO_MANAGER)
+    , m_undoManager(0)
+#endif
     , m_pendingTasksTimer(this, &Document::pendingTasksTimerFired)
     , m_scheduledTasksAreSuspended(false)
     , m_visualUpdatesAllowed(true)
@@ -501,6 +497,8 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
     m_ignoreAutofocus = false;
 
     m_frame = frame;
+    if (m_frame)
+        provideContextFeaturesToDocumentFrom(this, m_frame->page());
 
     // We depend on the url getting immediately set in subframes, but we
     // also depend on the url NOT getting immediately set in opened windows.
@@ -596,7 +594,6 @@ Document::~Document()
     // if the DocumentParser outlives the Document it won't cause badness.
     ASSERT(!m_parser || m_parser->refCount() == 1);
     detachParser();
-    m_document = 0;
 
     m_renderArena.clear();
 
@@ -630,10 +627,17 @@ Document::~Document()
     clearStyleResolver(); // We need to destory CSSFontSelector before destroying m_cachedResourceLoader.
     m_cachedResourceLoader.clear();
 
+#if ENABLE(UNDO_MANAGER)
+    if (m_undoManager)
+        m_undoManager->undoScopeHostDestroyed();
+#endif
+
     // We must call clearRareData() here since a Document class inherits TreeScope
     // as well as Node. See a comment on TreeScope.h for the reason.
     if (hasRareData())
         clearRareData();
+
+    m_document = 0;
 
     InspectorCounters::decrementCounter(InspectorCounters::DocumentCounter);
 }
@@ -656,10 +660,13 @@ void Document::removedLastRef()
         m_activeNode = 0;
         m_titleElement = 0;
         m_documentElement = 0;
+        m_contextFeatures = ContextFeatures::defaultSwitch();
 #if ENABLE(FULLSCREEN_API)
         m_fullScreenElement = 0;
         m_fullScreenElementStack.clear();
 #endif
+
+        detachParser();
 
         // removeAllChildren() doesn't always unregister IDs,
         // so tear down scope information upfront to avoid having stale references in the map.
@@ -667,8 +674,6 @@ void Document::removedLastRef()
         removeAllChildren();
 
         m_markers->detach();
-
-        detachParser();
 
         m_cssCanvasElements.clear();
 
@@ -685,9 +690,9 @@ void Document::removedLastRef()
 
         guardDeref();
     } else {
-#ifndef NDEBUG
-        m_deletionHasBegun = true;
-#endif
+#ifndef NDEBUG 
+        m_deletionHasBegun = true; 
+#endif 
         delete this;
     }
 }
@@ -731,6 +736,13 @@ void Document::invalidateAccessKeyMap()
     m_elementsByAccessKey.clear();
 }
 
+SelectorQueryCache* Document::selectorQueryCache()
+{
+    if (!m_selectorQueryCache)
+        m_selectorQueryCache = adoptPtr(new SelectorQueryCache());
+    return m_selectorQueryCache.get();
+}
+
 MediaQueryMatcher* Document::mediaQueryMatcher()
 {
     if (!m_mediaQueryMatcher)
@@ -745,6 +757,7 @@ void Document::setCompatibilityMode(CompatibilityMode mode)
     ASSERT(!m_styleSheets->length());
     bool wasInQuirksMode = inQuirksMode();
     m_compatibilityMode = mode;
+    selectorQueryCache()->invalidate();
     if (inQuirksMode() != wasInQuirksMode) {
         // All user stylesheets have to reparse using the different mode.
         clearPageUserSheet();
@@ -779,10 +792,10 @@ void Document::setDocType(PassRefPtr<DocumentType> docType)
     m_docType = docType;
     if (m_docType) {
         this->adoptIfNeeded(m_docType.get());
-#if USE(LEGACY_VIEWPORT_ADAPTION)
+#if ENABLE(LEGACY_VIEWPORT_ADAPTION)
         ASSERT(m_viewportArguments.type == ViewportArguments::Implicit);
         if (m_docType->publicId().startsWith("-//wapforum//dtd xhtml mobile 1.", /* caseSensitive */ false))
-            processViewport("width=device-width, height=device-height, initial-scale=1");
+            processViewport("width=device-width, height=device-height", ViewportArguments::XHTMLMobileProfile);
 #endif
     }
     // Doctype affects the interpretation of the stylesheets.
@@ -1298,6 +1311,7 @@ void Document::setXMLStandalone(bool standalone, ExceptionCode& ec)
 
 void Document::setDocumentURI(const String& uri)
 {
+    // This property is read-only from JavaScript, but writable from Objective-C.
     m_documentURI = uri;
     updateBaseURL();
 }
@@ -1615,6 +1629,27 @@ String Document::nodeName() const
 Node::NodeType Document::nodeType() const
 {
     return DOCUMENT_NODE;
+}
+
+FormController* Document::formController()
+{
+    if (!m_formController)
+        m_formController = FormController::create();
+    return m_formController.get();
+}
+
+Vector<String> Document::formElementsState() const
+{
+    if (!m_formController)
+        return Vector<String>();
+    return m_formController->formElementsState();
+}
+
+void Document::setStateForNewFormElements(const Vector<String>& stateVector)
+{
+    if (!stateVector.size() && !m_formController)
+        return;
+    formController()->setStateForNewFormElements(stateVector);
 }
 
 FrameView* Document::view() const
@@ -1961,6 +1996,11 @@ void Document::pageSizeAndMarginsInPixels(int pageIndex, IntSize& pageSize, int&
     marginRight = style->marginRight().isAuto() ? marginRight : intValueForLength(style->marginRight(), width, view);
     marginBottom = style->marginBottom().isAuto() ? marginBottom : intValueForLength(style->marginBottom(), width, view);
     marginLeft = style->marginLeft().isAuto() ? marginLeft : intValueForLength(style->marginLeft(), width, view);
+}
+
+void Document::setDocumentRareData(NodeRareData* rareData)
+{
+    m_documentRareData = rareData;
 }
 
 void Document::setIsViewSource(bool isViewSource)
@@ -2649,10 +2689,12 @@ void Document::updateBaseURL()
     else if (!m_baseURLOverride.isEmpty())
         m_baseURL = m_baseURLOverride;
     else {
-        // The documentURI attribute is an arbitrary string. DOM 3 Core does not specify how it should be resolved,
-        // so we use a null base URL.
+        // The documentURI attribute is read-only from JavaScript, but writable from Objective C, so we need to retain
+        // this fallback behavior. We use a null base URL, since the documentURI attribute is an arbitrary string
+        // and DOM 3 Core does not specify how it should be resolved.
         m_baseURL = KURL(KURL(), documentURI());
     }
+    selectorQueryCache()->invalidate();
 
     if (!m_baseURL.isValid())
         m_baseURL = KURL();
@@ -3036,11 +3078,14 @@ void Document::processArguments(const String& features, void* data, ArgumentsCal
     }
 }
 
-void Document::processViewport(const String& features)
+void Document::processViewport(const String& features, ViewportArguments::Type origin)
 {
     ASSERT(!features.isNull());
 
-    m_viewportArguments = ViewportArguments(ViewportArguments::ViewportMeta);
+    if (origin < m_viewportArguments.type)
+        return;
+
+    m_viewportArguments = ViewportArguments(origin);
     processArguments(features, (void*)&m_viewportArguments, &setViewportFeature);
 
     updateViewportArguments();
@@ -3147,7 +3192,7 @@ bool Document::canReplaceChild(Node* newChild, Node* oldChild)
     
     // Then, see how many doctypes and elements might be added by the new child.
     if (newChild->nodeType() == DOCUMENT_FRAGMENT_NODE) {
-        for (Node* c = firstChild(); c; c = c->nextSibling()) {
+        for (Node* c = newChild->firstChild(); c; c = c->nextSibling()) {
             switch (c->nodeType()) {
             case ATTRIBUTE_NODE:
             case CDATA_SECTION_NODE:
@@ -3350,14 +3395,11 @@ void Document::removeStyleSheetCandidateNode(Node* node)
 
 void Document::collectActiveStylesheets(Vector<RefPtr<StyleSheet> >& sheets)
 {
-    bool matchAuthorAndUserStyles = true;
-    if (Settings* settings = this->settings())
-        matchAuthorAndUserStyles = settings->authorAndUserStylesEnabled();
+    if (settings() && !settings()->authorAndUserStylesEnabled())
+        return;
 
     StyleSheetCandidateListHashSet::iterator begin = m_styleSheetCandidateNodes.begin();
     StyleSheetCandidateListHashSet::iterator end = m_styleSheetCandidateNodes.end();
-    if (!matchAuthorAndUserStyles)
-        end = begin;
     for (StyleSheetCandidateListHashSet::iterator it = begin; it != end; ++it) {
         Node* n = *it;
         StyleSheet* sheet = 0;
@@ -3811,6 +3853,23 @@ void Document::setCSSTarget(Element* n)
         n->setNeedsStyleRecalc();
 }
 
+void Document::registerDynamicSubtreeNodeList(DynamicSubtreeNodeList* list)
+{
+    m_listsInvalidatedAtDocument.add(list);
+}
+
+void Document::unregisterDynamicSubtreeNodeList(DynamicSubtreeNodeList* list)
+{
+    m_listsInvalidatedAtDocument.remove(list);
+}
+
+void Document::clearNodeListCaches()
+{
+    HashSet<DynamicSubtreeNodeList*>::iterator end = m_listsInvalidatedAtDocument.end();
+    for (HashSet<DynamicSubtreeNodeList*>::iterator it = m_listsInvalidatedAtDocument.begin(); it != end; ++it)
+        (*it)->invalidateCache();
+}
+
 void Document::attachNodeIterator(NodeIterator* ni)
 {
     m_nodeIterators.add(ni);
@@ -3837,7 +3896,7 @@ void Document::moveNodeIteratorsToNewDocument(Node* node, Document* newDocument)
 
 void Document::updateRangesAfterChildrenChanged(ContainerNode* container)
 {
-    if (!disableRangeMutation(page()) && !m_ranges.isEmpty()) {
+    if (!m_ranges.isEmpty()) {
         HashSet<Range*>::const_iterator end = m_ranges.end();
         for (HashSet<Range*>::const_iterator it = m_ranges.begin(); it != end; ++it)
             (*it)->nodeChildrenChanged(container);
@@ -3846,7 +3905,7 @@ void Document::updateRangesAfterChildrenChanged(ContainerNode* container)
 
 void Document::nodeChildrenWillBeRemoved(ContainerNode* container)
 {
-    if (!disableRangeMutation(page()) && !m_ranges.isEmpty()) {
+    if (!m_ranges.isEmpty()) {
         HashSet<Range*>::const_iterator end = m_ranges.end();
         for (HashSet<Range*>::const_iterator it = m_ranges.begin(); it != end; ++it)
             (*it)->nodeChildrenWillBeRemoved(container);
@@ -3873,7 +3932,7 @@ void Document::nodeWillBeRemoved(Node* n)
     for (HashSet<NodeIterator*>::const_iterator it = m_nodeIterators.begin(); it != nodeIteratorsEnd; ++it)
         (*it)->nodeWillBeRemoved(n);
 
-    if (!disableRangeMutation(page()) && !m_ranges.isEmpty()) {
+    if (!m_ranges.isEmpty()) {
         HashSet<Range*>::const_iterator rangesEnd = m_ranges.end();
         for (HashSet<Range*>::const_iterator it = m_ranges.begin(); it != rangesEnd; ++it)
             (*it)->nodeWillBeRemoved(n);
@@ -3888,7 +3947,7 @@ void Document::nodeWillBeRemoved(Node* n)
 
 void Document::textInserted(Node* text, unsigned offset, unsigned length)
 {
-    if (!disableRangeMutation(page()) && !m_ranges.isEmpty()) {
+    if (!m_ranges.isEmpty()) {
         HashSet<Range*>::const_iterator end = m_ranges.end();
         for (HashSet<Range*>::const_iterator it = m_ranges.begin(); it != end; ++it)
             (*it)->textInserted(text, offset, length);
@@ -3900,7 +3959,7 @@ void Document::textInserted(Node* text, unsigned offset, unsigned length)
 
 void Document::textRemoved(Node* text, unsigned offset, unsigned length)
 {
-    if (!disableRangeMutation(page()) && !m_ranges.isEmpty()) {
+    if (!m_ranges.isEmpty()) {
         HashSet<Range*>::const_iterator end = m_ranges.end();
         for (HashSet<Range*>::const_iterator it = m_ranges.begin(); it != end; ++it)
             (*it)->textRemoved(text, offset, length);
@@ -3913,7 +3972,7 @@ void Document::textRemoved(Node* text, unsigned offset, unsigned length)
 
 void Document::textNodesMerged(Text* oldNode, unsigned offset)
 {
-    if (!disableRangeMutation(page()) && !m_ranges.isEmpty()) {
+    if (!m_ranges.isEmpty()) {
         NodeWithIndex oldNodeWithIndex(oldNode);
         HashSet<Range*>::const_iterator end = m_ranges.end();
         for (HashSet<Range*>::const_iterator it = m_ranges.begin(); it != end; ++it)
@@ -3925,7 +3984,7 @@ void Document::textNodesMerged(Text* oldNode, unsigned offset)
 
 void Document::textNodeSplit(Text* oldNode)
 {
-    if (!disableRangeMutation(page()) && !m_ranges.isEmpty()) {
+    if (!m_ranges.isEmpty()) {
         HashSet<Range*>::const_iterator end = m_ranges.end();
         for (HashSet<Range*>::const_iterator it = m_ranges.begin(); it != end; ++it)
             (*it)->textNodeSplit(oldNode);
@@ -4063,7 +4122,7 @@ HTMLFrameOwnerElement* Document::ownerElement() const
 
 String Document::cookie(ExceptionCode& ec) const
 {
-    if (page() && !page()->cookieEnabled())
+    if (page() && !page()->settings()->cookieEnabled())
         return String();
 
     // FIXME: The HTML5 DOM spec states that this attribute can raise an
@@ -4084,7 +4143,7 @@ String Document::cookie(ExceptionCode& ec) const
 
 void Document::setCookie(const String& value, ExceptionCode& ec)
 {
-    if (page() && !page()->cookieEnabled())
+    if (page() && !page()->settings()->cookieEnabled())
         return;
 
     // FIXME: The HTML5 DOM spec states that this attribute can raise an
@@ -4513,7 +4572,7 @@ KURL Document::openSearchDescriptionURL()
         return KURL();
 
     HTMLCollection* children = head()->children();
-    for (Node* child = children->firstItem(); child; child = children->nextItem()) {
+    for (unsigned i = 0; Node* child = children->item(i); i++) {
         if (!child->hasTagName(linkTag))
             continue;
         HTMLLinkElement* linkElement = static_cast<HTMLLinkElement*>(child);
@@ -4686,9 +4745,9 @@ HTMLCollection* Document::anchors()
 
 HTMLAllCollection* Document::all()
 {
-    if (!m_allCollection)
-        m_allCollection = HTMLAllCollection::create(this);
-    return m_allCollection.get();
+    if (!m_collections[DocAll])
+        m_collections[DocAll] = HTMLAllCollection::create(this);
+    return static_cast<HTMLAllCollection*>(m_collections[DocAll].get());
 }
 
 HTMLCollection* Document::windowNamedItems(const AtomicString& name)
@@ -4734,26 +4793,6 @@ void Document::finishedParsing()
     }
 }
 
-Vector<String> Document::formElementsState() const
-{
-    Vector<String> stateVector;
-    stateVector.reserveInitialCapacity(m_formElementsWithState.size() * 3);
-    typedef FormElementListHashSet::const_iterator Iterator;
-    Iterator end = m_formElementsWithState.end();
-    for (Iterator it = m_formElementsWithState.begin(); it != end; ++it) {
-        HTMLFormControlElementWithState* elementWithState = *it;
-        if (!elementWithState->shouldSaveAndRestoreFormControlState())
-            continue;
-        String value;
-        if (!elementWithState->saveFormControlState(value))
-            continue;
-        stateVector.append(elementWithState->formControlName().string());
-        stateVector.append(elementWithState->formControlType().string());
-        stateVector.append(value);
-    }
-    return stateVector;
-}
-
 PassRefPtr<XPathExpression> Document::createExpression(const String& expression,
                                                        XPathNSResolver* resolver,
                                                        ExceptionCode& ec)
@@ -4782,96 +4821,6 @@ PassRefPtr<XPathResult> Document::evaluate(const String& expression,
     return m_xpathEvaluator->evaluate(expression, contextNode, resolver, type, result, ec);
 }
 
-void Document::setStateForNewFormElements(const Vector<String>& stateVector)
-{
-    // Walk the state vector backwards so that the value to use for each
-    // name/type pair first is the one at the end of each individual vector
-    // in the FormElementStateMap. We're using them like stacks.
-    typedef FormElementStateMap::iterator Iterator;
-    m_formElementsWithState.clear();
-    for (size_t i = stateVector.size() / 3 * 3; i; i -= 3) {
-        AtomicString a = stateVector[i - 3];
-        AtomicString b = stateVector[i - 2];
-        const String& c = stateVector[i - 1];
-        FormElementKey key(a.impl(), b.impl());
-        Iterator it = m_stateForNewFormElements.find(key);
-        if (it != m_stateForNewFormElements.end())
-            it->second.append(c);
-        else {
-            Vector<String> v(1);
-            v[0] = c;
-            m_stateForNewFormElements.set(key, v);
-        }
-    }
-}
-
-bool Document::hasStateForNewFormElements() const
-{
-    return !m_stateForNewFormElements.isEmpty();
-}
-
-bool Document::takeStateForFormElement(AtomicStringImpl* name, AtomicStringImpl* type, String& state)
-{
-    typedef FormElementStateMap::iterator Iterator;
-    Iterator it = m_stateForNewFormElements.find(FormElementKey(name, type));
-    if (it == m_stateForNewFormElements.end())
-        return false;
-    ASSERT(it->second.size());
-    state = it->second.last();
-    if (it->second.size() > 1)
-        it->second.removeLast();
-    else
-        m_stateForNewFormElements.remove(it);
-    return true;
-}
-
-FormElementKey::FormElementKey(AtomicStringImpl* name, AtomicStringImpl* type)
-    : m_name(name), m_type(type)
-{
-    ref();
-}
-
-FormElementKey::~FormElementKey()
-{
-    deref();
-}
-
-FormElementKey::FormElementKey(const FormElementKey& other)
-    : m_name(other.name()), m_type(other.type())
-{
-    ref();
-}
-
-FormElementKey& FormElementKey::operator=(const FormElementKey& other)
-{
-    other.ref();
-    deref();
-    m_name = other.name();
-    m_type = other.type();
-    return *this;
-}
-
-void FormElementKey::ref() const
-{
-    if (name())
-        name()->ref();
-    if (type())
-        type()->ref();
-}
-
-void FormElementKey::deref() const
-{
-    if (name())
-        name()->deref();
-    if (type())
-        type()->deref();
-}
-
-unsigned FormElementKeyHash::hash(const FormElementKey& key)
-{
-    return StringHasher::hashMemory<sizeof(FormElementKey)>(&key);
-}
-
 const Vector<IconURL>& Document::iconURLs() const
 {
     return m_iconURLs;
@@ -4891,25 +4840,6 @@ void Document::addIconURL(const String& url, const String& mimeType, const Strin
         if (iconURL == newURL)
             f->loader()->didChangeIcons(iconType);
     }
-}
-
-void Document::registerFormElementWithFormAttribute(FormAssociatedElement* element)
-{
-    ASSERT(toHTMLElement(element)->fastHasAttribute(formAttr));
-    m_formElementsWithFormAttribute.add(element);
-}
-
-void Document::unregisterFormElementWithFormAttribute(FormAssociatedElement* element)
-{
-    m_formElementsWithFormAttribute.remove(element);
-}
-
-void Document::resetFormElementsOwner()
-{
-    typedef FormAssociatedElementListHashSet::iterator Iterator;
-    Iterator end = m_formElementsWithFormAttribute.end();
-    for (Iterator it = m_formElementsWithFormAttribute.begin(); it != end; ++it)
-        (*it)->resetFormOwner();
 }
 
 void Document::setUseSecureKeyboardEntryWhenActive(bool usesSecureKeyboard)
@@ -5040,9 +4970,14 @@ void Document::initContentSecurityPolicy()
     contentSecurityPolicy()->copyStateFrom(m_frame->tree()->parent()->document()->contentSecurityPolicy());
 }
 
-void Document::setSecurityOrigin(PassRefPtr<SecurityOrigin> origin)
+void Document::didUpdateSecurityOrigin()
 {
-    SecurityContext::setSecurityOrigin(origin);
+    if (!m_frame)
+        return;
+    // FIXME: We should remove DOMWindow::m_securityOrigin so that we don't need to keep them in sync.
+    // See <https://bugs.webkit.org/show_bug.cgi?id=75793>.
+    m_frame->domWindow()->setSecurityOrigin(securityOrigin());
+    m_frame->script()->updateSecurityOrigin();
 }
 
 bool Document::isContextThread() const
@@ -5813,6 +5748,19 @@ void Document::addDocumentToFullScreenChangeEventQueue(Document* doc)
 }
 #endif
 
+#if ENABLE(POINTER_LOCK)
+void Document::webkitExitPointerLock()
+{
+    if (page())
+        page()->pointerLockController()->requestPointerUnlock();
+}
+
+Element* Document::webkitPointerLockElement() const
+{
+    return page() ? page()->pointerLockController()->element() : 0;
+}
+#endif
+
 void Document::decrementLoadEventDelayCount()
 {
     ASSERT(m_loadEventDelayCount);
@@ -5869,14 +5817,8 @@ PassRefPtr<Touch> Document::createTouch(DOMWindow* window, EventTarget* target, 
     // http://developer.apple.com/library/safari/#documentation/UserExperience/Reference/DocumentAdditionsReference/DocumentAdditions/DocumentAdditions.html
     // when this method should throw and nor is it by inspection of iOS behavior. It would be nice to verify any cases where it throws under iOS
     // and implement them here. See https://bugs.webkit.org/show_bug.cgi?id=47819
-    // Ditto for the createTouchList method below.
     Frame* frame = window ? window->frame() : this->frame();
     return Touch::create(frame, target, identifier, screenX, screenY, pageX, pageY, radiusX, radiusY, rotationAngle, force);
-}
-
-PassRefPtr<TouchList> Document::createTouchList(ExceptionCode&) const
-{
-    return TouchList::create();
 }
 #endif
 
@@ -5975,31 +5917,11 @@ DocumentLoader* Document::loader() const
 #if ENABLE(MICRODATA)
 PassRefPtr<NodeList> Document::getItems(const String& typeNames)
 {
-    NodeListsNodeData* nodeLists = ensureRareData()->ensureNodeLists(this);
-
     // Since documet.getItem() is allowed for microdata, typeNames will be null string.
     // In this case we need to create an unique string identifier to map such request in the cache.
-    String localTypeNames = typeNames.isNull() ? String("http://webkit.org/microdata/undefinedItemType") : typeNames;
+    String localTypeNames = typeNames.isNull() ? MicroDataItemList::undefinedItemType() : typeNames;
 
-    NodeListsNodeData::MicroDataItemListCache::AddResult result = nodeLists->m_microDataItemListCache.add(localTypeNames, 0);
-    if (!result.isNewEntry)
-        return PassRefPtr<NodeList>(result.iterator->second);
-
-    RefPtr<MicroDataItemList> list = MicroDataItemList::create(this, typeNames);
-    result.iterator->second = list.get();
-    return list.release();
-}
-
-void Document::removeCachedMicroDataItemList(MicroDataItemList* list, const String& typeNames)
-{
-    ASSERT(rareData());
-    ASSERT(rareData()->nodeLists());
-
-    NodeListsNodeData* data = rareData()->nodeLists();
-
-    String localTypeNames = typeNames.isNull() ? String("http://webkit.org/microdata/undefinedItemType") : typeNames;
-    ASSERT_UNUSED(list, list == data->m_microDataItemListCache.get(localTypeNames));
-    data->m_microDataItemListCache.remove(localTypeNames);
+    return ensureRareData()->ensureNodeLists(this)->addCacheWithName<MicroDataItemList>(this, DynamicNodeList::MicroDataItemListType, localTypeNames);
 }
 #endif
 
@@ -6025,5 +5947,53 @@ Node* eventTargetNodeForDocument(Document* doc)
         node = doc->documentElement();
     return node;
 }
+
+void Document::adjustFloatQuadsForScrollAndAbsoluteZoomAndFrameScale(Vector<FloatQuad>& quads, RenderObject* renderer)
+{
+    if (!view())
+        return;
+
+    float inverseFrameScale = 1;
+    if (frame())
+        inverseFrameScale = 1 / frame()->frameScaleFactor();
+
+    LayoutRect visibleContentRect = view()->visibleContentRect();
+    for (size_t i = 0; i < quads.size(); ++i) {
+        quads[i].move(-visibleContentRect.x(), -visibleContentRect.y());
+        adjustFloatQuadForAbsoluteZoom(quads[i], renderer);
+        if (inverseFrameScale != 1)
+            quads[i].scale(inverseFrameScale, inverseFrameScale);
+    }
+}
+
+void Document::adjustFloatRectForScrollAndAbsoluteZoomAndFrameScale(FloatRect& rect, RenderObject* renderer)
+{
+    if (!view())
+        return;
+
+    float inverseFrameScale = 1;
+    if (frame())
+        inverseFrameScale = 1 / frame()->frameScaleFactor();
+
+    LayoutRect visibleContentRect = view()->visibleContentRect();
+    rect.move(-visibleContentRect.x(), -visibleContentRect.y());
+    adjustFloatRectForAbsoluteZoom(rect, renderer);
+    if (inverseFrameScale != 1)
+        rect.scale(inverseFrameScale);
+}
+
+void Document::setContextFeatures(PassRefPtr<ContextFeatures> features)
+{
+    m_contextFeatures = features;
+}
+
+#if ENABLE(UNDO_MANAGER)
+PassRefPtr<UndoManager> Document::undoManager()
+{
+    if (!m_undoManager)
+        m_undoManager = UndoManager::create(this);
+    return m_undoManager;
+}
+#endif
 
 } // namespace WebCore

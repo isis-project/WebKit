@@ -130,6 +130,7 @@ public:
     virtual bool supportsFullScreenForElement(const Element*, bool withKeyboard);
     virtual void enterFullScreenForElement(Element*);
     virtual void exitFullScreenForElement(Element*);
+    virtual void fullScreenRendererChanged(RenderBox*);
 #endif
 #if ENABLE(WEBGL)
     virtual void requestWebGLPermission(Frame*);
@@ -152,6 +153,15 @@ public:
     virtual void setNeedsOneShotDrawingSynchronization();
     virtual void scheduleCompositingLayerSync();
     virtual bool allowsAcceleratedCompositing() const;
+#endif
+
+#if ENABLE(REGISTER_PROTOCOL_HANDLER)
+    virtual void registerProtocolHandler(const WTF::String&, const WTF::String&, const WTF::String&, const WTF::String&);
+#endif
+
+#if ENABLE(CUSTOM_SCHEME_HANDLER)
+    virtual CustomHandlersState isProtocolHandlerRegistered(const String&, const String&, const String&);
+    virtual void unregisterProtocolHandler(const String&, const String&, const String&);
 #endif
 
     BlackBerry::WebKit::WebPagePrivate* webPagePrivate() const { return m_webPagePrivate; }

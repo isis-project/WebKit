@@ -78,9 +78,7 @@
 
 #include "NativeImageSkia.h"
 
-#include "AsyncFileSystemChromium.h"
 #include "BitmapImage.h"
-#include "ClipboardChromium.h"
 #include "Cookie.h"
 #include "Document.h"
 #include "FrameView.h"
@@ -94,11 +92,9 @@
 
 #include "Worker.h"
 #include "WorkerContextProxy.h"
-#include <public/WebClipboard.h>
 #include <public/WebCookie.h>
 #include <public/WebCookieJar.h>
 #include <public/WebMimeRegistry.h>
-#include <public/WebWorkerRunLoop.h>
 #include <wtf/Assertions.h>
 
 // We are part of the WebKit implementation.
@@ -139,96 +135,6 @@ static WebCookieJar* getCookieJar(const Document* document)
     if (!cookieJar)
         cookieJar = WebKit::Platform::current()->cookieJar();
     return cookieJar;
-}
-
-// Clipboard ------------------------------------------------------------------
-
-uint64_t PlatformSupport::clipboardSequenceNumber(PasteboardPrivate::ClipboardBuffer buffer)
-{
-    return webKitPlatformSupport()->clipboard()->sequenceNumber(
-        static_cast<WebClipboard::Buffer>(buffer));
-}
-
-bool PlatformSupport::clipboardIsFormatAvailable(
-    PasteboardPrivate::ClipboardFormat format,
-    PasteboardPrivate::ClipboardBuffer buffer)
-{
-    return webKitPlatformSupport()->clipboard()->isFormatAvailable(
-        static_cast<WebClipboard::Format>(format),
-        static_cast<WebClipboard::Buffer>(buffer));
-}
-
-HashSet<String> PlatformSupport::clipboardReadAvailableTypes(
-    PasteboardPrivate::ClipboardBuffer buffer, bool* containsFilenames)
-{
-    WebVector<WebString> result = webKitPlatformSupport()->clipboard()->readAvailableTypes(
-        static_cast<WebClipboard::Buffer>(buffer), containsFilenames);
-    HashSet<String> types;
-    for (size_t i = 0; i < result.size(); ++i)
-        types.add(result[i]);
-    return types;
-}
-
-String PlatformSupport::clipboardReadPlainText(
-    PasteboardPrivate::ClipboardBuffer buffer)
-{
-    return webKitPlatformSupport()->clipboard()->readPlainText(
-        static_cast<WebClipboard::Buffer>(buffer));
-}
-
-void PlatformSupport::clipboardReadHTML(
-    PasteboardPrivate::ClipboardBuffer buffer,
-    String* htmlText, KURL* sourceURL, unsigned* fragmentStart, unsigned* fragmentEnd)
-{
-    WebURL url;
-    *htmlText = webKitPlatformSupport()->clipboard()->readHTML(
-        static_cast<WebClipboard::Buffer>(buffer), &url, fragmentStart, fragmentEnd);
-    *sourceURL = url;
-}
-
-PassRefPtr<SharedBuffer> PlatformSupport::clipboardReadImage(
-    PasteboardPrivate::ClipboardBuffer buffer)
-{
-    return webKitPlatformSupport()->clipboard()->readImage(static_cast<WebClipboard::Buffer>(buffer));
-}
-
-String PlatformSupport::clipboardReadCustomData(
-    PasteboardPrivate::ClipboardBuffer buffer, const String& type)
-{
-    return webKitPlatformSupport()->clipboard()->readCustomData(static_cast<WebClipboard::Buffer>(buffer), type);
-}
-
-void PlatformSupport::clipboardWriteSelection(const String& htmlText,
-                                             const KURL& sourceURL,
-                                             const String& plainText,
-                                             bool writeSmartPaste)
-{
-    webKitPlatformSupport()->clipboard()->writeHTML(
-        htmlText, sourceURL, plainText, writeSmartPaste);
-}
-
-void PlatformSupport::clipboardWritePlainText(const String& plainText)
-{
-    webKitPlatformSupport()->clipboard()->writePlainText(plainText);
-}
-
-void PlatformSupport::clipboardWriteURL(const KURL& url, const String& title)
-{
-    webKitPlatformSupport()->clipboard()->writeURL(url, title);
-}
-
-void PlatformSupport::clipboardWriteImage(NativeImagePtr image,
-                                         const KURL& sourceURL,
-                                         const String& title)
-{
-    WebImage webImage(image->bitmap());
-    webKitPlatformSupport()->clipboard()->writeImage(webImage, sourceURL, title);
-}
-
-void PlatformSupport::clipboardWriteDataObject(Clipboard* clipboard)
-{
-    WebDragData data = static_cast<ClipboardChromium*>(clipboard)->dataObject();
-    webKitPlatformSupport()->clipboard()->writeDataObject(data);
 }
 
 // Cookies --------------------------------------------------------------------
@@ -299,101 +205,6 @@ bool PlatformSupport::cookiesEnabled(const Document* document)
         result = cookieJar->cookiesEnabled(document->cookieURL(), document->firstPartyForCookies());
     return result;
 }
-
-// File ------------------------------------------------------------------------
-
-bool PlatformSupport::fileExists(const String& path)
-{
-    return WebKit::Platform::current()->fileUtilities()->fileExists(path);
-}
-
-bool PlatformSupport::deleteFile(const String& path)
-{
-    return WebKit::Platform::current()->fileUtilities()->deleteFile(path);
-}
-
-bool PlatformSupport::deleteEmptyDirectory(const String& path)
-{
-    return WebKit::Platform::current()->fileUtilities()->deleteEmptyDirectory(path);
-}
-
-bool PlatformSupport::getFileMetadata(const String& path, FileMetadata& result)
-{
-    WebFileInfo webFileInfo;
-    if (!webKitPlatformSupport()->fileUtilities()->getFileInfo(path, webFileInfo))
-        return false;
-    result.modificationTime = webFileInfo.modificationTime;
-    result.length = webFileInfo.length;
-    result.type = static_cast<FileMetadata::Type>(webFileInfo.type);
-    return true;
-}
-
-String PlatformSupport::directoryName(const String& path)
-{
-    return WebKit::Platform::current()->fileUtilities()->directoryName(path);
-}
-
-String PlatformSupport::pathByAppendingComponent(const String& path, const String& component)
-{
-    return WebKit::Platform::current()->fileUtilities()->pathByAppendingComponent(path, component);
-}
-
-bool PlatformSupport::makeAllDirectories(const String& path)
-{
-    return WebKit::Platform::current()->fileUtilities()->makeAllDirectories(path);
-}
-
-String PlatformSupport::getAbsolutePath(const String& path)
-{
-    return WebKit::Platform::current()->fileUtilities()->getAbsolutePath(path);
-}
-
-bool PlatformSupport::isDirectory(const String& path)
-{
-    return WebKit::Platform::current()->fileUtilities()->isDirectory(path);
-}
-
-KURL PlatformSupport::filePathToURL(const String& path)
-{
-    return WebKit::Platform::current()->fileUtilities()->filePathToURL(path);
-}
-
-PlatformFileHandle PlatformSupport::openFile(const String& path, FileOpenMode mode)
-{
-    return WebKit::Platform::current()->fileUtilities()->openFile(path, mode);
-}
-
-void PlatformSupport::closeFile(PlatformFileHandle& handle)
-{
-    WebKit::Platform::current()->fileUtilities()->closeFile(handle);
-}
-
-long long PlatformSupport::seekFile(PlatformFileHandle handle, long long offset, FileSeekOrigin origin)
-{
-    return WebKit::Platform::current()->fileUtilities()->seekFile(handle, offset, origin);
-}
-
-bool PlatformSupport::truncateFile(PlatformFileHandle handle, long long offset)
-{
-    return WebKit::Platform::current()->fileUtilities()->truncateFile(handle, offset);
-}
-
-int PlatformSupport::readFromFile(PlatformFileHandle handle, char* data, int length)
-{
-    return WebKit::Platform::current()->fileUtilities()->readFromFile(handle, data, length);
-}
-
-int PlatformSupport::writeToFile(PlatformFileHandle handle, const char* data, int length)
-{
-    return WebKit::Platform::current()->fileUtilities()->writeToFile(handle, data, length);
-}
-
-#if ENABLE(FILE_SYSTEM)
-PassOwnPtr<AsyncFileSystem> PlatformSupport::createAsyncFileSystem()
-{
-    return AsyncFileSystemChromium::create();
-}
-#endif
 
 // Font -----------------------------------------------------------------------
 
@@ -549,18 +360,6 @@ PassOwnPtr<AudioBus> PlatformSupport::decodeAudioFileData(const char* data, size
 }
 
 #endif // ENABLE(WEB_AUDIO)
-
-// SharedTimers ---------------------------------------------------------------
-
-void PlatformSupport::setSharedTimerFiredFunction(void (*func)())
-{
-    webKitPlatformSupport()->setSharedTimerFiredFunction(func);
-}
-
-void PlatformSupport::setSharedTimerFireInterval(double interval)
-{
-    webKitPlatformSupport()->setSharedTimerFireInterval(interval);
-}
 
 // Theming --------------------------------------------------------------------
 
@@ -836,11 +635,6 @@ void PlatformSupport::notifyJSOutOfMemory(Frame* frame)
     webFrame->client()->didExhaustMemoryAvailableForScript(webFrame);
 }
 
-bool PlatformSupport::getProcessMemorySize(size_t* privateBytes, size_t* sharedBytes)
-{
-    return webKitPlatformSupport()->getProcessMemorySize(privateBytes, sharedBytes);
-}
-
 int PlatformSupport::screenHorizontalDPI(Widget* widget)
 {
     WebWidgetClient* client = toWebWidgetClient(widget);
@@ -904,16 +698,6 @@ bool PlatformSupport::popupsAllowed(NPP npp)
 }
 
 #if ENABLE(WORKERS)
-void PlatformSupport::didStartWorkerRunLoop(WorkerRunLoop* loop)
-{
-    WebKit::Platform::current()->didStartWorkerRunLoop(WebWorkerRunLoop(loop));
-}
-
-void PlatformSupport::didStopWorkerRunLoop(WorkerRunLoop* loop)
-{
-    WebKit::Platform::current()->didStopWorkerRunLoop(WebWorkerRunLoop(loop));
-}
-
 WorkerContextProxy* WorkerContextProxy::create(Worker* worker)
 {
     return WebWorkerClientImpl::createWorkerContextProxy(worker);

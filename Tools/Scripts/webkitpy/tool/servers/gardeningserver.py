@@ -23,6 +23,8 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import BaseHTTPServer
+import logging
+import json
 import os
 
 from webkitpy.common.memoized import memoized
@@ -31,6 +33,9 @@ from webkitpy.layout_tests.controllers.test_expectations_editor import BugManage
 from webkitpy.layout_tests.models.test_expectations import TestExpectationParser, TestExpectations, TestExpectationSerializer
 from webkitpy.layout_tests.models.test_configuration import TestConfigurationConverter
 from webkitpy.layout_tests.port import builders
+
+
+_log = logging.getLogger(__name__)
 
 
 class BuildCoverageExtrapolator(object):
@@ -64,7 +69,7 @@ class GardeningExpectationsUpdater(BugManager):
         return "BUG_NEW"
 
     def update_expectations(self, failure_info_list):
-        expectation_lines = self._parser.parse(self._tool.filesystem.read_text_file(self._path_to_test_expectations_file))
+        expectation_lines = self._parser.parse(self._path_to_test_expectations_file, self._tool.filesystem.read_text_file(self._path_to_test_expectations_file))
         editor = TestExpectationsEditor(expectation_lines, self)
         updated_expectation_lines = []
         # FIXME: Group failures by testName+failureTypeList.
@@ -135,51 +140,7 @@ class GardeningHTTPRequestHandler(ReflectionHandler):
         self._expectations_updater().update_expectations(self._read_entity_body_as_json())
         self._serve_text('success')
 
-    def rebaseline(self):
-        builder = self.query['builder'][0]
-        command = [ 'rebaseline-test' ]
-
-        if 'suffixes' in self.query:
-            command.append('--suffixes')
-            command.append(self.query['suffixes'][0])
-
-        command.append(builder)
-        command.append(self.query['test'][0])
-
-        command.extend(builders.fallback_port_names_for_new_port(builder))
-        self._run_webkit_patch(command)
-        self._serve_text('success')
-
-    def _builders_to_fetch_from(self, builders):
-        # This routine returns the subset of builders that will cover all of the baseline search paths
-        # used in the input list. In particular, if the input list contains both Release and Debug
-        # versions of a configuration, we *only* return the Release version (since we don't save
-        # debug versions of baselines).
-        release_builders = set()
-        debug_builders = set()
-        builders_to_fallback_paths = {}
-        for builder in builders:
-            port = self.server.tool.port_factory.get_from_builder_name(builder)
-            if port.test_configuration().build_type == 'Release':
-                release_builders.add(builder)
-            else:
-                debug_builders.add(builder)
-        for builder in list(release_builders) + list(debug_builders):
-            port = self.server.tool.port_factory.get_from_builder_name(builder)
-            fallback_path = port.baseline_search_path()
-            if fallback_path not in builders_to_fallback_paths.values():
-                builders_to_fallback_paths[builder] = fallback_path
-        return builders_to_fallback_paths.keys()
-
     def rebaselineall(self):
-        # FIXME: Optimize this to run in parallel, cache zips, etc.
-        test_list = self._read_entity_body_as_json()
-        for test in test_list:
-            all_suffixes = set()
-            builders = self._builders_to_fetch_from(test_list[test])
-            for builder in builders:
-                suffixes = test_list[test][builder]
-                all_suffixes.update(suffixes)
-                self._run_webkit_patch(['rebaseline-test', '--suffixes', ','.join(suffixes), builder, test])
-            self._run_webkit_patch(['optimize-baselines', '--suffixes', ','.join(all_suffixes), test])
+        command = ['rebaseline-json']
+        self.server.tool.executive.run_command([self.server.tool.path()] + command, input=self.read_entity_body(), cwd=self.server.tool.scm().checkout_root)
         self._serve_text('success')

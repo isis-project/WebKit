@@ -55,6 +55,8 @@
 #else
 #define DFG_ENABLE_VALIDATION 0
 #endif
+// Enable validation on completion of each phase.
+#define DFG_ENABLE_PER_PHASE_VALIDATION 0
 // Consistency check contents compiler data structures.
 #define DFG_ENABLE_CONSISTENCY_CHECK 0
 // Emit a breakpoint into the head of every generated function, to aid debugging in GDB.
@@ -131,6 +133,11 @@ enum SpillRegistersMode { NeedToSpill, DontSpill };
 enum NoResultTag { NoResult };
 
 enum OptimizationFixpointState { FixpointConverged, FixpointNotConverged };
+
+inline bool shouldShowDisassembly()
+{
+    return Options::showDisassembly || Options::showDFGDisassembly;
+}
 
 } } // namespace JSC::DFG
 

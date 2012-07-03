@@ -165,6 +165,7 @@ fast/forms/listbox-typeahead-greek.html
 fast/forms/range/slider-mouse-events.html
 fast/forms/range/slider-onchange-event.html
 fast/forms/select-type-ahead-non-latin.html
+fast/forms/file/input-file-write-files.html
 fast/history/window-open.html
 fast/lists/drag-into-marker.html
 fast/loader/policy-delegate-action-hit-test-zoomed.html
@@ -203,8 +204,15 @@ fast/events/remove-target-with-shadow-in-drag.html
 # https://bugs.webkit.org/show_bug.cgi?id=85532
 fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/float-containing-block-with-margin.html
+fast/sub-pixel/float-with-right-margin-zoom.html
+fast/sub-pixel/float-wrap-with-subpixel-top.html
+fast/sub-pixel/inline-block-with-margin.html
+fast/sub-pixel/inline-block-with-padding.html
 fast/sub-pixel/layout-boxes-with-zoom.html
 fast/sub-pixel/size-of-box-with-zoom.html
+fast/sub-pixel/selection/selection-gaps-at-fractional-offsets.html
+fast/sub-pixel/file-upload-control-at-fractional-offset.html
 
 # fast/events/pagehide-timeout.html, pageshow-pagehide-on-back-cached-with-frames.html, and
 # pageshow-pagehide-on-back-cached.html flakey on Lion Intel Debug WebKit testers.
@@ -246,6 +254,25 @@ http/tests/inspector/appcache
 storage/websql/statement-success-callback-isolated-world.html
 storage/websql/transaction-callback-isolated-world.html
 storage/websql/transaction-error-callback-isolated-world.html
+
+# Times out on mac-lion-wk2
+# https://bugs.webkit.org/show_bug.cgi?id=88348
+http/tests/media/remove-while-loading.html
+
+# Missing functionality of textInputController
+# https://bugs.webkit.org/show_bug.cgi?id=89401
+platform/mac/editing/input/insert-dictated-text.html
+platform/mac/editing/input/edit-dictated-text-with-alternative.html
+
+# Crashes on Lion Debug WK2
+# https://bugs.webkit.org/show_bug.cgi?id=89780
+fast/canvas/canvas-createImageData.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=89199
+editing/spelling/grammar-edit-word.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=90156
+platform/mac/editing/spelling/autocorrection-blockquote-crash.html
 
 ### END OF (1) Classified failures with bug reports
 ########################################

@@ -110,6 +110,8 @@ public:
     // This will force any unload handlers to run.
     void prepareToDestroy();
 
+    void enableCrossSiteXHR();
+
     void reload();
     void reloadFromCache();
 
@@ -119,6 +121,7 @@ public:
     bool isVisible() const;
 
     void setScreenOrientation(int);
+    void setHasPendingSurfaceSizeChange();
     void applyPendingOrientationIfNeeded();
 
     Platform::IntSize viewportSize() const;
@@ -137,7 +140,7 @@ public:
 
     // For conversion to mouse events.
     void touchEventCancel();
-    bool touchPointAsMouseEvent(const Platform::TouchPoint&);
+    bool touchPointAsMouseEvent(const Platform::TouchPoint&, bool useFatFingers = true);
 
     // Returns true if the key stroke was handled by WebKit.
     bool keyEvent(const Platform::KeyboardEvent&);
@@ -248,6 +251,7 @@ public:
     int32_t commitText(spannable_string_t*, int32_t relativeCursorPosition);
 
     void setSpellCheckingEnabled(bool);
+    void spellCheckingRequestProcessed(int32_t id, spannable_string_t*);
 
     void setSelection(const Platform::IntPoint& startPoint, const Platform::IntPoint& endPoint);
     void setCaretPosition(const Platform::IntPoint&);
@@ -265,6 +269,8 @@ public:
     static void onCertificateStoreLocationSet(const WebString& caPath);
 
     WebString textHasAttribute(const WebString& query) const;
+
+    void setAllowNotification(const WebString& domain, bool allow);
 
     Platform::WebContext webContext(TargetDetectionStrategy) const;
 

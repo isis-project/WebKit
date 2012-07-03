@@ -16,11 +16,11 @@ body {
     -webkit-user-select: none;
 }
 
-body.dock-to-right {
+body.dock-to-right:not(.detached) {
     border-left: 1px solid rgb(80, 80, 80);
 }
 
-body.dock-to-right.inactive {
+body.dock-to-right.inactive:not(.detached) {
     border-left: 1px solid rgb(64%, 64%, 64%);
 }
 
@@ -71,7 +71,7 @@ iframe.view {
 .resources-event-dividers {
     position: absolute;
     left: 0;
-    right: 5px;
+    right: 0;
     height: 100%;
     top: 0;
     z-index: 300;

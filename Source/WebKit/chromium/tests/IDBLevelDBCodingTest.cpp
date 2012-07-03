@@ -139,6 +139,9 @@ TEST(IDBLevelDBCodingTest, EncodeInt)
     EXPECT_EQ(static_cast<size_t>(1), encodeInt(255).size());
     EXPECT_EQ(static_cast<size_t>(2), encodeInt(256).size());
     EXPECT_EQ(static_cast<size_t>(4), encodeInt(0xffffffff).size());
+#ifdef NDEBUG
+    EXPECT_EQ(static_cast<size_t>(8), encodeInt(-1).size());
+#endif
 }
 
 TEST(IDBLevelDBCodingTest, DecodeBool)
@@ -166,6 +169,9 @@ TEST(IDBLevelDBCodingTest, DecodeInt)
     testCases.append(655536);
     testCases.append(7711192431755665792ll);
     testCases.append(0x7fffffffffffffffll);
+#ifdef NDEBUG
+    testCases.append(-3);
+#endif
 
     for (size_t i = 0; i < testCases.size(); ++i) {
         int64_t n = testCases[i];
@@ -181,6 +187,9 @@ TEST(IDBLevelDBCodingTest, EncodeVarInt)
     EXPECT_EQ(static_cast<size_t>(2), encodeVarInt(255).size());
     EXPECT_EQ(static_cast<size_t>(2), encodeVarInt(256).size());
     EXPECT_EQ(static_cast<size_t>(5), encodeVarInt(0xffffffff).size());
+#ifdef NDEBUG
+    EXPECT_EQ(static_cast<size_t>(8), encodeInt(-100).size());
+#endif
 }
 
 TEST(IDBLevelDBCodingTest, DecodeVarInt)
@@ -194,6 +203,9 @@ TEST(IDBLevelDBCodingTest, DecodeVarInt)
     testCases.append(655536);
     testCases.append(7711192431755665792ll);
     testCases.append(0x7fffffffffffffffll);
+#ifdef NDEBUG
+    testCases.append(-3);
+#endif
 
     for (size_t i = 0; i < testCases.size(); ++i) {
         int64_t n = testCases[i];
@@ -620,10 +632,17 @@ TEST(IDBLevelDBCodingTest, ComparisonTest)
     keys.append(DatabaseNameKey::encode("a", "a"));
     keys.append(DatabaseMetaDataKey::encode(1, DatabaseMetaDataKey::kOriginName));
     keys.append(ObjectStoreMetaDataKey::encode(1, 1, 0));
+    keys.append(ObjectStoreMetaDataKey::encode(1, 1, 1));
+    keys.append(ObjectStoreMetaDataKey::encodeMaxKey(1, 1));
+    keys.append(ObjectStoreMetaDataKey::encodeMaxKey(1, 2));
     keys.append(ObjectStoreMetaDataKey::encodeMaxKey(1));
     keys.append(IndexMetaDataKey::encode(1, 1, 30, 0));
     keys.append(IndexMetaDataKey::encode(1, 1, 31, 0));
     keys.append(IndexMetaDataKey::encode(1, 1, 31, 1));
+    keys.append(IndexMetaDataKey::encodeMaxKey(1, 1, 31));
+    keys.append(IndexMetaDataKey::encodeMaxKey(1, 1, 32));
+    keys.append(IndexMetaDataKey::encodeMaxKey(1, 1));
+    keys.append(IndexMetaDataKey::encodeMaxKey(1, 2));
     keys.append(ObjectStoreFreeListKey::encode(1, 1));
     keys.append(ObjectStoreFreeListKey::encodeMaxKey(1));
     keys.append(IndexFreeListKey::encode(1, 1, kMinimumIndexId));

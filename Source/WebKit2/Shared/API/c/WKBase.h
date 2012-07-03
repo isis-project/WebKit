@@ -41,6 +41,10 @@
 #include <WebKit2/WKBaseSoup.h>
 #endif
 
+#if defined(BUILDING_EFL__)
+#include <WebKit2/WKBaseEfl.h>
+#endif
+
 /* WebKit2 shared types */
 
 typedef uint32_t WKTypeID;
@@ -98,6 +102,8 @@ typedef const struct OpaqueWKGrammarDetail* WKGrammarDetailRef;
 typedef const struct OpaqueWKHitTestResult* WKHitTestResultRef;
 typedef const struct OpaqueWKIconDatabase* WKIconDatabaseRef;
 typedef const struct OpaqueWKInspector* WKInspectorRef;
+typedef const struct OpaqueWKIntentData* WKIntentDataRef;
+typedef const struct OpaqueWKIntentServiceInfo* WKIntentServiceInfoRef;
 typedef const struct OpaqueWKKeyValueStorageManager* WKKeyValueStorageManagerRef;
 typedef const struct OpaqueWKMediaCacheManager* WKMediaCacheManagerRef;
 typedef const struct OpaqueWKNavigationData* WKNavigationDataRef;

@@ -121,7 +121,11 @@ inline int atomicDecrement(int volatile* addend) { return __gnu_cxx::__exchange_
 #if OS(WINDOWS)
 inline bool weakCompareAndSwap(volatile unsigned* location, unsigned expected, unsigned newValue)
 {
+#if OS(WINCE)
+    return InterlockedCompareExchange(reinterpret_cast<LONG*>(const_cast<unsigned*>(location)), static_cast<LONG>(newValue), static_cast<LONG>(expected)) == static_cast<LONG>(expected);
+#else
     return InterlockedCompareExchange(reinterpret_cast<LONG volatile*>(location), static_cast<LONG>(newValue), static_cast<LONG>(expected)) == static_cast<LONG>(expected);
+#endif
 }
 
 inline bool weakCompareAndSwap(void*volatile* location, void* expected, void* newValue)
@@ -201,6 +205,25 @@ inline bool weakCompareAndSwapUIntPtr(volatile uintptr_t* location, uintptr_t ex
 {
     return weakCompareAndSwap(reinterpret_cast<void*volatile*>(location), reinterpret_cast<void*>(expected), reinterpret_cast<void*>(newValue));
 }
+
+#if CPU(ARM_THUMB2)
+
+inline void memoryBarrierAfterLock()
+{
+    asm volatile("dmb" ::: "memory");
+}
+
+inline void memoryBarrierBeforeUnlock()
+{
+    asm volatile("dmb" ::: "memory");
+}
+
+#else
+
+inline void memoryBarrierAfterLock() { }
+inline void memoryBarrierBeforeUnlock() { }
+
+#endif
 
 } // namespace WTF
 

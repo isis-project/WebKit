@@ -71,7 +71,7 @@ JSValue QtClass::fallbackObject(ExecState* exec, Instance* inst, PropertyName id
     QtInstance* qtinst = static_cast<QtInstance*>(inst);
 
     UString ustring(identifier.publicName());
-    const QByteArray name = QString(reinterpret_cast<const QChar*>(ustring.characters()), ustring.length()).toAscii();
+    const QByteArray name = QString(reinterpret_cast<const QChar*>(ustring.characters()), ustring.length()).toLatin1();
 
     // First see if we have a cache hit
     JSObject* val = qtinst->m_methods.value(name).get();
@@ -87,7 +87,7 @@ JSValue QtClass::fallbackObject(ExecState* exec, Instance* inst, PropertyName id
         QMetaMethod m = m_metaObject->method(index);
         if (m.access() != QMetaMethod::Private) {
             QtRuntimeMetaMethod* val = QtRuntimeMetaMethod::create(exec, ustring, static_cast<QtInstance*>(inst), index, normal, false);
-            qtinst->m_methods.insert(name, WriteBarrier<JSObject>(exec->globalData(), qtinst->createRuntimeObject(exec), val));
+            qtinst->m_methods.insert(name, val);
             return val;
         }
     }
@@ -99,7 +99,7 @@ JSValue QtClass::fallbackObject(ExecState* exec, Instance* inst, PropertyName id
         if (m.access() == QMetaMethod::Private)
             continue;
 
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
+#if !HAVE(QT5)
         int iter = 0;
         const char* signature = m.signature();
         while (signature[iter] && signature[iter] != '(')
@@ -110,7 +110,7 @@ JSValue QtClass::fallbackObject(ExecState* exec, Instance* inst, PropertyName id
         if (normal == m.name()) {
 #endif
             QtRuntimeMetaMethod* val = QtRuntimeMetaMethod::create(exec, ustring, static_cast<QtInstance*>(inst), index, normal, false);
-            qtinst->m_methods.insert(name, WriteBarrier<JSObject>(exec->globalData(), qtinst->createRuntimeObject(exec), val));
+            qtinst->m_methods.insert(name, val);
             return val;
         }
     }
@@ -135,7 +135,7 @@ Field* QtClass::fieldNamed(PropertyName identifier, Instance* instance) const
     QObject* obj = qtinst->getObject();
     UString ustring(identifier.publicName());
     const QString name(reinterpret_cast<const QChar*>(ustring.characters()), ustring.length());
-    const QByteArray ascii = name.toAscii();
+    const QByteArray ascii = name.toLatin1();
 
     // First check for a cached field
     QtField* f = qtinst->m_fields.value(name);

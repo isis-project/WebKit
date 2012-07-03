@@ -152,7 +152,11 @@ void ScriptDebugServer::setPauseOnNextStatement(bool pause)
 
 void ScriptDebugServer::breakProgram()
 {
-    // FIXME(WK43332): implement this.
+    if (m_paused || !m_currentCallFrame)
+        return;
+
+    m_pauseOnNextStatement = true;
+    pauseIfNeeded(m_currentCallFrame->dynamicGlobalObject());
 }
 
 void ScriptDebugServer::continueProgram()
@@ -202,6 +206,13 @@ bool ScriptDebugServer::setScriptSource(const String&, const String&, bool, Stri
     return false;
 }
 
+
+void ScriptDebugServer::updateCallStack(ScriptValue*)
+{
+    // This method is used for restart frame feature that is not implemented yet.
+    // FIXME(40300): implement this.
+}
+
 void ScriptDebugServer::dispatchDidPause(ScriptDebugListener* listener)
 {
     ASSERT(m_paused);
@@ -211,7 +222,7 @@ void ScriptDebugServer::dispatchDidPause(ScriptDebugListener* listener)
     {
         if (m_currentCallFrame->isValid() && globalObject->inherits(&JSDOMGlobalObject::s_info)) {
             JSDOMGlobalObject* domGlobalObject = jsCast<JSDOMGlobalObject*>(globalObject);
-            JSLock lock(SilenceAssertionsOnly);
+            JSLockHolder lock(state);
             jsCallFrame = toJS(state, domGlobalObject, m_currentCallFrame.get());
         } else
             jsCallFrame = jsUndefined();
@@ -459,6 +470,21 @@ void ScriptDebugServer::didReachBreakpoint(const DebuggerCallFrame& debuggerCall
 void ScriptDebugServer::recompileAllJSFunctionsSoon()
 {
     m_recompileTimer.startOneShot(0);
+}
+
+void ScriptDebugServer::compileScript(ScriptState*, const String&, const String&, String*, String*)
+{
+    // FIXME(89652): implement this.
+}
+
+void ScriptDebugServer::clearCompiledScripts()
+{
+    // FIXME(89652): implement this.
+}
+
+void ScriptDebugServer::runScript(ScriptState*, const String&, ScriptValue*, bool*, String*)
+{
+    // FIXME(89652): implement this.
 }
 
 } // namespace WebCore

@@ -31,6 +31,7 @@
 #include "ClientRectList.h"
 #include "ComposedShadowTreeWalker.h"
 #include "DOMNodeHighlighter.h"
+#include "DOMStringList.h"
 #include "Document.h"
 #include "DocumentMarker.h"
 #include "DocumentMarkerController.h"
@@ -43,6 +44,7 @@
 #include "HTMLInputElement.h"
 #include "HTMLNames.h"
 #include "HTMLTextAreaElement.h"
+#include "HistoryItem.h"
 #include "InspectorConsoleAgent.h"
 #include "InspectorController.h"
 #include "InspectorCounters.h"
@@ -56,6 +58,7 @@
 #include "Range.h"
 #include "RenderObject.h"
 #include "RenderTreeAsText.h"
+#include "SchemeRegistry.h"
 #include "Settings.h"
 #include "ShadowRoot.h"
 #include "SpellChecker.h"
@@ -82,9 +85,10 @@
 #endif
 
 #if PLATFORM(CHROMIUM)
+#include "FilterOperation.h"
 #include "FilterOperations.h"
 #include "GraphicsLayer.h"
-#include "LayerChromium.h"
+#include "GraphicsLayerChromium.h"
 #include "RenderLayerBacking.h"
 #endif
 
@@ -200,6 +204,16 @@ Node* Internals::treeScopeRootNode(Node* node, ExceptionCode& ec)
     }
 
     return node->treeScope()->rootNode();
+}
+
+Node* Internals::parentTreeScope(Node* node, ExceptionCode& ec)
+{
+    if (!node) {
+        ec = INVALID_ACCESS_ERR;
+        return 0;
+    }
+    const TreeScope* parentTreeScope = node->treeScope()->parentTreeScope();
+    return parentTreeScope ? parentTreeScope->rootNode() : 0;
 }
 
 bool Internals::attached(Node* node, ExceptionCode& ec)
@@ -380,6 +394,16 @@ String Internals::shadowPseudoId(Element* element, ExceptionCode& ec)
     return element->shadowPseudoId().string();
 }
 
+void Internals::setShadowPseudoId(Element* element, const String& id, ExceptionCode& ec)
+{
+    if (!element) {
+        ec = INVALID_ACCESS_ERR;
+        return;
+    }
+
+    return element->setShadowPseudoId(id, ec);
+}
+
 String Internals::visiblePlaceholder(Element* element)
 {
     HTMLTextFormControlElement* textControl = toTextFormControl(element);
@@ -399,6 +423,41 @@ void Internals::selectColorInColorChooser(Element* element, const String& colorV
     inputElement->selectColorInColorChooser(Color(colorValue));
 }
 #endif
+
+PassRefPtr<DOMStringList> Internals::formControlStateOfPreviousHistoryItem(ExceptionCode& ec)
+{
+    HistoryItem* mainItem = frame()->loader()->history()->previousItem();
+    if (!mainItem) {
+        ec = INVALID_ACCESS_ERR;
+        return 0;
+    }
+    String uniqueName = frame()->tree()->uniqueName();
+    if (mainItem->target() != uniqueName && !mainItem->childItemWithTarget(uniqueName)) {
+        ec = INVALID_ACCESS_ERR;
+        return 0;
+    }
+    const Vector<String>& state = mainItem->target() == uniqueName ? mainItem->documentState() : mainItem->childItemWithTarget(uniqueName)->documentState();
+    RefPtr<DOMStringList> stringList = DOMStringList::create();
+    for (unsigned i = 0; i < state.size(); ++i)
+        stringList->append(state[i]);
+    return stringList.release();
+}
+
+void Internals::setFormControlStateOfPreviousHistoryItem(PassRefPtr<DOMStringList> state, ExceptionCode& ec)
+{
+    HistoryItem* mainItem = frame()->loader()->history()->previousItem();
+    if (!state || !mainItem) {
+        ec = INVALID_ACCESS_ERR;
+        return;
+    }
+    String uniqueName = frame()->tree()->uniqueName();
+    if (mainItem->target() == uniqueName)
+        mainItem->setDocumentState(*state.get());
+    else if (HistoryItem* subItem = mainItem->childItemWithTarget(uniqueName))
+        subItem->setDocumentState(*state.get());
+    else
+        ec = INVALID_ACCESS_ERR;
+}
 
 PassRefPtr<ClientRect> Internals::absoluteCaretBounds(Document* document, ExceptionCode& ec)
 {
@@ -468,15 +527,9 @@ void Internals::setBackgroundBlurOnNode(Node* node, int blurLength, ExceptionCod
         return;
     }
 
-    PlatformLayer* platformLayer = graphicsLayer->platformLayer();
-    if (!platformLayer) {
-        ec = INVALID_NODE_TYPE_ERR;
-        return;
-    }
-
-    WebKit::WebFilterOperations filters;
-    filters.append(WebKit::WebFilterOperation::createBlurFilter(blurLength));
-    platformLayer->setBackgroundFilters(filters);
+    FilterOperations filters;
+    filters.operations().append(BlurFilterOperation::create(Length(blurLength, Fixed), FilterOperation::BLUR));
+    static_cast<GraphicsLayerChromium*>(graphicsLayer)->setBackgroundFilters(filters);
 }
 #else
 void Internals::setBackgroundBlurOnNode(Node*, int, ExceptionCode&)
@@ -563,10 +616,14 @@ void Internals::setPagination(Document* document, const String& mode, int gap, E
     Page::Pagination pagination;
     if (mode == "Unpaginated")
         pagination.mode = Page::Pagination::Unpaginated;
-    else if (mode == "HorizontallyPaginated")
-        pagination.mode = Page::Pagination::HorizontallyPaginated;
-    else if (mode == "VerticallyPaginated")
-        pagination.mode = Page::Pagination::VerticallyPaginated;
+    else if (mode == "LeftToRightPaginated")
+        pagination.mode = Page::Pagination::LeftToRightPaginated;
+    else if (mode == "RightToLeftPaginated")
+        pagination.mode = Page::Pagination::RightToLeftPaginated;
+    else if (mode == "TopToBottomPaginated")
+        pagination.mode = Page::Pagination::TopToBottomPaginated;
+    else if (mode == "BottomToTopPaginated")
+        pagination.mode = Page::Pagination::BottomToTopPaginated;
     else {
         ec = SYNTAX_ERR;
         return;
@@ -592,6 +649,8 @@ void Internals::reset(Document* document)
 
         if (document->frame() == page->mainFrame())
             setUserPreferredLanguages(Vector<String>());
+
+        page->setPageScaleFactor(1, IntPoint(0, 0));
     }
 
     resetDefaultsToConsistentValues();
@@ -946,7 +1005,7 @@ void Internals::setBatteryStatus(Document* document, const String& eventType, bo
 #endif
 }
 
-void Internals::setNetworkInformation(Document* document, const String& eventType, long bandwidth, bool metered, ExceptionCode& ec)
+void Internals::setNetworkInformation(Document* document, const String& eventType, double bandwidth, bool metered, ExceptionCode& ec)
 {
     if (!document || !document->page()) {
         ec = INVALID_ACCESS_ERR;
@@ -968,6 +1027,14 @@ bool Internals::hasSpellingMarker(Document* document, int from, int length, Exce
         return 0;
 
     return document->frame()->editor()->selectionStartHasMarkerFor(DocumentMarker::Spelling, from, length);
+}
+    
+bool Internals::hasAutocorrectedMarker(Document* document, int from, int length, ExceptionCode&)
+{
+    if (!document || !document->frame())
+        return 0;
+    
+    return document->frame()->editor()->selectionStartHasMarkerFor(DocumentMarker::Autocorrected, from, length);
 }
 
 #if ENABLE(INSPECTOR)
@@ -1063,6 +1130,14 @@ void Internals::allowRoundingHacks() const
     TextRun::setAllowsRoundingHacks(true);
 }
 
+String Internals::counterValue(Element* element)
+{
+    if (!element)
+        return String();
+
+    return counterValueForElement(element);
+}
+
 #if ENABLE(FULLSCREEN_API)
 void Internals::webkitWillEnterFullScreenForElement(Document* document, Element* element)
 {
@@ -1092,4 +1167,15 @@ void Internals::webkitDidExitFullScreenForElement(Document* document, Element* e
     document->webkitDidExitFullScreenForElement(element);
 }
 #endif
+
+void Internals::registerURLSchemeAsBypassingContentSecurityPolicy(const String& scheme)
+{
+    SchemeRegistry::registerURLSchemeAsBypassingContentSecurityPolicy(scheme);
+}
+
+void Internals::removeURLSchemeRegisteredAsBypassingContentSecurityPolicy(const String& scheme)
+{
+    SchemeRegistry::removeURLSchemeRegisteredAsBypassingContentSecurityPolicy(scheme);
+}
+
 }

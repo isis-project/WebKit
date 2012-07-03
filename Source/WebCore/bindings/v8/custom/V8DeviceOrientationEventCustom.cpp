@@ -28,7 +28,7 @@
 
 #if ENABLE(DEVICE_ORIENTATION)
 
-#include "DeviceOrientation.h"
+#include "DeviceOrientationData.h"
 #include "V8Binding.h"
 #include "V8BindingMacros.h"
 #include "V8Proxy.h"
@@ -43,7 +43,7 @@ v8::Handle<v8::Value> V8DeviceOrientationEvent::alphaAccessorGetter(v8::Local<v8
     v8::Handle<v8::Object> holder = info.Holder();
     DeviceOrientationEvent* imp = V8DeviceOrientationEvent::toNative(holder);
     if (!imp->orientation()->canProvideAlpha())
-        return v8::Null();
+        return v8::Null(info.GetIsolate());
     return v8::Number::New(imp->orientation()->alpha());
 }
 
@@ -53,7 +53,7 @@ v8::Handle<v8::Value> V8DeviceOrientationEvent::betaAccessorGetter(v8::Local<v8:
     v8::Handle<v8::Object> holder = info.Holder();
     DeviceOrientationEvent* imp = V8DeviceOrientationEvent::toNative(holder);
     if (!imp->orientation()->canProvideBeta())
-        return v8::Null();
+        return v8::Null(info.GetIsolate());
     return v8::Number::New(imp->orientation()->beta());
 }
 
@@ -63,7 +63,7 @@ v8::Handle<v8::Value> V8DeviceOrientationEvent::gammaAccessorGetter(v8::Local<v8
     v8::Handle<v8::Object> holder = info.Holder();
     DeviceOrientationEvent* imp = V8DeviceOrientationEvent::toNative(holder);
     if (!imp->orientation()->canProvideGamma())
-        return v8::Null();
+        return v8::Null(info.GetIsolate());
     return v8::Number::New(imp->orientation()->gamma());
 }
 
@@ -73,7 +73,7 @@ v8::Handle<v8::Value> V8DeviceOrientationEvent::absoluteAccessorGetter(v8::Local
     v8::Handle<v8::Object> holder = info.Holder();
     DeviceOrientationEvent* imp = V8DeviceOrientationEvent::toNative(holder);
     if (!imp->orientation()->canProvideAbsolute())
-        return v8::Null();
+        return v8::Null(info.GetIsolate());
     return v8::Boolean::New(imp->orientation()->absolute());
 }
 
@@ -93,7 +93,7 @@ v8::Handle<v8::Value> V8DeviceOrientationEvent::initDeviceOrientationEventCallba
     double gamma = args[5]->NumberValue();
     bool absoluteProvided = !isUndefinedOrNull(args[6]);
     bool absolute = args[6]->BooleanValue();
-    RefPtr<DeviceOrientation> orientation = DeviceOrientation::create(alphaProvided, alpha, betaProvided, beta, gammaProvided, gamma, absoluteProvided, absolute);
+    RefPtr<DeviceOrientationData> orientation = DeviceOrientationData::create(alphaProvided, alpha, betaProvided, beta, gammaProvided, gamma, absoluteProvided, absolute);
     imp->initDeviceOrientationEvent(type, bubbles, cancelable, orientation.get());
     return v8::Handle<v8::Value>();
 }

@@ -60,6 +60,7 @@ public:
 
     void repaint();
     void loadStateChanged();
+    void loadedRangesChanged();
     void rateChanged();
     void sizeChanged();
     void timeChanged();
@@ -74,7 +75,7 @@ private:
     // engine support
     static PassOwnPtr<MediaPlayerPrivateInterface> create(MediaPlayer*);
     static void getSupportedTypes(HashSet<String>& types);
-    static MediaPlayer::SupportsType supportsType(const String& type, const String& codecs);
+    static MediaPlayer::SupportsType supportsType(const String& type, const String& codecs, const KURL&);
     static void getSitesInMediaCache(Vector<String>&);
     static void clearMediaCache();
     static void clearMediaCacheForSite(const String&);
@@ -121,7 +122,7 @@ private:
     
     PassRefPtr<TimeRanges> buffered() const;
     float maxTimeSeekable() const;
-    unsigned bytesLoaded() const;
+    bool didLoadingProgress() const;
     unsigned totalBytes() const;
     
     void setVisible(bool);
@@ -212,6 +213,7 @@ private:
     bool m_videoFrameHasDrawn;
     bool m_isAllowedToRender;
     bool m_privateBrowsing;
+    mutable float m_maxTimeLoadedAtLastDidLoadingProgress;
 #if DRAW_FRAME_RATE
     int  m_frameCountWhilePlaying;
     double m_timeStartedPlaying;

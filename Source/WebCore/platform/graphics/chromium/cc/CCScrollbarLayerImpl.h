@@ -28,13 +28,11 @@
 
 #if USE(ACCELERATED_COMPOSITING)
 
-#include "CCLayerImpl.h"
-#include "ManagedTexture.h"
 #include "ScrollbarThemeClient.h"
+#include "cc/CCLayerImpl.h"
 
 namespace WebCore {
 
-class GraphicsContext;
 class ScrollView;
 
 class CCScrollbarLayerImpl : public CCLayerImpl {
@@ -55,22 +53,20 @@ public:
 
     void setEnabled(bool enabled) { m_enabled = enabled; }
 
+    void setBackTrackTextureId(unsigned id) { m_backTrackTextureId = id; }
+    void setForeTrackTextureId(unsigned id) { m_foreTrackTextureId = id; }
+    void setThumbTextureId(unsigned id) { m_thumbTextureId = id; }
 
     CCLayerImpl* scrollLayer() const { return m_scrollLayer; }
     void setScrollLayer(CCLayerImpl* scrollLayer) { m_scrollLayer = scrollLayer; }
 
-    virtual void willDraw(LayerRendererChromium*) OVERRIDE;
     virtual void appendQuads(CCQuadCuller&, const CCSharedQuadState*, bool& hadMissingTiles) OVERRIDE;
-    virtual void didDraw() OVERRIDE;
 
 protected:
     explicit CCScrollbarLayerImpl(int id);
 
-    virtual void paint(GraphicsContext*);
-
 private:
     CCLayerImpl* m_scrollLayer;
-    OwnPtr<ManagedTexture> m_texture;
 
     // nested class only to avoid namespace problem
     class CCScrollbar : public ScrollbarThemeClient {
@@ -127,6 +123,10 @@ private:
 
     };
     CCScrollbar m_scrollbar;
+
+    unsigned m_backTrackTextureId;
+    unsigned m_foreTrackTextureId;
+    unsigned m_thumbTextureId;
 
     ScrollbarOverlayStyle m_scrollbarOverlayStyle;
     Vector<IntRect> m_tickmarks;

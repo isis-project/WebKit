@@ -39,7 +39,7 @@ enum ViewportErrorCode {
     UnrecognizedViewportArgumentValueError,
     TruncatedViewportArgumentValueError,
     MaximumScaleTooLargeError,
-    TargetDensityDpiTooSmallOrLargeError
+    TargetDensityDpiUnsupported
 };
 
 struct ViewportAttributes {
@@ -57,7 +57,13 @@ struct ViewportAttributes {
 struct ViewportArguments {
 
     enum Type {
+        // These are ordered in increasing importance.
         Implicit,
+#if ENABLE(LEGACY_VIEWPORT_ADAPTION)
+        XHTMLMobileProfile,
+        HandheldFriendlyMeta,
+        MobileOptimizedMeta,
+#endif
         ViewportMeta
     } type;
 
@@ -66,10 +72,6 @@ struct ViewportArguments {
         ValueDesktopWidth = -2,
         ValueDeviceWidth = -3,
         ValueDeviceHeight = -4,
-        ValueDeviceDPI = -5,
-        ValueLowDPI = -6,
-        ValueMediumDPI = -7,
-        ValueHighDPI = -8
     };
 
     ViewportArguments(Type type = Implicit)
@@ -79,7 +81,6 @@ struct ViewportArguments {
         , maximumScale(ValueAuto)
         , width(ValueAuto)
         , height(ValueAuto)
-        , targetDensityDpi(ValueAuto)
         , userScalable(ValueAuto)
     {
     }
@@ -89,7 +90,6 @@ struct ViewportArguments {
     float maximumScale;
     float width;
     float height;
-    float targetDensityDpi;
     float userScalable;
 
     bool operator==(const ViewportArguments& other) const
@@ -101,12 +101,21 @@ struct ViewportArguments {
             && maximumScale == other.maximumScale
             && width == other.width
             && height == other.height
-            && targetDensityDpi == other.targetDensityDpi
             && userScalable == other.userScalable;
     }
+
+    bool operator!=(const ViewportArguments& other) const
+    {
+        return !(*this == other);
+    }
+
+    // FIXME: We're going to keep this constant around until all embedders
+    // refactor their code to no longer need it.
+    static const float deprecatedTargetDPI;
 };
 
-ViewportAttributes computeViewportAttributes(ViewportArguments args, int desktopWidth, int deviceWidth, int deviceHeight, int deviceDPI, IntSize visibleViewport);
+ViewportAttributes computeViewportAttributes(ViewportArguments args, int desktopWidth, int deviceWidth, int deviceHeight, float devicePixelRatio, IntSize visibleViewport);
+
 void restrictMinimumScaleFactorToViewportSize(ViewportAttributes& result, IntSize visibleViewport);
 void restrictScaleFactorToInitialScaleIfNotUserScalable(ViewportAttributes& result);
 float computeMinimumScaleFactorForContentContained(const ViewportAttributes& result, const IntSize& viewportSize, const IntSize& contentSize);

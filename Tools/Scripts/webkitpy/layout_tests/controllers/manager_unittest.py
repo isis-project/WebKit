@@ -32,6 +32,7 @@
 
 import StringIO
 import sys
+import time
 import unittest
 
 from webkitpy.common.system.filesystem_mock import MockFileSystem
@@ -279,7 +280,7 @@ class ManagerTest(unittest.TestCase):
         host = MockHost()
         port = host.port_factory.get('test-win-xp')
         test = 'failures/expected/reftest.html'
-        port.test_expectations = lambda: 'WONTFIX : failures/expected/reftest.html = IMAGE'
+        port.expectations_dict = lambda: {'': 'WONTFIX : failures/expected/reftest.html = IMAGE'}
         expectations = TestExpectations(port, tests=[test])
         # Reftests expected to be image mismatch should be respected when pixel_tests=False.
         manager = Manager(port=port, options=MockOptions(pixel_tests=False, exit_after_n_failures=None, exit_after_n_crashes_or_timeouts=None), printer=Mock())
@@ -325,6 +326,73 @@ class ManagerTest(unittest.TestCase):
 
             manager = get_manager_with_tests(['http\\tests\\mime'])
             self.assertTrue(manager.needs_servers())
+
+    def test_look_for_new_crash_logs(self):
+        def get_manager_with_tests(test_names):
+            host = MockHost()
+            port = host.port_factory.get('test-mac-leopard')
+            manager = Manager(port, options=MockOptions(test_list=None, http=True), printer=Mock())
+            manager.collect_tests(test_names)
+            return manager
+        host = MockHost()
+        port = host.port_factory.get('test-mac-leopard')
+        tests = ['failures/expected/crash.html']
+        expectations = test_expectations.TestExpectations(port, tests)
+        rs = result_summary.ResultSummary(expectations, tests)
+        manager = get_manager_with_tests(tests)
+        manager._look_for_new_crash_logs(rs, time.time())
+
+    def test_servers_started(self):
+
+        def start_http_server(number_of_servers=None):
+            self.http_started = True
+
+        def start_websocket_server():
+            self.websocket_started = True
+
+        def stop_http_server():
+            self.http_stopped = True
+
+        def stop_websocket_server():
+            self.websocket_stopped = True
+
+        host = MockHost()
+        port = host.port_factory.get('test-mac-leopard')
+        port.start_http_server = start_http_server
+        port.start_websocket_server = start_websocket_server
+        port.stop_http_server = stop_http_server
+        port.stop_websocket_server = stop_websocket_server
+
+        self.http_started = self.http_stopped = self.websocket_started = self.websocket_stopped = False
+        manager = Manager(port=port, options=MockOptions(http=True), printer=Mock())
+        manager._test_files = ['http/tests/pass.txt']
+        manager.start_servers_with_lock(number_of_servers=4)
+        self.assertEquals(self.http_started, True)
+        self.assertEquals(self.websocket_started, False)
+        manager.stop_servers_with_lock()
+        self.assertEquals(self.http_stopped, True)
+        self.assertEquals(self.websocket_stopped, False)
+
+        self.http_started = self.http_stopped = self.websocket_started = self.websocket_stopped = False
+        manager = Manager(port=port, options=MockOptions(http=True), printer=Mock())
+        manager._test_files = ['websocket/pass.txt']
+        manager.start_servers_with_lock(number_of_servers=4)
+        self.assertEquals(self.http_started, True)
+        self.assertEquals(self.websocket_started, True)
+        manager.stop_servers_with_lock()
+        self.assertEquals(self.http_stopped, True)
+        self.assertEquals(self.websocket_stopped, True)
+
+        self.http_started = self.http_stopped = self.websocket_started = self.websocket_stopped = False
+        manager = Manager(port=port, options=MockOptions(http=True), printer=Mock())
+        manager._test_files = ['perf/foo/test.html']
+        manager.start_servers_with_lock(number_of_servers=4)
+        self.assertEquals(self.http_started, False)
+        self.assertEquals(self.websocket_started, False)
+        manager.stop_servers_with_lock()
+        self.assertEquals(self.http_stopped, False)
+        self.assertEquals(self.websocket_stopped, False)
+
 
 
 class NaturalCompareTest(unittest.TestCase):
@@ -406,7 +474,7 @@ class ResultSummaryTest(unittest.TestCase):
         return test_results.TestResult(test_name, failures=failures, test_run_time=run_time)
 
     def get_result_summary(self, port, test_names, expectations_str):
-        port.test_expectations = lambda: expectations_str
+        port.expectations_dict = lambda: {'': expectations_str}
         expectations = test_expectations.TestExpectations(port, test_names)
         return test_names, result_summary.ResultSummary(expectations, test_names), expectations
 
@@ -448,24 +516,24 @@ class ResultSummaryTest(unittest.TestCase):
         return expected_results, unexpected_results
 
     def test_no_svn_revision(self):
-        host = MockHost()
+        host = MockHost(initialize_scm_by_default=False)
         port = host.port_factory.get('test')
         expected_results, unexpected_results = self.summarized_results(port, expected=False, passing=False, flaky=False)
         self.assertTrue('revision' not in unexpected_results)
 
     def test_svn_revision(self):
-        host = MockHost()
+        host = MockHost(initialize_scm_by_default=False)
         port = host.port_factory.get('test')
         port._options.builder_name = 'dummy builder'
         expected_results, unexpected_results = self.summarized_results(port, expected=False, passing=False, flaky=False)
-        self.assertTrue('revision' in unexpected_results)
+        self.assertNotEquals(unexpected_results['revision'], '')
 
     def test_summarized_results_wontfix(self):
         host = MockHost()
         port = host.port_factory.get('test')
         port._options.builder_name = 'dummy builder'
         port._filesystem.write_text_file(port._filesystem.join(port.layout_tests_dir(), "failures/expected/wontfix.html"), "Dummy test contents")
-        expected_results, unexpected_results = self.summarized_results(port, expected=False, passing=False, flaky=False, extra_tests=['failures/expected/wontfix.html'], extra_expectations='BUGX WONTFIX : failures/expected/wontfix.html = FAIL\n')
+        expected_results, unexpected_results = self.summarized_results(port, expected=False, passing=False, flaky=False, extra_tests=['failures/expected/wontfix.html'], extra_expectations='BUGX WONTFIX : failures/expected/wontfix.html = TEXT\n')
         self.assertTrue(expected_results['tests']['failures']['expected']['wontfix.html']['wontfix'])
 
 if __name__ == '__main__':

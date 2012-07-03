@@ -32,6 +32,7 @@
 #if ENABLE(INDEXED_DATABASE)
 
 #include "ActiveDOMObject.h"
+#include "DOMError.h"
 #include "DOMStringList.h"
 #include "Event.h"
 #include "EventListener.h"
@@ -39,6 +40,7 @@
 #include "EventTarget.h"
 #include "IDBAny.h"
 #include "IDBCallbacks.h"
+#include "IDBCursor.h"
 
 namespace WebCore {
 
@@ -53,6 +55,7 @@ public:
 
     PassRefPtr<IDBAny> result(ExceptionCode&) const;
     unsigned short errorCode(ExceptionCode&) const;
+    PassRefPtr<DOMError> error(ExceptionCode&) const;
     String webkitErrorMessage(ExceptionCode&) const;
     PassRefPtr<IDBAny> source() const;
     PassRefPtr<IDBTransaction> transaction() const;
@@ -71,7 +74,7 @@ public:
 
     void markEarlyDeath();
     bool resetReadyState(IDBTransaction*);
-    void setCursorType(IDBCursorBackendInterface::CursorType);
+    void setCursorDetails(IDBCursorBackendInterface::CursorType, IDBCursor::Direction);
     void setCursor(PassRefPtr<IDBCursor>);
     void finishCursor();
     IDBAny* source();
@@ -85,6 +88,7 @@ public:
     virtual void onSuccess(PassRefPtr<IDBKey>);
     virtual void onSuccess(PassRefPtr<IDBTransactionBackendInterface>);
     virtual void onSuccess(PassRefPtr<SerializedScriptValue>);
+    virtual void onSuccess(PassRefPtr<SerializedScriptValue>, PassRefPtr<IDBKey>, const IDBKeyPath&);
     virtual void onSuccessWithContinuation();
     virtual void onSuccessWithPrefetch(const Vector<RefPtr<IDBKey> >&, const Vector<RefPtr<IDBKey> >&, const Vector<RefPtr<SerializedScriptValue> >&) { ASSERT_NOT_REACHED(); } // Not implemented. Callback should not reach the renderer side.
     virtual void onBlocked();
@@ -109,6 +113,7 @@ protected:
     RefPtr<IDBAny> m_result;
     unsigned short m_errorCode;
     String m_errorMessage;
+    RefPtr<DOMError> m_error;
 
 private:
     // EventTarget
@@ -130,6 +135,7 @@ private:
 
     // Only used if the result type will be a cursor.
     IDBCursorBackendInterface::CursorType m_cursorType;
+    IDBCursor::Direction m_cursorDirection;
     RefPtr<IDBCursor> m_cursor;
 
     EventTargetData m_eventTargetData;

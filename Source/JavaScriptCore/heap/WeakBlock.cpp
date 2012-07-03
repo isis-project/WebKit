@@ -69,7 +69,8 @@ void WeakBlock::lastChanceToFinalize()
 
 void WeakBlock::sweep()
 {
-    if (!m_sweepResult.isNull())
+    // If a block is completely empty, a sweep won't have any effect.
+    if (isEmpty())
         return;
 
     SweepResult sweepResult;
@@ -126,8 +127,10 @@ void WeakBlock::reap()
         if (weakImpl->state() > WeakImpl::Dead)
             continue;
 
-        if (Heap::isMarked(weakImpl->jsValue().asCell()))
+        if (Heap::isMarked(weakImpl->jsValue().asCell())) {
+            ASSERT(weakImpl->state() == WeakImpl::Live);
             continue;
+        }
 
         weakImpl->setState(WeakImpl::Dead);
     }

@@ -10,7 +10,6 @@ LIST(APPEND WebKit_INCLUDE_DIRECTORIES
     "${WEBKIT_DIR}/efl/ewk"
     "${WEBKIT_DIR}/efl/WebCoreSupport"
     "${JAVASCRIPTCORE_DIR}/ForwardingHeaders"
-    "${JAVASCRIPTCORE_DIR}/wtf/gobject"
     "${WEBCORE_DIR}/platform/efl"
     "${WEBCORE_DIR}/platform/graphics/cairo"
     "${WEBCORE_DIR}/platform/graphics/efl"
@@ -69,11 +68,18 @@ IF (WTF_USE_PANGO)
 ENDIF ()
 
 IF (ENABLE_NETWORK_INFO)
+  LIST(APPEND WebKit_LINK_FLAGS
+    ${EEZE_LDFLAGS}
+  )
   LIST(APPEND WebKit_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/Modules/networkinfo"
+     ${EEZE_INCLUDE_DIRS}
   )
   LIST(APPEND WebKit_SOURCES
     efl/WebCoreSupport/NetworkInfoClientEfl.cpp
+  )
+  LIST(APPEND WebKit_LIBRARIES
+    ${EEZE_LIBRARIES}
   )
 ENDIF ()
 
@@ -97,8 +103,9 @@ LIST(APPEND WebKit_SOURCES
     efl/WebCoreSupport/IconDatabaseClientEfl.cpp
     efl/WebCoreSupport/StorageTrackerClientEfl.cpp
     efl/WebCoreSupport/InspectorClientEfl.cpp
-    efl/WebCoreSupport/NotificationPresenterClientEfl.cpp
+    efl/WebCoreSupport/NotificationClientEfl.cpp
     efl/WebCoreSupport/PageClientEfl.cpp
+    efl/WebCoreSupport/PlatformStrategiesEfl.cpp 
 
     efl/ewk/ewk_auth.cpp
     efl/ewk/ewk_auth_soup.cpp
@@ -111,6 +118,7 @@ LIST(APPEND WebKit_SOURCES
     efl/ewk/ewk_js.cpp
     efl/ewk/ewk_main.cpp
     efl/ewk/ewk_network.cpp
+    efl/ewk/ewk_paint_context.cpp
     efl/ewk/ewk_security_origin.cpp
     efl/ewk/ewk_security_policy.cpp
     efl/ewk/ewk_settings.cpp
@@ -285,3 +293,82 @@ INSTALL(FILES ${EWebKit_HEADERS}
 
 INSTALL(FILES ${WebKit_THEME}
         DESTINATION ${DATA_INSTALL_DIR}/themes)
+
+INCLUDE_DIRECTORIES(${THIRDPARTY_DIR}/gtest
+                    ${THIRDPARTY_DIR}/gtest/include
+)
+
+SET(GTEST_SOURCES "${THIRDPARTY_DIR}/gtest/src")
+
+ADD_LIBRARY(gtest
+    ${GTEST_SOURCES}/gtest.cc
+    ${GTEST_SOURCES}/gtest-death-test.cc
+    ${GTEST_SOURCES}/gtest_main.cc
+    ${GTEST_SOURCES}/gtest-filepath.cc
+    ${GTEST_SOURCES}/gtest-port.cc
+    ${GTEST_SOURCES}/gtest-test-part.cc
+    ${GTEST_SOURCES}/gtest-typed-test.cc
+)
+
+SET(EWKUnitTests_LIBRARIES
+    ${JavaScriptCore_LIBRARY_NAME}
+    ${WebCore_LIBRARY_NAME}
+    ${WebKit_LIBRARY_NAME}
+    ${ECORE_LIBRARIES}
+    ${ECORE_EVAS_LIBRARIES}
+    ${EVAS_LIBRARIES}
+    ${EDJE_LIBRARIES}
+)
+
+SET(EWKUnitTests_INCLUDE_DIRECTORIES
+    "${CMAKE_SOURCE_DIR}/Source"
+    "${WEBKIT_DIR}/efl/ewk"
+    "${WEBKIT_DIR}/efl/tests/src/UnitTestUtils"
+    "${JAVASCRIPTCORE_DIR}"
+    "${WTF_DIR}"
+    "${WTF_DIR}/wtf"
+    ${ECORE_INCLUDE_DIRS}
+    ${ECORE_EVAS_INCLUDE_DIRS}
+    ${EVAS_INCLUDE_DIRS}
+    ${EDJE_INCLUDE_DIRS}
+)
+
+SET(EWKUnitTests_LINK_FLAGS
+    ${ECORE_LDFLAGS}
+    ${ECORE_EVAS_LDFLAGS}
+    ${EVAS_LDFLAGS}
+    ${EDJE_LDFLAGS}
+)
+
+IF (ENABLE_GLIB_SUPPORT)
+    LIST(APPEND EWKUnitTests_INCLUDE_DIRECTORIES "${WTF_DIR}/wtf/gobject")
+    LIST(APPEND EWKUnitTests_LIBRARIES
+        ${Glib_LIBRARIES}
+        ${Gthread_LIBRARIES}
+    )
+ENDIF ()
+
+SET(DEFAULT_TEST_PAGE_DIR ${CMAKE_SOURCE_DIR}/Source/WebKit/efl/tests/resources)
+
+ADD_DEFINITIONS(-DDEFAULT_TEST_PAGE_DIR=\"${DEFAULT_TEST_PAGE_DIR}\")
+ADD_DEFINITIONS(-DDEFAULT_THEME_PATH=\"${THEME_BINARY_DIR}\")
+
+ADD_LIBRARY(ewkTestUtils
+    ${WEBKIT_DIR}/efl/tests/UnitTestUtils/EWKTestBase.cpp
+    ${WEBKIT_DIR}/efl/tests/UnitTestUtils/EWKTestView.cpp
+)
+TARGET_LINK_LIBRARIES(ewkTestUtils ${EWKUnitTests_LIBRARIES})
+
+SET(WEBKIT_EFL_TEST_DIR "${WEBKIT_DIR}/efl/tests/")
+
+SET(EWKUnitTests_BINARIES
+    test_ewk_view
+)
+
+FOREACH(testName ${EWKUnitTests_BINARIES})
+    ADD_EXECUTABLE(${testName} ${WEBKIT_EFL_TEST_DIR}/${testName}.cpp ${WEBKIT_EFL_TEST_DIR}/test_runner.cpp)
+    ADD_TEST(${testName} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${testName})
+    TARGET_LINK_LIBRARIES(${testName} ${EWKUnitTests_LIBRARIES} ewkTestUtils gtest pthread)
+    ADD_TARGET_PROPERTIES(${testName} LINK_FLAGS "${EWKUnitTests_LINK_FLAGS}")
+    SET_TARGET_PROPERTIES(${testName} PROPERTIES FOLDER "WebKit")
+ENDFOREACH()

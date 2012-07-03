@@ -32,6 +32,7 @@ class HTMLCollection;
 class HTMLFormElement;
 
 #if ENABLE(MICRODATA)
+class HTMLPropertiesCollection;
 class MicroDataItemValue;
 #endif
 
@@ -96,6 +97,7 @@ public:
 #if ENABLE(MICRODATA)
     void setItemValue(const String&, ExceptionCode&);
     PassRefPtr<MicroDataItemValue> itemValue() const;
+    HTMLPropertiesCollection* properties();
 #endif
 
 #ifndef NDEBUG

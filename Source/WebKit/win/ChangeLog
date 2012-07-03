@@ -1,3 +1,211 @@
+2012-07-03  Mihai Balan  <mibalan@adobe.com>
+
+        [CSS Regions] Enabling regions on Windows lead to crash-on-launch for WebKit.exe
+        https://bugs.webkit.org/show_bug.cgi?id=90435
+
+        Reviewed by Csaba Osztrogonác.
+
+        Initial patch for enabling regions led to WebKit crashing on launch. Moving the
+        IDL declarations for CSS regions getter/setter at the end of the file solves the
+        problem. As per http://trac.webkit.org/changeset/95650 seems it has to do with
+        binary compatibility.
+
+        * Interfaces/IWebPreferences.idl: Mover getter/setter for CSS regions at the end of file
+
+2012-07-02  Benjamin Poulain  <bpoulain@apple.com>
+
+        Do not do any logging initialization when logging is disabled
+        https://bugs.webkit.org/show_bug.cgi?id=90228
+
+        Reviewed by Simon Fraser.
+
+        * WebView.cpp:
+        (WebView::initWithFrame):
+
+2012-06-29  Mihai Balan  <mibalan@adobe.com>
+
+        [CSS Regions] Adding feature defines for CSS Regions for Windows
+        https://bugs.webkit.org/show_bug.cgi?id=88645
+
+        Reviewed by Tony Chang.
+
+        Re-trying to enable CSS regions on Windows. This time only enabling
+        regions since exclusions lead to some very strange compiling/linking
+        problems. This time adding preferences code to make sure the settings
+        get propagated to DRT (previous experiments by abucur showed they
+        didn't.).
+
+        * WebPreferenceKeysPrivate.h: Added preference key for CSS regions
+        * Interfaces/IWebPreferences.idl: Added getters and setters for CSS regions settings
+        * WebPreferences.cpp: ditto
+        (WebPreferences::initializeDefaultSettings):
+        (WebPreferences::isCSSRegionsEnabled):
+        (WebPreferences::setCSSRegionsEnabled):
+        * WebPreferences.h: ditto
+        (WebPreferences):
+        * WebView.cpp: Added settings code to handle CSS regions, too
+        (WebView::notifyPreferencesChanged):
+
+2012-06-25  Mark Hahnenberg  <mhahnenberg@apple.com>
+
+        JSLock should be per-JSGlobalData
+        https://bugs.webkit.org/show_bug.cgi?id=89123
+
+        Reviewed by Geoffrey Garen.
+
+        Changed all sites that used JSLock to instead use the new JSLockHolder
+        and pass in the correct JS context that the code is about to interact with that 
+        needs protection. Also added a couple JSLocks to places that didn't already 
+        have it that needed it.
+
+        * WebCoreStatistics.cpp:
+        (WebCoreStatistics::javaScriptObjectsCount):
+        (WebCoreStatistics::javaScriptGlobalObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedGlobalObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedObjectTypeCounts):
+        * WebFrame.cpp:
+        (WebFrame::stringByEvaluatingJavaScriptInScriptWorld):
+        * WebJavaScriptCollector.cpp:
+        (WebJavaScriptCollector::objectCount):
+        * WebView.cpp:
+        (WebView::stringByEvaluatingJavaScriptFromString):
+        (WebView::reportException):
+        (WebView::elementFromJS):
+
+2012-06-23  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r121058.
+        http://trac.webkit.org/changeset/121058
+        https://bugs.webkit.org/show_bug.cgi?id=89809
+
+        Patch causes plugins tests to crash in GTK debug builds
+        (Requested by zdobersek on #webkit).
+
+        * WebCoreStatistics.cpp:
+        (WebCoreStatistics::javaScriptObjectsCount):
+        (WebCoreStatistics::javaScriptGlobalObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedGlobalObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedObjectTypeCounts):
+        * WebFrame.cpp:
+        (WebFrame::stringByEvaluatingJavaScriptInScriptWorld):
+        * WebJavaScriptCollector.cpp:
+        (WebJavaScriptCollector::objectCount):
+        * WebView.cpp:
+        (WebView::stringByEvaluatingJavaScriptFromString):
+        (WebView::reportException):
+        (WebView::elementFromJS):
+
+2012-06-20  Mark Hahnenberg  <mhahnenberg@apple.com>
+
+        JSLock should be per-JSGlobalData
+        https://bugs.webkit.org/show_bug.cgi?id=89123
+
+        Reviewed by Gavin Barraclough.
+
+        Changed all sites that used JSLock to instead use the new JSLockHolder
+        and pass in the correct JS context that the code is about to interact with that 
+        needs protection.
+
+        * WebCoreStatistics.cpp:
+        (WebCoreStatistics::javaScriptObjectsCount):
+        (WebCoreStatistics::javaScriptGlobalObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedGlobalObjectsCount):
+        (WebCoreStatistics::javaScriptProtectedObjectTypeCounts):
+        * WebFrame.cpp:
+        (WebFrame::stringByEvaluatingJavaScriptInScriptWorld):
+        * WebJavaScriptCollector.cpp:
+        (WebJavaScriptCollector::objectCount):
+        * WebView.cpp:
+        (WebView::stringByEvaluatingJavaScriptFromString):
+        (WebView::reportException):
+        (WebView::elementFromJS):
+
+2012-06-20  Garret Kelly  <gdk@chromium.org>
+
+        Moving cookieEnabled/setCookieEnabled from Page to Settings.
+        https://bugs.webkit.org/show_bug.cgi?id=89545
+
+        Reviewed by Adam Barth.
+
+        * WebView.cpp:
+        (WebView::setCookieEnabled):
+        (WebView::cookieEnabled):
+
+2012-06-20  Julien Chaffraix  <jchaffraix@webkit.org>
+
+        Use IntSize in RenderLayer to represent scroll offsets
+        https://bugs.webkit.org/show_bug.cgi?id=89154
+
+        Reviewed by Eric Seidel.
+
+        * WebView.cpp:
+        (WebView::gesture):
+        Updated to pass an IntSize to scrollByRecursively.
+
+2012-06-11  Kaustubh Atrawalkar  <kaustubh@motorola.com>
+
+        [DRT] LTC:: counterValueForElementById() could be moved to Internals.
+        https://bugs.webkit.org/show_bug.cgi?id=84406
+
+        Reviewed by Hajime Morita.
+
+        Move the counterValueForElementById from LayoutTestCotroller to Internals and
+        remove the old platform specific implementations as it exclusively tests WebCore functionality.
+
+        * Interfaces/IWebFramePrivate.idl:
+        * WebFrame.cpp:
+        * WebFrame.h:
+
+2012-06-11  Sam Weinig  <sam@webkit.org>
+
+        Remove support for disconnected/excluded from search frames, they are not used by Safari anymore
+        https://bugs.webkit.org/show_bug.cgi?id=88723
+
+        Reviewed by Dan Bernstein.
+
+        * WebFrame.cpp:
+        (WebFrame::setIsDisconnected):
+        (WebFrame::setExcludeFromTextSearch):
+        Stop doing anything in these functions.
+
+2012-06-10  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r119955.
+        http://trac.webkit.org/changeset/119955
+        https://bugs.webkit.org/show_bug.cgi?id=88758
+
+        Breaks Chromium compile - Chromium depends on removed API
+        (Requested by dominicc on #webkit).
+
+        * WebFrame.cpp:
+        (WebFrame::setIsDisconnected):
+        (WebFrame::setExcludeFromTextSearch):
+
+2012-06-10  Sam Weinig  <sam@webkit.org>
+
+        Remove support for disconnected/excluded from search frames, they are not used by Safari anymore
+        https://bugs.webkit.org/show_bug.cgi?id=88723
+
+        Reviewed by Dan Bernstein.
+
+        * WebFrame.cpp:
+        (WebFrame::setIsDisconnected):
+        (WebFrame::setExcludeFromTextSearch):
+        Stop doing anything in these functions.
+
+2012-05-31  Hajime Morrita  <morrita@chromium.org>
+
+        REGRESSION(r117572): editing/spelling/spellcheck-async-remove-frame.html crashes on Mac
+        https://bugs.webkit.org/show_bug.cgi?id=86859
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebCoreSupport/WebEditorClient.h:
+        (WebEditorClient::requestCheckingOfString):
+
 2012-05-25  Jesus Sanchez-Palencia  <jesus.palencia@openbossa.org>
 
         WebKitTestRunner needs to support layoutTestController.setJavaScriptProfilingEnabled

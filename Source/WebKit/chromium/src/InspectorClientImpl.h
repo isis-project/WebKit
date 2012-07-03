@@ -33,6 +33,7 @@
 
 #include "InspectorClient.h"
 #include "InspectorController.h"
+#include "platform/WebThread.h"
 #include <wtf/OwnPtr.h>
 
 namespace WebKit {
@@ -41,7 +42,8 @@ class WebDevToolsAgentClient;
 class WebDevToolsAgentImpl;
 class WebViewImpl;
 
-class InspectorClientImpl : public WebCore::InspectorClient {
+class InspectorClientImpl : public WebCore::InspectorClient,
+                            public WebThread::TaskObserver {
 public:
     InspectorClientImpl(WebViewImpl*);
     ~InspectorClientImpl();
@@ -57,12 +59,16 @@ public:
 
     virtual bool sendMessageToFrontend(const WTF::String&);
 
+    virtual bool supportsInspectorStateUpdates() const { return true; }
     virtual void updateInspectorStateCookie(const WTF::String&);
 
     virtual bool canClearBrowserCache();
     virtual void clearBrowserCache();
     virtual bool canClearBrowserCookies();
     virtual void clearBrowserCookies();
+
+    virtual void startMainThreadMonitoring();
+    virtual void stopMainThreadMonitoring();
 
     virtual bool canOverrideDeviceMetrics();
     virtual void overrideDeviceMetrics(int, int, float, bool);
@@ -71,6 +77,10 @@ public:
     virtual bool supportsFrameInstrumentation();
 
 private:
+    // WebThread::TaskObserver
+    virtual void willProcessTask();
+    virtual void didProcessTask();
+
     WebDevToolsAgentImpl* devToolsAgent();
 
     // The WebViewImpl of the page being inspected; gets passed to the constructor

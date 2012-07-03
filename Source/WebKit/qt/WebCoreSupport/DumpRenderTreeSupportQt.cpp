@@ -34,9 +34,9 @@
 #include "ContextMenu.h"
 #include "ContextMenuClientQt.h"
 #include "ContextMenuController.h"
-#include "DeviceOrientation.h"
 #include "DeviceOrientationClientMock.h"
 #include "DeviceOrientationController.h"
+#include "DeviceOrientationData.h"
 #include "DocumentLoader.h"
 #include "Editor.h"
 #include "EditorClientQt.h"
@@ -58,8 +58,9 @@
 #include "GeolocationController.h"
 #include "GeolocationError.h"
 #include "GeolocationPosition.h"
-#include "HistoryItem.h"
+#include "HTMLFormElement.h"
 #include "HTMLInputElement.h"
+#include "HistoryItem.h"
 #include "InitWebCoreQt.h"
 #include "InspectorController.h"
 #include "NodeList.h"
@@ -249,6 +250,11 @@ void DumpRenderTreeSupportQt::setFrameFlatteningEnabled(QWebPage* page, bool ena
     QWebPagePrivate::core(page)->settings()->setFrameFlatteningEnabled(enabled);
 }
 
+void DumpRenderTreeSupportQt::setMockScrollbarsEnabled(QWebPage* page, bool enabled)
+{
+    QWebPagePrivate::core(page)->settings()->setMockScrollbarsEnabled(enabled);
+}
+
 void DumpRenderTreeSupportQt::webPageSetGroupName(QWebPage* page, const QString& groupName)
 {
     page->handle()->page->setGroupName(groupName);
@@ -405,17 +411,6 @@ void DumpRenderTreeSupportQt::garbageCollectorCollectOnAlternateThread(bool wait
     // FIXME: Find a way to do this using V8.
     garbageCollectorCollect();
 #endif
-}
-
-// Returns the value of counter in the element specified by \a id.
-QString DumpRenderTreeSupportQt::counterValueForElementById(QWebFrame* frame, const QString& id)
-{
-    Frame* coreFrame = QWebFramePrivate::core(frame);
-    if (Document* document = coreFrame->document()) {
-        if (Element* element = document->getElementById(id))
-            return WebCore::counterValueForElement(element);
-    }
-    return QString();
 }
 
 int DumpRenderTreeSupportQt::pageNumberForElementById(QWebFrame* frame, const QString& id, float width, float height)
@@ -749,10 +744,10 @@ QString DumpRenderTreeSupportQt::viewportAsText(QWebPage* page, int deviceDPI, c
     WebCore::ViewportArguments args = page->d->viewportArguments();
 
     WebCore::ViewportAttributes conf = WebCore::computeViewportAttributes(args,
-        /* desktop-width */ 980,
-        /* device-width  */ deviceSize.width(),
-        /* device-height */ deviceSize.height(),
-        /* device-dpi    */ deviceDPI,
+        /* desktop-width    */ 980,
+        /* device-width     */ deviceSize.width(),
+        /* device-height    */ deviceSize.height(),
+        /* devicePixelRatio */ deviceDPI / WebCore::ViewportArguments::deprecatedTargetDPI,
         availableSize);
     WebCore::restrictMinimumScaleFactorToViewportSize(conf, availableSize);
     WebCore::restrictScaleFactorToInitialScaleIfNotUserScalable(conf);
@@ -824,7 +819,7 @@ void DumpRenderTreeSupportQt::setMockDeviceOrientation(QWebPage* page, bool canP
 #if ENABLE(DEVICE_ORIENTATION)
     Page* corePage = QWebPagePrivate::core(page);
     DeviceOrientationClientMock* mockClient = toDeviceOrientationClientMock(DeviceOrientationController::from(corePage)->client());
-    mockClient->setOrientation(DeviceOrientation::create(canProvideAlpha, alpha, canProvideBeta, beta, canProvideGamma, gamma));
+    mockClient->setOrientation(DeviceOrientationData::create(canProvideAlpha, alpha, canProvideBeta, beta, canProvideGamma, gamma));
 #endif
 }
 
@@ -970,6 +965,11 @@ QString DumpRenderTreeSupportQt::pageProperty(QWebFrame* frame, const QString& p
 void DumpRenderTreeSupportQt::addUserStyleSheet(QWebPage* page, const QString& sourceCode)
 {
     page->handle()->page->group().addUserStyleSheetToWorld(mainThreadNormalWorld(), sourceCode, QUrl(), nullptr, nullptr, WebCore::InjectInAllFrames);
+}
+
+void DumpRenderTreeSupportQt::removeUserStyleSheets(QWebPage* page)
+{
+    page->handle()->page->group().removeUserStyleSheetsFromWorld(mainThreadNormalWorld());
 }
 
 void DumpRenderTreeSupportQt::simulateDesktopNotificationClick(const QString& title)
@@ -1141,13 +1141,12 @@ void DumpRenderTreeSupportQt::injectInternalsObject(QWebFrame* frame)
 {
     WebCore::Frame* coreFrame = QWebFramePrivate::core(frame);
 #if USE(JSC)
-    JSC::JSLock lock(JSC::SilenceAssertionsOnly);
-
     JSDOMWindow* window = toJSDOMWindow(coreFrame, mainThreadNormalWorld());
     Q_ASSERT(window);
 
     JSC::ExecState* exec = window->globalExec();
     Q_ASSERT(exec);
+    JSC::JSLockHolder lock(exec);
 
     JSContextRef context = toRef(exec);
     WebCoreTestSupport::injectInternalsObject(context);
@@ -1168,13 +1167,12 @@ void DumpRenderTreeSupportQt::resetInternalsObject(QWebFrame* frame)
 {
     WebCore::Frame* coreFrame = QWebFramePrivate::core(frame);
 #if USE(JSC)
-    JSC::JSLock lock(JSC::SilenceAssertionsOnly);
-
     JSDOMWindow* window = toJSDOMWindow(coreFrame, mainThreadNormalWorld());
     Q_ASSERT(window);
 
     JSC::ExecState* exec = window->globalExec();
     Q_ASSERT(exec);
+    JSC::JSLockHolder lock(exec);
 
     JSContextRef context = toRef(exec);
     WebCoreTestSupport::resetInternalsObject(context);

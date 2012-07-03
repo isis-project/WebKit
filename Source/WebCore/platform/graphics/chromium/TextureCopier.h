@@ -28,16 +28,21 @@
 #include "GraphicsContext3D.h"
 #include "ProgramBinding.h"
 #include "ShaderChromium.h"
-#include <wtf/PassRefPtr.h>
+#include "cc/CCGraphicsContext.h"
+
+namespace WebKit {
+class WebGraphicsContext3D;
+}
 
 namespace WebCore {
+class IntSize;
 
 class TextureCopier {
 public:
     // Copy the base level contents of |sourceTextureId| to |destTextureId|. Both texture objects
     // must be complete and have a base level of |size| dimensions. The color formats do not need
     // to match, but |destTextureId| must have a renderable format.
-    virtual void copyTexture(GraphicsContext3D*, unsigned sourceTextureId, unsigned destTextureId, const IntSize&) = 0;
+    virtual void copyTexture(CCGraphicsContext*, unsigned sourceTextureId, unsigned destTextureId, const IntSize&) = 0;
 
 protected:
     virtual ~TextureCopier() { }
@@ -48,21 +53,21 @@ protected:
 class AcceleratedTextureCopier : public TextureCopier {
     WTF_MAKE_NONCOPYABLE(AcceleratedTextureCopier);
 public:
-    static PassOwnPtr<AcceleratedTextureCopier> create(PassRefPtr<GraphicsContext3D> context)
+    static PassOwnPtr<AcceleratedTextureCopier> create(WebKit::WebGraphicsContext3D* context)
     {
         return adoptPtr(new AcceleratedTextureCopier(context));
     }
     virtual ~AcceleratedTextureCopier();
 
-    virtual void copyTexture(GraphicsContext3D*, unsigned sourceTextureId, unsigned destTextureId, const IntSize&);
+    virtual void copyTexture(CCGraphicsContext*, unsigned sourceTextureId, unsigned destTextureId, const IntSize&);
 
 protected:
-    explicit AcceleratedTextureCopier(PassRefPtr<GraphicsContext3D>);
+    explicit AcceleratedTextureCopier(WebKit::WebGraphicsContext3D*);
 
 private:
     typedef ProgramBinding<VertexShaderPosTexIdentity, FragmentShaderRGBATex> BlitProgram;
 
-    RefPtr<GraphicsContext3D> m_context;
+    WebKit::WebGraphicsContext3D* m_context;
     Platform3DObject m_fbo;
     Platform3DObject m_positionBuffer;
     OwnPtr<BlitProgram> m_blitProgram;

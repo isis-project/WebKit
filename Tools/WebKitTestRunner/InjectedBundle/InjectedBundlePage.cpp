@@ -45,10 +45,6 @@
 #include <wtf/text/CString.h>
 #include <wtf/text/StringBuilder.h>
 
-#if PLATFORM(QT)
-#include "DumpRenderTreeSupportQt.h"
-#endif
-
 using namespace std;
 
 namespace WTR {
@@ -330,7 +326,7 @@ void InjectedBundlePage::stopLoading()
     WKBundlePageStopLoading(m_page);
 }
 
-void InjectedBundlePage::reset()
+void InjectedBundlePage::prepare()
 {
     WKBundlePageClearMainFrameName(m_page);
 
@@ -345,6 +341,13 @@ void InjectedBundlePage::reset()
     WKBundleFrameClearOpener(WKBundlePageGetMainFrame(m_page));
     
     WKBundlePageSetTracksRepaints(m_page, false);
+}
+
+void InjectedBundlePage::resetAfterTest()
+{
+    WKBundleFrameRef frame = WKBundlePageGetMainFrame(m_page);
+    JSGlobalContextRef context = WKBundleFrameGetJavaScriptContext(frame);
+    WebCoreTestSupport::resetInternalsObject(context);
 }
 
 // Loader Client Callbacks
@@ -766,11 +769,7 @@ void InjectedBundlePage::didClearWindowForFrame(WKBundleFrameRef frame, WKBundle
     InjectedBundle::shared().textInputController()->makeWindowObject(context, window, &exception);
     InjectedBundle::shared().accessibilityController()->makeWindowObject(context, window, &exception);
 
-#if PLATFORM(QT)
-    DumpRenderTreeSupportQt::injectInternalsObject(context);
-#else
     WebCoreTestSupport::injectInternalsObject(context);
-#endif
 }
 
 void InjectedBundlePage::didCancelClientRedirectForFrame(WKBundleFrameRef frame)

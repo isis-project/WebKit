@@ -34,6 +34,7 @@
 #include "DRTDevToolsAgent.h"
 #include "DRTDevToolsClient.h"
 #include "LayoutTestController.h"
+#include "MockWebPrerenderingSupport.h"
 #include "platform/WebArrayBufferView.h"
 #include "WebCompositor.h"
 #include "WebDataSource.h"
@@ -65,6 +66,7 @@
 #include <vector>
 #include <wtf/MD5.h>
 #include <wtf/OwnArrayPtr.h>
+
 
 using namespace WebKit;
 using namespace std;
@@ -112,7 +114,6 @@ TestShell::TestShell()
     , m_accelerated2dCanvasEnabled(false)
     , m_deferred2dCanvasEnabled(false)
     , m_acceleratedPaintingEnabled(false)
-    , m_perTilePaintingEnabled(false)
     , m_stressOpt(false)
     , m_stressDeopt(false)
     , m_dumpWhenFinished(true)
@@ -147,6 +148,7 @@ void TestShell::initialize()
     m_webPermissions = adoptPtr(new WebPermissions(this));
     m_accessibilityController = adoptPtr(new AccessibilityController(this));
     m_gamepadController = adoptPtr(new GamepadController(this));
+
     m_layoutTestController = adoptPtr(new LayoutTestController(this));
     m_eventSender = adoptPtr(new EventSender(this));
     m_textInputController = adoptPtr(new TextInputController(this));
@@ -154,6 +156,9 @@ void TestShell::initialize()
     m_notificationPresenter = adoptPtr(new NotificationPresenter(this));
 #endif
     m_printer = m_testShellMode ? TestEventPrinter::createTestShellPrinter() : TestEventPrinter::createDRTPrinter();
+#if ENABLE(LINK_PRERENDER)
+    m_prerenderingSupport = adoptPtr(new MockWebPrerenderingSupport());
+#endif
 
     WTF::initializeThreading();
 
@@ -225,7 +230,6 @@ void TestShell::resetWebSettings(WebView& webView)
     m_prefs.accelerated2dCanvasEnabled = m_accelerated2dCanvasEnabled;
     m_prefs.deferred2dCanvasEnabled = m_deferred2dCanvasEnabled;
     m_prefs.acceleratedPaintingEnabled = m_acceleratedPaintingEnabled;
-    m_prefs.perTilePaintingEnabled = m_perTilePaintingEnabled;
     m_prefs.applyTo(&webView);
 }
 
@@ -299,6 +303,9 @@ void TestShell::resetTestController()
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     m_notificationPresenter->reset();
 #endif
+#if OS(ANDROID)
+    webkit_support::ReleaseMediaResources();
+#endif
     m_drtDevToolsAgent->reset();
     if (m_drtDevToolsClient)
         m_drtDevToolsClient->reset();
@@ -369,6 +376,11 @@ void TestShell::testTimedOut()
 {
     m_printer->handleTimedOut();
     testFinished();
+}
+
+void TestShell::setPerTilePaintingEnabled(bool enabled)
+{
+    WebCompositor::setPerTilePaintingEnabled(enabled);
 }
 
 static string dumpDocumentText(WebFrame* frame)
@@ -720,6 +732,7 @@ void TestShell::bindJSObjectsToWindow(WebFrame* frame)
     m_accessibilityController->bindToJavascript(frame, WebString::fromUTF8("accessibilityController"));
     m_gamepadController->bindToJavascript(frame, WebString::fromUTF8("gamepadController"));
     m_layoutTestController->bindToJavascript(frame, WebString::fromUTF8("layoutTestController"));
+    m_layoutTestController->bindToJavascript(frame, WebString::fromUTF8("testRunner"));
     m_eventSender->bindToJavascript(frame, WebString::fromUTF8("eventSender"));
     m_textInputController->bindToJavascript(frame, WebString::fromUTF8("textInputController"));
 }

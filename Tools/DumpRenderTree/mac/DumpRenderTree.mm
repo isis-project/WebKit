@@ -590,7 +590,7 @@ static void resetDefaultsToConsistentValues()
 #endif
 
 
-#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION) && !PLATFORM(CHROMIUM)
     [defaults setBool:NO forKey:@"NSScrollAnimationEnabled"];
 #else
     [defaults setBool:NO forKey:@"AppleScrollAnimationEnabled"];
@@ -661,6 +661,7 @@ static void resetDefaultsToConsistentValues()
 #endif
     [preferences setWebGLEnabled:NO];
     [preferences setCSSRegionsEnabled:YES];
+    [preferences setCSSGridLayoutEnabled:NO];
     [preferences setUsePreHTML5ParserQuirks:NO];
     [preferences setAsynchronousSpellCheckingEnabled:NO];
     [preferences setHixie76WebSocketProtocolEnabled:NO];

@@ -26,6 +26,7 @@
 #include "HTMLFormControlElement.h"
 
 #include "Attribute.h"
+#include "ElementShadow.h"
 #include "Event.h"
 #include "EventHandler.h"
 #include "EventNames.h"
@@ -240,17 +241,6 @@ void HTMLFormControlElement::removedFrom(ContainerNode* insertionPoint)
     FormAssociatedElement::removedFrom(insertionPoint);
 }
 
-const AtomicString& HTMLFormControlElement::formControlName() const
-{
-    const AtomicString& name = getNameAttribute();
-    return name.isNull() ? emptyAtom : name;
-}
-
-void HTMLFormControlElement::setName(const AtomicString& value)
-{
-    setAttribute(nameAttr, value);
-}
-
 bool HTMLFormControlElement::wasChangedSinceLastFormControlChangeEvent() const
 {
     return m_wasChangedSinceLastFormControlChangeEvent;
@@ -317,7 +307,7 @@ void HTMLFormControlElement::didRecalcStyle(StyleChange)
 
 bool HTMLFormControlElement::supportsFocus() const
 {
-    return !m_disabled;
+    return !disabled();
 }
 
 bool HTMLFormControlElement::isFocusable() const

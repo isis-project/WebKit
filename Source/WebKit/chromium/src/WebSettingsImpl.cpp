@@ -47,6 +47,7 @@ namespace WebKit {
 
 WebSettingsImpl::WebSettingsImpl(Settings* settings)
     : m_settings(settings)
+    , m_forceSoftwareCompositing(false)
     , m_showFPSCounter(false)
     , m_showPlatformLayerTree(false)
     , m_showPaintRects(false)
@@ -88,6 +89,11 @@ void WebSettingsImpl::setFantasyFontFamily(const WebString& font, UScriptCode sc
     m_settings->setFantasyFontFamily(font, script);
 }
 
+void WebSettingsImpl::setPictographFontFamily(const WebString& font, UScriptCode script)
+{
+    m_settings->setPictographFontFamily(font, script);
+}
+
 void WebSettingsImpl::setDefaultFontSize(int size)
 {
     m_settings->setDefaultFontSize(size);
@@ -113,19 +119,14 @@ void WebSettingsImpl::setMinimumLogicalFontSize(int size)
     m_settings->setMinimumLogicalFontSize(size);
 }
 
-void WebSettingsImpl::setDefaultDeviceScaleFactor(int defaultDeviceScaleFactor)
-{
-    m_settings->setDefaultDeviceScaleFactor(defaultDeviceScaleFactor);
-}
-
-int WebSettingsImpl::defaultDeviceScaleFactor()
-{
-    return m_settings->defaultDeviceScaleFactor();
-}
-
 void WebSettingsImpl::setDeviceSupportsTouch(bool deviceSupportsTouch)
 {
     m_settings->setDeviceSupportsTouch(deviceSupportsTouch);
+}
+
+void WebSettingsImpl::setDeviceSupportsMouse(bool deviceSupportsMouse)
+{
+    m_settings->setDeviceSupportsMouse(deviceSupportsMouse);
 }
 
 bool WebSettingsImpl::deviceSupportsTouch()
@@ -337,6 +338,11 @@ void WebSettingsImpl::setExperimentalCSSCustomFilterEnabled(bool enabled)
     m_settings->setCSSCustomFilterEnabled(enabled);
 }
 
+void WebSettingsImpl::setExperimentalCSSVariablesEnabled(bool enabled)
+{
+    m_settings->setCSSVariablesEnabled(enabled);
+}
+
 void WebSettingsImpl::setOpenGLMultisamplingEnabled(bool enabled)
 {
     m_settings->setOpenGLMultisamplingEnabled(enabled);
@@ -386,6 +392,11 @@ void WebSettingsImpl::setAcceleratedCompositingEnabled(bool enabled)
 void WebSettingsImpl::setForceCompositingMode(bool enabled)
 {
     m_settings->setForceCompositingMode(enabled);
+}
+
+void WebSettingsImpl::setForceSoftwareCompositing(bool enabled)
+{
+    m_forceSoftwareCompositing = enabled;
 }
 
 void WebSettingsImpl::setMockScrollbarsEnabled(bool enabled)
@@ -586,21 +597,6 @@ void WebSettingsImpl::setAcceleratedPaintingEnabled(bool enabled)
     m_settings->setAcceleratedDrawingEnabled(enabled);
 }
 
-void WebSettingsImpl::setPerTilePaintingEnabled(bool enabled)
-{
-    m_settings->setPerTileDrawingEnabled(enabled);
-}
-
-void WebSettingsImpl::setPartialSwapEnabled(bool enabled)
-{
-    m_settings->setPartialSwapEnabled(enabled);
-}
-
-void WebSettingsImpl::setThreadedAnimationEnabled(bool enabled)
-{
-    m_settings->setThreadedAnimationEnabled(enabled);
-}
-
 void WebSettingsImpl::setMediaPlaybackRequiresUserGesture(bool required)
 {
     m_settings->setMediaPlaybackRequiresUserGesture(required);
@@ -631,5 +627,9 @@ void WebSettingsImpl::setSyncXHRInDocumentsEnabled(bool enabled)
     m_settings->setSyncXHRInDocumentsEnabled(enabled);
 }
 
+void WebSettingsImpl::setCookieEnabled(bool enabled)
+{
+    m_settings->setCookieEnabled(enabled);
+}
 
 } // namespace WebKit

@@ -4,6 +4,7 @@ Applications outside of WebKit depend on the stability of the mapping of these t
 
 {
     Root : "Root"
+    Program : "Program"
     EventDispatch : "EventDispatch"
     BeginFrame : "BeginFrame"
     Layout : "Layout"
@@ -17,9 +18,11 @@ Applications outside of WebKit depend on the stability of the mapping of these t
     XHRReadyStateChange : "XHRReadyStateChange"
     XHRLoad : "XHRLoad"
     EvaluateScript : "EvaluateScript"
-    TimeStamp : "TimeStamp"
     MarkLoad : "MarkLoad"
     MarkDOMContent : "MarkDOMContent"
+    TimeStamp : "TimeStamp"
+    Time : "Time"
+    TimeEnd : "TimeEnd"
     ScheduleResourceRequest : "ScheduleResourceRequest"
     ResourceSendRequest : "ResourceSendRequest"
     ResourceReceiveResponse : "ResourceReceiveResponse"

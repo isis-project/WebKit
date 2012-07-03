@@ -52,7 +52,7 @@
 #include <wtf/HashSet.h>
 #include <wtf/text/CString.h>
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
 #include "texmap/TextureMapper.h"
 #endif
 
@@ -81,7 +81,7 @@ void MediaPlayerPrivateQt::getSupportedTypes(HashSet<String> &supported)
     }
 }
 
-MediaPlayer::SupportsType MediaPlayerPrivateQt::supportsType(const String& mime, const String& codec)
+MediaPlayer::SupportsType MediaPlayerPrivateQt::supportsType(const String& mime, const String& codec, const KURL&)
 {
     if (!mime.startsWith("audio/") && !mime.startsWith("video/"))
         return MediaPlayer::IsNotSupported;
@@ -116,6 +116,7 @@ MediaPlayerPrivateQt::MediaPlayerPrivateQt(MediaPlayer* player)
     , m_isSeeking(false)
     , m_composited(false)
     , m_preload(MediaPlayer::Auto)
+    , m_bytesLoadedAtLastDidLoadingProgress(0)
     , m_suppressNextPlaybackChanged(false)
 {
     m_mediaPlayer->setVideoOutput(m_videoItem);
@@ -361,13 +362,17 @@ float MediaPlayerPrivateQt::maxTimeSeekable() const
     return static_cast<float>(m_mediaPlayerControl->availablePlaybackRanges().latestTime()) / 1000.0f;
 }
 
-unsigned MediaPlayerPrivateQt::bytesLoaded() const
+bool MediaPlayerPrivateQt::didLoadingProgress() const
 {
+    unsigned bytesLoaded = 0;
     QLatin1String bytesLoadedKey("bytes-loaded");
     if (m_mediaPlayer->availableExtendedMetaData().contains(bytesLoadedKey))
-        return m_mediaPlayer->extendedMetaData(bytesLoadedKey).toInt();
-
-    return m_mediaPlayer->bufferStatus();
+        bytesLoaded = m_mediaPlayer->extendedMetaData(bytesLoadedKey).toInt();
+    else
+        bytesLoaded = m_mediaPlayer->bufferStatus();
+    bool didLoadingProgress = bytesLoaded != m_bytesLoadedAtLastDidLoadingProgress;
+    m_bytesLoadedAtLastDidLoadingProgress = bytesLoaded;
+    return didLoadingProgress;
 }
 
 unsigned MediaPlayerPrivateQt::totalBytes() const
@@ -608,7 +613,7 @@ void MediaPlayerPrivateQt::repaint()
 
 }
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
 void MediaPlayerPrivateQt::paintToTextureMapper(TextureMapper* textureMapper, const FloatRect& targetRect, const TransformationMatrix& matrix, float opacity, BitmapTexture*) const
 {
         GraphicsContext* context = textureMapper->graphicsContext();

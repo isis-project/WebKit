@@ -126,6 +126,9 @@ public:
     virtual v8::Handle<v8::Value> createFileSystem(WebFileSystem::Type,
                                                    const WebString& name,
                                                    const WebString& path);
+    virtual v8::Handle<v8::Value> createSerializableFileSystem(WebFileSystem::Type,
+                                                               const WebString& name,
+                                                               const WebString& path);
     virtual v8::Handle<v8::Value> createFileEntry(WebFileSystem::Type,
                                                   const WebString& fileSystemName,
                                                   const WebString& fileSystemPath,
@@ -133,6 +136,7 @@ public:
                                                   bool isDirectory);
 #endif
     virtual void reload(bool ignoreCache);
+    virtual void reloadWithOverrideURL(const WebURL& overrideUrl, bool ignoreCache);
     virtual void loadRequest(const WebURLRequest&);
     virtual void loadHistoryItem(const WebHistoryItem&);
     virtual void loadData(
@@ -171,6 +175,7 @@ public:
     virtual void enableContinuousSpellChecking(bool);
     virtual bool isContinuousSpellCheckingEnabled() const;
     virtual void requestTextChecking(const WebElement&);
+    virtual void replaceMisspelledRange(const WebString&);
     virtual bool hasSelection() const;
     virtual WebRange selectionRange() const;
     virtual WebString selectionAsText() const;
@@ -217,12 +222,11 @@ public:
         const WebSecurityOrigin& intendedTargetOrigin,
         const WebDOMEvent&);
 
-    virtual void deliverIntent(const WebIntent&, WebDeliveredIntentClient*);
+    virtual void deliverIntent(const WebIntent&, WebMessagePortChannelArray*, WebDeliveredIntentClient*);
 
     virtual WebString contentAsText(size_t maxChars) const;
     virtual WebString contentAsMarkup() const;
     virtual WebString renderTreeAsText(RenderAsTextControls toShow = RenderAsTextNormal) const;
-    virtual WebString counterValueForElementById(const WebString& id) const;
     virtual WebString markerTextForListItem(const WebElement&) const;
     virtual int pageNumberForElementById(const WebString& id,
                                          float pageWidthInPixels,
@@ -235,8 +239,8 @@ public:
     static PassRefPtr<WebFrameImpl> create(WebFrameClient* client);
     virtual ~WebFrameImpl();
 
-    // Called by the WebViewImpl to initialize its main frame:
-    void initializeAsMainFrame(WebViewImpl*);
+    // Called by the WebViewImpl to initialize the main frame for the page.
+    void initializeAsMainFrame(WebCore::Page*);
 
     PassRefPtr<WebCore::Frame> createChildFrame(
         const WebCore::FrameLoadRequest&, WebCore::HTMLFrameOwnerElement*);

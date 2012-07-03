@@ -43,6 +43,7 @@
 #include <WebKit2/WKBundleScriptWorld.h>
 #include <WebKit2/WKRetainPtr.h>
 #include <WebKit2/WebKit2.h>
+#include <wtf/CurrentTime.h>
 #include <wtf/HashMap.h>
 #include <wtf/text/StringBuilder.h>
 
@@ -51,40 +52,6 @@ namespace WTR {
 // This is lower than DumpRenderTree's timeout, to make it easier to work through the failures
 // Eventually it should be changed to match.
 const double LayoutTestController::waitToDumpWatchdogTimerInterval = 6;
-
-static JSValueRef propertyValue(JSContextRef context, JSObjectRef object, const char* propertyName)
-{
-    if (!object)
-        return 0;
-    JSRetainPtr<JSStringRef> propertyNameString(Adopt, JSStringCreateWithUTF8CString(propertyName));
-    JSValueRef exception;
-    return JSObjectGetProperty(context, object, propertyNameString.get(), &exception);
-}
-
-static JSObjectRef propertyObject(JSContextRef context, JSObjectRef object, const char* propertyName)
-{
-    JSValueRef value = propertyValue(context, object, propertyName);
-    if (!value || !JSValueIsObject(context, value))
-        return 0;
-    return const_cast<JSObjectRef>(value);
-}
-
-static JSObjectRef getElementById(WKBundleFrameRef frame, JSStringRef elementId)
-{
-    JSContextRef context = WKBundleFrameGetJavaScriptContext(frame);
-    JSObjectRef document = propertyObject(context, JSContextGetGlobalObject(context), "document");
-    if (!document)
-        return 0;
-    JSValueRef getElementById = propertyObject(context, document, "getElementById");
-    if (!getElementById || !JSValueIsObject(context, getElementById))
-        return 0;
-    JSValueRef elementIdValue = JSValueMakeString(context, elementId);
-    JSValueRef exception;
-    JSValueRef element = JSObjectCallAsFunction(context, const_cast<JSObjectRef>(getElementById), document, 1, &elementIdValue, &exception);
-    if (!element || !JSValueIsObject(context, element))
-        return 0;
-    return const_cast<JSObjectRef>(element);
-}
 
 PassRefPtr<LayoutTestController> LayoutTestController::create()
 {
@@ -254,16 +221,6 @@ JSValueRef LayoutTestController::computedStyleIncludingVisitedInfo(JSValueRef el
     return value;
 }
 
-JSRetainPtr<JSStringRef> LayoutTestController::counterValueForElementById(JSStringRef elementId)
-{
-    WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
-    JSObjectRef element = getElementById(mainFrame, elementId);
-    if (!element)
-        return 0;
-    WKRetainPtr<WKStringRef> value(AdoptWK, WKBundleFrameCopyCounterValue(mainFrame, const_cast<JSObjectRef>(element)));
-    return toJS(value);
-}
-
 JSRetainPtr<JSStringRef> LayoutTestController::markerTextForListItem(JSValueRef element)
 {
     WKBundleFrameRef mainFrame = WKBundlePageGetMainFrame(InjectedBundle::shared().page()->page());
@@ -371,6 +328,11 @@ void LayoutTestController::setFrameFlatteningEnabled(bool enabled)
     WKBundleSetFrameFlatteningEnabled(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
 }
 
+void LayoutTestController::setPluginsEnabled(bool enabled)
+{
+    WKBundleSetPluginsEnabled(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
+}
+
 void LayoutTestController::setGeolocationPermission(bool enabled)
 {
     WKBundleSetGeolocationPermission(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), enabled);
@@ -454,6 +416,7 @@ void LayoutTestController::clearBackForwardList()
 void LayoutTestController::makeWindowObject(JSContextRef context, JSObjectRef windowObject, JSValueRef* exception)
 {
     setProperty(context, windowObject, "layoutTestController", this, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, exception);
+    setProperty(context, windowObject, "testRunner", this, kJSPropertyAttributeReadOnly | kJSPropertyAttributeDontDelete, exception);
 }
 
 void LayoutTestController::showWebInspector()
@@ -653,6 +616,11 @@ void LayoutTestController::callSetBackingScaleFactorCallback()
 void LayoutTestController::overridePreference(JSStringRef preference, bool value)
 {
     WKBundleOverrideBoolPreferenceForTestRunner(InjectedBundle::shared().bundle(), InjectedBundle::shared().pageGroup(), toWK(preference).get(), value);
+}
+
+double LayoutTestController::preciseTime()
+{
+    return currentTime();
 }
 
 } // namespace WTR

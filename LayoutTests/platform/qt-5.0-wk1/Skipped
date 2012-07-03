@@ -27,12 +27,6 @@ fast/events/drag-selects-image.html
 # https://bugs.webkit.org/show_bug.cgi?id=79655
 http/tests/incremental/slow-utf8-text.pl
 
-# This platform does not support the Page Visibility API.
-fast/events/page-visibility-iframe-delete-test.html
-fast/events/page-visibility-iframe-move-test.html
-fast/events/page-visibility-iframe-propagation-test.html
-fast/events/page-visibility-transition-test.html
-
 # [Qt] REGRESSION: 360 tests started to fail with newer Qt5-WK1
 # https://bugs.webkit.org/show_bug.cgi?id=85631
 css1/basic/class_as_selector.html
@@ -322,7 +316,6 @@ svg/custom/object-sizing.xhtml
 svg/hixie/mixed/003.xml
 tables/mozilla/bugs/45621.html
 tables/mozilla/bugs/bug10269-2.html
-tables/mozilla/bugs/bug10296-1.html
 tables/mozilla/bugs/bug1055-1.html
 tables/mozilla/bugs/bug1188.html
 tables/mozilla/bugs/bug13105.html

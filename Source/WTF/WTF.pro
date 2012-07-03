@@ -12,6 +12,8 @@ CONFIG += staticlib
 
 VPATH += $$PWD/wtf
 
+INCLUDEPATH += $$PWD/wtf
+
 HEADERS += \
     Alignment.h \
     AlwaysInline.h \
@@ -50,6 +52,7 @@ HEADERS += \
     dtoa/utils.h \
     DynamicAnnotations.h \
     Encoder.h \
+    ExportMacros.h \
     FastAllocBase.h \
     FastMalloc.h \
     FixedArray.h \

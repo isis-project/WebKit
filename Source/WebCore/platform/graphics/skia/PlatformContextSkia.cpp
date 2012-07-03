@@ -122,7 +122,11 @@ PlatformContextSkia::State::State()
     , m_lineJoin(SkPaint::kDefault_Join)
     , m_dash(0)
     , m_textDrawingMode(TextModeFill)
+#if USE(LOW_QUALITY_IMAGE_INTERPOLATION)
+    , m_interpolationQuality(InterpolationLow)
+#else
     , m_interpolationQuality(InterpolationHigh)
+#endif
 {
 }
 
@@ -372,6 +376,7 @@ void PlatformContextSkia::setupShader(SkPaint* paint, Gradient* grad, Pattern* p
     } else if (pat) {
         shader = pat->platformPattern(m_gc->getCTM());
         color = SK_ColorBLACK;
+        paint->setFilterBitmap(interpolationQuality() != InterpolationNone);
     }
 
     paint->setColor(m_state->applyAlpha(color));

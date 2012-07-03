@@ -56,6 +56,7 @@
 #include <wtf/text/CString.h>
 
 #if ENABLE(MICRODATA)
+#include "HTMLPropertiesCollection.h"
 #include "MicroDataItemValue.h"
 #endif
 
@@ -578,7 +579,7 @@ void HTMLElement::insertAdjacentHTML(const String& where, const String& markup, 
     Element* contextElement = contextElementForInsertion(where, this, ec);
     if (!contextElement)
         return;
-    RefPtr<DocumentFragment> fragment = createFragmentForInnerOuterHTML(markup, this, AllowScriptingContent, ec);
+    RefPtr<DocumentFragment> fragment = createFragmentForInnerOuterHTML(markup, contextElement, AllowScriptingContent, ec);
     if (!fragment)
         return;
     insertAdjacent(where, fragment.get(), ec);
@@ -986,6 +987,11 @@ String HTMLElement::itemValueText() const
 void HTMLElement::setItemValueText(const String& value, ExceptionCode& ec)
 {
     setTextContent(value, ec);
+}
+
+HTMLPropertiesCollection* HTMLElement::properties()
+{
+    return static_cast<HTMLPropertiesCollection*>(ensureCachedHTMLCollection(ItemProperties));
 }
 #endif
 

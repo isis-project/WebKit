@@ -173,9 +173,12 @@ LayoutUnit RenderSVGRoot::computeReplacedLogicalWidth(bool includeMaxWidth) cons
     if (svg->widthAttributeEstablishesViewport())
         return resolveLengthAttributeForSVG(svg->intrinsicWidth(SVGSVGElement::IgnoreCSSProperties), style()->effectiveZoom(), containingBlock()->availableLogicalWidth(), view());
 
-    // Only SVGs embedded in <object> reach this point.
-    ASSERT(isEmbeddedThroughFrameContainingSVGDocument());
-    return document()->frame()->ownerRenderer()->availableLogicalWidth();
+    // SVG embedded through object/embed/iframe.
+    if (isEmbeddedThroughFrameContainingSVGDocument())
+        return document()->frame()->ownerRenderer()->availableLogicalWidth();
+
+    // SVG embedded via SVGImage (background-image/border-image/etc) / Inline SVG.
+    return RenderReplaced::computeReplacedLogicalWidth(includeMaxWidth);
 }
 
 LayoutUnit RenderSVGRoot::computeReplacedLogicalHeight() const
@@ -205,9 +208,12 @@ LayoutUnit RenderSVGRoot::computeReplacedLogicalHeight() const
         return resolveLengthAttributeForSVG(height, style()->effectiveZoom(), containingBlock()->availableLogicalHeight(), view());
     }
 
-    // Only SVGs embedded in <object> reach this point.
-    ASSERT(isEmbeddedThroughFrameContainingSVGDocument());
-    return document()->frame()->ownerRenderer()->availableLogicalHeight();
+    // SVG embedded through object/embed/iframe.
+    if (isEmbeddedThroughFrameContainingSVGDocument())
+        return document()->frame()->ownerRenderer()->availableLogicalHeight();
+
+    // SVG embedded via SVGImage (background-image/border-image/etc) / Inline SVG.
+    return RenderReplaced::computeReplacedLogicalHeight();
 }
 
 void RenderSVGRoot::layout()
@@ -404,19 +410,14 @@ const RenderObject* RenderSVGRoot::pushMappingToContainer(const RenderBoxModelOb
 
 void RenderSVGRoot::updateCachedBoundaries()
 {
-    m_objectBoundingBox = FloatRect();
-    m_objectBoundingBoxValid = false;
-    m_strokeBoundingBox = FloatRect();
-    m_repaintBoundingBox = FloatRect();
-
     SVGRenderSupport::computeContainerBoundingBoxes(this, m_objectBoundingBox, m_objectBoundingBoxValid, m_strokeBoundingBox, m_repaintBoundingBox);
     SVGRenderSupport::intersectRepaintRectWithResources(this, m_repaintBoundingBox);
     m_repaintBoundingBox.inflate(borderAndPaddingWidth());
 }
 
-bool RenderSVGRoot::nodeAtPoint(const HitTestRequest& request, HitTestResult& result, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction hitTestAction)
+bool RenderSVGRoot::nodeAtPoint(const HitTestRequest& request, HitTestResult& result, const HitTestPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction hitTestAction)
 {
-    LayoutPoint pointInParent = pointInContainer - toLayoutSize(accumulatedOffset);
+    LayoutPoint pointInParent = pointInContainer.point() - toLayoutSize(accumulatedOffset);
     LayoutPoint pointInBorderBox(pointInParent.x() - x(), pointInParent.y() - y());
 
     // Note: For now, we're ignoring hits to border and padding for <svg>

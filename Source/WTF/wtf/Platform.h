@@ -468,19 +468,18 @@
 /* USE(SKIA) for Win/Linux/Mac/Android */
 #if PLATFORM(CHROMIUM)
 #if OS(DARWIN)
-#if USE(SKIA_ON_MAC_CHROMIUM)
 #define WTF_USE_SKIA 1
-#else
-#define WTF_USE_CG 1
-#endif
 #define WTF_USE_ATSUI 1
 #define WTF_USE_CORE_TEXT 1
 #define WTF_USE_ICCJPEG 1
+#define WTF_USE_QCMSLIB 1
 #elif OS(ANDROID)
 #define WTF_USE_SKIA 1
+#define WTF_USE_LOW_QUALITY_IMAGE_INTERPOLATION 1
 #else
 #define WTF_USE_SKIA 1
-#define WTF_USE_CHROMIUM_NET 1
+#define WTF_USE_ICCJPEG 1
+#define WTF_USE_QCMSLIB 1
 #endif
 #endif
 
@@ -492,6 +491,7 @@
 
 #if PLATFORM(GTK)
 #define WTF_USE_CAIRO 1
+#define ENABLE_GLOBAL_FASTMALLOC_NEW 0
 #endif
 
 #ifdef PALM_DEVICE
@@ -533,10 +533,10 @@
 #endif
 
 #if PLATFORM(MAC) && !PLATFORM(IOS)
-#if !defined(BUILDING_ON_LEOPARD) && CPU(X86_64)
+#if CPU(X86_64)
 #define WTF_USE_PLUGIN_HOST_PROCESS 1
 #endif
-#if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+#if !defined(BUILDING_ON_SNOW_LEOPARD)
 #define ENABLE_GESTURE_EVENTS 1
 #define ENABLE_RUBBER_BANDING 1
 #define WTF_USE_SCROLLBAR_PAINTER 1
@@ -559,7 +559,7 @@
 #if defined(ENABLE_VIDEO)
 #define ENABLE_VIDEO_TRACK 1
 #endif
-#if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
 #define HAVE_LAYER_HOSTING_IN_WINDOW_SERVER 1
 #endif
 #define WTF_USE_APPKIT 1
@@ -654,12 +654,7 @@
 #endif
 #endif
 
-#if PLATFORM(GTK)
-#if HAVE(PTHREAD_H)
-#define WTF_USE_PTHREADS 1
-#define HAVE_PTHREAD_RWLOCK 1
-#endif
-#elif PLATFORM(QT) && OS(UNIX)
+#if OS(UNIX) && (PLATFORM(GTK) || PLATFORM(QT))
 #define WTF_USE_PTHREADS 1
 #define HAVE_PTHREAD_RWLOCK 1
 #endif
@@ -886,9 +881,24 @@
 #define ENABLE_JIT 1
 #endif
 
+/* If possible, try to enable a disassembler. This is optional. We proceed in two
+   steps: first we try to find some disassembler that we can use, and then we
+   decide if the high-level disassembler API can be enabled. */
+#if !defined(WTF_USE_UDIS86) && ENABLE(JIT) && PLATFORM(MAC) && (CPU(X86) || CPU(X86_64))
+#define WTF_USE_UDIS86 1
+#endif
+
+#if !defined(ENABLE_DISASSEMBLER) && USE(UDIS86)
+#define ENABLE_DISASSEMBLER 1
+#endif
+
 /* On some of the platforms where we have a JIT, we want to also have the 
    low-level interpreter. */
-#if !defined(ENABLE_LLINT) && ENABLE(JIT) && (OS(DARWIN) && !PLATFORM(QT)) && (CPU(X86) || CPU(X86_64) || CPU(ARM_THUMB2))
+#if !defined(ENABLE_LLINT) \
+    && ENABLE(JIT) \
+    && (OS(DARWIN) || OS(LINUX)) \
+    && (PLATFORM(MAC) || PLATFORM(IOS) || PLATFORM(GTK)) \
+    && (CPU(X86) || CPU(X86_64) || CPU(ARM_THUMB2))
 #define ENABLE_LLINT 1
 #endif
 
@@ -990,13 +1000,8 @@
 
 #if PLATFORM(MAC)
 /* Complex text framework */
-#ifndef BUILDING_ON_LEOPARD
 #define WTF_USE_ATSUI 0
 #define WTF_USE_CORE_TEXT 1
-#else
-#define WTF_USE_ATSUI 1
-#define WTF_USE_CORE_TEXT 0
-#endif
 #endif
 
 /* Accelerated compositing */
@@ -1013,15 +1018,15 @@
 #define WTF_USE_UI_SIDE_COMPOSITING 1
 #endif
 
-#if (PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD)) || PLATFORM(IOS)
+#if PLATFORM(MAC) || PLATFORM(IOS)
 #define WTF_USE_PROTECTION_SPACE_AUTH_CALLBACK 1
 #endif
 
-#if !ENABLE(NETSCAPE_PLUGIN_API) || (ENABLE(NETSCAPE_PLUGIN_API) && ((OS(UNIX) && (PLATFORM(QT) || PLATFORM(WX))) || PLATFORM(GTK) || PLATFORM(EFL)))
+#if !ENABLE(NETSCAPE_PLUGIN_API) || (ENABLE(NETSCAPE_PLUGIN_API) && ((OS(UNIX) && (PLATFORM(GTK) || PLATFORM(QT) || PLATFORM(WX))) || PLATFORM(EFL)))
 #define ENABLE_PLUGIN_PACKAGE_SIMPLE_HASH 1
 #endif
 
-#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+#if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
 #define ENABLE_THREADED_SCROLLING 1
 #endif
 
@@ -1029,7 +1034,7 @@
 #define WTF_PLATFORM_CFNETWORK Error USE_macro_should_be_used_with_CFNETWORK
 
 /* FIXME: Eventually we should enable this for all platforms and get rid of the define. */
-#if PLATFORM(IOS) || PLATFORM(MAC) || PLATFORM(WIN) || PLATFORM(QT) || PLATFORM(GTK)
+#if PLATFORM(IOS) || PLATFORM(MAC) || PLATFORM(WIN) || PLATFORM(QT) || PLATFORM(GTK) || PLATFORM(EFL)
 #define WTF_USE_PLATFORM_STRATEGIES 1
 #endif
 
@@ -1061,7 +1066,7 @@
    since most ports try to support sub-project independence, adding new headers
    to WTF causes many ports to break, and so this way we can address the build
    breakages one port at a time. */
-#if !defined(WTF_USE_EXPORT_MACROS) && (PLATFORM(MAC) || PLATFORM(QT) || PLATFORM(WX))
+#if !defined(WTF_USE_EXPORT_MACROS) && (PLATFORM(MAC) || PLATFORM(QT) || PLATFORM(WX) || PLATFORM(BLACKBERRY))
 #define WTF_USE_EXPORT_MACROS 1
 #endif
 
@@ -1069,11 +1074,13 @@
 #define WTF_USE_UNIX_DOMAIN_SOCKETS 1
 #endif
 
-#if !defined(ENABLE_COMPARE_AND_SWAP) && COMPILER(GCC) && (CPU(X86) || CPU(X86_64) || CPU(ARM_THUMB2))
+#if !defined(ENABLE_COMPARE_AND_SWAP) && (OS(WINDOWS) || (COMPILER(GCC) && (CPU(X86) || CPU(X86_64) || CPU(ARM_THUMB2))))
 #define ENABLE_COMPARE_AND_SWAP 1
 #endif
 
-#if !defined(ENABLE_PARALLEL_GC) && (PLATFORM(MAC) || PLATFORM(IOS) || PLATFORM(QT) || PLATFORM(BLACKBERRY)) && ENABLE(COMPARE_AND_SWAP)
+#define ENABLE_OBJECT_MARK_LOGGING 0
+
+#if !defined(ENABLE_PARALLEL_GC) && !ENABLE(OBJECT_MARK_LOGGING) && (PLATFORM(MAC) || PLATFORM(IOS) || PLATFORM(QT) || PLATFORM(BLACKBERRY)) && ENABLE(COMPARE_AND_SWAP)
 #define ENABLE_PARALLEL_GC 1
 #endif
 
@@ -1081,11 +1088,11 @@
 #define ENABLE_GC_VALIDATION 1
 #endif
 
-#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+#if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD)
 #define WTF_USE_AVFOUNDATION 1
 #endif
 
-#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+#if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
 #define WTF_USE_COREMEDIA 1
 #endif
 
@@ -1097,7 +1104,7 @@
 #define WTF_USE_REQUEST_ANIMATION_FRAME_DISPLAY_MONITOR 1
 #endif
 
-#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+#if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD)
 #define HAVE_INVERTED_WHEEL_EVENTS 1
 #endif
 
@@ -1120,6 +1127,13 @@
 
 #if !defined(WTF_USE_ZLIB) && !PLATFORM(QT)
 #define WTF_USE_ZLIB 1
+#endif
+
+#if PLATFORM(QT)
+#include <qglobal.h>
+#if defined(QT_OPENGL_ES_2) && !defined(WTF_USE_OPENGL_ES_2)
+#define WTF_USE_OPENGL_ES_2 1
+#endif
 #endif
 
 #endif /* WTF_Platform_h */

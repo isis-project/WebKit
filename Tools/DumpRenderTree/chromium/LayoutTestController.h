@@ -324,9 +324,6 @@ public:
     // Resets between tests.
     void setPOSIXLocale(const CppArgumentList&, CppVariant*);
 
-    // Gets the value of the counter in the element specified by its ID.
-    void counterValueForElementById(const CppArgumentList&, CppVariant*);
-
     // Causes layout to happen as if targetted to printed pages.
     void setPrinting(const CppArgumentList&, CppVariant*);
 
@@ -374,6 +371,11 @@ public:
 #if ENABLE(INPUT_SPEECH)
     void addMockSpeechInputResult(const CppArgumentList&, CppVariant*);
     void setMockSpeechInputDumpRect(const CppArgumentList&, CppVariant*);
+#endif
+#if ENABLE(SCRIPTED_SPEECH)
+    void addMockSpeechRecognitionResult(const CppArgumentList&, CppVariant*);
+    void setMockSpeechRecognitionError(const CppArgumentList&, CppVariant*);
+    void wasMockSpeechRecognitionAborted(const CppArgumentList&, CppVariant*);
 #endif
     void startSpeechInput(const CppArgumentList&, CppVariant*);
 
@@ -443,6 +445,21 @@ public:
 
     // Cause the web intent to be delivered to this context.
     void deliverWebIntent(const CppArgumentList&, CppVariant*);
+
+    // Enables or disables subpixel positioning (i.e. fractional X positions for
+    // glyphs) in text rendering on Linux. Since this method changes global
+    // settings, tests that call it must use their own custom font family for
+    // all text that they render. If not, an already-cached style will be used,
+    // resulting in the changed setting being ignored.
+    void setTextSubpixelPositioning(const CppArgumentList&, CppVariant*);
+
+    // Used to set the device scale factor.
+    void setBackingScaleFactor(const CppArgumentList&, CppVariant*);
+
+    // Retrieves the text surrounding a position in a text node.
+    // The first child of the element given y its id will be used as reference,
+    // or its next sibling if not present. It must be a text node.
+    void textSurroundingElement(const CppArgumentList&, CppVariant*);
 
 public:
     // The following methods are not exposed to JavaScript.

@@ -79,7 +79,7 @@ MS_TRUETYPE_FONTS_DIR = '/usr/share/fonts/truetype/msttcorefonts/'
 # Timeout in seconds to wait for start/stop of DumpRenderTree.
 DRT_START_STOP_TIMEOUT_SECS = 10
 
-# List of fonts that layout tests expect, copied from DumpRenderTree/gtk/TestShellGtk.cpp.
+# List of fonts that layout tests expect, copied from DumpRenderTree/gtk/TestShellX11.cpp.
 HOST_FONT_FILES = [
     [MS_TRUETYPE_FONTS_DIR, 'Arial.ttf'],
     [MS_TRUETYPE_FONTS_DIR, 'Arial_Bold.ttf'],
@@ -108,9 +108,12 @@ HOST_FONT_FILES = [
     [MS_TRUETYPE_FONTS_DIR, 'Verdana_Bold.ttf'],
     [MS_TRUETYPE_FONTS_DIR, 'Verdana_Bold_Italic.ttf'],
     [MS_TRUETYPE_FONTS_DIR, 'Verdana_Italic.ttf'],
+    # The Microsoft font EULA
+    ['/usr/share/doc/ttf-mscorefonts-installer/', 'READ_ME!.gz'],
+    ['/usr/share/fonts/truetype/ttf-dejavu/', 'DejaVuSans.ttf'],
 ]
 # Should increase this version after changing HOST_FONT_FILES.
-FONT_FILES_VERSION = 1
+FONT_FILES_VERSION = 2
 
 DEVICE_FONTS_DIR = DEVICE_DRT_DIR + 'fonts/'
 
@@ -151,6 +154,12 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
 
     def __init__(self, host, port_name, **kwargs):
         chromium.ChromiumPort.__init__(self, host, port_name, **kwargs)
+
+        # FIXME: Stop using test_shell mode: https://bugs.webkit.org/show_bug.cgi?id=88542
+        if not hasattr(self._options, 'additional_drt_flag'):
+            self._options.additional_drt_flag = []
+        if not '--test-shell' in self._options.additional_drt_flag:
+            self._options.additional_drt_flag.append('--test-shell')
 
         # The Chromium port for Android always uses the hardware GPU path.
         self._options.enable_hardware_gpu = True
@@ -204,16 +213,21 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
                 return False
         return True
 
+    # FIXME: Remove this function when chromium-android is fully upstream.
+    def expectations_files(self):   
+        android_expectations_file = self.path_from_webkit_base('LayoutTests', 'platform', 'chromium', 'test_expectations_android.txt')
+        return super(ChromiumAndroidPort, self).expectations_files() + [android_expectations_file]
+
     def test_expectations(self):
         # Automatically apply all expectation rules of chromium-linux to
         # chromium-android.
         # FIXME: This is a temporary measure to reduce the manual work when
         # updating WebKit. This method should be removed when we merge
-        # test_expectations_android.txt into test_expectations.txt.
+        # test_expectations_android.txt into TestExpectations.
         expectations = chromium.ChromiumPort.test_expectations(self)
         return expectations.replace('LINUX ', 'LINUX ANDROID ')
 
-    def start_http_server(self, additional_dirs=None):
+    def start_http_server(self, additional_dirs=None, number_of_servers=0):
         # The http server runs during the whole testing period, so ignore this call.
         pass
 
@@ -267,7 +281,7 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
     def _path_to_driver(self, configuration=None):
         if not configuration:
             configuration = self.get_option('configuration')
-        return self._build_path(configuration, 'DumpRenderTree_apk/ChromeNativeTests-debug.apk')
+        return self._build_path(configuration, 'DumpRenderTree_apk/DumpRenderTree-debug.apk')
 
     def _path_to_helper(self):
         return self._build_path(self.get_option('configuration'), 'forwarder')
@@ -322,6 +336,10 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
                                  DEVICE_DRT_DIR + 'DumpRenderTree.pak')
             self._push_to_device(self._build_path(self.get_option('configuration'), 'DumpRenderTree_resources'),
                                  DEVICE_DRT_DIR + 'DumpRenderTree_resources')
+            self._push_to_device(self._build_path(self.get_option('configuration'), 'android_main_fonts.xml'),
+                                 DEVICE_DRT_DIR + 'android_main_fonts.xml')
+            self._push_to_device(self._build_path(self.get_option('configuration'), 'android_fallback_fonts.xml'),
+                                 DEVICE_DRT_DIR + 'android_fallback_fonts.xml')
             # Version control of test resources is dependent on executables,
             # because we will always rebuild executables when resources are
             # updated.
@@ -335,6 +353,7 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
             self._push_to_device(path_to_ahem_font, DEVICE_FONTS_DIR + 'AHEM____.TTF')
             for (host_dir, font_file) in HOST_FONT_FILES:
                 self._push_to_device(host_dir + font_file, DEVICE_FONTS_DIR + font_file)
+            self._link_device_file('/system/fonts/DroidSansFallback.ttf', DEVICE_FONTS_DIR + 'DroidSansFallback.ttf')
             self._update_version(DEVICE_FONTS_DIR, FONT_FILES_VERSION)
 
     def _push_test_resources(self):
@@ -374,9 +393,10 @@ class ChromiumAndroidPort(chromium.ChromiumPort):
         _log.debug('Run adb result:\n' + result)
         return result
 
-    def _copy_device_file(self, from_file, to_file, ignore_error=False):
-        # 'cp' is unavailable on Android, so use 'dd' instead.
-        return self._run_adb_command(['shell', 'dd', 'if=' + from_file, 'of=' + to_file], ignore_error)
+    def _link_device_file(self, from_file, to_file, ignore_error=False):
+        # rm to_file first to make sure that ln succeeds.
+        self._run_adb_command(['shell', 'rm', to_file], ignore_error)
+        return self._run_adb_command(['shell', 'ln', '-s', from_file, to_file], ignore_error)
 
     def _push_to_device(self, host_path, device_path, ignore_error=False):
         return self._run_adb_command(['push', host_path, device_path], ignore_error)
@@ -477,9 +497,23 @@ class ChromiumAndroidDriver(chromium.ChromiumDriver):
 
         ChromiumAndroidDriver._started_driver = self
 
+        retries = 0
+        while not self._start_once(pixel_tests, per_test_args):
+            _log.error('Failed to start DumpRenderTree application. Log:\n' + self._port._get_logcat())
+            retries += 1
+            if retries >= 3:
+                raise AssertionError('Failed to start DumpRenderTree application multiple times. Give up.')
+            self.stop()
+            time.sleep(2)
+
+    def _start_once(self, pixel_tests, per_test_args):
         self._port._run_adb_command(['logcat', '-c'])
         self._port._run_adb_command(['shell', 'echo'] + self.cmd_line(pixel_tests, per_test_args) + ['>', COMMAND_LINE_FILE])
-        self._port._run_adb_command(['shell', 'am', 'start', '-n', DRT_ACTIVITY_FULL_NAME])
+        start_result = self._port._run_adb_command(['shell', 'am', 'start', '-n', DRT_ACTIVITY_FULL_NAME])
+        if start_result.find('Exception') != -1:
+            _log.error('Failed to start DumpRenderTree application. Exception:\n' + start_result)
+            return False
+
         seconds = 0
         while (not self._file_exists_on_device(self._in_fifo_path) or
                not self._file_exists_on_device(self._out_fifo_path) or
@@ -487,8 +521,7 @@ class ChromiumAndroidDriver(chromium.ChromiumDriver):
             time.sleep(1)
             seconds += 1
             if seconds >= DRT_START_STOP_TIMEOUT_SECS:
-                _log.error('Failed to start DumpRenderTreeApplication. Log:\n' + self._port._get_logcat())
-                raise AssertionError('Failed to start DumpRenderTree application.')
+                return False
 
         shell_cmd = self._port._adb_command + ['shell']
         executive = self._port._executive
@@ -531,7 +564,7 @@ class ChromiumAndroidDriver(chromium.ChromiumDriver):
         else:
             # Inform the deadlock detector that the startup is successful without deadlock.
             normal_startup_event.set()
-            return
+            return True
 
     def run_test(self, driver_input):
         driver_output = chromium.ChromiumDriver.run_test(self, driver_input)

@@ -60,7 +60,7 @@ v8::Handle<v8::Value> V8DataView::constructorCallback(const v8::Arguments& args)
 v8::Handle<v8::Value> toV8(DataView* impl, v8::Isolate* isolate)
 {
     if (!impl)
-        return v8::Null();
+        return v8NullWithCheck(isolate);
     return V8DataView::wrap(impl, isolate);
 }
 
@@ -76,7 +76,7 @@ v8::Handle<v8::Value> V8DataView::getInt8Callback(const v8::Arguments& args)
     int8_t result = imp->getInt8(byteOffset, ec);
     if (UNLIKELY(ec))
         return V8Proxy::setDOMException(ec, args.GetIsolate());
-    return v8::Integer::New(result);
+    return v8Integer(result, args.GetIsolate());
 }
 
 v8::Handle<v8::Value> V8DataView::getUint8Callback(const v8::Arguments& args)
@@ -91,7 +91,7 @@ v8::Handle<v8::Value> V8DataView::getUint8Callback(const v8::Arguments& args)
     uint8_t result = imp->getUint8(byteOffset, ec);
     if (UNLIKELY(ec))
         return V8Proxy::setDOMException(ec, args.GetIsolate());
-    return v8::Integer::New(result);
+    return v8Integer(result, args.GetIsolate());
 }
 
 v8::Handle<v8::Value> V8DataView::setInt8Callback(const v8::Arguments& args)

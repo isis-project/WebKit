@@ -36,6 +36,7 @@
 #include "FrameTestHelpers.h"
 #include "FrameView.h"
 #include "ResourceError.h"
+#include "WebDataSource.h"
 #include "WebDocument.h"
 #include "WebFindOptions.h"
 #include "WebFormElement.h"
@@ -225,13 +226,12 @@ TEST_F(WebFrameTest, DeviceScaleFactorUsesDefaultWithoutViewportTag)
     int viewportHeight = 480;
 
     FixedLayoutTestWebViewClient client;
-    client.m_screenInfo.horizontalDPI = 160;
+    client.m_screenInfo.horizontalDPI = 320;
     client.m_windowRect = WebRect(0, 0, viewportWidth, viewportHeight);
 
     WebView* webView = static_cast<WebView*>(FrameTestHelpers::createWebViewAndLoad(m_baseURL + "no_viewport_tag.html", true, 0, &client));
 
     webView->settings()->setViewportEnabled(true);
-    webView->settings()->setDefaultDeviceScaleFactor(2);
     webView->enableFixedLayoutMode(true);
     webView->resize(WebSize(viewportWidth, viewportHeight));
     webView->layout();
@@ -283,6 +283,28 @@ TEST_F(WebFrameTest, FixedLayoutInitializeAtMinimumPageScale)
     EXPECT_EQ(userPinchPageScaleFactor, webViewImpl->pageScaleFactor());
 }
 #endif
+
+TEST_F(WebFrameTest, CanOverrideMaximumScaleFactor)
+{
+    registerMockedHttpURLLoad("no_scale_for_you.html");
+
+    FixedLayoutTestWebViewClient client;
+    client.m_screenInfo.horizontalDPI = 160;
+    int viewportWidth = 640;
+    int viewportHeight = 480;
+    client.m_windowRect = WebRect(0, 0, viewportWidth, viewportHeight);
+
+    WebViewImpl* webViewImpl = static_cast<WebViewImpl*>(FrameTestHelpers::createWebViewAndLoad(m_baseURL + "no_scale_for_you.html", true, 0, &client));
+    webViewImpl->enableFixedLayoutMode(true);
+    webViewImpl->settings()->setViewportEnabled(true);
+    webViewImpl->resize(WebSize(viewportWidth, viewportHeight));
+
+    EXPECT_EQ(1.0f, webViewImpl->maximumPageScaleFactor());
+
+    webViewImpl->setIgnoreViewportTagMaximumScale(true);
+
+    EXPECT_EQ(4.0f, webViewImpl->maximumPageScaleFactor());
+}
 
 #if ENABLE(GESTURE_EVENTS)
 TEST_F(WebFrameTest, DivAutoZoomParamsTest)
@@ -395,6 +417,62 @@ TEST_F(WebFrameTest, ReloadDoesntSetRedirect)
     // start reload before request is delivered.
     webView->mainFrame()->reload(true);
     webkit_support::ServeAsynchronousMockedRequests();
+}
+
+TEST_F(WebFrameTest, ReloadWithOverrideURLPreservesState)
+{
+    const std::string firstURL = "find.html";
+    const std::string secondURL = "form.html";
+    const std::string thirdURL = "history.html";
+    const float pageScaleFactor = 1.1684f;
+    const int pageWidth = 640;
+    const int pageHeight = 480;
+
+    registerMockedHttpURLLoad(firstURL);
+    registerMockedHttpURLLoad(secondURL);
+    registerMockedHttpURLLoad(thirdURL);
+
+    WebViewImpl* webViewImpl = static_cast<WebViewImpl*>(FrameTestHelpers::createWebViewAndLoad(m_baseURL + firstURL, true));
+    webViewImpl->resize(WebSize(pageWidth, pageHeight));
+    webViewImpl->mainFrame()->setScrollOffset(WebSize(pageWidth / 4, pageHeight / 4));
+    webViewImpl->setPageScaleFactorPreservingScrollOffset(pageScaleFactor);
+
+    WebSize previousOffset = webViewImpl->mainFrame()->scrollOffset();
+    float previousScale = webViewImpl->pageScaleFactor();
+
+    // Reload the page using the cache.
+    webViewImpl->mainFrame()->reloadWithOverrideURL(GURL(m_baseURL + secondURL), false);
+    webkit_support::ServeAsynchronousMockedRequests();
+    ASSERT_EQ(previousOffset, webViewImpl->mainFrame()->scrollOffset());
+    ASSERT_EQ(previousScale, webViewImpl->pageScaleFactor());
+
+    // Reload the page while ignoring the cache.
+    webViewImpl->mainFrame()->reloadWithOverrideURL(GURL(m_baseURL + thirdURL), true);
+    webkit_support::ServeAsynchronousMockedRequests();
+    ASSERT_EQ(previousOffset, webViewImpl->mainFrame()->scrollOffset());
+    ASSERT_EQ(previousScale, webViewImpl->pageScaleFactor());
+}
+
+TEST_F(WebFrameTest, IframeRedirect)
+{
+    registerMockedHttpURLLoad("iframe_redirect.html");
+    registerMockedHttpURLLoad("visible_iframe.html");
+
+    WebView* webView = FrameTestHelpers::createWebViewAndLoad(m_baseURL + "iframe_redirect.html", true);
+    webkit_support::RunAllPendingMessages(); // Queue the iframe.
+    webkit_support::ServeAsynchronousMockedRequests(); // Load the iframe.
+
+    WebFrame* iframe = webView->findFrameByName(WebString::fromUTF8("ifr"));
+    ASSERT_TRUE(iframe);
+    WebDataSource* iframeDataSource = iframe->dataSource();
+    ASSERT_TRUE(iframeDataSource);
+    WebVector<WebURL> redirects;
+    iframeDataSource->redirectChain(redirects);
+    ASSERT_EQ(2U, redirects.size());
+    EXPECT_EQ(GURL("about:blank"), GURL(redirects[0]));
+    EXPECT_EQ(GURL("http://www.test.com/visible_iframe.html"), GURL(redirects[1]));
+
+    webView->close();
 }
 
 TEST_F(WebFrameTest, ClearFocusedNodeTest)
@@ -641,6 +719,87 @@ TEST_F(WebFrameTest, FindInPage)
     EXPECT_EQ(WebString::fromUTF8("DIV"), frame->document().focusedNode().nodeName());
 
     webView->close();
+}
+
+TEST_F(WebFrameTest, GetContentAsPlainText)
+{
+    WebView* webView = FrameTestHelpers::createWebViewAndLoad("about:blank", true);
+    // We set the size because it impacts line wrapping, which changes the
+    // resulting text value.
+    webView->resize(WebSize(640, 480));
+    WebFrame* frame = webView->mainFrame();
+
+    // Generate a simple test case.
+    const char simpleSource[] = "<div>Foo bar</div><div></div>baz";
+    GURL testURL("about:blank");
+    frame->loadHTMLString(simpleSource, testURL);
+    webkit_support::RunAllPendingMessages();
+
+    // Make sure it comes out OK.
+    const std::string expected("Foo bar\nbaz");
+    WebString text = frame->contentAsText(std::numeric_limits<size_t>::max());
+    EXPECT_EQ(expected, std::string(text.utf8()));
+
+    // Try reading the same one with clipping of the text.
+    const int length = 5;
+    text = frame->contentAsText(length);
+    EXPECT_EQ(expected.substr(0, length), std::string(text.utf8()));
+
+    // Now do a new test with a subframe.
+    const char outerFrameSource[] = "Hello<iframe></iframe> world";
+    frame->loadHTMLString(outerFrameSource, testURL);
+    webkit_support::RunAllPendingMessages();
+
+    // Load something into the subframe.
+    WebFrame* subframe = frame->findChildByExpression(WebString::fromUTF8("/html/body/iframe"));
+    ASSERT_TRUE(subframe);
+    subframe->loadHTMLString("sub<p>text", testURL);
+    webkit_support::RunAllPendingMessages();
+
+    text = frame->contentAsText(std::numeric_limits<size_t>::max());
+    EXPECT_EQ("Hello world\n\nsub\ntext", std::string(text.utf8()));
+
+    // Get the frame text where the subframe separator falls on the boundary of
+    // what we'll take. There used to be a crash in this case.
+    text = frame->contentAsText(12);
+    EXPECT_EQ("Hello world", std::string(text.utf8()));
+
+    webView->close();
+}
+
+TEST_F(WebFrameTest, GetFullHtmlOfPage)
+{
+    WebView* webView = FrameTestHelpers::createWebViewAndLoad("about:blank", true);
+    WebFrame* frame = webView->mainFrame();
+
+    // Generate a simple test case.
+    const char simpleSource[] = "<p>Hello</p><p>World</p>";
+    GURL testURL("about:blank");
+    frame->loadHTMLString(simpleSource, testURL);
+    webkit_support::RunAllPendingMessages();
+
+    WebString text = frame->contentAsText(std::numeric_limits<size_t>::max());
+    EXPECT_EQ("Hello\n\nWorld", std::string(text.utf8()));
+
+    const std::string html = frame->contentAsMarkup().utf8();
+
+    // Load again with the output html.
+    frame->loadHTMLString(html, testURL);
+    webkit_support::RunAllPendingMessages();
+
+    EXPECT_EQ(html, std::string(frame->contentAsMarkup().utf8()));
+
+    text = frame->contentAsText(std::numeric_limits<size_t>::max());
+    EXPECT_EQ("Hello\n\nWorld", std::string(text.utf8()));
+
+    // Test selection check
+    EXPECT_FALSE(frame->hasSelection());
+    frame->executeCommand(WebString::fromUTF8("SelectAll"));
+    EXPECT_TRUE(frame->hasSelection());
+    frame->executeCommand(WebString::fromUTF8("Unselect"));
+    EXPECT_FALSE(frame->hasSelection());
+    WebString selectionHtml = frame->selectionAsMarkup();
+    EXPECT_TRUE(selectionHtml.isEmpty());
 }
 
 } // namespace

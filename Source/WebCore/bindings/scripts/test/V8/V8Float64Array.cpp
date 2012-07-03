@@ -21,7 +21,7 @@
 #include "config.h"
 #include "V8Float64Array.h"
 
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "ExceptionCode.h"
 #include "RuntimeEnabledFeatures.h"
 #include "V8ArrayBufferView.h"
@@ -43,7 +43,7 @@
 
 namespace WebCore {
 
-WrapperTypeInfo V8Float64Array::info = { V8Float64Array::GetTemplate, V8Float64Array::derefObject, 0, &V8ArrayBufferView::info };
+WrapperTypeInfo V8Float64Array::info = { V8Float64Array::GetTemplate, V8Float64Array::derefObject, 0, 0, &V8ArrayBufferView::info, WrapperTypeObjectPrototype };
 
 namespace Float64ArrayV8Internal {
 

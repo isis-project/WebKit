@@ -39,7 +39,6 @@
 #include "InspectorBackendDispatcher.h"
 #include "InspectorController.h"
 #include "InspectorFrontend.h"
-#include "InspectorInstrumentation.h"
 #include "InspectorProtocolVersion.h"
 #include "MemoryCache.h"
 #include "Page.h"
@@ -232,13 +231,13 @@ public:
             return;
 
         frame->setTextZoomFactor(m_webView->emulatedTextZoomFactor());
-        WebSize scaledFrameSize = scaledEmulatedFrameSize(frame->view());
         ensureOriginalZoomFactor(frame->view());
-        double sizeRatio = static_cast<double>(scaledFrameSize.width) / m_emulatedFrameSize.width;
-        frame->setPageAndTextZoomFactors(sizeRatio * m_originalZoomFactor, m_webView->emulatedTextZoomFactor());
-        Document* doc = frame->document();
-        doc->styleResolverChanged(RecalcStyleImmediately);
-        doc->updateLayout();
+        Document* document = frame->document();
+        float numerator = document->renderView() ? document->renderView()->viewWidth() : frame->view()->contentsWidth();
+        float factor = m_originalZoomFactor * (numerator / m_emulatedFrameSize.width);
+        frame->setPageAndTextZoomFactors(factor, m_webView->emulatedTextZoomFactor());
+        document->styleResolverChanged(RecalcStyleImmediately);
+        document->updateLayout();
     }
 
     void webViewResized()
@@ -270,8 +269,7 @@ private:
         m_webView->setPageScaleFactor(1, WebPoint());
         m_webView->setZoomLevel(false, 0);
         WebSize scaledEmulatedSize = scaledEmulatedFrameSize(frameView);
-        Document* document = frameView->frame()->document();
-        double denominator = document->renderView() ? document->renderView()->viewWidth() : frameView->contentsWidth();
+        double denominator = frameView->contentsWidth();
         if (!denominator)
             denominator = 1;
         m_originalZoomFactor = static_cast<double>(scaledEmulatedSize.width) / denominator;

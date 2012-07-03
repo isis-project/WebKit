@@ -55,7 +55,7 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
 
 @interface WKFullScreenWindowController(Private)<NSAnimationDelegate>
 - (void)_updateMenuAndDockForFullScreen;
-- (void)_swapView:(NSView*)view with:(NSView*)otherView;
+- (void)_replaceView:(NSView*)view with:(NSView*)otherView;
 - (WebPageProxy*)_page;
 - (WebFullScreenManagerProxy*)_manager;
 - (void)_startEnterFullScreenAnimationWithDuration:(NSTimeInterval)duration;
@@ -183,6 +183,28 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
 #pragma mark -
 #pragma mark Exposed Interface
 
+static RetainPtr<CGDataProviderRef> createImageProviderWithCopiedData(CGDataProviderRef sourceProvider)
+{
+    RetainPtr<CFDataRef> data = adoptCF(CGDataProviderCopyData(sourceProvider));
+    return adoptCF(CGDataProviderCreateWithCFData(data.get()));
+}
+
+static RetainPtr<CGImageRef> createImageWithCopiedData(CGImageRef sourceImage)
+{
+    size_t width = CGImageGetWidth(sourceImage);
+    size_t height = CGImageGetHeight(sourceImage);
+    size_t bitsPerComponent = CGImageGetBitsPerComponent(sourceImage);
+    size_t bitsPerPixel = CGImageGetBitsPerPixel(sourceImage);
+    size_t bytesPerRow = CGImageGetBytesPerRow(sourceImage);
+    CGColorSpaceRef colorSpace = CGImageGetColorSpace(sourceImage);
+    CGBitmapInfo bitmapInfo = CGImageGetBitmapInfo(sourceImage);
+    RetainPtr<CGDataProviderRef> provider = createImageProviderWithCopiedData(CGImageGetDataProvider(sourceImage));
+    bool shouldInterpolate = CGImageGetShouldInterpolate(sourceImage);
+    CGColorRenderingIntent intent = CGImageGetRenderingIntent(sourceImage);
+
+    return adoptCF(CGImageCreate(width, height, bitsPerComponent, bitsPerPixel, bytesPerRow, colorSpace, bitmapInfo, provider.get(), 0, shouldInterpolate, intent));
+}
+
 - (void)enterFullScreen:(NSScreen *)screen
 {
     if (_isFullScreen)
@@ -204,12 +226,23 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
     CGWindowID windowID = [[_webView window] windowNumber];
     RetainPtr<CGImageRef> webViewContents(AdoptCF, CGWindowListCreateImage(NSRectToCGRect(webViewFrame), kCGWindowListOptionIncludingWindow, windowID, kCGWindowImageShouldBeOpaque));
 
-    // Screen updates to be re-enabled in beganEnterFullScreenWithInitialFrame:finalFrame:
+    // Using the returned CGImage directly would result in calls to the WindowServer every time
+    // the image was painted. Instead, copy the image data into our own process to eliminate that
+    // future overhead.
+    webViewContents = createImageWithCopiedData(webViewContents.get());
+
+    // Screen updates to be re-enabled in _startEnterFullScreenAnimationWithDuration:
     NSDisableScreenUpdates();
     [[self window] setAutodisplay:NO];
 
     NSResponder *webWindowFirstResponder = [[_webView window] firstResponder];
     [[self window] setFrame:screenFrame display:NO];
+
+    // Painting is normally suspended when the WKView is removed from the window, but this is
+    // unnecessary in the full-screen animation case, and can cause bugs; see
+    // https://bugs.webkit.org/show_bug.cgi?id=88940 and https://bugs.webkit.org/show_bug.cgi?id=88374
+    // We will resume the normal behavior in _startEnterFullScreenAnimationWithDuration:
+    [_webView _setSuppressVisibilityUpdates:YES];
 
     // Swap the webView placeholder into place.
     if (!_webViewPlaceholder) {
@@ -218,7 +251,7 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
         [_webViewPlaceholder.get() setWantsLayer:YES];
     }
     [[_webViewPlaceholder.get() layer] setContents:(id)webViewContents.get()];
-    [self _swapView:_webView with:_webViewPlaceholder.get()];
+    [self _replaceView:_webView with:_webViewPlaceholder.get()];
     
     // Then insert the WebView into the full screen window
     NSView* contentView = [[self window] contentView];
@@ -295,9 +328,13 @@ static const NSTimeInterval DefaultWatchdogTimerInterval = 1;
         return;
     _isFullScreen = NO;
 
-    // Screen updates to be re-enabled in beganExitFullScreenWithInitialFrame:finalFrame:
+    // Screen updates to be re-enabled in _startExitFullScreenAnimationWithDuration:
     NSDisableScreenUpdates();
     [[self window] setAutodisplay:NO];
+
+    // See the related comment in enterFullScreen:
+    // We will resume the normal behavior in _startExitFullScreenAnimationWithDuration:
+    [_webView _setSuppressVisibilityUpdates:YES];
 
     [self _manager]->setAnimatingFullScreen(true);
     [self _manager]->willExitFullScreen();
@@ -353,7 +390,7 @@ static void completeFinishExitFullScreenAnimationAfterRepaint(WKErrorRef, void*)
     [[_webViewPlaceholder.get() window] setAutodisplay:NO];
 
     NSResponder *firstResponder = [[self window] firstResponder];
-    [self _swapView:_webViewPlaceholder.get() with:_webView];
+    [self _replaceView:_webViewPlaceholder.get() with:_webView];
     [[_webView window] makeResponder:firstResponder firstResponderIfDescendantOfView:_webView];
 
     NSRect windowBounds = [[self window] frame];
@@ -460,7 +497,7 @@ static void completeFinishExitFullScreenAnimationAfterRepaint(WKErrorRef, void* 
     return webPage->fullScreenManager();
 }
 
-- (void)_swapView:(NSView*)view with:(NSView*)otherView
+- (void)_replaceView:(NSView*)view with:(NSView*)otherView
 {
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -539,6 +576,7 @@ static NSRect windowFrameFromApparentFrames(NSRect screenFrame, NSRect initialFr
 
     [_backgroundWindow.get() orderWindow:NSWindowBelow relativeTo:[[self window] windowNumber]];
 
+    [_webView _setSuppressVisibilityUpdates:NO];
     [[self window] setAutodisplay:YES];
     [[self window] displayIfNeeded];
     NSEnableScreenUpdates();
@@ -583,6 +621,7 @@ static NSRect windowFrameFromApparentFrames(NSRect screenFrame, NSRect initialFr
     finalBounds.origin = [[self window] convertScreenToBase:finalBounds.origin];
     WKWindowSetClipRect([self window], finalBounds);
 
+    [_webView _setSuppressVisibilityUpdates:NO];
     [[self window] setAutodisplay:YES];
     [[self window] displayIfNeeded];
     NSEnableScreenUpdates();

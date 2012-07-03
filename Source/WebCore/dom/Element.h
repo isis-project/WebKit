@@ -142,7 +142,7 @@ public:
     bool hasAttribute(const String& name) const;
     bool hasAttributeNS(const String& namespaceURI, const String& localName) const;
 
-    const AtomicString& getAttribute(const String& name) const;
+    const AtomicString& getAttribute(const AtomicString& name) const;
     const AtomicString& getAttributeNS(const String& namespaceURI, const String& localName) const;
 
     void setAttribute(const AtomicString& name, const AtomicString& value, ExceptionCode&);
@@ -165,7 +165,7 @@ public:
     Attribute* attributeItem(unsigned index) const;
     Attribute* getAttributeItem(const QualifiedName&) const;
     size_t getAttributeItemIndex(const QualifiedName& name) const { return attributeData()->getAttributeItemIndex(name); }
-    size_t getAttributeItemIndex(const String& name, bool shouldIgnoreAttributeCase) const { return attributeData()->getAttributeItemIndex(name, shouldIgnoreAttributeCase); }
+    size_t getAttributeItemIndex(const AtomicString& name, bool shouldIgnoreAttributeCase) const { return attributeData()->getAttributeItemIndex(name, shouldIgnoreAttributeCase); }
 
     void scrollIntoView(bool alignToTop = true);
     void scrollIntoViewIfNeeded(bool centerIfNeeded = true);
@@ -303,6 +303,7 @@ public:
     virtual String title() const;
 
     void updateId(const AtomicString& oldId, const AtomicString& newId);
+    void updateId(TreeScope*, const AtomicString& oldId, const AtomicString& newId);
     void updateName(const AtomicString& oldName, const AtomicString& newName);
 
     void willModifyAttribute(const QualifiedName&, const AtomicString& oldValue, const AtomicString& newValue);
@@ -377,7 +378,6 @@ public:
 
     virtual bool canContainRangeEndPoint() const { return true; }
 
-    virtual const AtomicString& formControlName() const { return nullAtom; }
     virtual const AtomicString& formControlType() const { return nullAtom; }
 
     virtual bool wasChangedSinceLastFormControlChangeEvent() const;
@@ -403,6 +403,10 @@ public:
     void webkitRequestFullscreen();
 #endif
 
+#if ENABLE(POINTER_LOCK)
+    void webkitRequestPointerLock();
+#endif
+
     virtual bool isSpellCheckingEnabled() const;
 
     PassRefPtr<WebKitAnimationList> webkitGetAnimations() const;
@@ -416,6 +420,14 @@ public:
 
     IntSize savedLayerScrollOffset() const;
     void setSavedLayerScrollOffset(const IntSize&);
+
+    virtual void reportMemoryUsage(MemoryObjectInfo* memoryObjectInfo) const
+    {
+        memoryObjectInfo->reportObjectInfo(this, MemoryInstrumentation::DOM);
+        ContainerNode::reportMemoryUsage(memoryObjectInfo);
+        memoryObjectInfo->reportInstrumentedObject(m_tagName);
+        memoryObjectInfo->reportInstrumentedPointer(m_attributeData.get());
+    }
 
 protected:
     Element(const QualifiedName& tagName, Document* document, ConstructionType type)
@@ -436,6 +448,7 @@ protected:
     virtual bool shouldRegisterAsExtraNamedItem() const { return false; }
 
     HTMLCollection* ensureCachedHTMLCollection(CollectionType);
+    HTMLCollection* cachedHTMLCollection(CollectionType);
 
 private:
     void updateInvalidAttributes() const;
@@ -477,9 +490,6 @@ private:
     QualifiedName m_tagName;
     virtual OwnPtr<NodeRareData> createRareData();
 
-    ElementRareData* rareData() const;
-    ElementRareData* ensureRareData();
-
     SpellcheckAttributeState spellcheckAttributeState() const;
 
     void updateNamedItemRegistration(const AtomicString& oldName, const AtomicString& newName);
@@ -488,6 +498,9 @@ private:
     void unregisterNamedFlowContentNode();
 
 private:
+    ElementRareData* elementRareData() const;
+    ElementRareData* ensureElementRareData();
+
     mutable OwnPtr<ElementAttributeData> m_attributeData;
 };
     
@@ -587,7 +600,14 @@ inline void Element::updateId(const AtomicString& oldId, const AtomicString& new
     if (oldId == newId)
         return;
 
-    TreeScope* scope = treeScope();
+    updateId(treeScope(), oldId, newId);
+}
+
+inline void Element::updateId(TreeScope* scope, const AtomicString& oldId, const AtomicString& newId)
+{
+    ASSERT(inDocument());
+    ASSERT(oldId != newId);
+
     if (!oldId.isEmpty())
         scope->removeElementById(oldId, this);
     if (!newId.isEmpty())

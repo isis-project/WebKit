@@ -1,3 +1,4 @@
+CONSOLE MESSAGE: line 8: hello
 Tests WebInspector extension API
 
 Started extension.
@@ -18,8 +19,22 @@ Panel created
         removeListener : <function>
     }
     createStatusBarButton : <function>
+    show : <function>
 }
 Extension panel size correct
+Panel shown
+RUNNING TEST: extension_testSearch
+Panel hidden
+Panel searched:
+{
+    0 : "performSearch"
+    1 : "hello"
+}
+Panel searched:
+{
+    0 : "cancelSearch"
+    1 : undefined
+}
 RUNNING TEST: extension_testStatusBarButtons
 Created a status bar button, dump follows:
 {

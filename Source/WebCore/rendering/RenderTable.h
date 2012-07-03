@@ -143,9 +143,12 @@ public:
 
     // This function returns 0 if the table has no section.
     RenderTableSection* topSection() const;
+    RenderTableSection* bottomSection() const;
 
     // This function returns 0 if the table has no non-empty sections.
     RenderTableSection* topNonEmptySection() const;
+
+    unsigned lastColumnIndex() const { return numEffCols() - 1; }
 
     void splitColumn(unsigned position, unsigned firstSpan);
     void appendColumn(unsigned span);
@@ -219,6 +222,9 @@ public:
         return createAnonymousWithParentRenderer(parent);
     }
 
+    const BorderValue& tableStartBorderAdjoiningCell(const RenderTableCell*) const;
+    const BorderValue& tableEndBorderAdjoiningCell(const RenderTableCell*) const;
+
 protected:
     virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle);
 
@@ -237,8 +243,8 @@ private:
     virtual void paintMask(PaintInfo&, const LayoutPoint&);
     virtual void layout();
     virtual void computePreferredLogicalWidths();
-    virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
-    
+    virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const HitTestPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction) OVERRIDE;
+
     virtual LayoutUnit firstLineBoxBaseline() const OVERRIDE;
     virtual LayoutUnit lastLineBoxBaseline() const OVERRIDE;
 

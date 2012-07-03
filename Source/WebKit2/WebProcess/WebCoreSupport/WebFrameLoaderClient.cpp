@@ -73,6 +73,12 @@
 #include <WebCore/Widget.h>
 #include <WebCore/WindowFeatures.h>
 
+#if ENABLE(WEB_INTENTS)
+#include "IntentData.h"
+#include "IntentServiceInfo.h"
+#include <WebCore/IntentRequest.h>
+#endif
+
 using namespace WebCore;
 
 namespace WebKit {
@@ -901,8 +907,17 @@ void WebFrameLoaderClient::finishedLoading(DocumentLoader* loader)
         }
     }
 
-    // Plugin view could have been created inside committedLoad().
     if (m_pluginView) {
+        // If we just received an empty response without any data, we won't have sent a response to the plug-in view.
+        // Make sure to do this before calling manualLoadDidFinishLoading.
+        if (!m_hasSentResponseToPluginView) {
+            m_pluginView->manualLoadDidReceiveResponse(loader->response());
+
+            // Protect against the above call nulling out the plug-in (by trying to cancel the load for example).
+            if (!m_pluginView)
+                return;
+        }
+
         m_pluginView->manualLoadDidFinishLoading();
         m_pluginView = 0;
         m_hasSentResponseToPluginView = false;
@@ -1215,6 +1230,8 @@ void WebFrameLoaderClient::transitionToCommittedForNewPage()
 
     m_frame->coreFrame()->createView(webPage->size(), backgroundColor, /* transparent */ false, IntSize(), shouldUseFixedLayout);
     m_frame->coreFrame()->view()->setTransparent(!webPage->drawsBackground());
+    if (shouldUseFixedLayout)
+        m_frame->coreFrame()->view()->setFixedVisibleContentRect(webPage->bounds());
 }
 
 void WebFrameLoaderClient::didSaveToPageCache()
@@ -1350,6 +1367,24 @@ PassRefPtr<Widget> WebFrameLoaderClient::createJavaAppletWidget(const IntSize& p
     }
     return plugin.release();
 }
+
+#if ENABLE(PLUGIN_PROXY_FOR_VIDEO)
+PassRefPtr<Widget> WebFrameLoaderClient::createMediaPlayerProxyPlugin(const IntSize&, HTMLMediaElement*, const KURL&, const Vector<String>&, const Vector<String>&, const String&)
+{
+    notImplemented();
+    return 0;
+}
+
+void WebFrameLoaderClient::hideMediaPlayerProxyPlugin(Widget*)
+{
+    notImplemented();
+}
+
+void WebFrameLoaderClient::showMediaPlayerProxyPlugin(Widget*)
+{
+    notImplemented();
+}
+#endif
 
 static bool pluginSupportsExtension(PluginData* pluginData, const String& extension)
 {
@@ -1514,6 +1549,45 @@ bool WebFrameLoaderClient::shouldCacheResponse(DocumentLoader*, unsigned long id
     return webPage->injectedBundleResourceLoadClient().shouldCacheResponse(webPage, m_frame, identifier);
 }
 #endif // PLATFORM(WIN) && USE(CFNETWORK)
+
+#if ENABLE(WEB_INTENTS)
+void WebFrameLoaderClient::dispatchIntent(PassRefPtr<IntentRequest> request)
+{
+    WebPage* webPage = m_frame->page();
+    if (!webPage)
+        return;
+
+    IntentData intentData;
+    Intent* coreIntent = request->intent();
+    ASSERT(coreIntent);
+    intentData.action = coreIntent->action();
+    intentData.type = coreIntent->type();
+    intentData.service = coreIntent->service();
+    intentData.data = coreIntent->data()->data();
+    intentData.extras = coreIntent->extras();
+    intentData.suggestions = coreIntent->suggestions();
+
+    webPage->send(Messages::WebPageProxy::DidReceiveIntentForFrame(m_frame->frameID(), intentData));
+}
+#endif
+
+#if ENABLE(WEB_INTENTS_TAG)
+void WebFrameLoaderClient::registerIntentService(const String& action, const String& type, const KURL& href, const String& title, const String& disposition)
+{
+    WebPage* webPage = m_frame->page();
+    if (!webPage)
+        return;
+
+    IntentServiceInfo serviceInfo;
+    serviceInfo.action = action;
+    serviceInfo.type = type;
+    serviceInfo.href = href;
+    serviceInfo.title = title;
+    serviceInfo.disposition = disposition;
+
+    webPage->send(Messages::WebPageProxy::RegisterIntentServiceForFrame(m_frame->frameID(), serviceInfo));
+}
+#endif
 
 bool WebFrameLoaderClient::shouldUsePluginDocument(const String& /*mimeType*/) const
 {

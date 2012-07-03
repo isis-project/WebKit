@@ -45,6 +45,7 @@ namespace WebCore {
 
 namespace WebKit {
 
+struct ColorSpaceData;
 class LayerTreeHost;
 class WebPage;
 struct WebPageCreationParameters;
@@ -90,7 +91,7 @@ public:
 #endif
 
 #if USE(UI_SIDE_COMPOSITING)
-    virtual void didReceiveLayerTreeHostMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*) = 0;
+    virtual void didReceiveLayerTreeCoordinatorMessage(CoreIPC::Connection*, CoreIPC::MessageID, CoreIPC::ArgumentDecoder*) = 0;
 #endif
 
 #if PLATFORM(WIN)
@@ -118,6 +119,7 @@ private:
     // Used by TiledCoreAnimationDrawingArea.
     virtual void updateGeometry(const WebCore::IntSize& viewSize) { }
     virtual void setDeviceScaleFactor(float) { }
+    virtual void setColorSpace(const ColorSpaceData&) { }
 #endif
 };
 

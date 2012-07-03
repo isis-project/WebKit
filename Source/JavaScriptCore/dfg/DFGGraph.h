@@ -179,17 +179,21 @@ public:
 
     // CodeBlock is optional, but may allow additional information to be dumped (e.g. Identifier names).
     void dump();
-    void dump(NodeIndex);
+    enum PhiNodeDumpMode { DumpLivePhisOnly, DumpAllPhis };
+    void dumpBlockHeader(const char* prefix, BlockIndex, PhiNodeDumpMode);
+    void dump(const char* prefix, NodeIndex);
+    static int amountOfNodeWhiteSpace(Node&);
+    static void printNodeWhiteSpace(Node&);
 
     // Dump the code origin of the given node as a diff from the code origin of the
     // preceding node.
-    void dumpCodeOrigin(NodeIndex, NodeIndex);
+    void dumpCodeOrigin(const char* prefix, NodeIndex, NodeIndex);
 
     BlockIndex blockIndexForBytecodeOffset(Vector<BlockIndex>& blocks, unsigned bytecodeBegin);
 
-    PredictedType getJSConstantPrediction(Node& node)
+    SpeculatedType getJSConstantSpeculation(Node& node)
     {
-        return predictionFromValue(node.valueOfJSConstant(m_codeBlock));
+        return speculationFromValue(node.valueOfJSConstant(m_codeBlock));
     }
     
     bool addShouldSpeculateInteger(Node& add)
@@ -258,11 +262,30 @@ public:
     {
         return at(nodeIndex).isBooleanConstant(m_codeBlock);
     }
+    bool isCellConstant(NodeIndex nodeIndex)
+    {
+        if (!isJSConstant(nodeIndex))
+            return false;
+        JSValue value = valueOfJSConstant(nodeIndex);
+        return value.isCell() && !!value;
+    }
     bool isFunctionConstant(NodeIndex nodeIndex)
     {
         if (!isJSConstant(nodeIndex))
             return false;
         if (!getJSFunction(valueOfJSConstant(nodeIndex)))
+            return false;
+        return true;
+    }
+    bool isInternalFunctionConstant(NodeIndex nodeIndex)
+    {
+        if (!isJSConstant(nodeIndex))
+            return false;
+        JSValue value = valueOfJSConstant(nodeIndex);
+        if (!value.isCell() || !value)
+            return false;
+        JSCell* cell = value.asCell();
+        if (!cell->inherits(&InternalFunction::s_info))
             return false;
         return true;
     }
@@ -289,6 +312,10 @@ public:
         ASSERT(function);
         return jsCast<JSFunction*>(function);
     }
+    InternalFunction* valueOfInternalFunctionConstant(NodeIndex nodeIndex)
+    {
+        return jsCast<InternalFunction*>(valueOfJSConstant(nodeIndex).asCell());
+    }
 
     static const char *opName(NodeType);
     
@@ -308,6 +335,11 @@ public:
     {
         m_structureTransitionData.append(structureTransitionData);
         return &m_structureTransitionData.last();
+    }
+    
+    JSGlobalObject* globalObjectFor(CodeOrigin codeOrigin)
+    {
+        return m_codeBlock->globalObjectFor(codeOrigin);
     }
     
     ExecutableBase* executableFor(InlineCallFrame* inlineCallFrame)
@@ -424,17 +456,38 @@ public:
     
     bool isPredictedNumerical(Node& node)
     {
-        PredictedType left = at(node.child1()).prediction();
-        PredictedType right = at(node.child2()).prediction();
-        return isNumberPrediction(left) && isNumberPrediction(right);
+        SpeculatedType left = at(node.child1()).prediction();
+        SpeculatedType right = at(node.child2()).prediction();
+        return isNumberSpeculation(left) && isNumberSpeculation(right);
     }
     
     bool byValIsPure(Node& node)
     {
-        return at(node.child2()).shouldSpeculateInteger()
-            && ((node.op() == PutByVal || node.op() == PutByValAlias)
-                ? isActionableMutableArrayPrediction(at(node.child1()).prediction())
-                : isActionableArrayPrediction(at(node.child1()).prediction()));
+        if (!at(node.child2()).shouldSpeculateInteger())
+            return false;
+        SpeculatedType prediction = at(node.child1()).prediction();
+        switch (node.op()) {
+        case PutByVal:
+            if (!isActionableMutableArraySpeculation(prediction))
+                return false;
+            if (isArraySpeculation(prediction))
+                return false;
+            return true;
+            
+        case PutByValAlias:
+            if (!isActionableMutableArraySpeculation(prediction))
+                return false;
+            return true;
+            
+        case GetByVal:
+            if (!isActionableArraySpeculation(prediction))
+                return false;
+            return true;
+            
+        default:
+            ASSERT_NOT_REACHED();
+            return false;
+        }
     }
     
     bool clobbersWorld(Node& node)
@@ -452,6 +505,8 @@ public:
         case CompareEq:
             return !isPredictedNumerical(node);
         case GetByVal:
+        case PutByVal:
+        case PutByValAlias:
             return !byValIsPure(node);
         default:
             ASSERT_NOT_REACHED();

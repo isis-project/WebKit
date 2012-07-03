@@ -87,8 +87,15 @@ inspector/styles/styles-computed-trace.html
 # https://bugs.webkit.org/show_bug.cgi?id=85532
 fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/float-containing-block-with-margin.html
+fast/sub-pixel/float-with-right-margin-zoom.html
+fast/sub-pixel/float-wrap-with-subpixel-top.html
+fast/sub-pixel/inline-block-with-margin.html
+fast/sub-pixel/inline-block-with-padding.html
 fast/sub-pixel/layout-boxes-with-zoom.html
 fast/sub-pixel/size-of-box-with-zoom.html
+fast/sub-pixel/selection-gaps-at-fractional-offsets.html
+fast/sub-pixel/file-upload-control-at-fractional-offset.html
 
 # CONSOLE MESSAGE: line 0: SVG animation pause API missing!
 # [WK2] SVG animation pause API missing
@@ -839,12 +846,6 @@ http/tests/appcache/origins-with-appcache.html
 # WebKitTestRunner needs layoutTestController.callShouldCloseOnWebView
 fast/events/onbeforeunload-focused-iframe.html
 
-# WebKitTestRunner needs layoutTestController.setPluginsEnabled
-# https://bugs.webkit.org/show_bug.cgi?id=58593
-platform/mac/plugins/disable-plugins.html
-fast/images/embed-image.html
-fast/images/move-image-to-new-document.html
-
 # WebKitTestRunner needs layoutTestController.setHandlesAuthenticationChallenges
 http/tests/misc/authentication-redirect-1/authentication-sent-to-redirect-cross-origin.html
 http/tests/misc/authentication-redirect-2/authentication-sent-to-redirect-same-origin.html
@@ -1053,6 +1054,9 @@ editing/spelling/spelling-marker-description.html
 # WTR needs an implementation of setAutomaticLinkDetectionEnabled.
 # https://bugs.webkit.org/show_bug.cgi?id=87162
 editing/inserting/typing-space-to-trigger-smart-link.html
+
+# No CORS support for media elements is implemented yet.
+http/tests/security/video-cross-origin-readback.html
 
 ### END OF (2) Classified failures without bug reports (yet)
 ########################################
@@ -1373,6 +1377,7 @@ fast/events/input-element-display-none-in-dragleave-crash.html
 fast/events/prevent-drag-to-navigate.html
 fast/files/apply-blob-url-to-img.html
 fast/files/apply-blob-url-to-xhr.html
+fast/files/file-list-test.html
 fast/files/file-reader-abort.html
 fast/files/file-reader-directory-crash.html
 fast/files/file-reader-event-listener.html
@@ -1388,7 +1393,9 @@ fast/forms/file/file-input-change-event.html
 fast/forms/file/file-input-reset.html
 fast/forms/file/get-file-upload.html
 fast/forms/file/input-file-re-render.html
+fast/forms/file/input-file-entries.html
 fast/forms/file/recover-file-input-in-unposted-form.html
+http/tests/local/fileapi/file-last-modified-after-delete.html
 http/tests/local/fileapi/file-last-modified.html
 http/tests/local/fileapi/send-dragged-file.html
 http/tests/local/formdata/form-data-with-unknown-file-extension.html
@@ -1404,6 +1411,10 @@ platform/mac/fast/events/objc-keyboard-event-creation.html
 # WebKit2 does not (should not?) support setting WebKitUsePreHTML5ParserQuirks
 # in its WebPreferences implementation.
 fast/parser/pre-html5-parser-quirks.html
+
+# [WK2] New fast/events/drag-display-none-element.html fails
+# https://bugs.webkit.org/show_bug.cgi?id=90177
+fast/events/drag-display-none-element.html
 
 ### END OF (4) Features that are not supported in WebKit2 and likely never will be
 ########################################

@@ -29,7 +29,6 @@
 
 #if USE(ACCELERATED_COMPOSITING)
 #include "LayerTextureSubImage.h"
-#include "PlatformColor.h"
 #include "SkBitmap.h"
 #include "SkPictureCanvasLayerTextureUpdater.h"
 
@@ -41,10 +40,10 @@ class BitmapSkPictureCanvasLayerTextureUpdater : public SkPictureCanvasLayerText
 public:
     class Texture : public CanvasLayerTextureUpdater::Texture {
     public:
-        Texture(BitmapSkPictureCanvasLayerTextureUpdater*, PassOwnPtr<ManagedTexture>);
+        Texture(BitmapSkPictureCanvasLayerTextureUpdater*, PassOwnPtr<CCPrioritizedTexture>);
 
-        virtual void prepareRect(const IntRect& sourceRect);
-        virtual void updateRect(GraphicsContext3D*, TextureAllocator*, const IntRect& sourceRect, const IntRect& destRect);
+        virtual void prepareRect(const IntRect& sourceRect) OVERRIDE;
+        virtual void updateRect(CCGraphicsContext*, TextureAllocator*, const IntRect& sourceRect, const IntRect& destRect) OVERRIDE;
 
     private:
         BitmapSkPictureCanvasLayerTextureUpdater* textureUpdater() { return m_textureUpdater; }
@@ -56,11 +55,11 @@ public:
     static PassRefPtr<BitmapSkPictureCanvasLayerTextureUpdater> create(PassOwnPtr<LayerPainterChromium>, bool useMapTexSubImage);
     virtual ~BitmapSkPictureCanvasLayerTextureUpdater();
 
-    virtual PassOwnPtr<LayerTextureUpdater::Texture> createTexture(TextureManager*);
-    virtual SampledTexelFormat sampledTexelFormat(GC3Denum textureFormat);
-    virtual void prepareToUpdate(const IntRect& contentRect, const IntSize& tileSize, int borderTexels, float contentsScale, IntRect& resultingOpaqueRect);
+    virtual PassOwnPtr<LayerTextureUpdater::Texture> createTexture(CCPrioritizedTextureManager*) OVERRIDE;
+    virtual SampledTexelFormat sampledTexelFormat(GC3Denum textureFormat) OVERRIDE;
+    virtual void prepareToUpdate(const IntRect& contentRect, const IntSize& tileSize, float contentsWidthScale, float contentsHeightScale, IntRect& resultingOpaqueRect) OVERRIDE;
     void paintContentsRect(SkCanvas*, const IntRect& sourceRect);
-    void updateTextureRect(GraphicsContext3D*, GC3Denum format, const IntRect& destRect, const uint8_t* pixels);
+    void updateTextureRect(CCGraphicsContext*, GC3Denum format, const IntRect& destRect, const uint8_t* pixels);
 
 private:
     BitmapSkPictureCanvasLayerTextureUpdater(PassOwnPtr<LayerPainterChromium>, bool useMapTexSubImage);

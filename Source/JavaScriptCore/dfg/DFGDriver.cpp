@@ -43,10 +43,19 @@
 
 namespace JSC { namespace DFG {
 
+static unsigned numCompilations;
+
+unsigned getNumCompilations()
+{
+    return numCompilations;
+}
+
 enum CompileMode { CompileFunction, CompileOther };
 inline bool compile(CompileMode compileMode, ExecState* exec, CodeBlock* codeBlock, JITCode& jitCode, MacroAssemblerCodePtr* jitCodeWithArityCheck)
 {
     SamplingRegion samplingRegion("DFG Compilation (Driver)");
+    
+    numCompilations++;
     
     ASSERT(codeBlock);
     ASSERT(codeBlock->alternative());
@@ -82,22 +91,25 @@ inline bool compile(CompileMode compileMode, ExecState* exec, CodeBlock* codeBlo
         changed |= performConstantFolding(dfg);
         changed |= performArgumentsSimplification(dfg);
         changed |= performCFGSimplification(dfg);
+        changed |= performCSE(dfg, FixpointNotConverged);
         if (!changed)
             break;
-        performCSE(dfg, FixpointNotConverged);
         dfg.resetExitStates();
+        performFixup(dfg);
     }
     performCSE(dfg, FixpointConverged);
 #if DFG_ENABLE(DEBUG_VERBOSE)
     dataLog("DFG optimization fixpoint converged in %u iterations.\n", cnt);
 #endif
-    dfg.m_dominators.compute(dfg);
     performVirtualRegisterAllocation(dfg);
 
+    GraphDumpMode modeForFinalValidate = DumpGraph;
 #if DFG_ENABLE(DEBUG_VERBOSE)
     dataLog("Graph after optimization:\n");
     dfg.dump();
+    modeForFinalValidate = DontDumpGraph;
 #endif
+    validate(dfg, modeForFinalValidate);
     
     JITCompiler dataFlowJIT(dfg);
     bool result;

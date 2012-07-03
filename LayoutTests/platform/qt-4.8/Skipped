@@ -47,6 +47,17 @@ editing/selection/click-left-of-rtl-wrapping-text.html
 #################################################
 
 #################################################
+# Moved from qt/Skipped after:
+# [Qt] Add configure test for zlib and set WTF_USE_ZLIB if found
+# USE(ZLIB) is disabled.
+http/tests/websocket/tests/hybi/compressed-control-frame.html
+http/tests/websocket/tests/hybi/deflate-frame-invalid-parameter.html
+http/tests/websocket/tests/hybi/deflate-frame-parameter.html
+http/tests/websocket/tests/hybi/extensions.html
+http/tests/websocket/tests/hybi/handshake-fail-by-extensions-header.html
+#################################################
+
+#################################################
 # Tests failing on WK1 only (working on WK2) - copied from the old qt-wk1/Skipped list
 
 # New test introduced in r102048 fails on Qt-WK1
@@ -72,12 +83,6 @@ compositing
 # https://bugs.webkit.org/show_bug.cgi?id=76932
 fast/text/soft-hyphen-5.html
 
-# This platform does not support the Page Visibility API.
-fast/events/page-visibility-iframe-delete-test.html
-fast/events/page-visibility-iframe-move-test.html
-fast/events/page-visibility-iframe-propagation-test.html
-fast/events/page-visibility-transition-test.html
-
 # Fullscreen API is not supported with WK1 therefore not supported with Qt 4.8
 fullscreen
 plugins/fullscreen-plugins-dont-reload.html
@@ -86,8 +91,15 @@ plugins/fullscreen-plugins-dont-reload.html
 # https://bugs.webkit.org/show_bug.cgi?id=85532
 fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/float-containing-block-with-margin.html
+fast/sub-pixel/float-with-right-margin-zoom.html
+fast/sub-pixel/float-wrap-with-subpixel-top.html
+fast/sub-pixel/inline-block-with-margin.html
+fast/sub-pixel/inline-block-with-padding.html
 fast/sub-pixel/layout-boxes-with-zoom.html
 fast/sub-pixel/size-of-box-with-zoom.html
+fast/sub-pixel/selection/selection-gaps-at-fractional-offsets.html
+fast/sub-pixel/file-upload-control-at-fractional-offset.html
 
 # SVG Fonts are only supported when using QRawFont, which is not
 # supported with Qt 4.
@@ -155,6 +167,9 @@ fast/text/zero-width-characters.html
 # Fail with QtXmlPatterns (used by Qt 4.8 buid), but pass with libxslt (used by Qt 5 build)
 fast/parser/innerhtml-with-prefixed-elements.xhtml
 
-# [Qt] REGRESSION(r118568): It broke fast/forms/textarea-maxlength.html on Qt 4.8
-# https://bugs.webkit.org/show_bug.cgi?id=87740
-fast/forms/textarea-maxlength.html
+# [Qt] REGRESSION(r96779): It made svg/as-image/svg-nested.html timeout
+svg/as-image/svg-nested.html
+
+# [Qt] REGRESSION(r120624): It made fast/text/line-breaks-after-ideographic-comma-or-full-stop.html fail on non-ICU platforms
+# https://bugs.webkit.org/show_bug.cgi?id=89426
+fast/text/line-breaks-after-ideographic-comma-or-full-stop.html

@@ -79,7 +79,8 @@ public:
         JavascriptCanCloseWindows,
         WebGLEnabled,
         CSSRegionsEnabled,
-        HyperlinkAuditingEnabled
+        HyperlinkAuditingEnabled,
+        CSSGridLayoutEnabled
     };
     enum WebGraphic {
         MissingImageGraphic,

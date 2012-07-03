@@ -104,9 +104,6 @@ namespace WebCore {
         void setDefaultFixedFontSize(int);
         int defaultFixedFontSize() const { return m_defaultFixedFontSize; }
 
-        void setDefaultDeviceScaleFactor(int);
-        int defaultDeviceScaleFactor() const { return m_defaultDeviceScaleFactor; }
-
         void setFontBoostingEnabled(bool);
         bool fontBoostingEnabled() const { return m_fontBoostingEnabled; }
 
@@ -338,6 +335,14 @@ namespace WebCore {
         bool cssRegionsEnabled() const { return false; }
 #endif
 
+#if ENABLE(CSS_VARIABLES)
+        void setCSSVariablesEnabled(bool enabled) { m_cssVariablesEnabled = enabled; }
+        bool cssVariablesEnabled() const { return m_cssVariablesEnabled; }
+#else
+        void setCSSVariablesEnabled(bool) { }
+        bool cssVariablesEnabled() const { return false; }
+#endif
+
         void setRegionBasedColumnsEnabled(bool enabled) { m_regionBasedColumnsEnabled = enabled; }
         bool regionBasedColumnsEnabled() const { return m_regionBasedColumnsEnabled; }
 
@@ -479,9 +484,6 @@ namespace WebCore {
         void setDeviceHeight(int height) { m_deviceHeight = height; }
         int deviceHeight() const { return m_deviceHeight; }
 
-        void setDevicePixelRatio(double devicePixelRatio) { m_devicePixelRatio = devicePixelRatio; }
-        double devicePixelRatio() const { return m_devicePixelRatio; }
-
         void setForceCompositingMode(bool flag) { m_forceCompositingMode = flag; }
         bool forceCompositingMode() { return m_forceCompositingMode; }
 
@@ -543,12 +545,6 @@ namespace WebCore {
         bool shouldDisplayTextDescriptions() const { return m_shouldDisplayTextDescriptions; }
 #endif
 
-        void setPerTileDrawingEnabled(bool enabled) { m_perTileDrawingEnabled = enabled; }
-        bool perTileDrawingEnabled() const { return m_perTileDrawingEnabled; }
-
-        void setPartialSwapEnabled(bool enabled) { m_partialSwapEnabled = enabled; }
-        bool partialSwapEnabled() const { return m_partialSwapEnabled; }
-
         void setScrollingCoordinatorEnabled(bool enabled) { m_scrollingCoordinatorEnabled = enabled; }
         bool scrollingCoordinatorEnabled() const { return m_scrollingCoordinatorEnabled; }
 
@@ -563,9 +559,6 @@ namespace WebCore {
         void setTouchEventEmulationEnabled(bool enabled) { m_touchEventEmulationEnabled = enabled; }
         bool isTouchEventEmulationEnabled() const { return m_touchEventEmulationEnabled; }
 #endif
-
-        void setThreadedAnimationEnabled(bool enabled) { m_threadedAnimationEnabled = enabled; }
-        bool threadedAnimationEnabled() const { return m_threadedAnimationEnabled; }
 
         void setShouldRespectImageOrientation(bool enabled) { m_shouldRespectImageOrientation = enabled; }
         bool shouldRespectImageOrientation() const { return m_shouldRespectImageOrientation; }
@@ -582,6 +575,9 @@ namespace WebCore {
         void setDeviceSupportsTouch(bool enabled) { m_deviceSupportsTouch = enabled; }
         bool deviceSupportsTouch() const { return m_deviceSupportsTouch; }
 
+        void setDeviceSupportsMouse(bool enabled) { m_deviceSupportsMouse = enabled; }
+        bool deviceSupportsMouse() const { return m_deviceSupportsMouse; }
+
         void setNeedsDidFinishLoadOrderQuirk(bool needsQuirk) { m_needsDidFinishLoadOrderQuirk = needsQuirk; }
         bool needsDidFinishLoadOrderQuirk() const { return m_needsDidFinishLoadOrderQuirk; }
 
@@ -591,10 +587,19 @@ namespace WebCore {
         void setSyncXHRInDocumentsEnabled(bool enabled) { m_syncXHRInDocumentsEnabled = enabled; }
         bool syncXHRInDocumentsEnabled() const { return m_syncXHRInDocumentsEnabled; }
 
+        // When enabled, window.blur() does not change focus, and
+        // window.focus() only changes focus when invoked from the context that
+        // created the window.
+        void setWindowFocusRestricted(bool restricted) { m_windowFocusRestricted = restricted; }
+        bool windowFocusRestricted() const { return m_windowFocusRestricted; }
+
 #if USE(JSC)
         static void setShouldRespectPriorityInCSSAttributeSetters(bool);
         static bool shouldRespectPriorityInCSSAttributeSetters();
 #endif
+
+        void setCookieEnabled(bool enabled) { m_cookieEnabled = enabled; }
+        bool cookieEnabled() const { return m_cookieEnabled; }
 
     private:
         Settings(Page*);
@@ -622,11 +627,9 @@ namespace WebCore {
         int m_minimumLogicalFontSize;
         int m_defaultFontSize;
         int m_defaultFixedFontSize;
-        int m_defaultDeviceScaleFactor;
         int m_validationMessageTimerMagnification;
         int m_minimumAccelerated2dCanvasSize;
         int m_layoutFallbackWidth;
-        double m_devicePixelRatio;
         size_t m_maximumDecodedImageSize;
         int m_deviceWidth;
         int m_deviceHeight;
@@ -687,6 +690,9 @@ namespace WebCore {
 #if ENABLE(CSS_REGIONS)
         bool m_cssRegionsEnabled : 1;
 #endif
+#if ENABLE(CSS_VARIABLES)
+        bool m_cssVariablesEnabled : 1;
+#endif
         bool m_regionBasedColumnsEnabled : 1;
         bool m_cssGridLayoutEnabled : 1;
         bool m_downloadableBinaryFontsEnabled : 1;
@@ -746,9 +752,6 @@ namespace WebCore {
         bool m_shouldDisplayCaptions : 1;
         bool m_shouldDisplayTextDescriptions : 1;
 #endif
-        bool m_perTileDrawingEnabled : 1;
-        bool m_partialSwapEnabled : 1;
-
         bool m_scrollingCoordinatorEnabled : 1;
 
         bool m_notificationsEnabled : 1;
@@ -757,15 +760,18 @@ namespace WebCore {
 #if ENABLE(TOUCH_EVENTS)
         bool m_touchEventEmulationEnabled : 1;
 #endif
-        bool m_threadedAnimationEnabled : 1;
         bool m_shouldRespectImageOrientation : 1;
         bool m_wantsBalancedSetDefersLoadingBehavior : 1;
         bool m_requestAnimationFrameEnabled : 1;
         bool m_deviceSupportsTouch : 1;
+        bool m_deviceSupportsMouse : 1;
         bool m_needsDidFinishLoadOrderQuirk : 1;
 
         bool m_fixedPositionCreatesStackingContext : 1;
         bool m_syncXHRInDocumentsEnabled : 1;
+        bool m_cookieEnabled : 1;
+
+        bool m_windowFocusRestricted : 1;
 
         Timer<Settings> m_loadsImagesAutomaticallyTimer;
         void loadsImagesAutomaticallyTimerFired(Timer<Settings>*);

@@ -147,6 +147,8 @@ WebInspector.addMainEventListeners = function(doc) {}
 
 WebInspector.openResource = function(url, external) {}
 
+WebInspector.showConsole = function() {}
+
 /**
  * @param {string} expression
  * @param {boolean=} showResultOnly
@@ -229,3 +231,10 @@ WebInspector.SourceJavaScriptTokenizer = {}
 WebInspector.SourceJavaScriptTokenizer.Keywords = {}
 
 var InspectorTest = {}
+
+/* jsdifflib API */
+var difflib = {};
+difflib.stringAsLines = function(text) { return []; }
+/** @constructor */
+difflib.SequenceMatcher = function(baseText, newText) { }
+difflib.SequenceMatcher.prototype.get_opcodes = function() { return []; }

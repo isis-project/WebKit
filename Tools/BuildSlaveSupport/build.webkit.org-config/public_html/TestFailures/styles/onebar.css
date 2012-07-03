@@ -41,6 +41,13 @@
     border-radius: 0px;
 }
 
+#onebar #platform-picker {
+    float: right;
+    margin-top: 8px;
+    margin-right: 8px;
+    font-size: larger;
+}
+
 #unexpected {
     min-height: 550px;
 }

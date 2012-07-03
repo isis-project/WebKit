@@ -47,7 +47,7 @@ class PlatformWebView;
 
 namespace WebKit {
 class QtRefCountedNetworkRequestData;
-class QtViewportInteractionEngine;
+class QtViewportHandler;
 class QtWebPageLoadClient;
 class QtWebPagePolicyClient;
 class QtWebPageUIClient;
@@ -205,10 +205,6 @@ private:
 
     void emitUrlChangeIfNeeded();
 
-    Q_PRIVATE_SLOT(d_func(), void _q_suspend());
-    Q_PRIVATE_SLOT(d_func(), void _q_resume());
-    Q_PRIVATE_SLOT(d_func(), void _q_onInformVisibleContentChange(const QPointF&));
-
     Q_PRIVATE_SLOT(d_func(), void _q_onVisibleChanged());
     Q_PRIVATE_SLOT(d_func(), void _q_onUrlChanged());
     Q_PRIVATE_SLOT(d_func(), void _q_onReceivedResponseFromDownload(QWebDownloadItem*));
@@ -218,7 +214,7 @@ private:
     QQuickWebViewExperimental* m_experimental;
 
     friend class QWebKitTest;
-    friend class WebKit::QtViewportInteractionEngine;
+    friend class WebKit::QtViewportHandler;
     friend class WebKit::QtWebPageLoadClient;
     friend class WebKit::QtWebPagePolicyClient;
     friend class WebKit::QtWebPageUIClient;
@@ -252,9 +248,14 @@ class QWEBKIT_EXPORT QQuickWebViewExperimental : public QObject {
 
     Q_PROPERTY(bool transparentBackground WRITE setTransparentBackground READ transparentBackground)
     Q_PROPERTY(bool useDefaultContentItemSize WRITE setUseDefaultContentItemSize READ useDefaultContentItemSize)
-    Q_PROPERTY(int preferredMinimumContentsWidth WRITE setPreferredMinimumContentsWidth READ preferredMinimumContentsWidth)
+
+    Q_PROPERTY(int preferredMinimumContentsWidth WRITE setPreferredMinimumContentsWidth READ preferredMinimumContentsWidth NOTIFY preferredMinimumContentsWidthChanged)
+    Q_PROPERTY(int deviceWidth WRITE setDeviceWidth READ deviceWidth NOTIFY deviceWidthChanged)
+    Q_PROPERTY(int deviceHeight WRITE setDeviceHeight READ deviceHeight NOTIFY deviceHeightChanged)
+    Q_PROPERTY(double devicePixelRatio READ devicePixelRatio WRITE setDevicePixelRatio NOTIFY devicePixelRatioChanged)
 
     Q_PROPERTY(QWebNavigationHistory* navigationHistory READ navigationHistory CONSTANT FINAL)
+
     Q_PROPERTY(QQmlComponent* alertDialog READ alertDialog WRITE setAlertDialog NOTIFY alertDialogChanged)
     Q_PROPERTY(QQmlComponent* confirmDialog READ confirmDialog WRITE setConfirmDialog NOTIFY confirmDialogChanged)
     Q_PROPERTY(QQmlComponent* promptDialog READ promptDialog WRITE setPromptDialog NOTIFY promptDialogChanged)
@@ -264,12 +265,14 @@ class QWEBKIT_EXPORT QQuickWebViewExperimental : public QObject {
     Q_PROPERTY(QQmlComponent* itemSelector READ itemSelector WRITE setItemSelector NOTIFY itemSelectorChanged)
     Q_PROPERTY(QQmlComponent* filePicker READ filePicker WRITE setFilePicker NOTIFY filePickerChanged)
     Q_PROPERTY(QQmlComponent* databaseQuotaDialog READ databaseQuotaDialog WRITE setDatabaseQuotaDialog NOTIFY databaseQuotaDialogChanged)
+    Q_PROPERTY(QQmlComponent* colorChooser READ colorChooser WRITE setColorChooser NOTIFY colorChooserChanged)
+
     Q_PROPERTY(QWebPreferences* preferences READ preferences CONSTANT FINAL)
     Q_PROPERTY(QWebKitTest* test READ test CONSTANT FINAL)
     Q_PROPERTY(QQmlListProperty<QQuickUrlSchemeDelegate> urlSchemeDelegates READ schemeDelegates)
     Q_PROPERTY(QString userAgent READ userAgent WRITE setUserAgent NOTIFY userAgentChanged)
-    Q_PROPERTY(double devicePixelRatio READ devicePixelRatio WRITE setDevicePixelRatio NOTIFY devicePixelRatioChanged)
     Q_PROPERTY(QList<QUrl> userScripts READ userScripts WRITE setUserScripts NOTIFY userScriptsChanged)
+    Q_PROPERTY(QUrl remoteInspectorUrl READ remoteInspectorUrl NOTIFY remoteInspectorUrlChanged FINAL)
     Q_ENUMS(NavigationRequestActionExperimental)
 
 public:
@@ -298,12 +301,19 @@ public:
     void setFilePicker(QQmlComponent*);
     QQmlComponent* databaseQuotaDialog() const;
     void setDatabaseQuotaDialog(QQmlComponent*);
+    QQmlComponent* colorChooser() const;
+    void setColorChooser(QQmlComponent*);
     QString userAgent() const;
     void setUserAgent(const QString& userAgent);
+    int deviceWidth() const;
+    void setDeviceWidth(int);
+    int deviceHeight() const;
+    void setDeviceHeight(int);
     double devicePixelRatio() const;
     void setDevicePixelRatio(double);
     QList<QUrl> userScripts() const;
     void setUserScripts(const QList<QUrl>& userScripts);
+    QUrl remoteInspectorUrl() const;
 
     QWebKitTest* test();
 
@@ -349,15 +359,20 @@ Q_SIGNALS:
     void itemSelectorChanged();
     void filePickerChanged();
     void databaseQuotaDialogChanged();
+    void colorChooserChanged();
     void downloadRequested(QWebDownloadItem* downloadItem);
     void permissionRequested(QWebPermissionRequest* permission);
     void messageReceived(const QVariantMap& message);
     void proxyAuthenticationDialogChanged();
     void userAgentChanged();
+    void deviceWidthChanged();
+    void deviceHeightChanged();
     void devicePixelRatioChanged();
     void enterFullScreenRequested();
     void exitFullScreenRequested();
     void userScriptsChanged();
+    void preferredMinimumContentsWidthChanged();
+    void remoteInspectorUrlChanged();
 
 private:
     QQuickWebView* q_ptr;

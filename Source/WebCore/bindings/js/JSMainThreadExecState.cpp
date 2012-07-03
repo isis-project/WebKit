@@ -27,15 +27,25 @@
 #include "JSMainThreadExecState.h"
 #include "WebKitMutationObserver.h"
 
+#if ENABLE(INDEXED_DATABASE)
+#include "IDBPendingTransactionMonitor.h"
+#endif
+
 namespace WebCore {
 
 JSC::ExecState* JSMainThreadExecState::s_mainThreadState = 0;
 
-#if ENABLE(MUTATION_OBSERVERS)
 void JSMainThreadExecState::didLeaveScriptContext()
 {
-    WebKitMutationObserver::deliverAllMutations();
-}
+#if ENABLE(INDEXED_DATABASE)
+    // Indexed DB requires that transactions are created with an internal |active| flag
+    // set to true, but the flag becomes false when control returns to the event loop.
+    IDBPendingTransactionMonitor::deactivateNewTransactions();
 #endif
+
+#if ENABLE(MUTATION_OBSERVERS)
+    WebKitMutationObserver::deliverAllMutations();
+#endif
+}
 
 } // namespace WebCore

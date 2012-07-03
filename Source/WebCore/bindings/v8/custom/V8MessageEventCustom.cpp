@@ -53,7 +53,7 @@ v8::Handle<v8::Value> V8MessageEvent::dataAccessorGetter(v8::Local<v8::String> n
     case MessageEvent::DataTypeScriptValue: {
         ScriptValue scriptValue = event->dataAsScriptValue();
         if (scriptValue.hasNoValue())
-            result = v8::Null();
+            result = v8::Null(info.GetIsolate());
         else
             result = v8::Local<v8::Value>::New(scriptValue.v8Value());
         break;
@@ -63,7 +63,7 @@ v8::Handle<v8::Value> V8MessageEvent::dataAccessorGetter(v8::Local<v8::String> n
         if (SerializedScriptValue* serializedValue = event->dataAsSerializedScriptValue())
             result = serializedValue->deserialize(event->ports(), info.GetIsolate());
         else
-            result = v8::Null();
+            result = v8::Null(info.GetIsolate());
         break;
 
     case MessageEvent::DataTypeString: {
@@ -101,7 +101,7 @@ v8::Handle<v8::Value> V8MessageEvent::portsAccessorGetter(v8::Local<v8::String> 
 
     v8::Local<v8::Array> portArray = v8::Array::New(portsCopy.size());
     for (size_t i = 0; i < portsCopy.size(); ++i)
-        portArray->Set(v8::Integer::New(i), toV8(portsCopy[i].get(), info.GetIsolate()));
+        portArray->Set(v8Integer(i, info.GetIsolate()), toV8(portsCopy[i].get(), info.GetIsolate()));
 
     return portArray;
 }

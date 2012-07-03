@@ -28,6 +28,7 @@
 
 #if ENABLE(DFG_JIT)
 
+#include "ArrayConstructor.h"
 #include "CallLinkStatus.h"
 #include "CodeBlock.h"
 #include "DFGByteCodeCache.h"
@@ -35,6 +36,7 @@
 #include "GetByIdStatus.h"
 #include "MethodCallLinkStatus.h"
 #include "PutByIdStatus.h"
+#include "ResolveGlobalStatus.h"
 #include <wtf/HashMap.h>
 #include <wtf/MathExtras.h>
 
@@ -93,7 +95,14 @@ private:
     // Handle setting the result of an intrinsic.
     void setIntrinsicResult(bool usesResult, int resultOperand, NodeIndex);
     // Handle intrinsic functions. Return true if it succeeded, false if we need to plant a call.
-    bool handleIntrinsic(bool usesResult, int resultOperand, Intrinsic, int registerOffset, int argumentCountIncludingThis, PredictedType prediction);
+    bool handleIntrinsic(bool usesResult, int resultOperand, Intrinsic, int registerOffset, int argumentCountIncludingThis, SpeculatedType prediction);
+    bool handleConstantInternalFunction(bool usesResult, int resultOperand, InternalFunction*, int registerOffset, int argumentCountIncludingThis, SpeculatedType prediction, CodeSpecializationKind);
+    void handleGetByOffset(
+        int destinationOperand, SpeculatedType, NodeIndex base, unsigned identifierNumber,
+        bool useInlineStorage, size_t offset);
+    void handleGetById(
+        int destinationOperand, SpeculatedType, NodeIndex base, unsigned identifierNumber,
+        const GetByIdStatus&);
     // Prepare to parse a block.
     void prepareToParseBlock();
     // Parse a single basic block of bytecode instructions.
@@ -109,7 +118,7 @@ private:
     template<PhiStackType stackType>
     void processPhiStack();
     
-    void fixVariableAccessPredictions();
+    void fixVariableAccessSpeculations();
     // Add spill locations to nodes.
     void allocateVirtualRegisters();
     
@@ -142,33 +151,34 @@ private:
     {
         return getDirect(m_inlineStackTop->remapOperand(operand));
     }
-    void setDirect(int operand, NodeIndex value)
+    enum SetMode { NormalSet, SetOnEntry };
+    void setDirect(int operand, NodeIndex value, SetMode setMode = NormalSet)
     {
         // Is this an argument?
         if (operandIsArgument(operand)) {
-            setArgument(operand, value);
+            setArgument(operand, value, setMode);
             return;
         }
 
         // Must be a local.
-        setLocal((unsigned)operand, value);
+        setLocal((unsigned)operand, value, setMode);
     }
-    void set(int operand, NodeIndex value)
+    void set(int operand, NodeIndex value, SetMode setMode = NormalSet)
     {
-        setDirect(m_inlineStackTop->remapOperand(operand), value);
+        setDirect(m_inlineStackTop->remapOperand(operand), value, setMode);
     }
     
-    NodeIndex injectLazyOperandPrediction(NodeIndex nodeIndex)
+    NodeIndex injectLazyOperandSpeculation(NodeIndex nodeIndex)
     {
         Node& node = m_graph[nodeIndex];
         ASSERT(node.op() == GetLocal);
         ASSERT(node.codeOrigin.bytecodeIndex == m_currentIndex);
-        PredictedType prediction = 
+        SpeculatedType prediction = 
             m_inlineStackTop->m_lazyOperands.prediction(
                 LazyOperandValueProfileKey(m_currentIndex, node.local()));
 #if DFG_ENABLE(DEBUG_VERBOSE)
         dataLog("Lazy operand [@%u, bc#%u, r%d] prediction: %s\n",
-                nodeIndex, m_currentIndex, node.local(), predictionToString(prediction));
+                nodeIndex, m_currentIndex, node.local(), speculationToString(prediction));
 #endif
         node.variableAccessData()->predict(prediction);
         return nodeIndex;
@@ -191,7 +201,7 @@ private:
                 if (flushChild.op() == Phi) {
                     VariableAccessData* variableAccessData = flushChild.variableAccessData();
                     variableAccessData->mergeIsCaptured(isCaptured);
-                    nodeIndex = injectLazyOperandPrediction(addToGraph(GetLocal, OpInfo(variableAccessData), nodeIndex));
+                    nodeIndex = injectLazyOperandSpeculation(addToGraph(GetLocal, OpInfo(variableAccessData), nodeIndex));
                     m_currentBlock->variablesAtTail.local(operand) = nodeIndex;
                     return nodeIndex;
                 }
@@ -212,7 +222,7 @@ private:
                 if (nodePtr->op() == GetLocal)
                     nodeIndex = nodePtr->child1().index();
                 
-                return injectLazyOperandPrediction(addToGraph(GetLocal, OpInfo(nodePtr->variableAccessData()), nodeIndex));
+                return injectLazyOperandSpeculation(addToGraph(GetLocal, OpInfo(nodePtr->variableAccessData()), nodeIndex));
             }
             
             if (nodePtr->op() == GetLocal)
@@ -229,44 +239,26 @@ private:
         
         NodeIndex phi = addToGraph(Phi, OpInfo(variableAccessData));
         m_localPhiStack.append(PhiStackEntry(m_currentBlock, phi, operand));
-        nodeIndex = injectLazyOperandPrediction(addToGraph(GetLocal, OpInfo(variableAccessData), phi));
+        nodeIndex = injectLazyOperandSpeculation(addToGraph(GetLocal, OpInfo(variableAccessData), phi));
         m_currentBlock->variablesAtTail.local(operand) = nodeIndex;
         
         m_currentBlock->variablesAtHead.setLocalFirstTime(operand, nodeIndex);
         
         return nodeIndex;
     }
-    void setLocal(unsigned operand, NodeIndex value)
+    void setLocal(unsigned operand, NodeIndex value, SetMode setMode = NormalSet)
     {
         bool isCaptured = m_codeBlock->localIsCaptured(m_inlineStackTop->m_inlineCallFrame, operand);
         
+        if (setMode == NormalSet) {
+            ArgumentPosition* argumentPosition = findArgumentPositionForLocal(operand);
+            if (isCaptured || argumentPosition)
+                flushDirect(operand, argumentPosition);
+        }
+
         VariableAccessData* variableAccessData = newVariableAccessData(operand, isCaptured);
         NodeIndex nodeIndex = addToGraph(SetLocal, OpInfo(variableAccessData), value);
         m_currentBlock->variablesAtTail.local(operand) = nodeIndex;
-        
-        bool shouldFlush = isCaptured;
-        
-        if (!shouldFlush) {
-            // If this is in argument position, then it should be flushed.
-            for (InlineStackEntry* stack = m_inlineStackTop; ; stack = stack->m_caller) {
-                InlineCallFrame* inlineCallFrame = stack->m_inlineCallFrame;
-                if (!inlineCallFrame)
-                    break;
-                if (static_cast<int>(operand) >= inlineCallFrame->stackOffset - RegisterFile::CallFrameHeaderSize)
-                    continue;
-                if (static_cast<int>(operand) == inlineCallFrame->stackOffset + CallFrame::thisArgumentOffset())
-                    continue;
-                if (operand < inlineCallFrame->stackOffset - RegisterFile::CallFrameHeaderSize - inlineCallFrame->arguments.size())
-                    continue;
-                int argument = operandToArgument(operand - inlineCallFrame->stackOffset);
-                stack->m_argumentPositions[argument]->addVariable(variableAccessData);
-                shouldFlush = true;
-                break;
-            }
-        }
-        
-        if (shouldFlush)
-            addToGraph(Flush, OpInfo(variableAccessData), nodeIndex);
     }
 
     // Used in implementing get/set, above, where the operand is an argument.
@@ -291,8 +283,8 @@ private:
                 if (flushChild.op() == Phi) {
                     VariableAccessData* variableAccessData = flushChild.variableAccessData();
                     variableAccessData->mergeIsCaptured(isCaptured);
-                    nodeIndex = injectLazyOperandPrediction(addToGraph(GetLocal, OpInfo(variableAccessData), nodeIndex));
-                    m_currentBlock->variablesAtTail.local(operand) = nodeIndex;
+                    nodeIndex = injectLazyOperandSpeculation(addToGraph(GetLocal, OpInfo(variableAccessData), nodeIndex));
+                    m_currentBlock->variablesAtTail.argument(argument) = nodeIndex;
                     return nodeIndex;
                 }
                 nodePtr = &flushChild;
@@ -307,7 +299,7 @@ private:
                 // We're getting an argument in the first basic block; link
                 // the GetLocal to the SetArgument.
                 ASSERT(nodePtr->local() == static_cast<VirtualRegister>(operand));
-                nodeIndex = injectLazyOperandPrediction(addToGraph(GetLocal, OpInfo(nodePtr->variableAccessData()), nodeIndex));
+                nodeIndex = injectLazyOperandSpeculation(addToGraph(GetLocal, OpInfo(nodePtr->variableAccessData()), nodeIndex));
                 m_currentBlock->variablesAtTail.argument(argument) = nodeIndex;
                 return nodeIndex;
             }
@@ -315,7 +307,7 @@ private:
             if (isCaptured) {
                 if (nodePtr->op() == GetLocal)
                     nodeIndex = nodePtr->child1().index();
-                return injectLazyOperandPrediction(addToGraph(GetLocal, OpInfo(nodePtr->variableAccessData()), nodeIndex));
+                return injectLazyOperandSpeculation(addToGraph(GetLocal, OpInfo(nodePtr->variableAccessData()), nodeIndex));
             }
             
             if (nodePtr->op() == GetLocal)
@@ -329,38 +321,77 @@ private:
 
         NodeIndex phi = addToGraph(Phi, OpInfo(variableAccessData));
         m_argumentPhiStack.append(PhiStackEntry(m_currentBlock, phi, argument));
-        nodeIndex = injectLazyOperandPrediction(addToGraph(GetLocal, OpInfo(variableAccessData), phi));
+        nodeIndex = injectLazyOperandSpeculation(addToGraph(GetLocal, OpInfo(variableAccessData), phi));
         m_currentBlock->variablesAtTail.argument(argument) = nodeIndex;
         
         m_currentBlock->variablesAtHead.setArgumentFirstTime(argument, nodeIndex);
         
         return nodeIndex;
     }
-    void setArgument(int operand, NodeIndex value)
+    void setArgument(int operand, NodeIndex value, SetMode setMode = NormalSet)
     {
         unsigned argument = operandToArgument(operand);
         bool isCaptured = m_codeBlock->argumentIsCaptured(argument);
         
         ASSERT(argument < m_numArguments);
         
+        // Always flush arguments, except for 'this'.
+        if (argument && setMode == NormalSet)
+            flushDirect(operand);
+        
         VariableAccessData* variableAccessData = newVariableAccessData(operand, isCaptured);
-        InlineStackEntry* stack = m_inlineStackTop;
-        while (stack->m_inlineCallFrame) // find the machine stack entry.
-            stack = stack->m_caller;
-        stack->m_argumentPositions[argument]->addVariable(variableAccessData);
         NodeIndex nodeIndex = addToGraph(SetLocal, OpInfo(variableAccessData), value);
         m_currentBlock->variablesAtTail.argument(argument) = nodeIndex;
-        // Always flush arguments, except for 'this'.
-        if (argument)
-            addToGraph(Flush, OpInfo(variableAccessData), nodeIndex);
     }
     
-    VariableAccessData* flushArgument(int operand)
+    ArgumentPosition* findArgumentPositionForArgument(int argument)
+    {
+        InlineStackEntry* stack = m_inlineStackTop;
+        while (stack->m_inlineCallFrame)
+            stack = stack->m_caller;
+        return stack->m_argumentPositions[argument];
+    }
+    
+    ArgumentPosition* findArgumentPositionForLocal(int operand)
+    {
+        for (InlineStackEntry* stack = m_inlineStackTop; ; stack = stack->m_caller) {
+            InlineCallFrame* inlineCallFrame = stack->m_inlineCallFrame;
+            if (!inlineCallFrame)
+                break;
+            if (operand >= inlineCallFrame->stackOffset - RegisterFile::CallFrameHeaderSize)
+                continue;
+            if (operand == inlineCallFrame->stackOffset + CallFrame::thisArgumentOffset())
+                continue;
+            if (static_cast<unsigned>(operand) < inlineCallFrame->stackOffset - RegisterFile::CallFrameHeaderSize - inlineCallFrame->arguments.size())
+                continue;
+            int argument = operandToArgument(operand - inlineCallFrame->stackOffset);
+            return stack->m_argumentPositions[argument];
+        }
+        return 0;
+    }
+    
+    ArgumentPosition* findArgumentPosition(int operand)
+    {
+        if (operandIsArgument(operand))
+            return findArgumentPositionForArgument(operandToArgument(operand));
+        return findArgumentPositionForLocal(operand);
+    }
+    
+    void flush(int operand)
+    {
+        flushDirect(m_inlineStackTop->remapOperand(operand));
+    }
+    
+    void flushDirect(int operand)
+    {
+        flushDirect(operand, findArgumentPosition(operand));
+    }
+    
+    void flushDirect(int operand, ArgumentPosition* argumentPosition)
     {
         // FIXME: This should check if the same operand had already been flushed to
         // some other local variable.
         
-        operand = m_inlineStackTop->remapOperand(operand);
         bool isCaptured = m_codeBlock->isCaptured(m_inlineStackTop->m_inlineCallFrame, operand);
         
         ASSERT(operand < FirstConstantRegisterIndex);
@@ -398,7 +429,9 @@ private:
             VariableAccessData* variableAccessData = node.variableAccessData();
             variableAccessData->mergeIsCaptured(isCaptured);
             addToGraph(Flush, OpInfo(variableAccessData), nodeIndex);
-            return variableAccessData;
+            if (argumentPosition)
+                argumentPosition->addVariable(variableAccessData);
+            return;
         }
         
         VariableAccessData* variableAccessData = newVariableAccessData(operand, isCaptured);
@@ -413,7 +446,21 @@ private:
             m_currentBlock->variablesAtTail.local(index) = nodeIndex;
             m_currentBlock->variablesAtHead.setLocalFirstTime(index, nodeIndex);
         }
-        return variableAccessData;
+        if (argumentPosition)
+            argumentPosition->addVariable(variableAccessData);
+    }
+    
+    void flushArgumentsAndCapturedVariables()
+    {
+        int numArguments;
+        if (m_inlineStackTop->m_inlineCallFrame)
+            numArguments = m_inlineStackTop->m_inlineCallFrame->arguments.size();
+        else
+            numArguments = m_inlineStackTop->m_codeBlock->numParameters();
+        for (unsigned argument = numArguments; argument-- > 1;)
+            flush(argumentToOperand(argument));
+        for (unsigned local = m_inlineStackTop->m_codeBlock->m_numCapturedVars; local--;)
+            flush(local);
     }
 
     // Get an operand, and perform a ToInt32/ToNumber conversion on it.
@@ -687,7 +734,7 @@ private:
     {
         Instruction* putInstruction = currentInstruction + OPCODE_LENGTH(op_call);
 
-        PredictedType prediction = PredictNone;
+        SpeculatedType prediction = SpecNone;
         if (interpreter->getOpcodeID(putInstruction->u.opcode) == op_call_put_result) {
             m_currentProfilingIndex = m_currentIndex + OPCODE_LENGTH(op_call);
             prediction = getPrediction();
@@ -709,23 +756,44 @@ private:
         return call;
     }
     
-    PredictedType getPredictionWithoutOSRExit(NodeIndex nodeIndex, unsigned bytecodeIndex)
+    NodeIndex addStructureTransitionCheck(JSCell* object, Structure* structure)
+    {
+        // Add a weak JS constant for the object regardless, since the code should
+        // be jettisoned if the object ever dies.
+        NodeIndex objectIndex = cellConstant(object);
+        
+        if (object->structure() == structure && structure->transitionWatchpointSetIsStillValid()) {
+            addToGraph(StructureTransitionWatchpoint, OpInfo(structure), objectIndex);
+            return objectIndex;
+        }
+        
+        addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(structure)), objectIndex);
+        
+        return objectIndex;
+    }
+    
+    NodeIndex addStructureTransitionCheck(JSCell* object)
+    {
+        return addStructureTransitionCheck(object, object->structure());
+    }
+    
+    SpeculatedType getPredictionWithoutOSRExit(NodeIndex nodeIndex, unsigned bytecodeIndex)
     {
         UNUSED_PARAM(nodeIndex);
         
-        PredictedType prediction = m_inlineStackTop->m_profiledBlock->valueProfilePredictionForBytecodeOffset(bytecodeIndex);
+        SpeculatedType prediction = m_inlineStackTop->m_profiledBlock->valueProfilePredictionForBytecodeOffset(bytecodeIndex);
 #if DFG_ENABLE(DEBUG_VERBOSE)
-        dataLog("Dynamic [@%u, bc#%u] prediction: %s\n", nodeIndex, bytecodeIndex, predictionToString(prediction));
+        dataLog("Dynamic [@%u, bc#%u] prediction: %s\n", nodeIndex, bytecodeIndex, speculationToString(prediction));
 #endif
         
         return prediction;
     }
 
-    PredictedType getPrediction(NodeIndex nodeIndex, unsigned bytecodeIndex)
+    SpeculatedType getPrediction(NodeIndex nodeIndex, unsigned bytecodeIndex)
     {
-        PredictedType prediction = getPredictionWithoutOSRExit(nodeIndex, bytecodeIndex);
+        SpeculatedType prediction = getPredictionWithoutOSRExit(nodeIndex, bytecodeIndex);
         
-        if (prediction == PredictNone) {
+        if (prediction == SpecNone) {
             // We have no information about what values this node generates. Give up
             // on executing this code, since we're likely to do more damage than good.
             addToGraph(ForceOSRExit);
@@ -734,12 +802,12 @@ private:
         return prediction;
     }
     
-    PredictedType getPredictionWithoutOSRExit()
+    SpeculatedType getPredictionWithoutOSRExit()
     {
         return getPredictionWithoutOSRExit(m_graph.size(), m_currentProfilingIndex);
     }
     
-    PredictedType getPrediction()
+    SpeculatedType getPrediction()
     {
         return getPrediction(m_graph.size(), m_currentProfilingIndex);
     }
@@ -982,7 +1050,7 @@ private:
         
         VirtualRegister m_returnValue;
         
-        // Predictions about variable types collected from the profiled code block,
+        // Speculations about variable types collected from the profiled code block,
         // which are based on OSR exit profiles that past DFG compilatins of this
         // code block had gathered.
         LazyOperandValueProfileParser m_lazyOperands;
@@ -1062,7 +1130,12 @@ void ByteCodeParser::handleCall(Interpreter* interpreter, Instruction* currentIn
     ASSERT(OPCODE_LENGTH(op_call) == OPCODE_LENGTH(op_construct));
     
     NodeIndex callTarget = get(currentInstruction[1].u.operand);
-    enum { ConstantFunction, LinkedFunction, UnknownFunction } callType;
+    enum {
+        ConstantFunction,
+        ConstantInternalFunction,
+        LinkedFunction,
+        UnknownFunction
+    } callType;
             
     CallLinkStatus callLinkStatus = CallLinkStatus::computeFor(
         m_inlineStackTop->m_profiledBlock, m_currentIndex);
@@ -1084,6 +1157,13 @@ void ByteCodeParser::handleCall(Interpreter* interpreter, Instruction* currentIn
                 m_graph.size(), m_currentIndex,
                 m_graph.valueOfFunctionConstant(callTarget),
                 m_graph.valueOfFunctionConstant(callTarget)->executable());
+#endif
+    } else if (m_graph.isInternalFunctionConstant(callTarget)) {
+        callType = ConstantInternalFunction;
+#if DFG_ENABLE(DEBUG_VERBOSE)
+        dataLog("Call at [@%lu, bc#%u] has an internal function constant: %p.\n",
+                m_graph.size(), m_currentIndex,
+                m_graph.valueOfInternalFunctionConstant(callTarget));
 #endif
     } else if (callLinkStatus.isSet() && !callLinkStatus.couldTakeSlowPath()
                && !m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache)) {
@@ -1109,7 +1189,7 @@ void ByteCodeParser::handleCall(Interpreter* interpreter, Instruction* currentIn
         int resultOperand = 0; // make compiler happy
         unsigned nextOffset = m_currentIndex + OPCODE_LENGTH(op_call);
         Instruction* putInstruction = currentInstruction + OPCODE_LENGTH(op_call);
-        PredictedType prediction = PredictNone;
+        SpeculatedType prediction = SpecNone;
         if (interpreter->getOpcodeID(putInstruction->u.opcode) == op_call_put_result) {
             resultOperand = putInstruction[1].u.operand;
             usesResult = true;
@@ -1117,6 +1197,16 @@ void ByteCodeParser::handleCall(Interpreter* interpreter, Instruction* currentIn
             prediction = getPrediction();
             nextOffset += OPCODE_LENGTH(op_call_put_result);
         }
+
+        if (callType == ConstantInternalFunction) {
+            if (handleConstantInternalFunction(usesResult, resultOperand, m_graph.valueOfInternalFunctionConstant(callTarget), registerOffset, argumentCountIncludingThis, prediction, kind))
+                return;
+            
+            // Can only handle this using the generic call handler.
+            addCall(interpreter, currentInstruction, op);
+            return;
+        }
+        
         JSFunction* expectedFunction;
         Intrinsic intrinsic;
         bool certainAboutExpectedFunction;
@@ -1148,7 +1238,7 @@ void ByteCodeParser::handleCall(Interpreter* interpreter, Instruction* currentIn
         } else if (handleInlining(usesResult, currentInstruction[1].u.operand, callTarget, resultOperand, certainAboutExpectedFunction, expectedFunction, registerOffset, argumentCountIncludingThis, nextOffset, kind))
             return;
     }
-            
+    
     addCall(interpreter, currentInstruction, op);
 }
 
@@ -1193,6 +1283,9 @@ bool ByteCodeParser::handleInlining(bool usesResult, int callTarget, NodeIndex c
     // Does the code block's size match the heuristics/requirements for being
     // an inline candidate?
     CodeBlock* profiledBlock = executable->profiledCodeBlockFor(kind);
+    if (!profiledBlock)
+        return false;
+    
     if (!mightInlineFunctionFor(profiledBlock, kind))
         return false;
     
@@ -1219,17 +1312,6 @@ bool ByteCodeParser::handleInlining(bool usesResult, int callTarget, NodeIndex c
     
     // FIXME: Don't flush constants!
     
-    Vector<VariableAccessData*, 8> arguments;
-    for (int i = 1; i < argumentCountIncludingThis; ++i) {
-        VariableAccessData* variableAccessData =
-            flushArgument(registerOffset + argumentToOperand(i));
-        arguments.append(variableAccessData);
-        
-        // Are we going to be capturing arguments? If so make sure we record this fact.
-        if (codeBlock->argumentIsCaptured(i))
-            variableAccessData->mergeIsCaptured(true);
-    }
-    
     int inlineCallFrameStart = m_inlineStackTop->remapOperand(registerOffset) - RegisterFile::CallFrameHeaderSize;
     
     // Make sure that the area used by the call frame is reserved.
@@ -1243,6 +1325,8 @@ bool ByteCodeParser::handleInlining(bool usesResult, int callTarget, NodeIndex c
         for (size_t i = 0; i < m_graph.m_blocks.size(); ++i)
             m_graph.m_blocks[i]->ensureLocals(newNumLocals);
     }
+    
+    size_t argumentPositionStart = m_graph.m_argumentPositions.size();
 
     InlineStackEntry inlineStackEntry(
         this, codeBlock, profiledBlock, m_graph.m_blocks.size() - 1,
@@ -1251,20 +1335,13 @@ bool ByteCodeParser::handleInlining(bool usesResult, int callTarget, NodeIndex c
             usesResult ? resultOperand : InvalidVirtualRegister),
         (VirtualRegister)inlineCallFrameStart, argumentCountIncludingThis, kind);
     
-    // Link up the argument variable access datas to their argument positions.
-    for (int i = 1; i < argumentCountIncludingThis; ++i) {
-        if (static_cast<size_t>(i) >= inlineStackEntry.m_argumentPositions.size())
-            break;
-        inlineStackEntry.m_argumentPositions[i]->addVariable(arguments[i - 1]);
-    }
-    
     // This is where the actual inlining really happens.
     unsigned oldIndex = m_currentIndex;
     unsigned oldProfilingIndex = m_currentProfilingIndex;
     m_currentIndex = 0;
     m_currentProfilingIndex = 0;
 
-    addToGraph(InlineStart);
+    addToGraph(InlineStart, OpInfo(argumentPositionStart));
     
     parseCodeBlock();
     
@@ -1398,7 +1475,7 @@ bool ByteCodeParser::handleMinMax(bool usesResult, int resultOperand, NodeType o
 
 // FIXME: We dead-code-eliminate unused Math intrinsics, but that's invalid because
 // they need to perform the ToNumber conversion, which can have side-effects.
-bool ByteCodeParser::handleIntrinsic(bool usesResult, int resultOperand, Intrinsic intrinsic, int registerOffset, int argumentCountIncludingThis, PredictedType prediction)
+bool ByteCodeParser::handleIntrinsic(bool usesResult, int resultOperand, Intrinsic intrinsic, int registerOffset, int argumentCountIncludingThis, SpeculatedType prediction)
 {
     switch (intrinsic) {
     case AbsIntrinsic: {
@@ -1462,7 +1539,7 @@ bool ByteCodeParser::handleIntrinsic(bool usesResult, int resultOperand, Intrins
             return false;
 
         int thisOperand = registerOffset + argumentToOperand(0);
-        if (!(m_graph[get(thisOperand)].prediction() & PredictString))
+        if (!(m_graph[get(thisOperand)].prediction() & SpecString))
             return false;
         
         int indexOperand = registerOffset + argumentToOperand(1);
@@ -1479,7 +1556,7 @@ bool ByteCodeParser::handleIntrinsic(bool usesResult, int resultOperand, Intrins
             return false;
 
         int thisOperand = registerOffset + argumentToOperand(0);
-        if (!(m_graph[get(thisOperand)].prediction() & PredictString))
+        if (!(m_graph[get(thisOperand)].prediction() & SpecString))
             return false;
 
         int indexOperand = registerOffset + argumentToOperand(1);
@@ -1516,6 +1593,122 @@ bool ByteCodeParser::handleIntrinsic(bool usesResult, int resultOperand, Intrins
     default:
         return false;
     }
+}
+
+bool ByteCodeParser::handleConstantInternalFunction(
+    bool usesResult, int resultOperand, InternalFunction* function, int registerOffset,
+    int argumentCountIncludingThis, SpeculatedType prediction, CodeSpecializationKind kind)
+{
+    // If we ever find that we have a lot of internal functions that we specialize for,
+    // then we should probably have some sort of hashtable dispatch, or maybe even
+    // dispatch straight through the MethodTable of the InternalFunction. But for now,
+    // it seems that this case is hit infrequently enough, and the number of functions
+    // we know about is small enough, that having just a linear cascade of if statements
+    // is good enough.
+    
+    UNUSED_PARAM(prediction); // Remove this once we do more things.
+    UNUSED_PARAM(kind); // Remove this once we do more things.
+    
+    if (function->classInfo() == &ArrayConstructor::s_info) {
+        if (argumentCountIncludingThis == 2) {
+            setIntrinsicResult(
+                usesResult, resultOperand,
+                addToGraph(NewArrayWithSize, get(registerOffset + argumentToOperand(1))));
+            return true;
+        }
+        
+        for (int i = 1; i < argumentCountIncludingThis; ++i)
+            addVarArgChild(get(registerOffset + argumentToOperand(i)));
+        setIntrinsicResult(
+            usesResult, resultOperand,
+            addToGraph(Node::VarArg, NewArray, OpInfo(0), OpInfo(0)));
+        return true;
+    }
+    
+    return false;
+}
+
+void ByteCodeParser::handleGetByOffset(
+    int destinationOperand, SpeculatedType prediction, NodeIndex base, unsigned identifierNumber,
+    bool useInlineStorage, size_t offset)
+{
+    NodeIndex propertyStorage;
+    size_t offsetOffset;
+    if (useInlineStorage) {
+        propertyStorage = base;
+        ASSERT(!(sizeof(JSObject) % sizeof(EncodedJSValue)));
+        offsetOffset = sizeof(JSObject) / sizeof(EncodedJSValue);
+    } else {
+        propertyStorage = addToGraph(GetPropertyStorage, base);
+        offsetOffset = 0;
+    }
+    set(destinationOperand,
+        addToGraph(
+            GetByOffset, OpInfo(m_graph.m_storageAccessData.size()), OpInfo(prediction),
+            propertyStorage));
+        
+    StorageAccessData storageAccessData;
+    storageAccessData.offset = offset + offsetOffset;
+    storageAccessData.identifierNumber = identifierNumber;
+    m_graph.m_storageAccessData.append(storageAccessData);
+}
+
+void ByteCodeParser::handleGetById(
+    int destinationOperand, SpeculatedType prediction, NodeIndex base, unsigned identifierNumber,
+    const GetByIdStatus& getByIdStatus)
+{
+    if (!getByIdStatus.isSimple()
+        || m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache)) {
+        set(destinationOperand,
+            addToGraph(
+                getByIdStatus.makesCalls() ? GetByIdFlush : GetById,
+                OpInfo(identifierNumber), OpInfo(prediction), base));
+        return;
+    }
+    
+    ASSERT(getByIdStatus.structureSet().size());
+                
+    // The implementation of GetByOffset does not know to terminate speculative
+    // execution if it doesn't have a prediction, so we do it manually.
+    if (prediction == SpecNone)
+        addToGraph(ForceOSRExit);
+    
+    NodeIndex originalBaseForBaselineJIT = base;
+                
+    addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(getByIdStatus.structureSet())), base);
+    
+    bool useInlineStorage;
+    if (!getByIdStatus.chain().isEmpty()) {
+        Structure* currentStructure = getByIdStatus.structureSet().singletonStructure();
+        JSObject* currentObject = 0;
+        for (unsigned i = 0; i < getByIdStatus.chain().size(); ++i) {
+            currentObject = asObject(currentStructure->prototypeForLookup(m_inlineStackTop->m_codeBlock));
+            currentStructure = getByIdStatus.chain()[i];
+            base = addStructureTransitionCheck(currentObject, currentStructure);
+        }
+        useInlineStorage = currentStructure->isUsingInlineStorage();
+    } else
+        useInlineStorage = getByIdStatus.structureSet().allAreUsingInlinePropertyStorage();
+    
+    // Unless we want bugs like https://bugs.webkit.org/show_bug.cgi?id=88783, we need to
+    // ensure that the base of the original get_by_id is kept alive until we're done with
+    // all of the speculations. We only insert the Phantom if there had been a CheckStructure
+    // on something other than the base following the CheckStructure on base, or if the
+    // access was compiled to a WeakJSConstant specific value, in which case we might not
+    // have any explicit use of the base at all.
+    if (getByIdStatus.specificValue() || originalBaseForBaselineJIT != base)
+        addToGraph(Phantom, originalBaseForBaselineJIT);
+    
+    if (getByIdStatus.specificValue()) {
+        ASSERT(getByIdStatus.specificValue().isCell());
+        
+        set(destinationOperand, cellConstant(getByIdStatus.specificValue().asCell()));
+        return;
+    }
+    
+    handleGetByOffset(
+        destinationOperand, prediction, base, identifierNumber, useInlineStorage,
+        getByIdStatus.offset());
 }
 
 void ByteCodeParser::prepareToParseBlock()
@@ -1578,7 +1771,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
         case op_enter:
             // Initialize all locals to undefined.
             for (int i = 0; i < m_inlineStackTop->m_codeBlock->m_numVars; ++i)
-                set(i, constantUndefined());
+                set(i, constantUndefined(), SetOnEntry);
             NEXT_OPCODE(op_enter);
 
         case op_convert_this: {
@@ -1952,7 +2145,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
         // === Property access operations ===
 
         case op_get_by_val: {
-            PredictedType prediction = getPrediction();
+            SpeculatedType prediction = getPrediction();
             
             NodeIndex base = get(currentInstruction[2].u.operand);
             NodeIndex property = get(currentInstruction[3].u.operand);
@@ -1977,7 +2170,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             m_currentProfilingIndex += OPCODE_LENGTH(op_method_check);
             Instruction* getInstruction = currentInstruction + OPCODE_LENGTH(op_method_check);
             
-            PredictedType prediction = getPrediction();
+            SpeculatedType prediction = getPrediction();
             
             ASSERT(interpreter->getOpcodeID(getInstruction->u.opcode) == op_get_by_id);
             
@@ -2000,18 +2193,22 @@ bool ByteCodeParser::parseBlock(unsigned limit)
                 // but the slow path (i.e. the normal get_by_id) never fired.
 
                 addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(methodCallStatus.structure())), base);
-                if (methodCallStatus.needsPrototypeCheck())
-                    addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(methodCallStatus.prototypeStructure())), cellConstant(methodCallStatus.prototype()));
-                
+                if (methodCallStatus.needsPrototypeCheck()) {
+                    addStructureTransitionCheck(
+                        methodCallStatus.prototype(), methodCallStatus.prototypeStructure());
+                    addToGraph(Phantom, base);
+                }
                 set(getInstruction[1].u.operand, cellConstant(methodCallStatus.function()));
-            } else
-                set(getInstruction[1].u.operand, addToGraph(getByIdStatus.makesCalls() ? GetByIdFlush : GetById, OpInfo(identifier), OpInfo(prediction), base));
+            } else {
+                handleGetById(
+                    getInstruction[1].u.operand, prediction, base, identifier, getByIdStatus);
+            }
             
             m_currentIndex += OPCODE_LENGTH(op_method_check) + OPCODE_LENGTH(op_get_by_id);
             continue;
         }
         case op_get_scoped_var: {
-            PredictedType prediction = getPrediction();
+            SpeculatedType prediction = getPrediction();
             int dst = currentInstruction[1].u.operand;
             int slot = currentInstruction[2].u.operand;
             int depth = currentInstruction[3].u.operand;
@@ -2029,7 +2226,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             NEXT_OPCODE(op_put_scoped_var);
         }
         case op_get_by_id: {
-            PredictedType prediction = getPredictionWithoutOSRExit();
+            SpeculatedType prediction = getPredictionWithoutOSRExit();
             
             NodeIndex base = get(currentInstruction[2].u.operand);
             unsigned identifierNumber = m_inlineStackTop->m_identifierRemap[currentInstruction[3].u.operand];
@@ -2038,34 +2235,8 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             GetByIdStatus getByIdStatus = GetByIdStatus::computeFor(
                 m_inlineStackTop->m_profiledBlock, m_currentIndex, identifier);
             
-            if (getByIdStatus.isSimpleDirect()
-                && !m_inlineStackTop->m_exitProfile.hasExitSite(m_currentIndex, BadCache)) {
-                ASSERT(getByIdStatus.structureSet().size());
-                
-                // The implementation of GetByOffset does not know to terminate speculative
-                // execution if it doesn't have a prediction, so we do it manually.
-                if (prediction == PredictNone)
-                    addToGraph(ForceOSRExit);
-                
-                addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(getByIdStatus.structureSet())), base);
-                NodeIndex propertyStorage;
-                size_t offsetOffset;
-                if (getByIdStatus.structureSet().allAreUsingInlinePropertyStorage()) {
-                    propertyStorage = base;
-                    ASSERT(!(sizeof(JSObject) % sizeof(EncodedJSValue)));
-                    offsetOffset = sizeof(JSObject) / sizeof(EncodedJSValue);
-                } else {
-                    propertyStorage = addToGraph(GetPropertyStorage, base);
-                    offsetOffset = 0;
-                }
-                set(currentInstruction[1].u.operand, addToGraph(GetByOffset, OpInfo(m_graph.m_storageAccessData.size()), OpInfo(prediction), propertyStorage));
-                
-                StorageAccessData storageAccessData;
-                storageAccessData.offset = getByIdStatus.offset() + offsetOffset;
-                storageAccessData.identifierNumber = identifierNumber;
-                m_graph.m_storageAccessData.append(storageAccessData);
-            } else
-                set(currentInstruction[1].u.operand, addToGraph(getByIdStatus.makesCalls() ? GetByIdFlush : GetById, OpInfo(identifierNumber), OpInfo(prediction), base));
+            handleGetById(
+                currentInstruction[1].u.operand, prediction, base, identifierNumber, getByIdStatus);
 
             NEXT_OPCODE(op_get_by_id);
         }
@@ -2114,23 +2285,20 @@ bool ByteCodeParser::parseBlock(unsigned limit)
 
                 addToGraph(CheckStructure, OpInfo(m_graph.addStructureSet(putByIdStatus.oldStructure())), base);
                 if (!direct) {
-                    if (!putByIdStatus.oldStructure()->storedPrototype().isNull())
-                        addToGraph(
-                            CheckStructure,
-                            OpInfo(m_graph.addStructureSet(putByIdStatus.oldStructure()->storedPrototype().asCell()->structure())),
-                            cellConstant(putByIdStatus.oldStructure()->storedPrototype().asCell()));
+                    if (!putByIdStatus.oldStructure()->storedPrototype().isNull()) {
+                        addStructureTransitionCheck(
+                            putByIdStatus.oldStructure()->storedPrototype().asCell());
+                    }
                     
                     for (WriteBarrier<Structure>* it = putByIdStatus.structureChain()->head(); *it; ++it) {
                         JSValue prototype = (*it)->storedPrototype();
                         if (prototype.isNull())
                             continue;
                         ASSERT(prototype.isCell());
-                        addToGraph(
-                            CheckStructure,
-                            OpInfo(m_graph.addStructureSet(prototype.asCell()->structure())),
-                            cellConstant(prototype.asCell()));
+                        addStructureTransitionCheck(prototype.asCell());
                     }
                 }
+                ASSERT(putByIdStatus.oldStructure()->transitionWatchpointSetHasBeenInvalidated());
                 addToGraph(
                     PutStructure,
                     OpInfo(
@@ -2172,17 +2340,92 @@ bool ByteCodeParser::parseBlock(unsigned limit)
         }
 
         case op_get_global_var: {
-            PredictedType prediction = getPrediction();
+            SpeculatedType prediction = getPrediction();
             
-            NodeIndex getGlobalVar = addToGraph(GetGlobalVar, OpInfo(currentInstruction[2].u.operand), OpInfo(prediction));
+            JSGlobalObject* globalObject = m_inlineStackTop->m_codeBlock->globalObject();
+
+            NodeIndex getGlobalVar = addToGraph(
+                GetGlobalVar,
+                OpInfo(globalObject->assertRegisterIsInThisObject(currentInstruction[2].u.registerPointer)),
+                OpInfo(prediction));
             set(currentInstruction[1].u.operand, getGlobalVar);
             NEXT_OPCODE(op_get_global_var);
+        }
+                    
+        case op_get_global_var_watchable: {
+            SpeculatedType prediction = getPrediction();
+            
+            JSGlobalObject* globalObject = m_inlineStackTop->m_codeBlock->globalObject();
+            
+            unsigned identifierNumber = m_inlineStackTop->m_identifierRemap[currentInstruction[3].u.operand];
+            Identifier identifier = m_codeBlock->identifier(identifierNumber);
+            SymbolTableEntry entry = globalObject->symbolTable().get(identifier.impl());
+            if (!entry.couldBeWatched()) {
+                NodeIndex getGlobalVar = addToGraph(
+                    GetGlobalVar,
+                    OpInfo(globalObject->assertRegisterIsInThisObject(currentInstruction[2].u.registerPointer)),
+                    OpInfo(prediction));
+                set(currentInstruction[1].u.operand, getGlobalVar);
+                NEXT_OPCODE(op_get_global_var_watchable);
+            }
+            
+            // The watchpoint is still intact! This means that we will get notified if the
+            // current value in the global variable changes. So, we can inline that value.
+            // Moreover, currently we can assume that this value is a JSFunction*, which
+            // implies that it's a cell. This simplifies things, since in general we'd have
+            // to use a JSConstant for non-cells and a WeakJSConstant for cells. So instead
+            // of having both cases we just assert that the value is a cell.
+            
+            // NB. If it wasn't for CSE, GlobalVarWatchpoint would have no need for the
+            // register pointer. But CSE tracks effects on global variables by comparing
+            // register pointers. Because CSE executes multiple times while the backend
+            // executes once, we use the following performance trade-off:
+            // - The node refers directly to the register pointer to make CSE super cheap.
+            // - To perform backend code generation, the node only contains the identifier
+            //   number, from which it is possible to get (via a few average-time O(1)
+            //   lookups) to the WatchpointSet.
+            
+            addToGraph(
+                GlobalVarWatchpoint,
+                OpInfo(globalObject->assertRegisterIsInThisObject(currentInstruction[2].u.registerPointer)),
+                OpInfo(identifierNumber));
+            
+            JSValue specificValue = globalObject->registerAt(entry.getIndex()).get();
+            ASSERT(specificValue.isCell());
+            set(currentInstruction[1].u.operand, cellConstant(specificValue.asCell()));
+            
+            NEXT_OPCODE(op_get_global_var_watchable);
         }
 
         case op_put_global_var: {
             NodeIndex value = get(currentInstruction[2].u.operand);
-            addToGraph(PutGlobalVar, OpInfo(currentInstruction[1].u.operand), value);
+            addToGraph(
+                PutGlobalVar,
+                OpInfo(m_inlineStackTop->m_codeBlock->globalObject()->assertRegisterIsInThisObject(currentInstruction[1].u.registerPointer)),
+                value);
             NEXT_OPCODE(op_put_global_var);
+        }
+
+        case op_put_global_var_check: {
+            NodeIndex value = get(currentInstruction[2].u.operand);
+            CodeBlock* codeBlock = m_inlineStackTop->m_codeBlock;
+            JSGlobalObject* globalObject = codeBlock->globalObject();
+            unsigned identifierNumber = m_inlineStackTop->m_identifierRemap[currentInstruction[4].u.operand];
+            Identifier identifier = m_codeBlock->identifier(identifierNumber);
+            SymbolTableEntry entry = globalObject->symbolTable().get(identifier.impl());
+            if (!entry.couldBeWatched()) {
+                addToGraph(
+                    PutGlobalVar,
+                    OpInfo(globalObject->assertRegisterIsInThisObject(currentInstruction[1].u.registerPointer)),
+                    value);
+                NEXT_OPCODE(op_put_global_var_check);
+            }
+            addToGraph(
+                PutGlobalVarCheck,
+                OpInfo(codeBlock->globalObject()->assertRegisterIsInThisObject(currentInstruction[1].u.registerPointer)),
+                OpInfo(identifierNumber),
+                value);
+            NEXT_OPCODE(op_put_global_var_check);
         }
 
         // === Block terminators. ===
@@ -2352,6 +2595,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
         }
 
         case op_ret:
+            flushArgumentsAndCapturedVariables();
             if (m_inlineStackTop->m_inlineCallFrame) {
                 if (m_inlineStackTop->m_returnValue != InvalidVirtualRegister)
                     setDirect(m_inlineStackTop->m_returnValue, get(currentInstruction[1].u.operand));
@@ -2379,15 +2623,18 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             LAST_OPCODE(op_ret);
             
         case op_end:
+            flushArgumentsAndCapturedVariables();
             ASSERT(!m_inlineStackTop->m_inlineCallFrame);
             addToGraph(Return, get(currentInstruction[1].u.operand));
             LAST_OPCODE(op_end);
 
         case op_throw:
+            flushArgumentsAndCapturedVariables();
             addToGraph(Throw, get(currentInstruction[1].u.operand));
             LAST_OPCODE(op_throw);
             
         case op_throw_reference_error:
+            flushArgumentsAndCapturedVariables();
             addToGraph(ThrowReferenceError);
             LAST_OPCODE(op_throw_reference_error);
             
@@ -2409,7 +2656,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             
             Instruction* putInstruction = currentInstruction + OPCODE_LENGTH(op_call_varargs);
             
-            PredictedType prediction = PredictNone;
+            SpeculatedType prediction = SpecNone;
             if (interpreter->getOpcodeID(putInstruction->u.opcode) == op_call_put_result) {
                 m_currentProfilingIndex = m_currentIndex + OPCODE_LENGTH(op_call_varargs);
                 prediction = getPrediction();
@@ -2447,7 +2694,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
             LAST_OPCODE(op_jneq_ptr);
 
         case op_resolve: {
-            PredictedType prediction = getPrediction();
+            SpeculatedType prediction = getPrediction();
             
             unsigned identifier = m_inlineStackTop->m_identifierRemap[currentInstruction[2].u.operand];
 
@@ -2458,7 +2705,7 @@ bool ByteCodeParser::parseBlock(unsigned limit)
         }
 
         case op_resolve_base: {
-            PredictedType prediction = getPrediction();
+            SpeculatedType prediction = getPrediction();
             
             unsigned identifier = m_inlineStackTop->m_identifierRemap[currentInstruction[2].u.operand];
 
@@ -2469,12 +2716,41 @@ bool ByteCodeParser::parseBlock(unsigned limit)
         }
             
         case op_resolve_global: {
-            PredictedType prediction = getPrediction();
+            SpeculatedType prediction = getPrediction();
+            
+            unsigned identifierNumber = m_inlineStackTop->m_identifierRemap[
+                currentInstruction[2].u.operand];
+            
+            ResolveGlobalStatus status = ResolveGlobalStatus::computeFor(
+                m_inlineStackTop->m_profiledBlock, m_currentIndex,
+                m_codeBlock->identifier(identifierNumber));
+            if (status.isSimple()) {
+                ASSERT(status.structure());
+                
+                NodeIndex globalObject = addStructureTransitionCheck(
+                    m_inlineStackTop->m_codeBlock->globalObject(), status.structure());
+                
+                if (status.specificValue()) {
+                    ASSERT(status.specificValue().isCell());
+                    
+                    set(currentInstruction[1].u.operand,
+                        cellConstant(status.specificValue().asCell()));
+                } else {
+                    handleGetByOffset(
+                        currentInstruction[1].u.operand, prediction, globalObject,
+                        identifierNumber, status.structure()->isUsingInlineStorage(),
+                        status.offset());
+                }
+                
+                m_globalResolveNumber++; // Skip over the unused global resolve info.
+                
+                NEXT_OPCODE(op_resolve_global);
+            }
             
             NodeIndex resolve = addToGraph(ResolveGlobal, OpInfo(m_graph.m_resolveGlobalData.size()), OpInfo(prediction));
             m_graph.m_resolveGlobalData.append(ResolveGlobalData());
             ResolveGlobalData& data = m_graph.m_resolveGlobalData.last();
-            data.identifierNumber = m_inlineStackTop->m_identifierRemap[currentInstruction[2].u.operand];
+            data.identifierNumber = identifierNumber;
             data.resolveInfoIndex = m_globalResolveNumber++;
             set(currentInstruction[1].u.operand, resolve);
 
@@ -2723,7 +2999,7 @@ void ByteCodeParser::processPhiStack()
     }
 }
 
-void ByteCodeParser::fixVariableAccessPredictions()
+void ByteCodeParser::fixVariableAccessSpeculations()
 {
     for (unsigned i = 0; i < m_graph.m_variableAccessData.size(); ++i) {
         VariableAccessData* data = &m_graph.m_variableAccessData[i];
@@ -2818,8 +3094,8 @@ ByteCodeParser::InlineStackEntry::InlineStackEntry(
     , m_didEarlyReturn(false)
     , m_caller(byteCodeParser->m_inlineStackTop)
 {
-    m_argumentPositions.resize(codeBlock->numParameters());
-    for (unsigned i = codeBlock->numParameters(); i--;) {
+    m_argumentPositions.resize(argumentCountIncludingThis);
+    for (int i = 0; i < argumentCountIncludingThis; ++i) {
         byteCodeParser->m_graph.m_argumentPositions.append(ArgumentPosition());
         ArgumentPosition* argumentPosition = &byteCodeParser->m_graph.m_argumentPositions.last();
         m_argumentPositions[i] = argumentPosition;
@@ -2900,6 +3176,8 @@ ByteCodeParser::InlineStackEntry::InlineStackEntry(
             }
             m_constantRemap[i] = result.iterator->second;
         }
+        for (unsigned i = 0; i < codeBlock->numberOfGlobalResolveInfos(); ++i)
+            byteCodeParser->m_codeBlock->addGlobalResolveInfo(std::numeric_limits<unsigned>::max());
         
         m_callsiteBlockHeadNeedsLinking = true;
     } else {
@@ -2983,6 +3261,9 @@ void ByteCodeParser::parseCodeBlock()
                     ASSERT(m_inlineStackTop->m_unlinkedBlocks.isEmpty() || m_graph.m_blocks[m_inlineStackTop->m_unlinkedBlocks.last().m_blockIndex]->bytecodeBegin < m_currentIndex);
                     m_inlineStackTop->m_unlinkedBlocks.append(UnlinkedBlock(m_graph.m_blocks.size()));
                     m_inlineStackTop->m_blockLinkingTargets.append(m_graph.m_blocks.size());
+                    // The first block is definitely an OSR target.
+                    if (!m_graph.m_blocks.size())
+                        block->isOSRTarget = true;
                     m_graph.m_blocks.append(block.release());
                     prepareToParseBlock();
                 }
@@ -3049,7 +3330,7 @@ bool ByteCodeParser::parse()
             m_graph.m_blocks[blockIndex].clear();
     }
     
-    fixVariableAccessPredictions();
+    fixVariableAccessSpeculations();
     
     m_graph.m_preservedVars = m_preservedVars;
     m_graph.m_localVars = m_numLocals;
@@ -3060,6 +3341,7 @@ bool ByteCodeParser::parse()
 
 bool parse(ExecState* exec, Graph& graph)
 {
+    SamplingRegion samplingRegion("DFG Parsing");
 #if DFG_DEBUG_LOCAL_DISBALE
     UNUSED_PARAM(exec);
     UNUSED_PARAM(graph);

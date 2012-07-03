@@ -51,15 +51,6 @@ _log = logging.getLogger(__name__)
 
 
 class WebKitPort(Port):
-    def __init__(self, host, port_name=None, **kwargs):
-        Port.__init__(self, host, port_name=port_name, **kwargs)
-
-        # FIXME: Disable pixel tests until they are run by default on build.webkit.org.
-        self.set_option_default("pixel_tests", False)
-        # WebKit ports expect a 35s timeout, or 350s timeout when running with -g/--guard-malloc.
-        # FIXME: --guard-malloc is only supported on Mac, so this logic should be in mac.py.
-        default_time_out_seconds = 350 if self.get_option('guard_malloc') else 35
-        self.set_option_default("time_out_ms", default_time_out_seconds * 1000)
 
     def driver_name(self):
         if self.get_option('webkit_test_runner'):
@@ -76,10 +67,6 @@ class WebKitPort(Port):
         if self.name() != self.port_name:
             search_paths.append(self.port_name)
         return map(self._webkit_baseline_path, search_paths)
-
-    def path_to_test_expectations_file(self):
-        # test_expectations are always in mac/ not mac-leopard/ by convention, hence we use port_name instead of name().
-        return self._filesystem.join(self._webkit_baseline_path(self.port_name), 'test_expectations.txt')
 
     def _port_flag_for_scripts(self):
         # This is overrriden by ports which need a flag passed to scripts to distinguish the use of that port.
@@ -118,13 +105,16 @@ class WebKitPort(Port):
         # These two projects should be factored out into their own
         # projects.
         try:
-            self._run_script("build-dumprendertree", env=env)
+            self._run_script("build-dumprendertree", args=self._build_driver_flags(), env=env)
             if self.get_option('webkit_test_runner'):
-                self._run_script("build-webkittestrunner", env=env)
+                self._run_script("build-webkittestrunner", args=self._build_driver_flags(), env=env)
         except ScriptError, e:
             _log.error(e.message_with_output(output_limit=None))
             return False
         return True
+
+    def _build_driver_flags(self):
+        return []
 
     def _check_driver(self):
         driver_path = self._path_to_driver()
@@ -265,15 +255,20 @@ class WebKitPort(Port):
     def nm_command(self):
         return 'nm'
 
-    def _webcore_symbols_string(self):
-        webcore_library_path = self._path_to_webcore_library()
-        if not webcore_library_path:
-            return None
-        try:
-            return self._executive.run_command([self.nm_command(), webcore_library_path], error_handler=Executive.ignore_error)
-        except OSError, e:
-            _log.warn("Failed to run nm: %s.  Can't determine WebCore supported features." % e)
-        return None
+    def _modules_to_search_for_symbols(self):
+        path = self._path_to_webcore_library()
+        if path:
+            return [path]
+        return []
+
+    def _symbols_string(self):
+        symbols = ''
+        for path_to_module in self._modules_to_search_for_symbols():
+            try:
+                symbols += self._executive.run_command([self.nm_command(), path_to_module], error_handler=Executive.ignore_error)
+            except OSError, e:
+                _log.warn("Failed to run nm: %s.  Can't determine supported features correctly." % e)
+        return symbols
 
     # Ports which use run-time feature detection should define this method and return
     # a dictionary mapping from Feature Names to skipped directoires.  NRWT will
@@ -332,10 +327,10 @@ class WebKitPort(Port):
         # This is a performance optimization to avoid the calling nm.
         if self._has_test_in_directories(self._missing_symbol_to_skipped_tests().values(), test_list):
             # Runtime feature detection not supported, fallback to static dectection:
-            # Disable any tests for symbols missing from the webcore symbol string.
-            webcore_symbols_string = self._webcore_symbols_string()
-            if webcore_symbols_string is not None:
-                return reduce(operator.add, [directories for symbol_substring, directories in self._missing_symbol_to_skipped_tests().items() if symbol_substring not in webcore_symbols_string], [])
+            # Disable any tests for symbols missing from the executable or libraries.
+            symbols_string = self._symbols_string()
+            if symbols_string is not None:
+                return reduce(operator.add, [directories for symbol_substring, directories in self._missing_symbol_to_skipped_tests().items() if symbol_substring not in symbols_string], [])
 
         # Failed to get any runtime or symbol information, don't skip any tests.
         return []
@@ -359,15 +354,6 @@ class WebKitPort(Port):
         search_paths.update(self.get_option("additional_platform_directory", []))
 
         return search_paths
-
-    def test_expectations(self):
-        # This allows ports to use a combination of test_expectations.txt files and Skipped lists.
-        expectations = ''
-        expectations_path = self.path_to_test_expectations_file()
-        if self._filesystem.exists(expectations_path):
-            _log.debug("Using test_expectations.txt: %s" % expectations_path)
-            expectations = self._filesystem.read_text_file(expectations_path)
-        return expectations
 
     def skipped_layout_tests(self, test_list):
         tests_to_skip = set(self._expectations_from_skipped_files(self._skipped_file_search_paths()))
@@ -441,13 +427,17 @@ class WebKitDriver(Driver):
 
     def __init__(self, port, worker_number, pixel_tests, no_timeout=False):
         Driver.__init__(self, port, worker_number, pixel_tests, no_timeout)
-        self._driver_tempdir = port._filesystem.mkdtemp(prefix='%s-' % self._port.driver_name())
+        self._driver_tempdir = None
         # WebKitTestRunner can report back subprocess crashes by printing
         # "#CRASHED - PROCESSNAME".  Since those can happen at any time
         # and ServerProcess won't be aware of them (since the actual tool
         # didn't crash, just a subprocess) we record the crashed subprocess name here.
         self._crashed_process_name = None
         self._crashed_pid = None
+
+        # WebKitTestRunner can report back subprocesses that became unresponsive
+        # This could mean they crashed.
+        self._subprocess_was_unresponsive = False
 
         # stderr reading is scoped on a per-test (not per-block) basis, so we store the accumulated
         # stderr output, as well as if we've seen #EOF on this driver instance.
@@ -457,10 +447,8 @@ class WebKitDriver(Driver):
         self.err_seen_eof = False
         self._server_process = None
 
-    # FIXME: This may be unsafe, as python does not guarentee any ordering of __del__ calls
-    # I believe it's possible that self._port or self._port._filesystem may already be destroyed.
     def __del__(self):
-        self._port._filesystem.rmtree(str(self._driver_tempdir))
+        self.stop()
 
     def cmd_line(self, pixel_tests, per_test_args):
         cmd = self._command_wrapper(self._port.get_option('wrapper'))
@@ -485,6 +473,8 @@ class WebKitDriver(Driver):
         return cmd
 
     def _start(self, pixel_tests, per_test_args):
+        self.stop()
+        self._driver_tempdir = self._port._filesystem.mkdtemp(prefix='%s-' % self._port.driver_name())
         server_name = self._port.driver_name()
         environment = self._port.setup_environ_for_server(server_name)
         environment['DYLD_LIBRARY_PATH'] = self._port._build_path()
@@ -513,7 +503,8 @@ class WebKitDriver(Driver):
             # See http://trac.webkit.org/changeset/65537.
             self._crashed_process_name = self._server_process.name()
             self._crashed_pid = self._server_process.pid()
-        elif error_line.startswith("#CRASHED - WebProcess"):
+        elif (error_line.startswith("#CRASHED - WebProcess")
+            or error_line.startswith("#PROCESS UNRESPONSIVE - WebProcess")):
             # WebKitTestRunner uses this to report that the WebProcess subprocess crashed.
             pid = None
             m = re.search('pid (\d+)', error_line)
@@ -523,11 +514,16 @@ class WebKitDriver(Driver):
             self._crashed_pid = pid
             # FIXME: delete this after we're sure this code is working :)
             _log.debug('WebProcess crash, pid = %s, error_line = %s' % (str(pid), error_line))
+            if error_line.startswith("#PROCESS UNRESPONSIVE - WebProcess"):
+                self._subprocess_was_unresponsive = True
             return True
         return self.has_crashed()
 
     def _command_from_driver_input(self, driver_input):
-        if self.is_http_test(driver_input.test_name):
+        # FIXME: performance tests pass in full URLs instead of test names.
+        if driver_input.test_name.startswith('http://') or driver_input.test_name.startswith('https://')  or driver_input.test_name == ('about:blank'):
+            command = driver_input.test_name
+        elif self.is_http_test(driver_input.test_name):
             command = self.test_to_uri(driver_input.test_name)
         else:
             command = self._port.abspath_for_test(driver_input.test_name)
@@ -555,8 +551,7 @@ class WebKitDriver(Driver):
 
     def run_test(self, driver_input):
         start_time = time.time()
-        if not self._server_process:
-            self._start(driver_input.should_run_pixel_test, driver_input.args)
+        self.start(driver_input.should_run_pixel_test, driver_input.args)
         self.error_from_test = str()
         self.err_seen_eof = False
 
@@ -573,10 +568,17 @@ class WebKitDriver(Driver):
         # FIXME: We may need to also read stderr until the process dies?
         self.error_from_test += self._server_process.pop_all_buffered_stderr()
 
-        crash_log = ''
+        crash_log = None
         if self.has_crashed():
             crash_log = self._port._get_crash_log(self._crashed_process_name, self._crashed_pid, text, self.error_from_test,
                                                   newer_than=start_time)
+
+            # If we don't find a crash log use a placeholder error message instead.
+            if not crash_log:
+                crash_log = 'no crash log found for %s:%d.' % (self._crashed_process_name, self._crashed_pid)
+                # If we were unresponsive append a message informing there may not have been a crash.
+                if self._subprocess_was_unresponsive:
+                    crash_log += '  Process failed to become responsive before timing out.'
 
         timeout = self._server_process.timed_out
         if timeout:
@@ -667,6 +669,10 @@ class WebKitDriver(Driver):
         if self._server_process:
             self._server_process.stop()
             self._server_process = None
+
+        if self._driver_tempdir:
+            self._port._filesystem.rmtree(str(self._driver_tempdir))
+            self._driver_tempdir = None
 
 
 class ContentBlock(object):

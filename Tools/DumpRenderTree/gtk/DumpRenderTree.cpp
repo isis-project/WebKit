@@ -128,10 +128,12 @@ void dumpFrameScrollPosition(WebKitWebFrame* frame)
 
 void displayWebView()
 {
-    gtk_widget_queue_draw(GTK_WIDGET(webView));
+    DumpRenderTreeSupportGtk::forceWebViewPaint(webView);
+    DumpRenderTreeSupportGtk::setTracksRepaints(mainFrame, true);
+    DumpRenderTreeSupportGtk::resetTrackedRepaints(mainFrame);
 }
 
-static void appendString(gchar*& target, gchar* string)
+static void appendString(gchar*& target, const gchar* string)
 {
     gchar* oldString = target;
     target = g_strconcat(target, string, NULL);
@@ -167,6 +169,32 @@ CString getTopLevelPath()
     return TOP_LEVEL_DIR;
 }
 
+CString getOutputDir()
+{
+    const char* webkitOutputDir = g_getenv("WEBKITOUTPUTDIR");
+    if (webkitOutputDir)
+        return webkitOutputDir;
+
+    CString topLevelPath = getTopLevelPath();
+    GOwnPtr<char> outputDir(g_build_filename(topLevelPath.data(), "WebKitBuild", NULL));
+    return outputDir.get();
+}
+
+static CString getFontsPath()
+{
+    CString webkitOutputDir = getOutputDir();
+    GOwnPtr<char> fontsPath(g_build_filename(webkitOutputDir.data(), "Dependencies", "Root", "webkitgtk-test-fonts", NULL));
+    if (g_file_test(fontsPath.get(), static_cast<GFileTest>(G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR)))
+        return fontsPath.get();
+
+    // Try alternative fonts path.
+    fontsPath.set(g_build_filename(webkitOutputDir.data(), "webkitgtk-test-fonts", NULL));
+    if (g_file_test(fontsPath.get(), static_cast<GFileTest>(G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR)))
+        return fontsPath.get();
+
+    return CString();
+}
+
 static void initializeFonts(const char* testURL = 0)
 {
 #if PLATFORM(X11)
@@ -188,18 +216,16 @@ static void initializeFonts(const char* testURL = 0)
     if (!FcConfigParseAndLoad(config, reinterpret_cast<FcChar8*>(fontConfigFilename.get()), true))
         g_error("Couldn't load font configuration file from: %s", fontConfigFilename.get());
 
-    CString topLevelPath = getTopLevelPath();
-    GOwnPtr<char> fontsPath(g_build_filename(topLevelPath.data(), "WebKitBuild", "Dependencies",
-                                             "Root", "webkitgtk-test-fonts", NULL));
-    if (!g_file_test(fontsPath.get(), static_cast<GFileTest>(G_FILE_TEST_EXISTS | G_FILE_TEST_IS_DIR)))
-        g_error("Could not locate test fonts at %s. Is WEBKIT_TOP_LEVEL set?", fontsPath.get());
+    CString fontsPath = getFontsPath();
+    if (fontsPath.isNull())
+        g_error("Could not locate test fonts at %s. Is WEBKIT_TOP_LEVEL set?", fontsPath.data());
 
     GOwnPtr<GError> error;
-    GOwnPtr<GDir> fontsDirectory(g_dir_open(fontsPath.get(), 0, &error.outPtr()));
+    GOwnPtr<GDir> fontsDirectory(g_dir_open(fontsPath.data(), 0, &error.outPtr()));
     while (const char* directoryEntry = g_dir_read_name(fontsDirectory.get())) {
         if (!g_str_has_suffix(directoryEntry, ".ttf") && !g_str_has_suffix(directoryEntry, ".otf"))
             continue;
-        GOwnPtr<gchar> fontPath(g_build_filename(fontsPath.get(), directoryEntry, NULL));
+        GOwnPtr<gchar> fontPath(g_build_filename(fontsPath.data(), directoryEntry, NULL));
         if (!FcConfigAppFontAddFile(config, reinterpret_cast<const FcChar8*>(fontPath.get())))
             g_error("Could not load font at %s!", fontPath.get());
 
@@ -246,8 +272,10 @@ static gchar* dumpFramesAsText(WebKitWebFrame* frame)
 
     if (gLayoutTestController->dumpChildFramesAsText()) {
         GSList* children = DumpRenderTreeSupportGtk::getFrameChildren(frame);
-        for (GSList* child = children; child; child = g_slist_next(child))
-            appendString(result, dumpFramesAsText(static_cast<WebKitWebFrame* >(child->data)));
+        for (GSList* child = children; child; child = g_slist_next(child)) {
+            GOwnPtr<gchar> childData(dumpFramesAsText(static_cast<WebKitWebFrame*>(child->data)));
+            appendString(result, childData.get());
+        }
         g_slist_free(children);
     }
 
@@ -278,8 +306,10 @@ static void dumpHistoryItem(WebKitWebHistoryItem* item, int indent, bool current
     gchar* uriScheme = g_uri_parse_scheme(uri);
     if (g_strcmp0(uriScheme, "file") == 0) {
         gchar* pos = g_strstr_len(uri, -1, "/LayoutTests/");
-        if (!pos)
+        if (!pos) {
+            g_free(uriScheme);
             return;
+        }
 
         GString* result = g_string_sized_new(strlen(uri));
         result = g_string_append(result, "(file test):");
@@ -291,9 +321,9 @@ static void dumpHistoryItem(WebKitWebHistoryItem* item, int indent, bool current
 
     g_free(uriScheme);
 
-    const gchar* target = webkit_web_history_item_get_target(item);
-    if (target && strlen(target) > 0)
-        printf(" (in frame \"%s\")", target);
+    GOwnPtr<gchar> target(webkit_web_history_item_get_target(item));
+    if (target.get() && strlen(target.get()) > 0)
+        printf(" (in frame \"%s\")", target.get());
     if (webkit_web_history_item_is_target_item(item))
         printf("  **nav target**");
     putchar('\n');
@@ -456,10 +486,12 @@ static void resetDefaultsToConsistentValues()
         axController->resetToConsistentState();
 
     DumpRenderTreeSupportGtk::clearOpener(mainFrame);
+    DumpRenderTreeSupportGtk::setTracksRepaints(mainFrame, false);
 
     DumpRenderTreeSupportGtk::resetGeolocationClientMock(webView);
 
     DumpRenderTreeSupportGtk::setHixie76WebSocketProtocolEnabled(webView, true);
+    DumpRenderTreeSupportGtk::setCSSGridLayoutEnabled(webView, false);
 }
 
 static bool useLongRunningServerMode(int argc, char *argv[])
@@ -1266,6 +1298,13 @@ static void didRunInsecureContent(WebKitWebFrame*, WebKitSecurityOrigin*, const 
         printf("didRunInsecureContent\n");
 }
 
+static gboolean webViewRunFileChooser(WebKitWebView*, WebKitFileChooserRequest*)
+{
+    // We return TRUE to not propagate the event further so the
+    // default file chooser dialog is not shown.
+    return TRUE;
+}
+
 static WebKitWebView* createWebView()
 {
     // It is important to declare DRT is running early so when creating
@@ -1300,6 +1339,7 @@ static WebKitWebView* createWebView()
                      "signal::resource-response-received", didReceiveResponse, 0,
                      "signal::resource-load-finished", didFinishLoading, 0,
                      "signal::resource-load-failed", didFailLoadingWithError, 0,
+                     "signal::run-file-chooser", webViewRunFileChooser, 0,
                      NULL);
     connectEditingCallbacks(view);
 

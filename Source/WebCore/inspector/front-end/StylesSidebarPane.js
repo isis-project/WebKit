@@ -1397,7 +1397,8 @@ WebInspector.ComputedStylePropertiesSection.prototype = {
 
     _isPropertyInherited: function(propertyName)
     {
-        return !(propertyName in this._usedProperties) && !(propertyName in this._alwaysShowComputedProperties);
+        var canonicalName = WebInspector.StylesSidebarPane.canonicalPropertyName(propertyName);
+        return !(canonicalName in this._usedProperties) && !(canonicalName in this._alwaysShowComputedProperties);
     },
 
     update: function()
@@ -1692,7 +1693,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
             enabledCheckboxElement.className = "enabled-button";
             enabledCheckboxElement.type = "checkbox";
             enabledCheckboxElement.checked = !this.disabled;
-            enabledCheckboxElement.addEventListener("change", this.toggleEnabled.bind(this), false);
+            enabledCheckboxElement.addEventListener("click", this.toggleEnabled.bind(this), false);
         }
 
         var nameElement = document.createElement("span");
@@ -1985,6 +1986,7 @@ WebInspector.StylePropertyTreeElement.prototype = {
 
         this._parentPane._userOperation = true;
         this.property.setDisabled(disabled, callback.bind(this));
+        event.consume();
     },
 
     updateState: function()

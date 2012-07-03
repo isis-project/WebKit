@@ -46,7 +46,6 @@
 #include "FrameLoaderClient.h"
 #include "Node.h"
 #include "NotImplemented.h"
-#include "NPObjectWrapper.h"
 #include "npruntime_impl.h"
 #include "npruntime_priv.h"
 #include "NPV8Object.h"
@@ -113,7 +112,7 @@ ScriptController::ScriptController(Frame* frame)
     , m_paused(false)
     , m_proxy(adoptPtr(new V8Proxy(frame)))
 #if ENABLE(NETSCAPE_PLUGIN_API)
-    , m_wrappedWindowScriptNPObject(0)
+    , m_windowScriptNPObject(0)
 #endif
 {
 }
@@ -132,21 +131,14 @@ void ScriptController::clearScriptObjects()
     m_pluginObjects.clear();
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
-    if (m_wrappedWindowScriptNPObject) {
-        NPObjectWrapper* windowScriptObjectWrapper = NPObjectWrapper::getWrapper(m_wrappedWindowScriptNPObject);
-        ASSERT(windowScriptObjectWrapper);
-
-        NPObject* windowScriptNPObject = NPObjectWrapper::getUnderlyingNPObject(m_wrappedWindowScriptNPObject);
-        ASSERT(windowScriptNPObject);
-        // Call _NPN_DeallocateObject() instead of _NPN_ReleaseObject() so that we don't leak if a plugin fails to release the window
-        // script object properly.
-        // This shouldn't cause any problems for plugins since they should have already been stopped and destroyed at this point.
-        _NPN_DeallocateObject(windowScriptNPObject);
-
-        // Clear out the wrapped window script object pointer held by the wrapper.
-        windowScriptObjectWrapper->clear();
-        _NPN_ReleaseObject(m_wrappedWindowScriptNPObject);
-        m_wrappedWindowScriptNPObject = 0;
+    if (m_windowScriptNPObject) {
+        // Dispose of the underlying V8 object before releasing our reference
+        // to it, so that if the plugin fails to release it properly we will
+        // only leak the NPObject wrapper, not the object, its document, or
+        // anything else they reference.
+        disposeUnderlyingV8Object(m_windowScriptNPObject);
+        _NPN_ReleaseObject(m_windowScriptNPObject);
+        m_windowScriptNPObject = 0;
     }
 #endif
 }
@@ -180,14 +172,11 @@ void ScriptController::evaluateInIsolatedWorld(unsigned worldID, const Vector<Sc
 void ScriptController::evaluateInIsolatedWorld(unsigned worldID, const Vector<ScriptSourceCode>& sources, int extensionGroup, Vector<ScriptValue>* results)
 {
     v8::HandleScope handleScope;
-    if (results) {
-        Vector<v8::Local<v8::Value> > v8Results;
-        m_proxy->evaluateInIsolatedWorld(worldID, sources, extensionGroup, &v8Results);
-        Vector<v8::Local<v8::Value> >::iterator itr;
-        for (itr = v8Results.begin(); itr != v8Results.end(); ++itr)
-            results->append(ScriptValue(*itr));
-    } else
-        m_proxy->evaluateInIsolatedWorld(worldID, sources, extensionGroup, 0);
+    v8::Local<v8::Array> v8Results = m_proxy->evaluateInIsolatedWorld(worldID, sources, extensionGroup);
+    if (results && !v8Results.IsEmpty()) {
+        for (size_t i = 0; i < v8Results->Length(); ++i)
+            results->append(ScriptValue(v8Results->Get(i)));
+    }
 }
 
 void ScriptController::setIsolatedWorldSecurityOrigin(int worldID, PassRefPtr<SecurityOrigin> securityOrigin)
@@ -282,13 +271,25 @@ bool ScriptController::haveInterpreter() const
     return m_proxy->windowShell()->isContextInitialized();
 }
 
+void ScriptController::enableEval()
+{
+    // We don't call initContextIfNeeded because contexts have eval enabled by default.
+
+    v8::HandleScope handleScope;
+    v8::Handle<v8::Context> v8Context = proxy()->windowShell()->context();
+    if (v8Context.IsEmpty())
+        return;
+
+    v8Context->AllowCodeGenerationFromStrings(true);
+}
+
 void ScriptController::disableEval()
 {
-    if (!m_proxy->windowShell()->initContextIfNeeded())
+    if (!proxy()->windowShell()->initContextIfNeeded())
         return;
 
     v8::HandleScope handleScope;
-    v8::Handle<v8::Context> v8Context = V8Proxy::mainWorldContext(m_frame);
+    v8::Handle<v8::Context> v8Context = proxy()->windowShell()->context();
     if (v8Context.IsEmpty())
         return;
 
@@ -385,24 +386,21 @@ static NPObject* createScriptObject(Frame* frame)
 
 NPObject* ScriptController::windowScriptNPObject()
 {
-    if (m_wrappedWindowScriptNPObject)
-        return m_wrappedWindowScriptNPObject;
+    if (m_windowScriptNPObject)
+        return m_windowScriptNPObject;
 
-    NPObject* windowScriptNPObject = 0;
     if (canExecuteScripts(NotAboutToExecuteScript)) {
         // JavaScript is enabled, so there is a JavaScript window object.
         // Return an NPObject bound to the window object.
-        windowScriptNPObject = createScriptObject(m_frame);
-        _NPN_RegisterObject(windowScriptNPObject, 0);
+        m_windowScriptNPObject = createScriptObject(m_frame);
+        _NPN_RegisterObject(m_windowScriptNPObject, 0);
     } else {
         // JavaScript is not enabled, so we cannot bind the NPObject to the
         // JavaScript window object. Instead, we create an NPObject of a
         // different class, one which is not bound to a JavaScript object.
-        windowScriptNPObject = createNoScriptObject();
+        m_windowScriptNPObject = createNoScriptObject();
     }
-
-    m_wrappedWindowScriptNPObject = NPObjectWrapper::create(windowScriptNPObject);
-    return m_wrappedWindowScriptNPObject;
+    return m_windowScriptNPObject;
 }
 
 NPObject* ScriptController::createScriptObjectForPluginElement(HTMLPlugInElement* plugin)

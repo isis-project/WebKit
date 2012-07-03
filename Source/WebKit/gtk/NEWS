@@ -1,4 +1,62 @@
 =================
+WebKitGTK+ 1.9.4
+=================
+
+What's new in WebKitGTK+ 1.9.4?
+
+  - Add an accelerated compositing implementation for WebKit2.
+  - Add API to register custom URI schemes to WebKit2 GTK+ API.
+  - Add support for window.showModalDialog in WebKit2 GTK+ API.
+  - Add webkit_download_get_received_data_length to WebKit2 GTK+ API.
+  - Add ContextMenu API to WebKit2 GTK+.
+  - Add Geolocation permission requests API to WebKit2 GTK.
+  - Add API to get the library version to WebKit2 GTK+.
+  - Add WebKitWebView::run-file-chooser signal to WebKit1 API.
+  - Port the video sink to GStreamer 0.11 API.
+  - Add TextureMapper ImageBuffer support as a fallback from the
+    hardware accelerated path
+  - Add input methods submenu item to the default context menu for
+    editable content.
+  - Unmark highlighted text matches when find operation finishes.
+  - Honor the device scale factor property when drawing.
+  - Prevent setting or editing httpOnly cookies from JavaScript.
+  - Fix several memory leaks.
+
+=================
+WebKitGTK+ 1.9.3
+=================
+
+What's new in WebKitGTK+ 1.9.3?
+
+  - Add webkit_download_get_request to WebKit2 GTK+ API.
+  - Add API to get the list of plugins to WebKit2 GTK+.
+  - Add webkit_web_view_can_show_mime_type() to WebKit2 GTK+ API.
+  - Add GCancellable parameter to all methods using gio async pattern
+    in WebKit2 GTK+ API.
+  - Add settings to enable and disable composited layer indicators to
+    WebKit2 GTK+ API.
+  - Add generic permission requests API to WebKit2 GTK+ API.
+  - Add initial inspector API to WebKit2 GTK+.
+  - Allow to attach/detach the inspector in WebKit2.
+  - Add media-playback-requires-user-gesture and
+    media-playback-allows-inline settings to WebKit1 and WebKit2 GTK+.
+  - Use defers loading instead of pausing the soup message in
+    WebKitDownload.
+  - Properly set the input method context window location.
+  - Fix a crash in the WebProcess when a download is started from
+    an existing ResourceHandle.
+  - Fix cursor used for ne-resize.
+  - Fix contractions recognition by the spell checker.
+  - Fix a crash rendering scrollbars on GTK wxWebkit.
+  - Fix KURL::fileSystemPath() implementation to strip the query part
+    of the uri.
+  - Check for GTK2/GTK3 symbol mismatch earlier to fix plugins run
+    with nspluginwrapper.
+  - Fix thin archives support while building GTK+ port.
+  - Fix several memory leaks.
+  - Fix several compilation warnings.
+
+=================
 WebKitGTK+ 1.9.2
 =================
 

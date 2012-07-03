@@ -110,7 +110,7 @@ v8::Handle<v8::Value> V8InjectedScriptHost::isHTMLAllCollectionCallback(const v8
         return v8::Undefined();
 
     if (!args[0]->IsObject())
-        return v8::False();
+        return v8Boolean(false, args.GetIsolate());
 
     v8::HandleScope handleScope;
     return v8::Boolean::New(V8HTMLAllCollection::HasInstance(args[0]));
@@ -168,8 +168,8 @@ v8::Handle<v8::Value> V8InjectedScriptHost::functionDetailsCallback(const v8::Ar
     int columnNumber = function->GetScriptColumnNumber();
 
     v8::Local<v8::Object> location = v8::Object::New();
-    location->Set(v8::String::New("lineNumber"), v8::Integer::New(lineNumber));
-    location->Set(v8::String::New("columnNumber"), v8::Integer::New(columnNumber));
+    location->Set(v8::String::New("lineNumber"), v8Integer(lineNumber, args.GetIsolate()));
+    location->Set(v8::String::New("columnNumber"), v8Integer(columnNumber, args.GetIsolate()));
     location->Set(v8::String::New("scriptId"), function->GetScriptId()->ToString());
 
     v8::Local<v8::Object> result = v8::Object::New();
@@ -274,7 +274,7 @@ v8::Handle<v8::Value> V8InjectedScriptHost::databaseIdCallback(const v8::Argumen
     InjectedScriptHost* host = V8InjectedScriptHost::toNative(args.Holder());
     Database* database = V8Database::toNative(v8::Handle<v8::Object>::Cast(args[0]));
     if (database)
-        return v8StringOrUndefined(host->databaseIdImpl(database));
+        return v8StringOrUndefined(host->databaseIdImpl(database), args.GetIsolate());
 #endif
     return v8::Undefined();
 }
@@ -287,7 +287,7 @@ v8::Handle<v8::Value> V8InjectedScriptHost::storageIdCallback(const v8::Argument
     InjectedScriptHost* host = V8InjectedScriptHost::toNative(args.Holder());
     Storage* storage = V8Storage::toNative(v8::Handle<v8::Object>::Cast(args[0]));
     if (storage)
-        return v8StringOrUndefined(host->storageIdImpl(storage));
+        return v8StringOrUndefined(host->storageIdImpl(storage), args.GetIsolate());
     return v8::Undefined();
 }
 

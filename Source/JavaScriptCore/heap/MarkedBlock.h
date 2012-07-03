@@ -129,11 +129,9 @@ namespace JSC {
         FreeList sweep(SweepMode = SweepOnly);
 
         void shrink();
-        void resetAllocator();
 
         void visitWeakSet(HeapRootVisitor&);
         void reapWeakSet();
-        void sweepWeakSet();
 
         // While allocating from a free list, MarkedBlock temporarily has bogus
         // cell liveness data. To restore accurate cell liveness data, call one
@@ -157,6 +155,8 @@ namespace JSC {
         bool isLiveCell(const void*);
         void setMarked(const void*);
         
+        bool needsSweeping();
+
 #if ENABLE(GGC)
         void setDirtyObject(const void* atom)
         {
@@ -272,11 +272,6 @@ namespace JSC {
         m_weakSet.shrink();
     }
 
-    inline void MarkedBlock::resetAllocator()
-    {
-        m_weakSet.resetAllocator();
-    }
-
     inline void MarkedBlock::visitWeakSet(HeapRootVisitor& heapRootVisitor)
     {
         m_weakSet.visit(heapRootVisitor);
@@ -285,11 +280,6 @@ namespace JSC {
     inline void MarkedBlock::reapWeakSet()
     {
         m_weakSet.reap();
-    }
-
-    inline void MarkedBlock::sweepWeakSet()
-    {
-        m_weakSet.sweep();
     }
 
     inline void MarkedBlock::didConsumeFreeList()
@@ -414,6 +404,11 @@ namespace JSC {
 
             functor(cell);
         }
+    }
+
+    inline bool MarkedBlock::needsSweeping()
+    {
+        return m_state == Marked || m_state == Zapped;
     }
 
 #if ENABLE(GGC)

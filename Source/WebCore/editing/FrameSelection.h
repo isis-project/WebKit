@@ -49,6 +49,11 @@ class VisiblePosition;
 
 enum EUserTriggered { NotUserTriggered = 0, UserTriggered = 1 };
 
+enum RevealExtentOption {
+    RevealExtent,
+    DoNotRevealExtent
+};
+
 class CaretBase {
     WTF_MAKE_NONCOPYABLE(CaretBase);
     WTF_MAKE_FAST_ALLOCATED;
@@ -118,6 +123,7 @@ public:
         ClearTypingStyle = 1 << 2,
         SpellCorrectionTriggered = 1 << 3,
         DoNotSetFocus = 1 << 4,
+        DictationTriggered = 1 << 5
     };
     typedef unsigned SetSelectionOptions; // Union of values in SetSelectionOption and EUserTriggered
     static inline EUserTriggered selectionOptionsToUserTriggered(SetSelectionOptions options)
@@ -129,6 +135,7 @@ public:
 
     Element* rootEditableElement() const { return m_selection.rootEditableElement(); }
     Element* rootEditableElementOrDocumentElement() const;
+    bool rendererIsEditable() const { return m_selection.rendererIsEditable(); }
     bool isContentEditable() const { return m_selection.isContentEditable(); }
     bool isContentRichlyEditable() const { return m_selection.isContentRichlyEditable(); }
      
@@ -197,7 +204,7 @@ public:
     void debugRenderer(RenderObject*, bool selected) const;
 
     void nodeWillBeRemoved(Node*);
-    void textWillBeReplaced(CharacterData*, unsigned offset, unsigned oldLength, unsigned newLength);
+    void textWasReplaced(CharacterData*, unsigned offset, unsigned oldLength, unsigned newLength);
 
     void setCaretVisible(bool caretIsVisible) { setCaretVisibility(caretIsVisible ? Visible : Hidden); }
     void clearCaretRectIfNeeded();
@@ -245,7 +252,7 @@ public:
 
     HTMLFormElement* currentForm() const;
 
-    void revealSelection(const ScrollAlignment& = ScrollAlignment::alignCenterIfNeeded, bool revealExtent = false);
+    void revealSelection(const ScrollAlignment& = ScrollAlignment::alignCenterIfNeeded, RevealExtentOption = DoNotRevealExtent);
     void setSelectionFromNone();
 
 private:

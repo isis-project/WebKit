@@ -29,6 +29,7 @@
 #if ENABLE(VIDEO)
 #include "MediaControlRootElementChromium.h"
 
+#include "HTMLDivElement.h"
 #include "HTMLMediaElement.h"
 #include "HTMLNames.h"
 #include "MediaControlElements.h"
@@ -45,23 +46,44 @@ using namespace std;
 
 namespace WebCore {
 
+static const double timeWithoutMouseMovementBeforeHidingControls = 2;
+
+MediaControlChromiumEnclosureElement::MediaControlChromiumEnclosureElement(Document* document)
+    : HTMLDivElement(HTMLNames::divTag, document->document())
+    , m_mediaController(0)
+{
+}
+
+PassRefPtr<MediaControlChromiumEnclosureElement> MediaControlChromiumEnclosureElement::create(Document* document)
+{
+    return adoptRef(new MediaControlChromiumEnclosureElement(document));
+}
+
+const AtomicString& MediaControlChromiumEnclosureElement::shadowPseudoId() const
+{
+    DEFINE_STATIC_LOCAL(AtomicString, id, ("-webkit-media-controls-enclosure"));
+    return id;
+}
+
 MediaControlRootElementChromium::MediaControlRootElementChromium(Document* document)
     : MediaControls(document)
     , m_mediaController(0)
     , m_playButton(0)
     , m_currentTimeDisplay(0)
+    , m_durationDisplay(0)
     , m_timeline(0)
-    , m_timelineContainer(0)
     , m_panelMuteButton(0)
     , m_volumeSlider(0)
-    , m_volumeSliderContainer(0)
+    , m_fullscreenButton(0)
     , m_panel(0)
+    , m_enclosure(0)
 #if ENABLE(VIDEO_TRACK)
     , m_textDisplayContainer(0)
-    , m_textTrackDisplay(0)
 #endif
     , m_opaque(true)
+    , m_hideFullscreenControlsTimer(this, &MediaControlRootElementChromium::hideFullscreenControlsTimerFired)
     , m_isMouseOverControls(false)
+    , m_isFullscreen(false)
 {
 }
 
@@ -77,6 +99,9 @@ PassRefPtr<MediaControlRootElementChromium> MediaControlRootElementChromium::cre
 
     RefPtr<MediaControlRootElementChromium> controls = adoptRef(new MediaControlRootElementChromium(document));
 
+    // Create an enclosing element for the panel so we can visually offset the controls correctly.
+    RefPtr<MediaControlChromiumEnclosureElement> enclosure = MediaControlChromiumEnclosureElement::create(document);
+
     RefPtr<MediaControlPanelElement> panel = MediaControlPanelElement::create(document);
 
     ExceptionCode ec;
@@ -87,52 +112,51 @@ PassRefPtr<MediaControlRootElementChromium> MediaControlRootElementChromium::cre
     if (ec)
         return 0;
 
-    RefPtr<MediaControlTimelineContainerElement> timelineContainer = MediaControlTimelineContainerElement::create(document);
-
     RefPtr<MediaControlTimelineElement> timeline = MediaControlTimelineElement::create(document, controls.get());
     controls->m_timeline = timeline.get();
-    timelineContainer->appendChild(timeline.release(), ec, true);
+    panel->appendChild(timeline.release(), ec, true);
     if (ec)
         return 0;
 
     RefPtr<MediaControlCurrentTimeDisplayElement> currentTimeDisplay = MediaControlCurrentTimeDisplayElement::create(document);
     controls->m_currentTimeDisplay = currentTimeDisplay.get();
-    timelineContainer->appendChild(currentTimeDisplay.release(), ec, true);
+    controls->m_currentTimeDisplay->hide();
+    panel->appendChild(currentTimeDisplay.release(), ec, true);
     if (ec)
         return 0;
 
-    controls->m_timelineContainer = timelineContainer.get();
-    panel->appendChild(timelineContainer.release(), ec, true);
-    if (ec)
-        return 0;
-
-    RefPtr<HTMLDivElement> panelVolumeControlContainer = HTMLDivElement::create(document);
-
-    RefPtr<MediaControlVolumeSliderContainerElement> volumeSliderContainer = MediaControlVolumeSliderContainerElement::create(document);
-
-    RefPtr<MediaControlVolumeSliderElement> slider = MediaControlVolumeSliderElement::create(document);
-    controls->m_volumeSlider = slider.get();
-    volumeSliderContainer->appendChild(slider.release(), ec, true);
-    if (ec)
-        return 0;
-
-    controls->m_volumeSliderContainer = volumeSliderContainer.get();
-    panelVolumeControlContainer->appendChild(volumeSliderContainer.release(), ec, true);
+    RefPtr<MediaControlTimeRemainingDisplayElement> durationDisplay = MediaControlTimeRemainingDisplayElement::create(document);
+    controls->m_durationDisplay = durationDisplay.get();
+    panel->appendChild(durationDisplay.release(), ec, true);
     if (ec)
         return 0;
 
     RefPtr<MediaControlPanelMuteButtonElement> panelMuteButton = MediaControlPanelMuteButtonElement::create(document, controls.get());
     controls->m_panelMuteButton = panelMuteButton.get();
-    panelVolumeControlContainer->appendChild(panelMuteButton.release(), ec, true);
+    panel->appendChild(panelMuteButton.release(), ec, true);
     if (ec)
         return 0;
 
-    panel->appendChild(panelVolumeControlContainer, ec, true);
+    RefPtr<MediaControlVolumeSliderElement> slider = MediaControlVolumeSliderElement::create(document);
+    controls->m_volumeSlider = slider.get();
+    controls->m_volumeSlider->setClearMutedOnUserInteraction(true);
+    panel->appendChild(slider.release(), ec, true);
+    if (ec)
+        return 0;
+
+    RefPtr<MediaControlFullscreenButtonElement> fullscreenButton = MediaControlFullscreenButtonElement::create(document, controls.get());
+    controls->m_fullscreenButton = fullscreenButton.get();
+    panel->appendChild(fullscreenButton.release(), ec, true);
     if (ec)
         return 0;
 
     controls->m_panel = panel.get();
-    controls->appendChild(panel.release(), ec, true);
+    enclosure->appendChild(panel.release(), ec, true);
+    if (ec)
+        return 0;
+
+    controls->m_enclosure = enclosure.get();
+    controls->appendChild(enclosure.release(), ec, true);
     if (ec)
         return 0;
 
@@ -149,18 +173,20 @@ void MediaControlRootElementChromium::setMediaController(MediaControllerInterfac
         m_playButton->setMediaController(controller);
     if (m_currentTimeDisplay)
         m_currentTimeDisplay->setMediaController(controller);
+    if (m_durationDisplay)
+        m_durationDisplay->setMediaController(controller);
     if (m_timeline)
         m_timeline->setMediaController(controller);
-    if (m_timelineContainer)
-        m_timelineContainer->setMediaController(controller);
     if (m_panelMuteButton)
         m_panelMuteButton->setMediaController(controller);
     if (m_volumeSlider)
         m_volumeSlider->setMediaController(controller);
-    if (m_volumeSliderContainer)
-        m_volumeSliderContainer->setMediaController(controller);
+    if (m_fullscreenButton)
+        m_fullscreenButton->setMediaController(controller);
     if (m_panel)
         m_panel->setMediaController(controller);
+    if (m_enclosure)
+        m_enclosure->setMediaController(controller);
 #if ENABLE(VIDEO_TRACK)
     if (m_textDisplayContainer)
         m_textDisplayContainer->setMediaController(controller);
@@ -200,15 +226,29 @@ void MediaControlRootElementChromium::reset()
 
     float duration = m_mediaController->duration();
     m_timeline->setDuration(duration);
-    m_timelineContainer->show();
+    m_timeline->show();
+
+    m_durationDisplay->setInnerText(page->theme()->formatMediaControlsTime(duration), ASSERT_NO_EXCEPTION);
+    m_durationDisplay->setCurrentValue(duration);
+
     m_timeline->setPosition(m_mediaController->currentTime());
     updateTimeDisplay();
 
     m_panelMuteButton->show();
 
-    if (m_volumeSlider)
-        m_volumeSlider->setVolume(m_mediaController->volume());
+    if (m_volumeSlider) {
+        if (!m_mediaController->hasAudio())
+            m_volumeSlider->hide();
+        else {
+            m_volumeSlider->show();
+            m_volumeSlider->setVolume(m_mediaController->volume());
+        }
+    }
 
+    if (m_mediaController->supportsFullscreen())
+        m_fullscreenButton->show();
+    else
+        m_fullscreenButton->hide();
     makeOpaque();
 }
 
@@ -216,7 +256,12 @@ void MediaControlRootElementChromium::playbackStarted()
 {
     m_playButton->updateDisplayType();
     m_timeline->setPosition(m_mediaController->currentTime());
+    m_currentTimeDisplay->show();
+    m_durationDisplay->hide();
     updateTimeDisplay();
+
+    if (m_isFullscreen)
+        startHideFullscreenControlsTimer();
 }
 
 void MediaControlRootElementChromium::playbackProgressed()
@@ -234,6 +279,8 @@ void MediaControlRootElementChromium::playbackStopped()
     m_timeline->setPosition(m_mediaController->currentTime());
     updateTimeDisplay();
     makeOpaque();
+
+    stopHideFullscreenControlsTimer();
 }
 
 void MediaControlRootElementChromium::updateTimeDisplay()
@@ -244,6 +291,12 @@ void MediaControlRootElementChromium::updateTimeDisplay()
     Page* page = document()->page();
     if (!page)
         return;
+
+    // After seek, hide duration display and show current time.
+    if (now > 0) {
+        m_currentTimeDisplay->show();
+        m_durationDisplay->hide();
+    }
 
     // Allow the theme to format the time.
     ExceptionCode ec;
@@ -257,9 +310,9 @@ void MediaControlRootElementChromium::reportedError()
     if (!page)
         return;
 
-    m_timelineContainer->hide();
     m_panelMuteButton->hide();
-    m_volumeSliderContainer->hide();
+    m_volumeSlider->hide();
+    m_fullscreenButton->hide();
 }
 
 void MediaControlRootElementChromium::updateStatusDisplay()
@@ -293,13 +346,53 @@ void MediaControlRootElementChromium::defaultEventHandler(Event* event)
     if (event->type() == eventNames().mouseoverEvent) {
         if (!containsRelatedTarget(event)) {
             m_isMouseOverControls = true;
-            if (!m_mediaController->canPlay())
+            if (!m_mediaController->canPlay()) {
                 makeOpaque();
+                if (shouldHideControls())
+                    startHideFullscreenControlsTimer();
+            }
         }
     } else if (event->type() == eventNames().mouseoutEvent) {
-        if (!containsRelatedTarget(event))
+        if (!containsRelatedTarget(event)) {
             m_isMouseOverControls = false;
+            stopHideFullscreenControlsTimer();
+        }
+    } else if (event->type() == eventNames().mousemoveEvent) {
+        if (m_isFullscreen) {
+            // When we get a mouse move in fullscreen mode, show the media controls, and start a timer
+            // that will hide the media controls after a 2 seconds without a mouse move.
+            makeOpaque();
+            if (shouldHideControls())
+                startHideFullscreenControlsTimer();
+        }
     }
+}
+
+void MediaControlRootElementChromium::startHideFullscreenControlsTimer()
+{
+    if (!m_isFullscreen)
+        return;
+
+    m_hideFullscreenControlsTimer.startOneShot(timeWithoutMouseMovementBeforeHidingControls);
+}
+
+void MediaControlRootElementChromium::hideFullscreenControlsTimerFired(Timer<MediaControlRootElementChromium>*)
+{
+    if (m_mediaController->paused())
+        return;
+
+    if (!m_isFullscreen)
+        return;
+
+    if (!shouldHideControls())
+        return;
+
+    makeTransparent();
+}
+
+void MediaControlRootElementChromium::stopHideFullscreenControlsTimer()
+{
+    m_hideFullscreenControlsTimer.stop();
 }
 
 void MediaControlRootElementChromium::changedClosedCaptionsVisibility()
@@ -309,6 +402,11 @@ void MediaControlRootElementChromium::changedClosedCaptionsVisibility()
 void MediaControlRootElementChromium::changedMute()
 {
     m_panelMuteButton->changedMute();
+
+    if (m_mediaController->muted())
+        m_volumeSlider->setVolume(0);
+    else
+        m_volumeSlider->setVolume(m_mediaController->volume());
 }
 
 void MediaControlRootElementChromium::changedVolume()
@@ -318,10 +416,16 @@ void MediaControlRootElementChromium::changedVolume()
 
 void MediaControlRootElementChromium::enteredFullscreen()
 {
+    m_isFullscreen = true;
+    m_fullscreenButton->setIsFullscreen(true);
+    startHideFullscreenControlsTimer();
 }
 
 void MediaControlRootElementChromium::exitedFullscreen()
 {
+    m_isFullscreen = false;
+    m_fullscreenButton->setIsFullscreen(false);
+    stopHideFullscreenControlsTimer();
 }
 
 void MediaControlRootElementChromium::showVolumeSlider()
@@ -329,7 +433,7 @@ void MediaControlRootElementChromium::showVolumeSlider()
     if (!m_mediaController->hasAudio())
         return;
 
-    m_volumeSliderContainer->show();
+    m_volumeSlider->show();
 }
 
 #if ENABLE(VIDEO_TRACK)
@@ -342,8 +446,7 @@ void MediaControlRootElementChromium::createTextTrackDisplay()
     m_textDisplayContainer = textDisplayContainer.get();
 
     // Insert it before the first controller element so it always displays behind the controls.
-    ExceptionCode ec;
-    insertBefore(textDisplayContainer.release(), m_panel, ec, true);
+    insertBefore(textDisplayContainer.release(), m_enclosure, ASSERT_NO_EXCEPTION, true);
 }
 
 void MediaControlRootElementChromium::showTextTrackDisplay()

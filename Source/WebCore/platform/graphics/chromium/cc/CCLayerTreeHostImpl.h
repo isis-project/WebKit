@@ -25,14 +25,12 @@
 #ifndef CCLayerTreeHostImpl_h
 #define CCLayerTreeHostImpl_h
 
-#include "Color.h"
-#include "LayerRendererChromium.h"
+#include "SkColor.h"
 #include "cc/CCAnimationEvents.h"
 #include "cc/CCInputHandler.h"
 #include "cc/CCLayerSorter.h"
-#include "cc/CCLayerTreeHost.h"
-#include "cc/CCLayerTreeHostCommon.h"
 #include "cc/CCRenderPass.h"
+#include "cc/CCRenderer.h"
 #include <wtf/PassOwnPtr.h>
 #include <wtf/RefPtr.h>
 
@@ -50,7 +48,6 @@ class CCLayerTreeHostImplTimeSourceAdapter;
 class LayerRendererChromium;
 class TextureAllocator;
 struct LayerRendererCapabilities;
-class TransformationMatrix;
 
 // CCLayerTreeHost->CCProxy callback interface.
 class CCLayerTreeHostImplClient {
@@ -60,16 +57,15 @@ public:
     virtual void setNeedsRedrawOnImplThread() = 0;
     virtual void setNeedsCommitOnImplThread() = 0;
     virtual void postAnimationEventsToMainThreadOnImplThread(PassOwnPtr<CCAnimationEventsVector>, double wallClockTime) = 0;
-    virtual void postSetContentsMemoryAllocationLimitBytesToMainThreadOnImplThread(size_t) = 0;
 };
 
 // CCLayerTreeHostImpl owns the CCLayerImpl tree as well as associated rendering state
-class CCLayerTreeHostImpl : public CCInputHandlerClient, LayerRendererChromiumClient {
+class CCLayerTreeHostImpl : public CCInputHandlerClient, CCRendererClient {
     WTF_MAKE_NONCOPYABLE(CCLayerTreeHostImpl);
     typedef Vector<CCLayerImpl*> CCLayerList;
 
 public:
-    static PassOwnPtr<CCLayerTreeHostImpl> create(const CCSettings&, CCLayerTreeHostImplClient*);
+    static PassOwnPtr<CCLayerTreeHostImpl> create(const CCLayerTreeSettings&, CCLayerTreeHostImplClient*);
     virtual ~CCLayerTreeHostImpl();
 
     // CCInputHandlerClient implementation
@@ -86,8 +82,11 @@ public:
     virtual void scheduleAnimation();
 
     struct FrameData {
+        Vector<IntRect> occludingScreenSpaceRects;
         CCRenderPassList renderPasses;
-        CCLayerList renderSurfaceLayerList;
+        CCRenderPassList skippedPasses;
+        CCLayerList* renderSurfaceLayerList;
+        CCLayerList willDrawLayers;
     };
 
     // Virtual for testing.
@@ -104,27 +103,28 @@ public:
     // Must be called if and only if prepareToDraw was called.
     void didDrawAllLayers(const FrameData&);
 
-    // LayerRendererChromiumClient implementation
+    // CCRendererClient implementation
     virtual const IntSize& deviceViewportSize() const OVERRIDE { return m_deviceViewportSize; }
-    virtual const CCSettings& settings() const OVERRIDE { return m_settings; }
+    virtual const CCLayerTreeSettings& settings() const OVERRIDE { return m_settings; }
     virtual void didLoseContext() OVERRIDE;
     virtual void onSwapBuffersComplete() OVERRIDE;
     virtual void setFullRootLayerDamage() OVERRIDE;
-    virtual void setContentsMemoryAllocationLimitBytes(size_t) OVERRIDE;
+    virtual void releaseContentsTextures() OVERRIDE;
+    virtual void setMemoryAllocationLimitBytes(size_t) OVERRIDE;
 
     // Implementation
     bool canDraw();
-    GraphicsContext3D* context();
+    CCGraphicsContext* context() const;
 
     String layerTreeAsText() const;
     void setFontAtlas(PassOwnPtr<CCFontAtlas>);
 
     void finishAllRendering();
-    int frameNumber() const { return m_frameNumber; }
+    int sourceAnimationFrameNumber() const { return m_sourceAnimationFrameNumber; }
 
-    bool initializeLayerRenderer(PassRefPtr<GraphicsContext3D>, TextureUploaderOption);
+    bool initializeLayerRenderer(PassOwnPtr<CCGraphicsContext>, TextureUploaderOption);
     bool isContextLost();
-    LayerRendererChromium* layerRenderer() { return m_layerRenderer.get(); }
+    CCRenderer* layerRenderer() { return m_layerRenderer.get(); }
     const LayerRendererCapabilities& layerRendererCapabilities() const;
     TextureAllocator* contentsTextureAllocator() const;
 
@@ -133,10 +133,13 @@ public:
     void readback(void* pixels, const IntRect&);
 
     void setRootLayer(PassOwnPtr<CCLayerImpl>);
-    PassOwnPtr<CCLayerImpl> releaseRootLayer() { return m_rootLayerImpl.release(); }
     CCLayerImpl* rootLayer() { return m_rootLayerImpl.get(); }
 
-    CCLayerImpl* scrollLayer() const { return m_scrollLayerImpl; }
+    // Release ownership of the current layer tree and replace it with an empty
+    // tree. Returns the root layer of the detached tree.
+    PassOwnPtr<CCLayerImpl> detachLayerTree();
+
+    CCLayerImpl* rootScrollLayer() const { return m_rootScrollLayerImpl; }
 
     bool visible() const { return m_visible; }
     void setVisible(bool);
@@ -144,11 +147,14 @@ public:
     int sourceFrameNumber() const { return m_sourceFrameNumber; }
     void setSourceFrameNumber(int frameNumber) { m_sourceFrameNumber = frameNumber; }
 
-    bool sourceFrameCanBeDrawn() const { return m_sourceFrameCanBeDrawn; }
-    void setSourceFrameCanBeDrawn(bool sourceFrameCanBeDrawn) { m_sourceFrameCanBeDrawn = sourceFrameCanBeDrawn; }
+    bool contentsTexturesWerePurgedSinceLastCommit() const { return m_contentsTexturesWerePurgedSinceLastCommit; }
+    size_t memoryAllocationLimitBytes() const { return m_memoryAllocationLimitBytes; }
 
     const IntSize& viewportSize() const { return m_viewportSize; }
     void setViewportSize(const IntSize&);
+
+    float deviceScaleFactor() const { return m_deviceScaleFactor; }
+    void setDeviceScaleFactor(float);
 
     float pageScale() const { return m_pageScale; }
     void setPageScaleFactorAndLimits(float pageScale, float minPageScale, float maxPageScale);
@@ -157,8 +163,11 @@ public:
 
     void startPageScaleAnimation(const IntSize& tragetPosition, bool useAnchor, float scale, double durationSec);
 
-    const Color& backgroundColor() const { return m_backgroundColor; }
-    void setBackgroundColor(const Color& color) { m_backgroundColor = color; }
+    SkColor backgroundColor() const { return m_backgroundColor; }
+    void setBackgroundColor(SkColor color) { m_backgroundColor = color; }
+
+    bool hasTransparentBackground() const { return m_hasTransparentBackground; }
+    void setHasTransparentBackground(bool transparent) { m_hasTransparentBackground = transparent; }
 
     bool needsAnimateLayers() const { return m_needsAnimateLayers; }
     void setNeedsAnimateLayers() { m_needsAnimateLayers = true; }
@@ -168,8 +177,11 @@ public:
     CCFrameRateCounter* fpsCounter() const { return m_fpsCounter.get(); }
     CCDebugRectHistory* debugRectHistory() const { return m_debugRectHistory.get(); }
 
+    // Removes all render passes for which we have cached textures, and which did not change their content.
+    static void removePassesWithCachedTextures(CCRenderPassList& passes, CCRenderPassList& skippedPasses);
+
 protected:
-    CCLayerTreeHostImpl(const CCSettings&, CCLayerTreeHostImplClient*);
+    CCLayerTreeHostImpl(const CCLayerTreeSettings&, CCLayerTreeHostImplClient*);
 
     void animatePageScale(double monotonicTime);
     void animateGestures(double monotonicTime);
@@ -185,7 +197,7 @@ protected:
 
     CCLayerTreeHostImplClient* m_client;
     int m_sourceFrameNumber;
-    int m_frameNumber;
+    int m_sourceAnimationFrameNumber;
 
 private:
     void computeDoubleTapZoomDeltas(CCScrollAndScaleSet* scrollInfo);
@@ -193,31 +205,39 @@ private:
     void makeScrollAndScaleSet(CCScrollAndScaleSet* scrollInfo, const IntSize& scrollOffset, float pageScale);
 
     void setPageScaleDelta(float);
-    void applyPageScaleDeltaToScrollLayer();
-    void adjustScrollsForPageScaleChange(float);
     void updateMaxScrollPosition();
     void trackDamageForAllSurfaces(CCLayerImpl* rootDrawLayer, const CCLayerList& renderSurfaceLayerList);
 
     // Returns false if the frame should not be displayed. This function should
     // only be called from prepareToDraw, as didDrawAllLayers must be called
     // if this helper function is called.
-    bool calculateRenderPasses(CCRenderPassList&, CCLayerList& renderSurfaceLayerList);
+    bool calculateRenderPasses(FrameData&);
     void animateLayersRecursive(CCLayerImpl*, double monotonicTime, double wallClockTime, CCAnimationEventsVector*, bool& didAnimate, bool& needsAnimateLayers);
     void setBackgroundTickingEnabled(bool);
     IntSize contentSize() const;
+
+    static void removeRenderPassesRecursive(CCRenderPassList& passes, size_t bottomPass, const CCRenderPass* firstToRemove, CCRenderPassList& skippedPasses);
+
     void sendDidLoseContextRecursive(CCLayerImpl*);
-    void clearRenderSurfacesOnCCLayerImplRecursive(CCLayerImpl*);
+    void clearRenderSurfaces();
+    bool ensureRenderSurfaceLayerList();
+    void clearCurrentlyScrollingLayer();
 
     void dumpRenderSurfaces(TextStream&, int indent, const CCLayerImpl*) const;
 
-    OwnPtr<LayerRendererChromium> m_layerRenderer;
+    OwnPtr<CCGraphicsContext> m_context;
+    OwnPtr<CCRenderer> m_layerRenderer;
     OwnPtr<CCLayerImpl> m_rootLayerImpl;
-    CCLayerImpl* m_scrollLayerImpl;
-    CCSettings m_settings;
+    CCLayerImpl* m_rootScrollLayerImpl;
+    CCLayerImpl* m_currentlyScrollingLayerImpl;
+    int m_scrollingLayerIdFromPreviousTree;
+    CCLayerTreeSettings m_settings;
     IntSize m_viewportSize;
     IntSize m_deviceViewportSize;
+    float m_deviceScaleFactor;
     bool m_visible;
-    bool m_sourceFrameCanBeDrawn;
+    bool m_contentsTexturesWerePurgedSinceLastCommit;
+    size_t m_memoryAllocationLimitBytes;
 
     OwnPtr<CCHeadsUpDisplay> m_headsUpDisplay;
 
@@ -226,7 +246,8 @@ private:
     float m_sentPageScaleDelta;
     float m_minPageScale, m_maxPageScale;
 
-    Color m_backgroundColor;
+    SkColor m_backgroundColor;
+    bool m_hasTransparentBackground;
 
     // If this is true, it is necessary to traverse the layer tree ticking the animators.
     bool m_needsAnimateLayers;
@@ -241,7 +262,11 @@ private:
 
     CCLayerSorter m_layerSorter;
 
-    FloatRect m_rootDamageRect;
+    FloatRect m_rootScissorRect;
+
+    // List of visible layers for the most recently prepared frame. Used for
+    // rendering and input event hit testing.
+    CCLayerList m_renderSurfaceLayerList;
 
     OwnPtr<CCFrameRateCounter> m_fpsCounter;
     OwnPtr<CCDebugRectHistory> m_debugRectHistory;

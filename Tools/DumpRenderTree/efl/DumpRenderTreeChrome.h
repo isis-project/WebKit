@@ -48,7 +48,7 @@ public:
     Evas_Object* createNewWindow();
     void removeWindow(Evas_Object*);
 
-    Vector<Evas_Object*> extraViews() const;
+    const Vector<Evas_Object*>& extraViews() const;
     void clearExtraViews();
 
     Evas_Object* mainFrame() const;
@@ -91,6 +91,14 @@ private:
 
     static void onWebViewOnloadEvent(void*, Evas_Object*, void*);
 
+    static void onWebViewNavigatedWithData(void*, Evas_Object*, void*);
+
+    static void onWebViewServerRedirect(void*, Evas_Object*, void*);
+
+    static void onWebViewClientRedirect(void*, Evas_Object*, void*);
+
+    static void onWebViewPopulateVisitedLinks(void*, Evas_Object*, void*);
+
     static void onInsecureContentRun(void*, Evas_Object*, void*);
 
     static void onInsecureContentDisplayed(void*, Evas_Object*, void*);
@@ -122,6 +130,7 @@ private:
     static void onNewResourceRequest(void*, Evas_Object*, void*);
 
     static void onFrameIntentNew(void*, Evas_Object*, void*);
+    static void onFrameIntentServiceRegistration(void*, Evas_Object*, void*);
 };
 
 #endif // DumpRenderTreeChrome_h

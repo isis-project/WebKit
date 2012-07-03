@@ -22,6 +22,7 @@ LIST(APPEND WebCore_SOURCES
     bindings/v8/DOMWrapperWorld.cpp
     bindings/v8/DateExtension.cpp
     bindings/v8/IDBBindingUtilities.cpp
+    bindings/v8/IDBCustomBindings.cpp
     bindings/v8/IsolatedWorld.cpp
     bindings/v8/Dictionary.cpp
     bindings/v8/PageScriptDebugServer.cpp
@@ -73,7 +74,6 @@ LIST(APPEND WebCore_SOURCES
     bindings/v8/custom/V8AudioContextCustom.cpp
     bindings/v8/custom/V8CSSRuleCustom.cpp
     bindings/v8/custom/V8CSSStyleDeclarationCustom.cpp
-    bindings/v8/custom/V8CSSStyleSheetCustom.cpp
     bindings/v8/custom/V8CSSValueCustom.cpp
     bindings/v8/custom/V8CanvasRenderingContext2DCustom.cpp
     bindings/v8/custom/V8ClipboardCustom.cpp
@@ -84,7 +84,6 @@ LIST(APPEND WebCore_SOURCES
     bindings/v8/custom/V8CustomXPathNSResolver.cpp
     bindings/v8/custom/V8DOMFormDataCustom.cpp
     bindings/v8/custom/V8DOMStringMapCustom.cpp
-    bindings/v8/custom/V8DOMTokenListCustom.cpp
     bindings/v8/custom/V8DOMWindowCustom.cpp
     bindings/v8/custom/V8DataViewCustom.cpp
     bindings/v8/custom/V8DedicatedWorkerContextCustom.cpp
@@ -139,6 +138,7 @@ LIST(APPEND WebCore_SOURCES
     bindings/v8/custom/V8NotificationCustom.cpp
     bindings/v8/custom/V8NotificationCenterCustom.cpp
     bindings/v8/custom/V8PerformanceCustom.cpp
+    bindings/v8/custom/V8PerformanceEntryCustom.cpp
     bindings/v8/custom/V8PopStateEventCustom.cpp
     bindings/v8/custom/V8SQLResultSetRowListCustom.cpp
     bindings/v8/custom/V8SQLTransactionCustom.cpp

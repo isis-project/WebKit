@@ -28,18 +28,20 @@
 
 #if USE(ACCELERATED_COMPOSITING)
 
-#include "PlatformString.h"
 #include "SkColorPriv.h"
+#include <wtf/text/WTFString.h>
+
+namespace WebKit {
+class WebGraphicsContext3D;
+}
 
 namespace WebCore {
-
-class GraphicsContext3D;
 
 class VertexShaderPosTex {
 public:
     VertexShaderPosTex();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     String getShaderString() const;
 
     int matrixLocation() const { return m_matrixLocation; }
@@ -52,7 +54,7 @@ class VertexShaderPosTexYUVStretch {
 public:
     VertexShaderPosTexYUVStretch();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     String getShaderString() const;
 
     int matrixLocation() const { return m_matrixLocation; }
@@ -69,7 +71,7 @@ class VertexShaderPos {
 public:
     VertexShaderPos();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     String getShaderString() const;
 
     int matrixLocation() const { return m_matrixLocation; }
@@ -80,7 +82,7 @@ private:
 
 class VertexShaderPosTexIdentity {
 public:
-    void init(GraphicsContext3D*, unsigned program) { }
+    void init(WebKit::WebGraphicsContext3D*, unsigned program) { }
     String getShaderString() const;
 };
 
@@ -88,7 +90,7 @@ class VertexShaderPosTexTransform {
 public:
     VertexShaderPosTexTransform();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     String getShaderString() const;
 
     int matrixLocation() const { return m_matrixLocation; }
@@ -103,7 +105,7 @@ class VertexShaderQuad {
 public:
     VertexShaderQuad();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     String getShaderString() const;
 
     int matrixLocation() const { return m_matrixLocation; }
@@ -118,7 +120,7 @@ class VertexShaderTile {
 public:
     VertexShaderTile();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     String getShaderString() const;
 
     int matrixLocation() const { return m_matrixLocation; }
@@ -135,16 +137,14 @@ class VertexShaderVideoTransform {
 public:
     VertexShaderVideoTransform();
 
-    bool init(GraphicsContext3D*, unsigned program);
+    bool init(WebKit::WebGraphicsContext3D*, unsigned program);
     String getShaderString() const;
 
     int matrixLocation() const { return m_matrixLocation; }
-    int texTransformLocation() const { return m_texTransformLocation; }
     int texMatrixLocation() const { return m_texMatrixLocation; }
 
 private:
     int m_matrixLocation;
-    int m_texTransformLocation;
     int m_texMatrixLocation;
 };
 
@@ -152,7 +152,7 @@ class FragmentTexAlphaBinding {
 public:
     FragmentTexAlphaBinding();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     int alphaLocation() const { return m_alphaLocation; }
     int edgeLocation() const { return -1; }
     int fragmentTexTransformLocation() const { return -1; }
@@ -167,7 +167,7 @@ class FragmentTexOpaqueBinding {
 public:
     FragmentTexOpaqueBinding();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     int alphaLocation() const { return -1; }
     int edgeLocation() const { return -1; }
     int fragmentTexTransformLocation() const { return -1; }
@@ -223,7 +223,7 @@ public:
 class FragmentShaderOESImageExternal : public FragmentTexAlphaBinding {
 public:
     String getShaderString() const;
-    bool init(GraphicsContext3D*, unsigned program);
+    bool init(WebKit::WebGraphicsContext3D*, unsigned program);
 private:
     int m_samplerLocation;
 };
@@ -232,7 +232,7 @@ class FragmentShaderRGBATexAlphaAA {
 public:
     FragmentShaderRGBATexAlphaAA();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     String getShaderString() const;
 
     int alphaLocation() const { return m_alphaLocation; }
@@ -249,7 +249,7 @@ class FragmentTexClampAlphaAABinding {
 public:
     FragmentTexClampAlphaAABinding();
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     int alphaLocation() const { return m_alphaLocation; }
     int samplerLocation() const { return m_samplerLocation; }
     int fragmentTexTransformLocation() const { return m_fragmentTexTransformLocation; }
@@ -278,7 +278,7 @@ public:
     FragmentShaderRGBATexAlphaMask();
     String getShaderString() const;
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     int alphaLocation() const { return m_alphaLocation; }
     int samplerLocation() const { return m_samplerLocation; }
     int maskSamplerLocation() const { return m_maskSamplerLocation; }
@@ -294,7 +294,7 @@ public:
     FragmentShaderRGBATexAlphaMaskAA();
     String getShaderString() const;
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     int alphaLocation() const { return m_alphaLocation; }
     int samplerLocation() const { return m_samplerLocation; }
     int maskSamplerLocation() const { return m_maskSamplerLocation; }
@@ -312,7 +312,7 @@ public:
     FragmentShaderYUVVideo();
     String getShaderString() const;
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
 
     int yTextureLocation() const { return m_yTextureLocation; }
     int uTextureLocation() const { return m_uTextureLocation; }
@@ -335,7 +335,7 @@ public:
     FragmentShaderColor();
     String getShaderString() const;
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     int colorLocation() const { return m_colorLocation; }
 
 private:
@@ -347,7 +347,7 @@ public:
     FragmentShaderCheckerboard();
     String getShaderString() const;
 
-    void init(GraphicsContext3D*, unsigned program);
+    void init(WebKit::WebGraphicsContext3D*, unsigned program);
     int alphaLocation() const { return m_alphaLocation; }
     int texTransformLocation() const { return m_texTransformLocation; }
     int frequencyLocation() const { return m_frequencyLocation; }

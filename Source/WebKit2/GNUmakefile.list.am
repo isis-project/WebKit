@@ -63,6 +63,8 @@ webkit2_h_api += \
 	$(WebKit2)/UIProcess/API/C/WKGrammarDetail.h \
 	$(WebKit2)/UIProcess/API/C/WKHitTestResult.h \
 	$(WebKit2)/UIProcess/API/C/WKInspector.h \
+	$(WebKit2)/UIProcess/API/C/WKIntentData.h \
+	$(WebKit2)/UIProcess/API/C/WKIntentServiceInfo.h \
 	$(WebKit2)/UIProcess/API/C/WKKeyValueStorageManager.h \
 	$(WebKit2)/UIProcess/API/C/WKMediaCacheManager.h \
 	$(WebKit2)/UIProcess/API/C/WKNativeEvent.h \
@@ -88,6 +90,9 @@ webkit2_h_api += \
 webkit2gtk_h_api += \
 	$(WebKit2)/UIProcess/API/gtk/WebKitBackForwardList.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitBackForwardListItem.h \
+	$(WebKit2)/UIProcess/API/gtk/WebKitContextMenu.h \
+	$(WebKit2)/UIProcess/API/gtk/WebKitContextMenuActions.h \
+	$(WebKit2)/UIProcess/API/gtk/WebKitContextMenuItem.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitCookieManager.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitDefines.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitDownload.h \
@@ -95,6 +100,7 @@ webkit2gtk_h_api += \
 	$(WebKit2)/UIProcess/API/gtk/WebKitError.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitFileChooserRequest.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitFindController.h \
+	$(WebKit2)/UIProcess/API/gtk/WebKitGeolocationPermissionRequest.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitHitTestResult.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitJavascriptResult.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitMimeInfo.h \
@@ -108,6 +114,7 @@ webkit2gtk_h_api += \
 	$(WebKit2)/UIProcess/API/gtk/WebKitSettings.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitURIRequest.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitURIResponse.h \
+	$(WebKit2)/UIProcess/API/gtk/WebKitURISchemeRequest.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitWebContext.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitWebInspector.h \
 	$(WebKit2)/UIProcess/API/gtk/WebKitWebResource.h \
@@ -127,8 +134,8 @@ webkit2_built_sources += \
 	DerivedSources/WebKit2/DrawingAreaProxyMessages.h \
 	DerivedSources/WebKit2/EventDispatcherMessageReceiver.cpp \
 	DerivedSources/WebKit2/EventDispatcherMessages.h \
-	DerivedSources/WebKit2/LayerTreeHostProxyMessageReceiver.cpp \
-	DerivedSources/WebKit2/LayerTreeHostProxyMessages.h \
+	DerivedSources/WebKit2/LayerTreeCoordinatorProxyMessageReceiver.cpp \
+	DerivedSources/WebKit2/LayerTreeCoordinatorProxyMessages.h \
 	DerivedSources/WebKit2/NPObjectMessageReceiverMessageReceiver.cpp \
 	DerivedSources/WebKit2/NPObjectMessageReceiverMessages.h \
 	DerivedSources/WebKit2/PluginControllerProxyMessageReceiver.cpp \
@@ -206,7 +213,8 @@ webkit2gtk_built_sources += \
 	DerivedSources/WebKit2/webkit2gtk/webkit2/WebKitEnumTypes.cpp \
 	DerivedSources/WebKit2/webkit2gtk/webkit2/WebKitEnumTypes.h \
 	DerivedSources/WebKit2/webkit2gtk/webkit2/WebKitMarshal.cpp \
-	DerivedSources/WebKit2/webkit2gtk/webkit2/WebKitMarshal.h
+	DerivedSources/WebKit2/webkit2gtk/webkit2/WebKitMarshal.h \
+	DerivedSources/WebKit2/webkit2gtk/webkit2/WebKitVersion.h
 
 webkit2_sources += \
 	Source/WebKit2/config.h \
@@ -341,10 +349,10 @@ webkit2_sources += \
 	Source/WebKit2/Shared/EditorState.h \
 	Source/WebKit2/Shared/FontSmoothingLevel.h \
 	Source/WebKit2/Shared/ProcessExecutablePath.h \
-	Source/WebKit2/Shared/cairo/LayerTreeContextCairo.cpp \
 	Source/WebKit2/Shared/cairo/ShareableBitmapCairo.cpp \
 	Source/WebKit2/Shared/gtk/ArgumentCodersGtk.h \
 	Source/WebKit2/Shared/gtk/ArgumentCodersGtk.cpp \
+	Source/WebKit2/Shared/gtk/LayerTreeContextGtk.cpp \
 	Source/WebKit2/Shared/gtk/NativeWebKeyboardEventGtk.cpp \
 	Source/WebKit2/Shared/gtk/NativeWebMouseEventGtk.cpp \
 	Source/WebKit2/Shared/gtk/NativeWebWheelEventGtk.cpp \
@@ -359,6 +367,10 @@ webkit2_sources += \
 	Source/WebKit2/Shared/ImmutableArray.h \
 	Source/WebKit2/Shared/ImmutableDictionary.cpp \
 	Source/WebKit2/Shared/ImmutableDictionary.h \
+	Source/WebKit2/Shared/IntentData.cpp \
+	Source/WebKit2/Shared/IntentData.h \
+	Source/WebKit2/Shared/IntentServiceInfo.cpp \
+	Source/WebKit2/Shared/IntentServiceInfo.h \
 	Source/WebKit2/Shared/LayerTreeContext.h \
 	Source/WebKit2/Shared/MutableArray.cpp \
 	Source/WebKit2/Shared/MutableArray.h \
@@ -511,8 +523,11 @@ webkit2_sources += \
 	Source/WebKit2/UIProcess/API/C/WKFrame.h \
 	Source/WebKit2/UIProcess/API/C/WKFramePolicyListener.cpp \
 	Source/WebKit2/UIProcess/API/C/WKFramePolicyListener.h \
+	Source/WebKit2/UIProcess/API/C/WKGeolocationManager.cpp \
 	Source/WebKit2/UIProcess/API/C/WKGeolocationManager.h \
+	Source/WebKit2/UIProcess/API/C/WKGeolocationPermissionRequest.cpp \
 	Source/WebKit2/UIProcess/API/C/WKGeolocationPermissionRequest.h \
+	Source/WebKit2/UIProcess/API/C/WKGeolocationPosition.cpp \
 	Source/WebKit2/UIProcess/API/C/WKGeolocationPosition.h \
 	Source/WebKit2/UIProcess/API/C/WKGrammarDetail.cpp \
 	Source/WebKit2/UIProcess/API/C/WKGrammarDetail.h \
@@ -522,6 +537,10 @@ webkit2_sources += \
 	Source/WebKit2/UIProcess/API/C/WKIconDatabase.h \
 	Source/WebKit2/UIProcess/API/C/WKInspector.cpp \
 	Source/WebKit2/UIProcess/API/C/WKInspector.h \
+	Source/WebKit2/UIProcess/API/C/WKIntentData.cpp \
+	Source/WebKit2/UIProcess/API/C/WKIntentData.h \
+	Source/WebKit2/UIProcess/API/C/WKIntentServiceInfo.cpp \
+	Source/WebKit2/UIProcess/API/C/WKIntentServiceInfo.h \
 	Source/WebKit2/UIProcess/API/C/WKKeyValueStorageManager.cpp \
 	Source/WebKit2/UIProcess/API/C/WKKeyValueStorageManager.h \
 	Source/WebKit2/UIProcess/API/C/WKMediaCacheManager.cpp \
@@ -565,6 +584,17 @@ webkit2_sources += \
 	Source/WebKit2/UIProcess/API/gtk/WebKitBackForwardListItem.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitBackForwardListItem.cpp \
 	Source/WebKit2/UIProcess/API/gtk/WebKitBackForwardListPrivate.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenu.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenu.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuPrivate.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuActions.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuActions.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuActionsPrivate.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuClient.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuClient.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuItem.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuItem.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitContextMenuItemPrivate.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitCookieManager.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitCookieManager.cpp \
 	Source/WebKit2/UIProcess/API/gtk/WebKitCookieManagerPrivate.h \
@@ -582,6 +612,11 @@ webkit2_sources += \
 	Source/WebKit2/UIProcess/API/gtk/WebKitFileChooserRequestPrivate.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitFullscreenClient.cpp \
 	Source/WebKit2/UIProcess/API/gtk/WebKitFullscreenClient.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitGeolocationPermissionRequest.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitGeolocationPermissionRequest.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitGeolocationPermissionRequestPrivate.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitGeolocationProvider.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitGeolocationProvider.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitHitTestResult.cpp \
 	Source/WebKit2/UIProcess/API/gtk/WebKitHitTestResult.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitHitTestResultPrivate.h \
@@ -613,6 +648,8 @@ webkit2_sources += \
 	Source/WebKit2/UIProcess/API/gtk/WebKitPrintOperationPrivate.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitPrivate.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitPrivate.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitRequestManagerClient.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitRequestManagerClient.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitResourceLoadClient.cpp \
 	Source/WebKit2/UIProcess/API/gtk/WebKitResourceLoadClient.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitResponsePolicyDecision.cpp \
@@ -632,6 +669,10 @@ webkit2_sources += \
 	Source/WebKit2/UIProcess/API/gtk/WebKitURIResponse.cpp \
 	Source/WebKit2/UIProcess/API/gtk/WebKitURIResponse.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitURIResponsePrivate.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitURISchemeRequest.cpp \
+	Source/WebKit2/UIProcess/API/gtk/WebKitURISchemeRequest.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitURISchemeRequestPrivate.h \
+	Source/WebKit2/UIProcess/API/gtk/WebKitVersion.cpp \
 	Source/WebKit2/UIProcess/API/gtk/WebKitWebContext.h \
 	Source/WebKit2/UIProcess/API/gtk/WebKitWebContext.cpp \
 	Source/WebKit2/UIProcess/API/gtk/WebKitWebContextPrivate.h \
@@ -733,6 +774,7 @@ webkit2_sources += \
 	Source/WebKit2/UIProcess/WebApplicationCacheManagerProxy.cpp \
 	Source/WebKit2/UIProcess/WebBackForwardList.cpp \
 	Source/WebKit2/UIProcess/WebBackForwardList.h \
+	Source/WebKit2/UIProcess/WebColorChooserProxy.h \
 	Source/WebKit2/UIProcess/WebConnectionToWebProcess.cpp \
 	Source/WebKit2/UIProcess/WebConnectionToWebProcess.h \
 	Source/WebKit2/UIProcess/WebContext.cpp \
@@ -784,6 +826,10 @@ webkit2_sources += \
 	Source/WebKit2/UIProcess/WebIconDatabaseClient.h \
 	Source/WebKit2/UIProcess/WebInspectorProxy.cpp \
 	Source/WebKit2/UIProcess/WebInspectorProxy.h \
+	Source/WebKit2/UIProcess/WebIntentData.cpp \
+	Source/WebKit2/UIProcess/WebIntentData.h \
+	Source/WebKit2/UIProcess/WebIntentServiceInfo.cpp \
+	Source/WebKit2/UIProcess/WebIntentServiceInfo.h \
 	Source/WebKit2/UIProcess/WebKeyValueStorageManagerProxy.cpp \
 	Source/WebKit2/UIProcess/WebKeyValueStorageManagerProxy.h \
 	Source/WebKit2/UIProcess/WebMediaCacheManagerProxy.cpp \
@@ -972,6 +1018,8 @@ webkit2_sources += \
 	Source/WebKit2/WebProcess/WebCoreSupport/WebAlternativeTextClient.h \
 	Source/WebKit2/WebProcess/WebCoreSupport/WebChromeClient.cpp \
 	Source/WebKit2/WebProcess/WebCoreSupport/WebChromeClient.h \
+	Source/WebKit2/WebProcess/WebCoreSupport/WebColorChooser.cpp \
+	Source/WebKit2/WebProcess/WebCoreSupport/WebColorChooser.h \
 	Source/WebKit2/WebProcess/WebCoreSupport/WebContextMenuClient.cpp \
 	Source/WebKit2/WebProcess/WebCoreSupport/WebContextMenuClient.h \
 	Source/WebKit2/WebProcess/WebCoreSupport/WebDatabaseManager.cpp \
@@ -1041,6 +1089,12 @@ webkit2_sources += \
 	Source/WebKit2/WebProcess/WebConnectionToUIProcess.h \
 	Source/WebKit2/WebProcess/WebProcess.cpp \
 	Source/WebKit2/WebProcess/WebProcess.h
+
+if USE_TEXTURE_MAPPER_GL
+webkit2_sources += \
+   Source/WebKit2/WebProcess/WebPage/gtk/LayerTreeHostGtk.cpp \
+   Source/WebKit2/WebProcess/WebPage/gtk/LayerTreeHostGtk.h
+endif # END USE_TEXTURE_MAPPER_GL
 
 if ENABLE_PLUGIN_PROCESS
 

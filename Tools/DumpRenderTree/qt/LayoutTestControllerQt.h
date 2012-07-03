@@ -105,7 +105,6 @@ public slots:
     void setCanOpenWindows() { m_canOpenWindows = true; }
     void setPrinting() { m_isPrinting = true; }
     void waitUntilDone();
-    QString counterValueForElementById(const QString& id);
     int webHistoryItemCount();
     void keepWebHistory();
     void notifyDone();
@@ -155,6 +154,7 @@ public slots:
     void removeAllVisitedLinks();
     void setMediaType(const QString& type);
     void setFrameFlatteningEnabled(bool enable);
+    void setMockScrollbarsEnabled(bool enable);
     void setAllowUniversalAccessFromFileURLs(bool enable);
     void setAllowFileAccessFromFileURLs(bool enable);
     void setAppCacheMaximumSize(unsigned long long quota);

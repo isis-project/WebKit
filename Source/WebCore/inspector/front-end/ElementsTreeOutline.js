@@ -449,19 +449,21 @@ WebInspector.ElementsTreeOutline.prototype = {
         if (!treeElement)
             return false;
 
-        var tag = event.target.enclosingNodeOrSelfWithClass("webkit-html-tag");
+        var isTag = treeElement.representedObject.nodeType() === Node.ELEMENT_NODE;
         var textNode = event.target.enclosingNodeOrSelfWithClass("webkit-html-text-node");
+        if (textNode && textNode.hasStyleClass("bogus"))
+            textNode = null;
         var commentNode = event.target.enclosingNodeOrSelfWithClass("webkit-html-comment");
         var populated = WebInspector.populateHrefContextMenu(contextMenu, this.selectedDOMNode(), event);
-        if (tag && treeElement._populateTagContextMenu) {
-            if (populated)
-                contextMenu.appendSeparator();
-            treeElement._populateTagContextMenu(contextMenu, event);
-            populated = true;
-        } else if (textNode && treeElement._populateTextContextMenu) {
+        if (textNode && treeElement._populateTextContextMenu) {
             if (populated)
                 contextMenu.appendSeparator();
             treeElement._populateTextContextMenu(contextMenu, textNode);
+            populated = true;
+        } else if (isTag && treeElement._populateTagContextMenu) {
+            if (populated)
+                contextMenu.appendSeparator();
+            treeElement._populateTagContextMenu(contextMenu, event);
             populated = true;
         } else if (commentNode && treeElement._populateNodeContextMenu) {
             if (populated)
@@ -1177,6 +1179,9 @@ WebInspector.ElementsTreeElement.prototype = {
         if (WebInspector.isBeingEdited(textNode))
             return true;
 
+        var container = textNode.enclosingNodeOrSelfWithClass("webkit-html-text-node");
+        if (container)
+            container.innerText = container.innerText; // Strip the CSS or JS highlighting if present.
         var config = new WebInspector.EditingConfig(this._textNodeEditingCommitted.bind(this), this._editingCancelled.bind(this));
         this._editing = WebInspector.startEditing(textNode, config);
         window.getSelection().setBaseAndExtent(textNode, 0, textNode, 1);
@@ -1468,7 +1473,8 @@ WebInspector.ElementsTreeElement.prototype = {
         }
 
         delete this.selectionElement;
-        this.updateSelection();
+        if (this.selected)
+            this.updateSelection();
         this._preventFollowingLinksOnDoubleClick();
         this._highlightSearchResults();
     },
@@ -1561,7 +1567,7 @@ WebInspector.ElementsTreeElement.prototype = {
 
                 if (!this.expanded && (!showInlineText && (this.treeOutline.isXMLMimeType || !WebInspector.ElementsTreeElement.ForbiddenClosingTagElements[tagName]))) {
                     if (this.hasChildren) {
-                        var textNodeElement = info.titleDOM.createChild("span", "webkit-html-text-node");
+                        var textNodeElement = info.titleDOM.createChild("span", "webkit-html-text-node bogus");
                         textNodeElement.textContent = "\u2026";
                         info.titleDOM.appendChild(document.createTextNode("\u200B"));
                     }
@@ -1843,6 +1849,9 @@ WebInspector.ElementsTreeUpdater.prototype = {
         }
 
         var updatedParentTreeElements = [];
+        var treeOutlineContainerElement = this._treeOutline.element.parentNode;
+        var originalScrollTop = treeOutlineContainerElement ? treeOutlineContainerElement.scrollTop : 0;
+        this._treeOutline.element.addStyleClass("hidden");
 
         for (var i = 0; i < this._recentlyModifiedNodes.length; ++i) {
             var parent = this._recentlyModifiedNodes[i].parent;
@@ -1850,6 +1859,7 @@ WebInspector.ElementsTreeUpdater.prototype = {
             if (parent === this._treeOutline._rootDOMNode) {
                 // Document's children have changed, perform total update.
                 this._treeOutline.update();
+                this._treeOutline.element.removeStyleClass("hidden");
                 return;
             }
 
@@ -1876,6 +1886,9 @@ WebInspector.ElementsTreeUpdater.prototype = {
         for (var i = 0; i < updatedParentTreeElements.length; ++i)
             delete updatedParentTreeElements[i].alreadyUpdatedChildren;
 
+        this._treeOutline.element.removeStyleClass("hidden");
+        if (originalScrollTop)
+            treeOutlineContainerElement.scrollTop = originalScrollTop;
         this._recentlyModifiedNodes = [];
     },
 

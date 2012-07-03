@@ -26,6 +26,7 @@
 #ifndef NodeRenderingContext_h
 #define NodeRenderingContext_h
 
+#include "ComposedShadowTreeWalker.h"
 #include <wtf/Noncopyable.h>
 #include <wtf/RefPtr.h>
 #include <wtf/text/AtomicString.h>
@@ -49,6 +50,7 @@ public:
 
     Node* node() const;
     ContainerNode* parentNodeForRenderingAndStyle() const;
+    bool resetStyleInheritance() const;
     RenderObject* parentRenderer() const;
     RenderObject* nextRenderer() const;
     RenderObject* previousRenderer() const;
@@ -60,8 +62,6 @@ public:
 
     bool shouldCreateRenderer() const;
 
-    void hostChildrenChanged();
-
     bool isOnUpperEncapsulationBoundary() const;
     bool isOnEncapsulationBoundary() const;
     bool hasFlowThreadParent() const { return m_parentFlowRenderer; }
@@ -69,22 +69,8 @@ public:
     void moveToFlowThreadIfNeeded();
 
 private:
-    enum AttachingPhase {
-        Calculating,
-        AttachingStraight,
-        AttachingNotInTree,
-        AttachingDistributed,
-        AttachingNotDistributed,
-        AttachingFallbacked,
-        AttachingNotFallbacked,
-        AttachingShadowChild,
-    };
-
-    AttachingPhase m_phase;
     Node* m_node;
-    ContainerNode* m_parentNodeForRenderingAndStyle;
-    ElementShadow* m_visualParentShadow;
-    InsertionPoint* m_insertionPoint;
+    ComposedShadowTreeWalker::ParentTranversalDetails m_parentDetails;
     RefPtr<RenderStyle> m_style;
     RenderNamedFlowThread* m_parentFlowRenderer;
     AtomicString m_flowThread;
@@ -97,8 +83,12 @@ inline Node* NodeRenderingContext::node() const
 
 inline ContainerNode* NodeRenderingContext::parentNodeForRenderingAndStyle() const
 {
-    ASSERT(m_phase != Calculating);
-    return m_parentNodeForRenderingAndStyle;
+    return m_parentDetails.node();
+}
+
+inline bool NodeRenderingContext::resetStyleInheritance() const
+{
+    return m_parentDetails.resetStyleInheritance();
 }
 
 inline RenderStyle* NodeRenderingContext::style() const
@@ -108,19 +98,7 @@ inline RenderStyle* NodeRenderingContext::style() const
 
 inline InsertionPoint* NodeRenderingContext::insertionPoint() const
 {
-    return m_insertionPoint;
-}
-
-inline bool NodeRenderingContext::isOnEncapsulationBoundary() const
-{
-    return (m_phase == AttachingDistributed
-            || m_phase == AttachingShadowChild
-            || m_phase == AttachingFallbacked);
-}
-
-inline bool NodeRenderingContext::isOnUpperEncapsulationBoundary() const
-{
-    return m_phase == AttachingShadowChild;
+    return m_parentDetails.insertionPoint();
 }
 
 class NodeRendererFactory {

@@ -5,8 +5,6 @@
 # See 'Tools/qmake/README' for an overview of the build system
 # -------------------------------------------------------------------
 
-load(features)
-
 SOURCE_DIR = $${ROOT_WEBKIT_DIR}/Source/WebCore
 
 # We enable TextureMapper by default; remove this line to enable GraphicsLayerQt.
@@ -22,6 +20,7 @@ INCLUDEPATH += \
     $$SOURCE_DIR/Modules/filesystem \
     $$SOURCE_DIR/Modules/geolocation \
     $$SOURCE_DIR/Modules/indexeddb \
+    $$SOURCE_DIR/Modules/quota \
     $$SOURCE_DIR/Modules/webaudio \
     $$SOURCE_DIR/Modules/webdatabase \
     $$SOURCE_DIR/Modules/websockets \
@@ -65,6 +64,12 @@ INCLUDEPATH += \
     $$SOURCE_DIR/platform/graphics/texmap \
     $$SOURCE_DIR/platform/graphics/transforms \
     $$SOURCE_DIR/platform/image-decoders \
+    $$SOURCE_DIR/platform/image-decoders/bmp \
+    $$SOURCE_DIR/platform/image-decoders/ico \
+    $$SOURCE_DIR/platform/image-decoders/gif \
+    $$SOURCE_DIR/platform/image-decoders/jpeg \
+    $$SOURCE_DIR/platform/image-decoders/png \
+    $$SOURCE_DIR/platform/image-decoders/webp \
     $$SOURCE_DIR/platform/leveldb \
     $$SOURCE_DIR/platform/mock \
     $$SOURCE_DIR/platform/network \
@@ -125,10 +130,12 @@ contains(DEFINES, ENABLE_XSLT=1) {
     }
 }
 
-LIBS += -lz
-
 contains(DEFINES, WTF_USE_LIBXML2=1) {
     PKGCONFIG += libxml-2.0
+}
+
+contains(DEFINES, WTF_USE_ZLIB=1) {
+    LIBS += -lz
 }
 
 contains(DEFINES, PALM_DEVICE) {
@@ -166,7 +173,7 @@ contains(DEFINES, ENABLE_GEOLOCATION=1) {
     MOBILITY *= location
 }
 
-contains(DEFINES, ENABLE_DEVICE_ORIENTATION=1) {
+contains(DEFINES, ENABLE_ORIENTATION_EVENTS=1)|contains(DEFINES, ENABLE_DEVICE_ORIENTATION=1) {
     haveQt(5) {
         QT += sensors
     } else {
@@ -212,7 +219,9 @@ contains(DEFINES, ENABLE_WEBGL=1) {
 
 contains(CONFIG, texmap) {
     DEFINES += WTF_USE_TEXTURE_MAPPER=1
-    !win32-*:contains(QT_CONFIG, opengl) {
+    # TextureMapperGL requires stuff from GraphicsContext3D, hence the WebGL
+    # dependency.
+    !win32-*:contains(QT_CONFIG, opengl):contains(DEFINES, ENABLE_WEBGL=1) {
         DEFINES += WTF_USE_TEXTURE_MAPPER_GL=1
         contains(QT_CONFIG, opengles2): LIBS += -lEGL
     }
@@ -227,31 +236,33 @@ contains(DEFINES, WTF_USE_TEXTURE_MAPPER_GL=1)|contains(DEFINES, ENABLE_WEBGL=1)
 !system-sqlite:exists( $${SQLITE3SRCDIR}/sqlite3.c ) {
     INCLUDEPATH += $${SQLITE3SRCDIR}
     DEFINES += SQLITE_CORE SQLITE_OMIT_LOAD_EXTENSION SQLITE_OMIT_COMPLETE
-    CONFIG(release, debug|release): DEFINES *= NDEBUG
 } else {
     INCLUDEPATH += $${SQLITE3SRCDIR}
     LIBS += -lsqlite3
 }
 
-contains(DEFINES, WTF_USE_QT_IMAGE_DECODER=0) {
-    INCLUDEPATH += \
-        $$SOURCE_DIR/platform/image-decoders/bmp \
-        $$SOURCE_DIR/platform/image-decoders/gif \
-        $$SOURCE_DIR/platform/image-decoders/ico \
-        $$SOURCE_DIR/platform/image-decoders/jpeg \
-        $$SOURCE_DIR/platform/image-decoders/png
-
-    haveQt(5) {
-        # Qt5 allows us to use config tests to check for the presence of these libraries
-        !contains(config_test_libjpeg, yes): error("JPEG library not found!")
-        !contains(config_test_libpng, yes): error("PNG library not found!")
+haveQt(5) {
+    # Qt5 allows us to use config tests to check for the presence of these libraries
+    contains(config_test_libjpeg, yes) {
+        DEFINES += WTF_USE_LIBJPEG=1
+        LIBS += -ljpeg
+    } else {
+        warning("JPEG library not found! QImageDecoder will decode JPEG images.")
     }
-
-    LIBS += -ljpeg -lpng
-
-    contains(DEFINES, WTF_USE_WEBP=1) {
-        INCLUDEPATH += $$SOURCE_DIR/platform/image-decoders/webp
+    contains(config_test_libpng, yes) {
+        DEFINES += WTF_USE_LIBPNG=1
+        LIBS += -lpng
+    } else {
+        warning("PNG library not found! QImageDecoder will decode PNG images.")
+    }
+    contains(config_test_libwebp, yes) {
+        DEFINES += WTF_USE_WEBP=1
         LIBS += -lwebp
+    }
+} else {
+    !win32-*:!mac {
+        DEFINES += WTF_USE_LIBJPEG=1 WTF_USE_LIBPNG=1
+        LIBS += -ljpeg -lpng
     }
 }
 

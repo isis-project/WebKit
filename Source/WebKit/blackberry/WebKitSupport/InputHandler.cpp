@@ -404,6 +404,14 @@ void InputHandler::learnText()
     sendLearnTextDetails(textInField);
 }
 
+
+void InputHandler::spellCheckingRequestProcessed(int32_t id, spannable_string_t* spannableString)
+{
+    UNUSED_PARAM(id);
+    UNUSED_PARAM(spannableString);
+    // TODO implement.
+}
+
 void InputHandler::setElementUnfocused(bool refocusOccuring)
 {
     if (isActiveTextEdit()) {
@@ -432,21 +440,22 @@ void InputHandler::setElementUnfocused(bool refocusOccuring)
     m_currentFocusElementType = TextEdit;
 }
 
-void InputHandler::enableInputMode(bool inputModeAllowed)
+bool InputHandler::isInputModeEnabled() const
 {
-    FocusLog(LogLevelInfo, "InputHandler::enableInputMode '%s', override is '%s'"
-             , inputModeAllowed ? "true" : "false"
-             , m_webPage->m_dumpRenderTree || Platform::Settings::get()->alwaysShowKeyboardOnFocus() ? "true" : "false");
+    // Input mode is enabled when set, or when dump render tree or always show keyboard setting is enabled.
+    return m_inputModeEnabled || m_webPage->m_dumpRenderTree || Platform::Settings::instance()->alwaysShowKeyboardOnFocus();
+}
 
-    m_inputModeEnabled = inputModeAllowed;
+void InputHandler::setInputModeEnabled(bool active)
+{
+    FocusLog(LogLevelInfo, "InputHandler::setInputModeEnabled '%s', override is '%s'"
+             , active ? "true" : "false"
+             , m_webPage->m_dumpRenderTree || Platform::Settings::instance()->alwaysShowKeyboardOnFocus() ? "true" : "false");
 
-    // If DRT is running or always show keyboard setting is active, do not delay
-    // showing the keyboard.
-    if (m_webPage->m_dumpRenderTree || Platform::Settings::get()->alwaysShowKeyboardOnFocus())
-        m_inputModeEnabled = true;
+    m_inputModeEnabled = active;
 
     // If the frame selection isn't focused, focus it.
-    if (m_inputModeEnabled && isActiveTextEdit() && !m_currentFocusElement->document()->frame()->selection()->isFocused())
+    if (isInputModeEnabled() && isActiveTextEdit() && !m_currentFocusElement->document()->frame()->selection()->isFocused())
         m_currentFocusElement->document()->frame()->selection()->setFocused(true);
 }
 
@@ -455,8 +464,8 @@ void InputHandler::setElementFocused(Element* element)
     ASSERT(DOMSupport::isTextBasedContentEditableElement(element));
     ASSERT(element->document() && element->document()->frame());
 
-    if (element->document()->frame()->selection()->isFocused() != m_inputModeEnabled)
-        element->document()->frame()->selection()->setFocused(m_inputModeEnabled);
+    if (element->document()->frame()->selection()->isFocused() != isInputModeEnabled())
+        element->document()->frame()->selection()->setFocused(isInputModeEnabled());
 
     // Clear the existing focus node details.
     setElementUnfocused(true /*refocusOccuring*/);
@@ -552,10 +561,10 @@ WebCore::IntRect InputHandler::boundingBoxForInputField()
 
 void InputHandler::ensureFocusTextElementVisible(CaretScrollType scrollType)
 {
-    if (!m_inputModeEnabled || !m_currentFocusElement || !m_currentFocusElement->document())
+    if (!isActiveTextEdit() || !isInputModeEnabled() || !m_currentFocusElement->document())
         return;
 
-    if (!Platform::Settings::get()->allowCenterScrollAdjustmentForInputFields() && scrollType != EdgeIfNeeded)
+    if (!Platform::Settings::instance()->allowCenterScrollAdjustmentForInputFields() && scrollType != EdgeIfNeeded)
         return;
 
     Frame* elementFrame = m_currentFocusElement->document()->frame();
@@ -770,7 +779,7 @@ void InputHandler::processPendingKeyboardVisibilityChange()
 void InputHandler::notifyClientOfKeyboardVisibilityChange(bool visible)
 {
     // If we aren't ready for input, keyboard changes should be ignored.
-    if (!m_inputModeEnabled && visible)
+    if (!isInputModeEnabled() && visible)
         return;
 
     if (!m_delayKeyboardVisibilityChange) {
@@ -929,7 +938,7 @@ bool InputHandler::handleKeyboardInput(const Platform::KeyboardEvent& keyboardEv
     InputLog(LogLevelInfo, "InputHandler::handleKeyboardInput received character=%lc, type=%d", keyboardEvent.character(), keyboardEvent.type());
 
     // Enable input mode if we are processing a key event.
-    enableInputMode();
+    setInputModeEnabled();
 
     // If we aren't specifically part of a composition, fail, IMF should never send key input
     // while composing text. If IMF has failed, we should have already finished the
@@ -1140,23 +1149,24 @@ bool InputHandler::openSelectPopup(HTMLSelectElement* select)
     ScopeArray<WebString> labels;
     labels.reset(new WebString[size]);
 
-    if (!size) {
-        if (!m_selectClient)
-            m_selectClient = new SelectPopupClient(multiple, size, labels, 0, 0, 0, m_webPage, select);
-        else
-            m_selectClient->update(multiple, size, labels, enableds, itemTypes, selecteds, m_webPage, select);
-    } else {
-        bool* enableds = new bool[size];
-        int* itemTypes = new int[size];
-        bool* selecteds = new bool[size];
+    // Check if popup already exists, close it if does.
+    m_webPage->m_page->chrome()->client()->closePagePopup(0);
 
+    bool* enableds = 0;
+    int* itemTypes = 0;
+    bool* selecteds = 0;
+
+    if (size) {
+        enableds = new bool[size];
+        itemTypes = new int[size];
+        selecteds = new bool[size];
         for (int i = 0; i < size; i++) {
             if (listItems[i]->hasTagName(HTMLNames::optionTag)) {
                 HTMLOptionElement* option = static_cast<HTMLOptionElement*>(listItems[i]);
                 labels[i] = option->textIndentedToRespectGroupLabel();
                 enableds[i] = option->disabled() ? 0 : 1;
                 selecteds[i] = option->selected();
-                itemTypes[i] = TypeOption;
+                itemTypes[i] = option->parentNode() && option->parentNode()->hasTagName(HTMLNames::optgroupTag) ? TypeOptionInGroup : TypeOption;
             } else if (listItems[i]->hasTagName(HTMLNames::optgroupTag)) {
                 HTMLOptGroupElement* optGroup = static_cast<HTMLOptGroupElement*>(listItems[i]);
                 labels[i] = optGroup->groupLabelText();
@@ -1169,15 +1179,13 @@ bool InputHandler::openSelectPopup(HTMLSelectElement* select)
                 itemTypes[i] = TypeSeparator;
             }
         }
-
-        if (!m_selectClient)
-            m_selectClient = new SelectPopupClient(multiple, size, labels, enableds, itemTypes, selecteds, m_webPage, select);
-        else
-            m_selectClient->update(multiple, size, labels, enableds, itemTypes, selecteds, m_webPage, select);
     }
 
-    WebCore::IntRect elementRectInRootView = select->document()->view()->contentsToRootView(select->getRect());
-    m_webPage->m_page->chrome()->client()->openPagePopup(m_selectClient, elementRectInRootView);
+    SelectPopupClient* selectClient = new SelectPopupClient(multiple, size, labels, enableds, itemTypes, selecteds, m_webPage, select);
+    WebCore::IntRect elementRectInRootView = select->document()->view()->contentsToRootView(enclosingIntRect(select->getRect()));
+    // Fail to create HTML popup, use the old path
+    if (!m_webPage->m_page->chrome()->client()->openPagePopup(selectClient, elementRectInRootView))
+        m_webPage->m_client->openPopupList(multiple, size, labels, enableds, itemTypes, selecteds);
     return true;
 }
 
@@ -1728,7 +1736,7 @@ int32_t InputHandler::setComposingText(spannable_string_t* spannableString, int3
     InputLog(LogLevelInfo, "InputHandler::setComposingText at relativeCursorPosition: %d", relativeCursorPosition);
 
     // Enable input mode if we are processing a key event.
-    enableInputMode();
+    setInputModeEnabled();
 
     return setSpannableTextAndRelativeCursor(spannableString, relativeCursorPosition, true /* markTextAsComposing */) ? 0 : -1;
 }

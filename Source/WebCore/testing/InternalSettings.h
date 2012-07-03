@@ -61,8 +61,9 @@ public:
     void setUnifiedTextCheckingEnabled(bool, ExceptionCode&);
     bool unifiedTextCheckingEnabled(ExceptionCode&);
     void setPageScaleFactor(float scaleFactor, int x, int y, ExceptionCode&);
-    void setPerTileDrawingEnabled(bool enabled, ExceptionCode&);
     void setTouchEventEmulationEnabled(bool enabled, ExceptionCode&);
+    void setDeviceSupportsTouch(bool enabled, ExceptionCode&);
+    void setDeviceSupportsMouse(bool enabled, ExceptionCode&);
     void setShadowDOMEnabled(bool enabled, ExceptionCode&);
     void setStandardFontFamily(const String& family, const String& script, ExceptionCode&);
     void setSerifFontFamily(const String& family, const String& script, ExceptionCode&);
@@ -74,10 +75,13 @@ public:
     void setEnableScrollAnimator(bool enabled, ExceptionCode&);
     bool scrollAnimatorEnabled(ExceptionCode&);
     void setCSSExclusionsEnabled(bool enabled, ExceptionCode&);
+    void setCSSVariablesEnabled(bool enabled, ExceptionCode&);
+    bool cssVariablesEnabled(ExceptionCode&);
     void setMediaPlaybackRequiresUserGesture(bool, ExceptionCode&);
     void setEditingBehavior(const String&, ExceptionCode&);
     void setFixedPositionCreatesStackingContext(bool, ExceptionCode&);
     void setSyncXHRInDocumentsEnabled(bool, ExceptionCode&);
+    void setWindowFocusRestricted(bool, ExceptionCode&);
 
     void restoreTo(Settings*);
 
@@ -102,6 +106,9 @@ private:
 #if ENABLE(INSPECTOR) && ENABLE(JAVASCRIPT_DEBUGGER)
     bool m_originalJavaScriptProfilingEnabled;
 #endif
+    bool m_originalWindowFocusRestricted;
+    bool m_originalDeviceSupportsTouch;
+    bool m_originalDeviceSupportsMouse;
 };
 
 } // namespace WebCore

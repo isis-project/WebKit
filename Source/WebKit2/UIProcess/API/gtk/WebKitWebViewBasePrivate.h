@@ -28,6 +28,7 @@
 #ifndef WebKitWebViewBasePrivate_h
 #define WebKitWebViewBasePrivate_h
 
+#include "WebContextMenuProxyGtk.h"
 #include "WebKitPrivate.h"
 #include "WebKitWebViewBase.h"
 #include "WebPageProxy.h"
@@ -46,5 +47,8 @@ void webkitWebViewBaseEnterFullScreen(WebKitWebViewBase*);
 void webkitWebViewBaseExitFullScreen(WebKitWebViewBase*);
 void webkitWebViewBaseInitializeFullScreenClient(WebKitWebViewBase*, const WKFullScreenClientGtk*);
 void webkitWebViewBaseSetInspectorViewHeight(WebKitWebViewBase*, unsigned height);
+void webkitWebViewBaseSetActiveContextMenuProxy(WebKitWebViewBase*, WebContextMenuProxyGtk*);
+WebContextMenuProxyGtk* webkitWebViewBaseGetActiveContextMenuProxy(WebKitWebViewBase*);
+GdkEvent* webkitWebViewBaseTakeContextMenuEvent(WebKitWebViewBase*);
 
 #endif // WebKitWebViewBasePrivate_h

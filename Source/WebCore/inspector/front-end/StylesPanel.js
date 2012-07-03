@@ -103,14 +103,14 @@ WebInspector.StyleSource.prototype = {
      */
     workingCopyCommitted: function(callback)
     {  
-        this._resource.setContent(this.workingCopy(), true, callback);
+        WebInspector.cssModel.resourceBinding().setStyleContent(this, this.workingCopy(), true, callback);
     },
 
     workingCopyChanged: function()
     {  
         function commitIncrementalEdit()
         {
-            this._resource.setContent(this.workingCopy(), false, function() {});
+            WebInspector.cssModel.resourceBinding().setStyleContent(this, this.workingCopy(), false, function() {});
         }
         const updateTimeout = 200;
         this._incrementalUpdateTimer = setTimeout(commitIncrementalEdit.bind(this), updateTimeout);
@@ -248,6 +248,15 @@ WebInspector.StyleSheetOutlineDialog.prototype = {
         return this._rules[itemIndex].selectorText;
     },
 
+    /*
+     * @param {number} itemIndex
+     * @return {string}
+     */
+    itemSubtitleAt: function(itemIndex)
+    {
+        return "";
+    },
+
     /**
      * @param {number} itemIndex
      * @return {string}
@@ -306,13 +315,23 @@ WebInspector.StyleSheetOutlineDialog.prototype = {
 
     /**
      * @param {number} itemIndex
+     * @param {string} promptValue
      */
-    selectItem: function(itemIndex)
+    selectItem: function(itemIndex, promptValue)
     {
         var lineNumber = this._rules[itemIndex].sourceLine;
         if (!isNaN(lineNumber) && lineNumber >= 0)
             this._view.highlightLine(lineNumber);
         this._view.focus();
+    },
+
+    /**
+     * @param {string} query
+     * @return {string}
+     */
+    rewriteQuery: function(query)
+    {
+        return query;
     }
 }
 

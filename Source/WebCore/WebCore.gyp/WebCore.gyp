@@ -59,6 +59,7 @@
       '../Modules/intents',
       '../Modules/indexeddb',
       '../Modules/mediastream',
+      '../Modules/quota',
       '../Modules/speech',
       '../Modules/webaudio',
       '../Modules/webdatabase',
@@ -156,7 +157,6 @@
     'bindings_idl_files!': [
       # Custom bindings in bindings/v8/custom exist for these.
       '../dom/EventListener.idl',
-      '../dom/EventTarget.idl',
       '../html/VoidCallback.idl',
 
       # Bindings with custom Objective-C implementations.
@@ -209,6 +209,8 @@
           '../platform/graphics/mac',
           '../platform/mac',
           '../platform/text/mac',
+          '../platform/graphics/harfbuzz',
+          '../platform/graphics/harfbuzz/ng',
         ],
       }],
       ['OS=="win"', {
@@ -273,7 +275,7 @@
         'cflags!': ['-g'],
       },
     }],
-    ['os_posix==1 and OS!="mac" and OS!="android" and gcc_version==46', {
+    ['os_posix==1 and OS!="mac" and gcc_version==46', {
       'target_defaults': {
         # Disable warnings about c++0x compatibility, as some names (such as nullptr) conflict
         # with upcoming c++0x types.
@@ -431,6 +433,29 @@
             '<@(_outputs)'
           ],
           'message': 'Generating InjectedScriptSource.h from InjectedScriptSource.js',
+        },
+      ]
+    },
+    {
+      'target_name': 'injected_webgl_script_source',
+      'type': 'none',
+      'actions': [
+        {
+          'action_name': 'generateInjectedScriptWebGLModuleSource',
+          'inputs': [
+            '../inspector/InjectedScriptWebGLModuleSource.js',
+          ],
+          'outputs': [
+            '<(SHARED_INTERMEDIATE_DIR)/webkit/InjectedScriptWebGLModuleSource.h',
+          ],
+          'action': [
+            'perl',
+            '../inspector/xxd.pl',
+            'InjectedScriptWebGLModuleSource_js',
+            '<@(_inputs)',
+            '<@(_outputs)'
+          ],
+          'message': 'Generating InjectedScriptWebGLModuleSource.h from InjectedScriptWebGLModuleSource.js',
         },
       ]
     },
@@ -1075,6 +1100,7 @@
         'webcore_bindings_sources',
         'inspector_protocol_sources',
         'injected_script_source',
+        'injected_webgl_script_source',
         'debugger_script_source',
         '../../JavaScriptCore/JavaScriptCore.gyp/JavaScriptCore.gyp:yarr',
         '../../WTF/WTF.gyp/WTF.gyp:wtf',
@@ -1086,6 +1112,7 @@
         '<(chromium_src_dir)/third_party/libxslt/libxslt.gyp:libxslt',
         '<(chromium_src_dir)/third_party/libwebp/libwebp.gyp:libwebp',
         '<(chromium_src_dir)/third_party/npapi/npapi.gyp:npapi',
+        '<(chromium_src_dir)/third_party/qcms/qcms.gyp:qcms',
         '<(chromium_src_dir)/third_party/sqlite/sqlite.gyp:sqlite',
         '<(chromium_src_dir)/v8/tools/gyp/v8.gyp:v8',
         '<(libjpeg_gyp_path):libjpeg',
@@ -1198,6 +1225,7 @@
       'dependencies': [
         'debugger_script_source',
         'injected_script_source',
+        'injected_webgl_script_source',
         'inspector_protocol_sources',
         'webcore_bindings_sources',
         '../../ThirdParty/glu/glu.gyp:libtess',
@@ -1213,6 +1241,7 @@
         '<(chromium_src_dir)/third_party/libxslt/libxslt.gyp:libxslt',
         '<(chromium_src_dir)/third_party/npapi/npapi.gyp:npapi',
         '<(chromium_src_dir)/third_party/ots/ots.gyp:ots',
+        '<(chromium_src_dir)/third_party/qcms/qcms.gyp:qcms',
         '<(chromium_src_dir)/third_party/sqlite/sqlite.gyp:sqlite',
         '<(chromium_src_dir)/third_party/angle/src/build_angle.gyp:translator_glsl',
         '<(chromium_src_dir)/third_party/zlib/zlib.gyp:zlib',
@@ -1232,6 +1261,7 @@
         '<(chromium_src_dir)/third_party/libxslt/libxslt.gyp:libxslt',
         '<(chromium_src_dir)/third_party/npapi/npapi.gyp:npapi',
         '<(chromium_src_dir)/third_party/ots/ots.gyp:ots',
+        '<(chromium_src_dir)/third_party/qcms/qcms.gyp:qcms',
         '<(chromium_src_dir)/third_party/sqlite/sqlite.gyp:sqlite',
         '<(chromium_src_dir)/third_party/angle/src/build_angle.gyp:translator_glsl',
         '<(chromium_src_dir)/third_party/zlib/zlib.gyp:zlib',
@@ -1473,9 +1503,9 @@
       'dependencies': [
         'webcore_prerequisites',
       ],
-      'defines': [ 
-        'WEBKIT_IMPLEMENTATION=1', 
-      ], 
+      'defines': [
+        'WEBKIT_IMPLEMENTATION=1',
+      ],
       # This is needed for mac because of webkit_system_interface. It'd be nice
       # if this hard dependency could be split off the rest.
       'hard_dependency': 1,
@@ -1558,6 +1588,7 @@
           ],
           'dependencies': [
             'webkit_system_interface',
+            '<(chromium_src_dir)/third_party/harfbuzz-ng/harfbuzz.gyp:harfbuzz-ng',
           ],
           'actions': [
             {
@@ -1653,6 +1684,12 @@
             ['exclude', 'platform/graphics/skia/GlyphPageTreeNodeSkia\\.cpp$'],
             ['exclude', 'platform/graphics/skia/SimpleFontDataSkia\\.cpp$'],
             ['exclude', 'platform/chromium/DragImageChromiumMac\\.cpp$'],
+
+            # Mac uses Harfbuzz-ng.
+            ['include', 'platform/graphics/harfbuzz/HarfBuzzShaperBase\\.(cpp|h)$'],
+            ['include', 'platform/graphics/harfbuzz/ng/HarfBuzzFaceCoreText\\.cpp$'],
+            ['include', 'platform/graphics/harfbuzz/ng/HarfBuzzFace\\.(cpp|h)$'],
+            ['include', 'platform/graphics/harfbuzz/ng/HarfBuzzShaper\\.(cpp|h)$'],            
           ],
         },{ # OS!="mac"
           'sources/': [
@@ -1717,6 +1754,19 @@
             ['exclude', 'Android\\.cpp$'],
           ],
         }],
+      ],
+    },
+    {
+      'target_name': 'webcore_chromium_compositor',
+      'type': 'static_library',
+      'dependencies': [
+        'webcore_prerequisites',
+      ],
+      'defines': [
+        'WEBKIT_IMPLEMENTATION=1',
+      ],
+      'sources': [
+        '<@(webcore_chromium_compositor_files)',
       ],
     },
     # The *NEON.cpp files fail to compile when -mthumb is passed. Force
@@ -1788,7 +1838,7 @@
         },{ # OS!="mac"
           'sources/': [['exclude', 'Mac\\.(cpp|mm?)$']]
         }],
-        ['os_posix == 1 and OS != "mac" and OS != "android" and gcc_version == 42', {
+        ['os_posix == 1 and OS != "mac" and gcc_version == 42', {
           # Due to a bug in gcc 4.2.1 (the current version on hardy), we get
           # warnings about uninitialized this.
           'cflags': ['-Wno-uninitialized'],
@@ -1817,6 +1867,9 @@
     {
       'target_name': 'webcore_remaining',
       'type': 'static_library',
+      'defines': [
+        'WEBKIT_IMPLEMENTATION=1',
+      ],
       'dependencies': [
         'webcore_prerequisites',
         '<(chromium_src_dir)/third_party/v8-i18n/build/all.gyp:v8-i18n',
@@ -1939,7 +1992,7 @@
             ['exclude', '/(Windows|Uniscribe)[^/]*\\.cpp$']
           ],
         }],
-        ['os_posix == 1 and OS != "mac" and OS != "android" and gcc_version == 42', {
+        ['os_posix == 1 and OS != "mac" and gcc_version == 42', {
           # Due to a bug in gcc 4.2.1 (the current version on hardy), we get
           # warnings about uninitialized this.
           'cflags': ['-Wno-uninitialized'],
@@ -1963,26 +2016,30 @@
       'target_name': 'webcore',
       'type': 'none',
       'dependencies': [
-        'webcore_arm_neon',
         'webcore_dom',
         'webcore_html',
         'webcore_platform',
+        'webcore_chromium_compositor',
         'webcore_remaining',
         'webcore_rendering',
         # Exported.
         'webcore_bindings',
+        '../../Platform/Platform.gyp/Platform.gyp:webkit_platform',
         '../../WTF/WTF.gyp/WTF.gyp:wtf',
         '<(chromium_src_dir)/build/temp_gyp/googleurl.gyp:googleurl',
         '<(chromium_src_dir)/skia/skia.gyp:skia',
         '<(chromium_src_dir)/third_party/npapi/npapi.gyp:npapi',
+        '<(chromium_src_dir)/third_party/qcms/qcms.gyp:qcms',
         '<(chromium_src_dir)/v8/tools/gyp/v8.gyp:v8',
       ],
       'export_dependent_settings': [
         'webcore_bindings',
+        '../../Platform/Platform.gyp/Platform.gyp:webkit_platform',
         '../../WTF/WTF.gyp/WTF.gyp:wtf',
         '<(chromium_src_dir)/build/temp_gyp/googleurl.gyp:googleurl',
         '<(chromium_src_dir)/skia/skia.gyp:skia',
         '<(chromium_src_dir)/third_party/npapi/npapi.gyp:npapi',
+        '<(chromium_src_dir)/third_party/qcms/qcms.gyp:qcms',
         '<(chromium_src_dir)/v8/tools/gyp/v8.gyp:v8',
       ],
       'direct_dependent_settings': {
@@ -1991,6 +2048,11 @@
         ],
       },
       'conditions': [
+        ['target_arch=="arm"', {
+          'dependencies': [
+            'webcore_arm_neon',
+          ],
+        }],
         ['OS=="mac"', {
           'direct_dependent_settings': {
             'include_dirs': [

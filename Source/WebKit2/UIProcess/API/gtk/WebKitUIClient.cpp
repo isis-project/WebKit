@@ -21,6 +21,7 @@
 #include "WebKitUIClient.h"
 
 #include "WebKitFileChooserRequestPrivate.h"
+#include "WebKitGeolocationPermissionRequestPrivate.h"
 #include "WebKitPrivate.h"
 #include "WebKitWebViewBasePrivate.h"
 #include "WebKitWebViewPrivate.h"
@@ -144,6 +145,17 @@ static void runOpenPanel(WKPageRef page, WKFrameRef frame, WKOpenPanelParameters
     webkitWebViewRunFileChooserRequest(WEBKIT_WEB_VIEW(clientInfo), request.get());
 }
 
+static void decidePolicyForGeolocationPermissionRequest(WKPageRef, WKFrameRef, WKSecurityOriginRef, WKGeolocationPermissionRequestRef request, const void* clientInfo)
+{
+    GRefPtr<WebKitGeolocationPermissionRequest> geolocationPermissionRequest = adoptGRef(webkitGeolocationPermissionRequestCreate(request));
+    webkitWebViewMakePermissionRequest(WEBKIT_WEB_VIEW(clientInfo), WEBKIT_PERMISSION_REQUEST(geolocationPermissionRequest.get()));
+}
+
+static void runModal(WKPageRef page, const void* clientInfo)
+{
+    webkitWebViewRunAsModal(WEBKIT_WEB_VIEW(clientInfo));
+}
+
 void attachUIClientToView(WebKitWebView* webView)
 {
     WKPageUIClient wkUIClient = {
@@ -178,19 +190,20 @@ void attachUIClientToView(WebKitWebView* webView)
         0, // pageDidScroll
         0, // exceededDatabaseQuota
         runOpenPanel,
-        0, // decidePolicyForGeolocationPermissionRequest
+        decidePolicyForGeolocationPermissionRequest,
         0, // headerHeight
         0, // footerHeight
         0, // drawHeader
         0, // drawFooter
         printFrame,
-        0, // runModal
+        runModal,
         0, // didCompleteRubberBandForMainFrame
         0, // saveDataToFileInDownloadsFolder
         0, // shouldInterruptJavaScript
         createNewPage,
         mouseDidMoveOverElement,
         0, // decidePolicyForNotificationPermissionRequest
+        0, // unavailablePluginButtonClicked
     };
     WKPageRef wkPage = toAPI(webkitWebViewBaseGetPage(WEBKIT_WEB_VIEW_BASE(webView)));
     WKPageSetPageUIClient(wkPage, &wkUIClient);

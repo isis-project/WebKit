@@ -44,7 +44,7 @@
     ],
   },
   'conditions': [
-    ['os_posix == 1 and OS != "mac" and OS != "android" and gcc_version==46', {
+    ['os_posix == 1 and OS != "mac" and gcc_version==46', {
       'target_defaults': {
         # Disable warnings about c++0x compatibility, as some names (such as nullptr) conflict
         # with upcoming c++0x types.
@@ -94,20 +94,12 @@
           }],
         ],
       },
-      'conditions': [
-        ['OS=="android" and android_build_type==0', {
-          # Android builds ImageDiff for host, which has a dependency on wtf.
-          # That means we need to build this target for both host and target.
-          'toolsets': ['host', 'target'],
-        }],
-      ]
     },
     {
       'target_name': 'wtf',
       'type': 'static_library',
       'include_dirs': [
         '../',
-        '../../JavaScriptCore',
         '../wtf',
         '../wtf/unicode',
       ],
@@ -188,11 +180,6 @@
               },
             }],
           ],
-        }],
-        ['OS=="android" and android_build_type==0', {
-          # Android builds ImageDiff for host, which has a dependency on wtf.
-          # That means we need to build this target for both host and target.
-          'toolsets': ['host', 'target'],
         }],
       ],
     },

@@ -58,7 +58,6 @@ class MeteredStream(object):
         self._verbose = verbose
         self._time_fn = time_fn or time.time
         self._pid = pid or os.getpid()
-
         self._isatty = self._stream.isatty()
         self._erasing = self._isatty and not verbose
         self._last_partial_line = ''
@@ -91,14 +90,15 @@ class MeteredStream(object):
         if self._erasing:
             self._last_partial_line = txt[txt.rfind('\n') + 1:]
 
-    def write(self, txt, now=None):
+    def write(self, txt, now=None, pid=None):
         now = now or self._time_fn()
+        pid = pid or self._pid
         self._last_write_time = now
         if self._last_partial_line:
             self._erase_last_partial_line()
         if self._verbose:
             now_tuple = time.localtime(now)
-            msg = '%02d:%02d:%02d.%03d %d %s' % (now_tuple.tm_hour, now_tuple.tm_min, now_tuple.tm_sec, int((now * 1000) % 1000), self._pid, self._ensure_newline(txt))
+            msg = '%02d:%02d:%02d.%03d %d %s' % (now_tuple.tm_hour, now_tuple.tm_min, now_tuple.tm_sec, int((now * 1000) % 1000), pid, self._ensure_newline(txt))
         elif self._isatty:
             msg = txt
         else:
@@ -106,14 +106,19 @@ class MeteredStream(object):
 
         self._stream.write(msg)
 
-    def writeln(self, txt, now=None):
-        self.write(self._ensure_newline(txt), now)
+    def writeln(self, txt, now=None, pid=None):
+        self.write(self._ensure_newline(txt), now, pid)
 
     def _erase_last_partial_line(self):
         num_chars = len(self._last_partial_line)
         self._stream.write(self._erasure(self._last_partial_line))
         self._last_partial_line = ''
 
+    def flush(self):
+        if self._last_partial_line:
+            self._stream.write('\n')
+            self._last_partial_line = ''
+            self._stream.flush()
 
 class _LogHandler(logging.Handler):
     def __init__(self, meter):
@@ -122,4 +127,4 @@ class _LogHandler(logging.Handler):
         self.name = LOG_HANDLER_NAME
 
     def emit(self, record):
-        self._meter.writeln(record.getMessage(), record.created)
+        self._meter.writeln(record.getMessage(), record.created, record.process)

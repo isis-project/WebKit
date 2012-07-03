@@ -260,7 +260,7 @@ bool PluginView::start()
     {
         PluginView::setCurrentPluginView(this);
 #if USE(JSC)
-        JSC::JSLock::DropAllLocks dropAllLocks(JSC::SilenceAssertionsOnly);
+        JSC::JSLock::DropAllLocks dropAllLocks(JSDOMWindowBase::commonJSGlobalData());
 #endif
         setCallingPlugin(true);
         npErr = m_plugin->pluginFuncs()->newp((NPMIMEType)m_mimeType.utf8().data(), m_instance, m_mode, m_paramCount, m_paramNames, m_paramValues, NULL);
@@ -350,7 +350,7 @@ void PluginView::stop()
     m_isStarted = false;
 
 #if USE(JSC)
-    JSC::JSLock::DropAllLocks dropAllLocks(JSC::SilenceAssertionsOnly);
+    JSC::JSLock::DropAllLocks dropAllLocks(JSDOMWindowBase::commonJSGlobalData());
 #endif
 
 #if ENABLE(NETSCAPE_PLUGIN_API)
@@ -466,7 +466,7 @@ void PluginView::performRequest(PluginRequest* request)
             if (request->sendNotification()) {
                 PluginView::setCurrentPluginView(this);
 #if USE(JSC)
-                JSC::JSLock::DropAllLocks dropAllLocks(JSC::SilenceAssertionsOnly);
+                JSC::JSLock::DropAllLocks dropAllLocks(JSDOMWindowBase::commonJSGlobalData());
 #endif
                 setCallingPlugin(true);
                 m_plugin->pluginFuncs()->urlnotify(m_instance, requestURL.string().utf8().data(), NPRES_DONE, request->notifyData());
@@ -774,7 +774,7 @@ NPObject* PluginView::npObject()
     {
         PluginView::setCurrentPluginView(this);
 #if USE(JSC)
-        JSC::JSLock::DropAllLocks dropAllLocks(JSC::SilenceAssertionsOnly);
+        JSC::JSLock::DropAllLocks dropAllLocks(JSDOMWindowBase::commonJSGlobalData());
 #endif
         setCallingPlugin(true);
         npErr = m_plugin->pluginFuncs()->getvalue(m_instance, NPPVpluginScriptableNPObject, &object);
@@ -1539,7 +1539,7 @@ void PluginView::privateBrowsingStateChanged(bool privateBrowsingEnabled)
 
     PluginView::setCurrentPluginView(this);
 #if USE(JSC)
-    JSC::JSLock::DropAllLocks dropAllLocks(JSC::SilenceAssertionsOnly);
+    JSC::JSLock::DropAllLocks dropAllLocks(JSDOMWindowBase::commonJSGlobalData());
 #endif
     setCallingPlugin(true);
     NPBool value = privateBrowsingEnabled;

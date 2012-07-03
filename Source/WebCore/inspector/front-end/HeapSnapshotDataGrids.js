@@ -379,6 +379,7 @@ WebInspector.HeapSnapshotViewportDataGrid.prototype = {
 
     onResize: function()
     {
+        WebInspector.HeapSnapshotSortableDataGrid.prototype.onResize.call(this);
         this.updateVisibleNodes();
     },
 
@@ -438,7 +439,8 @@ WebInspector.HeapSnapshotContainmentDataGrid.prototype = {
     {
         this.snapshotView = snapshotView;
         this.snapshot = snapshot;
-        var fakeEdge = { nodeIndex: nodeIndex || this.snapshot.rootNodeIndex };
+        var node = new WebInspector.HeapSnapshotNode(snapshot, nodeIndex || snapshot.rootNodeIndex);
+        var fakeEdge = { node: node };
         this.setRootNode(new WebInspector.HeapSnapshotObjectNode(this, false, fakeEdge, null));
         this.rootNode().sort();
     },

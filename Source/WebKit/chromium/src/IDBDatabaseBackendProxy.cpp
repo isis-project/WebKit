@@ -31,6 +31,7 @@
 #include "DOMStringList.h"
 #include "IDBCallbacks.h"
 #include "IDBDatabaseCallbacks.h"
+#include "IDBMetadata.h"
 #include "IDBObjectStoreBackendProxy.h"
 #include "IDBTransactionBackendProxy.h"
 #include "WebDOMStringList.h"
@@ -58,6 +59,11 @@ IDBDatabaseBackendProxy::IDBDatabaseBackendProxy(PassOwnPtr<WebIDBDatabase> data
 
 IDBDatabaseBackendProxy::~IDBDatabaseBackendProxy()
 {
+}
+
+IDBDatabaseMetadata IDBDatabaseBackendProxy::metadata() const
+{
+    return m_webIDBDatabase->metadata();
 }
 
 String IDBDatabaseBackendProxy::name() const
@@ -115,7 +121,7 @@ void IDBDatabaseBackendProxy::close(PassRefPtr<IDBDatabaseCallbacks>)
     m_webIDBDatabase->close();
 }
 
-void IDBDatabaseBackendProxy::open(PassRefPtr<IDBDatabaseCallbacks> databaseCallbacks)
+void IDBDatabaseBackendProxy::registerFrontendCallbacks(PassRefPtr<IDBDatabaseCallbacks> databaseCallbacks)
 {
     m_webIDBDatabase->open(new WebIDBDatabaseCallbacksImpl(databaseCallbacks));
 }

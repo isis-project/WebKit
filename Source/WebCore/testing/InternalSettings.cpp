@@ -104,6 +104,9 @@ InternalSettings::InternalSettings(Frame* frame)
 #if ENABLE(INSPECTOR) && ENABLE(JAVASCRIPT_DEBUGGER)
     , m_originalJavaScriptProfilingEnabled(page() && page()->inspectorController() && page()->inspectorController()->profilerEnabled())
 #endif
+    , m_originalWindowFocusRestricted(settings()->windowFocusRestricted())
+    , m_originalDeviceSupportsTouch(settings()->deviceSupportsTouch())
+    , m_originalDeviceSupportsMouse(settings()->deviceSupportsMouse())
 {
 }
 
@@ -122,6 +125,9 @@ void InternalSettings::restoreTo(Settings* settings)
     if (page() && page()->inspectorController())
         page()->inspectorController()->setProfilerEnabled(m_originalJavaScriptProfilingEnabled);
 #endif
+    settings->setWindowFocusRestricted(m_originalWindowFocusRestricted);
+    settings->setDeviceSupportsTouch(m_originalDeviceSupportsTouch);
+    settings->setDeviceSupportsMouse(m_originalDeviceSupportsMouse);
 }
 
 Settings* InternalSettings::settings() const
@@ -228,12 +234,6 @@ void InternalSettings::setPageScaleFactor(float scaleFactor, int x, int y, Excep
     page()->setPageScaleFactor(scaleFactor, IntPoint(x, y));
 }
 
-void InternalSettings::setPerTileDrawingEnabled(bool enabled, ExceptionCode& ec)
-{
-    InternalSettingsGuardForSettings();
-    settings()->setPerTileDrawingEnabled(enabled);
-}
-
 void InternalSettings::setShadowDOMEnabled(bool enabled, ExceptionCode& ec)
 {
 #if ENABLE(SHADOW_DOM)
@@ -256,6 +256,18 @@ void InternalSettings::setTouchEventEmulationEnabled(bool enabled, ExceptionCode
     UNUSED_PARAM(enabled);
     UNUSED_PARAM(ec);
 #endif
+}
+
+void InternalSettings::setDeviceSupportsTouch(bool enabled, ExceptionCode& ec)
+{
+    InternalSettingsGuardForSettings();
+    settings()->setDeviceSupportsTouch(enabled);
+}
+
+void InternalSettings::setDeviceSupportsMouse(bool enabled, ExceptionCode& ec)
+{
+    InternalSettingsGuardForSettings();
+    settings()->setDeviceSupportsMouse(enabled);
 }
 
 typedef void (Settings::*SetFontFamilyFunction)(const AtomicString&, UScriptCode);
@@ -336,6 +348,18 @@ void InternalSettings::setCSSExclusionsEnabled(bool enabled, ExceptionCode& ec)
     RuntimeEnabledFeatures::setCSSExclusionsEnabled(enabled);
 }
 
+void InternalSettings::setCSSVariablesEnabled(bool enabled, ExceptionCode& ec)
+{
+    InternalSettingsGuardForSettings();
+    settings()->setCSSVariablesEnabled(enabled);
+}
+
+bool InternalSettings::cssVariablesEnabled(ExceptionCode& ec)
+{
+    InternalSettingsGuardForSettingsReturn(false);
+    return settings()->cssVariablesEnabled();
+}
+
 void InternalSettings::setMediaPlaybackRequiresUserGesture(bool enabled, ExceptionCode& ec)
 {
     InternalSettingsGuardForSettings();
@@ -361,10 +385,10 @@ void InternalSettings::setFixedPositionCreatesStackingContext(bool creates, Exce
     settings()->setFixedPositionCreatesStackingContext(creates);
 }
 
-void InternalSettings::setSyncXHRInDocumentsEnabled(bool creates, ExceptionCode& ec)
+void InternalSettings::setSyncXHRInDocumentsEnabled(bool enabled, ExceptionCode& ec)
 {
-    InternalSettingsGuardForFrameView();
-    settings()->setSyncXHRInDocumentsEnabled(creates);
+    InternalSettingsGuardForSettings();
+    settings()->setSyncXHRInDocumentsEnabled(enabled);
 }
 
 void InternalSettings::setJavaScriptProfilingEnabled(bool enabled, ExceptionCode& ec)
@@ -381,6 +405,12 @@ void InternalSettings::setJavaScriptProfilingEnabled(bool enabled, ExceptionCode
     UNUSED_PARAM(ec);
     return;
 #endif
+}
+
+void InternalSettings::setWindowFocusRestricted(bool restricted, ExceptionCode& ec)
+{
+    InternalSettingsGuardForSettings();
+    settings()->setWindowFocusRestricted(restricted);
 }
 
 }

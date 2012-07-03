@@ -44,14 +44,16 @@ var Preferences = {
     exposeWorkersInspection: false,
     applicationTitle: "Web Inspector - %s",
     showHeapSnapshotObjectsHiddenProperties: false,
-    showDockToRight: false
+    showDockToRight: false,
+    exposeFileSystemInspection: false,
+    displayInitiator: false
 }
 
 var Capabilities = {
     samplingCPUProfiler: false,
     debuggerCausesRecompilation: true,
+    separateScriptCompilationAndExecutionEnabled: false,
     profilerCausesRecompilation: true,
-    nativeInstrumentationEnabled: false,
     heapProfilerPresent: false,
     canOverrideDeviceMetrics: false,
     timelineSupportsFrameInstrumentation: false,
@@ -183,6 +185,8 @@ WebInspector.ExperimentsSettings = function()
     this.showShadowDOM = this._createExperiment("showShadowDOM", "Show shadow DOM");
     this.snippetsSupport = this._createExperiment("snippetsSupport", "Snippets support");
     this.nativeMemorySnapshots = this._createExperiment("nativeMemorySnapshots", "Native memory profiling");
+    this.liveNativeMemoryChart = this._createExperiment("liveNativeMemoryChart", "Live native memory chart");
+    this.fileSystemInspection = this._createExperiment("fileSystemInspection", "FileSystem inspection");
 
     this._cleanUpSetting();
 }

@@ -111,7 +111,7 @@ void RenderSVGModelObject::styleDidChange(StyleDifference diff, const RenderStyl
     SVGResourcesCache::clientStyleChanged(this, diff, style());
 }
 
-bool RenderSVGModelObject::nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint&, const LayoutPoint&, HitTestAction)
+bool RenderSVGModelObject::nodeAtPoint(const HitTestRequest&, HitTestResult&, const HitTestPoint&, const LayoutPoint&, HitTestAction)
 {
     ASSERT_NOT_REACHED();
     return false;
@@ -171,8 +171,10 @@ bool RenderSVGModelObject::checkIntersection(RenderObject* renderer, const Float
     if (!isGraphicsElement(renderer))
         return false;
     AffineTransform ctm;
-    getElementCTM(static_cast<SVGElement*>(renderer->node()), ctm);
-    return intersectsAllowingEmpty(rect, ctm.mapRect(renderer->repaintRectInLocalCoordinates()));
+    SVGElement* svgElement = static_cast<SVGElement*>(renderer->node());
+    getElementCTM(svgElement, ctm);
+    ASSERT(svgElement->renderer());
+    return intersectsAllowingEmpty(rect, ctm.mapRect(svgElement->renderer()->repaintRectInLocalCoordinates()));
 }
 
 bool RenderSVGModelObject::checkEnclosure(RenderObject* renderer, const FloatRect& rect)
@@ -182,8 +184,10 @@ bool RenderSVGModelObject::checkEnclosure(RenderObject* renderer, const FloatRec
     if (!isGraphicsElement(renderer))
         return false;
     AffineTransform ctm;
-    getElementCTM(static_cast<SVGElement*>(renderer->node()), ctm);
-    return rect.contains(ctm.mapRect(renderer->repaintRectInLocalCoordinates()));
+    SVGElement* svgElement = static_cast<SVGElement*>(renderer->node());
+    getElementCTM(svgElement, ctm);
+    ASSERT(svgElement->renderer());
+    return rect.contains(ctm.mapRect(svgElement->renderer()->repaintRectInLocalCoordinates()));
 }
 
 } // namespace WebCore

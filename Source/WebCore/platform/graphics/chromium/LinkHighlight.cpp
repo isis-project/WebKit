@@ -28,11 +28,14 @@
 #include "LinkHighlight.h"
 
 #include "GraphicsLayerChromium.h"
+#include "PlatformContextSkia.h"
 #include "cc/CCKeyframedAnimationCurve.h"
 #include <wtf/CurrentTime.h>
 #include <wtf/OwnPtr.h>
 
 #if USE(ACCELERATED_COMPOSITING)
+
+using WebKit::WebTransformationMatrix;
 
 namespace WebCore {
 
@@ -52,7 +55,7 @@ LinkHighlight::LinkHighlight(GraphicsLayerChromium* parent, const Path& path, in
 
     m_contentLayer->setBounds(rect.size());
 
-    TransformationMatrix transform;
+    WebTransformationMatrix transform;
     transform.translate(rect.x() + rect.width() / 2, rect.y() + rect.height() / 2);
     m_contentLayer->setTransform(transform);
 
@@ -74,7 +77,7 @@ LinkHighlight::LinkHighlight(GraphicsLayerChromium* parent, const Path& path, in
     // animationId = 1 is reserved for us.
     OwnPtr<CCActiveAnimation> animation(CCActiveAnimation::create(curve.release(), animationId, groupId, CCActiveAnimation::Opacity));
     animation->setNeedsSynchronizedStartTime(true);
-    m_contentLayer->layerAnimationController()->add(animation.release());
+    m_contentLayer->layerAnimationController()->addAnimation(animation.release());
 }
 
 LinkHighlight::~LinkHighlight()
@@ -89,8 +92,10 @@ ContentLayerChromium* LinkHighlight::contentLayer()
     return m_contentLayer.get();
 }
 
-void LinkHighlight::paintContents(GraphicsContext& gc, const IntRect&)
+void LinkHighlight::paintContents(SkCanvas* canvas, const IntRect&, FloatRect&)
 {
+    PlatformContextSkia platformContext(canvas);
+    GraphicsContext gc(&platformContext);
     // FIXME: make colour configurable?
     gc.setStrokeColor(Color(0, 0, 255, 255), ColorSpaceDeviceRGB);
     gc.setStrokeThickness(2);

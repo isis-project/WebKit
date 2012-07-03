@@ -59,7 +59,6 @@
 #include "MediaStreamSource.h"
 #include "NotificationClient.h"
 #include "PageVisibilityState.h"
-#include "PasteboardPrivate.h"
 #include "PeerConnection00.h"
 #include "PlatformCursor.h"
 #include "ReferrerPolicy.h"
@@ -94,7 +93,6 @@
 #include "WebMediaPlayerClient.h"
 #include "WebNotificationPresenter.h"
 #include "WebPageVisibilityState.h"
-#include "WebScrollbar.h"
 #include "WebSettings.h"
 #include "WebSpeechRecognizerClient.h"
 #include "WebStorageQuotaError.h"
@@ -112,6 +110,7 @@
 #include <public/WebFileSystem.h>
 #include <public/WebFilterOperation.h>
 #include <public/WebReferrerPolicy.h>
+#include <public/WebScrollbar.h>
 #include <public/WebURLResponse.h>
 #include <wtf/Assertions.h>
 #include <wtf/text/StringImpl.h>
@@ -267,14 +266,6 @@ COMPILE_ASSERT_MATCHING_ENUM(WebApplicationCacheHost::ProgressEvent, Application
 COMPILE_ASSERT_MATCHING_ENUM(WebApplicationCacheHost::UpdateReadyEvent, ApplicationCacheHost::UPDATEREADY_EVENT);
 COMPILE_ASSERT_MATCHING_ENUM(WebApplicationCacheHost::CachedEvent, ApplicationCacheHost::CACHED_EVENT);
 COMPILE_ASSERT_MATCHING_ENUM(WebApplicationCacheHost::ObsoleteEvent, ApplicationCacheHost::OBSOLETE_EVENT);
-
-COMPILE_ASSERT_MATCHING_ENUM(WebClipboard::FormatPlainText, PasteboardPrivate::PlainTextFormat);
-COMPILE_ASSERT_MATCHING_ENUM(WebClipboard::FormatHTML, PasteboardPrivate::HTMLFormat);
-COMPILE_ASSERT_MATCHING_ENUM(WebClipboard::FormatBookmark, PasteboardPrivate::BookmarkFormat);
-COMPILE_ASSERT_MATCHING_ENUM(WebClipboard::FormatSmartPaste, PasteboardPrivate::WebSmartPasteFormat);
-
-COMPILE_ASSERT_MATCHING_ENUM(WebClipboard::BufferStandard, PasteboardPrivate::StandardBuffer);
-COMPILE_ASSERT_MATCHING_ENUM(WebClipboard::BufferSelection, PasteboardPrivate::SelectionBuffer);
 
 COMPILE_ASSERT_MATCHING_ENUM(WebCursorInfo::TypePointer, PlatformCursor::TypePointer);
 COMPILE_ASSERT_MATCHING_ENUM(WebCursorInfo::TypeCross, PlatformCursor::TypeCross);
@@ -458,7 +449,7 @@ COMPILE_ASSERT_MATCHING_ENUM(WebView::UserStyleInjectInExistingDocuments, Inject
 COMPILE_ASSERT_MATCHING_ENUM(WebView::UserStyleInjectInSubsequentDocuments, InjectInSubsequentDocuments);
 
 COMPILE_ASSERT_MATCHING_ENUM(WebIDBDatabaseExceptionDataError, IDBDatabaseException::DATA_ERR);
-COMPILE_ASSERT_MATCHING_ENUM(WebIDBDatabaseExceptionQuotaError, IDBDatabaseException::QUOTA_ERR);
+COMPILE_ASSERT_MATCHING_ENUM(WebIDBDatabaseExceptionQuotaError, IDBDatabaseException::IDB_QUOTA_EXCEEDED_ERR);
 
 #if ENABLE(INDEXED_DATABASE)
 COMPILE_ASSERT_MATCHING_ENUM(WebIDBKey::InvalidType, IDBKey::InvalidType);
@@ -590,3 +581,7 @@ COMPILE_ASSERT_MATCHING_ENUM(WebURLResponse::Unknown, ResourceResponse::Unknown)
 COMPILE_ASSERT_MATCHING_ENUM(WebURLResponse::HTTP_0_9, ResourceResponse::HTTP_0_9);
 COMPILE_ASSERT_MATCHING_ENUM(WebURLResponse::HTTP_1_0, ResourceResponse::HTTP_1_0);
 COMPILE_ASSERT_MATCHING_ENUM(WebURLResponse::HTTP_1_1, ResourceResponse::HTTP_1_1);
+
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::CORSModeUnspecified, MediaPlayerClient::Unspecified);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::CORSModeAnonymous, MediaPlayerClient::Anonymous);
+COMPILE_ASSERT_MATCHING_ENUM(WebMediaPlayer::CORSModeUseCredentials, MediaPlayerClient::UseCredentials);

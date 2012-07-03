@@ -357,11 +357,17 @@ void WKPageSetPaginationMode(WKPageRef pageRef, WKPaginationMode paginationMode)
     case kWKPaginationModeUnpaginated:
         mode = Page::Pagination::Unpaginated;
         break;
-    case kWKPaginationModeHorizontal:
-        mode = Page::Pagination::HorizontallyPaginated;
+    case kWKPaginationModeLeftToRight:
+        mode = Page::Pagination::LeftToRightPaginated;
         break;
-    case kWKPaginationModeVertical:
-        mode = Page::Pagination::VerticallyPaginated;
+    case kWKPaginationModeRightToLeft:
+        mode = Page::Pagination::RightToLeftPaginated;
+        break;
+    case kWKPaginationModeTopToBottom:
+        mode = Page::Pagination::TopToBottomPaginated;
+        break;
+    case kWKPaginationModeBottomToTop:
+        mode = Page::Pagination::BottomToTopPaginated;
         break;
     default:
         return;
@@ -374,10 +380,14 @@ WKPaginationMode WKPageGetPaginationMode(WKPageRef pageRef)
     switch (toImpl(pageRef)->paginationMode()) {
     case Page::Pagination::Unpaginated:
         return kWKPaginationModeUnpaginated;
-    case Page::Pagination::HorizontallyPaginated:
-        return kWKPaginationModeHorizontal;
-    case Page::Pagination::VerticallyPaginated:
-        return kWKPaginationModeVertical;
+    case Page::Pagination::LeftToRightPaginated:
+        return kWKPaginationModeLeftToRight;
+    case Page::Pagination::RightToLeftPaginated:
+        return kWKPaginationModeRightToLeft;
+    case Page::Pagination::TopToBottomPaginated:
+        return kWKPaginationModeTopToBottom;
+    case Page::Pagination::BottomToTopPaginated:
+        return kWKPaginationModeBottomToTop;
     }
 
     ASSERT_NOT_REACHED();
@@ -673,6 +683,13 @@ void WKPageEndPrinting(WKPageRef page)
     toImpl(page)->endPrinting();
 }
 #endif
+
+void WKPageDeliverIntentToFrame(WKPageRef page, WKFrameRef frame, WKIntentDataRef intent)
+{
+#if ENABLE(WEB_INTENTS)
+    toImpl(page)->deliverIntentToFrame(toImpl(frame), toImpl(intent));
+#endif
+}
 
 WKImageRef WKPageCreateSnapshotOfVisibleContent(WKPageRef)
 {

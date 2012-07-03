@@ -56,20 +56,21 @@ static ResourceLoadPriority defaultPriorityForResourceType(CachedResource::Type 
 {
     switch (type) {
         case CachedResource::CSSStyleSheet:
-#if ENABLE(XSLT)
-        case CachedResource::XSLStyleSheet:
-#endif
             return ResourceLoadPriorityHigh;
         case CachedResource::Script:
-#if ENABLE(SVG)
-        case CachedResource::SVGDocumentResource:
-            return ResourceLoadPriorityLow;
-#endif
         case CachedResource::FontResource:
         case CachedResource::RawResource:
             return ResourceLoadPriorityMedium;
         case CachedResource::ImageResource:
             return ResourceLoadPriorityLow;
+#if ENABLE(XSLT)
+        case CachedResource::XSLStyleSheet:
+            return ResourceLoadPriorityHigh;
+#endif
+#if ENABLE(SVG)
+        case CachedResource::SVGDocumentResource:
+            return ResourceLoadPriorityLow;
+#endif
 #if ENABLE(LINK_PREFETCH)
         case CachedResource::LinkPrefetch:
             return ResourceLoadPriorityVeryLow;
@@ -387,12 +388,6 @@ void CachedResource::didAddClient(CachedResourceClient* c)
         c->notifyFinished(this);
 }
 
-void CachedResource::allClientsRemoved()
-{
-    if (m_loader)
-        m_loader->cancelIfNotFinishing();
-}
-
 bool CachedResource::addClientToSet(CachedResourceClient* client)
 {
     ASSERT(!isPurgeable());
@@ -432,6 +427,7 @@ void CachedResource::removeClient(CachedResourceClient* client)
     } else {
         ASSERT(m_clients.contains(client));
         m_clients.remove(client);
+        didRemoveClient(client);
     }
 
     if (canDelete() && !inCache())

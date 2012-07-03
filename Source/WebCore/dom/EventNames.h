@@ -220,14 +220,19 @@ namespace WebCore {
     macro(addstream) \
     macro(removestream) \
     macro(statechange) \
+    macro(removetrack) \
     \
     macro(show) \
     \
     macro(webkitpointerlocklost) \
+    macro(webkitpointerlockchange) \
+    macro(webkitpointerlockerror) \
     \
     macro(webkitRegionLayoutUpdate) \
     \
     macro(webkitnetworkinfochange) \
+    \
+    macro(webkitresourcetimingbufferfull) \
     \
 
 // end of DOM_EVENT_NAMES_FOR_EACH
@@ -251,7 +256,21 @@ namespace WebCore {
 
         inline bool isTouchEventType(const AtomicString& eventType) const
         {
-            return eventType == touchstartEvent || eventType == touchmoveEvent || eventType == touchendEvent || eventType == touchcancelEvent;
+            return eventType == touchstartEvent
+                || eventType == touchmoveEvent
+                || eventType == touchendEvent
+                || eventType == touchcancelEvent;
+        }
+
+        Vector<AtomicString> touchEventNames() const
+        {
+            Vector<AtomicString> names;
+            names.reserveCapacity(4);
+            names.append(touchstartEvent);
+            names.append(touchmoveEvent);
+            names.append(touchendEvent);
+            names.append(touchcancelEvent);
+            return names;
         }
     };
 

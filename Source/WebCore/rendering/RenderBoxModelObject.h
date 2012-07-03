@@ -79,7 +79,7 @@ public:
 
     bool hasSelfPaintingLayer() const;
     RenderLayer* layer() const { return m_layer; }
-    virtual bool requiresLayer() const { return isRoot() || isPositioned() || isRelPositioned() || isTransparent() || hasTransform() || hasHiddenBackface() || hasMask() || hasReflection() || hasFilter() || style()->specifiesColumns(); }
+    virtual bool requiresLayer() const { return isRoot() || isOutOfFlowPositioned() || isRelPositioned() || isTransparent() || hasTransform() || hasHiddenBackface() || hasMask() || hasReflection() || hasFilter() || style()->specifiesColumns(); }
 
     // This will work on inlines to return the bounding box of all of the lines' border boxes.
     virtual IntRect borderBoundingBox() const = 0;
@@ -225,7 +225,7 @@ protected:
         IntSize m_tileSize;
     };
 
-    LayoutPoint offsetTopLeft(const LayoutPoint&) const;
+    LayoutPoint adjustedPositionRelativeToOffsetParent(const LayoutPoint&) const;
 
     void calculateBackgroundImageGeometry(const FillLayer*, const LayoutRect& paintRect, BackgroundImageGeometry&);
     void getBorderEdgeInfo(class BorderEdge[], const RenderStyle*, bool includeLogicalLeftEdge = true, bool includeLogicalRightEdge = true) const;
@@ -236,6 +236,8 @@ protected:
 
     RenderBoxModelObject* continuation() const;
     void setContinuation(RenderBoxModelObject*);
+
+    LayoutRect localCaretRectForEmptyElement(LayoutUnit width, LayoutUnit textIndentOffset);
 
     static bool shouldAntialiasLines(GraphicsContext*);
 
@@ -272,7 +274,9 @@ private:
     virtual bool isBoxModelObject() const { return true; }
 
     IntSize calculateFillTileSize(const FillLayer*, const IntSize& scaledPositioningAreaSize) const;
-    IntSize calculateImageIntrinsicDimensions(StyleImage*, const IntSize& scaledPositioningAreaSize) const;
+
+    enum ScaleByEffectiveZoomOrNot { ScaleByEffectiveZoom, DoNotScaleByEffectiveZoom };
+    IntSize calculateImageIntrinsicDimensions(StyleImage*, const IntSize& scaledPositioningAreaSize, ScaleByEffectiveZoomOrNot) const;
 
     RoundedRect getBackgroundRoundedRect(const LayoutRect&, InlineFlowBox*, LayoutUnit inlineBoxWidth, LayoutUnit inlineBoxHeight,
         bool includeLogicalLeftEdge, bool includeLogicalRightEdge);

@@ -99,6 +99,7 @@ public:
     
     Element* rootEditableElement() const;
     bool isContentEditable() const;
+    bool rendererIsEditable() const;
     bool isContentRichlyEditable() const;
     // Returns a shadow tree node for legacy shadow trees, a child of the
     // ShadowRoot node for new shadow trees, or 0 for non-shadow trees.
@@ -121,9 +122,6 @@ private:
     void adjustSelectionToAvoidCrossingShadowBoundaries();
     void adjustSelectionToAvoidCrossingEditingBoundaries();
     void updateSelectionType();
-
-    Position adjustPositionBefore(TreeScope*, const Position&);
-    Position adjustPositionAfter(TreeScope*, const Position&);
 
     // We need to store these as Positions because VisibleSelection is
     // used to store values in editing commands for use when

@@ -5,8 +5,6 @@
 # See 'Tools/qmake/README' for an overview of the build system
 # -------------------------------------------------------------------
 
-load(features)
-
 # Flag that we're now done processing the project file. This allows
 # a feature to distinguish between being processed due to a load()
 # or include() and a CONFIG += feature.
@@ -20,6 +18,8 @@ isEmpty(OBJECTS_DIR): OBJECTS_DIR = obj/$$activeBuildConfig()
 # General default build tweaks
 DEFINES += \
     BUILDING_QT__=1
+
+haveQt(5): DEFINES += HAVE_QT5=1
 
 CONFIG(release, debug|release): DEFINES *= NDEBUG
 
@@ -162,7 +162,7 @@ contains(QT, webkit) {
 
 # Reorder libraries so that the link and include order is correct,
 # and make sure the case matches the original case.
-libraries = WebKit2 WebCore JavaScriptCore WTF
+libraries = WebKit1 WebKit2 WebCore JavaScriptCore WTF
 for(library, libraries) {
     contains(WEBKIT, $$lower($$library)) {
         WEBKIT -= $$lower($$library)
@@ -208,6 +208,12 @@ for(library, WEBKIT) {
     needToLink() {
         linkAgainstLibrary($$library, $$eval(WEBKIT.$${library_identifier}.root_source_dir))
         LIBS += $$dependent_libs
+    }
+
+    # Anything not linking dynamically to QtWebKit should make sure to have its export
+    # macros syncrhonized with the code that it will be linked with statically.
+    !contains(QT, webkit) {
+        DEFINES += STATICALLY_LINKED_WITH_$$library
     }
 
     LIBS = $$existing_libs $$LIBS

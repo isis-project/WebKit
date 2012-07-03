@@ -92,15 +92,6 @@ void CachedImage::load(CachedResourceLoader* cachedResourceLoader, const Resourc
         setLoading(false);
 }
 
-void CachedImage::removeClientForRenderer(RenderObject* renderer)
-{
-#if ENABLE(SVG)
-    if (m_svgImageCache)
-        m_svgImageCache->removeRendererFromCache(renderer);
-#endif
-    removeClient(renderer);
-}
-
 void CachedImage::didAddClient(CachedResourceClient* c)
 {
     if (m_decodedDataDeletionTimer.isActive())
@@ -118,24 +109,34 @@ void CachedImage::didAddClient(CachedResourceClient* c)
     CachedResource::didAddClient(c);
 }
 
+void CachedImage::didRemoveClient(CachedResourceClient* c)
+{
+    ASSERT(c->resourceClientType() == CachedImageClient::expectedType());
+#if ENABLE(SVG)
+    if (m_svgImageCache)
+        m_svgImageCache->removeClientFromCache(static_cast<CachedImageClient*>(c));
+#endif
+
+    CachedResource::didRemoveClient(c);
+}
+
 void CachedImage::allClientsRemoved()
 {
     if (m_image && !errorOccurred())
         m_image->resetAnimation();
     if (double interval = memoryCache()->deadDecodedDataDeletionInterval())
         m_decodedDataDeletionTimer.startOneShot(interval);
-    CachedResource::allClientsRemoved();
 }
 
 pair<Image*, float> CachedImage::brokenImage(float deviceScaleFactor) const
 {
     if (deviceScaleFactor >= 2) {
         DEFINE_STATIC_LOCAL(Image*, brokenImageHiRes, (Image::loadPlatformResource("missingImage@2x").leakRef()));
-        return make_pair(brokenImageHiRes, 2);
+        return std::make_pair(brokenImageHiRes, 2);
     }
 
     DEFINE_STATIC_LOCAL(Image*, brokenImageLoRes, (Image::loadPlatformResource("missingImage").leakRef()));
-    return make_pair(brokenImageLoRes, 1);
+    return std::make_pair(brokenImageLoRes, 1);
 }
 
 bool CachedImage::willPaintBrokenImage() const
@@ -206,10 +207,7 @@ void CachedImage::setContainerSizeForRenderer(const RenderObject* renderer, cons
         return;
     }
 
-    // FIXME (85335): This needs to take CSS transform scale into account as well.
-    float containerScale = renderer->document()->page()->deviceScaleFactor() * renderer->document()->page()->pageScaleFactor();
-
-    m_svgImageCache->setRequestedSizeAndScales(renderer, SVGImageCache::SizeAndScales(containerSize, containerZoom, containerScale));
+    m_svgImageCache->setRequestedSizeAndScales(renderer, SVGImageCache::SizeAndScales(containerSize, containerZoom));
 #else
     UNUSED_PARAM(renderer);
     UNUSED_PARAM(containerZoom);

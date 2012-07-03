@@ -28,26 +28,47 @@
 #if USE(ACCELERATED_COMPOSITING)
 
 #include "RateLimiter.h"
-
-#include "Extensions3DChromium.h"
-#include "GraphicsContext3D.h"
 #include "TraceEvent.h"
+#include "cc/CCProxy.h"
+#include "cc/CCThread.h"
+#include <public/WebGraphicsContext3D.h>
 
 namespace WebCore {
 
-PassRefPtr<RateLimiter> RateLimiter::create(GraphicsContext3D* context, RateLimiterClient *client)
+class RateLimiter::Task : public CCThread::Task {
+public:
+    static PassOwnPtr<Task> create(RateLimiter* rateLimiter)
+    {
+        return adoptPtr(new Task(rateLimiter));
+    }
+    virtual ~Task() { }
+
+private:
+    explicit Task(RateLimiter* rateLimiter)
+        : CCThread::Task(this)
+        , m_rateLimiter(rateLimiter)
+    {
+    }
+
+    virtual void performTask() OVERRIDE
+    {
+        m_rateLimiter->rateLimitContext();
+    }
+
+    RefPtr<RateLimiter> m_rateLimiter;
+};
+
+PassRefPtr<RateLimiter> RateLimiter::create(WebKit::WebGraphicsContext3D* context, RateLimiterClient *client)
 {
     return adoptRef(new RateLimiter(context, client));
 }
 
-RateLimiter::RateLimiter(GraphicsContext3D* context, RateLimiterClient *client)
+RateLimiter::RateLimiter(WebKit::WebGraphicsContext3D* context, RateLimiterClient *client)
     : m_context(context)
-    , m_timer(this, &RateLimiter::rateLimitContext)
+    , m_active(false)
     , m_client(client)
 {
     ASSERT(context);
-    ASSERT(context->getExtensions());
-    m_contextSupportsRateLimitingExtension = context->getExtensions()->supports("GL_CHROMIUM_rate_limit_offscreen_context");
 }
 
 RateLimiter::~RateLimiter()
@@ -56,23 +77,30 @@ RateLimiter::~RateLimiter()
 
 void RateLimiter::start()
 {
-    if (m_contextSupportsRateLimitingExtension && !m_timer.isActive())
-        m_timer.startOneShot(0);
+    if (m_active)
+        return;
+
+    TRACE_EVENT0("cc", "RateLimiter::start");
+    m_active = true;
+    CCProxy::mainThread()->postTask(RateLimiter::Task::create(this));
 }
 
 void RateLimiter::stop()
 {
-    m_timer.stop();
+    TRACE_EVENT0("cc", "RateLimiter::stop");
+    m_client = 0;
 }
 
-void RateLimiter::rateLimitContext(Timer<RateLimiter>*)
+void RateLimiter::rateLimitContext()
 {
-    TRACE_EVENT("RateLimiter::rateLimitContext", this, 0);
+    if (!m_client)
+        return;
 
-    Extensions3DChromium* extensions = static_cast<Extensions3DChromium*>(m_context->getExtensions());
+    TRACE_EVENT0("cc", "RateLimiter::rateLimitContext");
 
+    m_active = false;
     m_client->rateLimit();
-    extensions->rateLimitOffscreenContextCHROMIUM();
+    m_context->rateLimitOffscreenContextCHROMIUM();
 }
 
 }

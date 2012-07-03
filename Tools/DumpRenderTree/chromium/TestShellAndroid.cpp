@@ -31,6 +31,8 @@
 #include "config.h"
 #include "TestShell.h"
 
+#include "linux/WebFontRendering.h"
+#include "third_party/skia/include/ports/SkTypeface_android.h"
 #include <android/log.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -41,6 +43,10 @@
 #include <wtf/Assertions.h>
 
 namespace {
+
+const char fontMainConfigFile[] = "/data/drt/android_main_fonts.xml";
+const char fontFallbackConfigFile[] = "/data/drt/android_fallback_fonts.xml";
+const char fontsDir[] = "/data/drt/fonts/";
 
 const char optionInFIFO[] = "--in-fifo=";
 const char optionOutFIFO[] = "--out-fifo=";
@@ -95,6 +101,9 @@ void redirectToFile(FILE* stream, const char* path, const char* mode)
 
 void platformInit(int* argc, char*** argv)
 {
+    // Initialize skia with customized font config files.
+    SkUseTestFontConfigFile(fontMainConfigFile, fontFallbackConfigFile, fontsDir);
+
     const char* inFIFO = 0;
     const char* outFIFO = 0;
     const char* errFile = 0;
@@ -127,4 +136,8 @@ void platformInit(int* argc, char*** argv)
         // Redirect stderr to stdout.
         dup2(1, 2);
     }
+
+    // Disable auto hint and use normal hinting in layout test mode to produce the same font metrics as chromium-linux.
+    WebKit::WebFontRendering::setAutoHint(false);
+    WebKit::WebFontRendering::setHinting(SkPaint::kNormal_Hinting);
 }

@@ -29,6 +29,7 @@
 #include "EventTarget.h"
 #include "KURLHash.h"
 #include "LayoutTypes.h"
+#include "MemoryInstrumentation.h"
 #include "RenderStyleConstants.h"
 #include "ScriptWrappable.h"
 #include "TreeShared.h"
@@ -69,6 +70,7 @@ class NSResolver;
 class NamedNodeMap;
 class NameNodeList;
 class NodeList;
+class NodeListsNodeData;
 class NodeRareData;
 class NodeRenderingContext;
 class PlatformKeyboardEvent;
@@ -104,7 +106,7 @@ enum StyleChangeType {
     SyntheticStyleChange = 3 << nodeStyleChangeShift
 };
 
-class Node : public EventTarget, public ScriptWrappable, public TreeShared<ContainerNode> {
+class Node : public EventTarget, public ScriptWrappable, public TreeShared<Node, ContainerNode> {
     friend class Document;
     friend class TreeScope;
     friend class TreeScopeAdopter;
@@ -556,29 +558,19 @@ public:
     void showTreeForThisAcrossFrame() const;
 #endif
 
-    void registerDynamicSubtreeNodeList(DynamicSubtreeNodeList*);
-    void unregisterDynamicSubtreeNodeList(DynamicSubtreeNodeList*);
     void invalidateNodeListsCacheAfterAttributeChanged(const QualifiedName&, Element* attributeOwnerElement);
     void invalidateNodeListsCacheAfterChildrenChanged();
-    void removeCachedClassNodeList(ClassNodeList*, const String&);
-
-    void removeCachedNameNodeList(NameNodeList*, const String&);
-    void removeCachedTagNodeList(TagNodeList*, const AtomicString&);
-    void removeCachedTagNodeList(TagNodeList*, const QualifiedName&);
-    void removeCachedLabelsNodeList(DynamicSubtreeNodeList*);
-
+    NodeListsNodeData* nodeLists();
     void removeCachedChildNodeList();
-
-    PassRefPtr<RadioNodeList> radioNodeList(const AtomicString&);
-    void removeCachedRadioNodeList(RadioNodeList*, const AtomicString&);
 
     PassRefPtr<NodeList> getElementsByTagName(const AtomicString&);
     PassRefPtr<NodeList> getElementsByTagNameNS(const AtomicString& namespaceURI, const AtomicString& localName);
     PassRefPtr<NodeList> getElementsByName(const String& elementName);
     PassRefPtr<NodeList> getElementsByClassName(const String& classNames);
+    PassRefPtr<RadioNodeList> radioNodeList(const AtomicString&);
 
-    PassRefPtr<Element> querySelector(const String& selectors, ExceptionCode&);
-    PassRefPtr<NodeList> querySelectorAll(const String& selectors, ExceptionCode&);
+    PassRefPtr<Element> querySelector(const AtomicString& selectors, ExceptionCode&);
+    PassRefPtr<NodeList> querySelectorAll(const AtomicString& selectors, ExceptionCode&);
 
     unsigned short compareDocumentPosition(Node*);
 
@@ -628,8 +620,8 @@ public:
     // to event listeners, and prevents DOMActivate events from being sent at all.
     virtual bool disabled() const;
 
-    using TreeShared<ContainerNode>::ref;
-    using TreeShared<ContainerNode>::deref;
+    using TreeShared<Node, ContainerNode>::ref;
+    using TreeShared<Node, ContainerNode>::deref;
 
     virtual EventTargetData* eventTargetData();
     virtual EventTargetData* ensureEventTargetData();
@@ -638,7 +630,6 @@ public:
     DOMSettableTokenList* itemProp();
     DOMSettableTokenList* itemRef();
     DOMSettableTokenList* itemType();
-    HTMLPropertiesCollection* properties();
 #endif
 
 #if ENABLE(MUTATION_OBSERVERS)
@@ -656,6 +647,8 @@ public:
 #endif
     bool hasScopedHTMLStyleChild() const;
     size_t numberOfScopedHTMLStyleChildren() const;
+
+    virtual void reportMemoryUsage(MemoryObjectInfo*) const;
 
 private:
     enum NodeFlags {
@@ -740,6 +733,10 @@ protected:
     void setHasCustomCallbacks() { setFlag(true, HasCustomCallbacksFlag); }
 
 private:
+    friend class TreeShared<Node, ContainerNode>;
+
+    void removedLastRef();
+
     // These API should be only used for a tree scope migration.
     // setTreeScope() returns NodeRareData to save extra nodeRareData() invocations on the caller site.
     NodeRareData* setTreeScope(TreeScope*);
@@ -775,8 +772,8 @@ private:
     // Use Node::parentNode as the consistent way of querying a parent node.
     // This method is made private to ensure a compiler error on call sites that
     // don't follow this rule.
-    using TreeShared<ContainerNode>::parent;
-    using TreeShared<ContainerNode>::setParent;
+    using TreeShared<Node, ContainerNode>::parent;
+    using TreeShared<Node, ContainerNode>::setParent;
 
     void trackForDebugging();
 
@@ -810,9 +807,9 @@ protected:
     bool isSynchronizingSVGAttributes() const { return getFlag(IsSynchronizingSVGAttributesFlag); }
     void setIsSynchronizingSVGAttributes() const { setFlag(IsSynchronizingSVGAttributesFlag); }
     void clearIsSynchronizingSVGAttributes() const { clearFlag(IsSynchronizingSVGAttributesFlag); }
-    bool hasRareSVGData() const { return getFlag(HasSVGRareDataFlag); }
-    void setHasRareSVGData() { setFlag(HasSVGRareDataFlag); }
-    void clearHasRareSVGData() { clearFlag(HasSVGRareDataFlag); }
+    bool hasSVGRareData() const { return getFlag(HasSVGRareDataFlag); }
+    void setHasSVGRareData() { setFlag(HasSVGRareDataFlag); }
+    void clearHasSVGRareData() { clearFlag(HasSVGRareDataFlag); }
 #endif
 
 #if ENABLE(MICRODATA)

@@ -21,7 +21,7 @@
 #include "config.h"
 #include "qwebkittest_p.h"
 
-#include "QtViewportInteractionEngine.h"
+#include "QtViewportHandler.h"
 #include "qquickwebview_p_p.h"
 #include "qwindowsysteminterface_qpa.h"
 #include <QMutableListIterator>
@@ -120,44 +120,49 @@ QSize QWebKitTest::contentsSize() const
 
 QVariant QWebKitTest::contentsScale() const
 {
-    if (QtViewportInteractionEngine* interactionEngine = m_webViewPrivate->viewportInteractionEngine())
-        return interactionEngine->currentCSSScale();
-
-    return m_webViewPrivate->attributes.initialScale;
+    if (QtViewportHandler* viewport = m_webViewPrivate->viewportHandler())
+        return viewport->currentCSSScale();
+    return 1.0;
 }
 
 QVariant QWebKitTest::devicePixelRatio() const
 {
-    return m_webViewPrivate->attributes.devicePixelRatio;
+    if (QtViewportHandler* viewport = m_webViewPrivate->viewportHandler())
+        return viewport->m_devicePixelRatio;
+    return 1.0;
 }
 
 QVariant QWebKitTest::initialScale() const
 {
-    return m_webViewPrivate->attributes.initialScale;
+    if (QtViewportHandler* viewport = m_webViewPrivate->viewportHandler())
+        return viewport->m_rawAttributes.initialScale;
+    return 1.0;
 }
 
 QVariant QWebKitTest::minimumScale() const
 {
-    if (QtViewportInteractionEngine* interactionEngine = m_webViewPrivate->viewportInteractionEngine())
-        return interactionEngine->m_minimumScale;
-
-    return m_webViewPrivate->attributes.minimumScale;
+    if (QtViewportHandler* viewport = m_webViewPrivate->viewportHandler())
+        return viewport->m_minimumScale;
+    return 1.0;
 }
 
 QVariant QWebKitTest::maximumScale() const
 {
-    if (QtViewportInteractionEngine* interactionEngine = m_webViewPrivate->viewportInteractionEngine())
-        return interactionEngine->m_maximumScale;
-
-    return m_webViewPrivate->attributes.maximumScale;
+    if (QtViewportHandler* viewport = m_webViewPrivate->viewportHandler())
+        return viewport->m_maximumScale;
+    return 1.0;
 }
 
 QVariant QWebKitTest::isScalable() const
 {
-    return !!m_webViewPrivate->attributes.userScalable;
+    if (QtViewportHandler* viewport = m_webViewPrivate->viewportHandler())
+        return !!viewport->m_rawAttributes.userScalable;
+    return false;
 }
 
 QVariant QWebKitTest::layoutSize() const
 {
-    return QSizeF(m_webViewPrivate->attributes.layoutSize);
+    if (QtViewportHandler* viewport = m_webViewPrivate->viewportHandler())
+        return QSizeF(viewport->m_rawAttributes.layoutSize);
+    return QSizeF();
 }

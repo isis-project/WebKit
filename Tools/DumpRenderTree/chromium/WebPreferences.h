@@ -110,7 +110,7 @@ struct WebPreferences {
     bool deferred2dCanvasEnabled;
     bool acceleratedPaintingEnabled;
     bool hixie76WebSocketProtocolEnabled;
-    bool perTilePaintingEnabled;
+    bool mediaPlaybackRequiresUserGesture;
     bool mockScrollbarsEnabled;
     bool cssCustomFilterEnabled;
 

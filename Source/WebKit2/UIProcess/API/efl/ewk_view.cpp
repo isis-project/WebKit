@@ -1,5 +1,6 @@
 /*
    Copyright (C) 2011 Samsung Electronics
+   Copyright (C) 2012 Intel Corporation. All rights reserved.
 
     This library is free software; you can redistribute it and/or
     modify it under the terms of the GNU Library General Public
@@ -25,6 +26,14 @@
 #include "NativeWebWheelEvent.h"
 #include "PageClientImpl.h"
 #include "WKAPICast.h"
+#include "WKRetainPtr.h"
+#include "WKURL.h"
+#include "ewk_context.h"
+#include "ewk_context_private.h"
+#include "ewk_intent_private.h"
+#include "ewk_view_loader_client_private.h"
+#include "ewk_view_private.h"
+#include <wtf/text/CString.h>
 
 using namespace WebKit;
 using namespace WebCore;
@@ -33,6 +42,8 @@ static const char EWK_VIEW_TYPE_STR[] = "EWK2_View";
 
 struct _Ewk_View_Private_Data {
     OwnPtr<PageClientImpl> pageClient;
+    const char* uri;
+    const char* title;
 };
 
 #define EWK_VIEW_TYPE_CHECK(ewkView, result)                                   \
@@ -112,7 +123,7 @@ static Eina_Bool _ewk_view_smart_focus_out(Ewk_View_Smart_Data* smartData)
 {
     EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false)
 
-    priv->pageClient->page()->viewStateDidChange(WebPageProxy::ViewWindowIsActive);
+    priv->pageClient->page()->viewStateDidChange(WebPageProxy::ViewIsFocused | WebPageProxy::ViewWindowIsActive);
     return true;
 }
 
@@ -259,6 +270,8 @@ static void _ewk_view_priv_del(Ewk_View_Private_Data* priv)
         return;
 
     priv->pageClient = nullptr;
+    eina_stringshare_del(priv->uri);
+    eina_stringshare_del(priv->title);
     free(priv);
 }
 
@@ -461,7 +474,7 @@ static inline Evas_Smart* _ewk_view_smart_class_new(void)
     return smart;
 }
 
-Evas_Object* ewk_view_add(Evas* canvas, WKContextRef contextRef, WKPageGroupRef pageGroupRef)
+Evas_Object* ewk_view_base_add(Evas* canvas, WKContextRef contextRef, WKPageGroupRef pageGroupRef)
 {
     Evas_Object* ewkView = evas_object_smart_add(canvas, _ewk_view_smart_class_new());
     if (!ewkView)
@@ -480,16 +493,93 @@ Evas_Object* ewk_view_add(Evas* canvas, WKContextRef contextRef, WKPageGroupRef 
     }
 
     priv->pageClient = PageClientImpl::create(toImpl(contextRef), toImpl(pageGroupRef), ewkView);
+    ewk_view_loader_client_attach(toAPI(priv->pageClient->page()), ewkView);
 
     return ewkView;
 }
 
-WKPageRef ewk_view_page_get(Evas_Object* ewkView)
+Evas_Object* ewk_view_add_with_context(Evas* canvas, Ewk_Context* context)
+{
+    return ewk_view_base_add(canvas, ewk_context_WKContext_get(context), 0);
+}
+
+Evas_Object* ewk_view_add(Evas* canvas)
+{
+    return ewk_view_add_with_context(canvas, ewk_context_default_get());
+}
+
+Eina_Bool ewk_view_uri_set(Evas_Object* ewkView, const char* uri)
 {
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
     EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
 
-    return toAPI(priv->pageClient->page());
+    WKRetainPtr<WKURLRef> url(AdoptWK, WKURLCreateWithUTF8CString(uri));
+    WKPageLoadURL(toAPI(priv->pageClient->page()), url.get());
+
+    eina_stringshare_replace(&priv->uri, uri);
+
+    return true;
+}
+
+const char* ewk_view_uri_get(const Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
+
+    return priv->uri;
+}
+
+Eina_Bool ewk_view_reload(Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    WKPageReload(toAPI(priv->pageClient->page()));
+    return true;
+}
+
+Eina_Bool ewk_view_stop(Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    WKPageStopLoading(toAPI(priv->pageClient->page()));
+    return true;
+}
+
+const char* ewk_view_title_get(const Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
+
+    CString title = priv->pageClient->page()->pageTitle().utf8();
+    eina_stringshare_replace(&priv->title, title.data());
+
+    return priv->title;
+}
+
+/**
+ * @internal
+ * The view title was changed by the frame loader.
+ *
+ * Emits signal: "title,changed" with pointer to new title string.
+ */
+void ewk_view_title_changed(Evas_Object* ewkView, const char* title)
+{
+    evas_object_smart_callback_call(ewkView, "title,changed", const_cast<char*>(title));
+}
+
+/**
+ * @internal
+ * The view received a new intent request.
+ *
+ * Emits signal: "intent,request,new" with pointer to a Ewk_Intent.
+ */
+void ewk_view_intent_request_new(Evas_Object* ewkView, const Ewk_Intent* ewkIntent)
+{
+#if ENABLE(WEB_INTENTS)
+    evas_object_smart_callback_call(ewkView, "intent,request,new", const_cast<Ewk_Intent*>(ewkIntent));
+#endif
 }
 
 void ewk_view_display(Evas_Object* ewkView, const IntRect& rect)
@@ -501,6 +591,63 @@ void ewk_view_display(Evas_Object* ewkView, const IntRect& rect)
     evas_object_image_data_update_add(smartData->image, rect.x(), rect.y(), rect.width(), rect.height());
 }
 
+Eina_Bool ewk_view_back(Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    WKPageRef pageRef = toAPI(priv->pageClient->page());
+    if (WKPageCanGoBack(pageRef)) {
+        WKPageGoBack(pageRef);
+        return true;
+    }
+    return false;
+}
+
+Eina_Bool ewk_view_forward(Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    WKPageRef pageRef = toAPI(priv->pageClient->page());
+    if (WKPageCanGoForward(pageRef)) {
+        WKPageGoForward(pageRef);
+        return true;
+    }
+    return false;
+}
+
+Eina_Bool ewk_view_intent_deliver(Evas_Object* ewkView, Ewk_Intent* intent)
+{
+#if ENABLE(WEB_INTENTS)
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(intent, false);
+
+    WKPageRef wkPage = toAPI(priv->pageClient->page());
+    WKPageDeliverIntentToFrame(wkPage, WKPageGetMainFrame(wkPage), ewk_intent_WKIntentDataRef_get(intent));
+    return true;
+#else
+    return false;
+#endif
+}
+
+Eina_Bool ewk_view_back_possible(Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    return WKPageCanGoBack(toAPI(priv->pageClient->page()));
+}
+
+Eina_Bool ewk_view_forward_possible(Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    return WKPageCanGoForward(toAPI(priv->pageClient->page()));
+}
+
 void ewk_view_image_data_set(Evas_Object* ewkView, void* imageData, const IntSize& size)
 {
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData);
@@ -510,4 +657,25 @@ void ewk_view_image_data_set(Evas_Object* ewkView, void* imageData, const IntSiz
     evas_object_resize(smartData->image, size.width(), size.height());
     evas_object_image_size_set(smartData->image, size.width(), size.height());
     evas_object_image_data_copy_set(smartData->image, imageData);
+}
+
+#if ENABLE(WEB_INTENTS_TAG)
+/**
+ * @internal
+ * The view received a new intent service registration.
+ *
+ * Emits signal: "intent,service,register" with pointer to a Ewk_Intent_Service.
+ */
+void ewk_view_intent_service_register(Evas_Object* ewkView, const Ewk_Intent_Service* ewkIntentService)
+{
+    evas_object_smart_callback_call(ewkView, "intent,service,register", const_cast<Ewk_Intent_Service*>(ewkIntentService));
+}
+#endif // ENABLE(WEB_INTENTS_TAG)
+
+WebPageProxy* ewk_view_page_get(const Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
+
+    return priv->pageClient->page();
 }

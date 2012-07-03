@@ -23,7 +23,7 @@
 
 #if ENABLE(Condition1) || ENABLE(Condition2)
 
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "ExceptionCode.h"
 #include "MessagePort.h"
 #include "RuntimeEnabledFeatures.h"
@@ -40,7 +40,7 @@
 
 namespace WebCore {
 
-WrapperTypeInfo V8TestSerializedScriptValueInterface::info = { V8TestSerializedScriptValueInterface::GetTemplate, V8TestSerializedScriptValueInterface::derefObject, 0, 0 };
+WrapperTypeInfo V8TestSerializedScriptValueInterface::info = { V8TestSerializedScriptValueInterface::GetTemplate, V8TestSerializedScriptValueInterface::derefObject, 0, 0, 0, WrapperTypeObjectPrototype };
 
 namespace TestSerializedScriptValueInterfaceV8Internal {
 
@@ -78,7 +78,7 @@ static v8::Handle<v8::Value> cachedValueAttrGetter(v8::Local<v8::String> name, c
         return value;
     TestSerializedScriptValueInterface* imp = V8TestSerializedScriptValueInterface::toNative(info.Holder());
     SerializedScriptValue* serialized = imp->cachedValue();
-    value = serialized ? serialized->deserialize() : v8::Handle<v8::Value>(v8::Null());
+    value = serialized ? serialized->deserialize() : v8::Handle<v8::Value>(v8::Null(info.GetIsolate()));
     info.Holder()->SetHiddenValue(propertyName, value);
     return value;
 }
@@ -103,7 +103,7 @@ static v8::Handle<v8::Value> portsAttrGetter(v8::Local<v8::String> name, const v
     MessagePortArray portsCopy(*ports);
     v8::Local<v8::Array> portArray = v8::Array::New(portsCopy.size());
     for (size_t i = 0; i < portsCopy.size(); ++i)
-        portArray->Set(v8::Integer::New(i), toV8(portsCopy[i].get(), info.GetIsolate()));
+        portArray->Set(v8Integer(i, info.GetIsolate()), toV8(portsCopy[i].get(), info.GetIsolate()));
     return portArray;
 }
 
@@ -116,7 +116,7 @@ static v8::Handle<v8::Value> cachedReadonlyValueAttrGetter(v8::Local<v8::String>
         return value;
     TestSerializedScriptValueInterface* imp = V8TestSerializedScriptValueInterface::toNative(info.Holder());
     SerializedScriptValue* serialized = imp->cachedReadonlyValue();
-    value = serialized ? serialized->deserialize() : v8::Handle<v8::Value>(v8::Null());
+    value = serialized ? serialized->deserialize() : v8::Handle<v8::Value>(v8::Null(info.GetIsolate()));
     info.Holder()->SetHiddenValue(propertyName, value);
     return value;
 }

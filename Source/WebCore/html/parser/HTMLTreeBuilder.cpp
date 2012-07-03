@@ -56,8 +56,6 @@ namespace WebCore {
 
 using namespace HTMLNames;
 
-static const int uninitializedLineNumberValue = -1;
-
 static TextPosition uninitializedPositionValue1()
 {
     return TextPosition(OrdinalNumber::fromOneBasedInt(-1), OrdinalNumber::first());
@@ -753,6 +751,7 @@ void HTMLTreeBuilder::processStartTagForInBody(AtomicHTMLToken& token)
         return;
     }
     if (token.name() == bodyTag) {
+        parseError(token);
         if (!m_tree.openElements()->secondElementIsHTMLBodyElement() || m_tree.openElements()->hasOnlyOneElement()) {
             ASSERT(isParsingFragment());
             return;

@@ -34,7 +34,6 @@ namespace WebCore {
 
 class GraphicsLayer;
 class RenderEmbeddedObject;
-class RenderGeometryMap;
 class RenderPart;
 class ScrollingCoordinator;
 #if ENABLE(VIDEO)
@@ -117,6 +116,9 @@ public:
     // Whether layer's backing needs a graphics layer to clip z-order children of the given layer.
     bool clipsCompositingDescendants(const RenderLayer*) const;
 
+    // Whether the layer is fixed positioned to the view by an ancestor layer.
+    bool fixedPositionedByAncestor(const RenderLayer*) const;
+
     // Whether the given layer needs an extra 'contents' layer.
     bool needsContentsCompositingLayer(const RenderLayer*) const;
     // Return the bounding box required for compositing layer and its childern, relative to ancestorLayer.
@@ -125,6 +127,8 @@ public:
 
     // Repaint the appropriate layers when the given RenderLayer starts or stops being composited.
     void repaintOnCompositingChange(RenderLayer*);
+    
+    void repaintInCompositedAncestor(RenderLayer*, const LayoutRect&);
     
     // Notify us that a layer has been added or removed
     void layerWasAdded(RenderLayer* parent, RenderLayer* child);
@@ -239,13 +243,13 @@ private:
     // Repaint the given rect (which is layer's coords), and regions of child layers that intersect that rect.
     void recursiveRepaintLayerRect(RenderLayer*, const IntRect&);
 
-    void addToOverlapMap(RenderGeometryMap&, OverlapMap&, RenderLayer*, IntRect& layerBounds, bool& boundsComputed);
-    void addToOverlapMapRecursive(RenderGeometryMap&, OverlapMap&, RenderLayer*, RenderLayer* ancestorLayer = 0);
+    void addToOverlapMap(OverlapMap&, RenderLayer*, IntRect& layerBounds, bool& boundsComputed);
+    void addToOverlapMapRecursive(OverlapMap&, RenderLayer*, RenderLayer* ancestorLayer = 0);
 
     void updateCompositingLayersTimerFired(Timer<RenderLayerCompositor>*);
 
     // Returns true if any layer's compositing changed
-    void computeCompositingRequirements(RenderLayer* ancestorLayer, RenderLayer*, RenderGeometryMap*, OverlapMap*, struct CompositingState&, bool& layersChanged);
+    void computeCompositingRequirements(RenderLayer* ancestorLayer, RenderLayer*, OverlapMap*, struct CompositingState&, bool& layersChanged, bool& descendantHas3DTransform);
     
     // Recurses down the tree, parenting descendant compositing layers and collecting an array of child layers for the current compositing layer.
     void rebuildCompositingLayerTree(RenderLayer*, Vector<GraphicsLayer*>& childGraphicsLayersOfEnclosingLayer, int depth);
@@ -258,7 +262,6 @@ private:
     void removeCompositedChildren(RenderLayer*);
 
     bool layerHas3DContent(const RenderLayer*) const;
-    bool hasNonAffineTransform(RenderObject*) const;
     bool isRunningAcceleratedTransformAnimation(RenderObject*) const;
 
     bool hasAnyAdditionalCompositedLayers(const RenderLayer* rootLayer) const;
@@ -286,10 +289,10 @@ private:
     bool requiresCompositingForCanvas(RenderObject*) const;
     bool requiresCompositingForPlugin(RenderObject*) const;
     bool requiresCompositingForFrame(RenderObject*) const;
-    bool requiresCompositingWhenDescendantsAreCompositing(RenderObject*) const;
     bool requiresCompositingForFilters(RenderObject*) const;
     bool requiresCompositingForScrollableFrame() const;
     bool requiresCompositingForPosition(RenderObject*, const RenderLayer*) const;
+    bool requiresCompositingForIndirectReason(RenderObject*, bool hasCompositedDescendants, bool has3DTransformedDescendants, RenderLayer::IndirectCompositingReason&) const;
 
     bool requiresScrollLayer(RootLayerAttachment) const;
     bool requiresHorizontalScrollbarLayer() const;
@@ -350,8 +353,8 @@ private:
     int m_rootLayerUpdateCount;
     int m_obligateCompositedLayerCount; // count of layer that have to be composited.
     int m_secondaryCompositedLayerCount; // count of layers that have to be composited because of stacking or overlap.
-    double m_obligatoryBackingAreaMegaPixels;
-    double m_secondaryBackingAreaMegaPixels;
+    double m_obligatoryBackingStoreBytes;
+    double m_secondaryBackingStoreBytes;
 #endif
 };
 

@@ -30,6 +30,8 @@
 
 namespace WebCore {
 
+class CheckedRadioButtons;
+class DragData;
 class FileList;
 class HTMLDataListElement;
 class HTMLOptionElement;
@@ -65,7 +67,7 @@ public:
     double maximum() const;
     // Sets the "allowed value step" defined in the HTML spec to the specified double pointer.
     // Returns false if there is no "allowed value step."
-    bool getAllowedValueStep(double*) const;
+    bool getAllowedValueStep(Decimal*) const;
     StepRange createStepRange(AnyStepHandling) const;
 
     // Implementations of HTMLInputElement::stepUp() and stepDown().
@@ -75,7 +77,6 @@ public:
     void stepDown(ExceptionCode& ec) { stepDown(1, ec); }
     // stepUp()/stepDown() for user-interaction.
     bool isSteppable() const;
-    void stepUpFromRenderer(int);
 
     bool isTextButton() const;
 
@@ -195,6 +196,7 @@ public:
     void setDefaultValue(const String&);
 
     Vector<String> acceptMIMETypes();
+    Vector<String> acceptFileExtensions();
     String accept() const;
     String alt() const;
 
@@ -211,7 +213,15 @@ public:
     void setAutofilled(bool = true);
 
     FileList* files();
-    void receiveDroppedFiles(const Vector<String>&);
+    void setFiles(PassRefPtr<FileList>);
+
+    // Returns true if the given DragData has more than one dropped files.
+    bool receiveDroppedFiles(const DragData*);
+
+#if ENABLE(FILE_SYSTEM)
+    String droppedFileSystemId();
+#endif
+
     Icon* icon() const;
     // These functions are used for rendering the input active during a
     // drag-and-drop operation.
@@ -220,7 +230,6 @@ public:
 
     void addSearchResult();
     void onSearch();
-    bool searchEventsShouldBeDispatched() const;
 
 #if ENABLE(DATALIST)
     HTMLElement* list() const;
@@ -229,7 +238,12 @@ public:
     HTMLInputElement* checkedRadioButtonForGroup() const;
     bool isInRequiredRadioButtonGroup() const;
 
+    // Functions for InputType classes.
     void setValueInternal(const String&, TextFieldEventBehavior);
+    bool isTextFormControlFocusable() const;
+    bool isTextFormControlKeyboardFocusable(KeyboardEvent*) const;
+    bool isTextFormControlMouseFocusable() const;
+    bool valueAttributeWasUpdatedAfterParsing() const { return m_valueAttributeWasUpdatedAfterParsing; }
 
     void cacheSelectionInResponseToSetValue(int caretOffset) { cacheSelection(caretOffset, caretOffset, SelectionHasNoDirection); }
 
@@ -251,6 +265,8 @@ public:
     unsigned width() const;
     void setHeight(unsigned);
     void setWidth(unsigned);
+
+    virtual const AtomicString& name() const OVERRIDE;
 
 protected:
     HTMLInputElement(const QualifiedName&, Document*, HTMLFormElement*, bool createdByParser);
@@ -274,16 +290,14 @@ private:
     virtual void aboutToUnload();
     virtual bool shouldUseInputMethod();
 
-    virtual const AtomicString& formControlName() const;
-
     virtual bool isTextFormControl() const { return isTextField(); }
 
     virtual bool canTriggerImplicitSubmission() const { return isTextField(); }
 
     virtual const AtomicString& formControlType() const;
 
-    virtual bool saveFormControlState(String& value) const;
-    virtual void restoreFormControlState(const String&);
+    virtual FormControlState saveFormControlState() const OVERRIDE;
+    virtual void restoreFormControlState(const FormControlState&) OVERRIDE;
 
     virtual bool canStartSelection() const;
 
@@ -373,6 +387,7 @@ private:
 #endif
     bool m_stateRestored : 1;
     bool m_parsingInProgress : 1;
+    bool m_valueAttributeWasUpdatedAfterParsing : 1;
     bool m_wasModifiedByUser : 1;
     bool m_canReceiveDroppedFiles : 1;
     OwnPtr<InputType> m_inputType;

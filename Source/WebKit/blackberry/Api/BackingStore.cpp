@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009, 2010, 2011 Research In Motion Limited. All rights reserved.
+ * Copyright (C) 2009, 2010, 2011, 2012 Research In Motion Limited. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -300,8 +300,17 @@ void BackingStorePrivate::resumeScreenAndBackingStoreUpdates(BackingStore::Resum
     m_suspendBackingStoreUpdates = false;
 
 #if USE(ACCELERATED_COMPOSITING)
-    if (op != BackingStore::None)
+    if (op != BackingStore::None) {
+        if (isOpenGLCompositing() && !isActive()) {
+            m_webPage->d->setCompositorDrawsRootLayer(true);
+            m_webPage->d->setNeedsOneShotDrawingSynchronization();
+            m_suspendScreenUpdates = false;
+            BlackBerry::Platform::userInterfaceThreadMessageClient()->syncToCurrentMessage();
+            return;
+        }
+
         m_webPage->d->setNeedsOneShotDrawingSynchronization();
+    }
 #endif
 
     // For the direct rendering case, there is no such operation as blit,
@@ -1150,8 +1159,11 @@ void BackingStorePrivate::blitVisibleContents(bool force)
 {
     // Blitting must never happen for direct rendering case.
     ASSERT(!shouldDirectRenderingToWindow());
-    if (shouldDirectRenderingToWindow())
+    if (shouldDirectRenderingToWindow()) {
+        BlackBerry::Platform::logAlways(BlackBerry::Platform::LogLevelCritical,
+            "BackingStore::blitVisibleContents operation not supported in direct rendering mode");
         return;
+    }
 
     if (m_suspendScreenUpdates) {
         // Avoid client going into busy loop while updates suspended.
@@ -1548,10 +1560,8 @@ void BackingStorePrivate::blitContents(const Platform::IntRect& dstRect,
 
 #if ENABLE_SCROLLBARS
     if (isScrollingOrZooming() && m_client->isMainFrame()) {
-        if (m_client->scrollsHorizontally())
-            blitHorizontalScrollbar(origin);
-        if (m_client->scrollsVertically())
-            blitVerticalScrollbar(origin);
+        blitHorizontalScrollbar(origin);
+        blitVerticalScrollbar(origin);
     }
 #endif
 
@@ -1628,7 +1638,7 @@ void BackingStorePrivate::blitContents(const Platform::IntRect& dstRect,
 }
 
 #if USE(ACCELERATED_COMPOSITING)
-void BackingStorePrivate::compositeContents(WebCore::LayerRenderer* layerRenderer, const WebCore::TransformationMatrix& transform, const WebCore::FloatRect& contents)
+void BackingStorePrivate::compositeContents(WebCore::LayerRenderer* layerRenderer, const WebCore::TransformationMatrix& transform, const WebCore::FloatRect& contents, bool contentsOpaque)
 {
     const Platform::IntRect transformedContentsRect = Platform::IntRect(Platform::IntPoint(0, 0), m_client->transformedContentsSize());
     Platform::IntRect transformedContents = enclosingIntRect(m_webPage->d->m_transformationMatrix->mapRect(contents));
@@ -1682,7 +1692,7 @@ void BackingStorePrivate::compositeContents(WebCore::LayerRenderer* layerRendere
         if (!committed)
             layerRenderer->drawCheckerboardPattern(transform, m_webPage->d->mapFromTransformedFloatRect(Platform::FloatRect(dirtyRect)));
         else {
-            layerRenderer->compositeBuffer(transform, m_webPage->d->mapFromTransformedFloatRect(Platform::FloatRect(wholeRect)), tileBuffer->nativeBuffer(), 1.0f);
+            layerRenderer->compositeBuffer(transform, m_webPage->d->mapFromTransformedFloatRect(Platform::FloatRect(wholeRect)), tileBuffer->nativeBuffer(), contentsOpaque, 1.0f);
 
             // Intersect the rendered region.
             Platform::IntRectRegion notRenderedRegion = Platform::IntRectRegion::subtractRegions(dirtyTileRect, tileBuffer->renderedRegion());
@@ -1791,8 +1801,6 @@ void BackingStorePrivate::blitHorizontalScrollbar(const Platform::IntPoint& scro
     if (!m_webPage->isVisible())
         return;
 
-    ASSERT(m_client->scrollsHorizontally());
-
     m_webPage->client()->drawHorizontalScrollbar();
 }
 
@@ -1800,8 +1808,6 @@ void BackingStorePrivate::blitVerticalScrollbar(const Platform::IntPoint& scroll
 {
     if (!m_webPage->isVisible())
         return;
-
-    ASSERT(m_client->scrollsVertically());
 
     m_webPage->client()->drawVerticalScrollbar();
 }
@@ -1884,6 +1890,10 @@ void BackingStorePrivate::clearVisibleZoom()
 
 void BackingStorePrivate::resetTiles(bool resetBackground)
 {
+    // We need to reset m_hasBlitJobs to prevent ui thread from
+    // drawing checkerboard unintentionally. See RIM PR #161867.
+    m_hasBlitJobs = false;
+
     BackingStoreGeometry* currentState = frontState();
     TileMap currentMap = currentState->tileMap();
 
@@ -2439,14 +2449,6 @@ void BackingStorePrivate::renderContents(BlackBerry::Platform::Graphics::Buffer*
         // Let WebCore render the page contents into the drawing surface.
         m_client->frame()->view()->paintContents(&graphicsContext, untransformedContentsRect);
 
-#if ENABLE(INSPECTOR)
-        if (m_webPage->d->m_page->inspectorController()->enabled()) {
-            WebCore::IntPoint scrollPosition = m_client->frame()->view()->scrollPosition();
-            graphicsContext.translate(scrollPosition.x(), scrollPosition.y());
-            m_webPage->d->m_page->inspectorController()->drawHighlight(graphicsContext);
-        }
-#endif
-
         graphicsContext.restore();
     }
 
@@ -2660,6 +2662,8 @@ void BackingStorePrivate::setScrollingOrZooming(bool scrollingOrZooming, bool sh
     if (!m_webPage->settings()->shouldRenderAnimationsOnScrollOrZoom())
         m_suspendRegularRenderJobs = scrollingOrZooming; // Suspend the rendering of animations.
 
+    m_webPage->d->m_mainFrame->view()->setConstrainsScrollingToContentEdge(!scrollingOrZooming);
+
     // Clear this flag since we don't care if the render queue is under pressure
     // or not since we are scrolling and it is more important to not lag than
     // it is to ensure animations achieve better framerates!
@@ -2807,6 +2811,11 @@ bool BackingStore::isScrollingOrZooming() const
 void BackingStore::setScrollingOrZooming(bool scrollingOrZooming)
 {
     d->setScrollingOrZooming(scrollingOrZooming);
+}
+
+void BackingStore::blitVisibleContents()
+{
+    d->blitVisibleContents(false /*force*/);
 }
 
 void BackingStore::blitContents(const BlackBerry::Platform::IntRect& dstRect, const BlackBerry::Platform::IntRect& contents)

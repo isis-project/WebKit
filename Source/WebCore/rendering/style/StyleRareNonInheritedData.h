@@ -146,6 +146,8 @@ public:
     Color m_visitedLinkBorderTopColor;
     Color m_visitedLinkBorderBottomColor;
 
+    float m_order;
+
     AtomicString m_flowThread;
     AtomicString m_regionThread;
     unsigned m_regionOverflow : 1; // RegionOverflow
@@ -158,11 +160,15 @@ public:
     unsigned m_transformStyle3D : 1; // ETransformStyle3D
     unsigned m_backfaceVisibility : 1; // EBackfaceVisibility
 
+    unsigned m_alignContent : 3; // EAlignContent
+    unsigned m_alignItems : 3; // EAlignItems
+    unsigned m_alignSelf : 3; // EAlignItems
+    unsigned m_justifyContent : 3; // EJustifyContent
+
     unsigned userDrag : 2; // EUserDrag
     unsigned textOverflow : 1; // Whether or not lines that spill out should be truncated with "..."
     unsigned marginBeforeCollapse : 2; // EMarginCollapse
     unsigned marginAfterCollapse : 2; // EMarginCollapse
-    unsigned matchNearestMailBlockquoteColor : 1; // EMatchNearestMailBlockquoteColor, FIXME: This property needs to be eliminated. It should never have been added.
     unsigned m_appearance : 6; // EAppearance
     unsigned m_borderFit : 1; // EBorderFit
     unsigned m_textCombine : 1; // CSS3 text-combine properties

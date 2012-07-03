@@ -32,10 +32,12 @@
 #include "LayerChromium.h"
 #include "cc/CCLayerImpl.h"
 #include "cc/CCMathUtil.h"
+#include "cc/CCOverdrawMetrics.h"
 
 #include <algorithm>
 
 using namespace std;
+using WebKit::WebTransformationMatrix;
 
 namespace WebCore {
 
@@ -43,6 +45,7 @@ template<typename LayerType, typename RenderSurfaceType>
 CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::CCOcclusionTrackerBase(IntRect scissorRectInScreenSpace, bool recordMetricsForFrame)
     : m_scissorRectInScreenSpace(scissorRectInScreenSpace)
     , m_overdrawMetrics(CCOverdrawMetrics::create(recordMetricsForFrame))
+    , m_occludingScreenSpaceRects(0)
 {
 }
 
@@ -109,6 +112,9 @@ static inline bool surfaceTransformsToTargetKnown(const CCRenderSurface*) { retu
 static inline bool surfaceTransformsToScreenKnown(const RenderSurfaceChromium* surface) { return !surface->screenSpaceTransformsAreAnimating(); }
 static inline bool surfaceTransformsToScreenKnown(const CCRenderSurface*) { return true; }
 
+static inline bool layerIsInUnsorted3dRenderingContext(const LayerChromium* layer) { return layer->parent() && layer->parent()->preserves3D(); }
+static inline bool layerIsInUnsorted3dRenderingContext(const CCLayerImpl*) { return false; }
+
 template<typename LayerType, typename RenderSurfaceType>
 void CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::finishedTargetRenderSurface(const LayerType* owningLayer, const RenderSurfaceType* finishedTarget)
 {
@@ -131,7 +137,7 @@ void CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::finishedTargetRenderS
 }
 
 template<typename RenderSurfaceType>
-static inline Region transformSurfaceOpaqueRegion(const RenderSurfaceType* surface, const Region& region, const TransformationMatrix& transform)
+static inline Region transformSurfaceOpaqueRegion(const RenderSurfaceType* surface, const Region& region, const WebTransformationMatrix& transform)
 {
     // Verify that rects within the |surface| will remain rects in its target surface after applying |transform|. If this is true, then
     // apply |transform| to each rect within |region| in order to transform the entire Region.
@@ -145,9 +151,9 @@ static inline Region transformSurfaceOpaqueRegion(const RenderSurfaceType* surfa
     Region transformedRegion;
 
     Vector<IntRect> rects = region.rects();
-    // Clipping has been verified above, so mapRect will give correct results.
     for (size_t i = 0; i < rects.size(); ++i) {
-        IntRect transformedRect = enclosedIntRect(transform.mapRect(FloatRect(rects[i])));
+        // We've already checked for clipping in the mapQuad call above, these calls should not clip anything further.
+        IntRect transformedRect = enclosedIntRect(CCMathUtil::mapClippedRect(transform, FloatRect(rects[i])));
         if (!surface->clipRect().isEmpty())
             transformedRect.intersect(surface->clipRect());
         transformedRegion.unite(transformedRect);
@@ -194,7 +200,7 @@ static inline void reduceOcclusion(const IntRect& affectedArea, const IntRect& e
 }
 
 template<typename RenderSurfaceType>
-static void reduceOcclusionBelowSurface(RenderSurfaceType* surface, const IntRect& surfaceRect, const TransformationMatrix& surfaceTransform, RenderSurfaceType* surfaceTarget, Region& occlusionInTarget, Region& occlusionInScreen)
+static void reduceOcclusionBelowSurface(RenderSurfaceType* surface, const IntRect& surfaceRect, const WebTransformationMatrix& surfaceTransform, RenderSurfaceType* surfaceTarget, Region& occlusionInTarget, Region& occlusionInScreen)
 {
     if (surfaceRect.isEmpty())
         return;
@@ -260,13 +266,13 @@ void CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::leaveToTargetRenderSu
 }
 
 template<typename LayerType>
-static inline TransformationMatrix contentToScreenSpaceTransform(const LayerType* layer)
+static inline WebTransformationMatrix contentToScreenSpaceTransform(const LayerType* layer)
 {
     ASSERT(layerTransformsToScreenKnown(layer));
     IntSize boundsInLayerSpace = layer->bounds();
     IntSize boundsInContentSpace = layer->contentBounds();
 
-    TransformationMatrix transform = layer->screenSpaceTransform();
+    WebTransformationMatrix transform = layer->screenSpaceTransform();
 
     if (boundsInContentSpace.isEmpty())
         return transform;
@@ -279,13 +285,13 @@ static inline TransformationMatrix contentToScreenSpaceTransform(const LayerType
 }
 
 template<typename LayerType>
-static inline TransformationMatrix contentToTargetSurfaceTransform(const LayerType* layer)
+static inline WebTransformationMatrix contentToTargetSurfaceTransform(const LayerType* layer)
 {
     ASSERT(layerTransformsToTargetKnown(layer));
     IntSize boundsInLayerSpace = layer->bounds();
     IntSize boundsInContentSpace = layer->contentBounds();
 
-    TransformationMatrix transform = layer->drawTransform();
+    WebTransformationMatrix transform = layer->drawTransform();
 
     if (boundsInContentSpace.isEmpty())
         return transform;
@@ -302,7 +308,7 @@ static inline TransformationMatrix contentToTargetSurfaceTransform(const LayerTy
 
 // FIXME: Remove usePaintTracking when paint tracking is on for paint culling.
 template<typename LayerType>
-static inline void addOcclusionBehindLayer(Region& region, const LayerType* layer, const TransformationMatrix& transform, const Region& opaqueContents, const IntRect& scissorRect, const IntSize& minimumTrackingSize)
+static inline void addOcclusionBehindLayer(Region& region, const LayerType* layer, const WebTransformationMatrix& transform, const Region& opaqueContents, const IntRect& scissorRect, const IntSize& minimumTrackingSize, Vector<IntRect>* occludingScreenSpaceRects)
 {
     ASSERT(layer->visibleLayerRect().contains(opaqueContents.bounds()));
 
@@ -313,12 +319,15 @@ static inline void addOcclusionBehindLayer(Region& region, const LayerType* laye
         return;
 
     Vector<IntRect> contentRects = opaqueContents.rects();
-    // We verify that the possible bounds of this region are not clipped above, so we can use mapRect() safely here.
     for (size_t i = 0; i < contentRects.size(); ++i) {
-        IntRect transformedRect = enclosedIntRect(transform.mapRect(FloatRect(contentRects[i])));
+        // We've already checked for clipping in the mapQuad call above, these calls should not clip anything further.
+        IntRect transformedRect = enclosedIntRect(CCMathUtil::mapClippedRect(transform, FloatRect(contentRects[i])));
         transformedRect.intersect(scissorRect);
-        if (transformedRect.width() >= minimumTrackingSize.width() || transformedRect.height() >= minimumTrackingSize.height())
+        if (transformedRect.width() >= minimumTrackingSize.width() || transformedRect.height() >= minimumTrackingSize.height()) {
+            if (occludingScreenSpaceRects)
+                occludingScreenSpaceRects->append(transformedRect);
             region.unite(transformedRect);
+        }
     }
 }
 
@@ -333,30 +342,33 @@ void CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::markOccludedBehindLay
     if (!layerOpacityKnown(layer) || layer->drawOpacity() < 1)
         return;
 
+    if (layerIsInUnsorted3dRenderingContext(layer))
+        return;
+
     Region opaqueContents = layer->visibleContentOpaqueRegion();
     if (opaqueContents.isEmpty())
         return;
 
     IntRect scissorInTarget = layerScissorRectInTargetSurface(layer);
     if (layerTransformsToTargetKnown(layer))
-        addOcclusionBehindLayer<LayerType>(m_stack.last().occlusionInTarget, layer, contentToTargetSurfaceTransform<LayerType>(layer), opaqueContents, scissorInTarget, m_minimumTrackingSize);
+        addOcclusionBehindLayer<LayerType>(m_stack.last().occlusionInTarget, layer, contentToTargetSurfaceTransform<LayerType>(layer), opaqueContents, scissorInTarget, m_minimumTrackingSize, 0);
 
     // We must clip the occlusion within the layer's scissorInTarget within screen space as well. If the scissor rect can't be moved to screen space and
     // remain rectilinear, then we don't add any occlusion in screen space.
 
     if (layerTransformsToScreenKnown(layer)) {
-        TransformationMatrix targetToScreenTransform = m_stack.last().surface->screenSpaceTransform();
+        WebTransformationMatrix targetToScreenTransform = m_stack.last().surface->screenSpaceTransform();
         bool clipped;
         FloatQuad scissorInScreenQuad = CCMathUtil::mapQuad(targetToScreenTransform, FloatQuad(FloatRect(scissorInTarget)), clipped);
         // FIXME: Find a rect interior to the transformed scissor quad.
         if (clipped || !scissorInScreenQuad.isRectilinear())
             return;
         IntRect scissorInScreenRect = intersection(m_scissorRectInScreenSpace, enclosedIntRect(scissorInScreenQuad.boundingBox()));
-        addOcclusionBehindLayer<LayerType>(m_stack.last().occlusionInScreen, layer, contentToScreenSpaceTransform<LayerType>(layer), opaqueContents, scissorInScreenRect, m_minimumTrackingSize);
+        addOcclusionBehindLayer<LayerType>(m_stack.last().occlusionInScreen, layer, contentToScreenSpaceTransform<LayerType>(layer), opaqueContents, scissorInScreenRect, m_minimumTrackingSize, m_occludingScreenSpaceRects);
     }
 }
 
-static inline bool testContentRectOccluded(const IntRect& contentRect, const TransformationMatrix& contentSpaceTransform, const IntRect& scissorRect, const Region& occlusion)
+static inline bool testContentRectOccluded(const IntRect& contentRect, const WebTransformationMatrix& contentSpaceTransform, const IntRect& scissorRect, const Region& occlusion)
 {
     FloatRect transformedRect = CCMathUtil::mapClippedRect(contentSpaceTransform, FloatRect(contentRect));
     // Take the enclosingIntRect, as we want to include partial pixels in the test.
@@ -391,7 +403,7 @@ static inline IntRect rectSubtractRegion(const IntRect& rect, const Region& regi
     return rectRegion.bounds();
 }
 
-static inline IntRect computeUnoccludedContentRect(const IntRect& contentRect, const TransformationMatrix& contentSpaceTransform, const IntRect& scissorRect, const Region& occlusion)
+static inline IntRect computeUnoccludedContentRect(const IntRect& contentRect, const WebTransformationMatrix& contentSpaceTransform, const IntRect& scissorRect, const Region& occlusion)
 {
     if (!contentSpaceTransform.isInvertible())
         return contentRect;
@@ -439,34 +451,45 @@ IntRect CCOcclusionTrackerBase<LayerType, RenderSurfaceType>::unoccludedContribu
     // This should be called while the contributing render surface is still considered the current target in the occlusion tracker.
     ASSERT(surface == m_stack.last().surface);
 
-    // A contributing surface doesn't get occluded by things inside its own surface, so only things outside the surface can occlude it. That occlusion is
-    // found just below the top of the stack (if it exists).
-    if (m_stack.size() < 2)
-        return contentRect;
     if (contentRect.isEmpty())
         return contentRect;
 
-    const StackObject& secondLast = m_stack[m_stack.size() - 2];
-
     IntRect surfaceClipRect = surface->clipRect();
     if (surfaceClipRect.isEmpty()) {
-        const RenderSurfaceType* targetSurface = secondLast.surface;
-        surfaceClipRect = intersection(targetSurface->contentRect(), enclosingIntRect(surface->drawableContentRect()));
+        const RenderSurfaceType* targetSurface = surface->targetRenderSurface();
+        if (targetSurface)
+            surfaceClipRect = intersection(targetSurface->contentRect(), enclosingIntRect(surface->drawableContentRect()));
+        else
+            surfaceClipRect = m_scissorRectInScreenSpace;
     }
 
-    const TransformationMatrix& transformToScreen = forReplica ? surface->replicaScreenSpaceTransform() : surface->screenSpaceTransform();
-    const TransformationMatrix& transformToTarget = forReplica ? surface->replicaOriginTransform() : surface->originTransform();
+    // A contributing surface doesn't get occluded by things inside its own surface, so only things outside the surface can occlude it. That occlusion is
+    // found just below the top of the stack (if it exists).
+    bool hasOcclusion = m_stack.size() > 1;
+
+    const WebTransformationMatrix& transformToScreen = forReplica ? surface->replicaScreenSpaceTransform() : surface->screenSpaceTransform();
+    const WebTransformationMatrix& transformToTarget = forReplica ? surface->replicaOriginTransform() : surface->originTransform();
 
     IntRect unoccludedInScreen = contentRect;
-    if (surfaceTransformsToScreenKnown(surface))
-        unoccludedInScreen = computeUnoccludedContentRect(contentRect, transformToScreen, m_scissorRectInScreenSpace, secondLast.occlusionInScreen);
+    if (surfaceTransformsToScreenKnown(surface)) {
+        if (hasOcclusion) {
+            const StackObject& secondLast = m_stack[m_stack.size() - 2];
+            unoccludedInScreen = computeUnoccludedContentRect(contentRect, transformToScreen, m_scissorRectInScreenSpace, secondLast.occlusionInScreen);
+        } else
+            unoccludedInScreen = computeUnoccludedContentRect(contentRect, transformToScreen, m_scissorRectInScreenSpace, Region());
+    }
 
     if (unoccludedInScreen.isEmpty())
         return unoccludedInScreen;
 
     IntRect unoccludedInTarget = contentRect;
-    if (surfaceTransformsToTargetKnown(surface))
-        unoccludedInTarget = computeUnoccludedContentRect(contentRect, transformToTarget, surfaceClipRect, secondLast.occlusionInTarget);
+    if (surfaceTransformsToTargetKnown(surface)) {
+        if (hasOcclusion) {
+            const StackObject& secondLast = m_stack[m_stack.size() - 2];
+            unoccludedInTarget = computeUnoccludedContentRect(contentRect, transformToTarget, surfaceClipRect, secondLast.occlusionInTarget);
+        } else
+            unoccludedInTarget = computeUnoccludedContentRect(contentRect, transformToTarget, surfaceClipRect, Region());
+    }
 
     return intersection(unoccludedInScreen, unoccludedInTarget);
 }

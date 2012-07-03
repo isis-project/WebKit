@@ -41,6 +41,7 @@ class IDBDatabaseCallbacks;
 class IDBKeyPath;
 class IDBObjectStoreBackendInterface;
 class IDBTransactionBackendInterface;
+struct IDBDatabaseMetadata;
 
 typedef int ExceptionCode;
 
@@ -52,9 +53,7 @@ class IDBDatabaseBackendInterface : public ThreadSafeRefCounted<IDBDatabaseBacke
 public:
     virtual ~IDBDatabaseBackendInterface() { }
 
-    virtual String name() const = 0;
-    virtual String version() const = 0;
-    virtual PassRefPtr<DOMStringList> objectStoreNames() const = 0;
+    virtual IDBDatabaseMetadata metadata() const = 0;
 
     virtual PassRefPtr<IDBObjectStoreBackendInterface> createObjectStore(const String& name, const IDBKeyPath&, bool autoIncrement, IDBTransactionBackendInterface*, ExceptionCode&) = 0;
     virtual void deleteObjectStore(const String& name, IDBTransactionBackendInterface*, ExceptionCode&) = 0;
@@ -62,7 +61,7 @@ public:
     virtual PassRefPtr<IDBTransactionBackendInterface> transaction(DOMStringList* storeNames, unsigned short mode, ExceptionCode&) = 0;
     virtual void close(PassRefPtr<IDBDatabaseCallbacks>) = 0;
 
-    virtual void open(PassRefPtr<IDBDatabaseCallbacks>) = 0;
+    virtual void registerFrontendCallbacks(PassRefPtr<IDBDatabaseCallbacks>) = 0;
 };
 
 } // namespace WebCore

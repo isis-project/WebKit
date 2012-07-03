@@ -29,7 +29,10 @@
 #include "ManagedTexture.h"
 
 #include "GraphicsContext3D.h"
-#include "TextureManager.h"
+#include "cc/CCGraphicsContext.h"
+#include <public/WebGraphicsContext3D.h>
+
+using WebKit::WebGraphicsContext3D;
 
 namespace WebCore {
 
@@ -117,16 +120,15 @@ void ManagedTexture::allocate(TextureAllocator* allocator)
         m_textureId = m_textureManager->allocateTexture(allocator, m_token);
 }
 
-void ManagedTexture::bindTexture(GraphicsContext3D* context, TextureAllocator* allocator)
+void ManagedTexture::bindTexture(CCGraphicsContext* context, TextureAllocator* allocator)
 {
     allocate(allocator);
-    context->bindTexture(GraphicsContext3D::TEXTURE_2D, m_textureId);
-}
-
-void ManagedTexture::framebufferTexture2D(GraphicsContext3D* context, TextureAllocator* allocator)
-{
-    allocate(allocator);
-    context->framebufferTexture2D(GraphicsContext3D::FRAMEBUFFER, GraphicsContext3D::COLOR_ATTACHMENT0, GraphicsContext3D::TEXTURE_2D, m_textureId, 0);
+    WebGraphicsContext3D* context3d = context->context3D();
+    if (!context3d) {
+        // FIXME: Implement this path for software compositing.
+        return;
+    }
+    context3d->bindTexture(GraphicsContext3D::TEXTURE_2D, m_textureId);
 }
 
 PassOwnPtr<ManagedTexture> ManagedTexture::steal()

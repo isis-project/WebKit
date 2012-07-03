@@ -27,6 +27,7 @@
 #include "WebContentLayerImpl.h"
 
 #include "platform/WebContentLayerClient.h"
+#include "platform/WebFloatRect.h"
 #include "platform/WebRect.h"
 #include "GraphicsContext.h"
 #include "platform/WebCanvas.h"
@@ -53,12 +54,13 @@ WebContentLayerImpl::~WebContentLayerImpl()
     clearDelegate();
 }
 
-void WebContentLayerImpl::paintContents(GraphicsContext& gc, const IntRect& clip)
+void WebContentLayerImpl::paintContents(SkCanvas* canvas, const IntRect& clip, FloatRect& opaque)
 {
     if (!m_contentClient)
         return;
-    WebCanvas* canvas = gc.platformContext()->canvas();
-    m_contentClient->paintContents(canvas, WebRect(clip));
+    WebFloatRect webOpaque;
+    m_contentClient->paintContents(canvas, WebRect(clip), webOpaque);
+    opaque = webOpaque;
 }
 
 } // namespace WebKit

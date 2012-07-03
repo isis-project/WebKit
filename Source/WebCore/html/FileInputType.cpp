@@ -23,11 +23,13 @@
 #include "FileInputType.h"
 
 #include "Chrome.h"
+#include "DragData.h"
 #include "ElementShadow.h"
 #include "Event.h"
 #include "File.h"
 #include "FileList.h"
 #include "FileSystem.h"
+#include "FormController.h"
 #include "FormDataList.h"
 #include "Frame.h"
 #include "HTMLInputElement.h"
@@ -99,33 +101,29 @@ const AtomicString& FileInputType::formControlType() const
     return InputTypeNames::file();
 }
 
-bool FileInputType::saveFormControlState(String& result) const
+FormControlState FileInputType::saveFormControlState() const
 {
     if (m_fileList->isEmpty())
-        return false;
-    result = String();
+        return FormControlState();
+    FormControlState state;
     unsigned numFiles = m_fileList->length();
     for (unsigned i = 0; i < numFiles; ++i) {
-        result.append(m_fileList->item(i)->path());
-        result.append('\1');
-        result.append(m_fileList->item(i)->name());
-        result.append('\0');
+        state.append(m_fileList->item(i)->path());
+        state.append(m_fileList->item(i)->name());
     }
-    return true;
+    return state;
 }
 
-void FileInputType::restoreFormControlState(const String& state)
+void FileInputType::restoreFormControlState(const FormControlState& state)
 {
+    if (state.valueSize() % 2)
+        return;
     Vector<FileChooserFileInfo> files;
-    Vector<String> paths;
-    state.split('\0', paths);
-    for (unsigned i = 0; i < paths.size(); ++i) {
-        Vector<String> pathAndName;
-        paths[i].split('\1', pathAndName);
-        if (pathAndName.size() > 1)
-            files.append(FileChooserFileInfo(pathAndName[0], pathAndName[1]));
+    for (size_t i = 0; i < state.valueSize(); i += 2) {
+        if (!state[i + 1].isEmpty())
+            files.append(FileChooserFileInfo(state[i], state[i + 1]));
         else
-            files.append(FileChooserFileInfo(paths[i]));
+            files.append(FileChooserFileInfo(state[i]));
     }
     filesChosen(files);
 }
@@ -187,6 +185,7 @@ void FileInputType::handleDOMActivateEvent(Event* event)
         settings.allowsMultipleFiles = input->fastHasAttribute(multipleAttr);
 #endif
         settings.acceptMIMETypes = input->acceptMIMETypes();
+        settings.acceptFileExtensions = input->acceptFileExtensions();
         settings.selectedFiles = m_fileList->paths();
 #if ENABLE(MEDIA_CAPTURE)
         settings.capture = input->capture();
@@ -320,6 +319,9 @@ void FileInputType::requestIcon(const Vector<String>& paths)
 
 void FileInputType::setFiles(PassRefPtr<FileList> files)
 {
+    if (!files)
+        return;
+
     RefPtr<HTMLInputElement> input = element();
 
     bool pathsChanged = false;
@@ -371,6 +373,7 @@ void FileInputType::receiveDropForDirectoryUpload(const Vector<String>& paths)
         settings.allowsMultipleFiles = true;
         settings.selectedFiles.append(paths[0]);
         settings.acceptMIMETypes = input->acceptMIMETypes();
+        settings.acceptFileExtensions = input->acceptFileExtensions();
         chrome->enumerateChosenDirectory(newFileChooser(settings));
     }
 }
@@ -386,14 +389,23 @@ void FileInputType::updateRendering(PassRefPtr<Icon> icon)
         element()->renderer()->repaint();
 }
 
-void FileInputType::receiveDroppedFiles(const Vector<String>& paths)
+bool FileInputType::receiveDroppedFiles(const DragData* dragData)
 {
+    Vector<String> paths;
+    dragData->asFilenames(paths);
+    if (paths.isEmpty())
+        return false;
+
     HTMLInputElement* input = element();
 #if ENABLE(DIRECTORY_UPLOAD)
     if (input->fastHasAttribute(webkitdirectoryAttr)) {
         receiveDropForDirectoryUpload(paths);
-        return;
+        return true;
     }
+#endif
+
+#if ENABLE(FILE_SYSTEM)
+    m_droppedFileSystemId = dragData->droppedFileSystemId();
 #endif
 
     Vector<FileChooserFileInfo> files;
@@ -407,7 +419,15 @@ void FileInputType::receiveDroppedFiles(const Vector<String>& paths)
         firstFileOnly.append(files[0]);
         filesChosen(firstFileOnly);
     }
+    return true;
 }
+
+#if ENABLE(FILE_SYSTEM)
+String FileInputType::droppedFileSystemId()
+{
+    return m_droppedFileSystemId;
+}
+#endif
 
 Icon* FileInputType::icon() const
 {

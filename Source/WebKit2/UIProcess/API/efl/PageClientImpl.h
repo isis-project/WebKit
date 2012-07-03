@@ -77,9 +77,16 @@ private:
     virtual WebCore::IntRect windowToScreen(const WebCore::IntRect&);
 
     virtual void doneWithKeyEvent(const NativeWebKeyboardEvent&, bool);
+#if ENABLE(TOUCH_EVENTS)
+    virtual void doneWithTouchEvent(const NativeWebTouchEvent&, bool wasEventHandled);
+#endif
 
     virtual PassRefPtr<WebPopupMenuProxy> createPopupMenuProxy(WebPageProxy*);
     virtual PassRefPtr<WebContextMenuProxy> createContextMenuProxy(WebPageProxy*);
+
+#if ENABLE(INPUT_TYPE_COLOR)
+    virtual PassRefPtr<WebColorChooserProxy> createColorChooserProxy(WebPageProxy*, const WebCore::Color& initialColor);
+#endif
 
     virtual void setFindIndicator(PassRefPtr<FindIndicator>, bool, bool);
 #if USE(ACCELERATED_COMPOSITING)

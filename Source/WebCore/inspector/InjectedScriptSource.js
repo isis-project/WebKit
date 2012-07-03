@@ -40,6 +40,7 @@ var InjectedScript = function()
     this._idToWrappedObject = {};
     this._idToObjectGroupName = {};
     this._objectGroups = {};
+    this._modules = {};
 }
 
 InjectedScript.primitiveTypes = {
@@ -371,6 +372,17 @@ InjectedScript.prototype = {
         return this._evaluateAndWrap(callFrame.evaluate, callFrame, expression, objectGroup, true, injectCommandLineAPI, returnByValue);
     },
 
+    restartFrame: function(topCallFrame, callFrameId)
+    {
+        var callFrame = this._callFrameForId(topCallFrame, callFrameId);
+        if (!callFrame)
+            return "Could not find call frame with given id";
+        var result = callFrame.restart();
+        if (result === false)
+            result = "Restart frame is not supported"; 
+        return result;
+    },
+
     _callFrameForId: function(topCallFrame, callFrameId)
     {
         var parsedCallFrameId = eval("(" + callFrameId + ")");
@@ -398,6 +410,19 @@ InjectedScript.prototype = {
         if (!object || this._subtype(object) !== "node")
             return null;
         return object;
+    },
+
+    module: function(name)
+    {
+        return this._modules[name];
+    },
+ 
+    injectModule: function(name, source)
+    {
+        delete this._modules[name];
+        var module = eval("(" + source + ")");
+        this._modules[name] = module;
+        return module;
     },
 
     _isDefined: function(object)

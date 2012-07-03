@@ -192,6 +192,27 @@ Rectangle {
             }
 
             Rectangle {
+                id: preferredMininumContentsWidthButton
+                height: parent.height
+                width: height
+                color: "#efefef"
+                opacity: { webView.experimental.preferredMinimumContentsWidth === 0 ? 0.1 : 0.6 }
+                radius: 6
+
+                Image {
+                    anchors.centerIn: parent
+                    source: "../icons/contents_width.png"
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        webView.experimental.preferredMinimumContentsWidth = webView.experimental.preferredMinimumContentsWidth === 0 ? 980 : 0
+                    }
+                }
+            }
+
+            Rectangle {
                 id: touchEventsButton
                 height: parent.height
                 width: height
@@ -335,6 +356,7 @@ Rectangle {
 
         experimental.devicePixelRatio: 1.5
         experimental.preferences.fullScreenEnabled: true
+        experimental.preferences.webGLEnabled: true
         experimental.preferredMinimumContentsWidth: 980
         experimental.itemSelector: ItemSelector { }
         experimental.alertDialog: AlertDialog { }
@@ -355,6 +377,7 @@ Rectangle {
                 }
             }
         }
+        experimental.colorChooser: ColorChooser { }
         experimental.onEnterFullScreenRequested : {
             navigationBar.visible = false;
             Window.showFullScreen();
@@ -379,5 +402,6 @@ Rectangle {
         }
         visible: false
         test : webView.experimental.test
+        preferredMinimumContentsWidth: webView.experimental.preferredMinimumContentsWidth
     }
 }

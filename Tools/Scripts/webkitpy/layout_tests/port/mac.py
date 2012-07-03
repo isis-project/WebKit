@@ -31,6 +31,7 @@ import logging
 import os
 import re
 import subprocess
+import sys
 import time
 
 from webkitpy.common.system.crashlogs import CrashLogs
@@ -41,6 +42,7 @@ from webkitpy.layout_tests.port.leakdetector import LeakDetector
 
 _log = logging.getLogger(__name__)
 
+
 class MacPort(ApplePort):
     port_name = "mac"
 
@@ -48,13 +50,28 @@ class MacPort(ApplePort):
     # and the order of fallback between them.  Matches ORWT.
     VERSION_FALLBACK_ORDER = ["mac-leopard", "mac-snowleopard", "mac-lion", "mac"]
 
+    ARCHITECTURES = ['x86_64', 'x86']
+
     def __init__(self, host, port_name, **kwargs):
         ApplePort.__init__(self, host, port_name, **kwargs)
+        self._architecture = self.get_option('architecture')
+
+        if not self._architecture:
+            self._architecture = 'x86_64'
+
         self._leak_detector = LeakDetector(self)
         if self.get_option("leaks"):
             # DumpRenderTree slows down noticably if we run more than about 1000 tests in a batch
             # with MallocStackLogging enabled.
             self.set_option_default("batch_size", 1000)
+
+    def default_timeout_ms(self):
+        if self.get_option('guard_malloc'):
+            return 350 * 1000
+        return super(MacPort, self).default_timeout_ms()
+
+    def _build_driver_flags(self):
+        return ['ARCHS=i386'] if self.architecture() == 'x86' else []
 
     def _most_recent_version(self):
         # This represents the most recently-shipping version of the operating system.
@@ -106,18 +123,22 @@ class MacPort(ApplePort):
         return self._version == "lion"
 
     def default_child_processes(self):
+        # FIXME: The Printer isn't initialized when this is called, so using _log would just show an unitialized logger error.
+
         if self.is_snowleopard():
-            _log.warn("Cannot run tests in parallel on Snow Leopard due to rdar://problem/10621525.")
+            print >> sys.stderr, "Cannot run tests in parallel on Snow Leopard due to rdar://problem/10621525."
             return 1
 
-        # FIXME: As a temporary workaround while we figure out what's going
-        # on with https://bugs.webkit.org/show_bug.cgi?id=83076, reduce by
-        # half the # of workers we run by default on bigger machines.
         default_count = super(MacPort, self).default_child_processes()
-        if default_count >= 8:
-            cpu_count = self._executive.cpu_count()
-            return max(1, min(default_count, int(cpu_count / 2)))
-        return default_count
+
+        # Make sure we have enough ram to support that many instances:
+        total_memory = self.host.platform.total_bytes_memory()
+        bytes_per_drt = 256 * 1024 * 1024  # Assume each DRT needs 256MB to run.
+        overhead = 2048 * 1024 * 1024  # Assume we need 2GB free for the O/S
+        supportable_instances = max((total_memory - overhead) / bytes_per_drt, 1)  # Always use one process, even if we don't have space for it.
+        if supportable_instances < default_count:
+            print >> sys.stderr, "This machine could support %s child processes, but only has enough memory for %s." % (default_count, supportable_instances)
+        return min(supportable_instances, default_count)
 
     def _build_java_test_support(self):
         java_tests_path = self._filesystem.join(self.layout_tests_dir(), "java")
@@ -177,7 +198,7 @@ class MacPort(ApplePort):
     def release_http_lock(self):
         pass
 
-    def _get_crash_log(self, name, pid, stdout, stderr, newer_than, time_fn=None, sleep_fn=None):
+    def _get_crash_log(self, name, pid, stdout, stderr, newer_than, time_fn=None, sleep_fn=None, wait_for_log=True):
         # Note that we do slow-spin here and wait, since it appears the time
         # ReportCrash takes to actually write and flush the file varies when there are
         # lots of simultaneous crashes going on.
@@ -192,13 +213,33 @@ class MacPort(ApplePort):
         deadline = now + 5 * int(self.get_option('child_processes', 1))
         while not crash_log and now <= deadline:
             crash_log = crash_logs.find_newest_log(name, pid, include_errors=True, newer_than=newer_than)
+            if not wait_for_log:
+                break
             if not crash_log or not [line for line in crash_log.splitlines() if not line.startswith('ERROR')]:
                 sleep_fn(0.1)
                 now = time_fn()
+
         if not crash_log:
-            crash_log = 'no crash log found for %s:%d' % (name, pid)
-            _log.warning(crash_log)
+            return None
         return crash_log
+
+    def look_for_new_crash_logs(self, crashed_processes, start_time):
+        """Since crash logs can take a long time to be written out if the system is
+           under stress do a second pass at the end of the test run.
+
+           crashes: test_name -> pid, process_name tuple of crashed process
+           start_time: time the tests started at.  We're looking for crash
+               logs after that time.
+        """
+        crash_logs = {}
+        for (test_name, process_name, pid) in crashed_processes:
+            # Passing None for output.  This is a second pass after the test finished so
+            # if the output had any loggine we would have already collected it.
+            crash_log = self._get_crash_log(process_name, pid, None, None, start_time, wait_for_log=False)
+            if not crash_log:
+                continue
+            crash_logs[test_name] = crash_log
+        return crash_logs
 
     def sample_process(self, name, pid):
         try:

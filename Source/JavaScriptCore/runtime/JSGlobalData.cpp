@@ -34,8 +34,10 @@
 #include "CommonIdentifiers.h"
 #include "DebuggerActivation.h"
 #include "FunctionConstructor.h"
+#include "GCActivityCallback.h"
 #include "GetterSetter.h"
 #include "HostCallReturnValue.h"
+#include "IncrementalSweeper.h"
 #include "Interpreter.h"
 #include "JSActivation.h"
 #include "JSAPIValueWrapper.h"
@@ -54,6 +56,7 @@
 #include "RegExpObject.h"
 #include "StrictEvalActivation.h"
 #include "StrongInlines.h"
+#include <wtf/RetainPtr.h>
 #include <wtf/Threading.h>
 #include <wtf/WTFThreadData.h>
 
@@ -100,13 +103,10 @@ static bool enableAssembler(ExecutableAllocator& executableAllocator)
         return false;
 
 #if USE(CF)
-    CFStringRef canUseJITKey = CFStringCreateWithCString(0 , "JavaScriptCoreUseJIT", kCFStringEncodingMacRoman);
-    CFBooleanRef canUseJIT = (CFBooleanRef)CFPreferencesCopyAppValue(canUseJITKey, kCFPreferencesCurrentApplication);
-    if (canUseJIT) {
-        return kCFBooleanTrue == canUseJIT;
-        CFRelease(canUseJIT);
-    }
-    CFRelease(canUseJITKey);
+    RetainPtr<CFStringRef> canUseJITKey(AdoptCF, CFStringCreateWithCString(0 , "JavaScriptCoreUseJIT", kCFStringEncodingMacRoman));
+    RetainPtr<CFBooleanRef> canUseJIT(AdoptCF, (CFBooleanRef)CFPreferencesCopyAppValue(canUseJITKey.get(), kCFPreferencesCurrentApplication));
+    if (canUseJIT)
+        return kCFBooleanTrue == canUseJIT.get();
 #endif
 
 #if USE(CF) || OS(UNIX)
@@ -159,6 +159,7 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
     , dynamicGlobalObject(0)
     , cachedUTCOffset(std::numeric_limits<double>::quiet_NaN())
     , maxReentryDepth(threadStackType == ThreadStackTypeSmall ? MaxSmallThreadReentryDepth : MaxLargeThreadReentryDepth)
+    , m_enabledProfiler(0)
     , m_regExpCache(new RegExpCache(this))
 #if ENABLE(REGEXP_TRACING)
     , m_rtTraceList(new RTTraceList())
@@ -179,12 +180,9 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
 {
     interpreter = new Interpreter;
 
-    if (isSharedInstance())
-        turnOffVerifier();
-
     // Need to be careful to keep everything consistent here
+    JSLockHolder lock(this);
     IdentifierTable* existingEntryIdentifierTable = wtfThreadData().setCurrentIdentifierTable(identifierTable);
-    JSLock lock(SilenceAssertionsOnly);
     structureStructure.set(*this, Structure::createStructure(*this));
     debuggerActivationStructure.set(*this, DebuggerActivation::createStructure(*this, 0, jsNull()));
     activationStructure.set(*this, JSActivation::createStructure(*this, 0, jsNull()));
@@ -223,6 +221,9 @@ JSGlobalData::JSGlobalData(GlobalDataType globalDataType, ThreadStackType thread
 
 JSGlobalData::~JSGlobalData()
 {
+    ASSERT(!m_apiLock.currentThreadIsHoldingLock());
+    heap.activityCallback()->didStartVMShutdown();
+    heap.sweeper()->didStartVMShutdown();
     heap.lastChanceToFinalize();
 
     delete interpreter;
@@ -312,6 +313,7 @@ bool JSGlobalData::sharedInstanceExists()
 
 JSGlobalData& JSGlobalData::sharedInstance()
 {
+    GlobalJSLock globalLock;
     JSGlobalData*& instance = sharedInstanceInternal();
     if (!instance) {
         instance = adoptRef(new JSGlobalData(APIShared, ThreadStackTypeSmall, SmallHeap)).leakRef();
@@ -322,7 +324,6 @@ JSGlobalData& JSGlobalData::sharedInstance()
 
 JSGlobalData*& JSGlobalData::sharedInstanceInternal()
 {
-    ASSERT(JSLock::currentThreadIsHoldingLock());
     static JSGlobalData* sharedInstance;
     return sharedInstance;
 }
@@ -418,7 +419,7 @@ struct StackPreservingRecompiler : public MarkedBlock::VoidFunctor {
         FunctionExecutable* executable = jsCast<FunctionExecutable*>(cell);
         if (currentlyExecutingFunctions.contains(executable))
             return;
-        executable->discardCode();
+        executable->clearCodeIfNotCompiling();
     }
 };
 

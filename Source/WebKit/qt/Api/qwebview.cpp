@@ -197,7 +197,7 @@ void QWebViewPrivate::detachCurrentPage()
     if (!page)
         return;
 
-    page->d->view.clear();
+    page->d->view = 0;
 
     // if the page client is the special client constructed for
     // delegating the responsibilities to a QWidget, we need
@@ -714,7 +714,7 @@ bool QWebView::event(QEvent *e)
         } else if (e->type() == QEvent::TouchBegin 
                    || e->type() == QEvent::TouchEnd 
                    || e->type() == QEvent::TouchUpdate
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+#if HAVE(QT5)
                    || e->type() == QEvent::TouchCancel
 #endif
                   ) {

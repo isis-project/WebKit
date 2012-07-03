@@ -7,10 +7,11 @@
     position: relative;
     -webkit-flex-flow: column wrap;
     margin-top: 20px;
-    -webkit-flex-line-pack: start;
+    -webkit-align-content: flex-start;
 }
 .flexbox > div {
     border: 0;
+    -webkit-flex: none;
 }
 
 .flexbox :nth-child(1) {
@@ -27,8 +28,8 @@
 }
 </style>
 <script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
+if (window.testRunner)
+    testRunner.dumpAsText();
 </script>
 <script src="resources/flexbox.js"></script>
 <body onload="checkFlexBoxen()">

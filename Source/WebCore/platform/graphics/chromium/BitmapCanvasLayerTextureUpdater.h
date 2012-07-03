@@ -31,23 +31,25 @@
 
 #include "CanvasLayerTextureUpdater.h"
 #include "LayerTextureSubImage.h"
-#include "PlatformCanvas.h"
+
+class SkCanvas;
 
 namespace WebCore {
 
 class LayerPainterChromium;
+class CCGraphicsContext;
 
-// This class rasterizes the contentRect into a PlatformCanvas. It then updates
+// This class rasterizes the contentRect into a skia bitmap canvas. It then updates
 // textures by copying from the canvas into the texture, using MapSubImage if
 // possible.
 class BitmapCanvasLayerTextureUpdater : public CanvasLayerTextureUpdater {
 public:
     class Texture : public LayerTextureUpdater::Texture {
     public:
-        Texture(BitmapCanvasLayerTextureUpdater*, PassOwnPtr<ManagedTexture>);
+        Texture(BitmapCanvasLayerTextureUpdater*, PassOwnPtr<CCPrioritizedTexture>);
         virtual ~Texture();
 
-        virtual void updateRect(GraphicsContext3D*, TextureAllocator*, const IntRect& sourceRect, const IntRect& destRect);
+        virtual void updateRect(CCGraphicsContext*, TextureAllocator*, const IntRect& sourceRect, const IntRect& destRect) OVERRIDE;
 
     private:
         BitmapCanvasLayerTextureUpdater* textureUpdater() { return m_textureUpdater; }
@@ -58,17 +60,19 @@ public:
     static PassRefPtr<BitmapCanvasLayerTextureUpdater> create(PassOwnPtr<LayerPainterChromium>, bool useMapTexSubImage);
     virtual ~BitmapCanvasLayerTextureUpdater();
 
-    virtual PassOwnPtr<LayerTextureUpdater::Texture> createTexture(TextureManager*);
+    virtual PassOwnPtr<LayerTextureUpdater::Texture> createTexture(CCPrioritizedTextureManager*);
     virtual SampledTexelFormat sampledTexelFormat(GC3Denum textureFormat);
-    virtual void prepareToUpdate(const IntRect& contentRect, const IntSize& tileSize, int borderTexels, float contentsScale, IntRect& resultingOpaqueRect);
-    void updateTextureRect(GraphicsContext3D*, TextureAllocator*, ManagedTexture*, const IntRect& sourceRect, const IntRect& destRect);
+    virtual void prepareToUpdate(const IntRect& contentRect, const IntSize& tileSize, float contentsWidthScale, float contentsHeightScale, IntRect& resultingOpaqueRect) OVERRIDE;
+    void updateTextureRect(CCGraphicsContext*, TextureAllocator*, CCPrioritizedTexture*, const IntRect& sourceRect, const IntRect& destRect);
 
-    virtual void setOpaque(bool);
+    virtual void setOpaque(bool) OVERRIDE;
 
 private:
     BitmapCanvasLayerTextureUpdater(PassOwnPtr<LayerPainterChromium>, bool useMapTexSubImage);
 
-    PlatformCanvas m_canvas;
+    OwnPtr<SkCanvas> m_canvas;
+    IntSize m_canvasSize;
+    bool m_opaque;
     LayerTextureSubImage m_texSubImage;
 };
 

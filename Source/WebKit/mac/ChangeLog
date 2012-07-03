@@ -1,3 +1,580 @@
+2012-07-02  Benjamin Poulain  <bpoulain@apple.com>
+
+        Do not do any logging initialization when logging is disabled
+        https://bugs.webkit.org/show_bug.cgi?id=90228
+
+        Reviewed by Simon Fraser.
+
+        * Misc/WebIconDatabase.mm:
+        (-[WebIconDatabase _scaleIcon:toSize:]):
+        * Misc/WebKitLogging.h:
+        * Misc/WebKitLogging.m:
+        * WebView/WebHTMLView.mm:
+        (-[WebHTMLView _attributeStringFromDOMRange:]):
+        * WebView/WebView.mm:
+        (-[WebView _commonInitializationWithFrameName:groupName:]):
+
+2012-07-01  Timothy Hatcher  <timothy@apple.com>
+
+        Make the "Inspect Element" context menu item appear in nightly builds again.
+
+        rdar://problem/11702613
+        https://webkit.org/b/89323
+
+        Reviewed by Dan Bernstein.
+
+        * WebView/WebUIDelegatePrivate.h:
+        Add missing enums that were added in ContextMenuItem.h but left out here.
+
+2012-06-29  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r121529.
+        http://trac.webkit.org/changeset/121529
+        https://bugs.webkit.org/show_bug.cgi?id=90260
+
+        Failed to compile on Chromium WebKitMacBuilder (Requested by
+        keishi on #webkit).
+
+        * DefaultDelegates/WebDefaultContextMenuDelegate.mm:
+        (-[WebDefaultUIDelegate menuItemWithTag:target:representedObject:]):
+        * Misc/WebNSControlExtras.m:
+        (-[NSControl sizeToFitAndAdjustWindowHeight]):
+        * WebCoreSupport/WebEditorClient.mm:
+        (WebEditorClient::shouldEraseMarkersAfterChangeSelection):
+        (WebEditorClient::getGuessesForWord):
+        * WebCoreSupport/WebFrameLoaderClient.mm:
+        (WebFrameLoaderClient::dispatchDidFirstLayout):
+        (WebFrameLoaderClient::provisionalLoadStarted):
+        * WebCoreSupport/WebSystemInterface.mm:
+        (InitWebCoreSystemInterface):
+        * WebView/WebDynamicScrollBarsView.mm:
+        (-[WebDynamicScrollBarsView scrollWheel:]):
+        * WebView/WebFullScreenController.mm:
+        (-[WebFullScreenController finishedEnterFullScreenAnimation:]):
+        (-[WebFullScreenController exitFullScreen]):
+        * WebView/WebHTMLView.mm:
+        (-[WebHTMLView _pasteWithPasteboard:allowPlainText:]):
+        * WebView/WebView.mm:
+        (+[WebView initialize]):
+        (-[WebView _deviceScaleFactor]):
+
+2012-06-29  Eric Seidel  <eric@webkit.org>
+
+        Remove more BUILDING_ON_LEOPARD branches now that no port builds on Leopard
+        https://bugs.webkit.org/show_bug.cgi?id=90252
+
+        Reviewed by Ryosuke Niwa.
+
+        * DefaultDelegates/WebDefaultContextMenuDelegate.mm:
+        (-[WebDefaultUIDelegate menuItemWithTag:target:representedObject:]):
+        * Misc/WebNSControlExtras.m:
+        (-[NSControl sizeToFitAndAdjustWindowHeight]):
+        * WebCoreSupport/WebEditorClient.mm:
+        (WebEditorClient::shouldEraseMarkersAfterChangeSelection):
+        (WebEditorClient::getGuessesForWord):
+        * WebCoreSupport/WebFrameLoaderClient.mm:
+        (WebFrameLoaderClient::dispatchDidFirstLayout):
+        (WebFrameLoaderClient::provisionalLoadStarted):
+        * WebCoreSupport/WebSystemInterface.mm:
+        (InitWebCoreSystemInterface):
+        * WebView/WebDynamicScrollBarsView.mm:
+        (-[WebDynamicScrollBarsView scrollWheel:]):
+        * WebView/WebFullScreenController.mm:
+        (-[WebFullScreenController finishedEnterFullScreenAnimation:]):
+        (-[WebFullScreenController exitFullScreen]):
+        * WebView/WebHTMLView.mm:
+        (-[WebHTMLView _pasteWithPasteboard:allowPlainText:]):
+        * WebView/WebView.mm:
+        (+[WebView initialize]):
+        (-[WebView _deviceScaleFactor]):
+
+2012-06-25  Mark Hahnenberg  <mhahnenberg@apple.com>
+
+        JSLock should be per-JSGlobalData
+        https://bugs.webkit.org/show_bug.cgi?id=89123
+
+        Reviewed by Geoffrey Garen.
+
+        Changed all sites that used JSLock to instead use the new JSLockHolder
+        and pass in the correct JS context that the code is about to interact with that 
+        needs protection. Also added a couple JSLocks to places that didn't already 
+        have it that needed it.
+
+        * DOM/WebDOMOperations.mm:
+        (JSC):
+        * Misc/WebCoreStatistics.mm:
+        (+[WebCoreStatistics javaScriptObjectsCount]):
+        (+[WebCoreStatistics javaScriptGlobalObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedGlobalObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedObjectTypeCounts]):
+        (+[WebCoreStatistics javaScriptObjectTypeCounts]):
+        (+[WebCoreStatistics shouldPrintExceptions]):
+        (+[WebCoreStatistics setShouldPrintExceptions:]):
+        (+[WebCoreStatistics memoryStatistics]):
+        (+[WebCoreStatistics javaScriptReferencedObjectsCount]):
+        * Plugins/Hosted/NetscapePluginInstanceProxy.mm:
+        (WebKit::NetscapePluginInstanceProxy::evaluate):
+        (WebKit::NetscapePluginInstanceProxy::invoke):
+        (WebKit::NetscapePluginInstanceProxy::invokeDefault):
+        (WebKit::NetscapePluginInstanceProxy::construct):
+        (WebKit::NetscapePluginInstanceProxy::getProperty):
+        (WebKit::NetscapePluginInstanceProxy::setProperty):
+        (WebKit::NetscapePluginInstanceProxy::removeProperty):
+        (WebKit::NetscapePluginInstanceProxy::hasMethod):
+        (WebKit::NetscapePluginInstanceProxy::enumerate):
+        (WebKit::NetscapePluginInstanceProxy::addValueToArray):
+        (WebKit::NetscapePluginInstanceProxy::moveGlobalExceptionToExecState):
+        * Plugins/WebNetscapePluginStream.mm:
+        (WebNetscapePluginStream::wantsAllStreams):
+        * Plugins/WebNetscapePluginView.mm:
+        (-[WebNetscapePluginView sendEvent:isDrawRect:]):
+        (-[WebNetscapePluginView privateBrowsingModeDidChange]):
+        (-[WebNetscapePluginView setWindowIfNecessary]):
+        (-[WebNetscapePluginView createPluginScriptableObject]):
+        (-[WebNetscapePluginView getFormValue:]):
+        (-[WebNetscapePluginView evaluateJavaScriptPluginRequest:]):
+        (-[WebNetscapePluginView webFrame:didFinishLoadWithReason:]):
+        (-[WebNetscapePluginView loadPluginRequest:]):
+        (-[WebNetscapePluginView _printedPluginBitmap]):
+        * Plugins/WebPluginController.mm:
+        (+[WebPluginController plugInViewWithArguments:fromPluginPackage:]):
+        (-[WebPluginController stopOnePlugin:]):
+        (-[WebPluginController destroyOnePlugin:]):
+        (-[WebPluginController startAllPlugins]):
+        (-[WebPluginController addPlugin:]):
+        * WebView/WebFrame.mm:
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:forceUserGesture:]):
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:withGlobalObject:inScriptWorld:]):
+        * WebView/WebScriptDebugDelegate.mm:
+        (-[WebScriptCallFrame scopeChain]):
+        (-[WebScriptCallFrame evaluateWebScript:]):
+        * WebView/WebView.mm:
+        (+[WebView _reportException:inContext:]):
+        (-[WebView aeDescByEvaluatingJavaScriptFromString:]):
+        (-[WebView _computedStyleIncludingVisitedInfo:forElement:]):
+
+2012-06-23  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r121058.
+        http://trac.webkit.org/changeset/121058
+        https://bugs.webkit.org/show_bug.cgi?id=89809
+
+        Patch causes plugins tests to crash in GTK debug builds
+        (Requested by zdobersek on #webkit).
+
+        * DOM/WebDOMOperations.mm:
+        (JSC):
+        * Misc/WebCoreStatistics.mm:
+        (+[WebCoreStatistics javaScriptObjectsCount]):
+        (+[WebCoreStatistics javaScriptGlobalObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedGlobalObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedObjectTypeCounts]):
+        (+[WebCoreStatistics javaScriptObjectTypeCounts]):
+        (+[WebCoreStatistics shouldPrintExceptions]):
+        (+[WebCoreStatistics setShouldPrintExceptions:]):
+        (+[WebCoreStatistics memoryStatistics]):
+        (+[WebCoreStatistics javaScriptReferencedObjectsCount]):
+        * Plugins/Hosted/NetscapePluginInstanceProxy.mm:
+        (WebKit::NetscapePluginInstanceProxy::evaluate):
+        (WebKit::NetscapePluginInstanceProxy::invoke):
+        (WebKit::NetscapePluginInstanceProxy::invokeDefault):
+        (WebKit::NetscapePluginInstanceProxy::construct):
+        (WebKit::NetscapePluginInstanceProxy::getProperty):
+        (WebKit::NetscapePluginInstanceProxy::setProperty):
+        (WebKit::NetscapePluginInstanceProxy::removeProperty):
+        (WebKit::NetscapePluginInstanceProxy::hasMethod):
+        (WebKit::NetscapePluginInstanceProxy::enumerate):
+        (WebKit::NetscapePluginInstanceProxy::addValueToArray):
+        (WebKit::NetscapePluginInstanceProxy::moveGlobalExceptionToExecState):
+        * Plugins/WebNetscapePluginStream.mm:
+        (WebNetscapePluginStream::wantsAllStreams):
+        * Plugins/WebNetscapePluginView.mm:
+        (-[WebNetscapePluginView sendEvent:isDrawRect:]):
+        (-[WebNetscapePluginView privateBrowsingModeDidChange]):
+        (-[WebNetscapePluginView setWindowIfNecessary]):
+        (-[WebNetscapePluginView createPluginScriptableObject]):
+        (-[WebNetscapePluginView getFormValue:]):
+        (-[WebNetscapePluginView evaluateJavaScriptPluginRequest:]):
+        (-[WebNetscapePluginView webFrame:didFinishLoadWithReason:]):
+        (-[WebNetscapePluginView loadPluginRequest:]):
+        (-[WebNetscapePluginView _printedPluginBitmap]):
+        * Plugins/WebPluginController.mm:
+        (+[WebPluginController plugInViewWithArguments:fromPluginPackage:]):
+        (-[WebPluginController stopOnePlugin:]):
+        (-[WebPluginController destroyOnePlugin:]):
+        (-[WebPluginController startAllPlugins]):
+        (-[WebPluginController addPlugin:]):
+        * WebView/WebFrame.mm:
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:forceUserGesture:]):
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:withGlobalObject:inScriptWorld:]):
+        * WebView/WebScriptDebugDelegate.mm:
+        (-[WebScriptCallFrame scopeChain]):
+        (-[WebScriptCallFrame evaluateWebScript:]):
+        * WebView/WebView.mm:
+        (+[WebView _reportException:inContext:]):
+        (-[WebView aeDescByEvaluatingJavaScriptFromString:]):
+        (-[WebView _computedStyleIncludingVisitedInfo:forElement:]):
+
+2012-06-22  Alexandru Chiculita  <achicu@adobe.com>
+
+        [CSS Shaders] Re-enable the CSS Shaders compile time flag on Safari Mac
+        https://bugs.webkit.org/show_bug.cgi?id=89781
+
+        Reviewed by Dean Jackson.
+
+        Added ENABLE_CSS_SHADERS flag as enabled by default on Safari for Mac.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-06-20  Mark Hahnenberg  <mhahnenberg@apple.com>
+
+        JSLock should be per-JSGlobalData
+        https://bugs.webkit.org/show_bug.cgi?id=89123
+
+        Reviewed by Gavin Barraclough.
+
+        Changed all sites that used JSLock to instead use the new JSLockHolder
+        and pass in the correct JS context that the code is about to interact with that 
+        needs protection.
+
+        * DOM/WebDOMOperations.mm:
+        (JSC):
+        * Misc/WebCoreStatistics.mm:
+        (+[WebCoreStatistics javaScriptObjectsCount]):
+        (+[WebCoreStatistics javaScriptGlobalObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedGlobalObjectsCount]):
+        (+[WebCoreStatistics javaScriptProtectedObjectTypeCounts]):
+        (+[WebCoreStatistics javaScriptObjectTypeCounts]):
+        (+[WebCoreStatistics shouldPrintExceptions]):
+        (+[WebCoreStatistics setShouldPrintExceptions:]):
+        (+[WebCoreStatistics memoryStatistics]):
+        (+[WebCoreStatistics javaScriptReferencedObjectsCount]):
+        * Plugins/Hosted/NetscapePluginInstanceProxy.mm:
+        (WebKit::NetscapePluginInstanceProxy::evaluate):
+        (WebKit::NetscapePluginInstanceProxy::invoke):
+        (WebKit::NetscapePluginInstanceProxy::invokeDefault):
+        (WebKit::NetscapePluginInstanceProxy::construct):
+        (WebKit::NetscapePluginInstanceProxy::getProperty):
+        (WebKit::NetscapePluginInstanceProxy::setProperty):
+        (WebKit::NetscapePluginInstanceProxy::removeProperty):
+        (WebKit::NetscapePluginInstanceProxy::hasMethod):
+        (WebKit::NetscapePluginInstanceProxy::enumerate):
+        (WebKit::NetscapePluginInstanceProxy::addValueToArray):
+        (WebKit::NetscapePluginInstanceProxy::moveGlobalExceptionToExecState):
+        * Plugins/WebNetscapePluginStream.mm:
+        (WebNetscapePluginStream::wantsAllStreams):
+        * Plugins/WebNetscapePluginView.mm:
+        (-[WebNetscapePluginView sendEvent:isDrawRect:]):
+        (-[WebNetscapePluginView privateBrowsingModeDidChange]):
+        (-[WebNetscapePluginView setWindowIfNecessary]):
+        (-[WebNetscapePluginView createPluginScriptableObject]):
+        (-[WebNetscapePluginView getFormValue:]):
+        (-[WebNetscapePluginView evaluateJavaScriptPluginRequest:]):
+        (-[WebNetscapePluginView webFrame:didFinishLoadWithReason:]):
+        (-[WebNetscapePluginView loadPluginRequest:]):
+        (-[WebNetscapePluginView _printedPluginBitmap]):
+        * Plugins/WebPluginController.mm:
+        (+[WebPluginController plugInViewWithArguments:fromPluginPackage:]):
+        (-[WebPluginController stopOnePlugin:]):
+        (-[WebPluginController destroyOnePlugin:]):
+        (-[WebPluginController startAllPlugins]):
+        (-[WebPluginController addPlugin:]):
+        * WebView/WebFrame.mm:
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:forceUserGesture:]):
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:withGlobalObject:inScriptWorld:]):
+        * WebView/WebScriptDebugDelegate.mm:
+        (-[WebScriptCallFrame scopeChain]):
+        (-[WebScriptCallFrame evaluateWebScript:]):
+        * WebView/WebView.mm:
+        (+[WebView _reportException:inContext:]):
+        (-[WebView aeDescByEvaluatingJavaScriptFromString:]):
+        (-[WebView _computedStyleIncludingVisitedInfo:forElement:]):
+
+2012-06-22  Amy Ousterhout  <aousterh@chromium.org>
+
+        Renamed DeviceOrientation to DeviceOrientationData
+        https://bugs.webkit.org/show_bug.cgi?id=88663
+
+        Reviewed by Steve Block.
+
+        Updated files to use the renamed DeviceOrientationData instead of DeviceOrientation.
+        This change makes DeviceOrientationData consistent with DeviceMotionData.
+        * WebCoreSupport/WebDeviceOrientationClient.h:
+        (WebDeviceOrientationClient):
+        * WebCoreSupport/WebDeviceOrientationClient.mm:
+        (WebDeviceOrientationClient::lastOrientation):
+        * WebView/WebDeviceOrientation.mm:
+        * WebView/WebDeviceOrientationInternal.h:
+
+2012-06-20  Garret Kelly  <gdk@chromium.org>
+
+        Moving cookieEnabled/setCookieEnabled from Page to Settings.
+        https://bugs.webkit.org/show_bug.cgi?id=89545
+
+        Reviewed by Adam Barth.
+
+        * WebView/WebView.mm:
+        (-[WebView _cookieEnabled]):
+        (-[WebView _setCookieEnabled:]):
+
+2012-06-19  Dan Bernstein  <mitz@apple.com>
+
+        WebKit/mac part of: Paginated display API doesn’t allow setting the page progression direction
+        https://bugs.webkit.org/show_bug.cgi?id=89394
+
+        Reviewed by Darin Adler.
+
+        * WebView/WebView.mm:
+        (-[WebView _setPaginationMode:]): Changed to map new WebPaginationMode values to new
+        Pagination::Mode values.
+        (-[WebView _paginationMode]): Similarly, in the opposite direction.
+        * WebView/WebViewPrivate.h: Replaced WebPaginationMode values with ones that specify an
+        axis and a direction along that axis.
+
+2012-06-18  Andy Estes  <aestes@apple.com>
+
+        [Mac] -[WebPDFView _menuItemsFromPDFKitForEvent:] leaks NSMenuItems
+        https://bugs.webkit.org/show_bug.cgi?id=89434
+
+        Reviewed by Darin Adler.
+
+        * WebView/WebPDFView.mm:
+        (-[WebPDFView _menuItemsFromPDFKitForEvent:]): Release copied
+        NSMenuItems once they're stored in copiedItems.
+
+2012-06-19  Mike West  <mkwst@chromium.org>
+
+        Introduce ENABLE_CSP_NEXT configuration flag.
+        https://bugs.webkit.org/show_bug.cgi?id=89300
+
+        Reviewed by Adam Barth.
+
+        The 1.0 draft of the Content Security Policy spec is just about to
+        move to Last Call. We'll hide work on the upcoming 1.1 spec behind
+        this ENABLE flag, disabled by default.
+
+        Spec: https://dvcs.w3.org/hg/content-security-policy/raw-file/tip/csp-specification.dev.html
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-06-14  Jia Pu  <jpu@apple.com>
+
+        Mark text with text alternative with blue underline.
+        https://bugs.webkit.org/show_bug.cgi?id=83047
+
+        Reviewed by Enrica Casucci.
+
+        Changes in WebKit include implementation of new functions declared in AlternativeTextClient,
+        and logic for calling Editor::insertDictatedText() instead of Editor::insertText() when there's
+        alternatives attached to the input string.
+
+        * WebCoreSupport/CorrectionPanel.mm:
+        (correctionIndicatorType):
+        (CorrectionPanel::handleAcceptedReplacement):
+        * WebCoreSupport/WebAlternativeTextClient.h:
+        (WebAlternativeTextClient):
+        * WebCoreSupport/WebAlternativeTextClient.mm:
+        (WebAlternativeTextClient::showCorrectionAlternative):
+        (WebAlternativeTextClient::dismissAlternative):
+        (WebAlternativeTextClient::dismissAlternativeSoon):
+        (WebAlternativeTextClient::recordAutocorrectionResponse):
+        (WebAlternativeTextClient::removeDictationAlternatives):
+        (WebAlternativeTextClient::showDictationAlternativeUI):
+        (WebAlternativeTextClient::dismissDictationAlternativeUI):
+        (WebAlternativeTextClient::dictationAlternatives):
+        * WebView/WebHTMLView.mm:
+        (-[WebHTMLView validAttributesForMarkedText]):
+        (-[WebHTMLView insertText:]):
+        * WebView/WebView.mm:
+        (-[WebView handleAcceptedAlternativeText:]):
+        (-[WebView _getWebCoreDictationAlternatives:fromTextAlternatives:]):
+        (-[WebView _showDictationAlternativeUI:WebCore::forDictationContext:]):
+        (-[WebView _dismissDictationAlternativeUI]):
+        (-[WebView _removeDictationAlternatives:]):
+        (-[WebView _dictationAlternatives:]):
+        * WebView/WebViewData.h:
+        * WebView/WebViewData.mm:
+        (-[WebViewPrivate init]):
+        * WebView/WebViewInternal.h:
+        * WebView/WebViewPrivate.h:
+
+2012-06-11  Alexis Menard  <alexis.menard@openbossa.org>
+
+        [CSS3 Backgrounds and Borders] Protect box-decoration-break behind a feature flag.
+        https://bugs.webkit.org/show_bug.cgi?id=88804
+
+        Reviewed by Tony Chang.
+
+        Protect box-decoration-break behind a feature flag enabled by default.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-06-11  Sam Weinig  <sam@webkit.org>
+
+        Remove support for disconnected/excluded from search frames, they are not used by Safari anymore
+        https://bugs.webkit.org/show_bug.cgi?id=88723
+
+        Reviewed by Dan Bernstein.
+
+        * WebView/WebFrame.mm:
+        * WebView/WebFramePrivate.h:
+        Remove -[WebFrame _setIsDisconnected:] and -[WebFrame _setExcludeFromTextSearch:]
+
+2012-06-10  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r119955.
+        http://trac.webkit.org/changeset/119955
+        https://bugs.webkit.org/show_bug.cgi?id=88758
+
+        Breaks Chromium compile - Chromium depends on removed API
+        (Requested by dominicc on #webkit).
+
+        * WebView/WebFrame.mm:
+        (-[WebFrame _setIsDisconnected:]):
+        (-[WebFrame _setExcludeFromTextSearch:]):
+        * WebView/WebFramePrivate.h:
+
+2012-06-10  Sam Weinig  <sam@webkit.org>
+
+        Remove support for disconnected/excluded from search frames, they are not used by Safari anymore
+        https://bugs.webkit.org/show_bug.cgi?id=88723
+
+        Reviewed by Dan Bernstein.
+
+        * WebView/WebFrame.mm:
+        * WebView/WebFramePrivate.h:
+        Remove -[WebFrame _setIsDisconnected:] and -[WebFrame _setExcludeFromTextSearch:]
+
+2012-06-09  Sukolsak Sakshuwong  <sukolsak@google.com>
+
+        Add UNDO_MANAGER flag
+        https://bugs.webkit.org/show_bug.cgi?id=87908
+
+        Reviewed by Tony Chang.
+
+        * Configurations/FeatureDefines.xcconfig:
+
+2012-06-07  Kentaro Hara  <haraken@chromium.org>
+
+        Reduce Node object size from 72 byte to 64 byte
+        https://bugs.webkit.org/show_bug.cgi?id=88528
+
+        Reviewed by Ryosuke Niwa.
+
+        Added a symbol for callRemovedLastRef().
+
+        * WebKit.order:
+
+2012-06-06  Andy Estes  <aestes@apple.com>
+
+        Wrap uppercaseWord, lowercaseWord, and capitalizeWord with USE(APPKIT)
+        https://bugs.webkit.org/show_bug.cgi?id=88504
+
+        Reviewed by Dan Bernstein.
+
+        uppercaseWord, lowercaseWord, and capitalizeWord are methods declared
+        by NSResponder that subclasses are expected to implement. WebKit should
+        only support these implementations on platforms that use AppKit.
+
+        * WebCoreSupport/WebEditorClient.h:
+        * WebCoreSupport/WebEditorClient.mm:
+
+2012-06-05  Anders Carlsson  <andersca@apple.com>
+
+        Build fix.
+
+        * WebCoreSupport/WebFrameLoaderClient.mm:
+        (WebFrameLoaderClient::createPlugin):
+        The error constant has been renamed.
+
+2012-06-05  Anders Carlsson  <andersca@apple.com>
+
+        Rename a plug-in loading error constant
+        https://bugs.webkit.org/show_bug.cgi?id=88381
+        <rdar://problem/11602601>
+
+        Reviewed by Sam Weinig.
+
+        * Misc/WebKitErrors.h:
+
+2012-06-05  Dongwoo Im  <dw.im@samsung.com>
+
+        Add 'isProtocolHandlerRegistered' and 'unregisterProtocolHandler'.
+        https://bugs.webkit.org/show_bug.cgi?id=73176
+
+        Reviewed by Adam Barth.
+
+        Two more APIs are added in Custom Scheme Handler specification.
+        http://dev.w3.org/html5/spec/Overview.html#custom-handlers
+        One is 'isProtocolHandlerRegistered' to query whether the specific URL
+        is registered or not.
+        The other is 'unregisterProtocolHandler' to remove the registered URL.
+
+        * Configurations/FeatureDefines.xcconfig: Add a macro 'ENABLE_CUSTOM_SCHEME_HANDLER'.
+
+2012-06-04  David Kilzer  <ddkilzer@apple.com>
+
+        BUILD FIX: FeatureDefines.xcconfig should match across projects
+
+        * Configurations/FeatureDefines.xcconfig:
+        - Fix sort order of ENABLE_CSS3_FLEXBOX.
+        - Fix typo in ENABLE_FONT_BOOSTING.
+        - Add missing ENABLE_LEGACY_CSS_VENDOR_PREFIXES.
+
+2012-06-02  Yongjun Zhang  <yongjun_zhang@apple.com>
+
+        loadRequest should check for empty URLs.
+        https://bugs.webkit.org/show_bug.cgi?id=88154
+
+        In [WebFrame loadRequest], if the url is invalid and not nil, we transform it to file: url.
+        However, WebKit client could send down an empty URL that makes us transform it to file: url
+        as well.  We should skip that as we did for nil URLs.
+
+        Reviewed by Brady Eidson.
+
+        * WebView/WebFrame.mm:
+        (-[WebFrame loadRequest:]):
+
+2012-06-01  Michael Saboff  <msaboff@apple.com>
+
+        WebFrame::_stringByEvaluatingJavaScriptFromString methods don't handle nil string
+        https://bugs.webkit.org/show_bug.cgi?id=88109
+
+        Reviewed by Geoffrey Garen.
+
+        Added short circuit return when the NSString to evaluate is nil.
+
+        * WebView/WebFrame.mm:
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:forceUserGesture:]):
+        (-[WebFrame _stringByEvaluatingJavaScriptFromString:withGlobalObject:inScriptWorld:]):
+
+2012-05-31  Hajime Morrita  <morrita@chromium.org>
+
+        REGRESSION(r117572): editing/spelling/spellcheck-async-remove-frame.html crashes on Mac
+        https://bugs.webkit.org/show_bug.cgi?id=86859
+
+        Reviewed by Ryosuke Niwa.
+
+        * WebCoreSupport/WebEditorClient.h:
+        * WebCoreSupport/WebEditorClient.mm:
+        (-[WebEditorSpellCheckResponder initWithClient:sequence:results:]):
+        (-[WebEditorSpellCheckResponder perform]):
+        (WebEditorClient::didCheckSucceeded):
+        (WebEditorClient::requestCheckingOfString):
+
+2012-05-31  Andy Estes  <aestes@apple.com>
+
+        Disentangle code that relies on USE(AUTOMATIC_TEXT_REPLACEMENT) from that which merely relies on PLATFORM(MAC)
+        https://bugs.webkit.org/show_bug.cgi?id=87933
+
+        Reviewed by Dan Bernstein.
+
+        * WebCoreSupport/WebEditorClient.h:
+        * WebCoreSupport/WebEditorClient.mm:
+
 2012-05-29  David Barr  <davidbarr@chromium.org>
 
         Introduce ENABLE_CSS_IMAGE_RESOLUTION compile flag

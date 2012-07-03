@@ -78,10 +78,14 @@ public:
     // Pattern space is an abstract space that maps to the default user space by the transformation 'userSpaceTransformation' 
 #if USE(SKIA)
     PlatformPatternPtr platformPattern(const AffineTransform& userSpaceTransformation);
+#elif PLATFORM(QT)
+    // Qt ignores user space transformation and uses pattern's instead
+    PlatformPatternPtr createPlatformPattern() const;
 #else
     PlatformPatternPtr createPlatformPattern(const AffineTransform& userSpaceTransformation) const;
 #endif
     void setPatternSpaceTransform(const AffineTransform& patternSpaceTransformation);
+    const AffineTransform& getPatternSpaceTransform() { return m_patternSpaceTransformation; };
     void setPlatformPatternSpaceTransform();
 
     bool repeatX() const { return m_repeatX; }

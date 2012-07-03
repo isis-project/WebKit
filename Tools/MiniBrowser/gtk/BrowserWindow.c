@@ -57,7 +57,7 @@ struct _BrowserWindowClass {
     GtkWindowClass parent;
 };
 
-static const char *defaultWindowTitle = "WebKitGTK+ MiniBrwoser";
+static const char *defaultWindowTitle = "WebKitGTK+ MiniBrowser";
 static const gdouble minimumZoomLevel = 0.5;
 static const gdouble maximumZoomLevel = 3;
 static const gdouble zoomStep = 1.2;
@@ -213,9 +213,29 @@ static void backForwadlistChanged(WebKitBackForwardList *backForwadlist, WebKitB
     browserWindowUpdateNavigationActions(window, backForwadlist);
 }
 
+static void geolocationRequestDialogCallback(GtkDialog *dialog, gint response, WebKitPermissionRequest *request)
+{
+    switch (response) {
+    case GTK_RESPONSE_YES:
+        webkit_permission_request_allow(request);
+        break;
+    default:
+        webkit_permission_request_deny(request);
+        break;
+    }
+
+    gtk_widget_destroy(GTK_WIDGET(dialog));
+    g_object_unref(request);
+}
+
 static void webViewClose(WebKitWebView *webView, BrowserWindow *window)
 {
     gtk_widget_destroy(GTK_WIDGET(window));
+}
+
+static void webViewRunAsModal(WebKitWebView *webView, BrowserWindow *window)
+{
+    gtk_window_set_modal(GTK_WINDOW(window), TRUE);
 }
 
 static void webViewReadyToShow(WebKitWebView *webView, BrowserWindow *window)
@@ -245,8 +265,9 @@ static GtkWidget *webViewCreate(WebKitWebView *webView, BrowserWindow *window)
     WebKitWebView *newWebView = WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(webkit_web_view_get_context(webView)));
     webkit_web_view_set_settings(newWebView, webkit_web_view_get_settings(webView));
 
-    GtkWidget *newWindow = browser_window_new(newWebView);
+    GtkWidget *newWindow = browser_window_new(newWebView, GTK_WINDOW(window));
     g_signal_connect(newWebView, "ready-to-show", G_CALLBACK(webViewReadyToShow), newWindow);
+    g_signal_connect(newWebView, "run-as-modal", G_CALLBACK(webViewRunAsModal), newWindow);
     g_signal_connect(newWebView, "close", G_CALLBACK(webViewClose), newWindow);
     return GTK_WIDGET(newWebView);
 }
@@ -269,11 +290,29 @@ static gboolean webViewDecidePolicy(WebKitWebView *webView, WebKitPolicyDecision
 
     WebKitWebView *newWebView = WEBKIT_WEB_VIEW(webkit_web_view_new_with_context(webkit_web_view_get_context(webView)));
     webkit_web_view_set_settings(newWebView, webkit_web_view_get_settings(webView));
-    GtkWidget *newWindow = browser_window_new(newWebView);
+    GtkWidget *newWindow = browser_window_new(newWebView, GTK_WINDOW(window));
     webkit_web_view_load_request(newWebView, webkit_navigation_policy_decision_get_request(navigationDecision));
     gtk_widget_show(newWindow);
 
     webkit_policy_decision_ignore(decision);
+    return TRUE;
+}
+
+static gboolean webViewDecidePermissionRequest(WebKitWebView *webView, WebKitPermissionRequest *request, BrowserWindow *window)
+{
+    if (!WEBKIT_IS_GEOLOCATION_PERMISSION_REQUEST(request))
+        return FALSE;
+
+    GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(window),
+                                               GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+                                               GTK_MESSAGE_QUESTION,
+                                               GTK_BUTTONS_YES_NO,
+                                               "Geolocation request");
+
+    gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "Allow geolocation request?");
+    g_signal_connect(dialog, "response", G_CALLBACK(geolocationRequestDialogCallback), g_object_ref(request));
+    gtk_widget_show(dialog);
+
     return TRUE;
 }
 
@@ -434,6 +473,7 @@ static void browserWindowConstructed(GObject *gObject)
     g_signal_connect(window->webView, "create", G_CALLBACK(webViewCreate), window);
     g_signal_connect(window->webView, "load-failed", G_CALLBACK(webViewLoadFailed), window);
     g_signal_connect(window->webView, "decide-policy", G_CALLBACK(webViewDecidePolicy), window);
+    g_signal_connect(window->webView, "permission-request", G_CALLBACK(webViewDecidePermissionRequest), window);
     g_signal_connect(window->webView, "mouse-target-changed", G_CALLBACK(webViewMouseTargetChanged), window);
     g_signal_connect(window->webView, "notify::zoom-level", G_CALLBACK(webViewZoomLevelChanged), window);
 
@@ -482,11 +522,12 @@ static void browser_window_class_init(BrowserWindowClass *klass)
 }
 
 // Public API.
-GtkWidget *browser_window_new(WebKitWebView *view)
+GtkWidget *browser_window_new(WebKitWebView *view, GtkWindow *parent)
 {
     g_return_val_if_fail(WEBKIT_IS_WEB_VIEW(view), 0);
 
     return GTK_WIDGET(g_object_new(BROWSER_TYPE_WINDOW,
+                                   "transient-for", parent,
                                    "type", GTK_WINDOW_TOPLEVEL,
                                    "view", view, NULL));
 }

@@ -168,7 +168,7 @@ function createReaderSync()
     return new FileReaderSync();
 }
 
-// 'result' can be an ArrayBuffer object, a string or null.
+// 'result' can be either an ArrayBuffer object or a string.
 function logResult(result)
 {
     if (result === null) {
@@ -210,6 +210,7 @@ function loadFailed(event)
     logEvent(event);
     log("readyState: " + event.target.readyState);
     log("error code: " + event.target.error.code);
+    logResult(event.target.result);
 }
 
 function loadEnded(testFiles, event)

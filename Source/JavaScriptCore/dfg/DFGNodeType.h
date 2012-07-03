@@ -111,13 +111,25 @@ namespace JSC { namespace DFG {
     /* Since a put to 'length' may invalidate optimizations here, */\
     /* this must be the directly subsequent property put. */\
     macro(GetByVal, NodeResultJS | NodeMustGenerate | NodeMightClobber) \
-    macro(PutByVal, NodeMustGenerate | NodeClobbersWorld) \
-    macro(PutByValAlias, NodeMustGenerate | NodeClobbersWorld) \
+    macro(PutByVal, NodeMustGenerate | NodeMightClobber) \
+    macro(PutByValAlias, NodeMustGenerate | NodeMightClobber) \
     macro(GetById, NodeResultJS | NodeMustGenerate | NodeClobbersWorld) \
     macro(GetByIdFlush, NodeResultJS | NodeMustGenerate | NodeClobbersWorld) \
     macro(PutById, NodeMustGenerate | NodeClobbersWorld) \
     macro(PutByIdDirect, NodeMustGenerate | NodeClobbersWorld) \
     macro(CheckStructure, NodeMustGenerate) \
+    /* Transition watchpoints are a contract between the party setting the watchpoint */\
+    /* and the runtime system, where the party promises that the child object once had */\
+    /* the structure being watched, and the runtime system in turn promises that the */\
+    /* watchpoint will be turned into an OSR exit if any object with that structure */\
+    /* ever transitions to a different structure. Hence, the child object must have */\
+    /* previously had a CheckStructure executed on it or we're dealing with an object */\
+    /* constant (WeakJSConstant) and the object was known to have that structure at */\
+    /* compile-time. In the latter case this means that no structure checks have to be */\
+    /* performed for this object by JITted code. In the former case this means that*/\
+    /* the object's structure does not need to be rechecked due to side-effecting */\
+    /* (clobbering) operations. */\
+    macro(StructureTransitionWatchpoint, NodeMustGenerate) \
     macro(PutStructure, NodeMustGenerate) \
     macro(PhantomPutStructure, NodeMustGenerate | NodeDoesNotExit) \
     macro(GetPropertyStorage, NodeResultStorage) \
@@ -141,6 +153,8 @@ namespace JSC { namespace DFG {
     macro(PutScopedVar, NodeMustGenerate | NodeClobbersWorld) \
     macro(GetGlobalVar, NodeResultJS | NodeMustGenerate) \
     macro(PutGlobalVar, NodeMustGenerate) \
+    macro(GlobalVarWatchpoint, NodeMustGenerate) \
+    macro(PutGlobalVarCheck, NodeMustGenerate) \
     macro(CheckFunction, NodeMustGenerate) \
     \
     /* Optimizations for array mutation. */\
@@ -170,6 +184,7 @@ namespace JSC { namespace DFG {
     /* Allocations. */\
     macro(NewObject, NodeResultJS) \
     macro(NewArray, NodeResultJS | NodeHasVarArgs) \
+    macro(NewArrayWithSize, NodeResultJS) \
     macro(NewArrayBuffer, NodeResultJS) \
     macro(NewRegexp, NodeResultJS) \
     \

@@ -33,14 +33,19 @@
 @class WKEditorUndoTargetObjC;
 @class WKView;
 
-namespace WebKit {
+namespace WebCore {
+class AlternativeTextUIController;
+}
 
+namespace WebKit {
 class FindIndicatorWindow;
 
 class PageClientImpl : public PageClient {
 public:
     static PassOwnPtr<PageClientImpl> create(WKView*);
     virtual ~PageClientImpl();
+    
+    void viewWillMoveToAnotherWindow();
 
 private:
     PageClientImpl(WKView*);
@@ -56,6 +61,7 @@ private:
     virtual bool isViewVisible();
     virtual bool isViewInWindow();
     virtual LayerHostingMode viewLayerHostingMode() OVERRIDE;
+    virtual ColorSpaceData colorSpace() OVERRIDE;
 
     virtual void processDidCrash();
     virtual void pageClosed();
@@ -89,6 +95,10 @@ private:
 
     virtual PassRefPtr<WebPopupMenuProxy> createPopupMenuProxy(WebPageProxy*);
     virtual PassRefPtr<WebContextMenuProxy> createContextMenuProxy(WebPageProxy*);
+
+#if ENABLE(INPUT_TYPE_COLOR)
+    virtual PassRefPtr<WebColorChooserProxy> createColorChooserProxy(WebPageProxy*, const WebCore::Color& initialColor);
+#endif
 
     void setFindIndicator(PassRefPtr<FindIndicator>, bool fadeOut, bool animate);
 
@@ -129,10 +139,21 @@ private:
 
     virtual WKView* wkView() const { return m_wkView; }
 
+#if USE(DICTATION_ALTERNATIVES)
+    virtual uint64_t addDictationAlternatives(const RetainPtr<NSTextAlternatives>&);
+    virtual void removeDictationAlternatives(uint64_t dictationContext);
+    virtual void showDictationAlternativeUI(const WebCore::FloatRect& boundingBoxOfDictatedText, uint64_t dictationContext);
+    virtual void dismissDictationAlternativeUI();
+    virtual Vector<String> dictationAlternatives(uint64_t dictationContext);
+#endif
+
     WKView* m_wkView;
     RetainPtr<WKEditorUndoTargetObjC> m_undoTarget;
-#if !defined(BUILDING_ON_SNOW_LEOPARD)
+#if USE(AUTOCORRECTION_PANEL)
     CorrectionPanel m_correctionPanel;
+#endif
+#if USE(DICTATION_ALTERNATIVES)
+    OwnPtr<WebCore::AlternativeTextUIController> m_alternativeTextUIController;
 #endif
 };
 

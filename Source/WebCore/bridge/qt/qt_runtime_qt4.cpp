@@ -27,6 +27,7 @@
 #include "FunctionPrototype.h"
 #include "Interpreter.h"
 #include "JSArray.h"
+#include "JSContextRefPrivate.h"
 #include "JSDocument.h"
 #include "JSDOMBinding.h"
 #include "JSDOMWindow.h"
@@ -229,7 +230,7 @@ QVariant convertValueToQVariant(ExecState* exec, JSValue value, QMetaType::Type 
         return QVariant();
     }
 
-    JSLock lock(SilenceAssertionsOnly);
+    JSLockHolder lock(exec);
     JSRealType type = valueRealType(exec, value);
     if (hint == QMetaType::Void) {
         switch(type) {
@@ -823,7 +824,7 @@ JSValue convertQVariantToValue(ExecState* exec, PassRefPtr<RootObject> root, con
         return jsNull();
     }
 
-    JSLock lock(SilenceAssertionsOnly);
+    JSLockHolder lock(exec);
 
     if (type == QMetaType::Bool)
         return jsBoolean(variant.toBool());
@@ -896,7 +897,7 @@ JSValue convertQVariantToValue(ExecState* exec, PassRefPtr<RootObject> root, con
         QObject* obj = variant.value<QObject*>();
         if (!obj)
             return jsNull();
-        return QtInstance::getQtInstance(obj, root, QScriptEngine::QtOwnership)->createRuntimeObject(exec);
+        return QtInstance::getQtInstance(obj, root, QtInstance::QtOwnership)->createRuntimeObject(exec);
     }
 
     if (QtPixmapInstance::canHandle(static_cast<QMetaType::Type>(variant.type())))
@@ -998,9 +999,9 @@ QtRuntimeMethodData::~QtRuntimeMethodData()
 {
 }
 
-void QtRuntimeMethodData::finalize(Handle<Unknown> value, void*)
+void QtRuntimeMethodData::finalize(Handle<Unknown>, void*)
 {
-    m_instance->removeCachedMethod(static_cast<JSObject*>(value.get().asCell()));
+    m_instance->removeUnusedMethods();
 }
 
 QtRuntimeMetaMethodData::~QtRuntimeMetaMethodData()
@@ -1428,7 +1429,7 @@ EncodedJSValue QtRuntimeMetaMethod::call(ExecState* exec)
         return JSValue::encode(jsUndefined());
 
     // We have to pick a method that matches..
-    JSLock lock(SilenceAssertionsOnly);
+    JSLockHolder lock(exec);
 
     QObject *obj = d->m_instance->getObject();
     if (obj) {
@@ -1569,7 +1570,7 @@ EncodedJSValue QtRuntimeConnectionMethod::call(ExecState* exec)
 {
     QtRuntimeConnectionMethodData* d = static_cast<QtRuntimeConnectionMethod *>(exec->callee())->d_func();
 
-    JSLock lock(SilenceAssertionsOnly);
+    JSLockHolder lock(exec);
 
     QObject* sender = d->m_instance->getObject();
 
@@ -1645,8 +1646,7 @@ EncodedJSValue QtRuntimeConnectionMethod::call(ExecState* exec)
                 //  receiver function [from arguments]
                 //  receiver this object [from arguments]
 
-                ExecState* globalExec = exec->lexicalGlobalObject()->globalExec();
-                QtConnectionObject* conn = QtConnectionObject::createWithInternalJSC(globalExec, d->m_instance, signalIndex, thisObject, funcObject);
+                QtConnectionObject* conn = QtConnectionObject::createWithInternalJSC(exec, d->m_instance, signalIndex, thisObject, funcObject);
                 bool ok = QMetaObject::connect(sender, signalIndex, conn, conn->metaObject()->methodOffset());
                 if (!ok) {
                     delete conn;
@@ -1748,7 +1748,7 @@ JSValue QtRuntimeConnectionMethod::lengthGetter(ExecState*, JSValue, PropertyNam
 
 QtConnectionObject::QtConnectionObject(JSContextRef context, PassRefPtr<QtInstance> senderInstance, int signalIndex, JSObjectRef receiver, JSObjectRef receiverFunction)
     : QObject(senderInstance->getObject())
-    , m_context(context)
+    , m_context(JSContextGetGlobalContext(context))
     , m_senderInstance(senderInstance)
     , m_originalSender(m_senderInstance->getObject())
     , m_signalIndex(signalIndex)

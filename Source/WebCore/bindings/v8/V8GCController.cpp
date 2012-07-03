@@ -306,10 +306,9 @@ static GroupId calculateGroupId(Node* node)
         // because it'll always be a group of 1.
         if (!root)
             return GroupId();
-    } else {
-        while (Node* parent = root->parentOrHostNode())
-            root = parent;
     }
+    while (Node* parent = root->parentOrHostNode())
+        root = parent;
 
     return GroupId(root);
 }
@@ -341,6 +340,8 @@ public:
 
     void visitDOMWrapper(DOMDataStore* store, void* object, v8::Persistent<v8::Object> wrapper)
     {
+        WrapperTypeInfo* info = V8DOMWrapper::domWrapperType(wrapper);
+        info->visitDOMWrapper(store, object, wrapper);
     }
 
     void applyGrouping()

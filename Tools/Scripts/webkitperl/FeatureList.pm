@@ -48,13 +48,16 @@ my (
     $batteryStatusSupport,
     $blobSupport,
     $channelMessagingSupport,
+    $cspNextSupport,
     $css3FlexboxSupport,
+    $cssBoxDecorationBreakSupport,
     $cssExclusionsSupport,
     $cssFiltersSupport,
     $cssImageResolutionSupport,
     $cssRegionsSupport,
     $cssShadersSupport,
     $cssVariablesSupport,
+    $customSchemeHandlerSupport,
     $dataTransferItemsSupport,
     $datalistSupport,
     $detailsSupport,
@@ -116,6 +119,7 @@ my (
     $tiledBackingStoreSupport,
     $touchEventsSupport,
     $touchIconLoadingSupport,
+    $undoManagerSupport,
     $vibrationSupport,
     $videoSupport,
     $videoTrackSupport,
@@ -146,6 +150,9 @@ my @features = (
     { option => "channel-messaging", desc => "Toggle Channel Messaging support",
       define => "ENABLE_CHANNEL_MESSAGING", default => 1, value => \$channelMessagingSupport },
 
+    { option => "csp-next", desc => "Toggle Content Security Policy 1.1 support",
+      define => "ENABLE_CSP_NEXT", default => 0, value => \$cspNextSupport },
+
     { option => "css-exclusions", desc => "Toggle CSS Exclusions support",
       define => "ENABLE_CSS_EXCLUSIONS", default => 1, value => \$cssExclusionsSupport },
 
@@ -155,6 +162,9 @@ my @features = (
     { option => "css3-flexbox", desc => "Toggle CSS3 Flexbox support",
       define => "ENABLE_CSS3_FLEXBOX", default => 1, value => \$css3FlexboxSupport },
 
+    { option => "css-box-decoration-break", desc => "Toggle CSS box-decoration-break support",
+      define => "ENABLE_CSS_BOX_DECORATION_BREAK", default => 1, value => \$cssBoxDecorationBreakSupport },
+
     { option => "css-image-resolution", desc => "Toggle CSS image-resolution support",
       define => "ENABLE_CSS_IMAGE_RESOLUTION", default => 0, value => \$cssImageResolutionSupport },
 
@@ -162,13 +172,16 @@ my @features = (
       define => "ENABLE_CSS_REGIONS", default => 1, value => \$cssRegionsSupport },
 
     { option => "css-shaders", desc => "Toggle CSS Shaders support",
-      define => "ENABLE_CSS_SHADERS", default => 0, value => \$cssShadersSupport },
+      define => "ENABLE_CSS_SHADERS", default => isAppleMacWebKit(), value => \$cssShadersSupport },
 
     { option => "css-variables", desc => "Toggle CSS Variable support",
       define => "ENABLE_CSS_VARIABLES", default => 0, value => \$cssVariablesSupport },
 
+    { option => "custom-scheme-handler", desc => "Toggle Custom Scheme Handler support",
+      define => "ENABLE_CUSTOM_SCHEME_HANDLER", default => isBlackBerry(), value => \$customSchemeHandlerSupport },
+
     { option => "datalist", desc => "Toggle Datalist support",
-      define => "ENABLE_DATALIST", default => 0, value => \$datalistSupport },
+      define => "ENABLE_DATALIST", default => isEfl(), value => \$datalistSupport },
 
     { option => "data-transfer-items", desc => "Toggle Data Transfer Items support",
       define => "ENABLE_DATA_TRANSFER_ITEMS", default => 0, value => \$dataTransferItemsSupport },
@@ -201,7 +214,7 @@ my @features = (
       define => "ENABLE_FULLSCREEN_API", default => (isAppleMacWebKit() || isEfl() || isGtk() || isBlackBerry() || isQt()), value => \$fullscreenAPISupport },
 
     { option => "gamepad", desc => "Toggle Gamepad support",
-      define => "ENABLE_GAMEPAD", default => 0, value => \$gamepadSupport },
+      define => "ENABLE_GAMEPAD", default => (isEfl() || isGtk()), value => \$gamepadSupport },
 
     { option => "geolocation", desc => "Toggle Geolocation support",
       define => "ENABLE_GEOLOCATION", default => (isAppleWebKit() || isGtk() || isBlackBerry()), value => \$geolocationSupport },
@@ -222,7 +235,7 @@ my @features = (
       define => "ENABLE_INPUT_SPEECH", default => 0, value => \$inputSpeechSupport },
 
     { option => "input-type-color", desc => "Toggle Input Type Color support",
-      define => "ENABLE_INPUT_TYPE_COLOR", default => (isBlackBerry() || isEfl()), value => \$inputTypeColorSupport },
+      define => "ENABLE_INPUT_TYPE_COLOR", default => (isBlackBerry() || isEfl() || isQt()), value => \$inputTypeColorSupport },
 
     { option => "input-type-date", desc => "Toggle Input Type Date support",
       define => "ENABLE_INPUT_TYPE_DATE", default => 0, value => \$inputTypeDateSupport },
@@ -252,10 +265,10 @@ my @features = (
       define => "ENABLE_LEGACY_NOTIFICATIONS", default => isBlackBerry(), value => \$legacyNotificationsSupport },
 
     { option => "legacy-webkit-blob-builder", desc => "Toggle Legacy WebKit Blob Builder support",
-      define => "ENABLE_LEGACY_WEBKIT_BLOB_BUILDER", default => (isGtk() || isChromium() || isBlackBerry()), value => \$legacyWebKitBlobBuilderSupport },
+      define => "ENABLE_LEGACY_WEBKIT_BLOB_BUILDER", default => (isGtk() || isChromium() || isBlackBerry() || isEfl()), value => \$legacyWebKitBlobBuilderSupport },
 
     { option => "link-prefetch", desc => "Toggle Link Prefetch support",
-      define => "ENABLE_LINK_PREFETCH", default => 0, value => \$linkPrefetchSupport },
+      define => "ENABLE_LINK_PREFETCH", default => isGtk(), value => \$linkPrefetchSupport },
 
     { option => "link-prerender", desc => "Toggle Link Prerender support",
       define => "ENABLE_LINK_PRERENDER", default => 0, value => \$linkPrerenderSupport },
@@ -270,7 +283,7 @@ my @features = (
       define => "ENABLE_MEDIA_STATISTICS", default => 0, value => \$mediaStatisticsSupport },
 
     { option => "media-stream", desc => "Toggle Media Stream support",
-      define => "ENABLE_MEDIA_STREAM", default => (isChromium() || isGtk()), value => \$mediaStreamSupport },
+      define => "ENABLE_MEDIA_STREAM", default => (isChromium() || isGtk() || isBlackBerry()), value => \$mediaStreamSupport },
 
     { option => "meter-tag", desc => "Toggle Meter Tag support",
       define => "ENABLE_METER_TAG", default => !isAppleWinWebKit(), value => \$meterTagSupport },
@@ -279,7 +292,7 @@ my @features = (
       define => "ENABLE_MHTML", default => 0, value => \$mhtmlSupport },
 
     { option => "microdata", desc => "Toggle Microdata support",
-      define => "ENABLE_MICRODATA", default => 0, value => \$microdataSupport },
+      define => "ENABLE_MICRODATA", default => (isEfl() || isBlackBerry()), value => \$microdataSupport },
 
     { option => "mutation-observers", desc => "Toggle Mutation Observers support",
       define => "ENABLE_MUTATION_OBSERVERS", default => 1, value => \$mutationObserversSupport },
@@ -306,7 +319,7 @@ my @features = (
       define => "ENABLE_QUOTA", default => 0, value => \$quotaSupport },
 
     { option => "register-protocol-handler", desc => "Toggle Register Protocol Handler support",
-      define => "ENABLE_REGISTER_PROTOCOL_HANDLER", default => isEfl(), value => \$registerProtocolHandlerSupport },
+      define => "ENABLE_REGISTER_PROTOCOL_HANDLER", default => (isBlackBerry() || isEfl()), value => \$registerProtocolHandlerSupport },
 
     { option => "request-animation-frame", desc => "Toggle Request Animation Frame support",
       define => "ENABLE_REQUEST_ANIMATION_FRAME", default => (isAppleMacWebKit() || isGtk() || isEfl() || isBlackBerry()), value => \$requestAnimationFrameSupport },
@@ -315,7 +328,7 @@ my @features = (
       define => "ENABLE_SCRIPTED_SPEECH", default => 0, value => \$scriptedSpeechSupport },
 
     { option => "shadow-dom", desc => "Toggle Shadow DOM support",
-      define => "ENABLE_SHADOW_DOM", default => isGtk(), value => \$shadowDOMSupport },
+      define => "ENABLE_SHADOW_DOM", default => (isGtk() || isEfl()), value => \$shadowDOMSupport },
 
     { option => "shared-workers", desc => "Toggle Shared Workers support",
       define => "ENABLE_SHARED_WORKERS", default => (isAppleWebKit() || isGtk() || isBlackBerry() || isEfl()), value => \$sharedWorkersSupport },
@@ -324,7 +337,7 @@ my @features = (
       define => "ENABLE_SQL_DATABASE", default => 1, value => \$sqlDatabaseSupport },
 
     { option => "style-scoped", desc => "Toggle Style Scoped support",
-      define => "ENABLE_STYLE_SCOPED", default => 0, value => \$styleScopedSupport },
+      define => "ENABLE_STYLE_SCOPED", default => isBlackBerry(), value => \$styleScopedSupport },
 
     { option => "svg", desc => "Toggle SVG support",
       define => "ENABLE_SVG", default => 1, value => \$svgSupport },
@@ -346,6 +359,9 @@ my @features = (
 
     { option => "touch-icon-loading", desc => "Toggle Touch Icon Loading Support",
       define => "ENABLE_TOUCH_ICON_LOADING", default => 0, value => \$touchIconLoadingSupport },
+
+    { option => "undo-manager", desc => "Toggle Undo Manager support",
+      define => "ENABLE_UNDO_MANAGER", default => 0, value => \$undoManagerSupport },
 
     { option => "vibration", desc => "Toggle Vibration support",
       define => "ENABLE_VIBRATION", default => (isEfl() || isBlackBerry()), value => \$vibrationSupport },

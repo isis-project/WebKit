@@ -68,7 +68,7 @@
             'variables': { 'enable_wexit_time_destructors': 1, },
             'dependencies': [
                 '../../WebCore/WebCore.gyp/WebCore.gyp:webcore',
-                '../../Platform/Platform.gyp/Platform.gyp:webkit_platform', # actually WebCore should depend on this
+                '../../Platform/Platform.gyp/Platform.gyp:webkit_platform',
                 '<(chromium_src_dir)/skia/skia.gyp:skia',
                 '<(chromium_src_dir)/third_party/icu/icu.gyp:icuuc',
                 '<(chromium_src_dir)/third_party/npapi/npapi.gyp:npapi',
@@ -76,6 +76,7 @@
                 '<(chromium_src_dir)/v8/tools/gyp/v8.gyp:v8',
             ],
             'export_dependent_settings': [
+                '../../Platform/Platform.gyp/Platform.gyp:webkit_platform',
                 '<(chromium_src_dir)/skia/skia.gyp:skia',
                 '<(chromium_src_dir)/third_party/icu/icu.gyp:icuuc',
                 '<(chromium_src_dir)/third_party/npapi/npapi.gyp:npapi',
@@ -116,6 +117,7 @@
                 'public/WebCompositorInputHandler.h',
                 'public/WebCompositorInputHandlerClient.h',
                 'public/WebConsoleMessage.h',
+                'public/WebContentDetectionResult.h',
                 'public/WebContextMenuData.h',
                 'public/WebCrossOriginPreflightResultCache.h',
                 'public/WebCursorInfo.h',
@@ -167,6 +169,7 @@
                 'public/WebGeolocationPermissionRequestManager.h',
                 'public/WebGeolocationPosition.h',
                 'public/WebGlyphCache.h',
+                'public/WebHelperPlugin.h',
                 'public/WebHistoryItem.h',
                 'public/WebHitTestResult.h',
                 'public/WebIDBCallbacks.h',
@@ -180,6 +183,7 @@
                 'public/WebIDBKey.h',
                 'public/WebIDBKeyPath.h',
                 'public/WebIDBKeyRange.h',
+                'public/WebIDBMetadata.h',
                 'public/WebIDBObjectStore.h',
                 'public/WebIDBTransaction.h',
                 'public/WebIDBTransactionCallbacks.h',
@@ -198,8 +202,6 @@
                 'public/WebMediaPlayerClient.h',
                 'public/WebMediaStreamRegistry.h',
                 'public/WebMenuItemInfo.h',
-                'public/WebMessagePortChannel.h',
-                'public/WebMessagePortChannelClient.h',
                 'public/WebNavigationType.h',
                 'public/WebNetworkStateNotifier.h',
                 'public/WebNode.h',
@@ -222,6 +224,8 @@
                 'public/WebPluginContainer.h',
                 'public/WebPluginDocument.h',
                 'public/WebPluginListBuilder.h',
+                'public/WebPluginScrollbar.h',
+                'public/WebPluginScrollbarClient.h',
                 'public/WebPrintParams.h',
                 'public/WebPrintScalingOption.h',
                 'public/WebPopupMenu.h',
@@ -236,8 +240,6 @@
                 'public/WebScreenInfo.h',
                 'public/WebScriptController.h',
                 'public/WebScriptSource.h',
-                'public/WebScrollbar.h',
-                'public/WebScrollbarClient.h',
                 'public/WebSearchableFormData.h',
                 'public/WebSecurityOrigin.h',
                 'public/WebSecurityPolicy.h',
@@ -258,9 +260,7 @@
                 'public/WebSpeechRecognizerClient.h',
                 'public/WebSpeechRecognizer.h',
                 'public/WebSpellCheckClient.h',
-                'public/WebStorageArea.h',
                 'public/WebStorageEventDispatcher.h',
-                'public/WebStorageNamespace.h',
                 'public/WebStorageQuotaCallbacks.h',
                 'public/WebStorageQuotaType.h',
                 'public/WebSurroundingText.h',
@@ -374,6 +374,8 @@
                 'src/CompositionUnderlineBuilder.h',
                 'src/CompositionUnderlineVectorBuilder.cpp',
                 'src/CompositionUnderlineVectorBuilder.h',
+                'src/ContextFeaturesClientImpl.cpp',
+                'src/ContextFeaturesClientImpl.h',
                 'src/ContextMenuClientImpl.cpp',
                 'src/ContextMenuClientImpl.h',
                 'src/DatabaseObserver.cpp',
@@ -391,7 +393,6 @@
                 'src/EditorClientImpl.h',
                 'src/EventListenerWrapper.cpp',
                 'src/EventListenerWrapper.h',
-                'src/Extensions3DChromium.cpp',
                 'src/ExternalPopupMenu.cpp',
                 'src/ExternalPopupMenu.h',
                 'src/FrameLoaderClientImpl.cpp',
@@ -399,9 +400,9 @@
                 'src/FrameNetworkingContextImpl.h',
                 'src/GeolocationClientProxy.cpp',
                 'src/GeolocationClientProxy.h',
-                'src/GraphicsContext3DChromium.cpp',
-                'src/GraphicsContext3DPrivate.h',
                 'src/gtk/WebInputEventFactory.cpp',
+                'src/WebHelperPluginImpl.cpp',
+                'src/WebHelperPluginImpl.h',
                 'src/IDBCallbacksProxy.cpp',
                 'src/IDBCallbacksProxy.h',
                 'src/IDBCursorBackendProxy.cpp',
@@ -562,6 +563,7 @@
                 'src/WebIDBKey.cpp',
                 'src/WebIDBKeyPath.cpp',
                 'src/WebIDBKeyRange.cpp',
+                'src/WebIDBMetadata.cpp',
                 'src/WebIDBObjectStoreImpl.cpp',
                 'src/WebIDBObjectStoreImpl.h',
                 'src/WebIDBTransactionImpl.cpp',
@@ -571,6 +573,7 @@
                 'src/WebIOSurfaceLayer.cpp',
                 'src/WebImageCG.cpp',
                 'src/WebImageDecoder.cpp',
+                'src/WebImageLayer.cpp',
                 'src/WebImageSkia.cpp',
                 'src/WebInputElement.cpp',
                 'src/WebInputEvent.cpp',
@@ -612,6 +615,8 @@
                 'src/WebPluginListBuilderImpl.h',
                 'src/WebPluginLoadObserver.cpp',
                 'src/WebPluginLoadObserver.h',
+                'src/WebPluginScrollbarImpl.cpp',
+                'src/WebPluginScrollbarImpl.h',
                 'src/WebPopupMenuImpl.cpp',
                 'src/WebPopupMenuImpl.h',
                 'src/WebRange.cpp',
@@ -620,8 +625,7 @@
                 'src/WebScopedMicrotaskSuppression.cpp',
                 'src/WebScopedUserGesture.cpp',
                 'src/WebScriptController.cpp',
-                'src/WebScrollbarImpl.cpp',
-                'src/WebScrollbarImpl.h',
+                'src/WebScrollableLayer.cpp',
                 'src/WebSearchableFormData.cpp',
                 'src/WebSecurityOrigin.cpp',
                 'src/WebSecurityPolicy.cpp',
@@ -800,6 +804,7 @@
                 ['OS=="android"', {
                     'include_dirs': [
                         'public/android',
+                        'public/linux', # We need linux/WebFontRendering.h on Android.
                     ],
                 }, { # else: OS!="android"
                     'sources/': [
@@ -848,6 +853,13 @@
                     'xcode_settings': {
                         'WARNING_CFLAGS': ['-Wglobal-constructors'],
                     },
+                }],
+            ],
+            'target_conditions': [
+                ['OS=="android"', {
+                    'sources/': [
+                        ['include', '^src/linux/WebFontRendering\\.cpp$'],
+                    ],
                 }],
             ],
         },
@@ -1028,7 +1040,7 @@
         },
     ], # targets
     'conditions': [
-        ['os_posix==1 and OS!="mac" and OS!="android" and gcc_version==46', {
+        ['os_posix==1 and OS!="mac" and gcc_version==46', {
             'target_defaults': {
                 # Disable warnings about c++0x compatibility, as some names (such
                 # as nullptr) conflict with upcoming c++0x types.

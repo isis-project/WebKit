@@ -22,7 +22,10 @@
 
 #include "BackingStore.h"
 #include "Frame.h"
+#include "GraphicsContext.h"
+#include "InspectorController.h"
 #include "NotImplemented.h"
+#include "Page.h"
 #include "RenderObject.h"
 #include "WebPageClient.h"
 #include "WebPage_p.h"
@@ -42,17 +45,12 @@ void InspectorClientBlackBerry::inspectorDestroyed()
 
 void InspectorClientBlackBerry::highlight()
 {
-    hideHighlight();
+    m_webPagePrivate->setInspectorOverlayClient(this);
 }
 
 void InspectorClientBlackBerry::hideHighlight()
 {
-    if (!m_webPagePrivate->mainFrame() || !m_webPagePrivate->mainFrame()->document() || !m_webPagePrivate->mainFrame()->document()->documentElement()
-        || !m_webPagePrivate->mainFrame()->document()->documentElement()->renderer())
-        return;
-
-    // FIXME: Potentially slow hack, but invalidating everything should work since the actual highlight is drawn by BackingStorePrivate::renderContents().
-    m_webPagePrivate->mainFrame()->document()->documentElement()->renderer()->repaint(true);
+    m_webPagePrivate->setInspectorOverlayClient(0);
 }
 
 void InspectorClientBlackBerry::openInspectorFrontend(InspectorController*)
@@ -89,7 +87,15 @@ void InspectorClientBlackBerry::clearBrowserCookies()
 
 void InspectorClientBlackBerry::updateInspectorStateCookie(const String& cookie)
 {
+    // If this is implemented, we should override and return true in InspectorStateClient::supportsInspectorStateUpdates().
     notImplemented();
 };
+
+void InspectorClientBlackBerry::paintInspectorOverlay(GraphicsContext& gc)
+{
+    InspectorController* inspectorController = m_webPagePrivate->m_page->inspectorController();
+    if (inspectorController)
+        inspectorController->drawHighlight(gc);
+}
 
 } // namespace WebCore

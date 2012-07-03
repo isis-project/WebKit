@@ -63,12 +63,6 @@ IDBCursorBackendImpl::~IDBCursorBackendImpl()
     m_objectStore.clear();
 }
 
-unsigned short IDBCursorBackendImpl::direction() const
-{
-    IDB_TRACE("IDBCursorBackendImpl::direction");
-    return m_direction;
-}
-
 PassRefPtr<IDBKey> IDBCursorBackendImpl::key() const
 {
     IDB_TRACE("IDBCursorBackendImpl::key");
@@ -92,10 +86,10 @@ PassRefPtr<SerializedScriptValue> IDBCursorBackendImpl::value() const
 void IDBCursorBackendImpl::update(PassRefPtr<SerializedScriptValue> value, PassRefPtr<IDBCallbacks> callbacks, ExceptionCode& ec)
 {
     IDB_TRACE("IDBCursorBackendImpl::update");
-    if (!m_cursor || m_cursorType == IndexKeyCursor) {
-        ec = IDBDatabaseException::NOT_ALLOWED_ERR;
-        return;
-    }
+    ASSERT(m_transaction->mode() != IDBTransaction::READ_ONLY);
+
+    ASSERT(m_cursor);
+    ASSERT(m_cursorType != IndexKeyCursor);
 
     m_objectStore->put(value, m_cursor->primaryKey(), IDBObjectStoreBackendInterface::CursorUpdate, callbacks, m_transaction.get(), ec);
 }
@@ -163,12 +157,17 @@ void IDBCursorBackendImpl::continueFunctionInternal(ScriptExecutionContext*, Pas
 void IDBCursorBackendImpl::deleteFunction(PassRefPtr<IDBCallbacks> prpCallbacks, ExceptionCode& ec)
 {
     IDB_TRACE("IDBCursorBackendImpl::delete");
+    ASSERT(m_transaction->mode() != IDBTransaction::READ_ONLY);
+
     if (!m_cursor || m_cursorType == IndexKeyCursor) {
-        ec = IDBDatabaseException::NOT_ALLOWED_ERR;
+        ec = IDBDatabaseException::IDB_INVALID_STATE_ERR;
         return;
     }
 
-    m_objectStore->deleteFunction(m_cursor->primaryKey(), prpCallbacks, m_transaction.get(), ec);
+    RefPtr<IDBKeyRange> keyRange = IDBKeyRange::only(m_cursor->primaryKey(), ec);
+    ASSERT(!ec);
+
+    m_objectStore->deleteFunction(keyRange.release(), prpCallbacks, m_transaction.get(), ec);
 }
 
 void IDBCursorBackendImpl::prefetchContinue(int numberToFetch, PassRefPtr<IDBCallbacks> prpCallbacks, ExceptionCode& ec)
@@ -248,6 +247,8 @@ void IDBCursorBackendImpl::close()
     m_closed = true;
     if (m_cursor)
         m_cursor->close();
+    m_cursor.clear();
+    m_savedCursor.clear();
 }
 
 } // namespace WebCore

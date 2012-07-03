@@ -96,7 +96,7 @@ public:
     virtual float maxTimeSeekable() const = 0;
     virtual PassRefPtr<TimeRanges> buffered() const = 0;
 
-    virtual unsigned bytesLoaded() const = 0;
+    virtual bool didLoadingProgress() const = 0;
 
     virtual void setSize(const IntSize&) = 0;
 
@@ -118,7 +118,7 @@ public:
 #endif
 
 #if ENABLE(PLUGIN_PROXY_FOR_VIDEO) || USE(NATIVE_FULLSCREEN_VIDEO)
-    virtual void enterFullscreen() const { }
+    virtual void enterFullscreen() { }
     virtual void exitFullscreen() { }
 #endif
 
@@ -134,6 +134,8 @@ public:
 #endif
 
     virtual bool hasSingleSecurityOrigin() const { return false; }
+
+    virtual bool didPassCORSAccessCheck() const { return false; }
 
     virtual MediaPlayer::MovieLoadType movieLoadType() const { return MediaPlayer::Unknown; }
 

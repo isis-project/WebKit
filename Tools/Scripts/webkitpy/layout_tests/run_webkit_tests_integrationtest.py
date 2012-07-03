@@ -50,6 +50,7 @@ from webkitpy.common.host_mock import MockHost
 
 from webkitpy.layout_tests import port
 from webkitpy.layout_tests import run_webkit_tests
+from webkitpy.layout_tests.controllers.manager_worker_broker import WorkerException
 from webkitpy.layout_tests.port import Port
 from webkitpy.layout_tests.port.test import TestPort, TestDriver
 from webkitpy.test.skip import skip_if
@@ -81,18 +82,22 @@ def parse_args(extra_args=None, record_results=False, tests_included=False, new_
     return run_webkit_tests.parse_args(args)
 
 
-def passing_run(extra_args=None, port_obj=None, record_results=False, tests_included=False, host=None):
+def passing_run(extra_args=None, port_obj=None, record_results=False, tests_included=False, host=None, shared_port=True):
     options, parsed_args = parse_args(extra_args, record_results, tests_included)
     if not port_obj:
         host = host or MockHost()
         port_obj = host.port_factory.get(port_name=options.platform, options=options)
+
+    if shared_port:
+        port_obj.host.port_factory.get = lambda *args, **kwargs: port_obj
+
     buildbot_output = StringIO.StringIO()
     regular_output = StringIO.StringIO()
     res = run_webkit_tests.run(port_obj, options, parsed_args, buildbot_output=buildbot_output, regular_output=regular_output)
     return res == 0 and not regular_output.getvalue() and not buildbot_output.getvalue()
 
 
-def logging_run(extra_args=None, port_obj=None, record_results=False, tests_included=False, host=None, new_results=False):
+def logging_run(extra_args=None, port_obj=None, record_results=False, tests_included=False, host=None, new_results=False, shared_port=True):
     options, parsed_args = parse_args(extra_args=extra_args,
                                       record_results=record_results,
                                       tests_included=tests_included,
@@ -101,11 +106,13 @@ def logging_run(extra_args=None, port_obj=None, record_results=False, tests_incl
     if not port_obj:
         port_obj = host.port_factory.get(port_name=options.platform, options=options)
 
-    res, buildbot_output, regular_output = run_and_capture(port_obj, options, parsed_args)
+    res, buildbot_output, regular_output = run_and_capture(port_obj, options, parsed_args, shared_port)
     return (res, buildbot_output, regular_output, host.user)
 
 
-def run_and_capture(port_obj, options, parsed_args):
+def run_and_capture(port_obj, options, parsed_args, shared_port=True):
+    if shared_port:
+        port_obj.host.port_factory.get = lambda *args, **kwargs: port_obj
     oc = outputcapture.OutputCapture()
     try:
         oc.capture_output()
@@ -197,18 +204,15 @@ class LintTest(unittest.TestCase, StreamTestingMixin):
                 self.name = name
                 self.path = path
 
-            def test_expectations(self):
-                self.host.ports_parsed.append(self.name)
-                return ''
-
             def path_to_test_expectations_file(self):
                 return self.path
 
             def test_configuration(self):
                 return None
 
-            def test_expectations_overrides(self):
-                return None
+            def expectations_dict(self):
+                self.host.ports_parsed.append(self.name)
+                return {self.path: ''}
 
             def skipped_layout_tests(self, tests):
                 return set([])
@@ -261,7 +265,7 @@ class LintTest(unittest.TestCase, StreamTestingMixin):
         options, parsed_args = parse_args(['--lint-test-files'])
         host = MockHost()
         port_obj = host.port_factory.get(options.platform, options=options)
-        port_obj.test_expectations = lambda: "# syntax error"
+        port_obj.expectations_dict = lambda: {'': '# syntax error'}
         res, out, err = run_and_capture(port_obj, options, parsed_args)
 
         self.assertEqual(res, -1)
@@ -305,14 +309,14 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
     def test_child_processes_2(self):
         if self.should_test_processes:
             _, _, regular_output, _ = logging_run(
-                ['--print', 'config', '--child-processes', '2'])
+                ['--print', 'config', '--child-processes', '2'], shared_port=False)
             self.assertTrue(any(['Running 2 ' in line for line in regular_output.buflist]))
 
     def test_child_processes_min(self):
         if self.should_test_processes:
             _, _, regular_output, _ = logging_run(
                 ['--print', 'config', '--child-processes', '2', 'passes'],
-                tests_included=True)
+                tests_included=True, shared_port=False)
             self.assertTrue(any(['Running 1 ' in line for line in regular_output.buflist]))
 
     def test_dryrun(self):
@@ -336,8 +340,8 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
             ['failures/expected/exception.html', '--child-processes', '1'], tests_included=True)
 
         if self.should_test_processes:
-            self.assertRaises(run_webkit_tests.WorkerException, logging_run,
-                ['--child-processes', '2', '--force', 'failures/expected/exception.html', 'passes/text.html'], tests_included=True)
+            self.assertRaises(WorkerException, logging_run,
+                ['--child-processes', '2', '--force', 'failures/expected/exception.html', 'passes/text.html'], tests_included=True, shared_port=False)
 
     def test_full_results_html(self):
         # FIXME: verify html?
@@ -367,7 +371,7 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
 
         if self.should_test_processes:
             self.assertRaises(KeyboardInterrupt, logging_run,
-                ['failures/expected/keyboard.html', 'passes/text.html', '--child-processes', '2', '--force'], tests_included=True)
+                ['failures/expected/keyboard.html', 'passes/text.html', '--child-processes', '2', '--force'], tests_included=True, shared_port=False)
 
     def test_no_tests_found(self):
         res, out, err, user = logging_run(['resources'], tests_included=True)
@@ -404,19 +408,29 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
         tests_run = get_tests_run(['--skip-pixel-test-if-no-baseline'] + tests_to_run, tests_included=True, flatten_batches=True)
         self.assertEquals(tests_run, ['passes/image.html', 'passes/text.html'])
 
-    def test_ignore_tests(self):
-        def assert_ignored(args, tests_expected_to_run):
-            tests_to_run = ['failures/expected/image.html', 'passes/image.html']
-            tests_run = get_tests_run(args + tests_to_run, tests_included=True, flatten_batches=True)
-            self.assertEquals(tests_run, tests_expected_to_run)
+    def test_ignore_flag(self):
+        # Note that passes/image.html is expected to be run since we specified it directly.
+        tests_run = get_tests_run(['-i', 'passes', 'passes/image.html'], flatten_batches=True, tests_included=True)
+        self.assertFalse('passes/text.html' in tests_run)
+        self.assertTrue('passes/image.html' in tests_run)
 
-        assert_ignored(['-i', 'failures/expected/image.html'], ['passes/image.html'])
-        assert_ignored(['-i', 'passes'], ['failures/expected/image.html'])
+    def test_skipped_flag(self):
+        tests_run = get_tests_run(['passes'], tests_included=True, flatten_batches=True)
+        self.assertFalse('passes/skipped/skip.html' in tests_run)
+        num_tests_run_by_default = len(tests_run)
 
-        # Note here that there is an expectation for failures/expected/image.html already, but
-        # it is overriden by the command line arg. This might be counter-intuitive.
-        # FIXME: This isn't currently working ...
-        # assert_ignored(['-i', 'failures/expected'], ['passes/image.html'])
+        # Check that nothing changes when we specify skipped=default.
+        self.assertEquals(len(get_tests_run(['--skipped=default', 'passes'], tests_included=True, flatten_batches=True)),
+                          num_tests_run_by_default)
+
+        # Now check that we run one more test (the skipped one).
+        tests_run = get_tests_run(['--skipped=ignore', 'passes'], tests_included=True, flatten_batches=True)
+        self.assertTrue('passes/skipped/skip.html' in tests_run)
+        self.assertEquals(len(tests_run), num_tests_run_by_default + 1)
+
+        # Now check that we only run the skipped test.
+        self.assertEquals(get_tests_run(['--skipped=only', 'passes'], tests_included=True, flatten_batches=True),
+                          ['passes/skipped/skip.html'])
 
     def test_iterations(self):
         tests_to_run = ['passes/image.html', 'passes/text.html']
@@ -537,7 +551,7 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
         self.assertEqual(res, unexpected_tests_count)
         self.assertNotEmpty(out)
         self.assertNotEmpty(err)
-        self.assertEqual(user.opened_urls, [path.abspath_to_uri('/tmp/layout-test-results/results.html')])
+        self.assertEqual(user.opened_urls, [path.abspath_to_uri(MockHost().platform, '/tmp/layout-test-results/results.html')])
 
     def test_missing_and_unexpected_results(self):
         # Test that we update expectations in place. If the expectation
@@ -715,7 +729,7 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
         with host.filesystem.mkdtemp() as tmpdir:
             res, out, err, user = logging_run(['--results-directory=' + str(tmpdir)],
                                               tests_included=True, host=host)
-            self.assertEqual(user.opened_urls, [path.abspath_to_uri(host.filesystem.join(tmpdir, 'results.html'))])
+            self.assertEqual(user.opened_urls, [path.abspath_to_uri(host.platform, host.filesystem.join(tmpdir, 'results.html'))])
 
     def test_results_directory_default(self):
         # We run a configuration that should fail, to generate output, then
@@ -723,7 +737,7 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
 
         # This is the default location.
         res, out, err, user = logging_run(tests_included=True)
-        self.assertEqual(user.opened_urls, [path.abspath_to_uri('/tmp/layout-test-results/results.html')])
+        self.assertEqual(user.opened_urls, [path.abspath_to_uri(MockHost().platform, '/tmp/layout-test-results/results.html')])
 
     def test_results_directory_relative(self):
         # We run a configuration that should fail, to generate output, then
@@ -733,7 +747,7 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
         host.filesystem.chdir('/tmp/cwd')
         res, out, err, user = logging_run(['--results-directory=foo'],
                                           tests_included=True, host=host)
-        self.assertEqual(user.opened_urls, [path.abspath_to_uri('/tmp/cwd/foo/results.html')])
+        self.assertEqual(user.opened_urls, [path.abspath_to_uri(host.platform, '/tmp/cwd/foo/results.html')])
 
     def test_retrying_and_flaky_tests(self):
         host = MockHost()
@@ -747,6 +761,7 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
 
         # Now we test that --clobber-old-results does remove the old entries and the old retries,
         # and that we don't retry again.
+        host = MockHost()
         res, out, err, _ = logging_run(['--no-retry-failures', '--clobber-old-results', 'failures/flaky'], tests_included=True, host=host)
         self.assertEquals(res, 1)
         self.assertTrue('Clobbering old results' in err.getvalue())
@@ -756,21 +771,15 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
         self.assertTrue(host.filesystem.exists('/tmp/layout-test-results/failures/flaky/text-actual.txt'))
         self.assertFalse(host.filesystem.exists('retries'))
 
-
-    # These next tests test that we run the tests in ascending alphabetical
-    # order per directory. HTTP tests are sharded separately from other tests,
-    # so we have to test both.
-    def assert_run_order(self, child_processes='1'):
-        tests_run = get_tests_run(['--child-processes', child_processes, 'passes'],
-            tests_included=True, flatten_batches=True)
-        self.assertEquals(tests_run, sorted(tests_run))
-
-        tests_run = get_tests_run(['--child-processes', child_processes, 'http/tests/passes'],
-            tests_included=True, flatten_batches=True)
-        self.assertEquals(tests_run, sorted(tests_run))
-
     def test_run_order__inline(self):
-        self.assert_run_order()
+        # These next tests test that we run the tests in ascending alphabetical
+        # order per directory. HTTP tests are sharded separately from other tests,
+        # so we have to test both.
+        tests_run = get_tests_run(['passes'], tests_included=True, flatten_batches=True)
+        self.assertEquals(tests_run, sorted(tests_run))
+
+        tests_run = get_tests_run(['http/tests/passes'], tests_included=True, flatten_batches=True)
+        self.assertEquals(tests_run, sorted(tests_run))
 
     def test_tolerance(self):
         class ImageDiffTestPort(TestPort):
@@ -874,6 +883,26 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
         self.assertTrue(MainTest.has_test_of_type(batch_tests_run_http, 'http'))
         self.assertTrue(MainTest.has_test_of_type(batch_tests_run_http, 'websocket'))
 
+    def test_platform_tests_are_found(self):
+        tests_run = get_tests_run(['http'], tests_included=True, flatten_batches=True)
+        self.assertTrue('platform/test-snow-leopard/http/test.html' in tests_run)
+
+    def test_output_diffs(self):
+        # Test to ensure that we don't generate -wdiff.html or -pretty.html if wdiff and PrettyPatch
+        # aren't available.
+        host = MockHost()
+        res, out, err, _ = logging_run(['--pixel-tests', 'failures/unexpected/text-image-checksum.html'],
+                                       tests_included=True, record_results=True, host=host)
+        written_files = host.filesystem.written_files
+        self.assertTrue(any(path.endswith('-diff.txt') for path in written_files.keys()))
+        self.assertFalse(any(path.endswith('-wdiff.html') for path in written_files.keys()))
+        self.assertFalse(any(path.endswith('-pretty-diff.html') for path in written_files.keys()))
+
+        full_results_text = host.filesystem.read_text_file('/tmp/layout-test-results/full_results.json')
+        full_results = json.loads(full_results_text.replace("ADD_RESULTS(", "").replace(");", ""))
+        self.assertEquals(full_results['has_wdiff'], False)
+        self.assertEquals(full_results['has_pretty_patch'], False)
+
 
 class EndToEndTest(unittest.TestCase):
     def parse_full_results(self, full_results_text):
@@ -919,7 +948,7 @@ class RebaselineTest(unittest.TestCase, StreamTestingMixin):
         "assert that the file_list contains the baselines."""
         for ext in extensions:
             baseline = file + "-expected" + ext
-            baseline_msg = 'Writing new expected result "%s"\n' % baseline[1:]
+            baseline_msg = 'Writing new expected result "%s"\n' % baseline
             self.assertTrue(any(f.find(baseline) != -1 for f in file_list))
             self.assertContainsLine(err, baseline_msg)
 
@@ -940,8 +969,8 @@ class RebaselineTest(unittest.TestCase, StreamTestingMixin):
         self.assertEquals(res, 0)
         self.assertEmpty(out)
         self.assertEqual(len(file_list), 4)
-        self.assertBaselines(file_list, "/passes/image", [".txt", ".png"], err)
-        self.assertBaselines(file_list, "/failures/expected/missing_image", [".txt", ".png"], err)
+        self.assertBaselines(file_list, "passes/image", [".txt", ".png"], err)
+        self.assertBaselines(file_list, "failures/expected/missing_image", [".txt", ".png"], err)
 
     def test_missing_results(self):
         # Test that we update expectations in place. If the expectation
@@ -958,13 +987,13 @@ class RebaselineTest(unittest.TestCase, StreamTestingMixin):
         self.assertEquals(res, 0)
         self.assertNotEmpty(out)
         self.assertEqual(len(file_list), 6)
-        self.assertBaselines(file_list, "/failures/unexpected/missing_text", [".txt"], err)
-        self.assertBaselines(file_list, "/platform/test-mac-leopard/failures/unexpected/missing_image", [".png"], err)
-        self.assertBaselines(file_list, "/platform/test-mac-leopard/failures/unexpected/missing_render_tree_dump", [".txt"], err)
+        self.assertBaselines(file_list, "failures/unexpected/missing_text", [".txt"], err)
+        self.assertBaselines(file_list, "platform/test/failures/unexpected/missing_image", [".png"], err)
+        self.assertBaselines(file_list, "platform/test/failures/unexpected/missing_render_tree_dump", [".txt"], err)
 
     def test_new_baseline(self):
-        # Test that we update the platform expectations. If the expectation
-        # is mssing, then create a new expectation in the platform dir.
+        # Test that we update the platform expectations in the version-specific directories
+        # for both existing and new baselines.
         host = MockHost()
         res, out, err, _ = logging_run(['--pixel-tests',
                         '--new-baseline',
@@ -977,9 +1006,9 @@ class RebaselineTest(unittest.TestCase, StreamTestingMixin):
         self.assertEmpty(out)
         self.assertEqual(len(file_list), 4)
         self.assertBaselines(file_list,
-            "/platform/test-mac-leopard/passes/image", [".txt", ".png"], err)
+            "platform/test-mac-leopard/passes/image", [".txt", ".png"], err)
         self.assertBaselines(file_list,
-            "/platform/test-mac-leopard/failures/expected/missing_image", [".txt", ".png"], err)
+            "platform/test-mac-leopard/failures/expected/missing_image", [".txt", ".png"], err)
 
 
 if __name__ == '__main__':

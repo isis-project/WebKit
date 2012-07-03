@@ -8,6 +8,7 @@
 }
 .flexbox > div {
     margin: 2px 13px 8px 17px;
+    -webkit-flex: none;
 }
 .flexbox > div:not(.nested) {
     width: 10px;
@@ -59,8 +60,8 @@
 }
 </style>
 <script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
+if (window.testRunner)
+    testRunner.dumpAsText();
 </script>
 <script src="resources/flexbox.js"></script>
 <body onload="checkFlexBoxen()">

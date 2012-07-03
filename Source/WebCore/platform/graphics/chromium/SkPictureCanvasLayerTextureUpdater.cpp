@@ -30,9 +30,7 @@
 
 #include "SkPictureCanvasLayerTextureUpdater.h"
 
-#include "GraphicsContext.h"
 #include "LayerPainterChromium.h"
-#include "PlatformContextSkia.h"
 #include "SkCanvas.h"
 #include "TraceEvent.h"
 
@@ -48,25 +46,16 @@ SkPictureCanvasLayerTextureUpdater::~SkPictureCanvasLayerTextureUpdater()
 {
 }
 
-void SkPictureCanvasLayerTextureUpdater::prepareToUpdate(const IntRect& contentRect, const IntSize& /* tileSize */, int borderTexels, float contentsScale, IntRect& resultingOpaqueRect)
+void SkPictureCanvasLayerTextureUpdater::prepareToUpdate(const IntRect& contentRect, const IntSize&, float contentsWidthScale, float contentsHeightScale, IntRect& resultingOpaqueRect)
 {
     SkCanvas* canvas = m_picture.beginRecording(contentRect.width(), contentRect.height());
-    PlatformContextSkia platformContext(canvas);
-    platformContext.setDeferred(true);
-    platformContext.setTrackOpaqueRegion(!m_layerIsOpaque);
-    // Assumption: if a tiler is using border texels, then it is because the
-    // layer is likely to be filtered or transformed. Because it might be
-    // transformed, set image buffer flag to draw the text in grayscale
-    // instead of using subpixel antialiasing.
-    platformContext.setDrawingToImageBuffer(borderTexels ? true : false);
-    GraphicsContext graphicsContext(&platformContext);
-    paintContents(graphicsContext, platformContext, contentRect, contentsScale, resultingOpaqueRect);
+    paintContents(canvas, contentRect, contentsWidthScale, contentsHeightScale, resultingOpaqueRect);
     m_picture.endRecording();
 }
 
 void SkPictureCanvasLayerTextureUpdater::drawPicture(SkCanvas* canvas)
 {
-    TRACE_EVENT("SkPictureCanvasLayerTextureUpdater::drawPicture", this, 0);
+    TRACE_EVENT0("cc", "SkPictureCanvasLayerTextureUpdater::drawPicture");
     canvas->drawPicture(m_picture);
 }
 

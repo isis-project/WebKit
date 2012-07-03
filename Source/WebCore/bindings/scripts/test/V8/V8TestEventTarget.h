@@ -43,6 +43,7 @@ public:
     }
     inline static v8::Handle<v8::Object> wrap(TestEventTarget*, v8::Isolate* = 0);
     static void derefObject(void*);
+    static void visitDOMWrapper(DOMDataStore*, void*, v8::Persistent<v8::Object>);
     static WrapperTypeInfo info;
     static v8::Handle<v8::Value> indexedPropertyGetter(uint32_t, const v8::AccessorInfo&);
     static v8::Handle<v8::Value> namedPropertyGetter(v8::Local<v8::String>, const v8::AccessorInfo&);
@@ -63,7 +64,7 @@ v8::Handle<v8::Object> V8TestEventTarget::wrap(TestEventTarget* impl, v8::Isolat
 inline v8::Handle<v8::Value> toV8(TestEventTarget* impl, v8::Isolate* isolate = 0)
 {
     if (!impl)
-        return v8Null(isolate);
+        return v8NullWithCheck(isolate);
     return V8TestEventTarget::wrap(impl, isolate);
 }
 inline v8::Handle<v8::Value> toV8(PassRefPtr< TestEventTarget > impl, v8::Isolate* isolate = 0)

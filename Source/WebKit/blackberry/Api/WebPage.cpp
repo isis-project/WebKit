@@ -48,13 +48,13 @@
 #include "DragClientBlackBerry.h"
 // FIXME: We should be using DumpRenderTreeClient, but I'm not sure where we should
 // create the DRT_BB object. See PR #120355.
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
 #include "DumpRenderTreeBlackBerry.h"
 #endif
 #include "EditorClientBlackBerry.h"
 #include "FocusController.h"
 #include "FrameLoaderClientBlackBerry.h"
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
 #include "GeolocationClientMock.h"
 #endif
 #include "GeolocationControllerClientBlackBerry.h"
@@ -75,6 +75,7 @@
 #include "InspectorBackendDispatcher.h"
 #include "InspectorClientBlackBerry.h"
 #include "InspectorController.h"
+#include "InspectorOverlay.h"
 #include "JavaScriptDebuggerBlackBerry.h"
 #include "LayerWebKitThread.h"
 #include "NetworkManager.h"
@@ -92,6 +93,9 @@
 #include "PluginView.h"
 #include "RenderLayerBacking.h"
 #include "RenderLayerCompositor.h"
+#if ENABLE(FULLSCREEN_API)
+#include "RenderFullScreen.h"
+#endif
 #include "RenderText.h"
 #include "RenderThemeBlackBerry.h"
 #include "RenderTreeAsText.h"
@@ -110,6 +114,9 @@
 #include "ThreadCheck.h"
 #include "TouchEventHandler.h"
 #include "TransformationMatrix.h"
+#if ENABLE(MEDIA_STREAM)
+#include "UserMediaClientImpl.h"
+#endif
 #if ENABLE(VIBRATION)
 #include "VibrationClientBlackBerry.h"
 #endif
@@ -159,8 +166,8 @@
 #endif
 
 #if ENABLE(ACCELERATED_2D_CANVAS)
-#include "SharedGraphicsContext3D.h"
 #include "GrContext.h"
+#include "SharedGraphicsContext3D.h"
 #endif
 
 #if ENABLE(REQUEST_ANIMATION_FRAME)
@@ -197,9 +204,10 @@ const double manualScrollInterval = 0.1; // The time interval during which we as
 const double delayedZoomInterval = 0;
 
 const IntSize minimumLayoutSize(10, 10); // Needs to be a small size, greater than 0, that we can grow the layout from.
-const IntSize maximumLayoutSize(10000, 10000); // Used with viewport meta tag, but we can still grow from this of course.
 
 const double minimumExpandingRatio = 0.15;
+
+const double minimumZoomToFitScale = 0.25;
 
 // Helper function to parse a URL and fill in missing parts.
 static KURL parseUrl(const String& url)
@@ -312,6 +320,9 @@ protected:
 
 void WebPage::autofillTextField(const string& item)
 {
+    if (!d->m_webSettings->isFormAutofillEnabled())
+        return;
+
     d->m_autofillManager->autofillTextField(item.c_str());
 }
 
@@ -356,6 +367,13 @@ WebPagePrivate::WebPagePrivate(WebPage* webPage, WebPageClient* client, const In
 #if ENABLE(EVENT_MODE_METATAGS)
     , m_cursorEventMode(ProcessedCursorEvents)
     , m_touchEventMode(ProcessedTouchEvents)
+#if ENABLE(FULLSCREEN_API)
+    , m_touchEventModePriorGoingFullScreen(ProcessedTouchEvents)
+#endif
+#endif
+#if ENABLE(FULLSCREEN_API) && ENABLE(VIDEO)
+    , m_scaleBeforeFullScreen(-1.0)
+    , m_xScrollOffsetBeforeFullScreen(-1)
 #endif
     , m_currentCursor(Platform::CursorNone)
     , m_dumpRenderTree(0) // Lazy initialization.
@@ -378,6 +396,7 @@ WebPagePrivate::WebPagePrivate(WebPage* webPage, WebPageClient* client, const In
     , m_needsCommit(false)
     , m_suspendRootLayerCommit(false)
 #endif
+    , m_hasPendingSurfaceSizeChange(false)
     , m_pendingOrientation(-1)
     , m_fullscreenVideoNode(0)
     , m_hasInRegionScrollableAreas(false)
@@ -434,9 +453,14 @@ WebPagePrivate::~WebPagePrivate()
     delete m_touchEventHandler;
     m_touchEventHandler = 0;
 
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     delete m_dumpRenderTree;
     m_dumpRenderTree = 0;
+#endif
+
+#if USE(ACCELERATED_COMPOSITING)
+    deleteGuardedObject(m_selectionOverlay);
+    m_selectionOverlay = 0;
 #endif
 }
 
@@ -478,7 +502,7 @@ void WebPagePrivate::init(const WebString& pageGroupName)
     pageClients.inspectorClient = inspectorClient;
 
     m_page = new Page(pageClients);
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (getenv("drtRun")) {
         // In case running in DumpRenderTree mode set the controller to mock provider.
         GeolocationClientMock* mock = new GeolocationClientMock();
@@ -498,6 +522,10 @@ void WebPagePrivate::init(const WebString& pageGroupName)
     WebCore::provideBatteryTo(m_page, new WebCore::BatteryClientBlackBerry);
 #endif
 
+#if ENABLE(MEDIA_STREAM)
+    WebCore::provideUserMediaTo(m_page, new UserMediaClientImpl(m_webPage));
+#endif
+
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     WebCore::provideNotification(m_page, NotificationPresenterImpl::instance());
 #endif
@@ -511,6 +539,7 @@ void WebPagePrivate::init(const WebString& pageGroupName)
 #if USE(ACCELERATED_COMPOSITING)
     m_tapHighlight = DefaultTapHighlight::create(this);
     m_selectionOverlay = SelectionOverlay::create(this);
+    m_page->settings()->setAcceleratedCompositingForFixedPositionEnabled(true);
 #endif
 
     // FIXME: We explicitly call setDelegate() instead of passing ourself in createFromStandardSettings()
@@ -527,7 +556,7 @@ void WebPagePrivate::init(const WebString& pageGroupName)
     m_mainFrame->init();
 
 #if ENABLE(WEBGL)
-    Platform::Settings* settings = Platform::Settings::get();
+    Platform::Settings* settings = Platform::Settings::instance();
     m_page->settings()->setWebGLEnabled(settings && settings->isWebGLSupported());
 #endif
 #if ENABLE(ACCELERATED_2D_CANVAS)
@@ -542,6 +571,8 @@ void WebPagePrivate::init(const WebString& pageGroupName)
     m_page->settings()->setInteractiveFormValidationEnabled(true);
     m_page->settings()->setAllowUniversalAccessFromFileURLs(false);
     m_page->settings()->setAllowFileAccessFromFileURLs(false);
+    m_page->settings()->setShouldUseCrossOriginProtocolCheck(!m_webSettings->allowCrossSiteRequests());
+    m_page->settings()->setWebSecurityEnabled(!m_webSettings->allowCrossSiteRequests());
 
     m_backingStoreClient = BackingStoreClient::create(m_mainFrame, /* parent frame */ 0, m_webPage);
     // The direct access to BackingStore is left here for convenience since it
@@ -682,9 +713,21 @@ void WebPage::loadString(const char* string, const char* baseURL, const char* mi
     d->loadString(string, baseURL, mimeType, failingURL);
 }
 
-bool WebPagePrivate::executeJavaScript(const char* script, JavaScriptDataType& returnType, WebString& returnValue)
+bool WebPagePrivate::executeJavaScript(const char* scriptUTF8, JavaScriptDataType& returnType, WebString& returnValue)
 {
-    ScriptValue result = m_mainFrame->script()->executeScript(String::fromUTF8(script), false);
+    String script = String::fromUTF8(scriptUTF8);
+
+    if (script.isNull()) {
+        returnType = JSException;
+        return false;
+    }
+
+    if (script.isEmpty()) {
+        returnType = JSUndefined;
+        return true;
+    }
+
+    ScriptValue result = m_mainFrame->script()->executeScript(script, false);
     JSC::JSValue value = result.jsValue();
     if (!value) {
         returnType = JSException;
@@ -855,6 +898,29 @@ void WebPage::prepareToDestroy()
     d->prepareToDestroy();
 }
 
+static void enableCrossSiteXHRRecursively(Frame* frame)
+{
+    frame->document()->securityOrigin()->grantUniversalAccess();
+
+    Vector<RefPtr<Frame>, 10> childFrames;
+    for (RefPtr<Frame> childFrame = frame->tree()->firstChild(); childFrame; childFrame = childFrame->tree()->nextSibling())
+        childFrames.append(childFrame);
+
+    unsigned size = childFrames.size();
+    for (unsigned i = 0; i < size; i++)
+        enableCrossSiteXHRRecursively(childFrames[i].get());
+}
+
+void WebPagePrivate::enableCrossSiteXHR()
+{
+    enableCrossSiteXHRRecursively(m_mainFrame);
+}
+
+void WebPage::enableCrossSiteXHR()
+{
+    d->enableCrossSiteXHR();
+}
+
 void WebPagePrivate::setLoadState(LoadState state)
 {
     if (m_loadState == state)
@@ -923,7 +989,7 @@ void WebPagePrivate::setLoadState(LoadState state)
             static ViewportArguments defaultViewportArguments;
             bool documentHasViewportArguments = false;
             FrameLoadType frameLoadType = FrameLoadTypeStandard;
-            if (m_mainFrame && m_mainFrame->document() && !(m_mainFrame->document()->viewportArguments() == defaultViewportArguments))
+            if (m_mainFrame && m_mainFrame->document() && m_mainFrame->document()->viewportArguments() != defaultViewportArguments)
                 documentHasViewportArguments = true;
             if (m_mainFrame && m_mainFrame->loader())
                 frameLoadType = m_mainFrame->loader()->loadType();
@@ -964,7 +1030,7 @@ void WebPagePrivate::setLoadState(LoadState state)
 #endif
 
             // Notify InputHandler of state change.
-            m_inputHandler->enableInputMode(false);
+            m_inputHandler->setInputModeEnabled(false);
 
             // Set the scroll to origin here and notify the client since we'll be
             // zooming below without any real contents yet thus the contents size
@@ -1260,9 +1326,16 @@ void WebPage::setScrollPosition(const Platform::IntPoint& point)
         d->m_userPerformedManualScroll = true;
 
     d->m_backingStoreClient->setIsClientGeneratedScroll(true);
-    d->m_mainFrame->view()->setCanOverscroll(true);
+
+    // UI thread can call BackingStorePrivate::setScrollingOrZooming(false) before WebKit thread calls WebPage::setScrollPosition(),
+    // in which case it will set ScrollableArea::m_constrainsScrollingToContentEdge to true earlier.
+    // We can cache ScrollableArea::m_constrainsScrollingToContentEdge and always set it to false before we set scroll position in
+    // WebKit thread to avoid scroll position clamping during scrolling, and restore it to what it was after that.
+    bool constrainsScrollingToContentEdge = d->m_mainFrame->view()->constrainsScrollingToContentEdge();
+    d->m_mainFrame->view()->setConstrainsScrollingToContentEdge(false);
     d->setScrollPosition(d->mapFromTransformed(point));
-    d->m_mainFrame->view()->setCanOverscroll(false);
+    d->m_mainFrame->view()->setConstrainsScrollingToContentEdge(constrainsScrollingToContentEdge);
+
     d->m_backingStoreClient->setIsClientGeneratedScroll(false);
 }
 
@@ -1280,7 +1353,7 @@ bool WebPagePrivate::shouldSendResizeEvent()
     //            NOTE: Care must be exercised in the use of this option, as it bypasses
     //                  the sanity provided in 'isLoadingInAPISense()' below.
     //
-    static const bool unrestrictedResizeEvents = Platform::Settings::get()->unrestrictedResizeEvents();
+    static const bool unrestrictedResizeEvents = Platform::Settings::instance()->unrestrictedResizeEvents();
     if (unrestrictedResizeEvents)
         return true;
 
@@ -1443,6 +1516,19 @@ void WebPagePrivate::updateViewportSize(bool setFixedReportedSize, bool sendResi
     if (frameRect != m_mainFrame->view()->frameRect()) {
         m_mainFrame->view()->setFrameRect(frameRect);
         m_mainFrame->view()->adjustViewSize();
+
+#if ENABLE(FULLSCREEN_API)
+        // If we are in fullscreen video mode, and we change the FrameView::viewportRect,
+        // we need to adjust the media container to the new size.
+        if (m_fullscreenVideoNode) {
+            Document* document = m_fullscreenVideoNode->document();
+            ASSERT(document);
+            ASSERT(document->fullScreenRenderer());
+
+            int width = m_mainFrame->view()->visibleContentRect().size().width();
+            document->fullScreenRenderer()->style()->setWidth(Length(width, Fixed));
+        }
+#endif
     }
 
     // We're going to need to send a resize event to JavaScript because
@@ -1529,7 +1615,7 @@ void WebPagePrivate::layoutFinished()
 
     m_nestedLayoutFinishedCount++;
 
-    if (loadState() == Committed)
+    if (shouldZoomToInitialScaleOnLoad())
         zoomToInitialScaleOnLoad();
     else if (loadState() != None)
         notifyTransformedContentsSizeChanged();
@@ -1564,6 +1650,19 @@ void WebPagePrivate::layoutFinished()
             }
         }
     }
+}
+
+bool WebPagePrivate::shouldZoomToInitialScaleOnLoad() const
+{
+    // For FrameLoadTypeSame or FrameLoadTypeStandard load, the layout timer can be fired which can call dispatchDidFirstVisuallyNonEmptyLayout()
+    // after the load Finished state, in which case the web page will have no chance to zoom to initial scale. So we should give it a chance,
+    // otherwise the scale of the web page can be incorrect.
+    FrameLoadType frameLoadType = FrameLoadTypeStandard;
+    if (m_mainFrame && m_mainFrame->loader())
+        frameLoadType = m_mainFrame->loader()->loadType();
+    if (m_loadState == Committed || (m_loadState == Finished && (frameLoadType == FrameLoadTypeSame || frameLoadType == FrameLoadTypeStandard)))
+        return true;
+    return false;
 }
 
 void WebPagePrivate::zoomToInitialScaleOnLoad()
@@ -1603,7 +1702,7 @@ void WebPagePrivate::zoomToInitialScaleOnLoad()
     if (m_mainFrame && m_mainFrame->loader() && m_mainFrame->loader()->shouldRestoreScrollPositionAndViewState())
         shouldZoom = false;
 
-    if (shouldZoom && loadState() == Committed) {
+    if (shouldZoom && shouldZoomToInitialScaleOnLoad()) {
         // Preserve at top and at left position, to avoid scrolling
         // to a non top-left position for web page with viewport meta tag
         // that specifies an initial-scale that is zoomed in.
@@ -1628,31 +1727,13 @@ void WebPagePrivate::zoomToInitialScaleOnLoad()
 
 double WebPagePrivate::zoomToFitScale() const
 {
-    // We must clamp the contents for this calculation so that we do not allow an
-    // arbitrarily small zoomToFitScale much like we clamp the fixedLayoutSize()
-    // so that we do not have arbitrarily large layout size.
-    // If we have a specified viewport, we may need to be able to zoom out more.
-    int contentWidth = std::min(contentsSize().width(), std::max(m_virtualViewportWidth, static_cast<int>(defaultMaxLayoutSize().width())));
+    int contentWidth = contentsSize().width();
+    int contentHeight = contentsSize().height();
+    double zoomToFitScale = contentWidth > 0.0 ? static_cast<double>(m_actualVisibleWidth) / contentWidth : 1.0;
+    if (contentHeight * zoomToFitScale < static_cast<double>(m_defaultLayoutSize.height()))
+        zoomToFitScale = contentHeight > 0 ? static_cast<double>(m_defaultLayoutSize.height()) / contentHeight : 1.0;
 
-    // defaultMaxLayoutSize().width() is a safeguard for excessively large page layouts that
-    // is too restrictive for image documents. In this case, the document width is sufficient.
-    Document* doc = m_page->mainFrame()->document();
-    if (doc && doc->isImageDocument())
-       contentWidth = contentsSize().width();
-
-    // If we have a virtual viewport and its aspect ratio caused content to layout
-    // wider than the default layout aspect ratio we need to zoom to fit the content height
-    // in order to avoid showing a grey area below the web page.
-    // Without virtual viewport we can never get into this situation.
-    if (hasVirtualViewport()) {
-        int contentHeight = std::min(contentsSize().height(), std::max(m_virtualViewportHeight, static_cast<int>(defaultMaxLayoutSize().height())));
-
-        // Aspect ratio check without division.
-        if (contentWidth * m_defaultLayoutSize.height() > contentHeight * m_defaultLayoutSize.width())
-            return contentHeight > 0 ? static_cast<double>(m_defaultLayoutSize.height()) / contentHeight : 1.0;
-    }
-
-    return contentWidth > 0.0 ? static_cast<double>(m_actualVisibleWidth) / contentWidth : 1.0;
+    return std::max(zoomToFitScale, minimumZoomToFitScale);
 }
 
 double WebPage::zoomToFitScale() const
@@ -2144,13 +2225,13 @@ bool WebPagePrivate::authenticationChallenge(const KURL& url, const ProtectionSp
     WebString username;
     WebString password;
 
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_dumpRenderTree)
         return m_dumpRenderTree->didReceiveAuthenticationChallenge(inputCredential);
 #endif
 
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
-    if (!m_webSettings->isPrivateBrowsingEnabled())
+    if (m_webSettings->isCredentialAutofillEnabled() && !m_webSettings->isPrivateBrowsingEnabled())
         credentialManager().autofillAuthenticationChallenge(protectionSpace, username, password);
 #endif
 
@@ -2158,7 +2239,7 @@ bool WebPagePrivate::authenticationChallenge(const KURL& url, const ProtectionSp
 
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
     Credential credential(username, password, CredentialPersistencePermanent);
-    if (!m_webSettings->isPrivateBrowsingEnabled() && isConfirmed)
+    if (m_webSettings->isCredentialAutofillEnabled() && !m_webSettings->isPrivateBrowsingEnabled() && isConfirmed)
         credentialManager().saveCredentialIfConfirmed(this, CredentialTransformData(url, protectionSpace, credential));
 #else
     Credential credential(username, password, CredentialPersistenceNone);
@@ -2178,6 +2259,11 @@ void WebPagePrivate::notifyPopupAutofillDialog(const Vector<String>& candidates,
     for (size_t i = 0; i < candidates.size(); i++)
         textItems.push_back(candidates[i].utf8().data());
     m_client->notifyPopupAutofillDialog(textItems, screenRect);
+}
+
+void WebPagePrivate::notifyDismissAutofillDialog()
+{
+    m_client->notifyDismissAutofillDialog();
 }
 
 bool WebPagePrivate::useFixedLayout() const
@@ -2259,7 +2345,7 @@ Platform::WebContext WebPagePrivate::webContext(TargetDetectionStrategy strategy
     }
 
     if (node->isTextNode()) {
-        Text* curText = static_cast<Text*>(node.get());
+        Text* curText = toText(node.get());
         if (!curText->wholeText().isEmpty())
             context.setText(curText->wholeText().utf8().data());
     }
@@ -2437,7 +2523,7 @@ typedef bool (*PredicateFunction)(RenderLayer*);
 static bool isPositionedContainer(RenderLayer* layer)
 {
     RenderObject* o = layer->renderer();
-    return o->isRenderView() || o->isPositioned() || o->isRelPositioned() || layer->hasTransform();
+    return o->isRenderView() || o->isOutOfFlowPositioned() || o->isRelPositioned() || layer->hasTransform();
 }
 
 static bool isNonRenderViewFixedPositionedContainer(RenderLayer* layer)
@@ -2446,13 +2532,13 @@ static bool isNonRenderViewFixedPositionedContainer(RenderLayer* layer)
     if (o->isRenderView())
         return false;
 
-    return o->isPositioned() && o->style()->position() == FixedPosition;
+    return o->isOutOfFlowPositioned() && o->style()->position() == FixedPosition;
 }
 
 static bool isFixedPositionedContainer(RenderLayer* layer)
 {
     RenderObject* o = layer->renderer();
-    return o->isRenderView() || (o->isPositioned() && o->style()->position() == FixedPosition);
+    return o->isRenderView() || (o->isOutOfFlowPositioned() && o->style()->position() == FixedPosition);
 }
 
 static RenderLayer* findAncestorOrSelfNotMatching(PredicateFunction predicate, RenderLayer* layer)
@@ -3217,6 +3303,8 @@ void WebPagePrivate::updateDelegatedOverlays(bool dispatched)
         // Must be called on the WebKit thread.
         if (m_selectionHandler->isSelectionActive())
             m_selectionHandler->selectionPositionChanged(true /* visualChangeOnly */);
+        if (m_inspectorOverlay)
+            m_inspectorOverlay->update();
 
     } else if (m_selectionHandler->isSelectionActive()) {
         // Don't bother dispatching to webkit thread if selection and tap highlight are not active.
@@ -3358,23 +3446,15 @@ void WebPage::resetVirtualViewportOnCommitted(bool reset)
 IntSize WebPagePrivate::recomputeVirtualViewportFromViewportArguments()
 {
     static const ViewportArguments defaultViewportArguments;
-    if (m_viewportArguments == defaultViewportArguments)
+    if (m_viewportArguments == defaultViewportArguments) {
+        m_page->setDeviceScaleFactor(1.0);
         return IntSize();
+    }
 
     int desktopWidth = defaultMaxLayoutSize().width();
     int deviceWidth = Platform::Graphics::Screen::primaryScreen()->width();
     int deviceHeight = Platform::Graphics::Screen::primaryScreen()->height();
-    FloatSize currentPPI = Platform::Graphics::Screen::primaryScreen()->pixelsPerInch(-1);
-    int deviceDPI = int(roundf((currentPPI.width() + currentPPI.height()) / 2));
-    if (m_viewportArguments.targetDensityDpi == ViewportArguments::ValueAuto
-        && !Platform::DeviceInfo::instance()->isMobile()) {
-        // If the content provider hasn't specified a target dpi and we have a large
-        // screen we assume the content is fine and set the targetDensityDpi to our dpi.
-        // On smaller screen mobile devices we skip this and use WebCore dpi scaling.
-        m_viewportArguments.targetDensityDpi = deviceDPI;
-    }
-
-    ViewportAttributes result = computeViewportAttributes(m_viewportArguments, desktopWidth, deviceWidth, deviceHeight, deviceDPI, m_defaultLayoutSize);
+    ViewportAttributes result = computeViewportAttributes(m_viewportArguments, desktopWidth, deviceWidth, deviceHeight, m_webSettings->devicePixelRatio(), m_defaultLayoutSize);
     m_page->setDeviceScaleFactor(result.devicePixelRatio);
     return IntSize(result.layoutSize.width(), result.layoutSize.height());
 }
@@ -3397,11 +3477,15 @@ void WebPagePrivate::didReceiveTouchEventMode(TouchEventMode mode)
 
 void WebPagePrivate::dispatchViewportPropertiesDidChange(const ViewportArguments& arguments)
 {
-    static ViewportArguments defaultViewportArguments;
-    if (arguments == defaultViewportArguments)
+    if (arguments == m_viewportArguments)
         return;
 
-    m_viewportArguments = arguments;
+    // If the caller is trying to reset to default arguments, use the user supplied ones instead.
+    static const ViewportArguments defaultViewportArguments;
+    if (arguments == defaultViewportArguments)
+        m_viewportArguments = m_userViewportArguments;
+    else
+        m_viewportArguments = arguments;
 
     // 0 width or height in viewport arguments makes no sense, and results in a very large initial scale.
     // In real world, a 0 width or height is usually caused by a syntax error in "content" field of viewport
@@ -3482,6 +3566,8 @@ void WebPagePrivate::resumeBackingStore()
         directRendering = m_backingStore->d->shouldDirectRenderingToWindow();
         if (m_backingStore->d->renderVisibleContents() && !m_backingStore->d->isSuspended() && !directRendering)
             m_backingStore->d->blitVisibleContents();
+
+        m_client->notifyContentRendered(m_backingStore->d->visibleContentsRect());
     } else {
         if (m_backingStore->d->isOpenGLCompositing())
            setCompositorDrawsRootLayer(false);
@@ -3515,6 +3601,12 @@ void WebPagePrivate::setScreenOrientation(int orientation)
 void WebPage::setScreenOrientation(int orientation)
 {
     d->m_pendingOrientation = orientation;
+    d->m_hasPendingSurfaceSizeChange = true;
+}
+
+void WebPage::setHasPendingSurfaceSizeChange()
+{
+    d->m_hasPendingSurfaceSizeChange = true;
 }
 
 void WebPage::applyPendingOrientationIfNeeded()
@@ -3523,7 +3615,7 @@ void WebPage::applyPendingOrientationIfNeeded()
         d->setScreenOrientation(d->m_pendingOrientation);
 }
 
-void WebPagePrivate::screenRotated()
+void WebPagePrivate::resizeSurfaceIfNeeded()
 {
     // This call will cause the client to reallocate the window buffer to new size,
     // which needs to be serialized with usage of the window buffer. Accomplish
@@ -3531,17 +3623,19 @@ void WebPagePrivate::screenRotated()
     // the window buffer happens on the compositing thread.
     if (!Platform::userInterfaceThreadMessageClient()->isCurrentThread()) {
         Platform::userInterfaceThreadMessageClient()->dispatchSyncMessage(
-            Platform::createMethodCallMessage(&WebPagePrivate::screenRotated, this));
+            Platform::createMethodCallMessage(&WebPagePrivate::resizeSurfaceIfNeeded, this));
         return;
     }
 
-    SurfacePool::globalSurfacePool()->notifyScreenRotated();
-    m_client->notifyScreenRotated();
+    if (m_pendingOrientation != -1)
+        SurfacePool::globalSurfacePool()->notifyScreenRotated();
+
+    m_client->resizeSurfaceIfNeeded();
 }
 
 void WebPagePrivate::setViewportSize(const IntSize& transformedActualVisibleSize, bool ensureFocusElementVisible)
 {
-    if (m_pendingOrientation == -1 && transformedActualVisibleSize == this->transformedActualVisibleSize())
+    if (m_pendingOrientation == -1 && !m_hasPendingSurfaceSizeChange && transformedActualVisibleSize == this->transformedActualVisibleSize())
         return;
 
     // Suspend all screen updates to the backingstore to make sure no-one tries to blit
@@ -3555,11 +3649,13 @@ void WebPagePrivate::setViewportSize(const IntSize& transformedActualVisibleSize
         setShouldResetTilesWhenShown(true);
 
     bool needsLayout = false;
-
     bool hasPendingOrientation = m_pendingOrientation != -1;
-    if (hasPendingOrientation)
-        screenRotated();
-    else {
+
+    if (m_hasPendingSurfaceSizeChange) {
+        resizeSurfaceIfNeeded();
+        m_hasPendingSurfaceSizeChange = false;
+    }
+    if (!hasPendingOrientation) {
         // If we are not rotating and we've started a viewport resize with
         // the Render tree in dirty state (i.e. it needs layout), lets
         // reset the needsLayout flag for now but set our own 'needsLayout'.
@@ -3599,7 +3695,7 @@ void WebPagePrivate::setViewportSize(const IntSize& transformedActualVisibleSize
 
     // Recompute our virtual viewport.
     static ViewportArguments defaultViewportArguments;
-    if (!(m_viewportArguments == defaultViewportArguments)) {
+    if (m_viewportArguments != defaultViewportArguments) {
         // We may need to infer the width and height for the viewport with respect to the rotation.
         IntSize newVirtualViewport = recomputeVirtualViewportFromViewportArguments();
         ASSERT(!newVirtualViewport.isEmpty());
@@ -3884,9 +3980,6 @@ bool WebPagePrivate::handleMouseEvent(PlatformMouseEvent& mouseEvent)
     if (mouseEvent.type() == WebCore::PlatformEvent::MouseScroll)
         return true;
 
-    if (m_parentPopup)
-        m_parentPopup->handleMouseEvent(mouseEvent);
-
     Node* node = 0;
     if (mouseEvent.inputMethod() == TouchScreen) {
         const FatFingersResult lastFatFingersResult = m_touchEventHandler->lastFatFingersResult();
@@ -3901,7 +3994,7 @@ bool WebPagePrivate::handleMouseEvent(PlatformMouseEvent& mouseEvent)
     }
 
     if (mouseEvent.type() == WebCore::PlatformEvent::MousePressed) {
-        m_inputHandler->enableInputMode();
+        m_inputHandler->setInputModeEnabled();
         if (m_inputHandler->willOpenPopupForNode(node)) {
             // Do not allow any human generated mouse or keyboard events to select <option>s in the list box
             // because we use a pop up dialog to handle the actual selections. This prevents options from
@@ -4099,7 +4192,7 @@ bool WebPagePrivate::dispatchTouchEventToFullScreenPlugin(PluginView* plugin, co
     return handled;
 }
 
-bool WebPage::touchPointAsMouseEvent(const Platform::TouchPoint& point)
+bool WebPage::touchPointAsMouseEvent(const Platform::TouchPoint& point, bool useFatFingers)
 {
     if (d->m_page->defersLoading())
         return false;
@@ -4114,7 +4207,7 @@ bool WebPage::touchPointAsMouseEvent(const Platform::TouchPoint& point)
     tPoint.m_pos = d->mapFromTransformed(tPoint.m_pos);
     tPoint.m_screenPos = d->mapFromTransformed(tPoint.m_screenPos);
 
-    return d->m_touchEventHandler->handleTouchPoint(tPoint);
+    return d->m_touchEventHandler->handleTouchPoint(tPoint, useFatFingers);
 }
 
 bool WebPagePrivate::dispatchTouchPointAsMouseEventToFullScreenPlugin(PluginView* pluginView, const Platform::TouchPoint& point)
@@ -4302,7 +4395,7 @@ bool WebPagePrivate::scrollRenderer(RenderObject* renderer, const IntSize& delta
         if (!layerDelta.isZero()) {
             m_inRegionScrollStartingNode = enclosingLayerNode(layer);
             IntPoint newOffset = currentOffset + layerDelta;
-            layer->scrollToOffset(newOffset.x(), newOffset.y());
+            layer->scrollToOffset(toSize(newOffset));
             renderer->repaint(true);
             return true;
         }
@@ -4440,6 +4533,11 @@ int32_t WebPage::commitText(spannable_string_t* spannableString, int32_t relativ
 void WebPage::setSpellCheckingEnabled(bool enabled)
 {
     static_cast<EditorClientBlackBerry*>(d->m_page->editorClient())->enableSpellChecking(enabled);
+}
+
+void WebPage::spellCheckingRequestProcessed(int32_t id, spannable_string_t* spannableString)
+{
+    d->m_inputHandler->spellCheckingRequestProcessed(id, spannableString);
 }
 
 class DeferredTaskSelectionCancelled: public DeferredTask<&WebPagePrivate::m_wouldCancelSelection> {
@@ -4626,23 +4724,23 @@ static Node* enclosingLayerNode(RenderLayer* layer)
     return 0;
 }
 
-static void pushBackInRegionScrollable(std::vector<Platform::ScrollViewBase>& vector, InRegionScrollableArea scroller, WebPagePrivate* webPage)
+static void pushBackInRegionScrollable(std::vector<Platform::ScrollViewBase*>& vector, InRegionScrollableArea* scroller, WebPagePrivate* webPage)
 {
     ASSERT(webPage);
     ASSERT(!scroller.isNull());
 
-    scroller.setCanPropagateScrollingToEnclosingScrollable(!isNonRenderViewFixedPositionedContainer(scroller.layer()));
+    scroller->setCanPropagateScrollingToEnclosingScrollable(!isNonRenderViewFixedPositionedContainer(scroller->layer()));
     vector.push_back(scroller);
     if (vector.size() == 1) {
         // FIXME: Use RenderLayer::renderBox()->node() instead?
-        webPage->m_inRegionScrollStartingNode = enclosingLayerNode(scroller.layer());
+        webPage->m_inRegionScrollStartingNode = enclosingLayerNode(scroller->layer());
     }
 }
 
-std::vector<Platform::ScrollViewBase> WebPagePrivate::inRegionScrollableAreasForPoint(const Platform::IntPoint& point)
+std::vector<Platform::ScrollViewBase*> WebPagePrivate::inRegionScrollableAreasForPoint(const Platform::IntPoint& point)
 {
-    std::vector<Platform::ScrollViewBase> validReturn;
-    std::vector<Platform::ScrollViewBase> emptyReturn;
+    std::vector<Platform::ScrollViewBase*> validReturn;
+    std::vector<Platform::ScrollViewBase*> emptyReturn;
 
     HitTestResult result = m_mainFrame->eventHandler()->hitTestResultAtPoint(mapFromViewportToContents(point), false /*allowShadowContent*/);
     Node* node = result.innerNonSharedNode();
@@ -4665,25 +4763,62 @@ std::vector<Platform::ScrollViewBase> WebPagePrivate::inRegionScrollableAreasFor
                     return emptyReturn;
 
                 if (canScrollInnerFrame(view->frame())) {
-                    pushBackInRegionScrollable(validReturn, InRegionScrollableArea(this, layer), this);
+                    pushBackInRegionScrollable(validReturn, new InRegionScrollableArea(this, layer), this);
                     continue;
                 }
             }
         } else if (canScrollRenderBox(layer->renderBox())) {
-            pushBackInRegionScrollable(validReturn, InRegionScrollableArea(this, layer), this);
+            pushBackInRegionScrollable(validReturn, new InRegionScrollableArea(this, layer), this);
             continue;
         }
 
         // If we run into a fix positioned layer, set the last scrollable in-region object
         // as not able to propagate scroll to its parent scrollable.
         if (isNonRenderViewFixedPositionedContainer(layer) && validReturn.size()) {
-            Platform::ScrollViewBase& end = validReturn.back();
-            end.setCanPropagateScrollingToEnclosingScrollable(false);
+            Platform::ScrollViewBase* end = validReturn.back();
+            end->setCanPropagateScrollingToEnclosingScrollable(false);
         }
 
     } while (layer = parentLayer(layer));
+
     if (validReturn.empty())
         return emptyReturn;
+
+    // Post-calculate the visible window rects in reverse hit test order so
+    // we account for all and any clipping rects.
+    WebCore::IntRect recursiveClippingRect(WebCore::IntPoint::zero(), transformedViewportSize());
+
+    std::vector<Platform::ScrollViewBase*>::reverse_iterator rend = validReturn.rend();
+    for (std::vector<Platform::ScrollViewBase*>::reverse_iterator rit = validReturn.rbegin(); rit != rend; ++rit) {
+
+        InRegionScrollableArea* curr = static_cast<InRegionScrollableArea*>(*rit);
+        RenderLayer* layer = curr->layer();
+
+        if (layer && layer->renderer()->isRenderView()) { // #document case
+            FrameView* view = toRenderView(layer->renderer())->frameView();
+            ASSERT(view);
+            ASSERT(canScrollInnerFrame(view->frame()));
+
+            WebCore::IntRect frameWindowRect = mapToTransformed(getRecursiveVisibleWindowRect(view));
+            frameWindowRect.intersect(recursiveClippingRect);
+            curr->setVisibleWindowRect(frameWindowRect);
+            recursiveClippingRect = frameWindowRect;
+
+        } else { // RenderBox-based elements case (scrollable boxes (div's, p's, textarea's, etc)).
+
+            RenderBox* box = layer->renderBox();
+            ASSERT(box);
+            ASSERT(canScrollRenderBox(box));
+
+            WebCore::IntRect visibleWindowRect = box->absoluteClippedOverflowRect();
+            visibleWindowRect = box->frame()->view()->contentsToWindow(visibleWindowRect);
+            visibleWindowRect = mapToTransformed(visibleWindowRect);
+            visibleWindowRect.intersect(recursiveClippingRect);
+
+            curr->setVisibleWindowRect(visibleWindowRect);
+            recursiveClippingRect = visibleWindowRect;
+        }
+    }
 
     return validReturn;
 }
@@ -5032,7 +5167,7 @@ bool WebPage::findNextString(const char* text, bool forward, bool caseSensitive,
 
 void WebPage::runLayoutTests()
 {
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     // FIXME: do we need API to toggle this?
     d->m_page->settings()->setDeveloperExtrasEnabled(true);
 
@@ -5223,6 +5358,7 @@ void WebPage::clearBrowsingData()
 void WebPage::clearHistory()
 {
     // Don't clear the back-forward list as we might like to keep it.
+    PageGroup::removeAllVisitedLinks();
 }
 
 void WebPage::clearCookies()
@@ -5241,19 +5377,22 @@ void WebPage::clearLocalStorage()
 void WebPage::clearCredentials()
 {
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
-    credentialManager().clearCredentials();
+    if (d->m_webSettings->isCredentialAutofillEnabled())
+        credentialManager().clearCredentials();
 #endif
 }
 
 void WebPage::clearAutofillData()
 {
-    AutofillManager::clear();
+    if (d->m_webSettings->isFormAutofillEnabled())
+        AutofillManager::clear();
 }
 
 void WebPage::clearNeverRememberSites()
 {
 #if ENABLE(BLACKBERRY_CREDENTIAL_PERSIST)
-    credentialManager().clearNeverRememberSites();
+    if (d->m_webSettings->isCredentialAutofillEnabled())
+        credentialManager().clearNeverRememberSites();
 #endif
 }
 
@@ -5464,8 +5603,10 @@ void WebPage::notifyAppActivationStateChange(ActivationStateType activationState
 
 void WebPage::notifySwipeEvent()
 {
-    FOR_EACH_PLUGINVIEW(d->m_pluginViews)
-       (*it)->handleSwipeEvent();
+    if (d->m_fullScreenPluginView.get())
+       d->m_fullScreenPluginView->handleSwipeEvent();
+    else
+       notifyFullScreenVideoExited(true);
 }
 
 void WebPage::notifyScreenPowerStateChanged(bool powered)
@@ -5478,8 +5619,15 @@ void WebPage::notifyFullScreenVideoExited(bool done)
 {
     UNUSED_PARAM(done);
 #if ENABLE(VIDEO)
-    if (HTMLMediaElement* mediaElement = static_cast<HTMLMediaElement*>(d->m_fullscreenVideoNode.get()))
-        mediaElement->exitFullscreen();
+    if (d->m_webSettings->fullScreenVideoCapable()) {
+        if (HTMLMediaElement* mediaElement = static_cast<HTMLMediaElement*>(d->m_fullscreenVideoNode.get()))
+            mediaElement->exitFullscreen();
+    } else {
+#if ENABLE(FULLSCREEN_API)
+        if (Element* element = static_cast<Element*>(d->m_fullscreenVideoNode.get()))
+            element->document()->webkitCancelFullScreen();
+#endif
+    }
 #endif
 }
 
@@ -5653,24 +5801,42 @@ GraphicsLayer* WebPagePrivate::overlayLayer()
     return m_overlayLayer.get();
 }
 
-void WebPagePrivate::setCompositor(PassRefPtr<WebPageCompositorPrivate> compositor)
+void WebPagePrivate::setCompositor(PassRefPtr<WebPageCompositorPrivate> compositor, EGLContext compositingContext)
 {
     using namespace BlackBerry::Platform;
 
     // The m_compositor member has to be modified during a sync call for thread
     // safe access to m_compositor and its refcount.
     if (!userInterfaceThreadMessageClient()->isCurrentThread()) {
-        userInterfaceThreadMessageClient()->dispatchSyncMessage(createMethodCallMessage(&WebPagePrivate::setCompositor, this, compositor));
+        // We depend on the current thread being the WebKit thread when it's not the Compositing thread.
+        // That seems extremely likely to be the case, but let's assert just to make sure.
+        ASSERT(webKitThreadMessageClient()->isCurrentThread());
+
+        // This method call always round-trips on the WebKit thread (see WebPageCompositor::WebPageCompositor() and ~WebPageCompositor()),
+        // and the compositing context must be set on the WebKit thread. How convenient!
+        if (compositingContext != EGL_NO_CONTEXT)
+            BlackBerry::Platform::Graphics::setCompositingContext(compositingContext);
+
+        userInterfaceThreadMessageClient()->dispatchSyncMessage(createMethodCallMessage(&WebPagePrivate::setCompositor, this, compositor, compositingContext));
         return;
     }
 
     m_compositor = compositor;
-    if (m_compositor)
+    if (m_compositor) {
         m_compositor->setPage(this);
+
+        m_compositor->setBackgroundColor(m_webSettings->backgroundColor());
+    }
 
     // The previous compositor, if any, has now released it's OpenGL resources,
     // so we can safely free the owned context, if any.
     m_ownedContext.clear();
+}
+
+void WebPagePrivate::setCompositorBackgroundColor(const Color& backgroundColor)
+{
+    if (m_compositor)
+        m_compositor->setBackgroundColor(backgroundColor);
 }
 
 void WebPagePrivate::commitRootLayer(const IntRect& layoutRectForCompositing,
@@ -5758,6 +5924,7 @@ bool WebPagePrivate::commitRootLayerIfNeeded()
     double scale = currentScale();
     if (m_frameLayers && m_frameLayers->hasLayer())
         m_frameLayers->commitOnWebKitThread(scale);
+
     updateDelegatedOverlays();
     if (m_overlayLayer)
         m_overlayLayer->platformLayer()->commitOnWebKitThread(scale);
@@ -5905,6 +6072,10 @@ bool WebPagePrivate::createCompositor()
     m_compositor = WebPageCompositorPrivate::create(this, 0);
     m_compositor->setContext(m_ownedContext.get());
 
+    // The compositor is created in a sync message, so there's no risk of race condition on the
+    // WebSettings.
+    m_compositor->setBackgroundColor(m_webSettings->backgroundColor());
+
     return true;
 }
 
@@ -6032,6 +6203,100 @@ void WebPagePrivate::exitFullscreenForNode(Node* node)
 #endif
 }
 
+#if ENABLE(FULLSCREEN_API)
+// TODO: We should remove this helper class when we decide to support all elements.
+static bool containsVideoTags(Element* element)
+{
+    for (Node* node = element->firstChild(); node; node = node->traverseNextNode(element)) {
+        if (node->hasTagName(HTMLNames::videoTag))
+            return true;
+    }
+    return false;
+}
+
+void WebPagePrivate::enterFullScreenForElement(Element* element)
+{
+#if ENABLE(VIDEO)
+    // TODO: We should not check video tag when we decide to support all elements.
+    if (!element || (!element->hasTagName(HTMLNames::videoTag) && !containsVideoTags(element)))
+        return;
+    if (m_webSettings->fullScreenVideoCapable()) {
+        // The Browser chrome has its own fullscreen video widget it wants to
+        // use, and this is a video element. The only reason that
+        // webkitWillEnterFullScreenForElement() and
+        // webkitDidEnterFullScreenForElement() are still called in this case
+        // is so that exitFullScreenForElement() gets called later.
+        enterFullscreenForNode(element);
+    } else {
+        // When an element goes fullscreen, it gets cloned and added to a higher index
+        // wrapper/container node, created out of the DOM tree. This wrapper is fixed
+        // position, but since our fixed position logic respects only the 'y' coordinate,
+        // we temporarily scroll the WebPage to x:0 so that the wrapper gets properly
+        // positioned. The original scroll position is restored once element leaves fullscreen.
+        WebCore::IntPoint scrollPosition = m_mainFrame->view()->scrollPosition();
+        m_xScrollOffsetBeforeFullScreen = scrollPosition.x();
+        m_mainFrame->view()->setScrollPosition(WebCore::IntPoint(0, scrollPosition.y()));
+
+#if ENABLE(EVENT_MODE_METATAGS)
+        m_touchEventModePriorGoingFullScreen = m_touchEventMode;
+        didReceiveTouchEventMode(PureTouchEventsWithMouseConversion);
+#endif
+        // The current scale can be clamped to a greater minimum scale when we relayout contents during
+        // the change of the viewport size. Cache the current scale so that we can restore it when
+        // leaving fullscreen. Otherwise, it is possible that we will use the wrong scale.
+        m_scaleBeforeFullScreen = currentScale();
+
+        // No fullscreen video widget has been made available by the Browser
+        // chrome, or this is not a video element. The webkitRequestFullScreen
+        // Javascript call is often made on a div element.
+        // This is where we would hide the browser's chrome if we wanted to.
+        client()->fullscreenStart();
+        m_fullscreenVideoNode = element;
+    }
+#endif
+}
+
+void WebPagePrivate::exitFullScreenForElement(Element* element)
+{
+#if ENABLE(VIDEO)
+    // TODO: We should not check video tag when we decide to support all elements.
+    if (!element || !element->hasTagName(HTMLNames::videoTag))
+        return;
+    if (m_webSettings->fullScreenVideoCapable()) {
+        // The Browser chrome has its own fullscreen video widget.
+        exitFullscreenForNode(element);
+    } else {
+        // When leaving fullscreen mode, we need to restore the 'x' scroll position
+        // before fullscreen.
+        // FIXME: We may need to respect 'y' position as well, because the web page always scrolls to
+        // the top when leaving fullscreen mode.
+        WebCore::IntPoint scrollPosition = m_mainFrame->view()->scrollPosition();
+        m_mainFrame->view()->setScrollPosition(
+            WebCore::IntPoint(m_xScrollOffsetBeforeFullScreen, scrollPosition.y()));
+        m_xScrollOffsetBeforeFullScreen = -1;
+
+#if ENABLE(EVENT_MODE_METATAGS)
+        didReceiveTouchEventMode(m_touchEventModePriorGoingFullScreen);
+        m_touchEventModePriorGoingFullScreen = ProcessedTouchEvents;
+#endif
+        if (m_scaleBeforeFullScreen > 0) {
+            // Restore the scale when leaving fullscreen. We can't use TransformationMatrix::scale(double) here, as it
+            // will multiply the scale rather than set the scale.
+            // FIXME: We can refactor this into setCurrentScale(double) if it is useful in the future.
+            m_transformationMatrix->setM11(m_scaleBeforeFullScreen);
+            m_transformationMatrix->setM22(m_scaleBeforeFullScreen);
+            m_scaleBeforeFullScreen = -1.0;
+        }
+
+        // This is where we would restore the browser's chrome
+        // if hidden above.
+        client()->fullscreenStop();
+        m_fullscreenVideoNode = 0;
+    }
+#endif
+}
+#endif
+
 void WebPagePrivate::didChangeSettings(WebSettings* webSettings)
 {
     Settings* coreSettings = m_page->settings();
@@ -6041,13 +6306,18 @@ void WebPagePrivate::didChangeSettings(WebSettings* webSettings)
     coreSettings->setShouldDrawBorderWhileLoadingImages(webSettings->shouldDrawBorderWhileLoadingImages());
     coreSettings->setScriptEnabled(webSettings->isJavaScriptEnabled());
     coreSettings->setPrivateBrowsingEnabled(webSettings->isPrivateBrowsingEnabled());
+    coreSettings->setDeviceSupportsMouse(webSettings->deviceSupportsMouse());
     coreSettings->setDefaultFixedFontSize(webSettings->defaultFixedFontSize());
     coreSettings->setDefaultFontSize(webSettings->defaultFontSize());
     coreSettings->setMinimumLogicalFontSize(webSettings->minimumFontSize());
-    coreSettings->setSerifFontFamily(webSettings->serifFontFamily().impl());
-    coreSettings->setFixedFontFamily(webSettings->fixedFontFamily().impl());
-    coreSettings->setSansSerifFontFamily(webSettings->sansSerifFontFamily().impl());
-    coreSettings->setStandardFontFamily(webSettings->standardFontFamily().impl());
+    if (!webSettings->serifFontFamily().isEmpty())
+        coreSettings->setSerifFontFamily(webSettings->serifFontFamily().impl());
+    if (!webSettings->fixedFontFamily().isEmpty())
+        coreSettings->setFixedFontFamily(webSettings->fixedFontFamily().impl());
+    if (!webSettings->sansSerifFontFamily().isEmpty())
+        coreSettings->setSansSerifFontFamily(webSettings->sansSerifFontFamily().impl());
+    if (!webSettings->standardFontFamily().isEmpty())
+        coreSettings->setStandardFontFamily(webSettings->standardFontFamily().impl());
     coreSettings->setJavaScriptCanOpenWindowsAutomatically(webSettings->canJavaScriptOpenWindowsAutomatically());
     coreSettings->setAllowScriptsToCloseWindows(webSettings->canJavaScriptOpenWindowsAutomatically()); // Why are we using the same value as setJavaScriptCanOpenWindowsAutomatically()?
     coreSettings->setPluginsEnabled(webSettings->arePluginsEnabled());
@@ -6089,9 +6359,15 @@ void WebPagePrivate::didChangeSettings(WebSettings* webSettings)
     coreSettings->setOfflineWebApplicationCacheEnabled(webSettings->isAppCacheEnabled());
 
     m_page->group().groupSettings()->setLocalStorageQuotaBytes(webSettings->localStorageQuota());
+    coreSettings->setSessionStorageQuota(webSettings->sessionStorageQuota());
     coreSettings->setUsesPageCache(webSettings->maximumPagesInCache());
     coreSettings->setFrameFlatteningEnabled(webSettings->isFrameFlatteningEnabled());
 #endif
+
+#if ENABLE(INDEXED_DATABASE)
+    m_page->group().groupSettings()->setIndexedDBDatabasePath(webSettings->indexedDataBasePath());
+#endif
+
 
 #if ENABLE(WEB_SOCKETS)
     WebSocket::setIsAvailable(webSettings->areWebSocketsEnabled());
@@ -6112,6 +6388,7 @@ void WebPagePrivate::didChangeSettings(WebSettings* webSettings)
     coreSettings->setProcessHTTPEquiv(!webSettings->isEmailMode());
 
     coreSettings->setShouldUseCrossOriginProtocolCheck(!webSettings->allowCrossSiteRequests());
+    coreSettings->setWebSecurityEnabled(!webSettings->allowCrossSiteRequests());
 
     cookieManager().setPrivateMode(webSettings->isPrivateBrowsingEnabled());
 
@@ -6120,6 +6397,9 @@ void WebPagePrivate::didChangeSettings(WebSettings* webSettings)
     if (m_mainFrame && m_mainFrame->view()) {
         Color backgroundColor(webSettings->backgroundColor());
         m_mainFrame->view()->updateBackgroundRecursively(backgroundColor, backgroundColor.hasAlpha());
+
+        Platform::userInterfaceThreadMessageClient()->dispatchMessage(
+            createMethodCallMessage(&WebPagePrivate::setCompositorBackgroundColor, this, backgroundColor));
     }
 }
 
@@ -6139,6 +6419,16 @@ WebString WebPage::textHasAttribute(const WebString& query) const
         return doc->queryCommandValue(query);
 
     return "";
+}
+
+void WebPage::setAllowNotification(const WebString& domain, bool allow)
+{
+#if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
+    static_cast<NotificationPresenterImpl*>(NotificationPresenterImpl::instance())->onPermission(domain.utf8(), allow);
+#else
+    UNUSED_PARAM(domain);
+    UNUSED_PARAM(allow);
+#endif
 }
 
 void WebPage::setJavaScriptCanAccessClipboard(bool enabled)
@@ -6212,7 +6502,7 @@ void WebPage::setTapHighlight(WebTapHighlight* tapHighlight)
 
 WebSelectionOverlay* WebPage::selectionOverlay() const
 {
-    return d->m_selectionOverlay.get();
+    return d->m_selectionOverlay;
 }
 
 void WebPage::addOverlay(WebOverlay* overlay)
@@ -6228,18 +6518,22 @@ void WebPage::addOverlay(WebOverlay* overlay)
 void WebPage::removeOverlay(WebOverlay* overlay)
 {
 #if USE(ACCELERATED_COMPOSITING)
-    if (overlay->d->graphicsLayer() == d->overlayLayer()) {
-        overlay->removeFromParent();
-        overlay->d->clear();
-        overlay->d->setPage(0);
-    }
+    if (overlay->d->graphicsLayer()->parent() != d->overlayLayer())
+        return;
+
+    overlay->removeFromParent();
+    overlay->d->clear();
+    overlay->d->setPage(0);
 #endif
 }
 
 void WebPage::addCompositingThreadOverlay(WebOverlay* overlay)
 {
 #if USE(ACCELERATED_COMPOSITING)
-    ASSERT(userInterfaceThreadMessageClient()->isCurrentThread());
+    ASSERT(Platform::userInterfaceThreadMessageClient()->isCurrentThread());
+    if (!d->compositor())
+        return;
+
     overlay->d->setPage(d);
     d->compositor()->addOverlay(overlay->d->layerCompositingThread());
 #endif
@@ -6248,8 +6542,9 @@ void WebPage::addCompositingThreadOverlay(WebOverlay* overlay)
 void WebPage::removeCompositingThreadOverlay(WebOverlay* overlay)
 {
 #if USE(ACCELERATED_COMPOSITING)
-    ASSERT(userInterfaceThreadMessageClient()->isCurrentThread());
-    d->compositor()->removeOverlay(overlay->d->layerCompositingThread());
+    ASSERT(Platform::userInterfaceThreadMessageClient()->isCurrentThread());
+    if (d->compositor())
+        d->compositor()->removeOverlay(overlay->d->layerCompositingThread());
     overlay->d->clear();
     overlay->d->setPage(0);
 #endif
@@ -6280,6 +6575,24 @@ PagePopupBlackBerry* WebPage::popup()
 void WebPagePrivate::setParentPopup(PagePopupBlackBerry* webPopup)
 {
     m_parentPopup = webPopup;
+}
+
+void WebPagePrivate::setInspectorOverlayClient(WebCore::InspectorOverlay::InspectorOverlayClient* inspectorOverlayClient)
+{
+    if (inspectorOverlayClient) {
+        if (!m_inspectorOverlay)
+            m_inspectorOverlay = WebCore::InspectorOverlay::create(this, inspectorOverlayClient);
+        else
+            m_inspectorOverlay->setClient(inspectorOverlayClient);
+        m_inspectorOverlay->update();
+        scheduleRootLayerCommit();
+    } else {
+        if (m_inspectorOverlay) {
+            m_inspectorOverlay->clear();
+            m_inspectorOverlay = nullptr;
+            scheduleRootLayerCommit();
+        }
+    }
 }
 
 }

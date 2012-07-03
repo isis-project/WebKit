@@ -75,7 +75,7 @@ RenderObject* RenderObjectChildList::removeChildNode(RenderObject* owner, Render
 {
     ASSERT(oldChild->parent() == owner);
 
-    if (oldChild->isFloatingOrPositioned())
+    if (oldChild->isFloatingOrOutOfFlowPositioned())
         toRenderBox(oldChild)->removeFloatingOrPositionedChildFromBlockLists();
 
     // So that we'll get the appropriate dirty bit set (either that a normal flow child got yanked or
@@ -111,7 +111,7 @@ RenderObject* RenderObjectChildList::removeChildNode(RenderObject* owner, Render
         if (oldChild->isListItem())
             toRenderListItem(oldChild)->updateListMarkerNumbers();
 
-        if (oldChild->isPositioned() && owner->childrenInline())
+        if (oldChild->isOutOfFlowPositioned() && owner->childrenInline())
             owner->dirtyLinesFromChangedChild(oldChild);
 
         if (oldChild->isRenderRegion())
@@ -194,7 +194,7 @@ void RenderObjectChildList::appendChildNode(RenderObject* owner, RenderObject* n
             if (!layer)
                 layer = owner->enclosingLayer();
             if (layer)
-                layer->setHasVisibleContent(true);
+                layer->setHasVisibleContent();
         }
 
         if (newChild->isListItem())
@@ -261,7 +261,7 @@ void RenderObjectChildList::insertChildNode(RenderObject* owner, RenderObject* c
             if (!layer)
                 layer = owner->enclosingLayer();
             if (layer)
-                layer->setHasVisibleContent(true);
+                layer->setHasVisibleContent();
         }
 
         if (child->isListItem())

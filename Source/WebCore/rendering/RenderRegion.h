@@ -46,7 +46,7 @@ public:
     virtual bool isRenderRegion() const { return true; }
 
     virtual void paintReplaced(PaintInfo&, const LayoutPoint&);
-    virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
+    virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const HitTestPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction) OVERRIDE;
 
     virtual void styleDidChange(StyleDifference, const RenderStyle* oldStyle);
 
@@ -95,6 +95,10 @@ public:
     void setRegionState(RegionState regionState) { m_regionState = regionState; }
     void setDispatchRegionLayoutUpdateEvent(bool value) { m_dispatchRegionLayoutUpdateEvent = value; }
     bool shouldDispatchRegionLayoutUpdateEvent() { return m_dispatchRegionLayoutUpdateEvent; }
+    
+    virtual LayoutUnit logicalWidthForFlowThreadContent() const;
+    virtual LayoutUnit logicalHeightForFlowThreadContent() const;
+
 private:
     virtual const char* renderName() const { return "RenderRegion"; }
 

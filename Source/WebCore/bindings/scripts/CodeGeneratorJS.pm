@@ -201,7 +201,7 @@ sub IndexGetterReturnsStrings
 {
     my $type = shift;
 
-    return 1 if $type eq "CSSStyleDeclaration" or $type eq "MediaList" or $type eq "DOMStringList" or $type eq "DOMTokenList" or $type eq "DOMSettableTokenList";
+    return 1 if $type eq "CSSStyleDeclaration" or $type eq "MediaList" or $type eq "DOMStringList" or $type eq "DOMString[]"  or $type eq "DOMTokenList" or $type eq "DOMSettableTokenList";
     return 0;
 }
 
@@ -268,7 +268,7 @@ sub AddIncludesForType
         $includesRef->{"JS${type}.h"} = 1;
     } elsif (IsTypedArrayType($type)) {
         $includesRef->{"<wtf/${type}.h>"} = 1;
-    } elsif ($codeGenerator->GetArrayType($type)) {
+    } elsif ($codeGenerator->GetSequenceType($type)) {
     } else {
         # default, include the same named file
         $includesRef->{"${type}.h"} = 1;
@@ -382,6 +382,18 @@ sub prototypeHashTableAccessor
     } else {
         return "&${className}PrototypeTable";
     }
+}
+
+sub GetGenerateIsReachable
+{
+    my $dataNode = shift;
+    return $dataNode->extendedAttributes->{"GenerateIsReachable"} || $dataNode->extendedAttributes->{"JSGenerateIsReachable"};
+}
+
+sub GetCustomIsReachable
+{
+    my $dataNode = shift;
+    return $dataNode->extendedAttributes->{"CustomIsReachable"} || $dataNode->extendedAttributes->{"JSCustomIsReachable"};
 }
 
 sub GenerateGetOwnPropertySlotBody
@@ -661,7 +673,11 @@ sub GenerateHeader
     } else {
         $headerIncludes{"JSDOMBinding.h"} = 1;
         $headerIncludes{"<runtime/JSGlobalObject.h>"} = 1;
-        $headerIncludes{"<runtime/ObjectPrototype.h>"} = 1;
+        if ($dataNode->isException) {
+            $headerIncludes{"<runtime/ErrorPrototype.h>"} = 1;
+        } else {
+            $headerIncludes{"<runtime/ObjectPrototype.h>"} = 1;
+        }
     }
 
     if ($dataNode->extendedAttributes->{"CustomCall"}) {
@@ -989,8 +1005,8 @@ sub GenerateHeader
     }
 
     if (!$hasParent ||
-        $dataNode->extendedAttributes->{"JSGenerateIsReachable"} || 
-        $dataNode->extendedAttributes->{"JSCustomIsReachable"} || 
+        GetGenerateIsReachable($dataNode) ||
+        GetCustomIsReachable($dataNode) ||
         $dataNode->extendedAttributes->{"JSCustomFinalize"} ||
         $dataNode->extendedAttributes->{"ActiveDOMObject"}) {
         push(@headerContent, "class JS${implClassName}Owner : public JSC::WeakHandleOwner {\n");
@@ -1016,6 +1032,8 @@ sub GenerateHeader
     if (!$hasParent || $dataNode->extendedAttributes->{"JSGenerateToNativeObject"}) {
         if ($interfaceName eq "NodeFilter") {
             push(@headerContent, "PassRefPtr<NodeFilter> toNodeFilter(JSC::JSGlobalData&, JSC::JSValue);\n");
+        } elsif ($interfaceName eq "DOMStringList") {
+            push(@headerContent, "PassRefPtr<DOMStringList> toDOMStringList(JSC::ExecState*, JSC::JSValue);\n");
         } else {
             push(@headerContent, "$implType* to${interfaceName}(JSC::JSValue);\n");
         }
@@ -1245,7 +1263,11 @@ sub GenerateParametersCheckExpression
             push(@andExpression, "(${value}.isNull() || (${value}.isObject() && asObject(${value})->inherits(&JSArray::s_info)))");
             $usedArguments{$parameterIndex} = 1;
         } elsif (!IsNativeType($type)) {
-            push(@andExpression, "(${value}.isNull() || (${value}.isObject() && asObject(${value})->inherits(&JS${type}::s_info)))");
+            if ($parameter->isNullable) {
+                push(@andExpression, "(${value}.isNull() || (${value}.isObject() && asObject(${value})->inherits(&JS${type}::s_info)))");
+            } else {
+                push(@andExpression, "(${value}.isObject() && asObject(${value})->inherits(&JS${type}::s_info))");
+            }
             $usedArguments{$parameterIndex} = 1;
         }
         $parameterIndex++;
@@ -1612,7 +1634,8 @@ sub GenerateImplementation
         if ($hasParent && $parentClassName ne "JSC::DOMNodeFilter") {
             push(@implContent, "    return ${className}Prototype::create(exec->globalData(), globalObject, ${className}Prototype::createStructure(exec->globalData(), globalObject, ${parentClassName}Prototype::self(exec, globalObject)));\n");
         } else {
-            push(@implContent, "    return ${className}Prototype::create(exec->globalData(), globalObject, ${className}Prototype::createStructure(globalObject->globalData(), globalObject, globalObject->objectPrototype()));\n");
+            my $prototype = $dataNode->isException ? "errorPrototype" : "objectPrototype";
+            push(@implContent, "    return ${className}Prototype::create(exec->globalData(), globalObject, ${className}Prototype::createStructure(globalObject->globalData(), globalObject, globalObject->${prototype}()));\n");
         }
         push(@implContent, "}\n\n");
     }
@@ -1685,7 +1708,8 @@ sub GenerateImplementation
         if ($numAttributes > 0) {
             foreach my $attribute (@{$dataNode->attributes}) {
                 my $name = $attribute->signature->name;
-                my $type = $codeGenerator->StripModule($attribute->signature->type);
+                my $type = $codeGenerator->StripModule($attribute->signature->type);                
+                $codeGenerator->AssertNotSequenceType($type);
                 my $getFunctionName = "js" . $interfaceName .  $codeGenerator->WK_ucfirst($attribute->signature->name) . ($attribute->signature->type =~ /Constructor$/ ? "Constructor" : "");
                 my $implGetterFunctionName = $codeGenerator->WK_lcfirst($name);
 
@@ -2277,7 +2301,7 @@ sub GenerateImplementation
         }
     }
 
-    if ((!$hasParent && !$dataNode->extendedAttributes->{"JSCustomIsReachable"})|| $dataNode->extendedAttributes->{"JSGenerateIsReachable"} || $dataNode->extendedAttributes->{"ActiveDOMObject"}) {
+    if ((!$hasParent && !GetCustomIsReachable($dataNode))|| GetGenerateIsReachable($dataNode) || $dataNode->extendedAttributes->{"ActiveDOMObject"}) {
         push(@implContent, "static inline bool isObservable(JS${implClassName}* js${implClassName})\n");
         push(@implContent, "{\n");
         push(@implContent, "    if (js${implClassName}->hasCustomProperties())\n");
@@ -2305,28 +2329,28 @@ sub GenerateImplementation
         }
         push(@implContent, "    if (!isObservable(js${implClassName}))\n");
         push(@implContent, "        return false;\n");
-        if ($dataNode->extendedAttributes->{"JSGenerateIsReachable"}) {
+        if (GetGenerateIsReachable($dataNode)) {
             my $rootString;
-            if ($dataNode->extendedAttributes->{"JSGenerateIsReachable"} eq "Impl") {
+            if (GetGenerateIsReachable($dataNode) eq "Impl") {
                 $rootString  = "    ${implType}* root = js${implClassName}->impl();\n";
-            } elsif ($dataNode->extendedAttributes->{"JSGenerateIsReachable"} eq "ImplContext") {
+            } elsif (GetGenerateIsReachable($dataNode) eq "ImplContext") {
                 $rootString  = "    WebGLRenderingContext* root = js${implClassName}->impl()->context();\n";
-            } elsif ($dataNode->extendedAttributes->{"JSGenerateIsReachable"} eq "ImplFrame") {
+            } elsif (GetGenerateIsReachable($dataNode) eq "ImplFrame") {
                 $rootString  = "    Frame* root = js${implClassName}->impl()->frame();\n";
                 $rootString .= "    if (!root)\n";
                 $rootString .= "        return false;\n";
-            } elsif ($dataNode->extendedAttributes->{"JSGenerateIsReachable"} eq "ImplDocument") {
+            } elsif (GetGenerateIsReachable($dataNode) eq "ImplDocument") {
                 $rootString  = "    Document* root = js${implClassName}->impl()->document();\n";
                 $rootString .= "    if (!root)\n";
                 $rootString .= "        return false;\n";
-            } elsif ($dataNode->extendedAttributes->{"JSGenerateIsReachable"} eq "ImplElementRoot") {
+            } elsif (GetGenerateIsReachable($dataNode) eq "ImplElementRoot") {
                 $rootString  = "    Element* element = js${implClassName}->impl()->element();\n";
                 $rootString .= "    if (!element)\n";
                 $rootString .= "        return false;\n";
                 $rootString .= "    void* root = WebCore::root(element);\n";
             } elsif ($interfaceName eq "CanvasRenderingContext") {
                 $rootString  = "    void* root = WebCore::root(js${implClassName}->impl()->canvas());\n";
-            } elsif ($interfaceName eq "HTMLCollection" or $interfaceName eq "HTMLAllCollection") {
+            } elsif (GetGenerateIsReachable($dataNode) eq "ImplBaseRoot") {
                 $rootString  = "    void* root = WebCore::root(js${implClassName}->impl()->base());\n";
             } else {
                 $rootString  = "    void* root = WebCore::root(js${implClassName}->impl());\n";
@@ -2343,8 +2367,8 @@ sub GenerateImplementation
 
     if (!$dataNode->extendedAttributes->{"JSCustomFinalize"} &&
         (!$hasParent ||
-         $dataNode->extendedAttributes->{"JSGenerateIsReachable"} ||
-         $dataNode->extendedAttributes->{"JSCustomIsReachable"} ||
+         GetGenerateIsReachable($dataNode) ||
+         GetCustomIsReachable($dataNode) ||
          $dataNode->extendedAttributes->{"ActiveDOMObject"})) {
         push(@implContent, "void JS${implClassName}Owner::finalize(JSC::Handle<JSC::Unknown> handle, void* context)\n");
         push(@implContent, "{\n");
@@ -2725,7 +2749,7 @@ END
             push(@implContent, "    if (!canInvokeCallback())\n");
             push(@implContent, "        return true;\n\n");
             push(@implContent, "    RefPtr<$className> protect(this);\n\n");
-            push(@implContent, "    JSLock lock(SilenceAssertionsOnly);\n\n");
+            push(@implContent, "    JSLockHolder lock(m_data->globalObject()->globalData());\n\n");
             push(@implContent, "    ExecState* exec = m_data->globalObject()->globalExec();\n");
             push(@implContent, "    MarkedArgumentBuffer args;\n");
 
@@ -2820,7 +2844,7 @@ my %nativeType = (
     "CompareHow" => "Range::CompareHow",
     "DOMString" => "const String&",
     # FIXME: Add proper support for T[], T[]?, sequence<T>
-    "DOMString[]" => "DOMStringList*",
+    "DOMString[]" => "RefPtr<DOMStringList>",
     "DOMObject" => "ScriptValue",
     "NodeFilter" => "RefPtr<NodeFilter>",
     "SerializedScriptValue" => "RefPtr<SerializedScriptValue>",
@@ -2846,7 +2870,11 @@ sub GetNativeType
 
     my $svgNativeType = $codeGenerator->GetSVGTypeNeedingTearOff($type);
     return "${svgNativeType}*" if $svgNativeType;
+    return "RefPtr<DOMStringList>" if $type eq "DOMStringList" or $type eq "DOMString[]";
     return $nativeType{$type} if exists $nativeType{$type};
+
+    my $sequenceType = $codeGenerator->GetSequenceType($type);
+    return "Vector<${sequenceType}>" if $sequenceType;
 
     # For all other types, the native type is a pointer with same type name as the IDL type.
     return "${type}*";
@@ -2856,6 +2884,7 @@ sub GetNativeTypeForCallbacks
 {
     my $type = shift;
     return "SerializedScriptValue*" if $type eq "SerializedScriptValue";
+    return "PassRefPtr<DOMStringList>" if $type eq "DOMStringList" or $type eq "DOMString[]";
 
     return GetNativeType($type);
 }
@@ -2974,9 +3003,9 @@ sub JSValueToNative
         return "exec, $value";
     }
 
-    if ($type eq "DOMString[]") {
+    if ($type eq "DOMString[]" or $type eq "DOMStringList" ) {
         AddToImplIncludes("JSDOMStringList.h", $conditional);
-        return "toDOMStringList($value)";
+        return "toDOMStringList(exec, $value)";
     }
 
     if ($type eq "unsigned long[]") {
@@ -2991,6 +3020,11 @@ sub JSValueToNative
     my $arrayType = $codeGenerator->GetArrayType($type);
     if ($arrayType) {
         return "toNativeArray<$arrayType>(exec, $value)";
+    }
+
+    my $sequenceType = $codeGenerator->GetSequenceType($type);
+    if ($sequenceType) {
+        return "toNativeArray<$sequenceType>(exec, $value)";
     }
 
     # Default, assume autogenerated type conversion routines
@@ -3054,9 +3088,22 @@ sub NativeToJSValue
 
     my $arrayType = $codeGenerator->GetArrayType($type);
     if ($arrayType) {
-        if (!$codeGenerator->SkipIncludeHeader($arrayType)) {
+        if ($type eq "DOMString[]") {
+            AddToImplIncludes("JSDOMStringList.h", $conditional);
+            AddToImplIncludes("DOMStringList.h", $conditional);
+        } elsif (!$codeGenerator->SkipIncludeHeader($arrayType)) {
             AddToImplIncludes("JS$arrayType.h", $conditional);
             AddToImplIncludes("$arrayType.h", $conditional);
+        }
+        AddToImplIncludes("<runtime/JSArray.h>", $conditional);
+        return "jsArray(exec, $thisValue->globalObject(), $value)";
+    }
+
+    my $sequenceType = $codeGenerator->GetSequenceType($type);
+    if ($sequenceType) {
+        if (!$codeGenerator->SkipIncludeHeader($sequenceType)) {
+            AddToImplIncludes("JS$sequenceType.h", $conditional);
+            AddToImplIncludes("$sequenceType.h", $conditional);
         }
         AddToImplIncludes("<runtime/JSArray.h>", $conditional);
         return "jsArray(exec, $thisValue->globalObject(), $value)";

@@ -41,6 +41,7 @@
 #include "Color.h"
 #include "ColorSpace.h"
 #include "CompositionUnderlineVectorBuilder.h"
+#include "ContextFeaturesClientImpl.h"
 #include "ContextMenu.h"
 #include "ContextMenuController.h"
 #include "ContextMenuItem.h"
@@ -127,6 +128,7 @@
 #include "WebDevToolsAgentImpl.h"
 #include "WebDevToolsAgentPrivate.h"
 #include "WebFrameImpl.h"
+#include "WebHelperPluginImpl.h"
 #include "WebInputElement.h"
 #include "WebInputEvent.h"
 #include "WebInputEventConversion.h"
@@ -145,6 +147,7 @@
 #include "WebViewClient.h"
 #include "WheelEvent.h"
 #include "cc/CCProxy.h"
+#include "cc/CCSettings.h"
 #include "painting/GraphicsContextBuilder.h"
 #include "platform/WebKitPlatformSupport.h"
 #include "platform/WebString.h"
@@ -308,11 +311,16 @@ void WebViewImpl::initializeMainFrame(WebFrameClient* frameClient)
     // and releases that reference once the corresponding Frame is destroyed.
     RefPtr<WebFrameImpl> frame = WebFrameImpl::create(frameClient);
 
-    frame->initializeAsMainFrame(this);
+    frame->initializeAsMainFrame(page());
 
     // Restrict the access to the local file system
     // (see WebView.mm WebView::_commonInitializationWithFrameName).
     SecurityPolicy::setLocalLoadPolicy(SecurityPolicy::AllowLocalLoadsForLocalOnly);
+}
+
+void WebViewImpl::initializeHelperPluginFrame(WebFrameClient* client)
+{
+    RefPtr<WebFrameImpl> frame = WebFrameImpl::create(client);
 }
 
 void WebViewImpl::setAutofillClient(WebAutofillClient* autofillClient)
@@ -331,6 +339,7 @@ void WebViewImpl::setDevToolsAgentClient(WebDevToolsAgentClient* devToolsClient)
 void WebViewImpl::setPermissionClient(WebPermissionClient* permissionClient)
 {
     m_permissionClient = permissionClient;
+    m_featureSwitchClient->setPermissionClient(permissionClient);
 }
 
 void WebViewImpl::setPrerendererClient(WebPrerendererClient* prerendererClient)
@@ -377,6 +386,7 @@ WebViewImpl::WebViewImpl(WebViewClient* client)
     , m_pageDefinedMaximumPageScaleFactor(-1)
     , m_minimumPageScaleFactor(minPageScaleFactor)
     , m_maximumPageScaleFactor(maxPageScaleFactor)
+    , m_ignoreViewportTagMaximumScale(false)
     , m_pageScaleFactorIsSet(false)
     , m_contextMenuAllowed(false)
     , m_doingDragAndDrop(false)
@@ -386,6 +396,7 @@ WebViewImpl::WebViewImpl(WebViewClient* client)
     , m_imeAcceptEvents(true)
     , m_operationsAllowed(WebDragOperationNone)
     , m_dragOperation(WebDragOperationNone)
+    , m_featureSwitchClient(adoptPtr(new ContextFeaturesClientImpl()))
     , m_autofillPopupShowing(false)
     , m_autofillPopup(0)
     , m_isTransparent(false)
@@ -445,6 +456,7 @@ WebViewImpl::WebViewImpl(WebViewClient* client)
     provideNotification(m_page.get(), notificationPresenterImpl());
 #endif
 
+    provideContextFeaturesTo(m_page.get(), m_featureSwitchClient.get());
     provideDeviceOrientationTo(m_page.get(), m_deviceOrientationClientProxy.get());
     provideGeolocationTo(m_page.get(), m_geolocationClientProxy.get());
     m_geolocationClientProxy->setController(GeolocationController::from(m_page.get()));
@@ -452,7 +464,7 @@ WebViewImpl::WebViewImpl(WebViewClient* client)
 #if ENABLE(BATTERY_STATUS)
     provideBatteryTo(m_page.get(), m_batteryClient.get());
 #endif
-    
+
     m_page->setGroupName(pageGroupName);
 
 #if ENABLE(PAGE_VISIBILITY_API)
@@ -676,6 +688,7 @@ bool WebViewImpl::handleGestureEvent(const WebGestureEvent& event)
         }
         return gestureHandled;
     }
+    case WebInputEvent::GestureTwoFingerTap:
     case WebInputEvent::GestureLongPress: {
         if (!mainFrameImpl() || !mainFrameImpl()->frameView())
             return false;
@@ -714,6 +727,13 @@ void WebViewImpl::transferActiveWheelFlingAnimation(const WebActiveWheelFlingPar
     OwnPtr<PlatformGestureCurve> curve = TouchpadFlingPlatformGestureCurve::create(parameters.delta, IntPoint(parameters.cumulativeScroll));
     m_gestureAnimation = ActivePlatformGestureAnimation::create(curve.release(), this, parameters.startTime);
     scheduleAnimation();
+}
+
+void WebViewImpl::renderingStats(WebRenderingStats& stats) const
+{
+    ASSERT(isAcceleratedCompositingActive());
+    if (!m_layerTreeView.isNull())
+        m_layerTreeView.renderingStats(stats);
 }
 
 void WebViewImpl::startPageScaleAnimation(const IntPoint& scroll, bool useAnchor, float newScale, double durationSec)
@@ -1265,6 +1285,19 @@ void WebViewImpl::hideAutofillPopup()
     }
 }
 
+WebHelperPluginImpl* WebViewImpl::createHelperPlugin(const String& pluginType)
+{
+    WebWidget* popupWidget = m_client->createPopupMenu(WebPopupTypeHelperPlugin);
+    ASSERT(popupWidget);
+    WebHelperPluginImpl* helperPlugin = static_cast<WebHelperPluginImpl*>(popupWidget);
+
+    if (!helperPlugin->init(this, pluginType)) {
+        helperPlugin->closeHelperPlugin();
+        helperPlugin = 0;
+    }
+    return helperPlugin;
+}
+
 Frame* WebViewImpl::focusedWebCoreFrame() const
 {
     return m_page ? m_page->focusController()->focusedOrMainFrame() : 0;
@@ -1326,10 +1359,28 @@ void WebViewImpl::resize(const WebSize& newSize)
 {
     if (m_shouldAutoResize || m_size == newSize)
         return;
+
+    FrameView* view = mainFrameImpl()->frameView();
+    if (!view)
+        return;
+
+    WebSize oldSize = m_size;
+    float oldPageScaleFactor = pageScaleFactor();
+    IntSize oldScrollOffset = view->scrollOffset();
+    int oldFixedLayoutWidth = fixedLayoutSize().width;
+
     m_size = newSize;
 
 #if ENABLE(VIEWPORT)
     if (settings()->viewportEnabled()) {
+        // Fallback width is used to layout sites designed for desktop. The
+        // conventional size used by all mobile browsers is 980. When a mobile
+        // device has a particularly wide screen (such as a 10" tablet held in
+        // landscape), it can be larger.
+        const int standardFallbackWidth = 980;
+        int dpiIndependentViewportWidth = newSize.width / page()->deviceScaleFactor();
+        settings()->setLayoutFallbackWidth(std::max(standardFallbackWidth, dpiIndependentViewportWidth));
+
         ViewportArguments viewportArguments = mainFrameImpl()->frame()->document()->viewportArguments();
         m_page->chrome()->client()->dispatchViewportPropertiesDidChange(viewportArguments);
     }
@@ -1343,6 +1394,33 @@ void WebViewImpl::resize(const WebSize& newSize)
         if (webFrame->frameView())
             webFrame->frameView()->resize(newSize.width, newSize.height);
     }
+
+#if ENABLE(VIEWPORT)
+    if (settings()->viewportEnabled()) {
+        // Relayout immediately to obtain the new content width, which is needed
+        // to calculate the minimum scale limit.
+        view->layout();
+        computePageScaleFactorLimits();
+        // When the device rotates:
+        // - If the page width is unchanged, then zoom by new width/old width
+        //   such as to keep the same content horizontally onscreen.
+        // - If the page width stretches proportionally to the change in
+        //   screen width, then don't zoom at all (assuming the content has
+        //   scaled uniformly, then the same content will be horizontally
+        //   onscreen).
+        //   - If the page width partially stretches, then zoom partially to
+        //   make up the difference.
+        // In all cases try to keep the same content at the top of the screen.
+        float viewportWidthRatio = !oldSize.width ? 1 : newSize.width / (float) oldSize.width;
+        float fixedLayoutWidthRatio = !oldFixedLayoutWidth ? 1 : fixedLayoutSize().width / (float) oldFixedLayoutWidth;
+        float scaleMultiplier = viewportWidthRatio / fixedLayoutWidthRatio;
+        if (scaleMultiplier != 1) {
+            IntSize scrollOffsetAtNewScale = oldScrollOffset;
+            scrollOffsetAtNewScale.scale(scaleMultiplier);
+            setPageScaleFactor(oldPageScaleFactor * scaleMultiplier, IntPoint(scrollOffsetAtNewScale));
+        }
+    }
+#endif
 
     sendResizeEventAndRepaint();
 }
@@ -1547,7 +1625,7 @@ void WebViewImpl::paint(WebCanvas* canvas, const WebRect& rect)
 #endif
     } else {
         double paintStart = currentTime();
-        PageWidgetDelegate::paint(m_page.get(), pageOverlays(), canvas, rect);
+        PageWidgetDelegate::paint(m_page.get(), pageOverlays(), canvas, rect, isTransparent() ? PageWidgetDelegate::Translucent : PageWidgetDelegate::Opaque);
         double paintEnd = currentTime();
         double pixelsPerSec = (rect.width * rect.height) / (paintEnd - paintStart);
         WebKit::Platform::current()->histogramCustomCounts("Renderer4.SoftwarePaintDurationMS", (paintEnd - paintStart) * 1000, 0, 120, 30);
@@ -1678,8 +1756,9 @@ bool WebViewImpl::handleInputEvent(const WebInputEvent& inputEvent)
     if (m_doingDragAndDrop)
         return true;
 
+    // Report the event to be NOT processed by WebKit, so that the browser can handle it appropriately.
     if (m_ignoreInputEvents)
-        return true;
+        return false;
 
     m_currentInputEvent = &inputEvent;
 
@@ -1908,7 +1987,7 @@ WebTextInputInfo WebViewImpl::textInputInfo()
     if (!selection)
         return info;
 
-    Node* node = focusedWebCoreNode();
+    Node* node = selection->selection().rootEditableElement();
     if (!node)
         return info;
 
@@ -1916,33 +1995,22 @@ WebTextInputInfo WebViewImpl::textInputInfo()
     if (info.type == WebTextInputTypeNone)
         return info;
 
-    if (node->hasTagName(HTMLNames::textareaTag))
-        info.value = static_cast<HTMLTextAreaElement*>(node)->value();
-    else if (node->hasTagName(HTMLNames::inputTag))
-        info.value = static_cast<HTMLInputElement*>(node)->value();
-    else if (node->shouldUseInputMethod())
-        info.value = node->nodeValue();
-    else
-        return info;
+    info.value = plainText(rangeOfContents(node).get());
 
     if (info.value.isEmpty())
         return info;
 
-    if (node->hasTagName(HTMLNames::textareaTag) || node->hasTagName(HTMLNames::inputTag)) {
-        HTMLTextFormControlElement* formElement = static_cast<HTMLTextFormControlElement*>(node);
-        info.selectionStart = formElement->selectionStart();
-        info.selectionEnd = formElement->selectionEnd();
-        if (editor->hasComposition()) {
-            info.compositionStart = formElement->indexForVisiblePosition(Position(editor->compositionNode(), editor->compositionStart()));
-            info.compositionEnd = formElement->indexForVisiblePosition(Position(editor->compositionNode(), editor->compositionEnd()));
-        }
-    } else {
-        info.selectionStart = selection->start().computeOffsetInContainerNode();
-        info.selectionEnd = selection->end().computeOffsetInContainerNode();
-        if (editor->hasComposition()) {
-            info.compositionStart = static_cast<int>(editor->compositionStart());
-            info.compositionEnd = static_cast<int>(editor->compositionEnd());
-        }
+    size_t location;
+    size_t length;
+    RefPtr<Range> range = selection->selection().firstRange();
+    if (range && TextIterator::getLocationAndLengthFromRange(selection->rootEditableElement(), range.get(), location, length)) {
+        info.selectionStart = location;
+        info.selectionEnd = location + length;
+    }
+    range = editor->compositionRange();
+    if (range && TextIterator::getLocationAndLengthFromRange(selection->rootEditableElement(), range.get(), location, length)) {
+        info.compositionStart = location;
+        info.compositionEnd = location + length;
     }
 
     return info;
@@ -2058,6 +2126,19 @@ bool WebViewImpl::selectionTextDirection(WebTextDirection& start, WebTextDirecti
     start = selection->start().primaryDirection() == RTL ? WebTextDirectionRightToLeft : WebTextDirectionLeftToRight;
     end = selection->end().primaryDirection() == RTL ? WebTextDirectionRightToLeft : WebTextDirectionLeftToRight;
     return true;
+}
+
+bool WebViewImpl::setEditableSelectionOffsets(int start, int end)
+{
+    const Frame* focused = focusedWebCoreFrame();
+    if (!focused)
+        return false;
+
+    Editor* editor = focused->editor();
+    if (!editor || !editor->canEdit())
+        return false;
+
+    return editor->setSelectionOffsets(start, end);
 }
 
 bool WebViewImpl::caretOrSelectionRange(size_t* location, size_t* length)
@@ -2315,6 +2396,11 @@ void WebViewImpl::scrollFocusedNodeIntoRect(const WebRect& rect)
     frame->view()->scrollElementToRect(elementNode, IntRect(rect.x, rect.y, rect.width, rect.height));
 }
 
+void WebViewImpl::advanceFocus(bool reverse)
+{
+    page()->focusController()->advanceFocus(reverse ? FocusDirectionBackward : FocusDirectionForward, 0);
+}
+
 double WebViewImpl::zoomLevel()
 {
     return m_zoomLevel;
@@ -2454,6 +2540,10 @@ void WebViewImpl::setDeviceScaleFactor(float scaleFactor)
 
     page()->setDeviceScaleFactor(scaleFactor);
 
+    if (!m_layerTreeView.isNull() && m_webSettings->applyDefaultDeviceScaleFactorInCompositor()) {
+        m_deviceScaleInCompositor = page()->deviceScaleFactor();
+        m_layerTreeView.setDeviceScaleFactor(m_deviceScaleInCompositor);
+    }
     if (m_deviceScaleInCompositor != 1) {
         // Don't allow page scaling when compositor scaling is being used,
         // as they are currently incompatible. This means the deviceScale
@@ -2512,6 +2602,16 @@ void WebViewImpl::setPageScaleFactorLimits(float minPageScale, float maxPageScal
     m_pageDefinedMinimumPageScaleFactor = minPageScale;
     m_pageDefinedMaximumPageScaleFactor = maxPageScale;
     computePageScaleFactorLimits();
+}
+
+void WebViewImpl::setIgnoreViewportTagMaximumScale(bool flag)
+{
+    m_ignoreViewportTagMaximumScale = flag;
+
+    if (!page() || !page()->mainFrame())
+        return;
+
+    m_page->chrome()->client()->dispatchViewportPropertiesDidChange(page()->mainFrame()->document()->viewportArguments());
 }
 
 bool WebViewImpl::computePageScaleFactorLimits()
@@ -2955,9 +3055,6 @@ void WebViewImpl::applyAutofillSuggestions(
 
     if (!m_autofillPopup) {
         PopupContainerSettings popupSettings = autofillPopupSettings;
-        popupSettings.defaultDeviceScaleFactor = settingsImpl()->defaultDeviceScaleFactor();
-        if (!popupSettings.defaultDeviceScaleFactor)
-            popupSettings.defaultDeviceScaleFactor = 1;
         popupSettings.deviceSupportsTouch = settingsImpl()->deviceSupportsTouch();
         m_autofillPopup = PopupContainer::create(m_autofillPopupClient.get(),
                                                  PopupContainer::Suggestion,
@@ -3008,6 +3105,12 @@ void WebViewImpl::setIsTransparent(bool isTransparent)
 
     // Future frames check this to know whether to be transparent.
     m_isTransparent = isTransparent;
+
+    if (m_nonCompositedContentHost)
+        m_nonCompositedContentHost->setOpaque(!isTransparent);
+
+    if (!m_layerTreeView.isNull())
+        m_layerTreeView.setHasTransparentBackground(isTransparent);
 }
 
 bool WebViewImpl::isTransparent() const
@@ -3386,38 +3489,20 @@ void WebViewImpl::scheduleAnimation()
 }
 #endif
 
-class WebViewImplContentPainter : public LayerPainterChromium {
-    WTF_MAKE_NONCOPYABLE(WebViewImplContentPainter);
-public:
-    static PassOwnPtr<WebViewImplContentPainter*> create(WebViewImpl* webViewImpl)
-    {
-        return adoptPtr(new WebViewImplContentPainter(webViewImpl));
-    }
+void WebViewImpl::paintRootLayer(GraphicsContext& context, const IntRect& contentRect)
+{
+    double paintStart = currentTime();
+    if (!page())
+        return;
+    FrameView* view = page()->mainFrame()->view();
+    view->paintContents(&context, contentRect);
+    double paintEnd = currentTime();
+    double pixelsPerSec = (contentRect.width() * contentRect.height()) / (paintEnd - paintStart);
+    WebKit::Platform::current()->histogramCustomCounts("Renderer4.AccelRootPaintDurationMS", (paintEnd - paintStart) * 1000, 0, 120, 30);
+    WebKit::Platform::current()->histogramCustomCounts("Renderer4.AccelRootPaintMegapixPerSecond", pixelsPerSec / 1000000, 10, 210, 30);
 
-    virtual void paint(GraphicsContext& context, const IntRect& contentRect)
-    {
-        double paintStart = currentTime();
-        Page* page = m_webViewImpl->page();
-        if (!page)
-            return;
-        FrameView* view = page->mainFrame()->view();
-        view->paintContents(&context, contentRect);
-        double paintEnd = currentTime();
-        double pixelsPerSec = (contentRect.width() * contentRect.height()) / (paintEnd - paintStart);
-        WebKit::Platform::current()->histogramCustomCounts("Renderer4.AccelRootPaintDurationMS", (paintEnd - paintStart) * 1000, 0, 120, 30);
-        WebKit::Platform::current()->histogramCustomCounts("Renderer4.AccelRootPaintMegapixPerSecond", pixelsPerSec / 1000000, 10, 210, 30);
-
-        m_webViewImpl->setBackgroundColor(view->documentBackgroundColor());
-    }
-
-private:
-    explicit WebViewImplContentPainter(WebViewImpl* webViewImpl)
-        : m_webViewImpl(webViewImpl)
-    {
-    }
-
-    WebViewImpl* m_webViewImpl;
-};
+    setBackgroundColor(view->documentBackgroundColor());
+}
 
 void WebViewImpl::setIsAcceleratedCompositingActive(bool active)
 {
@@ -3446,33 +3531,30 @@ void WebViewImpl::setIsAcceleratedCompositingActive(bool active)
         layerTreeViewSettings.showFPSCounter = settingsImpl()->showFPSCounter();
         layerTreeViewSettings.showPlatformLayerTree = settingsImpl()->showPlatformLayerTree();
         layerTreeViewSettings.showPaintRects = settingsImpl()->showPaintRects();
-
-        layerTreeViewSettings.perTilePainting = page()->settings()->perTileDrawingEnabled();
-        layerTreeViewSettings.partialSwapEnabled = page()->settings()->partialSwapEnabled();
-        layerTreeViewSettings.threadedAnimationEnabled = page()->settings()->threadedAnimationEnabled();
+        layerTreeViewSettings.forceSoftwareCompositing = settings()->forceSoftwareCompositing();
 
         layerTreeViewSettings.defaultTileSize = settingsImpl()->defaultTileSize();
         layerTreeViewSettings.maxUntiledLayerSize = settingsImpl()->maxUntiledLayerSize();
 
-        m_nonCompositedContentHost = NonCompositedContentHost::create(WebViewImplContentPainter::create(this));
+        m_nonCompositedContentHost = NonCompositedContentHost::create(this);
         m_nonCompositedContentHost->setShowDebugBorders(page()->settings()->showDebugBorders());
-
-        if (m_webSettings->applyDefaultDeviceScaleFactorInCompositor() && page()->settings()->defaultDeviceScaleFactor() != 1) {
-            ASSERT(page()->settings()->defaultDeviceScaleFactor());
-
-            m_deviceScaleInCompositor = page()->settings()->defaultDeviceScaleFactor();
-            layerTreeViewSettings.deviceScaleFactor = m_deviceScaleInCompositor;
-            setDeviceScaleFactor(m_deviceScaleInCompositor);
-            // When applying a scale factor in the compositor, we disallow page
-            // scaling as they are currently incompatible.
-            setPageScaleFactorLimits(1, 1);
-        }
+        m_nonCompositedContentHost->setOpaque(!isTransparent());
 
         m_layerTreeView.initialize(this, m_rootLayer, layerTreeViewSettings);
         if (!m_layerTreeView.isNull()) {
+            if (m_webSettings->applyDefaultDeviceScaleFactorInCompositor() && page()->deviceScaleFactor() != 1) {
+                ASSERT(page()->deviceScaleFactor());
+
+                m_deviceScaleInCompositor = page()->deviceScaleFactor();
+                setDeviceScaleFactor(m_deviceScaleInCompositor);
+            }
+
+            bool visible = page()->visibilityState() == PageVisibilityStateVisible;
+            m_layerTreeView.setVisible(visible);
             m_layerTreeView.setPageScaleFactorAndLimits(pageScaleFactor(), m_minimumPageScaleFactor, m_maximumPageScaleFactor);
             if (m_compositorSurfaceReady)
                 m_layerTreeView.setSurfaceReady();
+            m_layerTreeView.setHasTransparentBackground(isTransparent());
             updateLayerTreeViewport();
             m_client->didActivateCompositor(m_layerTreeView.compositorIdentifier());
             m_isAcceleratedCompositingActive = true;
@@ -3494,6 +3576,9 @@ void WebViewImpl::setIsAcceleratedCompositingActive(bool active)
 
 PassOwnPtr<WebKit::WebGraphicsContext3D> WebViewImpl::createCompositorGraphicsContext3D()
 {
+    if (settings()->forceSoftwareCompositing())
+        CRASH();
+
     // Explicitly disable antialiasing for the compositor. As of the time of
     // this writing, the only platform that supported antialiasing for the
     // compositor was Mac OS X, because the on-screen OpenGL context creation
@@ -3517,6 +3602,9 @@ PassOwnPtr<WebKit::WebGraphicsContext3D> WebViewImpl::createCompositorGraphicsCo
 
 WebKit::WebGraphicsContext3D* WebViewImpl::createContext3D()
 {
+    if (settings()->forceSoftwareCompositing())
+        CRASH();
+
     OwnPtr<WebKit::WebGraphicsContext3D> webContext;
 
     // If we've already created an onscreen context for this view, return that.
@@ -3608,42 +3696,13 @@ void WebViewImpl::updateLayerTreeViewport()
     IntRect visibleRect = view->visibleContentRect(true /* include scrollbars */);
     IntPoint scroll(view->scrollX(), view->scrollY());
 
-    // In RTL-style pages, the origin of the initial containing block for the
-    // root layer may be positive; translate the layer to avoid negative
-    // coordinates.
-    int layerAdjustX = -view->scrollOrigin().x();
-
     // This part of the deviceScale will be used to scale the contents of
     // the NCCH's GraphicsLayer.
     float deviceScale = m_deviceScaleInCompositor;
-    m_nonCompositedContentHost->setViewport(visibleRect.size(), view->contentsSize(), scroll, deviceScale, layerAdjustX);
+    m_nonCompositedContentHost->setViewport(visibleRect.size(), view->contentsSize(), scroll, view->scrollOrigin(), deviceScale);
 
     m_layerTreeView.setViewportSize(size());
     m_layerTreeView.setPageScaleFactorAndLimits(pageScaleFactor(), m_minimumPageScaleFactor, m_maximumPageScaleFactor);
-}
-
-WebGraphicsContext3D* WebViewImpl::graphicsContext3D()
-{
-#if USE(ACCELERATED_COMPOSITING)
-    if (m_page->settings()->acceleratedCompositingEnabled() && allowsAcceleratedCompositing()) {
-        if (!m_layerTreeView.isNull()) {
-            WebGraphicsContext3D* context = m_layerTreeView.context();
-            if (context && !context->isContextLost())
-                return context;
-        }
-        // If we get here it means that some system needs access to the context the compositor will use but the compositor itself
-        // hasn't requested a context or it was unable to successfully instantiate a context.
-        // We need to return the context that the compositor will later use so we allocate a new context (if needed) and stash it
-        // until the compositor requests and takes ownership of the context via createLayerTreeHost3D().
-        if (!m_temporaryOnscreenGraphicsContext3D)
-            m_temporaryOnscreenGraphicsContext3D = createCompositorGraphicsContext3D();
-
-        WebGraphicsContext3D* webContext = m_temporaryOnscreenGraphicsContext3D.get();
-        if (webContext && !webContext->isContextLost())
-            return webContext;
-    }
-#endif
-    return 0;
 }
 
 WebGraphicsContext3D* WebViewImpl::sharedGraphicsContext3D()

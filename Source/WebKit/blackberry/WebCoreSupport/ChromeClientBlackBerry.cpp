@@ -93,7 +93,7 @@ ChromeClientBlackBerry::ChromeClientBlackBerry(WebPagePrivate* pagePrivate)
 
 void ChromeClientBlackBerry::addMessageToConsole(MessageSource, MessageType, MessageLevel, const String& message, unsigned int lineNumber, const String& sourceID)
 {
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree)
         m_webPagePrivate->m_dumpRenderTree->addMessageToConsole(message, lineNumber, sourceID);
 #endif
@@ -103,7 +103,7 @@ void ChromeClientBlackBerry::addMessageToConsole(MessageSource, MessageType, Mes
 
 void ChromeClientBlackBerry::runJavaScriptAlert(Frame* frame, const String& message)
 {
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree) {
         m_webPagePrivate->m_dumpRenderTree->runJavaScriptAlert(message);
         return;
@@ -117,7 +117,7 @@ void ChromeClientBlackBerry::runJavaScriptAlert(Frame* frame, const String& mess
 
 bool ChromeClientBlackBerry::runJavaScriptConfirm(Frame* frame, const String& message)
 {
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree)
         return m_webPagePrivate->m_dumpRenderTree->runJavaScriptConfirm(message);
 #endif
@@ -129,7 +129,7 @@ bool ChromeClientBlackBerry::runJavaScriptConfirm(Frame* frame, const String& me
 
 bool ChromeClientBlackBerry::runJavaScriptPrompt(Frame* frame, const String& message, const String& defaultValue, String& result)
 {
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree) {
         result = m_webPagePrivate->m_dumpRenderTree->runJavaScriptPrompt(message, defaultValue);
         return true;
@@ -148,6 +148,8 @@ bool ChromeClientBlackBerry::runJavaScriptPrompt(Frame* frame, const String& mes
 
 void ChromeClientBlackBerry::chromeDestroyed()
 {
+    // Destroy popup if we have.
+    closePagePopup(0);
     delete this;
 }
 
@@ -215,7 +217,7 @@ bool ChromeClientBlackBerry::shouldForceDocumentStyleSelectorUpdate()
 
 Page* ChromeClientBlackBerry::createWindow(Frame*, const FrameLoadRequest& request, const WindowFeatures& features, const NavigationAction&)
 {
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree && !m_webPagePrivate->m_dumpRenderTree->allowsOpeningWindow())
         return 0;
 #endif
@@ -250,7 +252,7 @@ Page* ChromeClientBlackBerry::createWindow(Frame*, const FrameLoadRequest& reque
     if (!webPage)
         return 0;
 
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree)
         m_webPagePrivate->m_dumpRenderTree->windowCreated(webPage);
 #endif
@@ -301,28 +303,24 @@ PassRefPtr<SearchPopupMenu> ChromeClientBlackBerry::createSearchPopupMenu(PopupM
 
 PagePopup* ChromeClientBlackBerry::openPagePopup(PagePopupClient* client, const IntRect& originBoundsInRootView)
 {
-    PagePopupBlackBerry* webPopup;
+    closePagePopup(0);
 
-    if (!hasOpenedPopup()) {
-        webPopup = new PagePopupBlackBerry(m_webPagePrivate, client,
-                rootViewToScreen(originBoundsInRootView));
-        m_webPagePrivate->m_webPage->popupOpened(webPopup);
-    } else {
-        webPopup = m_webPagePrivate->m_webPage->popup();
-        webPopup->closeWebPage();
-    }
-    webPopup->sendCreatePopupWebViewRequest();
-    return webPopup;
+    PagePopupBlackBerry* webPopup = new PagePopupBlackBerry(m_webPagePrivate, client, rootViewToScreen(originBoundsInRootView));
+    m_webPagePrivate->m_webPage->popupOpened(webPopup);
+    if (webPopup->sendCreatePopupWebViewRequest())
+        return webPopup;
+
+    closePagePopup(0);
+    return 0;
 }
 
-void ChromeClientBlackBerry::closePagePopup(PagePopup* popup)
+void ChromeClientBlackBerry::closePagePopup(PagePopup*)
 {
-    if (!popup)
-        return;
-
-    PagePopupBlackBerry* webPopup = m_webPagePrivate->m_webPage->popup();
-    webPopup->closePopup();
-    m_webPagePrivate->m_webPage->popupClosed();
+    if (hasOpenedPopup()) {
+        PagePopupBlackBerry* webPopup = m_webPagePrivate->m_webPage->popup();
+        webPopup->closePopup();
+        m_webPagePrivate->m_webPage->popupClosed();
+    }
 }
 
 void ChromeClientBlackBerry::setToolbarsVisible(bool)
@@ -382,7 +380,7 @@ bool ChromeClientBlackBerry::canRunBeforeUnloadConfirmPanel()
 
 bool ChromeClientBlackBerry::runBeforeUnloadConfirmPanel(const String& message, Frame*)
 {
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree)
         return m_webPagePrivate->m_dumpRenderTree->runBeforeUnloadConfirmPanel(message);
 #endif
@@ -400,7 +398,7 @@ void ChromeClientBlackBerry::setStatusbarText(const String& status)
 {
     m_webPagePrivate->m_client->setStatus(status);
 
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree)
         m_webPagePrivate->m_dumpRenderTree->setStatusText(status);
 #endif
@@ -480,7 +478,7 @@ void ChromeClientBlackBerry::exceededDatabaseQuota(Frame* frame, const String& n
 
     SecurityOrigin* origin = document->securityOrigin();
 
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree) {
         m_webPagePrivate->m_dumpRenderTree->exceededDatabaseQuota(origin, name);
         return;
@@ -630,7 +628,7 @@ KeyboardUIMode ChromeClientBlackBerry::keyboardUIMode()
 {
     bool tabsToLinks = true;
 
-#if ENABLE_DRT
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
     if (m_webPagePrivate->m_dumpRenderTree)
         tabsToLinks = DumpRenderTreeSupport::linksIncludedInFocusChain();
 #endif
@@ -727,33 +725,25 @@ bool ChromeClientBlackBerry::supportsFullScreenForElement(const WebCore::Element
 void ChromeClientBlackBerry::enterFullScreenForElement(WebCore::Element* element)
 {
     element->document()->webkitWillEnterFullScreenForElement(element);
-    if (supportsFullscreenForNode(element) && m_webPagePrivate->m_webSettings->fullScreenVideoCapable()) {
-        // The Browser chrome has its own fullscreen video widget it wants to
-        // use, and this is a video element. The only reason that
-        // webkitWillEnterFullScreenForElement() and
-        // webkitDidEnterFullScreenForElement() are still called in this case
-        // is so that exitFullScreenForElement() gets called later.
-        enterFullscreenForNode(element);
-    } else {
-        // No fullscreen video widget has been made available by the Browser
-        // chrome, or this is not a video element. The webkitRequestFullScreen
-        // Javascript call is often made on a div element.
-        // This is where we would hide the browser's chrome if we wanted to.
-    }
+    m_webPagePrivate->enterFullScreenForElement(element);
     element->document()->webkitDidEnterFullScreenForElement(element);
 }
 
 void ChromeClientBlackBerry::exitFullScreenForElement(WebCore::Element* element)
 {
     element->document()->webkitWillExitFullScreenForElement(element);
-    if (supportsFullscreenForNode(element) && m_webPagePrivate->m_webSettings->fullScreenVideoCapable()) {
-        // The Browser chrome has its own fullscreen video widget.
-        exitFullscreenForNode(element);
-    } else {
-        // This is where we would restore the browser's chrome
-        // if hidden above.
-    }
+    m_webPagePrivate->exitFullScreenForElement(element);
     element->document()->webkitDidExitFullScreenForElement(element);
+}
+
+void ChromeClientBlackBerry::fullScreenRendererChanged(RenderBox* fullScreenRenderer)
+{
+    // Once we go fullscreen using the new FULLSCREEN_API code path, we have to take into account
+    // our port specific page scaling.
+    if (fullScreenRenderer) {
+        int width = m_webPagePrivate->m_mainFrame->view()->visibleContentRect().size().width();
+        fullScreenRenderer->style()->setWidth(Length(width, Fixed));
+    }
 }
 #endif
 
@@ -819,5 +809,21 @@ PassOwnPtr<ColorChooser> ChromeClientBlackBerry::createColorChooser(ColorChooser
     return nullptr;
 }
 
+#if ENABLE(CUSTOM_SCHEME_HANDLER)
+CustomHandlersState ChromeClientBlackBerry::isProtocolHandlerRegistered(const String&, const String&, const String&)
+{
+    return CustomHandlersDeclined;
+}
+
+void ChromeClientBlackBerry::unregisterProtocolHandler(const String&, const String&, const String&)
+{
+}
+#endif
+
+#if ENABLE(REGISTER_PROTOCOL_HANDLER)
+void ChromeClientBlackBerry::registerProtocolHandler(const WTF::String&, const WTF::String&, const WTF::String&, const WTF::String&)
+{
+}
+#endif
 
 } // namespace WebCore

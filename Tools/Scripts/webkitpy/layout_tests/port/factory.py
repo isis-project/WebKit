@@ -53,13 +53,16 @@ def port_options(**help_strings):
         optparse.make_option('--gtk', action='store_const', const='gtk', dest="platform",
             help='Alias for --platform=gtk'),
         optparse.make_option('--qt', action='store_const', const='qt', dest="platform",
-            help='Alias for --platform=qt')]
+            help='Alias for --platform=qt'),
+        optparse.make_option('--32-bit', action='store_const', const='x86', default=None, dest="architecture",
+            help='use 32-bit binaries by default (x86 instead of x86_64)')]
 
 
-class BuilderOptions(object):
-    def __init__(self, builder_name):
-        self.configuration = "Debug" if re.search(r"[d|D](ebu|b)g", builder_name) else "Release"
-        self.builder_name = builder_name
+def _builder_options(builder_name):
+    configuration = "Debug" if re.search(r"[d|D](ebu|b)g", builder_name) else "Release"
+    is_webkit2 = builder_name.find("WK2") != -1
+    builder_name = builder_name
+    return optparse.Values({'builder_name': builder_name, 'configuration': configuration, 'webkit_test_runner': is_webkit2})
 
 
 class PortFactory(object):
@@ -69,10 +72,6 @@ class PortFactory(object):
         'chromium_mac.ChromiumMacPort',
         'chromium_win.ChromiumWinPort',
         'efl.EflPort',
-        'google_chrome.GoogleChromeLinux32Port',
-        'google_chrome.GoogleChromeLinux64Port',
-        'google_chrome.GoogleChromeMacPort',
-        'google_chrome.GoogleChromeWinPort',
         'gtk.GtkPort',
         'mac.MacPort',
         'mock_drt.MockDRTPort',
@@ -127,6 +126,6 @@ class PortFactory(object):
     def get_from_builder_name(self, builder_name):
         port_name = builders.port_name_for_builder_name(builder_name)
         assert(port_name)  # Need to update port_name_for_builder_name
-        port = self.get(port_name, BuilderOptions(builder_name))
+        port = self.get(port_name, _builder_options(builder_name))
         assert(port)  # Need to update port_name_for_builder_name
         return port

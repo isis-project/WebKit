@@ -70,6 +70,8 @@ class WebGrammarDetail;
 class WebHitTestResult;
 class WebIconDatabase;
 class WebInspectorProxy;
+class WebIntentData;
+class WebIntentServiceInfo;
 class WebKeyValueStorageManagerProxy;
 class WebMediaCacheManagerProxy;
 class WebNavigationData;
@@ -107,6 +109,8 @@ WK_ADD_API_MAPPING(WKGeolocationPositionRef, WebGeolocationPosition)
 WK_ADD_API_MAPPING(WKGrammarDetailRef, WebGrammarDetail)
 WK_ADD_API_MAPPING(WKHitTestResultRef, WebHitTestResult)
 WK_ADD_API_MAPPING(WKIconDatabaseRef, WebIconDatabase)
+WK_ADD_API_MAPPING(WKIntentDataRef, WebIntentData)
+WK_ADD_API_MAPPING(WKIntentServiceInfoRef, WebIntentServiceInfo)
 WK_ADD_API_MAPPING(WKKeyValueStorageManagerRef, WebKeyValueStorageManagerProxy)
 WK_ADD_API_MAPPING(WKMediaCacheManagerRef, WebMediaCacheManagerProxy)
 WK_ADD_API_MAPPING(WKNavigationDataRef, WebNavigationData)
@@ -362,6 +366,10 @@ inline ProxyingRefPtr<WebGrammarDetail> toAPI(const WebCore::GrammarDetail& gram
 
 #if USE(SOUP)
 #include "WKAPICastSoup.h"
+#endif
+
+#if defined(BUILDING_EFL__)
+#include "WKAPICastEfl.h"
 #endif
 
 #endif // WKAPICast_h

@@ -19,13 +19,19 @@
 #include "config.h"
 #include "AboutData.h"
 
+#include "CString.h"
+#include "JSDOMWindow.h"
 #include "MemoryCache.h"
+#include "MemoryStatistics.h"
 #include "SurfacePool.h"
 #include "WebKitVersion.h"
 
+#include <process.h>
 #include <BlackBerryPlatformSettings.h>
+#include <heap/Heap.h>
+#include <runtime/JSGlobalData.h>
+#include <sys/stat.h>
 #include <sys/utsname.h>
-#include <wtf/Platform.h>
 
 namespace WebCore {
 
@@ -97,7 +103,7 @@ String configPage()
 #endif
     + "</td></tr>";
 
-    BlackBerry::Platform::Settings* settings = BlackBerry::Platform::Settings::get();
+    BlackBerry::Platform::Settings* settings = BlackBerry::Platform::Settings::instance();
     page += String("</table><h2>Platform Settings</h2><table>");
     page += numberToHTMLTr("isRSSFilteringEnabled", settings->isRSSFilteringEnabled());
     page += numberToHTMLTr("secondaryThreadStackSize", settings->secondaryThreadStackSize());
@@ -186,40 +192,104 @@ static String cacheTypeStatisticToHTMLTr(const String& description, const Memory
         + "</tr>";
 }
 
+static void dumpJSCTypeCountSetToTableHTML(String& tableHTML, JSC::TypeCountSet* typeCountSet)
+{
+    if (!typeCountSet)
+        return;
+
+    for (JSC::TypeCountSet::const_iterator iter = typeCountSet->begin(); iter != typeCountSet->end(); ++iter)
+        tableHTML += numberToHTMLTr(iter->first, iter->second);
+}
+
 String memoryPage()
 {
     String page;
 
     // generate memory information
-    page = String("<html><head><title>BlackBerry Browser Memory Information</title></head><body><h2>BlackBerry Browser Memory Information</h2>");
+    page = "<html><head><title>BlackBerry Browser Memory Information</title></head><body><h2>BlackBerry Browser Memory Information</h2>";
 
     // generate cache information
     MemoryCache* cacheInc = memoryCache();
-    MemoryCache::Statistics stat = cacheInc->getStatistics();
+    MemoryCache::Statistics cacheStat = cacheInc->getStatistics();
 
-    page += String("<h2>Cache Information</h2>")
-            + "<table align=\"center\" rules=\"all\"><tr> <th>Item</th> <th>Count</th> <th>Size<br>KB</th> <th>Living<br>KB</th> <th>Decoded<br>KB</th></tr>";
+    page += "<h2>Cache Information</h2>"
+            "<table align=\"center\" rules=\"all\"><tr> <th>Item</th> <th>Count</th> <th>Size<br>KB</th> <th>Living<br>KB</th> <th>Decoded<br>KB</th></tr>";
 
     MemoryCache::TypeStatistic total;
-    total.count = stat.images.count + stat.cssStyleSheets.count
-            + stat.scripts.count + stat.xslStyleSheets.count + stat.fonts.count;
+    total.count = cacheStat.images.count + cacheStat.cssStyleSheets.count
+            + cacheStat.scripts.count + cacheStat.xslStyleSheets.count + cacheStat.fonts.count;
     total.size = cacheInc->totalSize();
-    total.liveSize = stat.images.liveSize + stat.cssStyleSheets.liveSize
-            + stat.scripts.liveSize + stat.xslStyleSheets.liveSize + stat.fonts.liveSize;
-    total.decodedSize = stat.images.decodedSize
-            + stat.cssStyleSheets.decodedSize + stat.scripts.decodedSize
-            + stat.xslStyleSheets.decodedSize + stat.fonts.decodedSize;
+    total.liveSize = cacheStat.images.liveSize + cacheStat.cssStyleSheets.liveSize
+            + cacheStat.scripts.liveSize + cacheStat.xslStyleSheets.liveSize + cacheStat.fonts.liveSize;
+    total.decodedSize = cacheStat.images.decodedSize
+            + cacheStat.cssStyleSheets.decodedSize + cacheStat.scripts.decodedSize
+            + cacheStat.xslStyleSheets.decodedSize + cacheStat.fonts.decodedSize;
 
     page += cacheTypeStatisticToHTMLTr("Total", total);
-    page += cacheTypeStatisticToHTMLTr("Images", stat.images);
-    page += cacheTypeStatisticToHTMLTr("CSS Style Sheets", stat.cssStyleSheets);
-    page += cacheTypeStatisticToHTMLTr("Scripts", stat.scripts);
+    page += cacheTypeStatisticToHTMLTr("Images", cacheStat.images);
+    page += cacheTypeStatisticToHTMLTr("CSS Style Sheets", cacheStat.cssStyleSheets);
+    page += cacheTypeStatisticToHTMLTr("Scripts", cacheStat.scripts);
 #if ENABLE(XSLT)
-    page += cacheTypeStatisticToHTMLTr("XSL Style Sheets", stat.xslStyleSheets);
+    page += cacheTypeStatisticToHTMLTr("XSL Style Sheets", cacheStat.xslStyleSheets);
 #endif
-    page += cacheTypeStatisticToHTMLTr("Fonts", stat.fonts);
+    page += cacheTypeStatisticToHTMLTr("Fonts", cacheStat.fonts);
 
-    page += "</table></body></html>";
+    page += "</table>";
+
+#if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
+
+    // JS engine memory usage.
+    JSC::GlobalMemoryStatistics jscMemoryStat = JSC::globalMemoryStatistics();
+    JSC::Heap& mainHeap = JSDOMWindow::commonJSGlobalData()->heap;
+    OwnPtr<JSC::TypeCountSet> objectTypeCounts = mainHeap.objectTypeCounts();
+    OwnPtr<JSC::TypeCountSet> protectedObjectTypeCounts = mainHeap.protectedObjectTypeCounts();
+
+    page += "<h2>JS engine memory usage</h2><table align=\"center\" rules=\"all\">";
+
+    page += numberToHTMLTr("Stack size", jscMemoryStat.stackBytes);
+    page += numberToHTMLTr("JIT memory usage", jscMemoryStat.JITBytes);
+    page += numberToHTMLTr("Main heap capacity", mainHeap.capacity());
+    page += numberToHTMLTr("Main heap size", mainHeap.size());
+    page += numberToHTMLTr("Object count", mainHeap.objectCount());
+    page += numberToHTMLTr("Global object count", mainHeap.globalObjectCount());
+    page += numberToHTMLTr("Protected object count", mainHeap.protectedObjectCount());
+    page += numberToHTMLTr("Protected global object count", mainHeap.protectedGlobalObjectCount());
+
+    page += "</table>";
+
+    page += "<h3>Object type counts</h3><table align=\"center\" rules=\"all\">";
+    dumpJSCTypeCountSetToTableHTML(page, objectTypeCounts.get());
+    page += "</table>";
+
+    page += "<h3>Protected object type counts</h3><table align=\"center\" rules=\"all\">";
+    dumpJSCTypeCountSetToTableHTML(page, protectedObjectTypeCounts.get());
+    page += "</table>";
+
+    // Malloc info.
+    struct mallinfo mallocInfo = mallinfo();
+
+    page += "<h2>Malloc Information</h2><table align=\"center\" rules=\"all\">";
+
+    page += numberToHTMLTr("Total space in use", mallocInfo.usmblks + mallocInfo.uordblks);
+    page += numberToHTMLTr("Total space in free blocks", mallocInfo.fsmblks + mallocInfo.fordblks);
+    page += numberToHTMLTr("Size of the arena", mallocInfo.arena);
+    page += numberToHTMLTr("Number of big blocks in use", mallocInfo.ordblks);
+    page += numberToHTMLTr("Number of small blocks in use", mallocInfo.smblks);
+    page += numberToHTMLTr("Number of header blocks in use", mallocInfo.hblks);
+    page += numberToHTMLTr("Space in header block headers", mallocInfo.hblkhd);
+    page += numberToHTMLTr("Space in small blocks in use", mallocInfo.usmblks);
+    page += numberToHTMLTr("Memory in free small blocks", mallocInfo.fsmblks);
+    page += numberToHTMLTr("Space in big blocks in use", mallocInfo.uordblks);
+    page += numberToHTMLTr("Memory in free big blocks", mallocInfo.fordblks);
+
+    struct stat processInfo;
+    if (!stat(String::format("/proc/%u/as", getpid()).latin1().data(), &processInfo))
+        page += numberToHTMLTr("Process total mapped memory", processInfo.st_size);
+
+    page += "</table>";
+#endif
+
+    page += "</body></html>";
     return page;
 }
 

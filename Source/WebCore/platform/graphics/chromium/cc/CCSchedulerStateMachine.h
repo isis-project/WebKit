@@ -120,6 +120,10 @@ public:
     // updating of compositor resources can begin.
     void beginFrameComplete();
 
+    // Call this only in response to receiving an ACTION_BEGIN_FRAME
+    // from nextState if the client rejects the beginFrame message.
+    void beginFrameAborted();
+
     // Call this only in response to receiving an ACTION_UPDATE_MORE_RESOURCES
     // from nextState. Indicates that the specific update request completed.
     void beginUpdateMoreResourcesComplete(bool morePending);
@@ -141,6 +145,9 @@ public:
     void didLoseContext();
     void didRecreateContext();
 
+    // Exposed for testing purposes.
+    void setMaximumNumberOfFailedDrawsBeforeDrawIsForced(int);
+
 protected:
     bool shouldDrawForced() const;
     bool drawSuspendedUntilCommit() const;
@@ -153,8 +160,11 @@ protected:
 
     int m_currentFrameNumber;
     int m_lastFrameNumberWhereDrawWasCalled;
+    int m_consecutiveFailedDraws;
+    int m_maximumNumberOfFailedDrawsBeforeDrawIsForced;
     bool m_needsRedraw;
     bool m_needsForcedRedraw;
+    bool m_needsForcedRedrawAfterNextCommit;
     bool m_needsCommit;
     bool m_needsForcedCommit;
     bool m_mainThreadNeedsLayerTextures;

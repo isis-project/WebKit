@@ -53,7 +53,7 @@ class TestWebKitPort(WebKitPort):
     def all_test_configurations(self):
         return [self.test_configuration()]
 
-    def _webcore_symbols_string(self):
+    def _symbols_string(self):
         return self.symbols_string
 
     def _tests_for_other_platforms(self):
@@ -61,21 +61,6 @@ class TestWebKitPort(WebKitPort):
 
     def _tests_for_disabled_features(self):
         return ["accessibility", ]
-
-
-class WebKitPortUnitTests(unittest.TestCase):
-    def test_default_options(self):
-        # The WebKit ports override new-run-webkit-test default options.
-        options = MockOptions(pixel_tests=None, time_out_ms=None)
-        port = WebKitPort(MockSystemHost(), options=options)
-        self.assertEquals(port._options.pixel_tests, False)
-        self.assertEquals(port._options.time_out_ms, 35000)
-
-        # Note that we don't override options if specified by the user.
-        options = MockOptions(pixel_tests=True, time_out_ms=6000)
-        port = WebKitPort(MockSystemHost(), options=options)
-        self.assertEquals(port._options.pixel_tests, True)
-        self.assertEquals(port._options.time_out_ms, 6000)
 
 
 class WebKitPortTest(port_testcase.PortTestCase):
@@ -94,9 +79,16 @@ class WebKitPortTest(port_testcase.PortTestCase):
     def test_path_to_test_expectations_file(self):
         port = TestWebKitPort()
         port._options = MockOptions(webkit_test_runner=False)
-        self.assertEqual(port.path_to_test_expectations_file(), '/mock-checkout/LayoutTests/platform/testwebkitport/test_expectations.txt')
+        self.assertEqual(port.path_to_test_expectations_file(), '/mock-checkout/LayoutTests/platform/testwebkitport/TestExpectations')
+
+        port = TestWebKitPort()
         port._options = MockOptions(webkit_test_runner=True)
-        self.assertEqual(port.path_to_test_expectations_file(), '/mock-checkout/LayoutTests/platform/testwebkitport/test_expectations.txt')
+        self.assertEqual(port.path_to_test_expectations_file(), '/mock-checkout/LayoutTests/platform/testwebkitport/TestExpectations')
+
+        port = TestWebKitPort()
+        port.host.filesystem.files['/mock-checkout/LayoutTests/platform/testwebkitport/TestExpectations'] = 'some content'
+        port._options = MockOptions(webkit_test_runner=False)
+        self.assertEqual(port.path_to_test_expectations_file(), '/mock-checkout/LayoutTests/platform/testwebkitport/TestExpectations')
 
     def test_skipped_directories_for_symbols(self):
         # This first test confirms that the commonly found symbols result in the expected skipped directories.
@@ -165,10 +157,10 @@ class WebKitPortTest(port_testcase.PortTestCase):
     def test_test_expectations(self):
         # Check that we read the expectations file
         host = MockSystemHost()
-        host.filesystem.write_text_file('/mock-checkout/LayoutTests/platform/testwebkitport/test_expectations.txt',
-            'BUG_TESTEXPECTATIONS SKIP : fast/html/article-element.html = FAIL\n')
+        host.filesystem.write_text_file('/mock-checkout/LayoutTests/platform/testwebkitport/TestExpectations',
+            'BUG_TESTEXPECTATIONS SKIP : fast/html/article-element.html = TEXT\n')
         port = TestWebKitPort(host=host)
-        self.assertEqual(port.test_expectations(), 'BUG_TESTEXPECTATIONS SKIP : fast/html/article-element.html = FAIL\n')
+        self.assertEqual(''.join(port.expectations_dict().values()), 'BUG_TESTEXPECTATIONS SKIP : fast/html/article-element.html = TEXT\n')
 
     def test_build_driver(self):
         output = OutputCapture()
@@ -277,6 +269,7 @@ class WebKitDriverTest(unittest.TestCase):
         self.assertEquals(content_block.content_type, 'my_type')
         self.assertEquals(content_block.encoding, 'none')
         self.assertEquals(content_block.content_hash, 'foobar')
+        driver._server_process = None
 
     def test_read_binary_block(self):
         port = TestWebKitPort()
@@ -294,6 +287,7 @@ class WebKitDriverTest(unittest.TestCase):
         self.assertEquals(content_block.content_hash, 'actual')
         self.assertEquals(content_block.content, '12345678')
         self.assertEquals(content_block.decoded_content, '12345678')
+        driver._server_process = None
 
     def test_no_timeout(self):
         port = TestWebKitPort()
@@ -317,10 +311,15 @@ class WebKitDriverTest(unittest.TestCase):
             def has_crashed(self):
                 return self.crashed
 
-        def assert_crash(driver, error_line, crashed, name, pid):
+            def stop(self):
+                pass
+
+        def assert_crash(driver, error_line, crashed, name, pid, unresponsive=False):
             self.assertEquals(driver._check_for_driver_crash(error_line), crashed)
             self.assertEquals(driver._crashed_process_name, name)
             self.assertEquals(driver._crashed_pid, pid)
+            self.assertEquals(driver._subprocess_was_unresponsive, unresponsive)
+            driver.stop()
 
         driver._server_process = FakeServerProcess(False)
         assert_crash(driver, '', False, None, None)
@@ -328,19 +327,52 @@ class WebKitDriverTest(unittest.TestCase):
         driver._crashed_process_name = None
         driver._crashed_pid = None
         driver._server_process = FakeServerProcess(False)
+        driver._subprocess_was_unresponsive = False
         assert_crash(driver, '#CRASHED\n', True, 'FakeServerProcess', 1234)
 
         driver._crashed_process_name = None
         driver._crashed_pid = None
         driver._server_process = FakeServerProcess(False)
+        driver._subprocess_was_unresponsive = False
         assert_crash(driver, '#CRASHED - WebProcess\n', True, 'WebProcess', None)
 
         driver._crashed_process_name = None
         driver._crashed_pid = None
         driver._server_process = FakeServerProcess(False)
+        driver._subprocess_was_unresponsive = False
         assert_crash(driver, '#CRASHED - WebProcess (pid 8675)\n', True, 'WebProcess', 8675)
 
         driver._crashed_process_name = None
         driver._crashed_pid = None
+        driver._server_process = FakeServerProcess(False)
+        driver._subprocess_was_unresponsive = False
+        assert_crash(driver, '#PROCESS UNRESPONSIVE - WebProcess (pid 8675)\n', True, 'WebProcess', 8675, True)
+
+        driver._crashed_process_name = None
+        driver._crashed_pid = None
         driver._server_process = FakeServerProcess(True)
+        driver._subprocess_was_unresponsive = False
         assert_crash(driver, '', True, 'FakeServerProcess', 1234)
+
+    def test_creating_a_port_does_not_write_to_the_filesystem(self):
+        port = TestWebKitPort()
+        driver = WebKitDriver(port, 0, pixel_tests=True)
+        self.assertEquals(port._filesystem.written_files, {})
+        self.assertEquals(port._filesystem.last_tmpdir, None)
+
+    def test_stop_cleans_up_properly(self):
+        port = TestWebKitPort()
+        driver = WebKitDriver(port, 0, pixel_tests=True)
+        driver.start(True, [])
+        last_tmpdir = port._filesystem.last_tmpdir
+        self.assertNotEquals(last_tmpdir, None)
+        driver.stop()
+        self.assertFalse(port._filesystem.isdir(last_tmpdir))
+
+    def test_two_starts_cleans_up_properly(self):
+        port = TestWebKitPort()
+        driver = WebKitDriver(port, 0, pixel_tests=True)
+        driver.start(True, [])
+        last_tmpdir = port._filesystem.last_tmpdir
+        driver._start(True, [])
+        self.assertFalse(port._filesystem.isdir(last_tmpdir))

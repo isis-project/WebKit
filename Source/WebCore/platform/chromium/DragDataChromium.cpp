@@ -38,8 +38,14 @@
 #include "KURL.h"
 #include "NotImplemented.h"
 #include "PlatformString.h"
-#include "PlatformSupport.h"
 #include "markup.h"
+
+#include <public/Platform.h>
+#include <public/WebFileUtilities.h>
+
+#if ENABLE(FILE_SYSTEM)
+#include "DraggedIsolatedFileSystem.h"
+#endif
 
 namespace WebCore {
 
@@ -60,7 +66,8 @@ String DragData::asURL(Frame*, FilenameConversionPolicy filenamePolicy, String* 
     if (m_platformDragData->types().contains(mimeTypeTextURIList))
         m_platformDragData->urlAndTitle(url, title);
     else if (filenamePolicy == ConvertFilenames && containsFiles()) {
-        url = PlatformSupport::filePathToURL(PlatformSupport::getAbsolutePath(m_platformDragData->filenames()[0]));
+        String path = String(WebKit::Platform::current()->fileUtilities()->getAbsolutePath(m_platformDragData->filenames()[0]));
+        url = KURL(WebKit::Platform::current()->fileUtilities()->filePathToURL(path));
     }
     return url;
 }
@@ -158,5 +165,16 @@ Color DragData::asColor() const
     notImplemented();
     return Color();
 }
+
+#if ENABLE(FILE_SYSTEM)
+String DragData::droppedFileSystemId() const
+{
+    DraggedIsolatedFileSystem* filesystem = DraggedIsolatedFileSystem::from(m_platformDragData);
+    if (!filesystem)
+        return String();
+    return filesystem->filesystemId();
+}
+#endif
+
 
 } // namespace WebCore

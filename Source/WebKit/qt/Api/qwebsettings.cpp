@@ -47,7 +47,7 @@
 #include "FileSystem.h"
 
 #include <QApplication>
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+#if HAVE(QT5)
 #include <QStandardPaths>
 #else
 #include <QDesktopServices>
@@ -158,10 +158,8 @@ void QWebSettingsPrivate::apply()
         settings->setAcceleratedCompositingEnabled(value);
         settings->setAcceleratedCompositingFor3DTransformsEnabled(value);
         settings->setAcceleratedCompositingForAnimationEnabled(value);
-#if USE(TEXTURE_MAPPER)
         settings->setAcceleratedCompositingForVideoEnabled(false);
         settings->setAcceleratedCompositingForPluginsEnabled(false);
-#endif
 #endif
 #if ENABLE(WEBGL)
         value = attributes.value(QWebSettings::WebGLEnabled,
@@ -176,6 +174,9 @@ void QWebSettingsPrivate::apply()
         value = attributes.value(QWebSettings::CSSRegionsEnabled,
                                  global->attributes.value(QWebSettings::CSSRegionsEnabled));
         settings->setCSSRegionsEnabled(value);
+        value = attributes.value(QWebSettings::CSSGridLayoutEnabled,
+                                 global->attributes.value(QWebSettings::CSSGridLayoutEnabled));
+        settings->setCSSGridLayoutEnabled(value);
 
         value = attributes.value(QWebSettings::HyperlinkAuditingEnabled,
                                  global->attributes.value(QWebSettings::HyperlinkAuditingEnabled));
@@ -528,6 +529,7 @@ QWebSettings::QWebSettings()
     d->attributes.insert(QWebSettings::AcceleratedCompositingEnabled, true);
     d->attributes.insert(QWebSettings::WebGLEnabled, false);
     d->attributes.insert(QWebSettings::CSSRegionsEnabled, false);
+    d->attributes.insert(QWebSettings::CSSGridLayoutEnabled, false);
     d->attributes.insert(QWebSettings::HyperlinkAuditingEnabled, false);
     d->attributes.insert(QWebSettings::TiledBackingStoreEnabled, false);
     d->attributes.insert(QWebSettings::FrameFlatteningEnabled, false);
@@ -750,12 +752,8 @@ void QWebSettings::clearIconDatabase()
 QIcon QWebSettings::iconForUrl(const QUrl& url)
 {
     WebCore::initializeWebCoreQt();
-    WebCore::Image* image = WebCore::iconDatabase().synchronousIconForPageURL(WebCore::KURL(url).string(),
+    QPixmap* icon = WebCore::iconDatabase().synchronousNativeIconForPageURL(WebCore::KURL(url).string(),
                                 WebCore::IntSize(16, 16));
-    if (!image)
-        return QPixmap();
-
-    QPixmap* icon = image->nativeImageForCurrentFrame();
     if (!icon)
         return QPixmap();
 
@@ -1186,7 +1184,7 @@ void QWebSettings::enablePersistentStorage(const QString& path)
 
     if (path.isEmpty()) {
 
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+#if HAVE(QT5)
         storagePath = QStandardPaths::writableLocation(QStandardPaths::DataLocation);
 #else
         storagePath = QDesktopServices::storageLocation(QDesktopServices::DataLocation);
@@ -1209,7 +1207,7 @@ void QWebSettings::enablePersistentStorage(const QString& path)
 #if ENABLE(NETSCAPE_PLUGIN_METADATA_CACHE)
     // All applications can share the common QtWebkit cache file(s).
     // Path is not configurable and uses QDesktopServices::CacheLocation by default.
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+#if HAVE(QT5)
     QString cachePath = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
 #else
     QString cachePath = QDesktopServices::storageLocation(QDesktopServices::CacheLocation);

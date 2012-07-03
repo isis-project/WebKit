@@ -50,6 +50,7 @@ ShadowRoot::ShadowRoot(Document* document)
     , m_prev(0)
     , m_next(0)
     , m_applyAuthorStyles(false)
+    , m_resetStyleInheritance(false)
     , m_insertionPointAssignedTo(0)
 {
     ASSERT(document);
@@ -189,8 +190,21 @@ void ShadowRoot::setApplyAuthorStyles(bool value)
 {
     if (m_applyAuthorStyles != value) {
         m_applyAuthorStyles = value;
+        host()->setNeedsStyleRecalc();
+    }
+}
+
+bool ShadowRoot::resetStyleInheritance() const
+{
+    return m_resetStyleInheritance;
+}
+
+void ShadowRoot::setResetStyleInheritance(bool value)
+{
+    if (value != m_resetStyleInheritance) {
+        m_resetStyleInheritance = value;
         if (attached() && owner())
-            owner()->setNeedsRedistributing();
+            owner()->recalcStyle(Force);
     }
 }
 
@@ -198,8 +212,15 @@ void ShadowRoot::attach()
 {
     StyleResolver* styleResolver = document()->styleResolver();
     styleResolver->pushParentShadowRoot(this);
-    DocumentFragment::attach();
+    attachChildrenIfNeeded();
+    attachAsNode();
     styleResolver->popParentShadowRoot(this);
+}
+
+void ShadowRoot::childrenChanged(bool changedByParser, Node* beforeChange, Node* afterChange, int childCountDelta)
+{
+    ContainerNode::childrenChanged(changedByParser, beforeChange, afterChange, childCountDelta);
+    owner()->invalidateDistribution();
 }
 
 }

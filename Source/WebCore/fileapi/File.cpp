@@ -86,7 +86,7 @@ File::File(const String& path)
     , m_name(pathGetFileName(path))
 #if ENABLE(FILE_SYSTEM)
     , m_snapshotSize(-1)
-    , m_snapshotModificationTime(0)
+    , m_snapshotModificationTime(invalidFileTime())
 #endif
 {
 }
@@ -96,7 +96,7 @@ File::File(const String& path, const KURL& url, const String& type)
     , m_path(path)
 #if ENABLE(FILE_SYSTEM)
     , m_snapshotSize(-1)
-    , m_snapshotModificationTime(0)
+    , m_snapshotModificationTime(invalidFileTime())
 #endif
 {
     m_name = pathGetFileName(path);
@@ -111,7 +111,7 @@ File::File(const String& path, const String& name)
     , m_name(name)
 #if ENABLE(FILE_SYSTEM)
     , m_snapshotSize(-1)
-    , m_snapshotModificationTime(0)
+    , m_snapshotModificationTime(invalidFileTime())
 #endif
 {
 }
@@ -130,13 +130,13 @@ File::File(const String& name, const FileMetadata& metadata)
 double File::lastModifiedDate() const
 {
 #if ENABLE(FILE_SYSTEM)
-    if (m_snapshotSize >= 0 && m_snapshotModificationTime)
+    if (hasValidSnapshotMetadata())
         return m_snapshotModificationTime * 1000.0;
 #endif
 
     time_t modificationTime;
     if (!getFileModificationTime(m_path, modificationTime))
-        return 0;
+        return invalidFileTime();
 
     // Needs to return epoch time in milliseconds for Date.
     return modificationTime * 1000.0;
@@ -145,7 +145,7 @@ double File::lastModifiedDate() const
 unsigned long long File::size() const
 {
 #if ENABLE(FILE_SYSTEM)
-    if (m_snapshotSize >= 0 && m_snapshotModificationTime)
+    if (hasValidSnapshotMetadata())
         return m_snapshotSize;
 #endif
 
@@ -160,7 +160,7 @@ unsigned long long File::size() const
 void File::captureSnapshot(long long& snapshotSize, double& snapshotModificationTime) const
 {
 #if ENABLE(FILE_SYSTEM)
-    if (m_snapshotSize >= 0 && m_snapshotModificationTime) {
+    if (hasValidSnapshotMetadata()) {
         snapshotSize = m_snapshotSize;
         snapshotModificationTime = m_snapshotModificationTime;
         return;
@@ -172,7 +172,7 @@ void File::captureSnapshot(long long& snapshotSize, double& snapshotModification
     FileMetadata metadata;
     if (!getFileMetadata(m_path, metadata)) {
         snapshotSize = 0;
-        snapshotModificationTime = 0;
+        snapshotModificationTime = invalidFileTime();
         return;
     }
 

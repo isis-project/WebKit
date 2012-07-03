@@ -101,6 +101,8 @@ class TimeRanges;
 
 class MediaPlayerClient {
 public:
+    enum CORSMode { Unspecified, Anonymous, UseCredentials };
+
     virtual ~MediaPlayerClient() { }
 
     // Get the document which the media player is owned by
@@ -178,6 +180,7 @@ public:
 
     virtual String mediaPlayerReferrer() const { return String(); }
     virtual String mediaPlayerUserAgent() const { return String(); }
+    virtual CORSMode mediaPlayerCORSMode() const { return Unspecified; }
 };
 
 class MediaPlayerSupportsTypeClient {
@@ -200,7 +203,7 @@ public:
 
     // Media engine support.
     enum SupportsType { IsNotSupported, IsSupported, MayBeSupported };
-    static MediaPlayer::SupportsType supportsType(const ContentType&, const String& keySystem, const MediaPlayerSupportsTypeClient*);
+    static MediaPlayer::SupportsType supportsType(const ContentType&, const String& keySystem, const KURL&, const MediaPlayerSupportsTypeClient*);
     static void getSupportedTypes(HashSet<String>&);
     static bool isAvailable();
     static void getSitesInMediaCache(Vector<String>&);
@@ -260,6 +263,7 @@ public:
     bool paused() const;
     bool seeking() const;
 
+    static float invalidTime() { return -1.0f;}
     float duration() const;
     float currentTime() const;
     void seek(float time);
@@ -278,7 +282,7 @@ public:
     PassRefPtr<TimeRanges> seekable();
     float maxTimeSeekable();
 
-    unsigned bytesLoaded();
+    bool didLoadingProgress();
 
     float volume() const;
     void setVolume(float);
@@ -354,6 +358,8 @@ public:
 
     bool hasSingleSecurityOrigin() const;
 
+    bool didPassCORSAccessCheck() const;
+
     float mediaTimeForTimeValue(float) const;
 
     double maximumDurationToCacheMediaTime() const;
@@ -395,7 +401,7 @@ private:
     Timer<MediaPlayer> m_reloadTimer;
     OwnPtr<MediaPlayerPrivateInterface> m_private;
     MediaPlayerFactory* m_currentMediaEngine;
-    String m_url;
+    KURL m_url;
     String m_contentMIMEType;
     String m_contentTypeCodecs;
     String m_keySystem;
@@ -418,17 +424,16 @@ private:
 typedef PassOwnPtr<MediaPlayerPrivateInterface> (*CreateMediaEnginePlayer)(MediaPlayer*);
 typedef void (*MediaEngineSupportedTypes)(HashSet<String>& types);
 #if ENABLE(ENCRYPTED_MEDIA)
-typedef MediaPlayer::SupportsType (*MediaEngineSupportsType)(const String& type, const String& codecs, const String& keySystem);
+typedef MediaPlayer::SupportsType (*MediaEngineSupportsType)(const String& type, const String& codecs, const String& keySystem, const KURL& url);
 #else
-typedef MediaPlayer::SupportsType (*MediaEngineSupportsType)(const String& type, const String& codecs);
+typedef MediaPlayer::SupportsType (*MediaEngineSupportsType)(const String& type, const String& codecs, const KURL& url);
 #endif
 typedef void (*MediaEngineGetSitesInMediaCache)(Vector<String>&);
 typedef void (*MediaEngineClearMediaCache)();
 typedef void (*MediaEngineClearMediaCacheForSite)(const String&);
 
-typedef void (*MediaEngineRegistrar)(CreateMediaEnginePlayer, MediaEngineSupportedTypes, MediaEngineSupportsType, 
-    MediaEngineGetSitesInMediaCache, MediaEngineClearMediaCache, MediaEngineClearMediaCacheForSite); 
-
+typedef void (*MediaEngineRegistrar)(CreateMediaEnginePlayer, MediaEngineSupportedTypes, MediaEngineSupportsType,
+    MediaEngineGetSitesInMediaCache, MediaEngineClearMediaCache, MediaEngineClearMediaCacheForSite);
 
 }
 

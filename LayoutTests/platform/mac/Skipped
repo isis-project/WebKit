@@ -243,6 +243,9 @@ fast/images/large-size-image-crash.html
 # Directory upload is not enabled.
 fast/forms/file/input-file-directory-upload.html
 
+# Requires ENABLE(FILE_SYSTEM)
+fast/forms/file/input-file-entries.html
+
 # Web Timing is not enabled.
 # https://bugs.webkit.org/show_bug.cgi?id=42434
 fast/dom/Window/window-properties-performance.html
@@ -281,9 +284,15 @@ inspector/debugger/xhr-breakpoints.html
 # https://bugs.webkit.org/show_bug.cgi?id=50485
 inspector/profiler/heap-snapshot-inspect-dom-wrapper.html
 inspector/profiler/heap-snapshot-comparison-dom-groups-change.html
+inspector/profiler/heap-snapshot-comparison-expansion-preserved-when-sorting.html
+inspector/profiler/heap-snapshot-comparison-show-all.html
 inspector/profiler/heap-snapshot-loader.html
 inspector/profiler/heap-snapshot-reveal-in-dominators-view.html
+inspector/profiler/heap-snapshot-summary-retainers.html
 inspector/profiler/heap-snapshot-summary-show-ranges.html
+inspector/profiler/heap-snapshot-summary-sorting-fields.html
+inspector/profiler/heap-snapshot-summary-sorting.html
+inspector/profiler/heap-snapshot-summary-sorting-instances.html
 
 # Skipping newly added tests while I'm finding out what is wrong.
 # https://bugs.webkit.org/show_bug.cgi?id=59706
@@ -294,6 +303,9 @@ http/tests/inspector/resource-tree/resource-tree-reload.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=40300
 inspector/debugger/live-edit.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=89652
+inspector/debugger/debugger-compile-and-run.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=53003
 http/tests/inspector/compiler-source-mapping-debug.html
@@ -319,7 +331,9 @@ http/tests/media/video-buffered.html
 # FileSystem API is not supported.
 fast/filesystem
 http/tests/filesystem
+http/tests/inspector/filesystem
 http/tests/security/filesystem-iframe-from-remote.html
+http/tests/security/mixedContent/filesystem-url-in-iframe.html
 http/tests/websocket/tests/hybi/send-file-blob.html
 http/tests/websocket/tests/hybi/send-file-blob-fail.html
 fast/mutation/filesystem-callback-delivery.html
@@ -436,9 +450,6 @@ http/tests/media/video-cross-site.html
 # https://bugs.webkit.org/show_bug.cgi?id=63169
 webarchive/loading/mainresource-null-mimetype-crash.html
 
-# CSS Grid Layout is not yet enabled. http://webkit.org/b/60731
-fast/css-grid-layout
-
 # <style scoped> is not yet enabled. http://webkit.org/b/49142
 fast/css/style-scoped
 # CSS Regions tests for region styling and scoped styles
@@ -492,9 +503,6 @@ scrollbars/scrollbar-drag-thumb-with-large-content.html
 
 # Font feature settings is not implemented.
 css3/font-feature-settings-rendering.html
-
-# CSS Shaders not enabled
-css3/filters/custom
 
 # This test verifies that a mismatch reftest will fail as intended if both results are same.
 fast/harness/sample-fail-mismatch-reftest.html
@@ -625,10 +633,6 @@ media/audio-garbage-collect.html
 # http://bugs.webkit.org/show_bug.cgi?id=81618
 fast/workers/storage/use-same-database-in-page-and-workers.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=81276
-# Allowed to regress to fix a crash.
-fast/inline/continuation-outlines-with-layers.html
-
 # Not possible to set UA string for media requests with all Mac media engines.
 http/tests/media/video-useragent.html
 
@@ -694,10 +698,6 @@ fast/events/scroll-div-with-prevent-default-in-subframe.html
 fast/frames/flattening/frameset-flattening-advanced.html
 fast/frames/flattening/frameset-flattening-simple.html
 fast/frames/flattening/frameset-flattening-subframesets.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=82749
-http/tests/cookies/simple-cookies-expired.html
-http/tests/cookies/simple-cookies-max-age.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=82750
 http/tests/navigation/javascriptlink-frames.html
@@ -790,9 +790,6 @@ fast/dom/inline-event-attributes-release.html
 fast/profiler/stop-profiling-after-setTimeout.html
 fast/profiler/dead-time.html
 
-# Requires rebaseline after bug 83978
-tables/mozilla_expected_failures/collapsing_borders/bug41262-5.html
-
 # The Mac port does not support the legacy WebKitBlobBuilder class.
 fast/files/blob-builder-crash.html
 
@@ -808,8 +805,18 @@ scrollbars/scrollbar-miss-mousemove-disabled.html
 # https://bugs.webkit.org/show_bug.cgi?id=85532
 fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/float-containing-block-with-margin.html
+fast/sub-pixel/float-with-right-margin-zoom.html
+fast/sub-pixel/float-wrap-with-subpixel-top.html
+fast/sub-pixel/inline-block-with-margin.html
+fast/sub-pixel/inline-block-with-padding.html
 fast/sub-pixel/layout-boxes-with-zoom.html
 fast/sub-pixel/size-of-box-with-zoom.html
+fast/sub-pixel/selection/selection-gaps-at-fractional-offsets.html
+fast/sub-pixel/file-upload-control-at-fractional-offset.html
+
+# No CORS support for media elements is implemented yet.
+http/tests/security/video-cross-origin-readback.html
 
 # media/audio-repaint.html sometimes fails on Lion Debug (Tests)
 # https://bugs.webkit.org/show_bug.cgi?id=84357
@@ -836,12 +843,12 @@ http/tests/loading/post-in-iframe-with-back-navigation.html
 # https://bugs.webkit.org/show_bug.cgi?id=86000
 http/tests/security/referrer-policy-redirect-link.html
 
-# Hits assert https://bugs.webkit.org/show_bug.cgi?id=86208
-ietestcenter/css3/valuesandunits/units-000.htm
-
 # Inspector only supports evaluation in content script world with v8, see https://bugs.webkit.org/show_bug.cgi?id=85709
 inspector/extensions/extensions-eval-content-script.html
 inspector/extensions/extensions-audits-content-script.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=89790
+inspector/extensions/extensions-panel.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=86480
 plugins/npruntime/delete-plugin-within-setProperty.html
@@ -851,9 +858,6 @@ plugins/npruntime/delete-plugin-within-hasProperty-return-false.html
 # https://bugs.webkit.org/show_bug.cgi?id=86786
 mathml/presentation/mo-stretch.html
 mathml/presentation/mroot-pref-width.html
-
-# https://bugs.webkit.org/show_bug.cgi?id=86859
-editing/spelling/spellcheck-async-remove-frame.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=87199
 compositing/video/video-poster.html
@@ -874,4 +878,24 @@ http/tests/cache/cancel-in-progress-load.html
 
 # Asserts in MessagePort::contextDestroyed
 # https://bugs.webkit.org/show_bug.cgi?id=85811
-fast/events/message-port-constructor-for-deleted-document.html
+fast/events/message-port-clone.html
+
+# Times out without keyboard interaction
+# https://bugs.webkit.org/show_bug.cgi?id=87748
+fast/forms/select/optgroup-clicking.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=88672
+svg/filters/color-space-conversion.svg
+
+# https://bugs.webkit.org/show_bug.cgi?id=89528
+svg/filters/container-with-filters.svg
+svg/filters/feSpecularLight-premultiplied.svg
+
+# https://bugs.webkit.org/show_bug.cgi?id=88736
+http/tests/security/mixedContent/blob-url-in-iframe.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=89680
+fast/canvas/canvas-imageSmoothingEnabled-repaint.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=89845
+fast/forms/input-set-composition-scroll.html

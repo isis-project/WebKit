@@ -29,12 +29,10 @@
 
 #include "CCScrollbarLayerImpl.h"
 
-#include "CCTileDrawQuad.h"
-#include "LayerRendererChromium.h"
-#include "ManagedTexture.h"
-#include "PlatformCanvas.h"
 #include "ScrollbarTheme.h"
+#include "ScrollbarThemeComposite.h"
 #include "cc/CCQuadCuller.h"
+#include "cc/CCTextureDrawQuad.h"
 
 namespace WebCore {
 
@@ -47,66 +45,54 @@ CCScrollbarLayerImpl::CCScrollbarLayerImpl(int id)
     : CCLayerImpl(id)
     , m_scrollLayer(0)
     , m_scrollbar(this)
+    , m_backTrackTextureId(0)
+    , m_foreTrackTextureId(0)
+    , m_thumbTextureId(0)
 {
 }
 
-void CCScrollbarLayerImpl::willDraw(LayerRendererChromium* layerRenderer)
+namespace {
+
+FloatRect toUVRect(const IntRect& r, const IntRect& bounds)
 {
-    CCLayerImpl::willDraw(layerRenderer);
+    ASSERT(bounds.contains(r));
+    return FloatRect(static_cast<float>(r.x()) / bounds.width(), static_cast<float>(r.y()) / bounds.height(),
+                     static_cast<float>(r.width()) / bounds.width(), static_cast<float>(r.height()) / bounds.height());
+}
 
-    if (bounds().isEmpty() || contentBounds().isEmpty())
-        return;
-
-    if (!m_texture)
-        m_texture = ManagedTexture::create(layerRenderer->renderSurfaceTextureManager());
-
-    // The context could have been lost since the last frame and the old texture
-    // manager may no longer be valid.
-    m_texture->setTextureManager(layerRenderer->renderSurfaceTextureManager());
-
-    IntSize textureSize = contentBounds();
-    if (!m_texture->reserve(textureSize, GraphicsContext3D::RGBA))
-        return;
-
-    PlatformCanvas canvas;
-    canvas.resize(textureSize);
-    {
-        PlatformCanvas::Painter painter(&canvas, PlatformCanvas::Painter::GrayscaleText);
-        paint(painter.context());
-    }
-
-    {
-        PlatformCanvas::AutoLocker locker(&canvas);
-        GraphicsContext3D* context = layerRenderer->context();
-        m_texture->bindTexture(context, layerRenderer->renderSurfaceTextureAllocator());
-
-        // FIXME: Skia uses BGRA actually, we correct that with the swizzle pixel shader.
-        GLC(context, context->texImage2D(GraphicsContext3D::TEXTURE_2D, 0, m_texture->format(), canvas.size().width(), canvas.size().height(), 0, GraphicsContext3D::RGBA, GraphicsContext3D::UNSIGNED_BYTE, locker.pixels()));
-    }
 }
 
 void CCScrollbarLayerImpl::appendQuads(CCQuadCuller& quadList, const CCSharedQuadState* sharedQuadState, bool&)
 {
-    if (!m_texture->isReserved())
+    ScrollbarThemeComposite* theme = static_cast<ScrollbarThemeComposite*>(ScrollbarTheme::theme());
+    if (!theme)
         return;
 
-    IntRect quadRect(IntPoint(), bounds());
-    quadList.append(CCTileDrawQuad::create(sharedQuadState, quadRect, quadRect, m_texture->textureId(), IntPoint(), m_texture->size(), GraphicsContext3D::NEAREST, true, true, true, true, true));
-}
+    bool premultipledAlpha = false;
+    bool flipped = false;
+    FloatRect uvRect(0, 0, 1, 1);
+    IntRect boundsRect(IntPoint(), contentBounds());
 
-void CCScrollbarLayerImpl::didDraw()
-{
-    CCLayerImpl::didDraw();
+    IntRect thumbRect, backTrackRect, foreTrackRect;
+    theme->splitTrack(&m_scrollbar, theme->trackRect(&m_scrollbar), backTrackRect, thumbRect, foreTrackRect);
 
-    m_texture->unreserve();
-}
+    if (m_thumbTextureId && theme->hasThumb(&m_scrollbar) && !thumbRect.isEmpty()) {
+        OwnPtr<CCTextureDrawQuad> quad = CCTextureDrawQuad::create(sharedQuadState, thumbRect, m_thumbTextureId, premultipledAlpha, uvRect, flipped);
+        quad->setNeedsBlending();
+        quadList.append(quad.release());
+    }
 
-void CCScrollbarLayerImpl::paint(GraphicsContext* context)
-{
-    ScrollbarTheme* theme = ScrollbarTheme::theme(); // FIXME: should make impl-side clone if needed
+    if (!m_backTrackTextureId)
+        return;
 
-    context->clearRect(IntRect(IntPoint(), contentBounds()));
-    theme->paint(&m_scrollbar, context, IntRect(IntPoint(), contentBounds()));
+    // We only paint the track in two parts if we were given a texture for the forward track part.
+    if (m_foreTrackTextureId && !foreTrackRect.isEmpty())
+        quadList.append(CCTextureDrawQuad::create(sharedQuadState, foreTrackRect, m_foreTrackTextureId, premultipledAlpha, toUVRect(foreTrackRect, boundsRect), flipped));
+
+    // Order matters here: since the back track texture is being drawn to the entire contents rect, we must append it after the thumb and
+    // fore track quads. The back track texture contains (and displays) the buttons.
+    if (!boundsRect.isEmpty())
+        quadList.append(CCTextureDrawQuad::create(sharedQuadState, boundsRect, m_backTrackTextureId, premultipledAlpha, uvRect, flipped));
 }
 
 
@@ -235,8 +221,8 @@ int CCScrollbarLayerImpl::CCScrollbar::totalSize() const
     // FIXME: Hardcoding the first child here is weird. Think of
     // a cleaner way to get the contentBounds on the Impl side.
     if (orientation() == HorizontalScrollbar)
-        return m_owner->m_scrollLayer->children()[0]->contentBounds().width();
-    return m_owner->m_scrollLayer->children()[0]->contentBounds().height();
+        return m_owner->m_scrollLayer->children()[0]->bounds().width();
+    return m_owner->m_scrollLayer->children()[0]->bounds().height();
 }
 
 int CCScrollbarLayerImpl::CCScrollbar::maximum() const

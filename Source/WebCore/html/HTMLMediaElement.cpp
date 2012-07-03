@@ -86,7 +86,6 @@
 #include <wtf/text/CString.h>
 
 #if USE(ACCELERATED_COMPOSITING)
-#include "RenderView.h"
 #include "RenderLayerCompositor.h"
 #endif
 
@@ -142,8 +141,6 @@ static const char* boolString(bool val)
 // fair amount of overhead and logging.
 #define LOG_CACHED_TIME_WARNINGS 0
 #endif
-
-static const float invalidMediaTime = -1;
 
 #if ENABLE(MEDIA_SOURCE)
 // URL protocol used to signal that the media source API is being used.
@@ -210,7 +207,6 @@ HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName, Document* docum
     , m_readyStateMaximum(HAVE_NOTHING)
     , m_volume(1.0f)
     , m_lastSeekTime(0)
-    , m_previousProgress(0)
     , m_previousProgressTime(numeric_limits<double>::max())
     , m_lastTimeUpdateEventWallTime(0)
     , m_lastTimeUpdateEventMovieTime(numeric_limits<float>::max())
@@ -225,11 +221,11 @@ HTMLMediaElement::HTMLMediaElement(const QualifiedName& tagName, Document* docum
 #if ENABLE(MEDIA_SOURCE)      
     , m_sourceState(SOURCE_CLOSED)
 #endif
-    , m_cachedTime(invalidMediaTime)
+    , m_cachedTime(MediaPlayer::invalidTime())
     , m_cachedTimeWallClockUpdateTime(0)
     , m_minimumWallClockTimeToCacheMediaTime(0)
-    , m_fragmentStartTime(invalidMediaTime)
-    , m_fragmentEndTime(invalidMediaTime)
+    , m_fragmentStartTime(MediaPlayer::invalidTime())
+    , m_fragmentEndTime(MediaPlayer::invalidTime())
     , m_pendingLoadFlags(0)
     , m_playing(false)
     , m_isWaitingUntilMediaCanStart(false)
@@ -619,9 +615,9 @@ HTMLMediaElement::NetworkState HTMLMediaElement::networkState() const
     return m_networkState;
 }
 
-String HTMLMediaElement::canPlayType(const String& mimeType, const String& keySystem) const
+String HTMLMediaElement::canPlayType(const String& mimeType, const String& keySystem, const KURL& url) const
 {
-    MediaPlayer::SupportsType support = MediaPlayer::supportsType(ContentType(mimeType), keySystem, this);
+    MediaPlayer::SupportsType support = MediaPlayer::supportsType(ContentType(mimeType), keySystem, url, this);
     String canPlay;
 
     // 4.8.10.3
@@ -638,7 +634,7 @@ String HTMLMediaElement::canPlayType(const String& mimeType, const String& keySy
             break;
     }
     
-    LOG(Media, "HTMLMediaElement::canPlayType(%s, %s) -> %s", mimeType.utf8().data(), keySystem.utf8().data(), canPlay.utf8().data());
+    LOG(Media, "HTMLMediaElement::canPlayType(%s, %s, %s) -> %s", mimeType.utf8().data(), keySystem.utf8().data(), url.string().utf8().data(), canPlay.utf8().data());
 
     return canPlay;
 }
@@ -1102,7 +1098,9 @@ void HTMLMediaElement::updateActiveTextTrackCues(float movieTime)
         if (!currentCues.contains(previousCues[i]) && previousCues[i].data()->isActive())
             activeSetChanged = true;
 
-    for (size_t i = 0; !activeSetChanged && i < currentCuesSize; ++i) {
+    for (size_t i = 0; i < currentCuesSize; ++i) {
+        currentCues[i].data()->updateDisplayTree(movieTime);
+
         if (!currentCues[i].data()->isActive())
             activeSetChanged = true;
     }
@@ -1141,11 +1139,18 @@ void HTMLMediaElement::updateActiveTextTrackCues(float movieTime)
         eventTasks.append(std::make_pair(missedCues[i].data()->startTime(),
                                          missedCues[i].data()));
 
-        // 10 - For each text track in missed cues, prepare an event
-        // named exit for the TextTrackCue object with the text track cue end
-        // time.
-        eventTasks.append(std::make_pair(missedCues[i].data()->endTime(),
-                                         missedCues[i].data()));
+        // 10 - For each text track [...] in missed cues, prepare an event
+        // named exit for the TextTrackCue object with the  with the later of
+        // the text track cue end time and the text track cue start time.
+
+        // Note: An explicit task is added only if the cue is NOT a zero or
+        // negative length cue. Otherwise, the need for an exit event is
+        // checked when these tasks are actually queued below. This doesn't
+        // affect sorting events before dispatch either, because the exit
+        // event has the same time as the enter event.
+        if (missedCues[i].data()->startTime() < missedCues[i].data()->endTime())
+            eventTasks.append(std::make_pair(missedCues[i].data()->endTime(),
+                                             missedCues[i].data()));
     }
 
     for (size_t i = 0; i < previousCuesSize; ++i) {
@@ -1179,15 +1184,25 @@ void HTMLMediaElement::updateActiveTextTrackCues(float movieTime)
 
         // Each event in eventTasks may be either an enterEvent or an exitEvent,
         // depending on the time that is associated with the event. This
-        // correctly identifies the type of the event, since the startTime is
-        // always less than the endTime.
-        if (eventTasks[i].first == eventTasks[i].second->startTime())
+        // correctly identifies the type of the event, if the startTime is
+        // less than the endTime in the cue.
+        if (eventTasks[i].second->startTime() >= eventTasks[i].second->endTime()) {
             event = Event::create(eventNames().enterEvent, false, false);
-        else
-            event = Event::create(eventNames().exitEvent, false, false);
+            event->setTarget(eventTasks[i].second);
+            m_asyncEventQueue->enqueueEvent(event.release());
 
-        event->setTarget(eventTasks[i].second);
-        m_asyncEventQueue->enqueueEvent(event.release());
+            event = Event::create(eventNames().exitEvent, false, false);
+            event->setTarget(eventTasks[i].second);
+            m_asyncEventQueue->enqueueEvent(event.release());
+        } else {
+            if (eventTasks[i].first == eventTasks[i].second->startTime())
+                event = Event::create(eventNames().enterEvent, false, false);
+            else
+                event = Event::create(eventNames().exitEvent, false, false);
+
+            event->setTarget(eventTasks[i].second);
+            m_asyncEventQueue->enqueueEvent(event.release());
+        }
     }
 
     // 14 - Sort affected tracks in the same order as the text tracks appear in
@@ -1311,13 +1326,21 @@ void HTMLMediaElement::textTrackRemoveCues(TextTrack*, const TextTrackCueList* c
 
 void HTMLMediaElement::textTrackAddCue(TextTrack*, PassRefPtr<TextTrackCue> cue)
 {
-    m_cueTree.add(m_cueTree.createInterval(cue->startTime(), cue->endTime(), cue.get()));
+    // Negative duration cues need be treated in the interval tree as
+    // zero-length cues.
+    double endTime = max(cue->startTime(), cue->endTime());
+
+    m_cueTree.add(m_cueTree.createInterval(cue->startTime(), endTime, cue.get()));
     updateActiveTextTrackCues(currentTime());
 }
 
 void HTMLMediaElement::textTrackRemoveCue(TextTrack*, PassRefPtr<TextTrackCue> cue)
 {
-    m_cueTree.remove(m_cueTree.createInterval(cue->startTime(), cue->endTime(), cue.get()));
+    // Negative duration cues need to be treated in the interval tree as
+    // zero-length cues.
+    double endTime = max(cue->startTime(), cue->endTime());
+
+    m_cueTree.remove(m_cueTree.createInterval(cue->startTime(), endTime, cue.get()));
     updateActiveTextTrackCues(currentTime());
 }
 
@@ -1352,7 +1375,6 @@ void HTMLMediaElement::startProgressEventTimer()
         return;
 
     m_previousProgressTime = WTF::currentTime();
-    m_previousProgress = 0;
     // 350ms is not magic, it is in the spec!
     m_progressEventTimer.startRepeating(0.350);
 }
@@ -1559,7 +1581,7 @@ void HTMLMediaElement::setNetworkState(MediaPlayer::NetworkState state)
 void HTMLMediaElement::changeNetworkStateFromLoadingToIdle()
 {
     m_progressEventTimer.stop();
-    if (hasMediaControls() && m_player->bytesLoaded() != m_previousProgress)
+    if (hasMediaControls() && m_player->didLoadingProgress())
         mediaControls()->bufferingProgressed();
 
     // Schedule one last progress event so we guarantee that at least one is fired
@@ -1670,7 +1692,7 @@ void HTMLMediaElement::setReadyState(MediaPlayer::ReadyState state)
         if (isPotentiallyPlaying && oldState <= HAVE_CURRENT_DATA)
             scheduleEvent(eventNames().playingEvent);
 
-        if (m_autoplaying && m_paused && autoplay() && !document()->isSandboxed(SandboxAutomaticFeatures)) {
+        if (m_autoplaying && m_paused && autoplay() && !document()->isSandboxed(SandboxAutomaticFeatures) && !userGestureRequiredForRateChange()) {
             m_paused = false;
             invalidateCachedTime();
             scheduleEvent(eventNames().playEvent);
@@ -1812,25 +1834,21 @@ void HTMLMediaElement::progressEventTimerFired(Timer<HTMLMediaElement>*)
     if (m_networkState != NETWORK_LOADING)
         return;
 
-    unsigned progress = m_player->bytesLoaded();
     double time = WTF::currentTime();
     double timedelta = time - m_previousProgressTime;
 
-    if (progress == m_previousProgress) {
-        if (timedelta > 3.0 && !m_sentStalledEvent) {
-            scheduleEvent(eventNames().stalledEvent);
-            m_sentStalledEvent = true;
-            setShouldDelayLoadEvent(false);
-        }
-    } else {
+    if (m_player->didLoadingProgress()) {
         scheduleEvent(eventNames().progressEvent);
-        m_previousProgress = progress;
         m_previousProgressTime = time;
         m_sentStalledEvent = false;
         if (renderer())
             renderer()->updateFromElement();
         if (hasMediaControls())
             mediaControls()->bufferingProgressed();
+    } else if (timedelta > 3.0 && !m_sentStalledEvent) {
+        scheduleEvent(eventNames().stalledEvent);
+        m_sentStalledEvent = true;
+        setShouldDelayLoadEvent(false);
     }
 }
 
@@ -2027,7 +2045,7 @@ void HTMLMediaElement::invalidateCachedTime()
     static const double minimumTimePlayingBeforeCacheSnapshot = 0.5;
 
     m_minimumWallClockTimeToCacheMediaTime = WTF::currentTime() + minimumTimePlayingBeforeCacheSnapshot;
-    m_cachedTime = invalidMediaTime;
+    m_cachedTime = MediaPlayer::invalidTime();
 }
 
 // playback state
@@ -2045,7 +2063,7 @@ float HTMLMediaElement::currentTime() const
         return m_lastSeekTime;
     }
 
-    if (m_cachedTime != invalidMediaTime && m_paused) {
+    if (m_cachedTime != MediaPlayer::invalidTime() && m_paused) {
 #if LOG_CACHED_TIME_WARNINGS
         float delta = m_cachedTime - m_player->currentTime();
         if (delta > minCachedDeltaForWarning)
@@ -2058,7 +2076,7 @@ float HTMLMediaElement::currentTime() const
     double now = WTF::currentTime();
     double maximumDurationToCacheMediaTime = m_player->maximumDurationToCacheMediaTime();
 
-    if (maximumDurationToCacheMediaTime && m_cachedTime != invalidMediaTime && !m_paused && now > m_minimumWallClockTimeToCacheMediaTime) {
+    if (maximumDurationToCacheMediaTime && m_cachedTime != MediaPlayer::invalidTime() && !m_paused && now > m_minimumWallClockTimeToCacheMediaTime) {
         double wallClockDelta = now - m_cachedTimeWallClockUpdateTime;
 
         // Not too soon, use the cached time only if it hasn't expired.
@@ -2075,7 +2093,7 @@ float HTMLMediaElement::currentTime() const
     }
 
 #if LOG_CACHED_TIME_WARNINGS
-    if (maximumDurationToCacheMediaTime && now > m_minimumWallClockTimeToCacheMediaTime && m_cachedTime != invalidMediaTime) {
+    if (maximumDurationToCacheMediaTime && now > m_minimumWallClockTimeToCacheMediaTime && m_cachedTime != MediaPlayer::invalidTime()) {
         double wallClockDelta = now - m_cachedTimeWallClockUpdateTime;
         float delta = m_cachedTime + (m_playbackRate * wallClockDelta) - m_player->currentTime();
         LOG(Media, "HTMLMediaElement::currentTime - cached time was %f seconds off of media time when it expired", delta);
@@ -2105,7 +2123,7 @@ float HTMLMediaElement::startTime() const
 
 double HTMLMediaElement::initialTime() const
 {
-    if (m_fragmentStartTime != invalidMediaTime)
+    if (m_fragmentStartTime != MediaPlayer::invalidTime())
         return m_fragmentStartTime;
 
     if (!m_player)
@@ -2690,15 +2708,12 @@ void HTMLMediaElement::endScrubbing()
 // "15 to 250ms", we choose the slowest frequency
 static const double maxTimeupdateEventFrequency = 0.25;
 
-static const double timeWithoutMouseMovementBeforeHidingControls = 3;
-
 void HTMLMediaElement::startPlaybackProgressTimer()
 {
     if (m_playbackProgressTimer.isActive())
         return;
 
     m_previousProgressTime = WTF::currentTime();
-    m_previousProgress = 0;
     m_playbackProgressTimer.startRepeating(maxTimeupdateEventFrequency);
 }
 
@@ -2706,8 +2721,8 @@ void HTMLMediaElement::playbackProgressTimerFired(Timer<HTMLMediaElement>*)
 {
     ASSERT(m_player);
 
-    if (m_fragmentEndTime != invalidMediaTime && currentTime() >= m_fragmentEndTime && m_playbackRate > 0) {
-        m_fragmentEndTime = invalidMediaTime;
+    if (m_fragmentEndTime != MediaPlayer::invalidTime() && currentTime() >= m_fragmentEndTime && m_playbackRate > 0) {
+        m_fragmentEndTime = MediaPlayer::invalidTime();
         if (!m_mediaController && !m_paused) {
             // changes paused to true and fires a simple event named pause at the media element.
             pauseInternal();
@@ -2780,7 +2795,7 @@ PassRefPtr<TextTrack> HTMLMediaElement::addTextTrack(const String& kind, const S
 
     // 4.8.10.12.4 Text track API
     // The addTextTrack(kind, label, language) method of media elements, when invoked, must run the following steps:
-    
+
     // 1. If kind is not one of the following strings, then throw a SyntaxError exception and abort these steps
     if (!TextTrack::isValidKindKeyword(kind)) {
         ec = SYNTAX_ERR;
@@ -2790,14 +2805,22 @@ PassRefPtr<TextTrack> HTMLMediaElement::addTextTrack(const String& kind, const S
     // 2. If the label argument was omitted, let label be the empty string.
     // 3. If the language argument was omitted, let language be the empty string.
     // 4. Create a new TextTrack object.
-    RefPtr<TextTrack> textTrack = TextTrack::create(ActiveDOMObject::scriptExecutionContext(), this, kind, label, language);
 
     // 5. Create a new text track corresponding to the new object, and set its text track kind to kind, its text 
-    // track label to label, its text track language to language, its text track readiness state to the text track
-    // loaded state, its text track mode to the text track hidden mode, and its text track list of cues to an empty list.
-    
+    // track label to label, its text track language to language...
+    RefPtr<TextTrack> textTrack = TextTrack::create(ActiveDOMObject::scriptExecutionContext(), this, kind, label, language);
+
+    // Note, due to side effects when changing track parameters, we have to
+    // first append the track to the text track list.
+
     // 6. Add the new text track to the media element's list of text tracks.
     textTracks()->append(textTrack);
+
+    // ... its text track readiness state to the text track loaded state ...
+    textTrack->setReadinessState(TextTrack::Loaded);
+
+    // ... its text track mode to the text track hidden mode, and its text track list of cues to an empty list ...
+    textTrack->setMode(TextTrack::HIDDEN, ec);
 
     return textTrack.release();
 }
@@ -3149,7 +3172,7 @@ KURL HTMLMediaElement::selectNextSourceChild(ContentType* contentType, String* k
             if (shouldLog)
                 LOG(Media, "HTMLMediaElement::selectNextSourceChild - 'type' is '%s' - key system is '%s'", type.utf8().data(), system.utf8().data());
 #endif
-            if (!MediaPlayer::supportsType(ContentType(type), system, this))
+            if (!MediaPlayer::supportsType(ContentType(type), system, mediaURL, this))
                 goto check_again;
         }
 
@@ -3705,6 +3728,7 @@ void HTMLMediaElement::userCancelledLoad()
     stopPeriodicTimers();
     m_loadTimer.stop();
     m_loadState = WaitingForSource;
+    m_pendingLoadFlags = 0;
 
     // 2 - Set the error attribute to a new MediaError object whose code attribute is set to MEDIA_ERR_ABORTED.
     m_error = MediaError::create(MediaError::MEDIA_ERR_ABORTED);
@@ -4380,7 +4404,7 @@ void HTMLMediaElement::prepareMediaFragmentURI()
         if (m_fragmentStartTime > dur)
             m_fragmentStartTime = dur;
     } else
-        m_fragmentStartTime = invalidMediaTime;
+        m_fragmentStartTime = MediaPlayer::invalidTime();
     
     double end = fragmentParser.endTime();
     if (end != MediaFragmentURIParser::invalidTimeValue() && end > 0 && end > m_fragmentStartTime) {
@@ -4388,15 +4412,15 @@ void HTMLMediaElement::prepareMediaFragmentURI()
         if (m_fragmentEndTime > dur)
             m_fragmentEndTime = dur;
     } else
-        m_fragmentEndTime = invalidMediaTime;
+        m_fragmentEndTime = MediaPlayer::invalidTime();
     
-    if (m_fragmentStartTime != invalidMediaTime && m_readyState < HAVE_FUTURE_DATA)
+    if (m_fragmentStartTime != MediaPlayer::invalidTime() && m_readyState < HAVE_FUTURE_DATA)
         prepareToPlay();
 }
 
 void HTMLMediaElement::applyMediaFragmentURI()
 {
-    if (m_fragmentStartTime != invalidMediaTime) {
+    if (m_fragmentStartTime != MediaPlayer::invalidTime()) {
         ExceptionCode ignoredException;
         m_sentEndEvent = false;
         seek(m_fragmentStartTime, ignoredException);
@@ -4435,6 +4459,15 @@ String HTMLMediaElement::mediaPlayerUserAgent() const
 
     return frame->loader()->userAgent(m_currentSrc);
 
+}
+
+MediaPlayerClient::CORSMode HTMLMediaElement::mediaPlayerCORSMode() const
+{
+    if (!fastHasAttribute(HTMLNames::crossoriginAttr))
+        return Unspecified;
+    if (equalIgnoringCase(fastGetAttribute(HTMLNames::crossoriginAttr), "use-credentials"))
+        return UseCredentials;
+    return Anonymous;
 }
 
 bool HTMLMediaElement::mediaPlayerNeedsSiteSpecificHacks() const

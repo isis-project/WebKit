@@ -29,11 +29,12 @@
 
 #include "RenderSurfaceChromium.h"
 
-#include "FilterOperations.h"
-#include "GraphicsContext3D.h"
 #include "LayerChromium.h"
-#include "LayerRendererChromium.h"
+#include "cc/CCMathUtil.h"
+#include <public/WebTransformationMatrix.h>
 #include <wtf/text/CString.h>
+
+using WebKit::WebTransformationMatrix;
 
 namespace WebCore {
 
@@ -57,11 +58,19 @@ FloatRect RenderSurfaceChromium::drawableContentRect() const
 {
     FloatRect localContentRect(-0.5 * m_contentRect.width(), -0.5 * m_contentRect.height(),
                                m_contentRect.width(), m_contentRect.height());
-    FloatRect drawableContentRect = m_drawTransform.mapRect(localContentRect);
+    FloatRect drawableContentRect = CCMathUtil::mapClippedRect(m_drawTransform, localContentRect);
     if (m_owningLayer->replicaLayer())
-        drawableContentRect.unite(m_replicaDrawTransform.mapRect(localContentRect));
+        drawableContentRect.unite(CCMathUtil::mapClippedRect(m_replicaDrawTransform, localContentRect));
 
     return drawableContentRect;
+}
+
+RenderSurfaceChromium* RenderSurfaceChromium::targetRenderSurface() const
+{
+    LayerChromium* parent = m_owningLayer->parent();
+    if (!parent)
+        return 0;
+    return parent->targetRenderSurface();
 }
 
 bool RenderSurfaceChromium::hasReplica() const
@@ -77,6 +86,12 @@ bool RenderSurfaceChromium::hasMask() const
 bool RenderSurfaceChromium::replicaHasMask() const
 {
     return hasReplica() && (m_maskLayer || m_owningLayer->replicaLayer()->maskLayer());
+}
+
+FloatRect RenderSurfaceChromium::computeRootScissorRectInCurrentSurface(const FloatRect& rootScissorRect) const
+{
+    WebTransformationMatrix inverseScreenSpaceTransform = m_screenSpaceTransform.inverse();
+    return CCMathUtil::projectClippedRect(inverseScreenSpaceTransform, rootScissorRect);
 }
 
 }

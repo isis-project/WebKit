@@ -21,7 +21,7 @@
 #include "config.h"
 #include "V8TestMediaQueryListListener.h"
 
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "ExceptionCode.h"
 #include "MediaQueryListListener.h"
 #include "RuntimeEnabledFeatures.h"
@@ -35,7 +35,7 @@
 
 namespace WebCore {
 
-WrapperTypeInfo V8TestMediaQueryListListener::info = { V8TestMediaQueryListListener::GetTemplate, V8TestMediaQueryListListener::derefObject, 0, 0 };
+WrapperTypeInfo V8TestMediaQueryListListener::info = { V8TestMediaQueryListListener::GetTemplate, V8TestMediaQueryListListener::derefObject, 0, 0, 0, WrapperTypeObjectPrototype };
 
 namespace TestMediaQueryListListenerV8Internal {
 

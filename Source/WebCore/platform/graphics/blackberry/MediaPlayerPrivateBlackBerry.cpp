@@ -22,6 +22,8 @@
 #include "MediaPlayerPrivateBlackBerry.h"
 
 #include "CookieManager.h"
+#include "Credential.h"
+#include "CredentialStorage.h"
 #include "Frame.h"
 #include "FrameView.h"
 #include "GraphicsContext.h"
@@ -30,6 +32,7 @@
 #include "HostWindow.h"
 #include "NotImplemented.h"
 #include "PlatformContextSkia.h"
+#include "ProtectionSpace.h"
 #include "RenderBox.h"
 #include "TimeRanges.h"
 #include "WebPageClient.h"
@@ -69,7 +72,7 @@ void MediaPlayerPrivate::getSupportedTypes(HashSet<String>& types)
         types.add(i->c_str());
 }
 
-MediaPlayer::SupportsType MediaPlayerPrivate::supportsType(const String& type, const String& codecs)
+MediaPlayer::SupportsType MediaPlayerPrivate::supportsType(const String& type, const String& codecs, const KURL&)
 {
     if (type.isNull() || type.isEmpty()) {
         LOG(Media, "MediaPlayer does not support type; type is null or empty.");
@@ -107,6 +110,7 @@ MediaPlayerPrivate::MediaPlayerPrivate(MediaPlayer* player)
 #endif
     , m_userDrivenSeekTimer(this, &MediaPlayerPrivate::userDrivenSeekTimerFired)
     , m_lastSeekTime(0)
+    , m_lastSeekTimePending(false)
     , m_waitMetadataTimer(this, &MediaPlayerPrivate::waitMetadataTimerFired)
     , m_waitMetadataPopDialogCounter(0)
 {
@@ -223,23 +227,32 @@ float MediaPlayerPrivate::duration() const
     return m_platformPlayer->duration();
 }
 
+static const double SeekSubmissionDelay = 0.1; // Reasonable throttling value.
+static const double ShortMediaThreshold = SeekSubmissionDelay * 2.0;
+
 float MediaPlayerPrivate::currentTime() const
 {
-    return m_userDrivenSeekTimer.isActive() ? m_lastSeekTime: m_platformPlayer->currentTime();
+    // For very short media on the order of SeekSubmissionDelay we get
+    // unwanted repeats if we don't return the most up-to-date currentTime().
+    bool shortMedia = m_platformPlayer->duration() < ShortMediaThreshold;
+    return m_userDrivenSeekTimer.isActive() && !shortMedia ? m_lastSeekTime: m_platformPlayer->currentTime();
 }
-
-static const double SeekSubmissionDelay = 0.1; // Reasonable throttling value.
 
 void MediaPlayerPrivate::seek(float time)
 {
     m_lastSeekTime = time;
+    m_lastSeekTimePending = true;
     if (!m_userDrivenSeekTimer.isActive())
-        m_userDrivenSeekTimer.startOneShot(SeekSubmissionDelay);
+        userDrivenSeekTimerFired(0);
 }
 
 void MediaPlayerPrivate::userDrivenSeekTimerFired(Timer<MediaPlayerPrivate>*)
 {
-    m_platformPlayer->seek(m_lastSeekTime);
+    if (m_lastSeekTimePending) {
+        m_platformPlayer->seek(m_lastSeekTime);
+        m_lastSeekTimePending = false;
+        m_userDrivenSeekTimer.startOneShot(SeekSubmissionDelay);
+    }
 }
 
 bool MediaPlayerPrivate::seeking() const
@@ -285,10 +298,10 @@ PassRefPtr<TimeRanges> MediaPlayerPrivate::buffered() const
     return timeRanges.release();
 }
 
-unsigned MediaPlayerPrivate::bytesLoaded() const
+bool MediaPlayerPrivate::didLoadingProgress() const
 {
     notImplemented();
-    return 0;
+    return false;
 }
 
 void MediaPlayerPrivate::setSize(const IntSize&)
@@ -656,6 +669,50 @@ void MediaPlayerPrivate::onBuffering(bool flag)
     setBuffering(flag);
 }
 #endif
+
+static ProtectionSpace generateProtectionSpaceFromMMRAuthChallenge(const MMRAuthChallenge& authChallenge)
+{
+    KURL url(ParsedURLString, String(authChallenge.url().c_str()));
+    ASSERT(url.isValid());
+
+    return ProtectionSpace(url.host(), url.port(),
+                           static_cast<ProtectionSpaceServerType>(authChallenge.serverType()),
+                           authChallenge.realm().c_str(),
+                           static_cast<ProtectionSpaceAuthenticationScheme>(authChallenge.authScheme()));
+}
+
+bool MediaPlayerPrivate::onAuthenticationNeeded(MMRAuthChallenge& authChallenge)
+{
+    KURL url(ParsedURLString, String(authChallenge.url().c_str()));
+    if (!url.isValid())
+        return false;
+
+    ProtectionSpace protectionSpace = generateProtectionSpaceFromMMRAuthChallenge(authChallenge);
+    Credential credential = CredentialStorage::get(protectionSpace);
+    bool isConfirmed = false;
+    if (credential.isEmpty()) {
+        if (frameView() && frameView()->hostWindow())
+            isConfirmed = frameView()->hostWindow()->platformPageClient()->authenticationChallenge(url, protectionSpace, credential);
+    } else
+        isConfirmed = true;
+
+    if (isConfirmed)
+        authChallenge.setCredential(credential.user().utf8().data(), credential.password().utf8().data(), static_cast<MMRAuthChallenge::CredentialPersistence>(credential.persistence()));
+
+    return isConfirmed;
+}
+
+void MediaPlayerPrivate::onAuthenticationAccepted(const MMRAuthChallenge& authChallenge) const
+{
+    KURL url(ParsedURLString, String(authChallenge.url().c_str()));
+    if (!url.isValid())
+        return;
+
+    ProtectionSpace protectionSpace = generateProtectionSpaceFromMMRAuthChallenge(authChallenge);
+    Credential savedCredential = CredentialStorage::get(protectionSpace);
+    if (savedCredential.isEmpty())
+        CredentialStorage::set(Credential(authChallenge.username().c_str(), authChallenge.password().c_str(), static_cast<CredentialPersistence>(authChallenge.persistence())), protectionSpace, url);
+}
 
 int MediaPlayerPrivate::showErrorDialog(MMRPlayer::Error type)
 {

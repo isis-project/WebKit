@@ -21,7 +21,7 @@
 #include "config.h"
 #include "V8TestEventConstructor.h"
 
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "Dictionary.h"
 #include "RuntimeEnabledFeatures.h"
 #include "V8Binding.h"
@@ -34,7 +34,7 @@
 
 namespace WebCore {
 
-WrapperTypeInfo V8TestEventConstructor::info = { V8TestEventConstructor::GetTemplate, V8TestEventConstructor::derefObject, 0, 0 };
+WrapperTypeInfo V8TestEventConstructor::info = { V8TestEventConstructor::GetTemplate, V8TestEventConstructor::derefObject, 0, 0, 0, WrapperTypeObjectPrototype };
 
 namespace TestEventConstructorV8Internal {
 

@@ -24,6 +24,8 @@
 #include "config.h"
 #include "ewk_frame.h"
 
+#include "DOMWindowIntents.h"
+#include "DeliveredIntent.h"
 #include "DocumentLoader.h"
 #include "DocumentMarkerController.h"
 #include "EventHandler.h"
@@ -41,6 +43,7 @@
 #include "KURL.h"
 #include "PlatformEvent.h"
 #include "PlatformKeyboardEvent.h"
+#include "PlatformMessagePortChannel.h"
 #include "PlatformMouseEvent.h"
 #include "PlatformTouchEvent.h"
 #include "PlatformWheelEvent.h"
@@ -51,6 +54,7 @@
 #include "SubstituteData.h"
 #include "WindowsKeyboardCodes.h"
 #include "ewk_frame_private.h"
+#include "ewk_intent_private.h"
 #include "ewk_private.h"
 #include "ewk_security_origin_private.h"
 #include "ewk_view_private.h"
@@ -451,8 +455,8 @@ char* ewk_frame_script_execute(Evas_Object* ewkFrame, const char* script)
     if (!result || (!result.isBoolean() && !result.isString() && !result.isNumber()))
         return 0;
 
-    JSC::JSLock lock(JSC::SilenceAssertionsOnly);
     JSC::ExecState* exec = smartData->frame->script()->globalObject(WebCore::mainThreadNormalWorld())->globalExec();
+    JSC::JSLockHolder lock(exec);
     resultString = WebCore::ustringToString(result.toString(exec)->value(exec));
     return strdup(resultString.utf8().data());
 #else
@@ -744,6 +748,30 @@ Ewk_Hit_Test* ewk_frame_hit_test_new(const Evas_Object* ewkFrame, int x, int y)
     hitTest->context = static_cast<Ewk_Hit_Test_Result_Context>(context);
 
     return hitTest;
+}
+
+void ewk_frame_intent_deliver(const Evas_Object* ewkFrame, Ewk_Intent* ewk_intent)
+{
+#if ENABLE(WEB_INTENTS)
+    EWK_FRAME_SD_GET_OR_RETURN(ewkFrame, smartData);
+    EINA_SAFETY_ON_NULL_RETURN(smartData->frame);
+
+    WebCore::Intent* intent = EWKPrivate::coreIntent(ewk_intent);
+
+    OwnPtr<WebCore::MessagePortChannelArray> channels;
+    WebCore::MessagePortChannelArray* origChannels = intent->messagePorts();
+    if (origChannels && origChannels->size()) {
+        channels = adoptPtr(new WebCore::MessagePortChannelArray(origChannels->size()));
+        for (size_t i = 0; i < origChannels->size(); ++i)
+            (*channels)[i] = origChannels->at(i).release();
+    }
+    OwnPtr<WebCore::MessagePortArray> ports = WebCore::MessagePort::entanglePorts(*(smartData->frame->domWindow()->scriptExecutionContext()), channels.release());
+
+    OwnPtr<WebCore::DeliveredIntentClient> dummyClient;
+    RefPtr<WebCore::DeliveredIntent> deliveredIntent = WebCore::DeliveredIntent::create(smartData->frame, dummyClient.release(), intent->action(), intent->type(), intent->data(), ports.release(), intent->extras());
+
+    WebCore::DOMWindowIntents::from(smartData->frame->domWindow())->deliver(deliveredIntent.release());
+#endif
 }
 
 Eina_Bool
@@ -1559,6 +1587,19 @@ void ewk_frame_intent_new(Evas_Object* ewkFrame, Ewk_Intent_Request* request)
 
 /**
  * @internal
+ * Reports an intent service registration.
+ *
+ * Emits signal: "intent,service,register" with pointer to a Ewk_Intent_Service_Info.
+ */
+void ewk_frame_intent_service_register(Evas_Object* ewkFrame, Ewk_Intent_Service_Info* info)
+{
+#if ENABLE(WEB_INTENTS_TAG)
+    evas_object_smart_callback_call(ewkFrame, "intent,service,register", info);
+#endif
+}
+
+/**
+ * @internal
  *
  * Reports contents size changed.
  */
@@ -1575,9 +1616,9 @@ void ewk_frame_contents_size_changed(Evas_Object* ewkFrame, Evas_Coord width, Ev
  */
 void ewk_frame_title_set(Evas_Object* ewkFrame, const Ewk_Text_With_Direction* title)
 {
-    DBG("ewkFrame=%p, title=%s", ewkFrame, title->string ? title->string : "(null)");
+    DBG("ewkFrame=%p, title=%s, direction=%s", ewkFrame, title->string ? title->string : "(null)", title->direction == EWK_TEXT_DIRECTION_LEFT_TO_RIGHT ? "ltr" : "rtl");
     EWK_FRAME_SD_GET_OR_RETURN(ewkFrame, smartData);
-    if (!eina_stringshare_replace(&smartData->title.string, title->string))
+    if (!eina_stringshare_replace(&smartData->title.string, title->string) && (smartData->title.direction == title->direction))
         return;
     smartData->title.direction = title->direction;
     evas_object_smart_callback_call(ewkFrame, "title,changed", (void*)title);

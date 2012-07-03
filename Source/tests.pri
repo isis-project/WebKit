@@ -7,12 +7,11 @@
 TEMPLATE = subdirs
 CONFIG += ordered
 
-load(features)
-
 WEBKIT_TESTS_DIR = $$PWD/WebKit/qt/tests
 
 !contains(DEFINES, PALM_DEVICE) {
 SUBDIRS += \
+    $$WEBKIT_TESTS_DIR/qobjectbridge \
     $$WEBKIT_TESTS_DIR/qwebframe \
     $$WEBKIT_TESTS_DIR/qwebpage \
     $$WEBKIT_TESTS_DIR/qwebelement \
@@ -54,5 +53,6 @@ SUBDIRS += \
         $$WEBKIT2_TESTS_DIR/inspectorserver \
         $$WEBKIT2_TESTS_DIR/publicapi \
         $$WEBKIT2_TESTS_DIR/qquickwebview \
-        $$WEBKIT2_TESTS_DIR/qmltests
+        $$WEBKIT2_TESTS_DIR/qmltests \
+        $$WEBKIT2_TESTS_DIR/qrawwebview
 }

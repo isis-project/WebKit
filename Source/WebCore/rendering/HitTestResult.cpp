@@ -49,41 +49,27 @@ namespace WebCore {
 using namespace HTMLNames;
 
 HitTestPoint::HitTestPoint()
-    : m_topPadding(0)
-    , m_rightPadding(0)
-    , m_bottomPadding(0)
-    , m_leftPadding(0)
-    , m_isRectBased(false)
+    : m_isRectBased(false)
 {
 }
 
 HitTestPoint::HitTestPoint(const LayoutPoint& point)
     : m_point(point)
-    , m_topPadding(0)
-    , m_rightPadding(0)
-    , m_bottomPadding(0)
-    , m_leftPadding(0)
+    , m_boundingBox(rectForPoint(point, 0, 0, 0, 0))
     , m_isRectBased(false)
 {
 }
 
 HitTestPoint::HitTestPoint(const LayoutPoint& centerPoint, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding)
     : m_point(centerPoint)
-    , m_topPadding(topPadding)
-    , m_rightPadding(rightPadding)
-    , m_bottomPadding(bottomPadding)
-    , m_leftPadding(leftPadding)
+    , m_boundingBox(rectForPoint(centerPoint, topPadding, rightPadding, bottomPadding, leftPadding))
+    , m_isRectBased(topPadding || rightPadding || bottomPadding || leftPadding)
 {
-    // If all padding values passed in are zero then it is not a rect based hit test.
-    m_isRectBased = topPadding || rightPadding || bottomPadding || leftPadding;
 }
 
 HitTestPoint::HitTestPoint(const HitTestPoint& other)
     : m_point(other.m_point)
-    , m_topPadding(other.m_topPadding)
-    , m_rightPadding(other.m_rightPadding)
-    , m_bottomPadding(other.m_bottomPadding)
-    , m_leftPadding(other.m_leftPadding)
+    , m_boundingBox(other.m_boundingBox)
     , m_isRectBased(other.m_isRectBased)
 {
 }
@@ -95,13 +81,41 @@ HitTestPoint::~HitTestPoint()
 HitTestPoint& HitTestPoint::operator=(const HitTestPoint& other)
 {
     m_point = other.m_point;
-    m_topPadding = other.m_topPadding;
-    m_rightPadding = other.m_rightPadding;
-    m_bottomPadding = other.m_bottomPadding;
-    m_leftPadding = other.m_leftPadding;
+    m_boundingBox = other.m_boundingBox;
     m_isRectBased = other.m_isRectBased;
 
     return *this;
+}
+
+void HitTestPoint::setPoint(const LayoutPoint& point)
+{
+    m_boundingBox.move(roundedIntPoint(point) - roundedIntPoint(m_point));
+    m_point = point;
+}
+
+template<typename RectType>
+bool hitTestPointIntersects(const HitTestPoint& hitTestPoint, const RectType& rect)
+{
+    // FIXME: When the hit test is not rect based we should use rect.contains(m_point).
+    // That does change some corner case tests though.
+
+    // First check if rect even intersects our bounding rect.
+    if (!rect.intersects(hitTestPoint.boundingBox()))
+        return false;
+
+    // FIXME: Implement quad based intersection test to handle transformed hit test rectangles.
+    return true;
+
+}
+
+bool HitTestPoint::intersects(const LayoutRect& rect) const
+{
+    return hitTestPointIntersects(*this, rect);
+}
+
+bool HitTestPoint::intersects(const FloatRect& rect) const
+{
+    return hitTestPointIntersects(*this, rect);
 }
 
 IntRect HitTestPoint::rectForPoint(const LayoutPoint& point, unsigned topPadding, unsigned rightPadding, unsigned bottomPadding, unsigned leftPadding)
@@ -606,7 +620,7 @@ bool HitTestResult::isContentEditable() const
     return m_innerNonSharedNode->rendererIsEditable();
 }
 
-bool HitTestResult::addNodeToRectBasedTestResult(Node* node, const LayoutPoint& pointInContainer, const IntRect& rect)
+bool HitTestResult::addNodeToRectBasedTestResult(Node* node, const HitTestPoint& pointInContainer, const LayoutRect& rect)
 {
     // If it is not a rect-based hit test, this method has to be no-op.
     // Return false, so the hit test stops.
@@ -622,24 +636,26 @@ bool HitTestResult::addNodeToRectBasedTestResult(Node* node, const LayoutPoint& 
 
     mutableRectBasedTestResult().add(node);
 
-    if (node->renderer()->isInline()) {
+    bool regionFilled = rect.contains(pointInContainer.boundingBox());
+    // FIXME: This code (incorrectly) attempts to correct for culled inline nodes. See https://bugs.webkit.org/show_bug.cgi?id=85849.
+    if (node->renderer()->isInline() && !regionFilled) {
         for (RenderObject* curr = node->renderer()->parent(); curr; curr = curr->parent()) {
             if (!curr->isRenderInline())
                 break;
-            
+
             // We need to make sure the nodes for culled inlines get included.
             RenderInline* currInline = toRenderInline(curr);
             if (currInline->alwaysCreateLineBoxes())
                 break;
-            
+
             if (currInline->visibleToHitTesting() && currInline->node())
                 mutableRectBasedTestResult().add(currInline->node()->shadowAncestorNode());
         }
     }
-    return !rect.contains(rectForPoint(pointInContainer));
+    return !regionFilled;
 }
 
-bool HitTestResult::addNodeToRectBasedTestResult(Node* node, const LayoutPoint& pointInContainer, const FloatRect& rect)
+bool HitTestResult::addNodeToRectBasedTestResult(Node* node, const HitTestPoint& pointInContainer, const FloatRect& rect)
 {
     // If it is not a rect-based hit test, this method has to be no-op.
     // Return false, so the hit test stops.
@@ -655,21 +671,23 @@ bool HitTestResult::addNodeToRectBasedTestResult(Node* node, const LayoutPoint& 
 
     mutableRectBasedTestResult().add(node);
 
-    if (node->renderer()->isInline()) {
+    bool regionFilled = rect.contains(pointInContainer.boundingBox());
+    // FIXME: This code (incorrectly) attempts to correct for culled inline nodes. See https://bugs.webkit.org/show_bug.cgi?id=85849.
+    if (node->renderer()->isInline() && !regionFilled) {
         for (RenderObject* curr = node->renderer()->parent(); curr; curr = curr->parent()) {
             if (!curr->isRenderInline())
                 break;
-            
+
             // We need to make sure the nodes for culled inlines get included.
             RenderInline* currInline = toRenderInline(curr);
             if (currInline->alwaysCreateLineBoxes())
                 break;
-            
+
             if (currInline->visibleToHitTesting() && currInline->node())
                 mutableRectBasedTestResult().add(currInline->node()->shadowAncestorNode());
         }
     }
-    return !rect.contains(rectForPoint(pointInContainer));
+    return !regionFilled;
 }
 
 void HitTestResult::append(const HitTestResult& other)
@@ -704,6 +722,23 @@ HitTestResult::NodeSet& HitTestResult::mutableRectBasedTestResult()
     if (!m_rectBasedTestResult)
         m_rectBasedTestResult = adoptPtr(new NodeSet);
     return *m_rectBasedTestResult;
+}
+
+Vector<String> HitTestResult::dictationAlternatives() const
+{
+    // Return the dictation context handle if the text at this point has DictationAlternative marker, which means this text is
+    if (!m_innerNonSharedNode)
+        return Vector<String>();
+
+    DocumentMarker* marker = m_innerNonSharedNode->document()->markers()->markerContainingPoint(hitTestPoint().point(), DocumentMarker::DictationAlternatives);
+    if (!marker)
+        return Vector<String>();
+
+    Frame* frame = innerNonSharedNode()->document()->frame();
+    if (!frame)
+        return Vector<String>();
+
+    return frame->editor()->dictationAlternativesForMarker(marker);
 }
 
 } // namespace WebCore

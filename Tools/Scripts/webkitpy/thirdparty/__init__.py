@@ -74,6 +74,8 @@ class AutoinstallImportHook(object):
             self._install_mechanize()
         elif '.pep8' in fullname:
             self._install_pep8()
+        elif '.pylint' in fullname:
+            self._install_pylint()
         elif '.coverage' in fullname:
             self._install_coverage()
         elif '.eliza' in fullname:
@@ -82,6 +84,8 @@ class AutoinstallImportHook(object):
             self._install_irc()
         elif '.buildbot' in fullname:
             self._install_buildbot()
+        elif '.webpagereplay' in fullname:
+            self._install_webpagereplay()
 
     def _install_mechanize(self):
         self._install("http://pypi.python.org/packages/source/m/mechanize/mechanize-0.2.5.tar.gz",
@@ -90,6 +94,12 @@ class AutoinstallImportHook(object):
     def _install_pep8(self):
         self._install("http://pypi.python.org/packages/source/p/pep8/pep8-0.5.0.tar.gz#md5=512a818af9979290cd619cce8e9c2e2b",
                       "pep8-0.5.0/pep8.py")
+
+    def _install_pylint(self):
+        if not self._fs.exists(self._fs.join(_AUTOINSTALLED_DIR, "pylint")):
+            self._install('http://pypi.python.org/packages/source/p/pylint/pylint-0.25.1.tar.gz#md5=728bbc2b339bc3749af013709a7f87a5', 'pylint-0.25.1')
+            self._fs.move(self._fs.join(_AUTOINSTALLED_DIR, "pylint-0.25.1"), self._fs.join(_AUTOINSTALLED_DIR, "pylint"))
+
 
     # autoinstalled.buildbot is used by BuildSlaveSupport/build.webkit.org-config/mastercfg_unittest.py
     # and should ideally match the version of BuildBot used at build.webkit.org.
@@ -104,7 +114,12 @@ class AutoinstallImportHook(object):
         installer.install(url="http://pypi.python.org/packages/source/J/Jinja2/Jinja2-2.6.tar.gz#md5=1c49a8825c993bfdcf55bb36897d28a2",
                           url_subpath="Jinja2-2.6/jinja2")
 
-        self._install("http://pypi.python.org/packages/source/b/buildbot/buildbot-0.8.4p2.tar.gz#md5=7597d945724c80c0ab476e833a1026cb", "buildbot-0.8.4p2/buildbot")
+        SQLAlchemy_dir = self._fs.join(_AUTOINSTALLED_DIR, "sqlalchemy")
+        installer = AutoInstaller(append_to_search_path=True, target_dir=SQLAlchemy_dir)
+        installer.install(url="http://pypi.python.org/packages/source/S/SQLAlchemy/SQLAlchemy-0.7.7.tar.gz#md5=ddf6df7e014cea318fa981364f3f93b9",
+                          url_subpath="SQLAlchemy-0.7.7/lib/sqlalchemy")
+
+        self._install("http://pypi.python.org/packages/source/b/buildbot/buildbot-0.8.6p1.tar.gz#md5=b6727d2810c692062c657492bcbeac6a", "buildbot-0.8.6p1/buildbot")
 
     def _install_coverage(self):
         installer = AutoInstaller(target_dir=_AUTOINSTALLED_DIR)
@@ -125,6 +140,15 @@ class AutoinstallImportHook(object):
                           url_subpath="irclib.py")
         installer.install(url="http://downloads.sourceforge.net/project/python-irclib/python-irclib/0.4.8/python-irclib-0.4.8.zip",
                           url_subpath="ircbot.py")
+
+    def _install_webpagereplay(self):
+        if not self._fs.exists(self._fs.join(_AUTOINSTALLED_DIR, "webpagereplay")):
+            self._install("http://web-page-replay.googlecode.com/files/webpagereplay-1.1.2.tar.gz", "webpagereplay-1.1.2")
+            self._fs.move(self._fs.join(_AUTOINSTALLED_DIR, "webpagereplay-1.1.2"), self._fs.join(_AUTOINSTALLED_DIR, "webpagereplay"))
+
+        init_path = self._fs.join(_AUTOINSTALLED_DIR, "webpagereplay", "__init__.py")
+        if not self._fs.exists(init_path):
+            self._fs.write_text_file(init_path, "")
 
     def _install(self, url, url_subpath):
         installer = AutoInstaller(target_dir=_AUTOINSTALLED_DIR)

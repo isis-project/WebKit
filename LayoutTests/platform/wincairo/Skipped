@@ -1768,11 +1768,19 @@ inspector/debugger/xhr-breakpoints.html
 # https://bugs.webkit.org/show_bug.cgi?id=50485
 inspector/profiler/heap-snapshot-inspect-dom-wrapper.html
 inspector/profiler/heap-snapshot-comparison-dom-groups-change.html
+inspector/profiler/heap-snapshot-comparison-show-all.html
 inspector/profiler/heap-snapshot-reveal-in-dominators-view.html
+inspector/profiler/heap-snapshot-summary-retainers.html
 inspector/profiler/heap-snapshot-summary-show-ranges.html
+inspector/profiler/heap-snapshot-summary-sorting-fields.html
+inspector/profiler/heap-snapshot-summary-sorting.html
+inspector/profiler/heap-snapshot-summary-sorting-instances.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=40300
 inspector/debugger/live-edit.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=89652
+inspector/debugger/debugger-compile-and-run.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=53003
 http/tests/inspector/compiler-source-mapping-debug.html
@@ -1798,10 +1806,12 @@ fast/parser/pre-html5-parser-quirks.html
 # FileSystem API is not supported.
 fast/filesystem
 http/tests/filesystem
+http/tests/inspector/filesystem
 http/tests/security/filesystem-iframe-from-remote.html
 http/tests/websocket/tests/hybi/send-file-blob.html
 http/tests/websocket/tests/hybi/send-file-blob-fail.html
 fast/mutation/filesystem-callback-delivery.html
+fast/forms/file/input-file-entries.html
 
 # LayoutTestController::nodesFromRect is not supported.
 fast/dom/nodesFromRect-basic.html
@@ -2086,8 +2096,15 @@ fast/dom/navigator-vibration.html
 # https://bugs.webkit.org/show_bug.cgi?id=85532
 fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/float-containing-block-with-margin.html
+fast/sub-pixel/float-with-right-margin-zoom.html
+fast/sub-pixel/float-wrap-with-subpixel-top.html
+fast/sub-pixel/inline-block-with-margin.html
+fast/sub-pixel/inline-block-with-padding.html
 fast/sub-pixel/layout-boxes-with-zoom.html
 fast/sub-pixel/size-of-box-with-zoom.html
+fast/sub-pixel/selection/selection-gaps-at-fractional-offsets.html
+fast/sub-pixel/file-upload-control-at-fractional-offset.html
 
 #Battery Status API is not implemented.
 batterystatus
@@ -2097,6 +2114,10 @@ networkinformation
 
 # Generate results for your platform http://webkit.org/b/85567
 fast/images/png-suite/test.html
+
+# UndoManager is not yet enabled.
+# https://bugs.webkit.org/show_bug.cgi?id=87908
+editing/undomanager
 
 # https://bugs.webkit.org/show_bug.cgi?id=86000
 http/tests/security/referrer-policy-redirect-link.html

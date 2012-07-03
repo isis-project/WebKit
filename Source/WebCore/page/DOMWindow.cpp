@@ -88,13 +88,13 @@
 #include "Settings.h"
 #include "Storage.h"
 #include "StorageArea.h"
-#include "StorageInfo.h"
 #include "StorageNamespace.h"
 #include "StyleMedia.h"
 #include "StyleResolver.h"
 #include "SuddenTermination.h"
 #include "WebKitPoint.h"
 #include "WindowFeatures.h"
+#include "WindowFocusAllowedIndicator.h"
 #include <algorithm>
 #include <wtf/CurrentTime.h>
 #include <wtf/MainThread.h>
@@ -421,9 +421,6 @@ DOMWindow::~DOMWindow()
 #if ENABLE(BLOB)
         ASSERT(!m_domURL);
 #endif
-#if ENABLE(QUOTA)
-        ASSERT(!m_storageInfo);
-#endif
     }
 #endif
 
@@ -592,9 +589,6 @@ void DOMWindow::clearDOMWindowProperties()
     m_applicationCache = 0;
 #if ENABLE(BLOB)
     m_domURL = 0;
-#endif
-#if ENABLE(QUOTA)
-    m_storageInfo = 0;
 #endif
 }
 
@@ -899,7 +893,7 @@ Element* DOMWindow::frameElement() const
     return m_frame->ownerElement();
 }
 
-void DOMWindow::focus()
+void DOMWindow::focus(ScriptExecutionContext* context)
 {
     if (!m_frame)
         return;
@@ -908,8 +902,16 @@ void DOMWindow::focus()
     if (!page)
         return;
 
+    bool allowFocus = WindowFocusAllowedIndicator::windowFocusAllowed() || !m_frame->settings()->windowFocusRestricted();
+    if (context) {
+        ASSERT(isMainThread());
+        Document* activeDocument = static_cast<Document*>(context);
+        if (opener() && activeDocument->domWindow() == opener())
+            allowFocus = true;
+    }
+
     // If we're a top level window, bring the window to the front.
-    if (m_frame == page->mainFrame())
+    if (m_frame == page->mainFrame() && allowFocus)
         page->chrome()->focus();
 
     if (!m_frame)
@@ -920,11 +922,15 @@ void DOMWindow::focus()
 
 void DOMWindow::blur()
 {
+
     if (!m_frame)
         return;
 
     Page* page = m_frame->page();
     if (!page)
+        return;
+
+    if (m_frame->settings()->windowFocusRestricted())
         return;
 
     if (m_frame != page->mainFrame())
@@ -1274,7 +1280,7 @@ DOMWindow* DOMWindow::parent() const
     if (!m_frame)
         return 0;
 
-    Frame* parent = m_frame->tree()->parent(true);
+    Frame* parent = m_frame->tree()->parent();
     if (parent)
         return parent->domWindow();
 
@@ -1290,7 +1296,7 @@ DOMWindow* DOMWindow::top() const
     if (!page)
         return 0;
 
-    return m_frame->tree()->top(true)->domWindow();
+    return m_frame->tree()->top()->domWindow();
 }
 
 Document* DOMWindow::document() const
@@ -1921,16 +1927,5 @@ void DOMWindow::showModalDialog(const String& urlString, const String& dialogFea
 
     dialogFrame->page()->chrome()->runModal();
 }
-
-#if ENABLE(QUOTA)
-StorageInfo* DOMWindow::webkitStorageInfo() const
-{
-    if (!isCurrentlyDisplayedInFrame())
-        return 0;
-    if (!m_storageInfo)
-        m_storageInfo = StorageInfo::create();
-    return m_storageInfo.get();
-}
-#endif
 
 } // namespace WebCore

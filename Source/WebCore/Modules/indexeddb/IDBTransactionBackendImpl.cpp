@@ -66,13 +66,13 @@ IDBTransactionBackendImpl::~IDBTransactionBackendImpl()
 PassRefPtr<IDBObjectStoreBackendInterface> IDBTransactionBackendImpl::objectStore(const String& name, ExceptionCode& ec)
 {
     if (m_state == Finished) {
-        ec = IDBDatabaseException::NOT_ALLOWED_ERR;
+        ec = IDBDatabaseException::IDB_INVALID_STATE_ERR;
         return 0;
     }
 
     // Does a linear search, but it really shouldn't be that slow in practice.
     if (m_mode != IDBTransaction::VERSION_CHANGE && !m_objectStoreNames->contains(name)) {
-        ec = IDBDatabaseException::NOT_FOUND_ERR;
+        ec = IDBDatabaseException::IDB_NOT_FOUND_ERR;
         return 0;
     }
 
@@ -82,7 +82,7 @@ PassRefPtr<IDBObjectStoreBackendInterface> IDBTransactionBackendImpl::objectStor
     //        There's a bug to make this impossible in the spec. When we make it impossible here, we
     //        can remove this check.
     if (!objectStore) {
-        ec = IDBDatabaseException::NOT_FOUND_ERR;
+        ec = IDBDatabaseException::IDB_NOT_FOUND_ERR;
         return 0;
     }
     return objectStore.release();
@@ -120,7 +120,6 @@ void IDBTransactionBackendImpl::abort()
     m_taskTimer.stop();
     m_taskEventTimer.stop();
 
-    closeOpenCursors();
     if (wasRunning)
         m_transaction->rollback();
 
@@ -131,11 +130,21 @@ void IDBTransactionBackendImpl::abort()
         task->performTask(0);
     }
 
-    if (m_callbacks)
-        m_callbacks->onAbort();
+    // Backing store resources (held via cursors) must be released before script callbacks
+    // are fired, as the script callbacks may release references and allow the backing store
+    // itself to be released, and order is critical.
+    closeOpenCursors();
+    m_transaction = 0;
+
+    // Transactions must also be marked as completed before the front-end is notified, as
+    // the transaction completion unblocks operations like closing connections.
     m_database->transactionCoordinator()->didFinishTransaction(this);
     ASSERT(!m_database->transactionCoordinator()->isActive(this));
     m_database->transactionFinished(this);
+
+    if (m_callbacks)
+        m_callbacks->onAbort();
+
     m_database = 0;
 }
 
@@ -192,17 +201,31 @@ void IDBTransactionBackendImpl::commit()
     // commit steps below. We therefore take a self reference to keep ourselves
     // alive while executing this method.
     RefPtr<IDBTransactionBackendImpl> self(this);
-    ASSERT(m_state == Running);
+    ASSERT(m_state == Unused || m_state == Running);
     ASSERT(m_taskQueue.isEmpty());
 
+    bool unused = m_state == Unused;
     m_state = Finished;
+
+    bool committed = unused || m_transaction->commit();
+
+    // Backing store resources (held via cursors) must be released before script callbacks
+    // are fired, as the script callbacks may release references and allow the backing store
+    // itself to be released, and order is critical.
     closeOpenCursors();
-    if (m_transaction->commit())
+    m_transaction = 0;
+
+    // Transactions must also be marked as completed before the front-end is notified, as
+    // the transaction completion unblocks operations like closing connections.
+    if (!unused)
+        m_database->transactionCoordinator()->didFinishTransaction(this);
+    m_database->transactionFinished(this);
+
+    if (committed)
         m_callbacks->onComplete();
     else
         m_callbacks->onAbort();
-    m_database->transactionCoordinator()->didFinishTransaction(this);
-    m_database->transactionFinished(this);
+
     m_database = 0;
 }
 

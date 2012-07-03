@@ -20,12 +20,12 @@
 #ifndef DeviceOrientationProviderQt_h
 #define DeviceOrientationProviderQt_h
 
-#include "DeviceOrientation.h"
 #include "DeviceOrientationController.h"
+#include "DeviceOrientationData.h"
 #include <QRotationFilter>
 #include <wtf/RefPtr.h>
 
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
+#if !HAVE(QT5)
 using QTM_NAMESPACE::QRotationFilter;
 using QTM_NAMESPACE::QRotationReading;
 using QTM_NAMESPACE::QRotationSensor;
@@ -45,11 +45,11 @@ public:
     void start();
     void stop();
     bool isActive() const { return m_sensor.isActive(); }
-    DeviceOrientation* lastOrientation() const { return m_lastOrientation.get(); }
+    DeviceOrientationData* lastOrientation() const { return m_lastOrientation.get(); }
     bool hasAlpha() const { return m_sensor.property("hasZ").toBool(); }
 
 private:
-    RefPtr<DeviceOrientation> m_lastOrientation;
+    RefPtr<DeviceOrientationData> m_lastOrientation;
     DeviceOrientationController* m_controller;
     QRotationSensor m_sensor;
 };

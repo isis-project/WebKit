@@ -38,6 +38,7 @@ using namespace HTMLNames;
 
 inline HTMLFieldSetElement::HTMLFieldSetElement(const QualifiedName& tagName, Document* document, HTMLFormElement* form)
     : HTMLFormControlElement(tagName, document, form)
+    , m_documentVersion(0)
 {
     ASSERT(hasTagName(fieldsetTag));
 }
@@ -49,9 +50,9 @@ PassRefPtr<HTMLFieldSetElement> HTMLFieldSetElement::create(const QualifiedName&
 
 void HTMLFieldSetElement::invalidateDisabledStateUnder(Element* base)
 {
-    for (Node* currentNode = base->traverseNextNode(base); currentNode; currentNode = currentNode->traverseNextNode(base)) {
-        if (currentNode && currentNode->isElementNode() && toElement(currentNode)->isFormControlElement())
-            static_cast<HTMLFormControlElement*>(currentNode)->ancestorDisabledStateWasChanged();
+    for (Node* node = base->firstChild(); node; node = node->traverseNextNode(base)) {
+        if (node->isElementNode() && toElement(node)->isFormControlElement())
+            static_cast<HTMLFormControlElement*>(node)->ancestorDisabledStateWasChanged();
     }
 }
 
@@ -98,9 +99,7 @@ HTMLLegendElement* HTMLFieldSetElement::legend() const
 
 HTMLCollection* HTMLFieldSetElement::elements()
 {
-    if (!m_elementsCollection)
-        m_elementsCollection = HTMLFormCollection::create(this);
-    return m_elementsCollection.get();
+    return ensureCachedHTMLCollection(FormControls);
 }
 
 void HTMLFieldSetElement::refreshElementsIfNeeded() const

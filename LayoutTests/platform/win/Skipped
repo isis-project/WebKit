@@ -248,29 +248,26 @@ editing/pasteboard/drag-files-to-editable-element.html
 editing/pasteboard/drop-file-svg.html
 editing/pasteboard/file-drag-to-editable.html
 editing/pasteboard/file-input-files-access.html
-fast/dom/Window/window-postmessage-clone.html
 fast/dom/Window/window-postmessage-clone-frames.html
 fast/events/drag-dataTransferItemList-file-handling.html
-fast/events/drag-file-crash.html
 fast/events/drag-to-navigate.html
 fast/events/drop-handler-should-not-stop-navigate.html
 fast/events/drop-with-file-paths.html
 fast/events/dropzone-004.html
 fast/events/file-input-hidden-in-ondrop.html
 fast/events/input-element-display-none-in-dragleave-crash.html
-fast/events/prevent-drag-to-navigate.html
-fast/forms/file/file-input-change-event.html
 fast/forms/file/file-input-reset.html
 fast/forms/file/file-reset-in-change.html
-fast/forms/file/get-file-upload.html
 fast/forms/file/input-file-directory-upload.html
+fast/forms/file/input-file-entries.html
 fast/forms/file/input-file-re-render.html
 fast/forms/file/recover-file-input-in-unposted-form.html
 http/tests/security/clipboard/clipboard-file-access.html
 
-# File API is not supported yet
+# File API is not supported yet (e.g. ENABLE(BLOB))
 fast/files
 http/tests/fileapi
+fast/dom/DOMURL/check-instanceof-domurl-functions.html
 
 # Need to add functionality to DumpRenderTree to test IDN <rdar://problem/5301954>
 fast/encoding/idn-security.html
@@ -580,8 +577,11 @@ http/tests/appcache
 http/tests/xmlhttprequest/access-control-basic-non-simple-allow-async.html
 http/tests/xmlhttprequest/access-control-basic-non-simple-allow.html
 
-# https://bugs.webkit.org/show_bug.cgi?id=36145 - AX: windows DRT needs to implement ::press
+# AX: windows DRT needs to implement ::press
+# https://bugs.webkit.org/show_bug.cgi?id=36145
+accessibility/aria-link-supports-press.html
 accessibility/label-element-press.html
+accessibility/press-works-on-control-types.html
 
 # Accessibility tests without results or with Mac-specific results.
 accessibility/aria-checkbox-sends-notification.html
@@ -1005,9 +1005,14 @@ fast/forms/multiple-form-submission-protection-mouse.html
 fast/events/remove-child-onscroll.html
 fast/events/platform-wheelevent-in-scrolling-div.html
 fast/events/continuous-platform-wheelevent-in-scrolling-div.html
+fast/events/scroll-in-scaled-page-with-overflow-hidden.html
 fast/events/wheelevent-direction-inverted-from-device.html
 fast/events/wheelevent-in-horizontal-scrollbar-in-rtl.html
 fast/events/wheelevent-in-vertical-scrollbar-in-rtl.html
+fast/repaint/overflow-auto-in-overflow-auto-scrolled.html
+fast/repaint/overflow-scroll-in-overflow-scroll-scrolled.html
+fast/repaint/table-overflow-auto-in-overflow-auto-scrolled.html
+fast/repaint/table-overflow-scroll-in-overflow-scroll-scrolled.html
 scrollbars/scrollevent-iframe-no-scrolling-wheel.html
 scrollbars/scroll-rtl-or-bt-layer.html
 
@@ -1263,11 +1268,21 @@ inspector/debugger/xhr-breakpoints.html
 # https://bugs.webkit.org/show_bug.cgi?id=50485
 inspector/profiler/heap-snapshot-inspect-dom-wrapper.html
 inspector/profiler/heap-snapshot-comparison-dom-groups-change.html
+inspector/profiler/heap-snapshot-comparison-expansion-preserved-when-sorting.html
+inspector/profiler/heap-snapshot-comparison-show-all.html
+inspector/profiler/heap-snapshot-loader.html
 inspector/profiler/heap-snapshot-reveal-in-dominators-view.html
 inspector/profiler/heap-snapshot-summary-show-ranges.html
+inspector/profiler/heap-snapshot-summary-retainers.html
+inspector/profiler/heap-snapshot-summary-sorting-fields.html
+inspector/profiler/heap-snapshot-summary-sorting.html
+inspector/profiler/heap-snapshot-summary-sorting-instances.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=40300
 inspector/debugger/live-edit.html
+
+# https://bugs.webkit.org/show_bug.cgi?id=89652
+inspector/debugger/debugger-compile-and-run.html
 
 # https://bugs.webkit.org/show_bug.cgi?id=53003
 http/tests/inspector/compiler-source-mapping-debug.html
@@ -1293,6 +1308,7 @@ fast/parser/pre-html5-parser-quirks.html
 # FileSystem API is not supported.
 fast/filesystem
 http/tests/filesystem
+http/tests/inspector/filesystem
 http/tests/security/filesystem-iframe-from-remote.html
 http/tests/websocket/tests/hybi/send-file-blob.html
 http/tests/websocket/tests/hybi/send-file-blob-fail.html
@@ -1539,8 +1555,13 @@ http/tests/loading/progress-finished-callback.html
 # Microdata DOM API is not yet enabled.
 fast/dom/MicroData
 
-# HiDPI tests require test infrastructure enhancements
+# HiDPI tests require test infrastructure enhancements (e.g. layoutTestController.setBackingScaleFactor)
+# https://bugs.webkit.org/show_bug.cgi?id=87919
+compositing/tiled-layers-hidpi.html
+fast/canvas/2d.backingStorePixelRatio.html
+fast/canvas/2d.imageDataHD.html
 fast/hidpi
+svg/as-image/image-respects-deviceScaleFactor.html
 
 # Skip because this platform does not support a paging mouse wheel event
 fast/events/platform-wheelevent-paging-x-in-non-scrolling-div.html
@@ -1726,8 +1747,18 @@ fast/block/lineboxcontain/font.html
 # https://bugs.webkit.org/show_bug.cgi?id=85532
 fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/float-containing-block-with-margin.html
+fast/sub-pixel/float-with-right-margin-zoom.html
+fast/sub-pixel/float-wrap-with-subpixel-top.html
+fast/sub-pixel/inline-block-with-margin.html
+fast/sub-pixel/inline-block-with-padding.html
 fast/sub-pixel/layout-boxes-with-zoom.html
 fast/sub-pixel/size-of-box-with-zoom.html
+fast/sub-pixel/selection/selection-gaps-at-fractional-offsets.html
+fast/sub-pixel/file-upload-control-at-fractional-offset.html
+
+# No CORS support for media elements is implemented yet.
+http/tests/security/video-cross-origin-readback.html
 
 # http://webkit.org/b/82886
 inspector/styles/override-screen-size.html
@@ -1771,13 +1802,150 @@ platform/win/accessibility/detached-object-notification-crash.html
 editing/selection/selection-plugin-clear-crash.html
 plugins/destroy-during-npp-new-object-with-fallback-content.html
 
-# Crashes on debug builds
-# https://bugs.webkit.org/show_bug.cgi?id=85832
-ietestcenter/css3/flexbox/flexbox-ordinal-group-001.htm
-
 # Asserts on debug builds
 # https://bugs.webkit.org/show_bug.cgi?id=86176
 ietestcenter/css3/valuesandunits/units-000.htm
 
 # Network Information is not supported yet.
 networkinformation
+
+# UndoManager is not yet enabled.
+# https://bugs.webkit.org/show_bug.cgi?id=87908
+editing/undomanager
+
+# Asserts/crashes in PluginView::didFinishLoading
+fast/loader/reload-zero-byte-plugin.html
+userscripts/user-script-plugin-document.html
+
+# JavaScript Experiments are not enabled on Windows
+# https://bugs.webkit.org/show_bug.cgi?id=87858
+fast/js/names.html
+
+# New plugins/npruntime/delete-plugin-within-* tests introduced in r117012 fail/crash
+# https://bugs.webkit.org/show_bug.cgi?id=86443
+plugins/npruntime/delete-plugin-within-getProperty.html
+plugins/npruntime/delete-plugin-within-hasProperty-return-false.html
+plugins/npruntime/delete-plugin-within-hasProperty-return-true.html
+plugins/npruntime/delete-plugin-within-invoke.html
+plugins/npruntime/delete-plugin-within-setProperty.html
+
+# [Win] ASSERT(oldLayoutDelta == view()->layoutDelta()) failed in RenderBlock::layoutBlockChild
+# https://bugs.webkit.org/show_bug.cgi?id=87450
+media/media-volume-slider-rendered-below.html
+
+# Time out
+# https://bugs.webkit.org/show_bug.cgi?id=88005
+media/crash-closing-page-with-media-as-plugin-fallback.html
+media/media-continues-playing-after-replace-source.html
+media/video-zoom.html
+
+# Asserts in Interpreter::addStackTraceIfNecessary
+# https://bugs.webkit.org/show_bug.cgi?id=84073
+plugins/npruntime/object-from-destroyed-plugin-in-subframe.html
+plugins/npruntime/object-from-destroyed-plugin.html
+
+# Time out
+# https://bugs.webkit.org/show_bug.cgi?id=88107
+platform/win/plugins/iframe-inside-overflow.html
+platform/win/plugins/window-region-is-set-to-clip-rect.html
+plugins/crash-restoring-plugin-page-from-page-cache.html
+plugins/fullscreen-plugins-dont-reload.html
+plugins/netscape-plugin-page-cache-works.html
+
+# Assert in RenderGeometryMap::absoluteRect
+# https://bugs.webkit.org/show_bug.cgi?id=88128
+compositing/geometry/fixed-position.html
+compositing/geometry/fixed-position-composited-switch.html
+compositing/geometry/limit-layer-bounds-fixed-positioned.html
+compositing/geometry/video-fixed-scrolling.html
+compositing/iframes/overlapped-nested-iframes.html
+compositing/layer-creation/fixed-position-and-transform.html
+compositing/layer-creation/fixed-position-scroll.html
+compositing/layer-creation/fixed-position-under-transform.html
+compositing/overflow/fixed-position-ancestor-clip.html
+compositing/rtl/rtl-fixed-overflow-scrolled.html
+compositing/rtl/rtl-fixed-overflow.html
+compositing/rtl/rtl-fixed.html
+
+# Asserts in RenderLayerBacking::paintIntoLayer
+# https://bugs.webkit.org/show_bug.cgi?id=88149
+compositing/backing/no-backing-foreground-layer.html
+
+# Asserts in GraphicsContext::platformContext
+# https://bugs.webkit.org/show_bug.cgi?id=88150
+compositing/geometry/clipping-foreground.html
+
+# Asserts in MessagePort::contextDestroyed
+# https://bugs.webkit.org/show_bug.cgi?id=85811
+fast/events/message-port-clone.html
+
+# Need rebaselining / checking - skipped en masse to get the bots green again
+css2.1/20110323/c543-txt-decor-000.html
+fast/block/float/float-in-float-hit-testing.html
+fast/block/float/overhanging-tall-block.html
+fast/css/align-positioned-object-on-resize.html
+fast/css/text-transform-select.html
+fast/css/zoom-body-scroll.html
+fast/dom/34176.html
+fast/dom/title-directionality-removeChild.html
+fast/dom/zoom-scroll-page-test.html
+fast/events/constructors/progress-event-constructor.html
+fast/events/dropzone-005.html
+fast/harness/results.html
+fast/images/exif-orientation.html
+fast/images/support-broken-image-delegate.html
+fast/js/stack-trace.html
+fast/layers/video-layer.html
+fast/loader/javascript-url-iframe-remove-on-navigate.html
+fast/mutation/inline-event-listener.html
+fast/profiler/dead-time.html
+fast/profiler/stop-profiling-after-setTimeout.html
+fast/repaint/canvas-putImageData.html
+fast/repaint/fixed-in-page-scale.html
+fast/repaint/fixed-right-bottom-in-page-scale.html
+fast/repaint/fixed-right-in-page-scale.html
+fast/repaint/japanese-rl-selection-repaint-in-regions.html
+fast/repaint/line-flow-with-floats-in-regions.html
+fast/repaint/moving-shadow-on-container.html
+fast/repaint/moving-shadow-on-path.html
+fast/repaint/overflow-flipped-writing-mode-block-in-regions.html
+fast/repaint/region-painting-invalidation.html
+fast/repaint/region-painting-via-layout.html
+fast/table/027.html
+fast/table/027-vertical.html
+fast/table/max-width-integer-overflow.html
+fast/writing-mode/fallback-orientation.html
+inspector/styles/svg-style.xhtml
+media/controls-after-reload.html
+media/controls-strict.html
+media/controls-styling.html
+media/controls-without-preload.html
+media/media-document-audio-repaint.html
+media/video-controls-rendering.html
+media/video-display-toggle.html
+media/video-no-audio.html
+media/video-pause-immediately.html
+media/video-playing-and-pause.html
+media/video-play-require-user-gesture.html
+printing/iframe-print.html
+svg/as-image/img-preserveAspectRatio-support-1.html
+svg/carto.net/tabgroup.svg
+svg/W3C-I18N/g-dirLTR-ubNone.svg
+svg/W3C-I18N/g-dirLTR-ubOverride.svg
+svg/W3C-I18N/g-dirRTL-ubNone.svg
+svg/W3C-I18N/g-dirRTL-ubOverride.svg
+svg/W3C-I18N/text-dirLTR-ubNone.svg
+svg/W3C-I18N/text-dirLTR-ubOverride.svg
+svg/W3C-I18N/text-dirRTL-ubNone.svg
+svg/W3C-I18N/text-dirRTL-ubOverride.svg
+svg/W3C-I18N/tspan-direction-rtl.svg
+svg/W3C-I18N/tspan-dirLTR-ubEmbed-in-rtl-context.svg
+svg/W3C-I18N/tspan-dirLTR-ubNone-in-rtl-context.svg
+svg/W3C-I18N/tspan-dirLTR-ubOverride-in-default-context.svg
+svg/W3C-I18N/tspan-dirLTR-ubOverride-in-ltr-context.svg
+svg/W3C-I18N/tspan-dirLTR-ubOverride-in-rtl-context.svg
+svg/W3C-I18N/tspan-dirNone-ubOverride-in-default-context.svg
+svg/W3C-I18N/tspan-dirNone-ubOverride-in-ltr-context.svg
+svg/W3C-I18N/tspan-dirRTL-ubOverride-in-rtl-context.svg
+svg/W3C-SVG-1.1-SE/linking-uri-01-b.svg
+svg/W3C-SVG-1.1-SE/text-intro-05-t.svg

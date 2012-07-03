@@ -50,6 +50,7 @@ StyleRareNonInheritedData::StyleRareNonInheritedData()
     , m_wrapMargin(RenderStyle::initialWrapMargin())
     , m_wrapPadding(RenderStyle::initialWrapPadding())
     , m_visitedLinkBackgroundColor(RenderStyle::initialBackgroundColor())
+    , m_order(RenderStyle::initialOrder())
     , m_flowThread(RenderStyle::initialFlowThread())
     , m_regionThread(RenderStyle::initialRegionThread())
     , m_regionOverflow(RenderStyle::initialRegionOverflow())
@@ -59,11 +60,14 @@ StyleRareNonInheritedData::StyleRareNonInheritedData()
     , m_pageSizeType(PAGE_SIZE_AUTO)
     , m_transformStyle3D(RenderStyle::initialTransformStyle3D())
     , m_backfaceVisibility(RenderStyle::initialBackfaceVisibility())
+    , m_alignContent(RenderStyle::initialAlignContent())
+    , m_alignItems(RenderStyle::initialAlignItems())
+    , m_alignSelf(RenderStyle::initialAlignSelf())
+    , m_justifyContent(RenderStyle::initialJustifyContent())
     , userDrag(RenderStyle::initialUserDrag())
     , textOverflow(RenderStyle::initialTextOverflow())
     , marginBeforeCollapse(MCOLLAPSE)
     , marginAfterCollapse(MCOLLAPSE)
-    , matchNearestMailBlockquoteColor(RenderStyle::initialMatchNearestMailBlockquoteColor())
     , m_appearance(RenderStyle::initialAppearance())
     , m_borderFit(RenderStyle::initialBorderFit())
     , m_textCombine(RenderStyle::initialTextCombine())
@@ -117,6 +121,7 @@ StyleRareNonInheritedData::StyleRareNonInheritedData(const StyleRareNonInherited
     , m_visitedLinkBorderRightColor(o.m_visitedLinkBorderRightColor)
     , m_visitedLinkBorderTopColor(o.m_visitedLinkBorderTopColor)
     , m_visitedLinkBorderBottomColor(o.m_visitedLinkBorderBottomColor)
+    , m_order(o.m_order)
     , m_flowThread(o.m_flowThread)
     , m_regionThread(o.m_regionThread)
     , m_regionOverflow(o.m_regionOverflow)
@@ -126,11 +131,14 @@ StyleRareNonInheritedData::StyleRareNonInheritedData(const StyleRareNonInherited
     , m_pageSizeType(o.m_pageSizeType)
     , m_transformStyle3D(o.m_transformStyle3D)
     , m_backfaceVisibility(o.m_backfaceVisibility)
+    , m_alignContent(o.m_alignContent)
+    , m_alignItems(o.m_alignItems)
+    , m_alignSelf(o.m_alignSelf)
+    , m_justifyContent(o.m_justifyContent)
     , userDrag(o.userDrag)
     , textOverflow(o.textOverflow)
     , marginBeforeCollapse(o.marginBeforeCollapse)
     , marginAfterCollapse(o.marginAfterCollapse)
-    , matchNearestMailBlockquoteColor(o.matchNearestMailBlockquoteColor)
     , m_appearance(o.m_appearance)
     , m_borderFit(o.m_borderFit)
     , m_textCombine(o.m_textCombine)
@@ -190,6 +198,7 @@ bool StyleRareNonInheritedData::operator==(const StyleRareNonInheritedData& o) c
         && m_visitedLinkBorderRightColor == o.m_visitedLinkBorderRightColor
         && m_visitedLinkBorderTopColor == o.m_visitedLinkBorderTopColor
         && m_visitedLinkBorderBottomColor == o.m_visitedLinkBorderBottomColor
+        && m_order == o.m_order
         && m_flowThread == o.m_flowThread
         && m_regionThread == o.m_regionThread
         && m_regionOverflow == o.m_regionOverflow
@@ -199,11 +208,14 @@ bool StyleRareNonInheritedData::operator==(const StyleRareNonInheritedData& o) c
         && m_pageSizeType == o.m_pageSizeType
         && m_transformStyle3D == o.m_transformStyle3D
         && m_backfaceVisibility == o.m_backfaceVisibility
+        && m_alignContent == o.m_alignContent
+        && m_alignItems == o.m_alignItems
+        && m_alignSelf == o.m_alignSelf
+        && m_justifyContent == o.m_justifyContent
         && userDrag == o.userDrag
         && textOverflow == o.textOverflow
         && marginBeforeCollapse == o.marginBeforeCollapse
         && marginAfterCollapse == o.marginAfterCollapse
-        && matchNearestMailBlockquoteColor == o.matchNearestMailBlockquoteColor
         && m_appearance == o.m_appearance
         && m_borderFit == o.m_borderFit
         && m_textCombine == o.m_textCombine

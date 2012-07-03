@@ -13,6 +13,9 @@
     width: 100px;
     height: 100px;
 }
+.flexbox > * {
+    -webkit-flex: none;
+}
 .title {
     margin-top: 1em;
 }
@@ -75,8 +78,8 @@
 }
 </style>
 <script>
-if (window.layoutTestController)
-    layoutTestController.dumpAsText();
+if (window.testRunner)
+    testRunner.dumpAsText();
 </script>
 <script src="resources/flexbox.js"></script>
 <body onload="checkFlexBoxen()">

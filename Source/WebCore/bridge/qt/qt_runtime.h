@@ -27,7 +27,7 @@
 #include "qt_instance.h"
 #include "runtime_method.h"
 
-#include <QWeakPointer>
+#include <QPointer>
 
 #include <qbytearray.h>
 #include <qmetaobject.h>
@@ -73,7 +73,7 @@ private:
     QtFieldType m_type;
     QByteArray m_dynamicProperty;
     QMetaProperty m_property;
-    QWeakPointer<QObject> m_childObject;
+    QPointer<QObject> m_childObject;
 };
 
 
@@ -238,14 +238,14 @@ private:
 // with the appropriate signal of 'sender'. When execute() is called, it will call JS 'receiverFunction'.
 class QtConnectionObject : public QObject
 {
-#if QT_VERSION >= QT_VERSION_CHECK(5, 0, 0)
+#if HAVE(QT5)
     Q_OBJECT_FAKE
 #endif
 public:
     QtConnectionObject(JSContextRef, PassRefPtr<QtInstance> senderInstance, int signalIndex, JSObjectRef receiver, JSObjectRef receiverFunction);
     ~QtConnectionObject();
 
-#if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
+#if !HAVE(QT5)
     // Explicitly define these because want a custom qt_metacall(), so we can't use Q_OBJECT macro.
     static const QMetaObject staticMetaObject;
     virtual const QMetaObject *metaObject() const;
@@ -261,7 +261,7 @@ public:
     static QtConnectionObject* createWithInternalJSC(ExecState*, PassRefPtr<QtInstance> senderInstance, int signalIndex, JSObject* receiver, JSObject* receiverFunction);
 
 private:
-    JSContextRef m_context;
+    JSGlobalContextRef m_context;
     RefPtr<QtInstance> m_senderInstance;
 
     // We use this as key in active connections multimap.

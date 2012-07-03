@@ -8,8 +8,6 @@
 TEMPLATE = subdirs
 CONFIG += ordered
 
-load(features)
-
 QMAKEPATH = $$(QMAKEPATH)
 isEmpty(QMAKEPATH)|!exists($${QMAKEPATH}/mkspecs) {
     error("The environment variable QMAKEPATH needs to point to $WEBKITSRC/Tools/qmake")
@@ -30,10 +28,16 @@ WebCore.file = Source/WebCore/WebCore.pro
 WebCore.makefile = Makefile.WebCore
 SUBDIRS += WebCore
 
-!CONFIG(no_webkit2) {
+!no_webkit2 {
     webkit2.file = Source/WebKit2/WebKit2.pro
     webkit2.makefile = Makefile.WebKit2
     SUBDIRS += webkit2
+}
+
+!no_webkit1 {
+    webkit1.file = Source/WebKit/WebKit1.pro
+    webkit1.makefile = Makefile.WebKit1
+    SUBDIRS += webkit1
 }
 
 QtWebKit.file = Source/QtWebKit.pro

@@ -82,7 +82,7 @@ using namespace HTMLNames;
     CSSParserValueList* valueList;
     Vector<OwnPtr<MediaQueryExp> >* mediaQueryExpList;
     StyleKeyframe* keyframe;
-    StyleRuleKeyframes* keyframesRule;
+    Vector<RefPtr<StyleKeyframe> >* keyframeRuleList;
     float val;
     CSSPropertyID id;
 }
@@ -101,7 +101,7 @@ static int cssyylex(YYSTYPE* yylval, void* parser)
 
 %}
 
-%expect 58
+%expect 62
 
 %nonassoc LOWEST_PREC
 
@@ -135,6 +135,7 @@ static int cssyylex(YYSTYPE* yylval, void* parser)
 %token FONT_FACE_SYM
 %token CHARSET_SYM
 %token NAMESPACE_SYM
+%token VARFUNCTION
 %token WEBKIT_RULE_SYM
 %token WEBKIT_DECLS_SYM
 %token WEBKIT_KEYFRAME_RULE_SYM
@@ -193,6 +194,9 @@ static int cssyylex(YYSTYPE* yylval, void* parser)
 %token <number> VW
 %token <number> VH
 %token <number> VMIN
+%token <number> DPPX
+%token <number> DPI
+%token <number> DPCM
 
 %token <string> URI
 %token <string> FUNCTION
@@ -201,6 +205,7 @@ static int cssyylex(YYSTYPE* yylval, void* parser)
 %token <string> CALCFUNCTION
 %token <string> MINFUNCTION
 %token <string> MAXFUNCTION
+%token <string> VAR_DEFINITION
 
 %token <string> UNICODERANGE
 
@@ -247,7 +252,7 @@ static int cssyylex(YYSTYPE* yylval, void* parser)
 
 %type <string> keyframe_name
 %type <keyframe> keyframe_rule
-%type <keyframesRule> keyframes_rule
+%type <keyframeRuleList> keyframes_rule
 %type <valueList> key_list
 %type <value> key
 
@@ -382,6 +387,8 @@ charset:
      CSSParser* p = static_cast<CSSParser*>(parser);
      if (p->m_styleSheet)
          p->m_styleSheet->parserSetEncodingFromCharsetRule($3);
+     if (p->isExtractingSourceData() && p->m_currentRuleDataStack->isEmpty() && p->m_ruleSourceDataResult)
+         p->addNewRuleToSourceTree(CSSRuleSourceData::createUnknown());
      $$ = 0;
   }
   | CHARSET_SYM error invalid_block {
@@ -410,9 +417,7 @@ rule_list:
  ;
 
 valid_rule:
-    before_ruleset ruleset {
-        $$ = $2;
-    }
+    ruleset
   | media
   | page
   | font_face
@@ -459,22 +464,38 @@ block_rule:
   | media
   ;
 
+at_import_header_end_maybe_space:
+    maybe_space {
+        CSSParser* p = static_cast<CSSParser*>(parser);
+        p->markRuleHeaderEnd();
+        p->markRuleBodyStart();
+    }
+    ;
+
+before_import_rule:
+    /* empty */ {
+        static_cast<CSSParser*>(parser)->markRuleHeaderStart(CSSRuleSourceData::IMPORT_RULE);
+    }
+    ;
 
 import:
-    IMPORT_SYM maybe_space string_or_uri maybe_space maybe_media_list ';' {
-        $$ = static_cast<CSSParser*>(parser)->createImportRule($3, $5);
+    before_import_rule IMPORT_SYM at_import_header_end_maybe_space string_or_uri maybe_space maybe_media_list ';' {
+        $$ = static_cast<CSSParser*>(parser)->createImportRule($4, $6);
     }
-  | IMPORT_SYM maybe_space string_or_uri maybe_space maybe_media_list TOKEN_EOF {
-        $$ = static_cast<CSSParser*>(parser)->createImportRule($3, $5);
+  | before_import_rule IMPORT_SYM at_import_header_end_maybe_space string_or_uri maybe_space maybe_media_list TOKEN_EOF {
+        $$ = static_cast<CSSParser*>(parser)->createImportRule($4, $6);
     }
-  | IMPORT_SYM maybe_space string_or_uri maybe_space maybe_media_list invalid_block {
+  | before_import_rule IMPORT_SYM at_import_header_end_maybe_space string_or_uri maybe_space maybe_media_list invalid_block {
         $$ = 0;
+        static_cast<CSSParser*>(parser)->popRuleData();
     }
-  | IMPORT_SYM error ';' {
+  | before_import_rule IMPORT_SYM error ';' {
         $$ = 0;
+        static_cast<CSSParser*>(parser)->popRuleData();
     }
-  | IMPORT_SYM error invalid_block {
+  | before_import_rule IMPORT_SYM error invalid_block {
         $$ = 0;
+        static_cast<CSSParser*>(parser)->popRuleData();
     }
   ;
 
@@ -599,15 +620,34 @@ media_list:
     }
     ;
 
+at_rule_body_start:
+    /* empty */ {
+        static_cast<CSSParser*>(parser)->markRuleBodyStart();
+    }
+    ;
+
+before_media_rule:
+    /* empty */ {
+        static_cast<CSSParser*>(parser)->markRuleHeaderStart(CSSRuleSourceData::MEDIA_RULE);
+    }
+    ;
+
+at_rule_header_end_maybe_space:
+    maybe_space {
+        static_cast<CSSParser*>(parser)->markRuleHeaderEnd();
+    }
+    ;
+
 media:
-    MEDIA_SYM maybe_space media_list '{' maybe_space block_rule_list save_block {
-        $$ = static_cast<CSSParser*>(parser)->createMediaRule($3, $6);
+    before_media_rule MEDIA_SYM maybe_space media_list at_rule_header_end '{' at_rule_body_start maybe_space block_rule_list save_block {
+        $$ = static_cast<CSSParser*>(parser)->createMediaRule($4, $9);
     }
-    | MEDIA_SYM maybe_space '{' maybe_space block_rule_list save_block {
-        $$ = static_cast<CSSParser*>(parser)->createMediaRule(0, $5);
+    | before_media_rule MEDIA_SYM at_rule_header_end_maybe_space '{' at_rule_body_start maybe_space block_rule_list save_block {
+        $$ = static_cast<CSSParser*>(parser)->createMediaRule(0, $7);
     }
-    | MEDIA_SYM maybe_space ';' {
+    | before_media_rule MEDIA_SYM at_rule_header_end_maybe_space ';' {
         $$ = 0;
+        static_cast<CSSParser*>(parser)->popRuleData();
     }
     ;
 
@@ -617,10 +657,15 @@ medium:
   }
   ;
 
+before_keyframes_rule:
+    /* empty */ {
+        static_cast<CSSParser*>(parser)->markRuleHeaderStart(CSSRuleSourceData::KEYFRAMES_RULE);
+    }
+    ;
+
 keyframes:
-    WEBKIT_KEYFRAMES_SYM maybe_space keyframe_name maybe_space '{' maybe_space keyframes_rule '}' {
-        $$ = $7;
-        $7->setName($3);
+    before_keyframes_rule WEBKIT_KEYFRAMES_SYM maybe_space keyframe_name at_rule_header_end_maybe_space '{' at_rule_body_start maybe_space keyframes_rule closing_brace {
+        $$ = static_cast<CSSParser*>(parser)->createKeyframesRule($4, static_cast<CSSParser*>(parser)->sinkFloatingKeyframeVector($9));
     }
     ;
   
@@ -630,11 +675,11 @@ keyframe_name:
     ;
 
 keyframes_rule:
-    /* empty */ { $$ = static_cast<CSSParser*>(parser)->createKeyframesRule(); }
+    /* empty */ { $$ = static_cast<CSSParser*>(parser)->createFloatingKeyframeVector(); }
     | keyframes_rule keyframe_rule maybe_space {
         $$ = $1;
         if ($2)
-            $$->parserAppendKeyframe($2);
+            $$->append($2);
     }
     ;
 
@@ -672,23 +717,32 @@ key:
     }
     ;
 
+before_page_rule:
+    /* empty */ {
+        static_cast<CSSParser*>(parser)->markRuleHeaderStart(CSSRuleSourceData::PAGE_RULE);
+    }
+    ;
+
 page:
-    PAGE_SYM maybe_space page_selector maybe_space
-    '{' maybe_space declarations_and_margins closing_brace {
+    before_page_rule PAGE_SYM maybe_space page_selector at_rule_header_end_maybe_space
+    '{' at_rule_body_start maybe_space_before_declaration declarations_and_margins closing_brace {
         CSSParser* p = static_cast<CSSParser*>(parser);
-        if ($3)
-            $$ = p->createPageRule(p->sinkFloatingSelector($3));
+        if ($4)
+            $$ = p->createPageRule(p->sinkFloatingSelector($4));
         else {
             // Clear properties in the invalid @page rule.
             p->clearProperties();
             // Also clear margin at-rules here once we fully implement margin at-rules parsing.
             $$ = 0;
+            static_cast<CSSParser*>(parser)->popRuleData();
         }
     }
-    | PAGE_SYM error invalid_block {
+    | before_page_rule PAGE_SYM error invalid_block {
+      static_cast<CSSParser*>(parser)->popRuleData();
       $$ = 0;
     }
-    | PAGE_SYM error ';' {
+    | before_page_rule PAGE_SYM error ';' {
+      static_cast<CSSParser*>(parser)->popRuleData();
       $$ = 0;
     }
     ;
@@ -784,16 +838,24 @@ margin_sym :
     }
     ;
 
+before_font_face_rule:
+    /* empty */ {
+        static_cast<CSSParser*>(parser)->markRuleHeaderStart(CSSRuleSourceData::FONT_FACE_RULE);
+    }
+    ;
+
 font_face:
-    FONT_FACE_SYM maybe_space
-    '{' maybe_space declaration_list '}'  maybe_space {
+    before_font_face_rule FONT_FACE_SYM at_rule_header_end_maybe_space
+    '{' at_rule_body_start maybe_space_before_declaration declaration_list closing_brace {
         $$ = static_cast<CSSParser*>(parser)->createFontFaceRule();
     }
-    | FONT_FACE_SYM error invalid_block {
+    | before_font_face_rule FONT_FACE_SYM error invalid_block {
       $$ = 0;
+      static_cast<CSSParser*>(parser)->popRuleData();
     }
-    | FONT_FACE_SYM error ';' {
+    | before_font_face_rule FONT_FACE_SYM error ';' {
       $$ = 0;
+      static_cast<CSSParser*>(parser)->popRuleData();
     }
 ;
 
@@ -835,29 +897,26 @@ unary_operator:
 
 maybe_space_before_declaration:
     maybe_space {
-        CSSParser* p = static_cast<CSSParser*>(parser);
-        p->markPropertyStart();
+        static_cast<CSSParser*>(parser)->markPropertyStart();
     }
   ;
 
-before_ruleset:
+before_selector_list:
     /* empty */ {
-        CSSParser* p = static_cast<CSSParser*>(parser);
-        p->markSelectorListStart();
+        static_cast<CSSParser*>(parser)->markRuleHeaderStart(CSSRuleSourceData::STYLE_RULE);
     }
   ;
 
-before_rule_opening_brace:
+at_rule_header_end:
     /* empty */ {
-        CSSParser* p = static_cast<CSSParser*>(parser);
-        p->markSelectorListEnd();
+        static_cast<CSSParser*>(parser)->markRuleHeaderEnd();
     }
   ;
 
 ruleset:
-    selector_list before_rule_opening_brace '{' maybe_space_before_declaration declaration_list closing_brace {
+    before_selector_list selector_list at_rule_header_end '{' maybe_space_before_declaration declaration_list closing_brace {
         CSSParser* p = static_cast<CSSParser*>(parser);
-        $$ = p->createStyleRule($1);
+        $$ = p->createStyleRule($2);
     }
   ;
 
@@ -954,13 +1013,9 @@ simple_selector:
             static_cast<CSSParser*>(parser)->updateSpecifiersWithElementName(nullAtom, starAtom, $$);
     }
     | namespace_selector element_name {
-        AtomicString namespacePrefix = $1;
         CSSParser* p = static_cast<CSSParser*>(parser);
         $$ = p->createFloatingSelector();
-        if (p->m_styleSheet)
-            $$->setTag(QualifiedName(namespacePrefix, $2, p->m_styleSheet->determineNamespace(namespacePrefix)));
-        else
-            $$->setTag(QualifiedName(namespacePrefix, $2, p->m_defaultNamespace));
+        $$->setTag(p->determineNameInNamespace($1, $2));
     }
     | namespace_selector element_name specifier_list {
         $$ = $3;
@@ -1086,23 +1141,15 @@ attrib:
         $$->setValue($6);
     }
     | '[' maybe_space namespace_selector attr_name ']' {
-        AtomicString namespacePrefix = $3;
         CSSParser* p = static_cast<CSSParser*>(parser);
         $$ = p->createFloatingSelector();
-        if (p->m_styleSheet)
-            $$->setAttribute(QualifiedName(namespacePrefix, $4, p->m_styleSheet->determineNamespace(namespacePrefix)));
-        else
-            $$->setAttribute(QualifiedName(namespacePrefix, $4, p->m_defaultNamespace));
+        $$->setAttribute(p->determineNameInNamespace($3, $4));
         $$->setMatch(CSSSelector::Set);
     }
     | '[' maybe_space namespace_selector attr_name match maybe_space ident_or_string maybe_space ']' {
-        AtomicString namespacePrefix = $3;
         CSSParser* p = static_cast<CSSParser*>(parser);
         $$ = p->createFloatingSelector();
-        if (p->m_styleSheet)
-            $$->setAttribute(QualifiedName(namespacePrefix, $4, p->m_styleSheet->determineNamespace(namespacePrefix)));
-        else
-            $$->setAttribute(QualifiedName(namespacePrefix, $4, p->m_defaultNamespace));
+        $$->setAttribute(p->determineNameInNamespace($3, $4));
         $$->setMatch((CSSSelector::Match)$5);
         $$->setValue($7);
     }
@@ -1308,6 +1355,17 @@ decl_list:
     ;
 
 declaration:
+    VAR_DEFINITION ':' maybe_space expr prio {
+#if ENABLE(CSS_VARIABLES)
+        CSSParser* p = static_cast<CSSParser*>(parser);
+        p->storeVariableDeclaration($1, p->sinkFloatingValueList($4), $5);
+        $$ = true;
+        p->markPropertyEnd($5, $$);
+#else
+        $$ = false;
+#endif
+    }
+    |
     property ':' maybe_space expr prio {
         $$ = false;
         CSSParser* p = static_cast<CSSParser*>(parser);
@@ -1440,6 +1498,13 @@ term:
   | UNICODERANGE maybe_space { $$.id = 0; $$.string = $1; $$.unit = CSSPrimitiveValue::CSS_UNICODE_RANGE; }
   | HEX maybe_space { $$.id = 0; $$.string = $1; $$.unit = CSSPrimitiveValue::CSS_PARSER_HEXCOLOR; }
   | '#' maybe_space { $$.id = 0; $$.string = CSSParserString(); $$.unit = CSSPrimitiveValue::CSS_PARSER_HEXCOLOR; } /* Handle error case: "color: #;" */
+  | VARFUNCTION maybe_space IDENT ')' maybe_space {
+#if ENABLE(CSS_VARIABLES)
+      $$.id = 0;
+      $$.string = $3;
+      $$.unit = CSSPrimitiveValue::CSS_VARIABLE_NAME;
+#endif
+  }
   /* FIXME: according to the specs a function can have a unary_operator in front. I know no case where this makes sense */
   | function {
       $$ = $1;
@@ -1487,6 +1552,9 @@ unary_term:
   | VW maybe_space { $$.id = 0; $$.fValue = $1; $$.unit = CSSPrimitiveValue::CSS_VW; }
   | VH maybe_space { $$.id = 0; $$.fValue = $1; $$.unit = CSSPrimitiveValue::CSS_VH; }
   | VMIN maybe_space { $$.id = 0; $$.fValue = $1; $$.unit = CSSPrimitiveValue::CSS_VMIN; }
+  | DPPX maybe_space { $$.id = 0; $$.fValue = $1; $$.unit = CSSPrimitiveValue::CSS_DPPX; }
+  | DPI maybe_space { $$.id = 0; $$.fValue = $1; $$.unit = CSSPrimitiveValue::CSS_DPI; }
+  | DPCM maybe_space { $$.id = 0; $$.fValue = $1; $$.unit = CSSPrimitiveValue::CSS_DPCM; }
   ;
 
 function:

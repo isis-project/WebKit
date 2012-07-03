@@ -30,12 +30,11 @@
 #include "cc/CCQuadCuller.h"
 
 #include "Region.h"
-#include "TransformationMatrix.h"
+#include "SkColor.h"
 #include "cc/CCDebugBorderDrawQuad.h"
 #include "cc/CCLayerImpl.h"
 #include "cc/CCOverdrawMetrics.h"
-#include "cc/CCRenderPass.h"
-#include "cc/CCRenderSurfaceDrawQuad.h"
+#include <public/WebTransformationMatrix.h>
 
 using namespace std;
 
@@ -67,7 +66,7 @@ static inline bool appendQuadInternal(PassOwnPtr<CCDrawQuad> passDrawQuad, const
 
     if (keepQuad) {
         if (createDebugBorderQuads && !drawQuad->isDebugQuad() && drawQuad->quadVisibleRect() != drawQuad->quadRect()) {
-            Color borderColor = Color(debugTileBorderColorRed, debugTileBorderColorGreen, debugTileBorderColorBlue, debugTileBorderAlpha);
+            SkColor borderColor = SkColorSetARGB(debugTileBorderAlpha, debugTileBorderColorRed, debugTileBorderColorGreen, debugTileBorderColorBlue);
             quadList.append(CCDebugBorderDrawQuad::create(drawQuad->sharedQuadState(), drawQuad->quadVisibleRect(), borderColor, debugTileBorderWidth));
         }
 
@@ -86,12 +85,6 @@ bool CCQuadCuller::append(PassOwnPtr<CCDrawQuad> passDrawQuad)
 bool CCQuadCuller::appendSurface(PassOwnPtr<CCDrawQuad> passDrawQuad)
 {
     IntRect culledRect = m_occlusionTracker->unoccludedContributingSurfaceContentRect(m_layer->renderSurface(), false, passDrawQuad->quadRect());
-    return appendQuadInternal(passDrawQuad, culledRect, m_quadList, *m_occlusionTracker, m_showCullingWithDebugBorderQuads);
-}
-
-bool CCQuadCuller::appendReplica(PassOwnPtr<CCDrawQuad> passDrawQuad)
-{
-    IntRect culledRect = m_occlusionTracker->unoccludedContributingSurfaceContentRect(m_layer->renderSurface(), true, passDrawQuad->quadRect());
     return appendQuadInternal(passDrawQuad, culledRect, m_quadList, *m_occlusionTracker, m_showCullingWithDebugBorderQuads);
 }
 

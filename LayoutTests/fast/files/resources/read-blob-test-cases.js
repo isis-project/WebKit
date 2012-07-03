@@ -98,14 +98,14 @@ function testReadingSingleArrayBufferBlob(testFiles)
 {
     log("Test reading a blob containing single ArrayBuffer");
     var array = new Uint8Array([0, 1, 2, 128, 129, 130, 253, 254, 255]);
-    var blob = buildBlob([array.buffer]);
+    var blob = buildBlob([array]);
     readBlobAsBinaryString(testFiles, blob);
 }
 
 function testReadingSlicedFileBlob(testFiles)
 {
     log("Test reading a blob containing sliced file");
-    var blob = buildBlob([testFiles['file2'].webkitSlice(1, 6)]);
+    var blob = buildBlob([testFiles['file2'].slice(1, 6)]);
     readBlobAsBinaryString(testFiles, blob);
 }
 
@@ -113,7 +113,7 @@ function testReadingSlicedTextBlob(testFiles)
 {
     log("Test reading a blob containing sliced text");
     var blob = buildBlob(['First'])
-    blob = blob.webkitSlice(1, 11);
+    blob = blob.slice(1, 11);
     readBlobAsBinaryString(testFiles, blob);
 }
 
@@ -121,8 +121,8 @@ function testReadingSlicedArrayBufferBlob(testFiles)
 {
     log("Test reading a blob containing sliced ArrayBuffer");
     var array = new Uint8Array([0, 1, 2, 128, 129, 130, 253, 254, 255]);
-    var blob = buildBlob([array.buffer])
-    blob = blob.webkitSlice(1, 11);
+    var blob = buildBlob([array])
+    blob = blob.slice(1, 11);
     readBlobAsBinaryString(testFiles, blob);
 }
 
@@ -146,7 +146,7 @@ function testReadingMultipleArrayBufferBlob(testFiles)
     var array1 = new Uint8Array([0, 1, 2]);
     var array2 = new Uint8Array([128, 129, 130]);
     var array3 = new Uint8Array([253, 254, 255]);
-    var blob = buildBlob([array1.buffer, array2.buffer, array3.buffer]);
+    var blob = buildBlob([array1, array2, array3]);
     readBlobAsBinaryString(testFiles, blob);
 }
 
@@ -154,7 +154,7 @@ function testReadingHybridBlob(testFiles)
 {
     log("Test reading a hybrid blob");
     var array = new Uint8Array([48, 49, 50]);
-    var blob = buildBlob(['First', testFiles['file1'], 'Second', testFiles['file2'], testFiles['file3'], 'Third', array.buffer]);
+    var blob = buildBlob(['First', testFiles['file1'], 'Second', testFiles['file2'], testFiles['file3'], 'Third', array]);
     readBlobAsBinaryString(testFiles, blob);
 }
 
@@ -162,8 +162,8 @@ function testReadingSlicedHybridBlob(testFiles)
 {
     log("Test reading a sliced hybrid blob");
     var array = new Uint8Array([48, 49, 50]);
-    var blob = buildBlob(['First', testFiles['file1'], 'Second', testFiles['file2'], testFiles['file3'], 'Third', array.buffer]);
-    var blob = blob.webkitSlice(7, 19);
+    var blob = buildBlob(['First', testFiles['file1'], 'Second', testFiles['file2'], testFiles['file3'], 'Third', array]);
+    var blob = blob.slice(7, 19);
     readBlobAsBinaryString(testFiles, blob);
 }
 
@@ -171,11 +171,11 @@ function testReadingTripleSlicedHybridBlob(testFiles)
 {
     log("Test reading a triple-sliced hybrid blob");
     var array = new Uint8Array([48, 49, 50]);
-    var items = ['First', testFiles['file1'].webkitSlice(1, 11), testFiles['empty-file'], 'Second', testFiles['file2'], testFiles['file3'], 'Third', array.buffer];
+    var items = ['First', testFiles['file1'].slice(1, 11), testFiles['empty-file'], 'Second', testFiles['file2'], testFiles['file3'], 'Third', array];
     var blob = buildBlob(items);
-    var blob = blob.webkitSlice(7, 19);
+    var blob = blob.slice(7, 19);
     var blob2 = buildBlob(items.concat(['Foo', blob, 'Bar']));
-    var blob2 = blob2.webkitSlice(12, 42);
+    var blob2 = blob2.slice(12, 42);
     readBlobAsBinaryString(testFiles, blob2);
 }
 

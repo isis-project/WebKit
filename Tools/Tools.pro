@@ -7,22 +7,25 @@
 TEMPLATE = subdirs
 CONFIG += ordered
 
-load(features)
-
 BUILD_TOOLS=1
 contains(DEFINES, PALM_DEVICE):!contains(DEFINES, MACHINE_DESKTOP) {
     BUILD_TOOLS=0
 }
 
-equals(BUILD_TOOLS, 1) {
-    exists($$PWD/QtTestBrowser/QtTestBrowser.pro): SUBDIRS += QtTestBrowser/QtTestBrowser.pro
-    exists($$PWD/DumpRenderTree/qt/DumpRenderTree.pro): SUBDIRS += DumpRenderTree/qt/DumpRenderTree.pro
-    exists($$PWD/DumpRenderTree/qt/ImageDiff.pro): SUBDIRS += DumpRenderTree/qt/ImageDiff.pro
+!no_webkit1 {
+    equals(BUILD_TOOLS, 1) {
+        SUBDIRS += QtTestBrowser/QtTestBrowser.pro
+        SUBDIRS += DumpRenderTree/qt/DumpRenderTree.pro
+        SUBDIRS += DumpRenderTree/qt/ImageDiff.pro
+    }
 }
 
 !no_webkit2 {
-    SUBDIRS += MiniBrowser/qt/MiniBrowser.pro \
-               WebKitTestRunner/WebKitTestRunner.pro
+    equals(BUILD_TOOLS, 1) {
+        SUBDIRS += MiniBrowser/qt/MiniBrowser.pro
+        SUBDIRS += WebKitTestRunner/WebKitTestRunner.pro
+        SUBDIRS += MiniBrowser/qt/raw/MiniBrowserRaw.pro
+    }
 }
 
 # FIXME: with Qt 5 the test plugin cause some trouble during layout tests.
@@ -38,6 +41,8 @@ equals(BUILD_TOOLS, 1) {
 
 OTHER_FILES = \
     Scripts/* \
+    $$files(Scripts/webkitpy/*.py, true) \
+    $$files(Scripts/webkitperl/*.p[l|m], true) \
     qmake/README \
     qmake/configure.pro \
     qmake/sync.profile \

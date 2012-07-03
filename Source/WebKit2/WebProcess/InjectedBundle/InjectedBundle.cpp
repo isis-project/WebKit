@@ -196,6 +196,13 @@ void InjectedBundle::setFrameFlatteningEnabled(WebPageGroupProxy* pageGroup, boo
         (*iter)->settings()->setFrameFlatteningEnabled(enabled);
 }
 
+void InjectedBundle::setPluginsEnabled(WebPageGroupProxy* pageGroup, bool enabled)
+{
+    const HashSet<Page*>& pages = PageGroup::pageGroup(pageGroup->identifier())->pages();
+    for (HashSet<Page*>::iterator iter = pages.begin(); iter != pages.end(); ++iter)
+        (*iter)->settings()->setPluginsEnabled(enabled);
+}
+
 void InjectedBundle::setGeoLocationPermission(WebPageGroupProxy* pageGroup, bool enabled)
 {
 #if ENABLE(GEOLOCATION)
@@ -402,7 +409,7 @@ void InjectedBundle::garbageCollectJavaScriptObjectsOnAlternateThreadForDebuggin
 
 size_t InjectedBundle::javaScriptObjectsCount()
 {
-    JSLock lock(SilenceAssertionsOnly);
+    JSLockHolder lock(JSDOMWindow::commonJSGlobalData());
     return JSDOMWindow::commonJSGlobalData()->heap.objectCount();
 }
 
@@ -411,8 +418,8 @@ void InjectedBundle::reportException(JSContextRef context, JSValueRef exception)
     if (!context || !exception)
         return;
 
-    JSLock lock(JSC::SilenceAssertionsOnly);
     JSC::ExecState* execState = toJS(context);
+    JSLockHolder lock(execState);
 
     // Make sure the context has a DOMWindow global object, otherwise this context didn't originate from a Page.
     if (!toJSDOMWindow(execState->lexicalGlobalObject()))

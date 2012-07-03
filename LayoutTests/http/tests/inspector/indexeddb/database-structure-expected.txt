@@ -21,7 +21,8 @@ testDatabase1
     version: 1
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
 
 Dumping database:
@@ -29,10 +30,12 @@ testDatabase1
     version: 2
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
 
 Dumping database:
@@ -40,13 +43,15 @@ testDatabase1
     version: 3
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
         testIndexName1
-            keyPath: key.path1
+            keyPath: ""
             unique: false
             multiEntry: true
 
@@ -55,17 +60,19 @@ testDatabase1
     version: 4
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
         testIndexName1
-            keyPath: key.path1
+            keyPath: ""
             unique: false
             multiEntry: true
         testIndexName2
-            keyPath: key.path2
+            keyPath: ["key.path1","key.path2"]
             unique: true
             multiEntry: false
 
@@ -74,13 +81,15 @@ testDatabase1
     version: 5
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
         testIndexName1
-            keyPath: key.path1
+            keyPath: ""
             unique: false
             multiEntry: true
 
@@ -89,10 +98,12 @@ testDatabase1
     version: 6
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
     testObjectStore2
-        keyPath: 
+        keyPath: null
+        autoIncrement: false
         indexes: 
 
 Dumping database:
@@ -100,7 +111,8 @@ testDatabase1
     version: 7
     objectStores:
     testObjectStore1
-        keyPath: test.key.path
+        keyPath: "test.key.path"
+        autoIncrement: true
         indexes: 
 
 Dumping database:

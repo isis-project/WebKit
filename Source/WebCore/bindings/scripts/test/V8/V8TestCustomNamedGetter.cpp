@@ -21,7 +21,7 @@
 #include "config.h"
 #include "V8TestCustomNamedGetter.h"
 
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "ExceptionCode.h"
 #include "RuntimeEnabledFeatures.h"
 #include "V8Binding.h"
@@ -34,7 +34,7 @@
 
 namespace WebCore {
 
-WrapperTypeInfo V8TestCustomNamedGetter::info = { V8TestCustomNamedGetter::GetTemplate, V8TestCustomNamedGetter::derefObject, 0, 0 };
+WrapperTypeInfo V8TestCustomNamedGetter::info = { V8TestCustomNamedGetter::GetTemplate, V8TestCustomNamedGetter::derefObject, 0, 0, 0, WrapperTypeObjectPrototype };
 
 namespace TestCustomNamedGetterV8Internal {
 

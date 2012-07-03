@@ -244,7 +244,7 @@ String contextMenuItemTagSearchInSpotlight()
 
 String contextMenuItemTagSearchWeb()
 {
-#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
+#if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD)
     RetainPtr<CFStringRef> searchProviderName(AdoptCF, wkCopyDefaultSearchProviderDisplayName());
     return formatLocalizedString(WEB_UI_STRING("Search with %@", "Search with search provider context menu item with provider name inserted"), searchProviderName.get());
 #else
@@ -675,7 +675,7 @@ String crashedPluginText()
 
 String insecurePluginVersionText()
 {
-    return WEB_UI_STRING("Insecure Plug-In Version", "Label text to be used when an insecure plug-in version was blocked from loading");
+    return WEB_UI_STRING("Blocked Plug-in", "Label text to be used when an insecure plug-in version was blocked from loading");
 }
 
 String multipleFileUploadText(unsigned numberOfFiles)

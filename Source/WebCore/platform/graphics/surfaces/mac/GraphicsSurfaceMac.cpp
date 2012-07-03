@@ -64,6 +64,13 @@ static uint32_t createTexture(IOSurfaceRef handle)
     return texture;
 }
 
+uint32_t GraphicsSurface::platformGetTextureID()
+{
+    if (!m_texture)
+        m_texture = createTexture(m_platformSurface);
+    return m_texture;
+}
+
 void GraphicsSurface::platformCopyToGLTexture(uint32_t target, uint32_t id, const IntRect& targetRect, const IntPoint& offset)
 {
     glPushAttrib(GL_ALL_ATTRIB_BITS);
@@ -81,6 +88,34 @@ void GraphicsSurface::platformCopyToGLTexture(uint32_t target, uint32_t id, cons
     glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, 0, 0);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
     glPopAttrib();
+
+    // According to IOSurface's documentation, glBindFramebuffer is the one triggering an update of the surface's cache.
+    // If the web process starts rendering and unlocks the surface before this happens, we might copy contents
+    // of the currently rendering frame on our texture instead of the previously completed frame.
+    // Flush the command buffer to reduce the odds of this happening, this would not be necessary with double buffering.
+    glFlush();
+}
+
+void GraphicsSurface::platformCopyFromFramebuffer(uint32_t originFbo, const IntRect& sourceRect)
+{
+    glPushAttrib(GL_ALL_ATTRIB_BITS);
+    if (!m_texture)
+        m_texture = createTexture(m_platformSurface);
+    if (!m_fbo)
+        glGenFramebuffers(1, &m_fbo);
+    GLint oldFBO;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &oldFBO);
+    glEnable(GL_TEXTURE_RECTANGLE_ARB);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, originFbo);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_fbo);
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, m_texture, 0);
+    glBlitFramebuffer(0, 0, sourceRect.width(), sourceRect.height(), 0, sourceRect.height(), sourceRect.width(), 0, GL_COLOR_BUFFER_BIT, GL_LINEAR); // Flip the texture upside down.
+    glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_RECTANGLE_ARB, 0, 0);
+    glBindFramebuffer(GL_FRAMEBUFFER, oldFBO);
+    glPopAttrib();
+
+    // Flushing the gl command buffer is necessary to ensure the texture has correctly been bound to the IOSurface.
+    glFlush();
 }
 
 bool GraphicsSurface::platformCreate(const IntSize& size, Flags flags)
@@ -139,18 +174,14 @@ static int ioSurfaceLockOptions(int lockOptions)
     return options;
 }
 
-static int ioSurfaceUnlockOptions(int lockOptions)
-{
-    int options = 0;
-    if (lockOptions & GraphicsSurface::ReadOnly)
-        options |= (kIOSurfaceLockAvoidSync | kIOSurfaceLockReadOnly);
-    return options;
-}
-
 char* GraphicsSurface::platformLock(const IntRect& rect, int* outputStride, LockOptions lockOptions)
 {
     m_lockOptions = lockOptions;
-    IOSurfaceLock(m_platformSurface, ioSurfaceLockOptions(m_lockOptions), 0);
+    IOReturn status = IOSurfaceLock(m_platformSurface, ioSurfaceLockOptions(m_lockOptions), 0);
+    if (status == kIOReturnCannotLock) {
+        m_lockOptions |= RetainPixels;
+        IOSurfaceLock(m_platformSurface, ioSurfaceLockOptions(m_lockOptions), 0);
+    }
 
     int stride = IOSurfaceGetBytesPerRow(m_platformSurface);
     if (outputStride)
@@ -162,7 +193,7 @@ char* GraphicsSurface::platformLock(const IntRect& rect, int* outputStride, Lock
 
 void GraphicsSurface::platformUnlock()
 {
-    IOSurfaceUnlock(m_platformSurface, ioSurfaceUnlockOptions(m_lockOptions) & (~kIOSurfaceLockAvoidSync), 0);
+    IOSurfaceUnlock(m_platformSurface, ioSurfaceLockOptions(m_lockOptions), 0);
 }
 
 void GraphicsSurface::platformDestroy()

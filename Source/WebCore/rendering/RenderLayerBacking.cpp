@@ -51,6 +51,7 @@
 #include "RenderEmbeddedObject.h"
 #include "RenderVideo.h"
 #include "RenderView.h"
+#include "ScrollingCoordinator.h"
 #include "StyleResolver.h"
 #include "TiledBacking.h"
 
@@ -165,7 +166,11 @@ void RenderLayerBacking::createPrimaryGraphicsLayer()
     m_graphicsLayer = createGraphicsLayer(layerName);
 
     if (m_isMainFrameRenderViewLayer) {
-        m_graphicsLayer->setContentsOpaque(true);
+        bool isTransparent = false;
+        if (FrameView* frameView = toRenderView(renderer())->frameView())
+            isTransparent = frameView->isTransparent();
+
+        m_graphicsLayer->setContentsOpaque(!isTransparent);
         m_graphicsLayer->setAppliesPageScale();
     }
 
@@ -239,6 +244,10 @@ static bool layerOrAncestorIsTransformed(RenderLayer* layer)
 
 bool RenderLayerBacking::shouldClipCompositedBounds() const
 {
+    // Scrollbar layers use this layer for relative positioning, so don't clip.
+    if (layerForHorizontalScrollbar() || layerForVerticalScrollbar())
+        return false;
+
     if (m_usingTiledCacheLayer)
         return true;
 
@@ -423,7 +432,7 @@ void RenderLayerBacking::updateGraphicsLayerGeometry()
     updateLayerFilters(renderer()->style());
 #endif
     
-    m_owningLayer->updateVisibilityStatus();
+    m_owningLayer->updateDescendantDependentFlags();
 
     // m_graphicsLayer is the corresponding GraphicsLayer for this RenderLayer and its non-compositing
     // descendants. So, the visibility flag for m_graphicsLayer should be true if there are any
@@ -434,6 +443,20 @@ void RenderLayerBacking::updateGraphicsLayerGeometry()
     m_graphicsLayer->setPreserves3D(style->transformStyle3D() == TransformStyle3DPreserve3D && !renderer()->hasReflection());
     m_graphicsLayer->setBackfaceVisibility(style->backfaceVisibility() == BackfaceVisibilityVisible);
 
+    // Register fixed position layers and their containers with the scrolling coordinator.
+    if (Page* page = renderer()->frame()->page()) {
+        if (ScrollingCoordinator* scrollingCoordinator = page->scrollingCoordinator()) {
+            if (style->position() == FixedPosition || compositor()->fixedPositionedByAncestor(m_owningLayer))
+                scrollingCoordinator->setLayerIsFixedToContainerLayer(childForSuperlayers(), true);
+            else {
+                if (m_ancestorClippingLayer)
+                    scrollingCoordinator->setLayerIsFixedToContainerLayer(m_ancestorClippingLayer.get(), false);
+                scrollingCoordinator->setLayerIsFixedToContainerLayer(m_graphicsLayer.get(), false);
+            }
+            bool isContainer = m_owningLayer->hasTransform();
+            scrollingCoordinator->setLayerIsContainerForFixedPositionLayers(childForSuperlayers(), isContainer);
+        }
+    }
     RenderLayer* compAncestor = m_owningLayer->ancestorCompositingLayer();
     
     // We compute everything relative to the enclosing compositing layer.
@@ -591,22 +614,22 @@ void RenderLayerBacking::updateInternalHierarchy()
     if (m_clippingLayer) {
         m_clippingLayer->removeFromParent();
         m_graphicsLayer->addChild(m_clippingLayer.get());
+    }
 
-        // The clip for child layers does not include space for overflow controls, so they exist as
-        // siblings of the clipping layer if we have one. Normal children of this layer are set as
-        // children of the clipping layer.
-        if (m_layerForHorizontalScrollbar) {
-            m_layerForHorizontalScrollbar->removeFromParent();
-            m_graphicsLayer->addChild(m_layerForHorizontalScrollbar.get());
-        }
-        if (m_layerForVerticalScrollbar) {
-            m_layerForVerticalScrollbar->removeFromParent();
-            m_graphicsLayer->addChild(m_layerForVerticalScrollbar.get());
-        }
-        if (m_layerForScrollCorner) {
-            m_layerForScrollCorner->removeFromParent();
-            m_graphicsLayer->addChild(m_layerForScrollCorner.get());
-        }
+    // The clip for child layers does not include space for overflow controls, so they exist as
+    // siblings of the clipping layer if we have one. Normal children of this layer are set as
+    // children of the clipping layer.
+    if (m_layerForHorizontalScrollbar) {
+        m_layerForHorizontalScrollbar->removeFromParent();
+        m_graphicsLayer->addChild(m_layerForHorizontalScrollbar.get());
+    }
+    if (m_layerForVerticalScrollbar) {
+        m_layerForVerticalScrollbar->removeFromParent();
+        m_graphicsLayer->addChild(m_layerForVerticalScrollbar.get());
+    }
+    if (m_layerForScrollCorner) {
+        m_layerForScrollCorner->removeFromParent();
+        m_graphicsLayer->addChild(m_layerForScrollCorner.get());
     }
 }
 
@@ -1112,15 +1135,17 @@ bool RenderLayerBacking::paintsIntoWindow() const
     return false;
 }
 
-void RenderLayerBacking::setRequiresOwnBackingStore(bool flag)
+void RenderLayerBacking::setRequiresOwnBackingStore(bool requiresOwnBacking)
 {
-    if (flag == m_requiresOwnBackingStore)
+    if (requiresOwnBacking == m_requiresOwnBackingStore)
         return;
     
     // This affects the answer to paintsIntoCompositedAncestor(), which in turn affects
     // cached clip rects, so when it changes we have to clear clip rects on descendants.
     m_owningLayer->clearClipRectsIncludingDescendants(PaintingClipRects);
-    m_requiresOwnBackingStore = flag;
+    m_requiresOwnBackingStore = requiresOwnBacking;
+    
+    compositor()->repaintInCompositedAncestor(m_owningLayer, compositedBounds());
 }
 
 void RenderLayerBacking::setContentsNeedDisplay()
@@ -1516,7 +1541,18 @@ String RenderLayerBacking::nameForLayer() const
         if (node->isElementNode())
             name += " " + static_cast<Element*>(node)->tagName();
         if (node->hasID())
-            name += " \'" + static_cast<Element*>(node)->getIdAttribute() + "\'";
+            name += " id=\'" + static_cast<Element*>(node)->getIdAttribute() + "\'";
+
+        if (node->hasClass()) {
+            StyledElement* styledElement = static_cast<StyledElement*>(node);
+            String classes;
+            for (size_t i = 0; i < styledElement->classNames().size(); ++i) {
+                if (i > 0)
+                    classes += " ";
+                classes += styledElement->classNames()[i];
+            }
+            name += " class=\'" + classes + "\'";
+        }
     }
 
     if (m_owningLayer->isReflection())
@@ -1536,30 +1572,29 @@ CompositingLayerType RenderLayerBacking::compositingLayerType() const
     return ContainerCompositingLayer;
 }
 
-double RenderLayerBacking::backingStoreArea() const
+double RenderLayerBacking::backingStoreMemoryEstimate() const
 {
-    double backingArea;
+    double backingMemory;
     
     // m_ancestorClippingLayer and m_clippingLayer are just used for masking, so have no backing.
-    backingArea = m_graphicsLayer->backingStoreArea();
+    backingMemory = m_graphicsLayer->backingStoreMemoryEstimate();
     if (m_foregroundLayer)
-        backingArea += m_foregroundLayer->backingStoreArea();
+        backingMemory += m_foregroundLayer->backingStoreMemoryEstimate();
     if (m_maskLayer)
-        backingArea += m_maskLayer->backingStoreArea();
+        backingMemory += m_maskLayer->backingStoreMemoryEstimate();
 
     if (m_layerForHorizontalScrollbar)
-        backingArea += m_layerForHorizontalScrollbar->backingStoreArea();
+        backingMemory += m_layerForHorizontalScrollbar->backingStoreMemoryEstimate();
 
     if (m_layerForVerticalScrollbar)
-        backingArea += m_layerForVerticalScrollbar->backingStoreArea();
+        backingMemory += m_layerForVerticalScrollbar->backingStoreMemoryEstimate();
 
     if (m_layerForScrollCorner)
-        backingArea += m_layerForScrollCorner->backingStoreArea();
+        backingMemory += m_layerForScrollCorner->backingStoreMemoryEstimate();
     
-    return backingArea;
+    return backingMemory;
 }
 
 } // namespace WebCore
 
 #endif // USE(ACCELERATED_COMPOSITING)
-

@@ -1,3 +1,319 @@
+2012-07-03  Jan Keromnes  <janx@linux.com>
+
+        Web Inspector: WebInspector.TextViewer should be renamed WebInspector.TextEditor
+        https://bugs.webkit.org/show_bug.cgi?id=89939
+
+        Reviewed by Vsevolod Vlasov.
+
+        * inspector/first-open-scripts.html.broken:
+
+2012-06-22  Philip Rogers  <pdr@google.com>
+
+        Make SvgCubics performance test more consistent
+        https://bugs.webkit.org/show_bug.cgi?id=89778
+
+        Reviewed by Ryosuke Niwa.
+
+        Previously this test ran twice for each iteration, but this led to inconsistent repaints.
+        This change updates the test to only run once per iteration, and adds even more cubics
+        so that the test runs consistently in the 80ms range on my Linux desktop.
+
+        Performance results on my desktop:
+            RESULT SVG: SvgCubics= 80.5 ms
+            median= 82.0 ms, stdev= 3.04138126515 ms, min= 75.0 ms, max= 85.0 ms
+
+            RESULT SVG: SvgCubics= 80.1 ms
+            median= 81.0 ms, stdev= 4.27668095607 ms, min= 74.0 ms, max= 88.0 ms
+
+            RESULT SVG: SvgCubics= 81.45 ms
+            median= 83.0 ms, stdev= 4.01839520207 ms, min= 75.0 ms, max= 89.0 ms
+
+            RESULT SVG: SvgCubics= 78.9 ms
+            median= 80.0 ms, stdev= 4.75289385533 ms, min= 72.0 ms, max= 87.0 ms
+
+        * SVG/SvgCubics.html:
+
+2012-06-22  Ilya Tikhonovsky  <loislo@chromium.org>
+
+        Web Inspector: partially instrument DOM Tree native memory.
+        https://bugs.webkit.org/show_bug.cgi?id=89568
+
+        This patch adds MemoryInstrumentation class that counts all visited
+        objects and calls reportMemoryUsage.
+
+        Reviewed by Yury Semikhatsky.
+
+        * inspector/native-memory-snapshot.html:
+
+2012-06-21  Kentaro Hara  <haraken@chromium.org>
+
+        Add a perf-test for innerHTML setter for a large DOM tree
+        https://bugs.webkit.org/show_bug.cgi?id=89723
+
+        Reviewed by Ryosuke Niwa.
+
+        We want a benchmark for innerHTML setter for the following reason:
+
+        - innerHTML setter is widely used in the real world.
+        - I am planning to optimize innerHTML setter in the near future.
+        - I want to use the innerHTML setter benchmark for the patch of bug 88834.
+
+        Performance results in my Linux desktop:
+
+        RESULT Parser: innerHTML-setter= 289.782649995 runs/s
+        median= 290.046269741 runs/s, stdev= 1.06575112224 runs/s, min= 286.831812256 runs/s, max= 291.005291005 runs/s
+
+        RESULT Parser: innerHTML-setter= 289.020706132 runs/s
+        median= 289.093298292 runs/s, stdev= 0.985203313093 runs/s, min= 286.831812256 runs/s, max= 290.620871863 runs/s
+
+        RESULT Parser: innerHTML-setter= 288.912051701 runs/s
+        median= 291.005291005 runs/s, stdev= 3.65241325588 runs/s, min= 283.505154639 runs/s, max= 292.553191489 runs/s
+
+        RESULT Parser: innerHTML-setter= 288.644186666 runs/s
+        median= 288.713910761 runs/s, stdev= 1.31889053717 runs/s, min= 286.085825748 runs/s, max= 290.620871863 runs/s
+
+        RESULT Parser: innerHTML-setter= 288.698714577 runs/s
+        median= 288.713910761 runs/s, stdev= 1.03938198202 runs/s, min= 286.458333333 runs/s, max= 290.237467018 runs/s
+
+        * Parser/innerHTML-setter.html: Added.
+
+2012-06-20  Philip Rogers  <pdr@google.com>
+
+        Add a performance test for paths in SVG
+        https://bugs.webkit.org/show_bug.cgi?id=89547
+
+        Reviewed by Ryosuke Niwa.
+
+        This change adds the first performance test for SVG paths.
+        In the test we modify complex cubic paths in several ways, testing:
+        transformations, clipping, d attribute changes, stroke properties,
+        text on a path, and opacity.
+
+        Sample test results on my Linux desktop:
+            RESULT SVG: SvgCubics= 68.85 ms
+            median= 69.5 ms, stdev= 4.70398767005 ms, min= 56.0 ms, max= 75.0 ms
+
+            RESULT SVG: SvgCubics= 68.4 ms
+            median= 69.0 ms, stdev= 3.51283361405 ms, min= 59.0 ms, max= 74.0 ms
+
+            RESULT SVG: SvgCubics= 66.95 ms
+            median= 67.0 ms, stdev= 3.4420197559 ms, min= 59.0 ms, max= 74.0 ms
+
+            RESULT SVG: SvgCubics= 70.2 ms
+            median= 71.5 ms, stdev= 3.23419232576 ms, min= 63.0 ms, max= 74.0 ms
+
+        * SVG: Added.
+        * SVG/SvgCubics.html: Added.
+
+2012-06-20  Tom Zakrajsek  <tomz@codeaurora.org>
+
+        Import themaninblue.com/experiment/AnimationBenchmark/ as performance tests
+        https://bugs.webkit.org/show_bug.cgi?id=78789
+
+        Reviewed by Ryosuke Niwa.
+
+        Added PerfTestRunner fixture around it.
+
+        * Animation/balls.html: Added.
+
+2012-06-18  Ilya Tikhonovsky  <loislo@chromium.org>
+
+        Web Inspector: native memory snapshot performance and coverage test implementation.
+        https://bugs.webkit.org/show_bug.cgi?id=89363
+
+        We have to track the performance of MemoryAgent.getProcessMemoryDistribution.
+        Also this test will work as a burn down chart for Unknown memory metric.
+
+        Reviewed by Pavel Feldman.
+
+        * inspector/native-memory-snapshot.html: Added.
+        * inspector/performance-test.js:
+        (initialize_TimeTracker.InspectorTest.runPerformanceTest.Timer):
+        (initialize_TimeTracker.InspectorTest.runPerformanceTest.Timer.prototype.reportSize):
+        (initialize_TimeTracker.InspectorTest.runPerformanceTest.Timer.prototype._dump):
+        (initialize_TimeTracker.InspectorTest.runPerformanceTest):
+
+2012-06-05  Alexei Filippov  <alexeif@chromium.org>
+
+        Web Inspector: serialize edge counts instead of indexes in heap snapshot
+        https://bugs.webkit.org/show_bug.cgi?id=88324
+
+        The serialized node structure currently holds an index
+        of its first containment edge in the edges array.
+        The index can be quite big (up to 7 digits for large snapshots).
+        The patch changes the serialization format to pass
+        node containment edge count instead. For most nodes the count
+        is just a single digit number.
+        This reduces serialized snapshot size and therefore its transfer time.
+
+        Reviewed by Yury Semikhatsky.
+
+        * inspector/heap-snapshot-performance-test.js:
+
+2012-06-04  Alexei Filippov  <alexeif@chromium.org>
+
+        Web Inspector: speed up _calculateRetainedSizes function
+        https://bugs.webkit.org/show_bug.cgi?id=87863
+
+        Reviewed by Yury Semikhatsky.
+
+        * inspector/heap-snapshot-advanced.html: Added.
+        * inspector/heap-snapshot-performance-test.js: Copied from PerformanceTests/inspector/heap-snapshot.html.
+        (test.performanceTest.step0):
+        (test.performanceTest.step1):
+        (test.performanceTest.step2):
+        (test.performanceTest.cleanup):
+        (test.performanceTest.done):
+        (test.performanceTest):
+        (test):
+        * inspector/heap-snapshot.html:
+
+2012-06-03  Kentaro Hara  <haraken@chromium.org>
+
+        [perf-test] Add a benchmark of querySelector() for an element that appears in the depths in the document
+        https://bugs.webkit.org/show_bug.cgi?id=88202
+
+        Reviewed by Ryosuke Niwa.
+
+        query-selector-first.html tests querySelector() for an element
+        that appears at the head of the document. query-selector-last.html
+        tests querySelector() for an element that appears at the tail of
+        the document. In addition, we want a benchmark of querySelector()
+        for an element that appears in the depths in the document.
+
+        Test results in my Linux desktop:
+
+        RESULT Parser: query-selector-deep= 460.776980611 runs/s
+        median= 460.947503201 runs/s, stdev= 1.72274941942 runs/s, min= 455.696202532 runs/s, max= 463.32046332 runs/s
+
+        RESULT Parser: query-selector-deep= 458.925050915 runs/s
+        median= 459.183673469 runs/s, stdev= 1.47930124139 runs/s, min= 454.545454545 runs/s, max= 460.947503201 runs/s
+
+        RESULT Parser: query-selector-deep= 461.866981491 runs/s
+        median= 461.538461538 runs/s, stdev= 1.14613123359 runs/s, min= 459.183673469 runs/s, max= 463.917525773 runs/s
+
+        RESULT Parser: query-selector-deep= 453.922010788 runs/s
+        median= 454.258855898 runs/s, stdev= 1.77279123317 runs/s, min= 447.204968944 runs/s, max= 455.696202532 runs/s
+
+        RESULT Parser: query-selector-deep= 454.666321221 runs/s
+        median= 454.545454545 runs/s, stdev= 1.65775667417 runs/s, min= 451.127819549 runs/s, max= 456.852791878 runs/s
+
+        * Parser/query-selector-deep.html: Added.
+
+2012-06-03  Kentaro Hara  <haraken@chromium.org>
+
+        [perf-test] Make query-selector-last.html more realistic
+        https://bugs.webkit.org/show_bug.cgi?id=88203
+
+        Reviewed by Ryosuke Niwa.
+
+        query-selector-last.html tests querySelector() for an element
+        that appears after 1000 div elements, all of which have the same
+        id and class. To test the performance of querySelector() under
+        a lot of ids and classes, we should make the ids and classes of
+        the 1000 elements different.
+
+        This patch degrades the performance of query-selector-last.html
+        by 3.6%.
+
+        [Before]
+        RESULT Parser: query-selector-last= 476.382274152 runs/s
+        median= 476.821192053 runs/s, stdev= 1.14578875814 runs/s, min= 474.308300395 runs/s, max= 478.087649402 runs/s
+
+        RESULT Parser: query-selector-last= 478.423061861 runs/s
+        median= 478.723404255 runs/s, stdev= 1.54876867255 runs/s, min= 473.684210526 runs/s, max= 481.347773767 runs/s
+
+        RESULT Parser: query-selector-last= 479.849287174 runs/s
+        median= 480.0 runs/s, stdev= 1.69849752498 runs/s, min= 475.561426684 runs/s, max= 481.927710843 runs/s
+
+        RESULT Parser: query-selector-last= 476.765438846 runs/s
+        median= 477.453580902 runs/s, stdev= 1.8724488664 runs/s, min= 471.821756225 runs/s, max= 478.723404255 runs/s
+
+        RESULT Parser: query-selector-last= 481.715340644 runs/s
+        median= 481.637742305 runs/s, stdev= 1.81446361145 runs/s, min= 475.561426684 runs/s, max= 483.675937122 runs/s
+
+        [After]
+        RESULT Parser: query-selector-last= 458.866623582 runs/s
+        median= 459.183673469 runs/s, stdev= 1.48881464737 runs/s, min= 453.972257251 runs/s, max= 460.947503201 runs/s
+
+        RESULT Parser: query-selector-last= 460.363532897 runs/s
+        median= 460.358056266 runs/s, stdev= 1.58512056995 runs/s, min= 456.273764259 runs/s, max= 462.130937099 runs/s
+
+        RESULT Parser: query-selector-last= 457.727448451 runs/s
+        median= 458.015267176 runs/s, stdev= 1.23681915516 runs/s, min= 453.972257251 runs/s, max= 459.183673469 runs/s
+
+        RESULT Parser: query-selector-last= 465.57336853 runs/s
+        median= 465.717981889 runs/s, stdev= 1.6616925374 runs/s, min= 460.947503201 runs/s, max= 467.532467532 runs/s
+
+        RESULT Parser: query-selector-last= 459.836252019 runs/s
+        median= 459.770114943 runs/s, stdev= 1.84485630505 runs/s, min= 455.696202532 runs/s, max= 462.724935733 runs/s
+
+        * Parser/query-selector-last.html:
+
+2012-06-01  Ryosuke Niwa  <rniwa@webkit.org>
+
+        Add public page loading performance tests using web-page-replay
+        https://bugs.webkit.org/show_bug.cgi?id=84008
+
+        Reviewed by Dirk Pranke.
+
+        Add replay tests for google.com and youtube.com as examples.
+
+        * Replay: Added.
+        * Replay/www.google.com.replay: Added.
+        * Replay/www.youtube.com.replay: Added.
+
+2012-05-30  Kentaro Hara  <haraken@chromium.org>
+
+        [perf-test] Add a benchmark for querySelector()
+        https://bugs.webkit.org/show_bug.cgi?id=87742
+
+        Reviewed by Ryosuke Niwa.
+
+        Now I am optimizing querySelector() (bug 87625).
+        This patch adds a performance test for querySelector().
+        query-selector-first.html queries an element that appears
+        at the head of the document. On the other hand,
+        query-selector-last.html queries an element that appears
+        at the tail of the document.
+
+        Test results in my desktop:
+
+        [query-selector-first.html]
+        RESULT Parser: query-selector-first= 252.339803014 runs/s
+        median= 253.646265594 runs/s, stdev= 2.32610873209 runs/s, min= 248.138957816 runs/s, max= 254.777070064 runs/s
+
+        RESULT Parser: query-selector-first= 252.688468897 runs/s
+        median= 252.684876579 runs/s, stdev= 3.60008778708 runs/s, min= 246.002460025 runs/s, max= 258.397932817 runs/s
+
+        RESULT Parser: query-selector-first= 253.466019656 runs/s
+        median= 254.129606099 runs/s, stdev= 1.78002675664 runs/s, min= 247.831474597 runs/s, max= 254.777070064 runs/s
+
+        RESULT Parser: query-selector-first= 256.245078189 runs/s
+        median= 257.06940874 runs/s, stdev= 2.84722072201 runs/s, min= 249.687890137 runs/s, max= 259.74025974 runs/s
+
+        RESULT Parser: query-selector-first= 252.203100497 runs/s
+        median= 252.047989175 runs/s, stdev= 1.75233446036 runs/s, min= 248.138957816 runs/s, max= 255.427841635 runs/s
+
+        [query-selector-last.html]
+        RESULT Parser: query-selector-last= 356.009616076 runs/s
+        median= 355.781448539 runs/s, stdev= 0.841519086864 runs/s, min= 354.430379747 runs/s, max= 358.056265985 runs/s
+
+        RESULT Parser: query-selector-last= 360.735271001 runs/s
+        median= 361.057532424 runs/s, stdev= 1.12253219867 runs/s, min= 358.514724712 runs/s, max= 362.225097025 runs/s
+
+        RESULT Parser: query-selector-last= 359.598592463 runs/s
+        median= 359.435173299 runs/s, stdev= 0.816538258728 runs/s, min= 358.056265985 runs/s, max= 360.824742268 runs/s
+
+        RESULT Parser: query-selector-last= 357.260651715 runs/s
+        median= 357.598978289 runs/s, stdev= 1.17393159885 runs/s, min= 353.982300885 runs/s, max= 358.974358974 runs/s
+
+        RESULT Parser: query-selector-last= 351.696240713 runs/s
+        median= 351.980025916 runs/s, stdev= 1.14200564038 runs/s, min= 348.692403487 runs/s, max= 353.535353535 runs/s
+
+        * Parser/query-selector-first.html: Added.
+        * Parser/query-selector-last.html: Added.
+
 2012-05-25  Ilya Tikhonovsky  <loislo@chromium.org>
 
         Web Inspector: HeapSnapshot: introduce performance counter for HeapSnapshotConstructorsDataGrid._aggregatesReceived method.

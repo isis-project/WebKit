@@ -27,26 +27,20 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 import StringIO
-import sys
 import time
 import unittest
 
 from webkitpy.common.system import logtesting
-from webkitpy.common.system.executive_mock import MockExecutive, MockExecutive2
-from webkitpy.common.system.filesystem_mock import MockFileSystem
+from webkitpy.common.system.executive_mock import MockExecutive2
 from webkitpy.common.system.systemhost_mock import MockSystemHost
 from webkitpy.layout_tests.port.config_mock import MockConfig
 from webkitpy.thirdparty.mock import Mock
 from webkitpy.tool.mocktool import MockOptions
 
 import chromium
-import chromium_android
-import chromium_linux
 import chromium_mac
-import chromium_win
 
-from webkitpy.layout_tests.models.test_configuration import TestConfiguration
-from webkitpy.layout_tests.port import port_testcase
+from webkitpy.layout_tests.port import chromium_port_testcase
 from webkitpy.layout_tests.port.driver import DriverInput
 
 
@@ -160,190 +154,28 @@ class ChromiumDriverTest(unittest.TestCase):
         driver2.stop()
         self.assertTrue(time.time() - start_time < 20)
 
+    def test_stop_cleans_up_properly(self):
+        self.driver._test_shell = False
+        self.driver.start(True, [])
+        last_tmpdir = self.port._filesystem.last_tmpdir
+        self.assertNotEquals(last_tmpdir, None)
+        self.driver.stop()
+        self.assertFalse(self.port._filesystem.isdir(last_tmpdir))
 
-class ChromiumPortTest(port_testcase.PortTestCase):
-    port_name = 'chromium-mac'
-    port_maker = chromium.ChromiumPort
-
-    def test_all_test_configurations(self):
-        """Validate the complete set of configurations this port knows about."""
-        port = self.make_port()
-        self.assertEquals(set(port.all_test_configurations()), set([
-            TestConfiguration('icecreamsandwich', 'x86', 'debug'),
-            TestConfiguration('icecreamsandwich', 'x86', 'release'),
-            TestConfiguration('leopard', 'x86', 'debug'),
-            TestConfiguration('leopard', 'x86', 'release'),
-            TestConfiguration('snowleopard', 'x86', 'debug'),
-            TestConfiguration('snowleopard', 'x86', 'release'),
-            TestConfiguration('lion', 'x86', 'debug'),
-            TestConfiguration('lion', 'x86', 'release'),
-            TestConfiguration('xp', 'x86', 'debug'),
-            TestConfiguration('xp', 'x86', 'release'),
-            TestConfiguration('vista', 'x86', 'debug'),
-            TestConfiguration('vista', 'x86', 'release'),
-            TestConfiguration('win7', 'x86', 'debug'),
-            TestConfiguration('win7', 'x86', 'release'),
-            TestConfiguration('lucid', 'x86', 'debug'),
-            TestConfiguration('lucid', 'x86', 'release'),
-            TestConfiguration('lucid', 'x86_64', 'debug'),
-            TestConfiguration('lucid', 'x86_64', 'release'),
-        ]))
-
-    def test_driver_cmd_line(self):
-        # Override this test since ChromiumPort doesn't implement driver_cmd_line().
-        pass
-
-    def test_check_build(self):
-        # Override this test since ChromiumPort doesn't implement _path_to_driver().
-        pass
-
-    def test_check_wdiff(self):
-        # Override this test since ChromiumPort doesn't implement _path_to_driver().
-        pass
-
-    class TestMacPort(chromium_mac.ChromiumMacPort):
-        def __init__(self, options=None):
-            options = options or MockOptions()
-            chromium_mac.ChromiumMacPort.__init__(self, MockSystemHost(os_name='mac', os_version='leopard'), 'chromium-mac-leopard', options=options)
-
-        def default_configuration(self):
-            self.default_configuration_called = True
-            return 'default'
-
-    class TestAndroidPort(chromium_android.ChromiumAndroidPort):
-        def __init__(self, options=None):
-            options = options or MockOptions()
-            chromium_win.ChromiumAndroidPort.__init__(self, MockSystemHost(os_name='android', os_version='icecreamsandwich'), 'chromium-android', options=options)
-
-        def default_configuration(self):
-            self.default_configuration_called = True
-            return 'default'
-
-    class TestLinuxPort(chromium_linux.ChromiumLinuxPort):
-        def __init__(self, options=None):
-            options = options or MockOptions()
-            chromium_linux.ChromiumLinuxPort.__init__(self, MockSystemHost(os_name='linux', os_version='lucid'), 'chromium-linux-x86', options=options)
-
-        def default_configuration(self):
-            self.default_configuration_called = True
-            return 'default'
-
-    class TestWinPort(chromium_win.ChromiumWinPort):
-        def __init__(self, options=None):
-            options = options or MockOptions()
-            chromium_win.ChromiumWinPort.__init__(self, MockSystemHost(os_name='win', os_version='xp'), 'chromium-win-xp', options=options)
-
-        def default_configuration(self):
-            self.default_configuration_called = True
-            return 'default'
-
-    def test_path_to_image_diff(self):
-        # FIXME: These don't need to use endswith now that the port uses a MockFileSystem.
-        self.assertTrue(ChromiumPortTest.TestLinuxPort()._path_to_image_diff().endswith('/out/default/ImageDiff'))
-        self.assertTrue(ChromiumPortTest.TestMacPort()._path_to_image_diff().endswith('/xcodebuild/default/ImageDiff'))
-        self.assertTrue(ChromiumPortTest.TestWinPort()._path_to_image_diff().endswith('/default/ImageDiff.exe'))
-
-    def test_default_configuration(self):
-        mock_options = MockOptions()
-        port = ChromiumPortTest.TestLinuxPort(options=mock_options)
-        self.assertEquals(mock_options.configuration, 'default')
-        self.assertTrue(port.default_configuration_called)
-
-        mock_options = MockOptions(configuration=None)
-        port = ChromiumPortTest.TestLinuxPort(mock_options)
-        self.assertEquals(mock_options.configuration, 'default')
-        self.assertTrue(port.default_configuration_called)
-
-    def test_diff_image(self):
-        class TestPort(ChromiumPortTest.TestLinuxPort):
-            def _path_to_image_diff(self):
-                return "/path/to/image_diff"
-
-        port = ChromiumPortTest.TestLinuxPort()
-        mock_image_diff = "MOCK Image Diff"
-
-        def mock_run_command(args):
-            port._filesystem.write_binary_file(args[4], mock_image_diff)
-            return 1
-
-        # Images are different.
-        port._executive = MockExecutive2(run_command_fn=mock_run_command)
-        self.assertEquals(mock_image_diff, port.diff_image("EXPECTED", "ACTUAL")[0])
-
-        # Images are the same.
-        port._executive = MockExecutive2(exit_code=0)
-        self.assertEquals(None, port.diff_image("EXPECTED", "ACTUAL")[0])
-
-        # There was some error running image_diff.
-        port._executive = MockExecutive2(exit_code=2)
-        exception_raised = False
-        try:
-            port.diff_image("EXPECTED", "ACTUAL")
-        except ValueError, e:
-            exception_raised = True
-        self.assertFalse(exception_raised)
-
-    def test_overrides_and_builder_names(self):
-        port = self.make_port()
-
-        filesystem = MockFileSystem()
-        port._filesystem = filesystem
-        port.path_from_chromium_base = lambda *comps: '/' + '/'.join(comps)
-
-        chromium_overrides_path = port.path_from_chromium_base(
-            'webkit', 'tools', 'layout_tests', 'test_expectations.txt')
-        CHROMIUM_OVERRIDES = 'contents of %s\n' % chromium_overrides_path
-        filesystem.write_text_file(chromium_overrides_path, CHROMIUM_OVERRIDES)
-        skia_overrides_path = port.path_from_chromium_base(
-            'skia', 'skia_test_expectations.txt')
-        SKIA_OVERRIDES = 'contents of %s\n' % skia_overrides_path
-        filesystem.write_text_file(skia_overrides_path, SKIA_OVERRIDES)
-
-        additional_expectations_path = port.path_from_chromium_base(
-            'additional_expectations.txt')
-        ADDITIONAL_EXPECTATIONS = 'contents of %s\n' % additional_expectations_path
-        filesystem.write_text_file(additional_expectations_path, ADDITIONAL_EXPECTATIONS)
-
-        port._options.builder_name = 'DUMMY_BUILDER_NAME'
-        port._options.additional_expectations = []
-        self.assertEquals(port.test_expectations_overrides(),
-                          SKIA_OVERRIDES + CHROMIUM_OVERRIDES)
-        port._options.additional_expectations = [additional_expectations_path]
-        self.assertEquals(port.test_expectations_overrides(),
-                          SKIA_OVERRIDES + CHROMIUM_OVERRIDES + ADDITIONAL_EXPECTATIONS)
-
-        port._options.builder_name = 'builder (deps)'
-        port._options.additional_expectations = []
-        self.assertEquals(port.test_expectations_overrides(),
-                          SKIA_OVERRIDES + CHROMIUM_OVERRIDES)
-        port._options.additional_expectations = [additional_expectations_path]
-        self.assertEquals(port.test_expectations_overrides(),
-                          SKIA_OVERRIDES + CHROMIUM_OVERRIDES + ADDITIONAL_EXPECTATIONS)
-
-        # A builder which does NOT observe the Chromium test_expectations,
-        # but still observes the Skia test_expectations...
-        port._options.builder_name = 'builder'
-        port._options.additional_expectations = []
-        self.assertEquals(port.test_expectations_overrides(),
-                          SKIA_OVERRIDES)
-        port._options.additional_expectations = [additional_expectations_path]
-        self.assertEquals(port.test_expectations_overrides(),
-                          SKIA_OVERRIDES + ADDITIONAL_EXPECTATIONS)
-
-    def test_driver_name_option(self):
-        self.assertTrue(ChromiumPortTest.TestLinuxPort()._path_to_driver().endswith('/out/default/DumpRenderTree'))
-        self.assertTrue(ChromiumPortTest.TestMacPort()._path_to_driver().endswith('/xcodebuild/default/DumpRenderTree.app/Contents/MacOS/DumpRenderTree'))
-        self.assertTrue(ChromiumPortTest.TestWinPort()._path_to_driver().endswith('/default/DumpRenderTree.exe'))
-
-        options = MockOptions(driver_name='OtherDriver')
-        self.assertTrue(ChromiumPortTest.TestLinuxPort(options)._path_to_driver().endswith('/out/default/OtherDriver'))
-        self.assertTrue(ChromiumPortTest.TestMacPort(options)._path_to_driver().endswith('/xcodebuild/default/OtherDriver.app/Contents/MacOS/OtherDriver'))
-        self.assertTrue(ChromiumPortTest.TestWinPort(options)._path_to_driver().endswith('/default/OtherDriver.exe'))
+    def test_two_starts_cleans_up_properly(self):
+        # clone the WebKitDriverTest tests here since we override start() and stop()
+        self.driver._test_shell = False
+        self.driver.start(True, [])
+        last_tmpdir = self.port._filesystem.last_tmpdir
+        self.driver._start(True, [])
+        self.assertFalse(self.port._filesystem.isdir(last_tmpdir))
 
 
 class ChromiumPortLoggingTest(logtesting.LoggingTestCase):
+
+    # FIXME: put this someplace more useful
     def test_check_sys_deps(self):
-        port = ChromiumPortTest.TestLinuxPort()
+        port = chromium_port_testcase.ChromiumPortTestCase.TestLinuxPort()
 
         # Success
         port._executive = MockExecutive2(exit_code=0)

@@ -28,6 +28,7 @@
 #if USE(ACCELERATED_COMPOSITING)
 
 #include "FloatRect.h"
+#include "IntRect.h"
 #include <wtf/Noncopyable.h>
 #include <wtf/PassOwnPtr.h>
 #include <wtf/Vector.h>
@@ -35,9 +36,9 @@
 namespace WebCore {
 
 class CCLayerImpl;
-struct CCSettings;
+struct CCLayerTreeSettings;
 
-// There are currently three types of debug rects:
+// There are currently six types of debug rects:
 //
 // - Paint rects (update rects): regions of a layer that needed to be re-uploaded to the
 //   texture resource; in most cases implying that WebCore had to repaint them, too.
@@ -50,7 +51,13 @@ struct CCSettings;
 //   layers and surfaces that contribute to it. This includes (1) paint rects, (2) property-
 //   changed rects, and (3) newly exposed areas.
 //
-enum DebugRectType { PaintRectType, PropertyChangedRectType, SurfaceDamageRectType };
+// - Screen space rects: this is the region the contents occupy in screen space.
+//
+// - Replica screen space rects: this is the region the replica's contents occupy in screen space.
+//
+// - Occluding rects: these are the regions that contribute to the occluded region.
+//
+enum DebugRectType { PaintRectType, PropertyChangedRectType, SurfaceDamageRectType, ScreenSpaceRectType, ReplicaScreenSpaceRectType, OccludingRectType };
 
 struct CCDebugRect {
     CCDebugRect(DebugRectType newType, FloatRect newRect)
@@ -63,7 +70,7 @@ struct CCDebugRect {
 
 // This class maintains a history of rects of various types that can be used
 // for debugging purposes. The overhead of collecting rects is performed only if
-// the appropriate CCSettings are enabled.
+// the appropriate CCLayerTreeSettings are enabled.
 class CCDebugRectHistory {
     WTF_MAKE_NONCOPYABLE(CCDebugRectHistory);
 public:
@@ -72,10 +79,10 @@ public:
         return adoptPtr(new CCDebugRectHistory());
     }
 
-    bool enabled(const CCSettings&);
+    bool enabled(const CCLayerTreeSettings&);
 
     // Note: Saving debug rects must happen before layers' change tracking is reset.
-    void saveDebugRectsForCurrentFrame(CCLayerImpl* rootLayer, const Vector<CCLayerImpl*>& renderSurfaceLayerList, const CCSettings&);
+    void saveDebugRectsForCurrentFrame(CCLayerImpl* rootLayer, const Vector<CCLayerImpl*>& renderSurfaceLayerList, const Vector<IntRect>& occludingScreenSpaceRects, const CCLayerTreeSettings&);
 
     const Vector<CCDebugRect>& debugRects() { return m_debugRects; }
 
@@ -85,6 +92,8 @@ private:
     void savePaintRects(CCLayerImpl*);
     void savePropertyChangedRects(const Vector<CCLayerImpl*>& renderSurfaceLayerList);
     void saveSurfaceDamageRects(const Vector<CCLayerImpl* >& renderSurfaceLayerList);
+    void saveScreenSpaceRects(const Vector<CCLayerImpl* >& renderSurfaceLayerList);
+    void saveOccludingRects(const Vector<IntRect>& occludingScreenSpaceRects);
 
     Vector<CCDebugRect> m_debugRects;
 };

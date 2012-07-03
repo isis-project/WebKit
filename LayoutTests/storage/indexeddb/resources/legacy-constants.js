@@ -42,76 +42,94 @@ function populateStore()
 
     evalAndLog("store.put({value: 111}, 1)");
     evalAndLog("store.put({value: 222}, 2)");
-    trans.oncomplete = checkNext;
+    trans.oncomplete = doChecks;
 }
 
-function checkNext()
+function doChecks()
 {
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_ONLY)");
-    shouldBeEqualToString("trans.mode", "readonly");
-    store = trans.objectStore('store');
-    evalAndLog("request = store.openCursor(null, IDBCursor.NEXT)");
-    request.onsuccess = function()
+    var tests = [
+        { legacy: 'IDBCursor.NEXT', current: 'next' },
+        { legacy: 'IDBCursor.NEXT_NO_DUPLICATE', current: 'nextunique' },
+        { legacy: 'IDBCursor.PREV', current: 'prev' },
+        { legacy: 'IDBCursor.PREV_NO_DUPLICATE', current: 'prevunique' }
+    ];
+
+    function doNext()
     {
-        cursor = event.target.result;
-        if (!cursor)
+        var test = tests.shift();
+        if (!test) {
+            testObsoleteConstants();
             return;
-        shouldBeEqualToString("cursor.direction", "next");
-        evalAndLog("cursor.continue();");
-    };
-    trans.oncomplete = checkNextNoDuplicate;
+        }
+
+        evalAndLog("trans = db.transaction('store', IDBTransaction.READ_ONLY)");
+        shouldBeEqualToString("trans.mode", "readonly");
+        store = trans.objectStore('store');
+
+        evalAndLog("request = store.openCursor(null, " + test.legacy + ")");
+        request.onsuccess = function()
+        {
+            cursor = event.target.result;
+            if (!cursor) {
+                testWithKey();
+                return;
+            }
+            shouldBeEqualToString("cursor.direction", test.current);
+            evalAndLog("cursor.continue();");
+        };
+
+        function testWithKey()
+        {
+            evalAndLog("request = store.openCursor(1, " + test.legacy + ")");
+            request.onsuccess = function()
+            {
+                cursor = event.target.result;
+                if (!cursor)
+                    return;
+                shouldBeEqualToString("cursor.direction", test.current);
+                evalAndLog("cursor.continue();");
+            };
+        }
+
+
+        trans.oncomplete = doNext;
+    }
+    doNext();
 }
 
-function checkNextNoDuplicate()
+function testObsoleteConstants()
 {
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_ONLY)");
-    shouldBeEqualToString("trans.mode", "readonly");
-    store = trans.objectStore('store');
-    evalAndLog("request = store.openCursor(null, IDBCursor.NEXT_NO_DUPLICATE)");
-    request.onsuccess = function()
-    {
-        cursor = event.target.result;
-        if (!cursor)
-            return;
-        shouldBeEqualToString("cursor.direction", "nextunique");
-        evalAndLog("cursor.continue();");
-    };
-    trans.oncomplete = checkPrev;
-}
+    debug("");
+    debug("Verify that constants from previous version of the spec (beyond a grace period) have been removed:");
 
-function checkPrev()
-{
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_ONLY)");
-    shouldBeEqualToString("trans.mode", "readonly");
-    store = trans.objectStore('store');
-    evalAndLog("request = store.openCursor(null, IDBCursor.PREV)");
-    request.onsuccess = function()
-    {
-        cursor = event.target.result;
-        if (!cursor)
-            return;
-        shouldBeEqualToString("cursor.direction", "prev");
-        evalAndLog("cursor.continue();");
-    };
-    trans.oncomplete = checkPrevNoDuplicate;
-}
+    // http://www.w3.org/TR/2010/WD-IndexedDB-20100819/
+    shouldBe("IDBKeyRange.SINGLE", "undefined");
+    shouldBe("IDBKeyRange.LEFT_OPEN", "undefined");
+    shouldBe("IDBKeyRange.RIGHT_OPEN", "undefined");
+    shouldBe("IDBKeyRange.LEFT_BOUND", "undefined");
+    shouldBe("IDBKeyRange.RIGHT_BOUND", "undefined");
 
-function checkPrevNoDuplicate()
-{
-    evalAndLog("trans = db.transaction('store', IDBTransaction.READ_ONLY)");
-    shouldBeEqualToString("trans.mode", "readonly");
-    store = trans.objectStore('store');
-    evalAndLog("request = store.openCursor(null, IDBCursor.NEXT)");
-    request.onsuccess = function()
-    {
-        cursor = event.target.result;
-        if (!cursor)
-            return;
-        shouldBeEqualToString("cursor.direction", "next");
-        evalAndLog("cursor.continue();");
-    };
-    trans.oncomplete = finishJSTest;
-}
+    // Unclear that this was ever in the spec, but it was present in mozilla tests:
+    shouldBe("IDBTransaction.LOADING", "undefined");
 
+    // http://www.w3.org/TR/2011/WD-IndexedDB-20111206/
+    shouldBe("IDBRequest.LOADING", "undefined");
+    shouldBe("IDBRequest.DONE", "undefined");
+
+    // http://www.w3.org/TR/2011/WD-IndexedDB-20111206/
+    // FIXME: Add when grace period expires: http://webkit.org/b/85315
+    //shouldBe("IDBCursor.NEXT", "undefined");
+    //shouldBe("IDBCursor.NEXT_NO_DUPLICATE", "undefined");
+    //shouldBe("IDBCursor.PREV", "undefined");
+    //shouldBe("IDBCursor.PREV_NO_DUPLICATE", "undefined");
+
+    // http://www.w3.org/TR/2011/WD-IndexedDB-20111206/
+    // FIXME: Add when grace period expires: http://webkit.org/b/85315
+    //shouldBe("IDBTransaction.READ_ONLY", "undefined");
+    //shouldBe("IDBTransaction.READ_WRITE", "undefined");
+    //shouldBe("IDBTransaction.VERSION_CHANGE", "undefined");
+
+    finishJSTest();
+}
 
 test();

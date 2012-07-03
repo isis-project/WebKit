@@ -11,8 +11,6 @@
 sanitizedFile = $$toSanitizedPath($$_FILE_)
 equals(sanitizedFile, $$toSanitizedPath($$_PRO_FILE_)):TEMPLATE = derived
 
-load(features)
-
 WEBCORE_GENERATED_SOURCES_DIR = ../WebCore/$${GENERATED_SOURCES_DESTDIR}
 
 SOURCE_DIR = $${ROOT_WEBKIT_DIR}/Source
@@ -63,7 +61,7 @@ MESSAGE_RECEIVERS = \
     DownloadProxy.messages.in \
     DrawingAreaProxy.messages.in \
     EventDispatcher.messages.in \
-    LayerTreeHostProxy.messages.in \
+    LayerTreeCoordinatorProxy.messages.in \
     PluginControllerProxy.messages.in \
     PluginProcess.messages.in \
     PluginProcessConnection.messages.in \
@@ -90,7 +88,7 @@ MESSAGE_RECEIVERS = \
     WebFullScreenManager.messages.in \
     WebFullScreenManagerProxy.messages.in \
     WebPage/DrawingArea.messages.in \
-    WebPage/LayerTreeHost.messages.in \
+    WebPage/LayerTreeCoordinator/LayerTreeCoordinator.messages.in \
     WebPage/WebInspector.messages.in \
     WebPage/WebPage.messages.in \
     WebPageProxy.messages.in \

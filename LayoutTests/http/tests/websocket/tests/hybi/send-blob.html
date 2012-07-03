@@ -10,8 +10,8 @@
 description("WebSocket: Send Blobs.");
 
 window.jsTestIsAsync = true;
-if (window.layoutTestController)
-    layoutTestController.overridePreference("WebKitHixie76WebSocketProtocolEnabled", 0);
+if (window.testRunner)
+    testRunner.overridePreference("WebKitHixie76WebSocketProtocolEnabled", 0);
 
 function startsWith(target, prefix)
 {
@@ -33,7 +33,7 @@ function createBlobContainingAllDistinctBytes()
     var array = new Uint8Array(256);
     for (var i = 0; i < 256; ++i)
         array[i] = i;
-    return new Blob([array.buffer]);
+    return new Blob([array]);
 }
 
 var url = "ws://127.0.0.1:8880/websocket/tests/hybi/check-binary-messages";

@@ -43,6 +43,7 @@ public:
     }
     inline static v8::Handle<v8::Object> wrap(TestNode*, v8::Isolate* = 0);
     static void derefObject(void*);
+    static void visitDOMWrapper(DOMDataStore*, void*, v8::Persistent<v8::Object>);
     static WrapperTypeInfo info;
     static v8::Handle<v8::Value> constructorCallback(const v8::Arguments&);
     static const int internalFieldCount = v8DefaultWrapperInternalFieldCount + 0;
@@ -61,7 +62,7 @@ v8::Handle<v8::Object> V8TestNode::wrap(TestNode* impl, v8::Isolate* isolate)
 inline v8::Handle<v8::Value> toV8(TestNode* impl, v8::Isolate* isolate = 0)
 {
     if (!impl)
-        return v8Null(isolate);
+        return v8NullWithCheck(isolate);
     return V8TestNode::wrap(impl, isolate);
 }
 inline v8::Handle<v8::Value> toV8(PassRefPtr< TestNode > impl, v8::Isolate* isolate = 0)

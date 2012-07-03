@@ -51,8 +51,8 @@ function errorCallback(msg)
     return function(e) {
         console.log(e);
         log('ERROR:' + msg + ': ' + e.code);
-        if (window.layoutTestController)
-            layoutTestController.notifyDone();
+        if (window.testRunner)
+            testRunner.notifyDone();
     };
 }
 
@@ -225,18 +225,18 @@ function startTest(e) {
     var items = e.dataTransfer.items;
     test(1, items.length);
     test('file', items[0].kind);
-    items[0].webkitGetAsEntry(function(entry) {
-        test(true, entry.isDirectory);
-        sourceTestDirectory = entry;
-        setupDestFileSystem(function() {
-            log('Successfully setup test environment.');
-            runTests(0, function() {
-                log('Successfully ran ' + tests.length + ' tests.');
-                cleanupDirectory(destTestDirectory, function() {
-                    log('Cleanup done.');
-                    if (window.layoutTestController)
-                        layoutTestController.notifyDone();
-                });
+
+    var entry = items[0].webkitGetAsEntry();
+    test(true, entry.isDirectory);
+    sourceTestDirectory = entry;
+    setupDestFileSystem(function() {
+        log('Successfully setup test environment.');
+        runTests(0, function() {
+            log('Successfully ran ' + tests.length + ' tests.');
+            cleanupDirectory(destTestDirectory, function() {
+                log('Cleanup done.');
+                if (window.testRunner)
+                    testRunner.notifyDone();
             });
         });
     });
@@ -249,9 +249,9 @@ destination.addEventListener('dragover', function(e) {
 }, false);
 destination.addEventListener('drop', startTest, false);
 
-if (window.layoutTestController) {
-    layoutTestController.waitUntilDone();
-    layoutTestController.dumpAsText();
+if (window.testRunner) {
+    testRunner.waitUntilDone();
+    testRunner.dumpAsText();
 
     eventSender.beginDragWithFiles([sourceDirectoryPath]);
     eventSender.leapForward(100);

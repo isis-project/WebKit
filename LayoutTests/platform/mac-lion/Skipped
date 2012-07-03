@@ -35,35 +35,9 @@ editing/text-iterator/findString-selection-disabled.html
 # Pasting replaces the three periods with an ellipsis on Lion
 editing/pasteboard/5478250.html
 
-# --- Math ML ---
-
-# These have different metrics, and require investigation
-mathml/xHeight.xhtml
-mathml/presentation/attributes.xhtml
-mathml/presentation/fenced.xhtml
-mathml/presentation/fenced-mi.xhtml
-mathml/presentation/fractions-vertical-alignment.xhtml
-mathml/presentation/fractions.xhtml
-mathml/presentation/mo.xhtml
-mathml/presentation/msub-base-changed.xhtml
-mathml/presentation/msub-sub-changed.xhtml
-mathml/presentation/msubsup-base-changed.xhtml
-mathml/presentation/msubsup-sub-changed.xhtml
-mathml/presentation/msubsup-sup-changed.xhtml
-mathml/presentation/msup-base-changed.xhtml
-mathml/presentation/msup-sup-changed.xhtml
-mathml/presentation/over.xhtml
-mathml/presentation/row-alignment.xhtml
-mathml/presentation/row.xhtml
-mathml/presentation/sub.xhtml
-mathml/presentation/subsup.xhtml
-mathml/presentation/sup.xhtml
-mathml/presentation/tables.xhtml
-mathml/presentation/tokenElements.xhtml
-mathml/presentation/under.xhtml
-mathml/presentation/underover.xhtml
-mathml/presentation/roots.xhtml
-mathml/presentation/style.xhtml
+# Mountain Lion functionalities
+platform/mac/editing/input/edit-dictated-text-with-alternative.html
+platform/mac/editing/input/insert-dictated-text.html
 
 # --- Media ---
 
@@ -130,8 +104,15 @@ java/
 # https://bugs.webkit.org/show_bug.cgi?id=85532
 fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/float-containing-block-with-margin.html
+fast/sub-pixel/float-with-right-margin-zoom.html
+fast/sub-pixel/float-wrap-with-subpixel-top.html
+fast/sub-pixel/inline-block-with-margin.html
+fast/sub-pixel/inline-block-with-padding.html
 fast/sub-pixel/layout-boxes-with-zoom.html
 fast/sub-pixel/size-of-box-with-zoom.html
+fast/sub-pixel/selection/selection-gaps-at-fractional-offsets.html
+fast/sub-pixel/file-upload-control-at-fractional-offset.html
 
 # This media test always failed on Lion
 # https://bugs.webkit.org/show_bug.cgi?id=86527 and <rdar://problem/11458493>

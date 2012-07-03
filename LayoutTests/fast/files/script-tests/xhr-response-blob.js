@@ -1,7 +1,7 @@
 description("Test that XHR.responseType = 'blob' gives you back a Blob.");
 
-if (window.layoutTestController)
-    layoutTestController.waitUntilDone();
+if (window.testRunner)
+    testRunner.waitUntilDone();
 
 function testBlob(blobURL, blobType, doneFunction) {
     window.xhr = new XMLHttpRequest();
@@ -20,11 +20,11 @@ function testBlob(blobURL, blobType, doneFunction) {
     }
 }
 
-testBlob("script-tests/xhr-response-blob.js", "text/javascript", function() {
+testBlob("resources/UTF8.txt", "text/plain", function() {
     testBlob("resources/does_not_exist.txt", "", function() {
         testBlob("resources/empty-file", "", function() {
-            if (window.layoutTestController)
-                layoutTestController.notifyDone();
+            if (window.testRunner)
+                testRunner.notifyDone();
         })
     })
 });

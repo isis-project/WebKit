@@ -1,3 +1,830 @@
+2012-07-03  George Staikos  <staikos@webkit.org>
+
+        [BlackBerry] Enable microdata support for BlackBerry.
+        https://bugs.webkit.org/show_bug.cgi?id=90429
+
+        Reviewed by Rob Buis.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-07-03  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Make use of .qmake.cache for caching features
+
+        Instead of loading() features from the files that need them (and re-running
+        a bunch of checks), we now run feature detection as part of configure.pro,
+        and have build-webkit write the computed feature-defines and CONFIG to
+        .qmake.cache, which is then loaded by qmake _before_ even defaults_pre
+        when building WebKit.pro.
+
+        At some point we'll be able to selectivly prevent running of config tests
+        in configure.pro, which means we don't need a separate code-path for
+        the build-webkit --help case.
+
+        We should also move the code in build-webkit that now uses .webkit.config
+        to detect clean builds, to use .qmake.cache, since we now store the same
+        thing there.
+
+        Original patch by Oswald Buddenhagen <oswald.buddenhagen@nokia.com>
+
+        Reviewed by Tor Arne Vestbø.
+
+        * Source/QtWebKit.pro:
+        * Source/api.pri:
+        * Source/tests.pri:
+        * WebKit.pro:
+
+2012-07-03  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r121766.
+        http://trac.webkit.org/changeset/121766
+        https://bugs.webkit.org/show_bug.cgi?id=90465
+
+        It caused flakey build errors on the bots (Requested by Ossy
+        on #webkit).
+
+        * Source/QtWebKit.pro:
+        * Source/api.pri:
+        * Source/tests.pri:
+        * WebKit.pro:
+
+2012-07-03  George Staikos  <staikos@webkit.org>
+
+        [BlackBerry] Enable Custom Scheme Handlers for BlackBerry.
+        https://bugs.webkit.org/show_bug.cgi?id=90422
+
+        Reviewed by Rob Buis.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-07-03  George Staikos  <staikos@webkit.org>
+
+        [BlackBerry] Enable RegisterProtocolHandler for BlackBerry.
+        https://bugs.webkit.org/show_bug.cgi?id=90422
+
+        Reviewed by Rob Buis.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-07-03  Priit Laes  <plaes@plaes.org>
+
+        [GTK] Need to bump libsoup requirements (for `soup_cookie_jar_get_cookie_list`)
+        https://bugs.webkit.org/show_bug.cgi?id=90332
+
+        Reviewed by Gustavo Noronha Silva.
+
+        * configure.ac: Bump libsoup requirements to 2.39.2
+
+2012-07-03  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Make use of .qmake.cache for caching features
+
+        Instead of loading() features from the files that need them (and re-running
+        a bunch of checks), we now run feature detection as part of configure.pro,
+        and have build-webkit write the computed feature-defines and CONFIG to
+        .qmake.cache, which is then loaded by qmake _before_ even defaults_pre
+        when building WebKit.pro.
+
+        At some point we'll be able to selectivly prevent running of config tests
+        in configure.pro, which means we don't need a separate code-path for
+        the build-webkit --help case.
+
+        We should also move the code in build-webkit that now uses .webkit.config
+        to detect clean builds, to use .qmake.cache, since we now store the same
+        thing there.
+
+        Original patch by Oswald Buddenhagen <oswald.buddenhagen@nokia.com>
+
+        Reviewed by Tor Arne Vestbø.
+
+        * Source/QtWebKit.pro:
+        * Source/api.pri:
+        * Source/tests.pri:
+        * WebKit.pro:
+
+2012-07-03  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Enable MICRODATA support
+        https://bugs.webkit.org/show_bug.cgi?id=90377
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Turn on MICRODATA support by default for EFL port.
+
+        * Source/cmake/OptionsEfl.cmake:
+
+2012-07-02  George Staikos  <staikos@webkit.org>
+
+        [BlackBerry] Enable scoped style for BlackBerry.
+        https://bugs.webkit.org/show_bug.cgi?id=90418
+
+        Reviewed by Rob Buis.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-07-02  Xiaobo Wang  <xbwang@torchmobile.com.cn>
+
+        [BlackBerry] Use PUBLIC_BUILD to enable/disable DRT
+        https://bugs.webkit.org/show_bug.cgi?id=90271
+
+        Reviewed by George Staikos.
+
+        RIM PR #154707
+
+        Currently DRT code will be compiled only if ENABLE_DRT is set, and it's not
+        defined by default.
+        We should enable DRT by default unless PUBLIC_BUILD is set. In this way we don't
+        need to rebuild webkit before running DRT.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-07-02  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [EFL][CMake] Integrate API unit tests with CTest
+        https://bugs.webkit.org/show_bug.cgi?id=87251
+
+        Reviewed by Daniel Bates.
+
+        Enable CTest on the root CMakeLists.txt as it is expected
+        to be here. This will create a new build target ("make test")
+        to run all the API unit tests.
+
+        * CMakeLists.txt:
+
+2012-07-01  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Add Gamepad support
+        https://bugs.webkit.org/show_bug.cgi?id=90170
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * Source/cmake/FindEFL.cmake: Bump EFL libs dependencies.
+        * Source/cmake/OptionsEfl.cmake: Turn on GAMEPAD flag on EFL port.
+        * Source/cmakeconfig.h.cmake: Add GAMEPAD flag to CMake.
+
+2012-06-30  Jason Liu  <jason.liu@torchmobile.com.cn>
+
+        [BlackBerry] WebView/Browser cause blank screen when selecting a dropdown field.
+        https://bugs.webkit.org/show_bug.cgi?id=90241
+
+        This issue is caused by single quotes in option's labels.
+        We should use the escape character of single quotes in JavaScript's string which 
+        starts and ends with single quotes.
+        So we replace lablels' single quotes with its escape character during generating the 
+        select popUp's HTML.
+
+
+        Reviewed by George Staikos.
+
+        * ManualTests/blackberry/select-popup-items-unicode-display.html:
+
+2012-06-29  Luiz Agostini  <luiz.agostini@nokia.com>
+
+        [Qt][WK2] Private non-QtQuick API
+        https://bugs.webkit.org/show_bug.cgi?id=84532
+
+        Reviewed by Noam Rosenthal.
+
+        API tests for QRawWebView.
+
+        * Source/tests.pri:
+
+2012-06-29  Zan Dobersek  <zandobersek@gmail.com>
+
+        Unreviewed build fix after r121518, adding a missing symbol to symbols.filter.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-28  MORITA Hajime  <morrita@google.com>
+
+        [Refactoring] NodeRenderingContext ctor could be built on top of the ComposedShadowTreeWalker
+        https://bugs.webkit.org/show_bug.cgi?id=89732
+
+        Reviewed by Dimitri Glazkov.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-28  Jason Liu  <jason.liu@torchmobile.com.cn>
+
+        [BlackBerry] Selection items show as garbage for non-ascii characters.
+        https://bugs.webkit.org/show_bug.cgi?id=89969
+
+        Add charset utf-8 to the select popup's page.
+
+        Reviewed by Antonio Gomes.
+
+        * ManualTests/blackberry/select-popup-items-unicode-display.html: Added.
+
+2012-06-28  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Enable support for HTML5 datalist
+        https://bugs.webkit.org/show_bug.cgi?id=90157
+
+        Reviewed by Martin Robinson.
+
+        Turn on DATALIST flag by default on EFL port to
+        support HTML5 datalist tag.
+
+        * Source/cmake/OptionsEfl.cmake:
+
+2012-06-27  Zan Dobersek  <zandobersek@gmail.com>
+
+        [Gtk] Add support for the Gamepad API
+        https://bugs.webkit.org/show_bug.cgi?id=87503
+
+        Reviewed by Carlos Garcia Campos.
+
+        Only enable the Gamepad feature on Linux as support
+        for other operating systems is not present.
+
+        Check for the GIO Unix and GUdev dependencies when the
+        Gamepad feature is enabled.
+
+        * configure.ac:
+
+2012-06-25  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Make it possible to build WebKit without QtWidgets
+        https://bugs.webkit.org/show_bug.cgi?id=78109
+
+        Reviewed by Tor Arne Vestbø.
+
+        * Source/QtWebKit.pro: Don't build WK1 tests and examples if WK1 is disabled.
+        * Source/api.pri: Move WK1 sources away from here and use WEBKIT += webkit1 instead
+        * WebKit.pro: Add WK1 to SUBDIRS unless no_webkit1 is set.
+
+2012-06-25  Gyuyoung Kim  <gyuyoung.kim@samsung.com>
+
+        [EFL] Implement Network Information API
+        https://bugs.webkit.org/show_bug.cgi?id=87067
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        * Source/cmake/FindEFL.cmake: Find eeze library in build system.
+
+2012-06-25  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Update NEWS and configure.ac for 1.9.4 release
+
+        * configure.ac: Bump version number.
+
+2012-06-22  Joshua Netterfield  <jnetterfield@rim.com>
+
+        [BlackBerry] Sanitize GLSL code using ANGLE.
+
+        BlackBerry port does not sanitize GLSL code with ANGLE
+        https://bugs.webkit.org/show_bug.cgi?id=89583
+
+        Reviewed by Rob Buis.
+
+        * Source/cmake/OptionsBlackBerry.cmake: Include ANGLE openGL headers as system headers in BlackBerry port.
+
+2012-06-21  Kalev Lember  <kalevlember@gmail.com>
+
+        [GTK] Fix NPAPI plugins on Windows
+        https://bugs.webkit.org/show_bug.cgi?id=54531
+
+        Reviewed by Martin Robinson.
+
+        Define XP_WIN on Windows for plugin support.
+
+        * GNUmakefile.am:
+
+2012-06-21  Ryuan Choi  <ryuan.choi@gmail.com>
+
+        [EFL][WK2] Make WebKit2/Efl headers and resources installable.
+        https://bugs.webkit.org/show_bug.cgi?id=88207
+
+        Reviewed by Chang Shu.
+
+        * Source/cmake/OptionsCommon.cmake:
+        Provide new variable, EXEC_INSTALL_DIR to determine where to install
+        executables.
+
+2012-06-21  Ryuan Choi  <ryuan.choi@samsung.com>
+
+        [EFL[WK2] Add WKViewEfl and WebKit2 API Object to represent Evas_Object.
+        https://bugs.webkit.org/show_bug.cgi?id=88935
+
+        Reviewed by Chang Shu.
+
+        * Source/cmake/OptionsEfl.cmake: Defines BUILDING_EFL__.
+
+2012-06-20  Varun Jain  <varunjain@chromium.org>
+
+        Account for device scale factor when creating image for dragging.
+        https://bugs.webkit.org/show_bug.cgi?id=89489
+
+        Reviewed by Adam Barth.
+
+        * ManualTests/chromium/drag-image-accounts-for-device-scale.html: Added.
+
+2012-06-18  Philippe Normand  <pnormand@igalia.com>
+
+        [GStreamer] 0.11 video-sink
+        https://bugs.webkit.org/show_bug.cgi?id=77087
+
+        Reviewed by Martin Robinson.
+
+        * configure.ac: Fix required gstreamer 0.11 version
+
+2012-06-19  Jocelyn Turcotte  <jocelyn.turcotte@nokia.com>
+
+        [Qt] Fix the Windows build when Qt is built without -release or -debug
+        https://bugs.webkit.org/show_bug.cgi?id=89471
+
+        Reviewed by Tor Arne Vestbø.
+
+        Make sure that we at least remove build_all on Windows for api.pri,
+        as WebCore wasn't built for all configurations.
+
+        * Source/api.pri:
+
+2012-06-19  Mike West  <mkwst@chromium.org>
+
+        Introduce ENABLE_CSP_NEXT configuration flag.
+        https://bugs.webkit.org/show_bug.cgi?id=89300
+
+        Reviewed by Adam Barth.
+
+        The 1.0 draft of the Content Security Policy spec is just about to
+        move to Last Call. We'll hide work on the upcoming 1.1 spec behind
+        this ENABLE flag, disabled by default.
+
+        Spec: https://dvcs.w3.org/hg/content-security-policy/raw-file/tip/csp-specification.dev.html
+
+        * Source/cmake/WebKitFeatures.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-06-19  Joel Dillon  <joel.dillon@codethink.co.uk>, Jocelyn Turcotte  <jocelyn.turcotte@nokia.com>
+
+        [Qt] Allow the modules file generation to work on Windows.
+        https://bugs.webkit.org/show_bug.cgi?id=89010
+
+        Reviewed by Csaba Osztrogonác.
+
+        Add calls to toSystemPath and use QMAKE_DIR_SEP where necessary.
+
+        * Source/api.pri:
+
+2012-06-19  Jocelyn Turcotte  <jocelyn.turcotte@nokia.com>
+
+        [Qt] Fix TARGET not properly being set for QtWebKitd5.dll when building in debug.
+        https://bugs.webkit.org/show_bug.cgi?id=88880
+
+        load(qt_module_config) adjusts the TARGET to add the "d" suffix when doing
+        the debug build_pass. When doing the first pass, qt_module_config.prf doesn't
+        adjust the target since it is in debug_and_release and expects the debug
+        build_pass to come later. However, since we remove debug_and_release from CONFIG
+        right after this, the TARGET hasn't been adjusted and the debug build_pass
+        will not happen.
+
+        Work around it by disabling this optimization on Windows.
+
+        Reviewed by Tor Arne Vestbø.
+
+        * Source/api.pri:
+
+2012-06-19  Mike West  <mkwst@chromium.org>
+
+        Add a scheme registry for bypassing Content Security Policy.
+        https://bugs.webkit.org/show_bug.cgi?id=89373
+
+        Reviewed by Adam Barth.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-18  Rob Buis  <rbuis@rim.com>
+
+        [BlackBerry] Enable LEGACY_VIEWPORT_ADAPTION
+        https://bugs.webkit.org/show_bug.cgi?id=89381
+
+        Reviewed by Antonio Gomes.
+
+        PR 163598
+
+        Enable LEGACY_VIEWPORT_ADAPTION.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+
+2012-06-17  Philippe Normand  <pnormand@igalia.com>
+
+        Unreviewed, GTK 64-bit build fix after r120551.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-17  Philippe Normand  <pnormand@igalia.com>
+
+        Unreviewed, GTK build fix after r120397.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-14  Kent Tamura  <tkent@chromium.org>
+
+        Validate form state strings in FormController::setStateForNewFormElements()
+        https://bugs.webkit.org/show_bug.cgi?id=88768
+
+        Reviewed by Hajime Morita.
+
+        * Source/autotools/symbols.filter: Expose some symbols used by Internals.cpp.
+
+2012-06-14  Chris Guan  <chris.guan@torchmobile.com.cn>
+
+        [Blackberry] add a new Api named setAllowNotification
+        https://bugs.webkit.org/show_bug.cgi?id=88950
+
+        Reviewed by Antonio Gomes.
+
+        Add a new API named setAllowNotification in webpage class to
+        let client set those allowed domains into notifications.
+
+        Test case:
+        * ManualTests/blackberry/notification.html: Added.
+
+2012-06-13  Zan Dobersek  <zandobersek@gmail.com>
+
+        [Gtk] Enable link prefetch support in the developer builds
+        https://bugs.webkit.org/show_bug.cgi?id=89011
+
+        Reviewed by Martin Robinson.
+
+        Rather export an automake conditional than define a preprocessor
+        macro for enabling link prefetch support.
+
+        * configure.ac:
+
+2012-06-13  Robin Cao  <robin.cao@torchmobile.com.cn>
+
+        [BlackBerry] Enable MEDIA_STREAM by default
+        https://bugs.webkit.org/show_bug.cgi?id=88849
+
+        Reviewed by Antonio Gomes.
+
+        * Source/cmake/OptionsBlackBerry.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-06-12  MORITA Hajime  <morrita@google.com>
+
+        Shadow Pseudo ID should be able to nest to point nested shadow DOM.
+        https://bugs.webkit.org/show_bug.cgi?id=62218
+
+        Reviewed by Dimitri Glazkov.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-12  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Enable SHADOW_DOM flag
+        https://bugs.webkit.org/show_bug.cgi?id=87732
+
+        Reviewed by Kentaro Hara.
+
+        Enable SHADOW_DOM flag by default at compile time for EFL port.
+
+        * Source/autotools/symbols.filter: Fix GTK build by adding new symbol.
+        * Source/cmake/OptionsEfl.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-06-12  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] enable LEGACY_WEBKIT_BLOB_BUILDER flag
+        https://bugs.webkit.org/show_bug.cgi?id=88715
+
+        Reviewed by Noam Rosenthal.
+
+        Enable LEGACY_WEBKIT_BLOB_BUILDER flag by default on EFL port.
+
+        * Source/cmake/OptionsEfl.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-06-12  Thiago Marcos P. Santos  <thiago.santos@intel.com>
+
+        [CMake] Enabled CSS_BOX_DECORATION_BREAK by default
+        https://bugs.webkit.org/show_bug.cgi?id=88850
+
+        Reviewed by Alexis Menard.
+
+        Enabled it by default on CMake ports like in other ports.
+        This patch is a follow up to r120029.
+
+        * Source/cmake/WebKitFeatures.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-06-11  Kaustubh Atrawalkar  <kaustubh@motorola.com>
+
+        [DRT] LTC:: counterValueForElementById() could be moved to Internals.
+        https://bugs.webkit.org/show_bug.cgi?id=84406
+
+        Reviewed by Hajime Morita.
+
+        Exporting Internals::counterValueForElement symbols for the Gtk build.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-11  Alexis Menard  <alexis.menard@openbossa.org>
+
+        [CSS3 Backgrounds and Borders] Protect box-decoration-break behind a feature flag.
+        https://bugs.webkit.org/show_bug.cgi?id=88804
+
+        Reviewed by Tony Chang.
+
+        Protect box-decoration-break behind a feature flag enabled by default.
+
+        * configure.ac:
+
+2012-06-11  Arnaud Renevier  <arno@renevier.net>
+
+        Replace obsolete mkdir_p variable with MKDIR_P
+        https://bugs.webkit.org/show_bug.cgi?id=88790
+
+        Reviewed by Martin Robinson.
+
+        * GNUmakefile.am:
+        * configure.ac:
+
+2012-06-11  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Fix make distcheck issues.
+
+        * GNUmakefile.am: Initialize jscore nosource variables.
+
+2012-06-10  Darin Adler  <darin@apple.com>
+
+        Remove unneeded callRemovedLastRef function from TreeShared refactoring
+        https://bugs.webkit.org/show_bug.cgi?id=88653
+
+        Reviewed by Sam Weinig.
+
+        * Source/autotools/symbols.filter: Filter removedLastRef instead of
+        callRemovedLastRef.
+
+2012-06-09  Sukolsak Sakshuwong  <sukolsak@google.com>
+
+        Add UNDO_MANAGER flag
+        https://bugs.webkit.org/show_bug.cgi?id=87908
+
+        Reviewed by Tony Chang.
+
+        * Source/cmake/WebKitFeatures.cmake:
+
+2012-06-08  Martin Robinson  <mrobinson@igalia.com>
+
+        Fix the GTK+ build when OpenGL is enabled.
+
+        * configure.ac: Fix the build.
+
+2012-06-08  Martin Robinson  <mrobinson@igalia.com>
+
+        [GTK] build accelerated compositing on by default if OpenGL is present
+        https://bugs.webkit.org/show_bug.cgi?id=88677
+
+        Reviewed by Alejandro G. Castro.
+
+        Build accelerated compositing by default if OpenGL is present, just like WebGL.
+        Also prevent enabling WebGL if Clutter is turned on.
+
+        * configure.ac: Build AC by default.
+
+2012-06-08  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        [GTK] Add API to get the library version to WebKit2 GTK+
+        https://bugs.webkit.org/show_bug.cgi?id=88426
+
+        Reviewed by Martin Robinson.
+
+        * configure.ac: Generate WebKitVersion.h from WebKitVersion.h.in
+        file.
+
+2012-06-08  Ion Rosca  <rosca@adobe.com>
+
+        Some overlay scrollbar API calls in ScrollAnimatorMac can lead to an assertion in RenderBox::mapAbsoluteToLocalPoint
+        https://bugs.webkit.org/show_bug.cgi?id=74111
+
+        Reviewed by Simon Fraser.
+
+        * ManualTests/scrollbar-crash-on-hide-scrolled-area.html: Added.
+
+2012-06-07  Kentaro Hara  <haraken@chromium.org>
+
+        Reduce Node object size from 72 byte to 64 byte
+        https://bugs.webkit.org/show_bug.cgi?id=88528
+
+        Reviewed by Ryosuke Niwa.
+
+        Added a symbol for callRemovedLastRef().
+
+        * Source/autotools/symbols.filter:
+
+2012-06-07  Patrick Gansterer  <paroga@webkit.org>
+
+        Build fix for WinCE after r113570.
+
+        * Source/cmake/OptionsWinCE.cmake:
+
+2012-06-07  Adam Barth  <abarth@webkit.org>
+
+        Settings::defaultDeviceScaleFactor is redundant with Page::deviceScaleFactor
+        https://bugs.webkit.org/show_bug.cgi?id=88375
+
+        Reviewed by James Robinson.
+
+        This symbol no longer exists.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-06  David Kilzer  <ddkilzer@apple.com>
+
+        Teach git about localizable *.strings files
+        <http://webkit.org/b/88447>
+
+        Reviewed by Adam Roben.
+
+        * .gitattributes: Set diff attribute for *.strings files so
+        git-diff doesn't complain about them being binary files once the
+        git-config command is run.
+
+2012-06-06  Andy Wingo  <wingo@igalia.com>
+
+        [GTK] Enable the LLInt
+        https://bugs.webkit.org/show_bug.cgi?id=88315
+
+        Reviewed by Filip Pizlo.
+
+        * configure.ac: Require Ruby, to build the low-level interpreter.
+
+2012-06-06  Sam D  <dsam2912@gmail.com>
+
+        Web Inspector: Option for selecting/deselecting all breakpoints in breakpoint pane
+        https://bugs.webkit.org/show_bug.cgi?id=87644
+
+        Reviewed by Pavel Feldman.
+
+        Added an option to enable/disable all breakpoints in Breakpoint pane.
+
+        * Source/WebCore/English.lproj/localizedStrings.js:
+        * Source/WebCore/inspector/front-end/BreakpointManager.js:
+        (WebInspector.BreakpointManager.prototype.enableAllBreakpoints):
+        (WebInspector.BreakpointManager.prototype.disableAllBreakpoints):
+        * Source/WebCore/inspector/front-end/BreakpointsSidebarPane.js:
+        (WebInspector.JavaScriptBreakpointsSidebarPane.prototype._breakpointContextMenu.enabledBreakpointCount):
+        (WebInspector.JavaScriptBreakpointsSidebarPane.prototype._breakpointContextMenu):
+
+2012-06-05  Danilo Cesar Lemes de Paula  <danilo.cesar@collabora.co.uk>
+
+        [GTK] show the feature list in alphabetical order
+        https://bugs.webkit.org/show_bug.cgi?id=88343
+
+        Reviewed by Gustavo Noronha Silva.
+
+        * configure.ac:
+
+2012-06-05  Dongwoo Im  <dw.im@samsung.com>
+
+        Add 'isProtocolHandlerRegistered' and 'unregisterProtocolHandler'.
+        https://bugs.webkit.org/show_bug.cgi?id=73176
+
+        Reviewed by Adam Barth.
+
+        Two more APIs are added in Custom Scheme Handler specification.
+        http://dev.w3.org/html5/spec/Overview.html#custom-handlers
+        One is 'isProtocolHandlerRegistered' to query whether the specific URL
+        is registered or not.
+        The other is 'unregisterProtocolHandler' to remove the registered URL.
+
+        * Source/cmake/WebKitFeatures.cmake: Add a macro 'ENABLE_CUSTOM_SCHEME_HANDLER'.
+        * Source/cmakeconfig.h.cmake: Add a macro 'ENABLE_CUSTOM_SCHEME_HANDLER'.
+
+2012-06-04  Hugo Parente Lima  <hugo.lima@openbossa.org>
+
+        Turn LEGACY_VIEWPORT_ADAPTION USE flag into an ENABLE flag.
+        https://bugs.webkit.org/show_bug.cgi?id=88243
+
+        Reviewed by Adam Barth.
+
+        * Source/cmake/WebKitFeatures.cmake:
+
+2012-06-04  Sadrul Habib Chowdhury  <sadrul@chromium.org>
+
+        [chromium] Fix software rendering for device-scale-factor > 1
+        https://bugs.webkit.org/show_bug.cgi?id=88136
+
+        Reviewed by Darin Fisher.
+
+        Export WebCore::Page::setDeviceScaleFactor and WebCore::Settings::setDefaultDeviceScaleFactor.
+
+        * Source/autotools/symbols.filter:
+
+2012-06-04  Kevin Greer  <kgr@chromium.org>
+
+        [chromium] Issue async events for console.time/timeEnd
+        https://bugs.webkit.org/show_bug.cgi?id=88003
+
+        Reviewed by Pavel Feldman.
+
+        * ../../Source/WebCore/page/Console.cpp:
+
+2012-06-04  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Update NEWS and configure.ac for 1.9.3 release
+
+        * configure.ac: Bump version number.
+
+2012-06-02  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix. Temporarily disable DerivedSources cleanup on Windows.
+
+        * wscript:
+
+2012-06-01  Simon Hausmann  <simon.hausmann@nokia.com>
+
+        [Qt] Use -Werror only in developer builds
+
+        Rubber-stamped by Tor Arne Vestbø.
+
+        In production builds -Werror with custom toolchains and wierd system
+        headers, -Werror is of no use and just creates confusion. So use it
+        only if Qt is configured with -developer-build.
+
+        * Source/api.pri: qt_developer_build determination moved to default_pre.prf
+
+2012-06-01  Caio Marcelo de Oliveira Filho  <caio.oliveira@openbossa.org>
+
+        [Qt] Move QObject bridge related tests from tst_qwebframe to tst_qobjectbridge
+        https://bugs.webkit.org/show_bug.cgi?id=88117
+
+        Reviewed by Noam Rosenthal.
+
+        * Source/tests.pri: Add new entry for tst_qobjectbridge.
+
+2012-06-01  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] EFL port does not enable WEB_INTENTS_TAG flag
+        https://bugs.webkit.org/show_bug.cgi?id=86866
+
+        Reviewed by Adam Barth.
+
+        Enable WEB_INTENTS_TAG flag by default on EFL port.
+
+        * Source/cmake/OptionsEfl.cmake:
+        * Source/cmake/WebKitFeatures.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-05-31  Christophe Dumez  <christophe.dumez@intel.com>
+
+        [EFL] Enable CSS_IMAGE_SET flag
+        https://bugs.webkit.org/show_bug.cgi?id=87727
+
+        Reviewed by Adam Roben.
+
+        Add CSS_IMAGE_SET flag to CMake and enable it by default on EFL port.
+
+        * Source/cmake/OptionsEfl.cmake:
+        * Source/cmake/WebKitFeatures.cmake:
+        * Source/cmakeconfig.h.cmake:
+
+2012-05-30  Kevin Ollivier  <kevino@theolliviers.com>
+
+        [wx] Unreviewed build fix. Add needed file back to the wx build.
+
+        * wscript:
+
+2012-05-30  Mariusz Grzegorczyk  <mariusz.g@samsung.com>, Ryuan Choi  <ryuan.choi@samsung.com>
+
+        [EFL][WK2] Fix WebKit2-EFL build
+        https://bugs.webkit.org/show_bug.cgi?id=83693
+
+        Reviewed by Carlos Garcia Campos.
+
+        * Source/cmake/OptionsEfl.cmake: Define BUILDING_SOUP__ to build WebKit2/Efl.
+
+2012-05-29  Jonathan Dong  <jonathan.dong@torchmobile.com.cn>
+
+        [BlackBerry] Loading media data with http authentication
+        https://bugs.webkit.org/show_bug.cgi?id=84214
+
+        Reviewed by George Staikos.
+
+        Added a manual test case which needs user to provide a HTTP server
+        with HTTP authentication support when loading the specified media
+        resource. The test case will test if the media resource is successfully
+        loaded.
+
+        * ManualTests/blackberry/video-load-with-authentication.html: Added.
+
+2012-05-29  Simon Fraser  <simon.fraser@apple.com>
+
+        Incomplete repaint on twitter.com when replying to a tweet
+        https://bugs.webkit.org/show_bug.cgi?id=87553
+
+        Reviewed by Dean Jackson.
+        
+        Manual test that adds a transform to a layer, forcing that
+        layer to gain backing store.
+
+        * ManualTests/compositing/requires-backing-change.html: Added.
+
 2012-05-29  David Barr  <davidbarr@chromium.org>
 
         Introduce ENABLE_CSS_IMAGE_RESOLUTION compile flag

@@ -111,6 +111,7 @@
 #import <JavaScriptCore/APICast.h>
 #import <JavaScriptCore/JSValueRef.h>
 #import <WebCore/AbstractDatabase.h>
+#import <WebCore/AlternativeTextUIController.h>
 #import <WebCore/ApplicationCacheStorage.h>
 #import <WebCore/BackForwardListImpl.h>
 #import <WebCore/MemoryCache.h>
@@ -580,8 +581,8 @@ static NSString *createUserVisibleWebKitVersionString()
     if (!exception || !context)
         return;
 
-    JSLock lock(SilenceAssertionsOnly);
     JSC::ExecState* execState = toJS(context);
+    JSLockHolder lock(execState);
 
     // Make sure the context has a DOMWindow global object, otherwise this context didn't originate from a WebView.
     if (!toJSDOMWindow(execState->lexicalGlobalObject()))
@@ -722,8 +723,10 @@ static bool shouldRespectPriorityInCSSAttributeSetters()
 
     static bool didOneTimeInitialization = false;
     if (!didOneTimeInitialization) {
+#if !LOG_DISABLED
         WebKitInitializeLoggingChannelsIfNecessary();
         WebCore::initializeLoggingChannelsIfNecessary();
+#endif // !LOG_DISABLED
         [WebHistoryItem initWindowWatcherIfNecessary];
 #if ENABLE(SQL_DATABASE)
         WebKitInitializeDatabasesIfNecessary();
@@ -2242,14 +2245,14 @@ static inline IMP getMethod(id o, SEL s)
 - (BOOL)_cookieEnabled
 {
     if (_private->page)
-        return _private->page->cookieEnabled();
+        return _private->page->settings()->cookieEnabled();
     return YES;
 }
 
 - (void)_setCookieEnabled:(BOOL)enable
 {
     if (_private->page)
-        _private->page->setCookieEnabled(enable);
+        _private->page->settings()->setCookieEnabled(enable);
 }
 
 - (void)_setAdditionalWebPlugInPaths:(NSArray *)newPaths
@@ -2814,11 +2817,17 @@ static PassOwnPtr<Vector<String> > toStringVector(NSArray* patterns)
     case WebPaginationModeUnpaginated:
         pagination.mode = Page::Pagination::Unpaginated;
         break;
-    case WebPaginationModeHorizontal:
-        pagination.mode = Page::Pagination::HorizontallyPaginated;
+    case WebPaginationModeLeftToRight:
+        pagination.mode = Page::Pagination::LeftToRightPaginated;
         break;
-    case WebPaginationModeVertical:
-        pagination.mode = Page::Pagination::VerticallyPaginated;
+    case WebPaginationModeRightToLeft:
+        pagination.mode = Page::Pagination::RightToLeftPaginated;
+        break;
+    case WebPaginationModeTopToBottom:
+        pagination.mode = Page::Pagination::TopToBottomPaginated;
+        break;
+    case WebPaginationModeBottomToTop:
+        pagination.mode = Page::Pagination::BottomToTopPaginated;
         break;
     default:
         return;
@@ -2836,10 +2845,14 @@ static PassOwnPtr<Vector<String> > toStringVector(NSArray* patterns)
     switch (page->pagination().mode) {
     case Page::Pagination::Unpaginated:
         return WebPaginationModeUnpaginated;
-    case Page::Pagination::HorizontallyPaginated:
-        return WebPaginationModeHorizontal;
-    case Page::Pagination::VerticallyPaginated:
-        return WebPaginationModeVertical;
+    case Page::Pagination::LeftToRightPaginated:
+        return WebPaginationModeLeftToRight;
+    case Page::Pagination::RightToLeftPaginated:
+        return WebPaginationModeRightToLeft;
+    case Page::Pagination::TopToBottomPaginated:
+        return WebPaginationModeTopToBottom;
+    case Page::Pagination::BottomToTopPaginated:
+        return WebPaginationModeBottomToTop;
     }
 
     ASSERT_NOT_REACHED();
@@ -4840,7 +4853,7 @@ static NSAppleEventDescriptor* aeDescFromJSValue(ExecState* exec, JSValue jsValu
     JSValue result = coreFrame->script()->executeScript(script, true).jsValue();
     if (!result) // FIXME: pass errors
         return 0;
-    JSLock lock(SilenceAssertionsOnly);
+    JSLockHolder lock(coreFrame->script()->globalObject(mainThreadNormalWorld())->globalExec());
     return aeDescFromJSValue(coreFrame->script()->globalObject(mainThreadNormalWorld())->globalExec(), result);
 }
 
@@ -5534,16 +5547,6 @@ static NSAppleEventDescriptor* aeDescFromJSValue(ExecState* exec, JSValue jsValu
     [self setAutomaticSpellingCorrectionEnabled:![self isAutomaticSpellingCorrectionEnabled]];
 }
 
-#endif
-
-#if !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD)
-- (void)handleCorrectionPanelResult:(NSString*)result
-{
-    WebFrame *webFrame = [self _selectedOrMainFrame];
-    Frame* coreFrame = core(webFrame);
-    if (coreFrame)
-        coreFrame->editor()->handleAlternativeTextUIResult(result);
-}
 #endif
 
 @end
@@ -6410,6 +6413,50 @@ static void glibContextIterationCallback(CFRunLoopObserverRef, CFRunLoopActivity
 }
 #endif
 
+#if USE(AUTOCORRECTION_PANEL)
+- (void)handleAcceptedAlternativeText:(NSString*)text
+{
+    WebFrame *webFrame = [self _selectedOrMainFrame];
+    Frame* coreFrame = core(webFrame);
+    if (coreFrame)
+        coreFrame->editor()->handleAlternativeTextUIResult(text);
+}
+#endif
+
+#if USE(DICTATION_ALTERNATIVES)
+- (void)_getWebCoreDictationAlternatives:(Vector<DictationAlternative>&)alternatives fromTextAlternatives:(const Vector<TextAlternativeWithRange>&)alternativesWithRange
+{
+    for (size_t i = 0; i < alternativesWithRange.size(); ++i) {
+        const TextAlternativeWithRange& alternativeWithRange = alternativesWithRange[i];
+        uint64_t dictationContext = _private->m_alternativeTextUIController->addAlternatives(alternativeWithRange.alternatives);
+        if (dictationContext)
+            alternatives.append(DictationAlternative(alternativeWithRange.range.location, alternativeWithRange.range.length, dictationContext));
+    }
+}
+
+- (void)_showDictationAlternativeUI:(const WebCore::FloatRect&)boundingBoxOfDictatedText forDictationContext:(uint64_t)dictationContext
+{
+    _private->m_alternativeTextUIController->showAlternatives(self, [self _convertRectFromRootView:boundingBoxOfDictatedText], dictationContext, ^(NSString* acceptedAlternative) {
+        [self handleAcceptedAlternativeText:acceptedAlternative];
+    });
+}
+
+- (void)_dismissDictationAlternativeUI
+{
+    _private->m_alternativeTextUIController->dismissAlternatives();
+}
+
+- (void)_removeDictationAlternatives:(uint64_t)dictationContext
+{
+    _private->m_alternativeTextUIController->removeAlternatives(dictationContext);
+}
+
+- (Vector<String>)_dictationAlternatives:(uint64_t)dictationContext
+{
+    return _private->m_alternativeTextUIController->alternativesForContext(dictationContext);
+}
+#endif
+
 - (NSPoint)_convertPointFromRootView:(NSPoint)point
 {
     return NSMakePoint(point.x, [self bounds].size.height - point.y);
@@ -6515,8 +6562,8 @@ static void glibContextIterationCallback(CFRunLoopObserverRef, CFRunLoopActivity
 
 - (JSValueRef)_computedStyleIncludingVisitedInfo:(JSContextRef)context forElement:(JSValueRef)value
 {
-    JSLock lock(SilenceAssertionsOnly);
     ExecState* exec = toJS(context);
+    JSLockHolder lock(exec);
     if (!value)
         return JSValueMakeUndefined(context);
     JSValue jsValue = toJS(exec, value);

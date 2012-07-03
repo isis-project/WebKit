@@ -77,6 +77,7 @@ public:
     virtual ~WorkerStateClient() { }
 
 private:
+    virtual bool supportsInspectorStateUpdates() const { return true; }
     virtual void updateInspectorStateCookie(const String& cookie)
     {
         m_workerContext->thread()->workerReportingProxy().updateInspectorStateCookie(cookie);
@@ -102,7 +103,7 @@ WorkerInspectorController::WorkerInspectorController(WorkerContext* workerContex
     m_debuggerAgent = WorkerDebuggerAgent::create(m_instrumentingAgents.get(), m_state.get(), workerContext, m_injectedScriptManager.get());
     m_profilerAgent = InspectorProfilerAgent::create(m_instrumentingAgents.get(), m_consoleAgent.get(), workerContext, m_state.get(), m_injectedScriptManager.get());
 #endif
-    m_timelineAgent = InspectorTimelineAgent::create(m_instrumentingAgents.get(), m_state.get(), InspectorTimelineAgent::WorkerInspector, InspectorTimelineAgent::FrameInstrumentationNotSupported);
+    m_timelineAgent = InspectorTimelineAgent::create(m_instrumentingAgents.get(), 0, m_state.get(), InspectorTimelineAgent::WorkerInspector, 0);
 
     m_injectedScriptManager->injectedScriptHost()->init(0
         , 0

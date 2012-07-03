@@ -42,6 +42,7 @@ public:
     static PassRefPtr<WebCore::IDBDatabaseBackendInterface> create(PassOwnPtr<WebIDBDatabase>);
     virtual ~IDBDatabaseBackendProxy();
 
+    virtual WebCore::IDBDatabaseMetadata metadata() const;
     virtual String name() const;
     virtual String version() const;
     virtual PassRefPtr<WebCore::DOMStringList> objectStoreNames() const;
@@ -52,7 +53,7 @@ public:
     virtual PassRefPtr<WebCore::IDBTransactionBackendInterface> transaction(WebCore::DOMStringList* storeNames, unsigned short mode, WebCore::ExceptionCode&);
     virtual void close(PassRefPtr<WebCore::IDBDatabaseCallbacks>);
 
-    virtual void open(PassRefPtr<WebCore::IDBDatabaseCallbacks>);
+    virtual void registerFrontendCallbacks(PassRefPtr<WebCore::IDBDatabaseCallbacks>);
 
 private:
     IDBDatabaseBackendProxy(PassOwnPtr<WebIDBDatabase>);

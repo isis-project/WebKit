@@ -38,7 +38,7 @@
 #include "config.h"
 #include "GraphicsContext.h"
 
-#ifdef Q_WS_WIN
+#if OS(WINDOWS)
 #include <windows.h>
 #endif
 
@@ -65,6 +65,16 @@
 #include <QStack>
 #include <QVector>
 #include <wtf/MathExtras.h>
+
+#if OS(WINDOWS) && HAVE(QT5)
+Q_GUI_EXPORT QPixmap qt_pixmapFromWinHBITMAP(HBITMAP, int hbitmapFormat = 0);
+
+enum HBitmapFormat {
+    HBitmapNoAlpha,
+    HBitmapPremultipliedAlpha,
+    HBitmapAlpha
+};
+#endif
 
 namespace WebCore {
 
@@ -497,8 +507,7 @@ void GraphicsContext::fillPath(const Path& path)
             if (shadowContext) {
                 QPainter* shadowPainter = shadowContext->platformContext();
                 if (m_state.fillPattern) {
-                    AffineTransform affine;
-                    shadowPainter->fillPath(platformPath, QBrush(m_state.fillPattern->createPlatformPattern(affine)));
+                    shadowPainter->fillPath(platformPath, QBrush(m_state.fillPattern->createPlatformPattern()));
                 } else if (m_state.fillGradient) {
                     QBrush brush(*m_state.fillGradient->platformGradient());
                     brush.setTransform(m_state.fillGradient->gradientSpaceTransform());
@@ -518,8 +527,7 @@ void GraphicsContext::fillPath(const Path& path)
         }
     }
     if (m_state.fillPattern) {
-        AffineTransform affine;
-        p->fillPath(platformPath, QBrush(m_state.fillPattern->createPlatformPattern(affine)));
+        p->fillPath(platformPath, QBrush(m_state.fillPattern->createPlatformPattern()));
     } else if (m_state.fillGradient) {
         QBrush brush(*m_state.fillGradient->platformGradient());
         brush.setTransform(m_state.fillGradient->gradientSpaceTransform());
@@ -580,8 +588,7 @@ void GraphicsContext::strokePath(const Path& path)
     }
 
     if (m_state.strokePattern) {
-        AffineTransform affine;
-        QBrush brush = m_state.strokePattern->createPlatformPattern(affine);
+        QBrush brush = m_state.strokePattern->createPlatformPattern();
         fillPathStroke(p, pathStroker, platformPath, brush);
     } else if (m_state.strokeGradient) {
         QBrush brush(*m_state.strokeGradient->platformGradient());
@@ -591,71 +598,50 @@ void GraphicsContext::strokePath(const Path& path)
         fillPathStroke(p, pathStroker, platformPath, pen.brush());
 }
 
-static inline void drawRepeatPattern(QPainter* p, QPixmap* image, const FloatRect& rect, const bool repeatX, const bool repeatY)
+static inline void drawRepeatPattern(QPainter* p, PassRefPtr<Pattern> pattern, const FloatRect& rect)
 {
+    ASSERT(pattern);
+
+    const QBrush brush = pattern->createPlatformPattern();
+    if (brush.style() != Qt::TexturePattern)
+        return;
+
+    const bool repeatX = pattern->repeatX();
+    const bool repeatY = pattern->repeatY();
     // Patterns must be painted so that the top left of the first image is anchored at
     // the origin of the coordinate space
-    if (image) {
-        int w = image->width();
-        int h = image->height();
-        int startX, startY;
-        QRect r(static_cast<int>(rect.x()), static_cast<int>(rect.y()), static_cast<int>(rect.width()), static_cast<int>(rect.height()));
 
-        // startX, startY is the coordinate of the first image we need to put on the left-top of the rect
-        if (repeatX && repeatY) {
-            // repeat
-            // startX, startY is at the left top side of the left-top of the rect
-            startX = r.x() >=0 ? r.x() - (r.x() % w) : r.x() - (w - qAbs(r.x()) % w);
-            startY = r.y() >=0 ? r.y() - (r.y() % h) : r.y() - (h - qAbs(r.y()) % h);
-        } else {
-           if (!repeatX && !repeatY) {
-               // no-repeat
-               // only draw the image once at orgin once, check if need to draw
-               QRect imageRect(0, 0, w, h);
-               if (imageRect.intersects(r)) {
-                   startX = 0;
-                   startY = 0;
-               } else
-                   return;   
-           } else if (repeatX && !repeatY) {
-               // repeat-x
-               // startY is fixed, but startX change based on the left-top of the rect
-               QRect imageRect(r.x(), 0, r.width(), h);
-               if (imageRect.intersects(r)) {
-                   startX = r.x() >=0 ? r.x() - (r.x() % w) : r.x() - (w - qAbs(r.x()) % w);
-                   startY = 0;
-               } else
-                   return;
-           } else {
-               // repeat-y
-               // startX is fixed, but startY change based on the left-top of the rect
-               QRect imageRect(0, r.y(), w, r.height());
-               if (imageRect.intersects(r)) {
-                   startX = 0;
-                   startY = r.y() >=0 ? r.y() - (r.y() % h) : r.y() - (h - qAbs(r.y()) % h);
-               } else
-                   return;
-           }
-        }
+    QRectF targetRect(rect);
+    const int w = brush.texture().width();
+    const int h = brush.texture().height();
 
-        int x = startX;
-        int y = startY; 
-        do {
-            // repeat Y
-            do {
-                // repeat X
-                QRect   imageRect(x, y, w, h);
-                QRect   intersectRect = imageRect.intersected(r);
-                QPoint  destStart(intersectRect.x(), intersectRect.y());
-                QRect   sourceRect(intersectRect.x() - imageRect.x(), intersectRect.y() - imageRect.y(), intersectRect.width(), intersectRect.height());
+    ASSERT(p);
+    QRegion oldClip;
+    if (p->hasClipping())
+        oldClip = p->clipRegion();
 
-                p->drawPixmap(destStart, *image, sourceRect);
-                x += w;
-            } while (repeatX && x < r.x() + r.width());
-            x = startX;
-            y += h;
-        } while (repeatY && y < r.y() + r.height());
+    // The only type of transforms supported for the brush are translations.
+    ASSERT(!brush.transform().isRotating());
+
+    QRectF clip = targetRect;
+    QRectF patternRect = brush.transform().mapRect(QRectF(0, 0, w, h));
+    if (!repeatX) {
+        clip.setLeft(patternRect.left());
+        clip.setWidth(patternRect.width());
     }
+    if (!repeatY) {
+        clip.setTop(patternRect.top());
+        clip.setHeight(patternRect.height());
+    }
+    if (!repeatX || !repeatY)
+        p->setClipRect(clip);
+
+    p->fillRect(targetRect, brush);
+
+    if (!oldClip.isEmpty())
+        p->setClipRegion(oldClip);
+    else if (!repeatX || !repeatY)
+        p->setClipping(false);
 }
 
 void GraphicsContext::fillRect(const FloatRect& rect)
@@ -668,14 +654,13 @@ void GraphicsContext::fillRect(const FloatRect& rect)
     ShadowBlur* shadow = shadowBlur();
 
     if (m_state.fillPattern) {
-        QPixmap* image = m_state.fillPattern->tileImage()->nativeImageForCurrentFrame();
         GraphicsContext* shadowContext = hasShadow() ? shadow->beginShadowLayer(this, normalizedRect) : 0;
         if (shadowContext) {
             QPainter* shadowPainter = shadowContext->platformContext();
-            drawRepeatPattern(shadowPainter, image, normalizedRect, m_state.fillPattern->repeatX(), m_state.fillPattern->repeatY());
+            drawRepeatPattern(shadowPainter, m_state.fillPattern, normalizedRect);
             shadow->endShadowLayer(this);
         }
-        drawRepeatPattern(p, image, normalizedRect, m_state.fillPattern->repeatX(), m_state.fillPattern->repeatY());
+        drawRepeatPattern(p, m_state.fillPattern, normalizedRect);
     } else if (m_state.fillGradient) {
         QBrush brush(*m_state.fillGradient->platformGradient());
         brush.setTransform(m_state.fillGradient->gradientSpaceTransform());
@@ -714,28 +699,19 @@ void GraphicsContext::fillRect(const FloatRect& rect, const Color& color, ColorS
     if (paintingDisabled() || !color.isValid())
         return;
 
-    m_data->solidColor.setColor(color);
+    QRectF platformRect(rect);
     QPainter* p = m_data->p();
-    QRectF normalizedRect = rect.normalized();
-
     if (hasShadow()) {
         ShadowBlur* shadow = shadowBlur();
         if (shadow->mustUseShadowBlur(this)) {
-            GraphicsContext* shadowContext = shadow->beginShadowLayer(this, normalizedRect);
-            if (shadowContext) {
-                QPainter* shadowPainter = shadowContext->platformContext();
-                shadowPainter->setCompositionMode(QPainter::CompositionMode_Source);
-                shadowPainter->fillRect(normalizedRect, m_state.shadowColor);
-                shadow->endShadowLayer(this);
-            }
+            shadow->drawRectShadow(this, platformRect, RoundedRect::Radii());
         } else {
             QColor shadowColor = m_state.shadowColor;
             shadowColor.setAlphaF(shadowColor.alphaF() * p->brush().color().alphaF());
-            p->fillRect(normalizedRect.translated(QPointF(m_state.shadowOffset.width(), m_state.shadowOffset.height())), shadowColor);
+            p->fillRect(platformRect.translated(QPointF(m_state.shadowOffset.width(), m_state.shadowOffset.height())), shadowColor);
         }
     }
-
-    p->fillRect(normalizedRect, m_data->solidColor);
+    p->fillRect(platformRect, QColor(color));
 }
 
 void GraphicsContext::fillRoundedRect(const IntRect& rect, const IntSize& topLeft, const IntSize& topRight, const IntSize& bottomLeft, const IntSize& bottomRight, const Color& color, ColorSpace colorSpace)
@@ -749,13 +725,7 @@ void GraphicsContext::fillRoundedRect(const IntRect& rect, const IntSize& topLef
     if (hasShadow()) {
         ShadowBlur* shadow = shadowBlur();
         if (shadow->mustUseShadowBlur(this)) {
-            GraphicsContext* shadowContext = shadow->beginShadowLayer(this, rect);
-            if (shadowContext) {
-                QPainter* shadowPainter = shadowContext->platformContext();
-                shadowPainter->setCompositionMode(QPainter::CompositionMode_Source);
-                shadowPainter->fillPath(path.platformPath(), QColor(m_state.shadowColor));
-                shadow->endShadowLayer(this);
-            }
+            shadow->drawRectShadow(this, rect, RoundedRect::Radii(topLeft, topRight, bottomLeft, bottomRight));
         } else {
             const QPointF shadowOffset(m_state.shadowOffset.width(), m_state.shadowOffset.height());
             p->translate(shadowOffset);
@@ -1056,7 +1026,10 @@ void GraphicsContext::pushTransparencyLayerInternal(const QRect &rect, qreal opa
 {
     QPainter* p = m_data->p();
 
-    QRect deviceClip = p->transform().mapRect(rect);
+    QTransform deviceTransform = p->transform();
+    QRect deviceClip = deviceTransform.mapRect(rect);
+
+    alphaMask = alphaMask.transformed(deviceTransform);
     if (alphaMask.width() != deviceClip.width() || alphaMask.height() != deviceClip.height())
         alphaMask = alphaMask.scaled(deviceClip.width(), deviceClip.height());
 
@@ -1345,7 +1318,7 @@ void GraphicsContext::setCTM(const AffineTransform& transform)
     m_data->p()->setWorldTransform(transform);
 }
 
-#if ENABLE(3D_RENDERING) && USE(TEXTURE_MAPPER)
+#if ENABLE(3D_RENDERING)
 TransformationMatrix GraphicsContext::get3DTransform() const
 {
     if (paintingDisabled())
@@ -1424,7 +1397,7 @@ void GraphicsContext::setPlatformShouldAntialias(bool enable)
     m_data->p()->setRenderHint(QPainter::Antialiasing, enable);
 }
 
-#ifdef Q_WS_WIN
+#if OS(WINDOWS)
 
 HDC GraphicsContext::getWindowsContext(const IntRect& dstRect, bool supportAlphaBlend, bool mayCreateBitmap)
 {
@@ -1499,7 +1472,11 @@ void GraphicsContext::releaseWindowsContext(HDC hdc, const IntRect& dstRect, boo
             GetObject(bitmap, sizeof(info), &info);
             ASSERT(info.bmBitsPixel == 32);
 
+#if HAVE(QT5)
+            QPixmap pixmap = qt_pixmapFromWinHBITMAP(bitmap, supportAlphaBlend ? HBitmapPremultipliedAlpha : HBitmapNoAlpha);
+#else
             QPixmap pixmap = QPixmap::fromWinHBITMAP(bitmap, supportAlphaBlend ? QPixmap::PremultipliedAlpha : QPixmap::NoAlpha);
+#endif
             m_data->p()->drawPixmap(dstRect, pixmap);
 
             ::DeleteObject(bitmap);

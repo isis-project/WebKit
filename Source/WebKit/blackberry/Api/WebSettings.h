@@ -72,6 +72,9 @@ public:
     bool isPrivateBrowsingEnabled() const;
     void setPrivateBrowsingEnabled(bool);
 
+    void setDeviceSupportsMouse(bool);
+    bool deviceSupportsMouse() const;
+
     int defaultFixedFontSize() const;
     void setDefaultFixedFontSize(int);
 
@@ -165,6 +168,8 @@ public:
 
     unsigned long long localStorageQuota() const;
     void setLocalStorageQuota(unsigned long long);
+    unsigned long long sessionStorageQuota() const;
+    void setSessionStorageQuota(unsigned long long);
 
     // Page cache
     void setMaximumPagesInCache(int);
@@ -172,6 +177,9 @@ public:
 
     WebString localStoragePath() const;
     void setLocalStoragePath(const WebString&);
+
+    WebString indexedDataBasePath() const;
+    void setIndexedDataBasePath(const WebString&);
 
     WebString databasePath() const;
     void setDatabasePath(const WebString&);
@@ -222,6 +230,15 @@ public:
 
     bool fullScreenVideoCapable() const;
     void setFullScreenVideoCapable(bool);
+
+    bool isCredentialAutofillEnabled() const;
+    void setCredentialAutofillEnabled(bool);
+
+    bool isFormAutofillEnabled() const;
+    void setFormAutofillEnabled(bool);
+
+    double devicePixelRatio() const;
+    void setDevicePixelRatio(double);
 
 private:
     WebSettingsPrivate* m_private;

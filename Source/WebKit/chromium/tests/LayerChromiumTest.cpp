@@ -36,9 +36,11 @@
 #include "cc/CCSingleThreadProxy.h"
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+#include <public/WebTransformationMatrix.h>
 
 using namespace WebCore;
 using namespace WebKitTests;
+using WebKit::WebTransformationMatrix;
 using ::testing::Mock;
 using ::testing::_;
 using ::testing::AtLeast;
@@ -55,7 +57,7 @@ namespace {
 class MockCCLayerTreeHost : public CCLayerTreeHost {
 public:
     MockCCLayerTreeHost()
-        : CCLayerTreeHost(&m_fakeClient, CCSettings())
+        : CCLayerTreeHost(&m_fakeClient, CCLayerTreeSettings())
     {
         initialize();
     }
@@ -68,7 +70,7 @@ private:
 
 class MockLayerPainterChromium : public LayerPainterChromium {
 public:
-    virtual void paint(GraphicsContext&, const IntRect&) { }
+    virtual void paint(SkCanvas*, const IntRect&, FloatRect&) OVERRIDE { }
 };
 
 
@@ -78,11 +80,13 @@ protected:
     {
         // Initialize without threading support.
         WebKit::WebCompositor::initialize(0);
+        DebugScopedSetMainThread main;
         m_layerTreeHost = adoptPtr(new MockCCLayerTreeHost);
     }
 
     virtual void TearDown()
     {
+        DebugScopedSetMainThread main;
         Mock::VerifyAndClearExpectations(m_layerTreeHost.get());
         EXPECT_CALL(*m_layerTreeHost, setNeedsCommit()).Times(AnyNumber());
         m_parent.clear();
@@ -496,8 +500,8 @@ TEST_F(LayerChromiumTest, checkPropertyChangeCausesCorrectBehavior)
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(0, testLayer->setDrawOpacity(0.5f));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(0, testLayer->setClipRect(IntRect(3, 3, 8, 8)));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(0, testLayer->setTargetRenderSurface(0));
-    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(0, testLayer->setDrawTransform(TransformationMatrix()));
-    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(0, testLayer->setScreenSpaceTransform(TransformationMatrix()));
+    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(0, testLayer->setDrawTransform(WebTransformationMatrix()));
+    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(0, testLayer->setScreenSpaceTransform(WebTransformationMatrix()));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(0, testLayer->setDrawableContentRect(IntRect(4, 5, 6, 7)));
     EXPECT_FALSE(testLayer->needsDisplay());
 
@@ -505,20 +509,20 @@ TEST_F(LayerChromiumTest, checkPropertyChangeCausesCorrectBehavior)
     // All properties need to be set to new values in order for setNeedsCommit to be called.
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setAnchorPoint(FloatPoint(1.23f, 4.56f)));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setAnchorPointZ(0.7f));
-    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setBackgroundColor(Color(0.4f, 0.4f, 0.4f, 1.0f)));
+    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setBackgroundColor(SK_ColorLTGRAY));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setMasksToBounds(true));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setMaskLayer(dummyLayer.get()));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setOpacity(0.5f));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setOpaque(true));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setPosition(FloatPoint(4.0f, 9.0f)));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setReplicaLayer(dummyLayer.get()));
-    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setSublayerTransform(TransformationMatrix(0, 0, 0, 0, 0, 0)));
+    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setSublayerTransform(WebTransformationMatrix(0, 0, 0, 0, 0, 0)));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setScrollable(true));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setShouldScrollOnMainThread(true));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setNonFastScrollableRegion(Region(IntRect(1, 1, 2, 2))));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setHaveWheelEventHandlers(true));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setScrollPosition(IntPoint(10, 10)));
-    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setTransform(TransformationMatrix(0, 0, 0, 0, 0, 0)));
+    EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setTransform(WebTransformationMatrix(0, 0, 0, 0, 0, 0)));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setDoubleSided(false));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setDebugName("Test Layer"));
     EXECUTE_AND_VERIFY_SET_NEEDS_COMMIT_BEHAVIOR(1, testLayer->setDrawCheckerboardForMissingTiles(!testLayer->drawCheckerboardForMissingTiles()));
@@ -612,7 +616,7 @@ public:
 
 private:
     FakeCCLayerTreeHost()
-        : CCLayerTreeHost(&m_client, CCSettings())
+        : CCLayerTreeHost(&m_client, CCLayerTreeSettings())
     {
     }
 
@@ -637,6 +641,7 @@ void assertLayerTreeHostMatchesForSubtree(LayerChromium* layer, CCLayerTreeHost*
 TEST(LayerChromiumLayerTreeHostTest, enteringTree)
 {
     WebKit::WebCompositor::initialize(0);
+    DebugScopedSetMainThread main;
     RefPtr<LayerChromium> parent = LayerChromium::create();
     RefPtr<LayerChromium> child = LayerChromium::create();
     RefPtr<LayerChromium> mask = LayerChromium::create();
@@ -669,6 +674,7 @@ TEST(LayerChromiumLayerTreeHostTest, enteringTree)
 TEST(LayerChromiumLayerTreeHostTest, addingLayerSubtree)
 {
     WebKit::WebCompositor::initialize(0);
+    DebugScopedSetMainThread main;
     RefPtr<LayerChromium> parent = LayerChromium::create();
     OwnPtr<FakeCCLayerTreeHost> layerTreeHost(FakeCCLayerTreeHost::create());
 
@@ -700,6 +706,7 @@ TEST(LayerChromiumLayerTreeHostTest, addingLayerSubtree)
 TEST(LayerChromiumLayerTreeHostTest, changeHost)
 {
     WebKit::WebCompositor::initialize(0);
+    DebugScopedSetMainThread main;
     RefPtr<LayerChromium> parent = LayerChromium::create();
     RefPtr<LayerChromium> child = LayerChromium::create();
     RefPtr<LayerChromium> mask = LayerChromium::create();
@@ -733,6 +740,7 @@ TEST(LayerChromiumLayerTreeHostTest, changeHost)
 TEST(LayerChromiumLayerTreeHostTest, changeHostInSubtree)
 {
     WebKit::WebCompositor::initialize(0);
+    DebugScopedSetMainThread main;
     RefPtr<LayerChromium> firstParent = LayerChromium::create();
     RefPtr<LayerChromium> firstChild = LayerChromium::create();
     RefPtr<LayerChromium> secondParent = LayerChromium::create();
@@ -770,6 +778,7 @@ TEST(LayerChromiumLayerTreeHostTest, changeHostInSubtree)
 TEST(LayerChromiumLayerTreeHostTest, replaceMaskAndReplicaLayer)
 {
     WebKit::WebCompositor::initialize(0);
+    DebugScopedSetMainThread main;
     RefPtr<LayerChromium> parent = LayerChromium::create();
     RefPtr<LayerChromium> mask = LayerChromium::create();
     RefPtr<LayerChromium> replica = LayerChromium::create();
@@ -803,5 +812,21 @@ TEST(LayerChromiumLayerTreeHostTest, replaceMaskAndReplicaLayer)
     layerTreeHost.clear();
     WebKit::WebCompositor::shutdown();
 }
+
+class MockLayerChromium : public LayerChromium {
+public:
+    bool needsDisplay() const { return m_needsDisplay; }
+};
+
+TEST(LayerChromiumTestWithoutFixture, setBoundsTriggersSetNeedsRedrawAfterGettingNonEmptyBounds)
+{
+    RefPtr<MockLayerChromium> layer(adoptRef(new MockLayerChromium));
+    EXPECT_FALSE(layer->needsDisplay());
+    layer->setBounds(IntSize(0, 10));
+    EXPECT_FALSE(layer->needsDisplay());
+    layer->setBounds(IntSize(10, 10));
+    EXPECT_TRUE(layer->needsDisplay());
+}
+
 
 } // namespace

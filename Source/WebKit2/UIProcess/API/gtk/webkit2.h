@@ -25,6 +25,9 @@
 
 #include <webkit2/WebKitBackForwardList.h>
 #include <webkit2/WebKitBackForwardListItem.h>
+#include <webkit2/WebKitContextMenu.h>
+#include <webkit2/WebKitContextMenuActions.h>
+#include <webkit2/WebKitContextMenuItem.h>
 #include <webkit2/WebKitCookieManager.h>
 #include <webkit2/WebKitDefines.h>
 #include <webkit2/WebKitDownload.h>
@@ -33,16 +36,21 @@
 #include <webkit2/WebKitError.h>
 #include <webkit2/WebKitFileChooserRequest.h>
 #include <webkit2/WebKitFindController.h>
+#include <webkit2/WebKitGeolocationPermissionRequest.h>
 #include <webkit2/WebKitHitTestResult.h>
 #include <webkit2/WebKitJavascriptResult.h>
 #include <webkit2/WebKitMimeInfo.h>
+#include <webkit2/WebKitNavigationPolicyDecision.h>
 #include <webkit2/WebKitPermissionRequest.h>
 #include <webkit2/WebKitPlugin.h>
 #include <webkit2/WebKitPrintOperation.h>
+#include <webkit2/WebKitResponsePolicyDecision.h>
 #include <webkit2/WebKitScriptDialog.h>
 #include <webkit2/WebKitSettings.h>
 #include <webkit2/WebKitURIRequest.h>
 #include <webkit2/WebKitURIResponse.h>
+#include <webkit2/WebKitURISchemeRequest.h>
+#include <webkit2/WebKitVersion.h>
 #include <webkit2/WebKitWebContext.h>
 #include <webkit2/WebKitWebInspector.h>
 #include <webkit2/WebKitWebResource.h>

@@ -21,10 +21,10 @@
 #define qt_instance_h
 
 #include "BridgeJSC.h"
-#include "runtime_root.h"
+#include <QPointer>
 #include <QStack>
-#include <QWeakPointer>
-#include <QtScript/qscriptengine.h>
+#include "Weak.h"
+#include "runtime_root.h"
 #include <qhash.h>
 #include <qset.h>
 
@@ -38,6 +38,12 @@ class QtRuntimeMetaMethod;
 
 class QtInstance : public Instance {
 public:
+    enum ValueOwnership {
+        QtOwnership,
+        ScriptOwnership,
+        AutoOwnership
+    };
+
     ~QtInstance();
 
     virtual Class* getClass() const;
@@ -48,8 +54,6 @@ public:
 
     virtual JSValue valueOf(ExecState*) const;
     virtual JSValue defaultValue(ExecState*, PreferredPrimitiveType) const;
-
-    void visitAggregate(SlotVisitor&);
 
     virtual JSValue getMethod(ExecState*, PropertyName);
     virtual JSValue invokeMethod(ExecState*, RuntimeMethod*);
@@ -63,12 +67,12 @@ public:
     QObject* getObject() const { return m_object.data(); }
     QObject* hashKey() const { return m_hashkey; }
 
-    static PassRefPtr<QtInstance> getQtInstance(QObject*, PassRefPtr<RootObject>, QScriptEngine::ValueOwnership ownership);
+    static PassRefPtr<QtInstance> getQtInstance(QObject*, PassRefPtr<RootObject>, ValueOwnership);
 
     virtual bool getOwnPropertySlot(JSObject*, ExecState*, PropertyName, PropertySlot&);
     virtual void put(JSObject*, ExecState*, PropertyName, JSValue, PutPropertySlot&);
 
-    void removeCachedMethod(JSObject*);
+    void removeUnusedMethods();
 
     static QtInstance* getInstance(JSObject*);
 
@@ -85,20 +89,53 @@ public:
     static QtSenderStack* qtSenderStack();
 
 private:
-    static PassRefPtr<QtInstance> create(QObject *instance, PassRefPtr<RootObject> rootObject, QScriptEngine::ValueOwnership ownership)
+
+    class QtWeakObjectReference {
+    public:
+        QtWeakObjectReference(JSObject* reference)
+            : m_reference(reference)
+        {
+        }
+
+        QtWeakObjectReference(const QtWeakObjectReference& source)
+            : m_reference(source.m_reference.get())
+        {
+        }
+
+        QtWeakObjectReference()
+            : m_reference()
+        {
+        }
+
+        QtWeakObjectReference& operator=(const QtWeakObjectReference& source)
+        {
+            m_reference = PassWeak<JSObject>(source.m_reference.get());
+            return *this;
+        }
+
+        JSObject* get() const
+        {
+            return m_reference.get();
+        }
+
+    private:
+        Weak<JSObject> m_reference;
+    };
+
+    static PassRefPtr<QtInstance> create(QObject *instance, PassRefPtr<RootObject> rootObject, ValueOwnership ownership)
     {
         return adoptRef(new QtInstance(instance, rootObject, ownership));
     }
 
     friend class QtClass;
     friend class QtField;
-    QtInstance(QObject*, PassRefPtr<RootObject>, QScriptEngine::ValueOwnership ownership); // Factory produced only..
+    QtInstance(QObject*, PassRefPtr<RootObject>, ValueOwnership); // Factory produced only..
     mutable QtClass* m_class;
-    QWeakPointer<QObject> m_object;
+    QPointer<QObject> m_object;
     QObject* m_hashkey;
-    mutable QHash<QByteArray, WriteBarrier<JSObject> > m_methods;
+    mutable QHash<QByteArray, QtWeakObjectReference> m_methods;
     mutable QHash<QString, QtField*> m_fields;
-    QScriptEngine::ValueOwnership m_ownership;
+    ValueOwnership m_ownership;
 };
 
 } // namespace Bindings

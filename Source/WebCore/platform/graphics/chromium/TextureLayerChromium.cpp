@@ -29,9 +29,9 @@
 
 #include "TextureLayerChromium.h"
 
-#include "Extensions3D.h"
 #include "cc/CCLayerTreeHost.h"
 #include "cc/CCTextureLayerImpl.h"
+#include <public/WebGraphicsContext3D.h>
 
 namespace WebCore {
 
@@ -103,6 +103,12 @@ void TextureLayerChromium::setTextureId(unsigned id)
     setNeedsCommit();
 }
 
+void TextureLayerChromium::willModifyTexture()
+{
+    if (layerTreeHost())
+        layerTreeHost()->acquireLayerTextures();
+}
+
 void TextureLayerChromium::setNeedsDisplayRect(const FloatRect& dirtyRect)
 {
     LayerChromium::setNeedsDisplayRect(dirtyRect);
@@ -127,7 +133,7 @@ void TextureLayerChromium::update(CCTextureUpdater& updater, const CCOcclusionTr
 {
     if (m_client) {
         m_textureId = m_client->prepareTexture(updater);
-        m_contextLost = m_client->context()->getExtensions()->getGraphicsResetStatusARB() != GraphicsContext3D::NO_ERROR;
+        m_contextLost = m_client->context()->getGraphicsResetStatusARB() != GraphicsContext3D::NO_ERROR;
     }
 
     m_needsDisplay = false;

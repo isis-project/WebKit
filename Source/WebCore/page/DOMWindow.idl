@@ -64,7 +64,7 @@ module window {
 
         readonly attribute [CheckSecurityForNode] Element frameElement;
 
-        [DoNotCheckSecurity] void focus();
+        [DoNotCheckSecurity, CallWith=ScriptExecutionContext] void focus();
         [DoNotCheckSecurity] void blur();
         [DoNotCheckSecurity, CallWith=ScriptExecutionContext] void close();
 
@@ -388,6 +388,8 @@ module window {
         attribute EntityReferenceConstructor EntityReference;
         attribute ProcessingInstructionConstructor ProcessingInstruction;
         attribute [Conditional=SHADOW_DOM, V8EnabledPerContext=shadowDOM] ShadowRootConstructor WebKitShadowRoot;
+        attribute [Conditional=SHADOW_DOM, V8EnabledPerContext=shadowDOM] HTMLContentElementConstructor HTMLContentElement;
+        attribute [Conditional=SHADOW_DOM, V8EnabledPerContext=shadowDOM] HTMLShadowElementConstructor HTMLShadowElement;
 
         attribute DOMSelectionConstructor Selection;
         attribute DOMWindowConstructor Window;
@@ -775,10 +777,6 @@ module window {
         attribute [Conditional=BLOB&LEGACY_WEBKIT_BLOB_BUILDER] WebKitBlobBuilderConstructor WebKitBlobBuilder;
 
         attribute [Conditional=BLOB] DOMURLConstructor webkitURL;
-
-#if defined(ENABLE_QUOTA) && ENABLE_QUOTA
-        readonly attribute [V8EnabledAtRuntime=Quota] StorageInfo webkitStorageInfo;
-#endif
 
         attribute [Conditional=MUTATION_OBSERVERS] WebKitMutationObserverConstructor WebKitMutationObserver;
 

@@ -29,13 +29,13 @@
 
 #include "cc/CCSolidColorLayerImpl.h"
 
-#include "LayerRendererChromium.h"
 #include "cc/CCQuadCuller.h"
 #include "cc/CCSolidColorDrawQuad.h"
 #include <wtf/MathExtras.h>
 #include <wtf/text/WTFString.h>
 
 using namespace std;
+using WebKit::WebTransformationMatrix;
 
 namespace WebCore {
 
@@ -49,9 +49,9 @@ CCSolidColorLayerImpl::~CCSolidColorLayerImpl()
 {
 }
 
-TransformationMatrix CCSolidColorLayerImpl::quadTransform() const
+WebTransformationMatrix CCSolidColorLayerImpl::quadTransform() const
 {
-    TransformationMatrix solidColorTransform = drawTransform();
+    WebTransformationMatrix solidColorTransform = drawTransform();
     solidColorTransform.translate(-bounds().width() / 2.0, -bounds().height() / 2.0);
 
     return solidColorTransform;

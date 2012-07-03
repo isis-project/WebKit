@@ -102,17 +102,6 @@ void LayoutTestController::display()
     displayWebView();
 }
 
-JSRetainPtr<JSStringRef> LayoutTestController::counterValueForElementById(JSStringRef id)
-{
-    gchar* idGChar = JSStringCopyUTF8CString(id);
-    CString counterValueGChar = DumpRenderTreeSupportGtk::counterValueForElementById(mainFrame, idGChar);
-    g_free(idGChar);
-    if (counterValueGChar.isNull())
-        return 0;
-    JSRetainPtr<JSStringRef> counterValue(Adopt, JSStringCreateWithUTF8CString(counterValueGChar.data()));
-    return counterValue;
-}
-
 void LayoutTestController::keepWebHistory()
 {
     // FIXME: implement
@@ -818,6 +807,9 @@ void LayoutTestController::overridePreference(JSStringRef key, JSStringRef value
     } else if (g_str_equal(originalName.get(), "WebKitPageCacheSupportsPluginsPreferenceKey")) {
         DumpRenderTreeSupportGtk::setPageCacheSupportsPlugins(webkit_web_frame_get_web_view(mainFrame), booleanFromValue(valueAsString.get()));
         return;
+    } else if (g_str_equal(originalName.get(), "WebKitCSSGridLayoutEnabled")) {
+        DumpRenderTreeSupportGtk::setCSSGridLayoutEnabled(webkit_web_frame_get_web_view(mainFrame), booleanFromValue(valueAsString.get()));
+        return;
     } else {
         fprintf(stderr, "LayoutTestController::overridePreference tried to override "
                 "unknown preference '%s'.\n", originalName.get());
@@ -1007,6 +999,11 @@ void LayoutTestController::setAutomaticLinkDetectionEnabled(bool)
 }
 
 void LayoutTestController::sendWebIntentResponse(JSStringRef)
+{
+    // FIXME: Implement this.
+}
+
+void LayoutTestController::deliverWebIntent(JSStringRef, JSStringRef, JSStringRef)
 {
     // FIXME: Implement this.
 }

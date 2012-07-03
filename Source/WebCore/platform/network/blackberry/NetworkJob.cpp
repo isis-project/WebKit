@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009, 2010, 2011 Research In Motion Limited. All rights reserved.
+ * Copyright (C) 2009, 2010, 2011, 2012 Research In Motion Limited. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -208,6 +208,13 @@ void NetworkJob::handleNotifyStatusReceived(int status, const String& message)
         m_response.setHTTPStatusCode(status);
 
     m_response.setHTTPStatusText(message);
+
+    if (!isError(m_extendedStatusCode))
+        storeCredentials();
+    else if (isUnauthorized(m_extendedStatusCode)) {
+        purgeCredentials();
+        BlackBerry::Platform::log(BlackBerry::Platform::LogLevelCritical, "Authentication failed, purge the stored credentials for this site.");
+    }
 }
 
 void NetworkJob::notifyHeadersReceived(BlackBerry::Platform::NetworkRequest::HeaderList& headers)
@@ -247,6 +254,36 @@ void NetworkJob::notifyMultipartHeaderReceived(const char* key, const char* valu
         handleNotifyMultipartHeaderReceived(key, value);
 }
 
+void NetworkJob::notifyAuthReceived(BlackBerry::Platform::NetworkRequest::AuthType authType, const char* realm)
+{
+    using BlackBerry::Platform::NetworkRequest;
+
+    ProtectionSpaceServerType serverType = ProtectionSpaceServerHTTP;
+    ProtectionSpaceAuthenticationScheme scheme = ProtectionSpaceAuthenticationSchemeDefault;
+    switch (authType) {
+    case NetworkRequest::AuthHTTPBasic:
+        scheme = ProtectionSpaceAuthenticationSchemeHTTPBasic;
+        break;
+    case NetworkRequest::AuthHTTPDigest:
+        scheme = ProtectionSpaceAuthenticationSchemeHTTPDigest;
+        break;
+    case NetworkRequest::AuthHTTPNTLM:
+        scheme = ProtectionSpaceAuthenticationSchemeNTLM;
+        break;
+    case NetworkRequest::AuthFTP:
+        serverType = ProtectionSpaceServerFTP;
+        break;
+    case NetworkRequest::AuthProxy:
+        serverType = ProtectionSpaceProxyHTTP;
+        break;
+    case NetworkRequest::AuthNone:
+    default:
+        return;
+    }
+
+    sendRequestWithCredentials(serverType, scheme, realm);
+}
+
 void NetworkJob::notifyStringHeaderReceived(const String& key, const String& value)
 {
     if (shouldDeferLoading())
@@ -279,11 +316,7 @@ void NetworkJob::handleNotifyHeaderReceived(const String& key, const String& val
             m_response.setHTTPHeaderField(key, m_response.httpHeaderField(key) + "\r\n" + value);
             return;
         }
-    } else if (m_extendedStatusCode == 401 && lowerKey == "www-authenticate")
-        handleAuthHeader(ProtectionSpaceServerHTTP, value);
-    else if (m_extendedStatusCode == 407 && lowerKey == "proxy-authenticate" && !BlackBerry::Platform::Client::get()->getProxyAddress().empty())
-        handleAuthHeader(ProtectionSpaceProxyHTTP, value);
-    else if (equalIgnoringCase(key, BlackBerry::Platform::NetworkRequest::HEADER_BLACKBERRY_FTP))
+    } else if (equalIgnoringCase(key, BlackBerry::Platform::NetworkRequest::HEADER_BLACKBERRY_FTP))
         handleFTPHeader(value);
 
     m_response.setHTTPHeaderField(key, value);
@@ -441,14 +474,6 @@ void NetworkJob::handleNotifyClose(int status)
             notifyStatusReceived(BlackBerry::Platform::FilterStream::StatusNetworkError, 0);
         }
 
-        // If an HTTP authentication-enabled request is successful, save
-        // the credentials for later reuse. If the request fails, delete
-        // the saved credentials.
-        if (!isError(m_extendedStatusCode))
-            storeCredentials();
-        else if (isUnauthorized(m_extendedStatusCode))
-            purgeCredentials();
-
         if (shouldReleaseClientResource()) {
             if (isRedirect(m_extendedStatusCode) && (m_redirectCount >= s_redirectMaximum))
                 m_extendedStatusCode = BlackBerry::Platform::FilterStream::StatusTooManyRedirects;
@@ -516,6 +541,11 @@ bool NetworkJob::retryAsFTPDirectory()
 
 bool NetworkJob::startNewJobWithRequest(ResourceRequest& newRequest, bool increasRedirectCount)
 {
+    // m_frame can be null if this is a PingLoader job (See NetworkJob::initialize).
+    // In this case we don't start new request.
+    if (!m_frame)
+        return false;
+
     if (isClientAvailable()) {
         RecursionGuard guard(m_callingClient);
         m_handle->client()->willSendRequest(m_handle.get(), newRequest, m_response);
@@ -593,10 +623,15 @@ void NetworkJob::sendResponseIfNeeded()
     String mimeType = m_sniffedMimeType;
     if (m_isFTP && m_isFTPDir)
         mimeType = "application/x-ftp-directory";
-    if (mimeType.isNull())
+    else if (mimeType.isNull())
         mimeType = extractMIMETypeFromMediaType(m_contentType);
     if (mimeType.isNull())
         mimeType = MIMETypeRegistry::getMIMETypeForPath(urlFilename);
+    if (!m_dataReceived && mimeType == "application/octet-stream") {
+        // For empty content, if can't guess its mimetype from filename, we manually
+        // set the mimetype to "text/plain" in case it goes to download.
+        mimeType = "text/plain";
+    }
     m_response.setMimeType(mimeType);
 
     // Set encoding from Content-Type header.
@@ -646,62 +681,6 @@ void NetworkJob::sendMultipartResponseIfNeeded()
         m_handle->client()->didReceiveResponse(m_handle.get(), *m_multipartResponse);
         m_multipartResponse = nullptr;
     }
-}
-
-bool NetworkJob::handleAuthHeader(const ProtectionSpaceServerType space, const String& header)
-{
-    if (!m_handle)
-        return false;
-
-    if (!m_handle->getInternal()->m_currentWebChallenge.isNull())
-        return false;
-
-    if (header.isEmpty())
-        return false;
-
-    if (equalIgnoringCase(header, "ntlm"))
-        sendRequestWithCredentials(space, ProtectionSpaceAuthenticationSchemeNTLM, "NTLM");
-
-    // Extract the auth scheme and realm from the header.
-    size_t spacePos = header.find(' ');
-    if (spacePos == notFound) {
-        LOG(Network, "%s-Authenticate field '%s' badly formatted: missing scheme.", space == ProtectionSpaceServerHTTP ? "WWW" : "Proxy", header.utf8().data());
-        return false;
-    }
-
-    String scheme = header.left(spacePos);
-
-    ProtectionSpaceAuthenticationScheme protectionSpaceScheme = ProtectionSpaceAuthenticationSchemeDefault;
-    if (equalIgnoringCase(scheme, "basic"))
-        protectionSpaceScheme = ProtectionSpaceAuthenticationSchemeHTTPBasic;
-    else if (equalIgnoringCase(scheme, "digest"))
-        protectionSpaceScheme = ProtectionSpaceAuthenticationSchemeHTTPDigest;
-    else {
-        notImplemented();
-        return false;
-    }
-
-    size_t realmPos = header.findIgnoringCase("realm=", spacePos);
-    if (realmPos == notFound) {
-        LOG(Network, "%s-Authenticate field '%s' badly formatted: missing realm.", space == ProtectionSpaceServerHTTP ? "WWW" : "Proxy", header.utf8().data());
-        return false;
-    }
-    size_t beginPos = realmPos + 6;
-    String realm  = header.right(header.length() - beginPos);
-    if (realm.startsWith("\"")) {
-        beginPos += 1;
-        size_t endPos = header.find("\"", beginPos);
-        if (endPos == notFound) {
-            LOG(Network, "%s-Authenticate field '%s' badly formatted: invalid realm.", space == ProtectionSpaceServerHTTP ? "WWW" : "Proxy", header.utf8().data());
-            return false;
-        }
-        realm = header.substring(beginPos, endPos - beginPos);
-    }
-
-    // Get the user's credentials and resend the request.
-    sendRequestWithCredentials(space, protectionSpaceScheme, realm);
-
-    return true;
 }
 
 bool NetworkJob::handleFTPHeader(const String& header)
@@ -780,8 +759,8 @@ bool NetworkJob::sendRequestWithCredentials(ProtectionSpaceServerType type, Prot
         if (username.isEmpty() || password.isEmpty()) {
             // Before asking the user for credentials, we check if the URL contains that.
             if (!m_handle->getInternal()->m_user.isEmpty() && !m_handle->getInternal()->m_pass.isEmpty()) {
-                username = m_handle->getInternal()->m_user.utf8().data();
-                password = m_handle->getInternal()->m_pass.utf8().data();
+                username = m_handle->getInternal()->m_user;
+                password = m_handle->getInternal()->m_pass;
 
                 // Prevent them from been used again if they are wrong.
                 // If they are correct, they will the put into CredentialStorage.
@@ -801,8 +780,6 @@ bool NetworkJob::sendRequestWithCredentials(ProtectionSpaceServerType type, Prot
         m_handle->getInternal()->m_currentWebChallenge = AuthenticationChallenge(protectionSpace, credential, 0, m_response, ResourceError());
     }
 
-    // FIXME: Resend the resource request. Cloned from handleRedirect(). Not sure
-    // if we need everything that follows...
     ResourceRequest newRequest = m_handle->firstRequest();
     newRequest.setURL(newURL);
     newRequest.setMustHandleInternally(true);

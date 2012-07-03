@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2010, 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2012 Intel Corporation. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -85,8 +86,15 @@
 #include <WebCore/WindowFeatures.h>
 #include <stdio.h>
 
+#if ENABLE(WEB_INTENTS)
+#include "IntentData.h"
+#include "IntentServiceInfo.h"
+#include "WebIntentData.h"
+#include "WebIntentServiceInfo.h"
+#endif
+
 #if USE(UI_SIDE_COMPOSITING)
-#include "LayerTreeHostProxyMessages.h"
+#include "LayerTreeCoordinatorProxyMessages.h"
 #endif
 
 #if PLATFORM(QT)
@@ -179,6 +187,7 @@ WebPageProxy::WebPageProxy(PageClient* pageClient, PassRefPtr<WebProcessProxy> p
     , m_gapBetweenPages(0)
     , m_isValid(true)
     , m_isClosed(false)
+    , m_canRunModal(false)
     , m_isInPrintingMode(false)
     , m_isPerformingDOMPrintOperation(false)
     , m_inDecidePolicyForResponse(false)
@@ -210,6 +219,7 @@ WebPageProxy::WebPageProxy(PageClient* pageClient, PassRefPtr<WebProcessProxy> p
     , m_pageCount(0)
     , m_renderTreeSize(0)
     , m_shouldSendEventsSynchronously(false)
+    , m_suppressVisibilityUpdates(false)
     , m_mediaVolume(1)
 #if ENABLE(PAGE_VISIBILITY_API)
     , m_visibilityState(PageVisibilityStateVisible)
@@ -296,7 +306,7 @@ void WebPageProxy::initializeUIClient(const WKPageUIClient* client)
     m_uiClient.initialize(client);
 
     process()->send(Messages::WebPage::SetCanRunBeforeUnloadConfirmPanel(m_uiClient.canRunBeforeUnloadConfirmPanel()), m_pageID);
-    process()->send(Messages::WebPage::SetCanRunModal(m_uiClient.canRunModal()), m_pageID);
+    setCanRunModal(m_uiClient.canRunModal());
 }
 
 void WebPageProxy::initializeFindClient(const WKPageFindClient* client)
@@ -394,6 +404,13 @@ void WebPageProxy::close()
         m_openPanelResultListener->invalidate();
         m_openPanelResultListener = 0;
     }
+
+#if ENABLE(INPUT_TYPE_COLOR)
+    if (m_colorChooser) {
+        m_colorChooser->invalidate();
+        m_colorChooser = nullptr;
+    }
+#endif
 
 #if ENABLE(GEOLOCATION)
     m_geolocationPermissionRequestManager.invalidateRequests();
@@ -1614,6 +1631,16 @@ void WebPageProxy::getSourceForFrame(WebFrameProxy* frame, PassRefPtr<StringCall
     process()->send(Messages::WebPage::GetSourceForFrame(frame->frameID(), callbackID), m_pageID);
 }
 
+#if ENABLE(WEB_INTENTS)
+void WebPageProxy::deliverIntentToFrame(WebFrameProxy* frame, WebIntentData* webIntentData)
+{
+    if (!isValid())
+        return;
+
+    process()->send(Messages::WebPage::DeliverIntentToFrame(frame->frameID(), webIntentData->store()), m_pageID);
+}
+#endif
+
 void WebPageProxy::getContentsAsString(PassRefPtr<StringCallback> prpCallback)
 {
     RefPtr<StringCallback> callback = prpCallback;
@@ -1720,8 +1747,8 @@ void WebPageProxy::didReceiveMessage(CoreIPC::Connection* connection, CoreIPC::M
     }
 
 #if USE(UI_SIDE_COMPOSITING)
-    if (messageID.is<CoreIPC::MessageClassLayerTreeHostProxy>()) {
-        m_drawingArea->didReceiveLayerTreeHostProxyMessage(connection, messageID, arguments);
+    if (messageID.is<CoreIPC::MessageClassLayerTreeCoordinatorProxy>()) {
+        m_drawingArea->didReceiveLayerTreeCoordinatorProxyMessage(connection, messageID, arguments);
         return;
     }
 #endif
@@ -1865,6 +1892,17 @@ void WebPageProxy::didFinishProgress()
 
     m_loaderClient.didFinishProgress(this);
 }
+
+#if ENABLE(WEB_INTENTS_TAG)
+void WebPageProxy::registerIntentServiceForFrame(uint64_t frameID, const IntentServiceInfo& serviceInfo)
+{
+    WebFrameProxy* frame = process()->webFrame(frameID);
+    MESSAGE_CHECK(frame);
+
+    RefPtr<WebIntentServiceInfo> webIntentServiceInfo = WebIntentServiceInfo::create(serviceInfo);
+    m_loaderClient.registerIntentServiceForFrame(this, frame, webIntentServiceInfo.get());
+}
+#endif
 
 void WebPageProxy::didStartProvisionalLoadForFrame(uint64_t frameID, const String& url, const String& unreachableURL, CoreIPC::ArgumentDecoder* arguments)
 {
@@ -2135,6 +2173,17 @@ void WebPageProxy::didDetectXSSForFrame(uint64_t frameID, CoreIPC::ArgumentDecod
 
     m_loaderClient.didDetectXSSForFrame(this, frame, userData.get());
 }
+
+#if ENABLE(WEB_INTENTS)
+void WebPageProxy::didReceiveIntentForFrame(uint64_t frameID, const IntentData& intentData)
+{
+    WebFrameProxy* frame = process()->webFrame(frameID);
+    MESSAGE_CHECK(frame);
+
+    RefPtr<WebIntentData> webIntentData = WebIntentData::create(intentData);
+    m_loaderClient.didReceiveIntentForFrame(this, frame, webIntentData.get());
+}
+#endif
 
 void WebPageProxy::frameDidBecomeFrameSet(uint64_t frameID, bool value)
 {
@@ -2608,6 +2657,50 @@ void WebPageProxy::certificateVerificationRequest(const String& hostname, bool& 
 void WebPageProxy::needTouchEvents(bool needTouchEvents)
 {
     m_needTouchEvents = needTouchEvents;
+}
+#endif
+
+#if ENABLE(INPUT_TYPE_COLOR)
+void WebPageProxy::showColorChooser(const WebCore::Color& initialColor)
+{
+    ASSERT(!m_colorChooser);
+
+    m_colorChooser = m_pageClient->createColorChooserProxy(this, initialColor);
+}
+
+void WebPageProxy::setColorChooserColor(const WebCore::Color& color)
+{
+    ASSERT(m_colorChooser);
+
+    m_colorChooser->setSelectedColor(color);
+}
+
+void WebPageProxy::endColorChooser()
+{
+    ASSERT(m_colorChooser);
+
+    m_colorChooser->endChooser();
+}
+
+void WebPageProxy::didChooseColor(const WebCore::Color& color)
+{
+    if (!isValid())
+        return;
+
+    process()->send(Messages::WebPage::DidChooseColor(color), m_pageID);
+}
+
+void WebPageProxy::didEndColorChooser()
+{
+    if (!isValid())
+        return;
+
+    ASSERT(m_colorChooser);
+
+    m_colorChooser->invalidate();
+    m_colorChooser = nullptr;
+
+    process()->send(Messages::WebPage::DidEndColorChooser(), m_pageID);
 }
 #endif
 
@@ -3363,6 +3456,13 @@ void WebPageProxy::processDidCrash()
         m_openPanelResultListener = nullptr;
     }
 
+#if ENABLE(INPUT_TYPE_COLOR)
+    if (m_colorChooser) {
+        m_colorChooser->invalidate();
+        m_colorChooser = nullptr;
+    }
+#endif
+
 #if ENABLE(GEOLOCATION)
     m_geolocationPermissionRequestManager.invalidateRequests();
 #endif
@@ -3461,13 +3561,14 @@ WebPageCreationParameters WebPageProxy::creationParameters() const
     parameters.sessionState = SessionState(m_backForwardList->entries(), m_backForwardList->currentIndex());
     parameters.highestUsedBackForwardItemID = WebBackForwardListItem::highedUsedItemID();
     parameters.canRunBeforeUnloadConfirmPanel = m_uiClient.canRunBeforeUnloadConfirmPanel();
-    parameters.canRunModal = m_uiClient.canRunModal();
+    parameters.canRunModal = m_canRunModal;
     parameters.deviceScaleFactor = m_intrinsicDeviceScaleFactor;
     parameters.mediaVolume = m_mediaVolume;
 
 #if PLATFORM(MAC)
     parameters.isSmartInsertDeleteEnabled = m_isSmartInsertDeleteEnabled;
     parameters.layerHostingMode = m_layerHostingMode;
+    parameters.colorSpace = m_pageClient->colorSpace();
 #endif
 
 #if PLATFORM(WIN)
@@ -3591,6 +3692,12 @@ void WebPageProxy::runModal()
     // Since runModal() can (and probably will) spin a nested run loop we need to turn off the responsiveness timer.
     process()->responsivenessTimer()->stop();
 
+    // Our Connection's run loop might have more messages waiting to be handled after this RunModal message.
+    // To make sure they are handled inside of the the nested modal run loop we must first signal the Connection's
+    // run loop so we're guaranteed that it has a chance to wake up.
+    // See http://webkit.org/b/89590 for more discussion.
+    process()->connection()->wakeUpRunLoop();
+
     m_uiClient.runModal(this);
 }
 
@@ -3659,6 +3766,23 @@ void WebPageProxy::didFinishLoadingDataForCustomRepresentation(const String& sug
 void WebPageProxy::backForwardRemovedItem(uint64_t itemID)
 {
     process()->send(Messages::WebPage::DidRemoveBackForwardItem(itemID), m_pageID);
+}
+
+void WebPageProxy::setCanRunModal(bool canRunModal)
+{
+    if (!isValid())
+        return;
+
+    // It's only possible to change the state for a WebPage which
+    // already qualifies for running modal child web pages, otherwise
+    // there's no other possibility than not allowing it.
+    m_canRunModal = m_uiClient.canRunModal() && canRunModal;
+    process()->send(Messages::WebPage::SetCanRunModal(m_canRunModal), m_pageID);
+}
+
+bool WebPageProxy::canRunModal()
+{
+    return isValid() ? m_canRunModal : false;
 }
 
 void WebPageProxy::beginPrinting(WebFrameProxy* frame, const PrintInfo& printInfo)
@@ -3810,6 +3934,29 @@ void WebPageProxy::handleAlternativeTextUIResult(const String& result)
         process()->send(Messages::WebPage::HandleAlternativeTextUIResult(result), m_pageID, 0);
 #endif
 }
+
+#if USE(DICTATION_ALTERNATIVES)
+void WebPageProxy::showDictationAlternativeUI(const WebCore::FloatRect& boundingBoxOfDictatedText, uint64_t dictationContext)
+{
+    m_pageClient->showDictationAlternativeUI(boundingBoxOfDictatedText, dictationContext);
+}
+
+void WebPageProxy::dismissDictationAlternativeUI()
+{
+    m_pageClient->dismissDictationAlternativeUI();
+}
+
+void WebPageProxy::removeDictationAlternatives(uint64_t dictationContext)
+{
+    m_pageClient->removeDictationAlternatives(dictationContext);
+}
+
+void WebPageProxy::dictationAlternatives(uint64_t dictationContext, Vector<String>& result)
+{
+    result = m_pageClient->dictationAlternatives(dictationContext);
+}
+#endif
+
 #endif // PLATFORM(MAC)
 
 } // namespace WebKit

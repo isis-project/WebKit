@@ -41,15 +41,12 @@
 #include <wtf/HashSet.h>
 #include <wtf/UnusedParam.h>
 
-#if USE(CG) || USE(CAIRO) || USE(SKIA) || PLATFORM(QT) || PLATFORM(WX)
-#define HAVE_PATH_BASED_BORDER_RADIUS_DRAWING 1
-#endif
-
 namespace WebCore {
 
 class AffineTransform;
 class AnimationController;
 class Cursor;
+class HitTestPoint;
 class HitTestResult;
 class InlineBox;
 class InlineFlowBox;
@@ -197,6 +194,7 @@ public:
     RenderObject* nextInPreOrderAfterChildren() const;
     RenderObject* nextInPreOrderAfterChildren(const RenderObject* stayWithin) const;
     RenderObject* previousInPreOrder() const;
+    RenderObject* previousInPreOrder(const RenderObject* stayWithin) const;
     RenderObject* childAt(unsigned) const;
 
     RenderObject* firstLeafChild() const;
@@ -345,7 +343,7 @@ public:
     virtual bool isSliderThumb() const { return false; }
     virtual bool isTable() const { return false; }
     virtual bool isTableCell() const { return false; }
-    virtual bool isTableCol() const { return false; }
+    virtual bool isRenderTableCol() const { return false; }
     virtual bool isTableCaption() const { return false; }
     virtual bool isTableRow() const { return false; }
     virtual bool isTableSection() const { return false; }
@@ -363,6 +361,7 @@ public:
     virtual bool isRenderFlowThread() const { return false; }
     virtual bool isRenderNamedFlowThread() const { return false; }
     
+    virtual bool isRenderMultiColumnBlock() const { return false; }
     virtual bool isRenderMultiColumnSet() const { return false; }
 
     virtual bool isRenderScrollbarPart() const { return false; }
@@ -375,7 +374,7 @@ public:
 
     bool isHTMLMarquee() const;
 
-    bool isTablePart() const { return isTableCell() || isTableCol() || isTableCaption() || isTableRow() || isTableSection(); }
+    bool isTablePart() const { return isTableCell() || isRenderTableCol() || isTableCaption() || isTableRow() || isTableSection(); }
 
     inline bool isBeforeContent() const;
     inline bool isAfterContent() const;
@@ -488,6 +487,9 @@ public:
             && !isRenderFullScreen()
             && !isRenderFullScreenPlaceholder()
 #endif
+#if ENABLE(MATHML)
+            && !isRenderMathMLBlock()
+#endif
             ;
     }
     bool isAnonymousColumnsBlock() const { return style()->specifiesColumns() && isAnonymousBlock(); }
@@ -498,7 +500,8 @@ public:
     virtual RenderBoxModelObject* virtualContinuation() const { return 0; }
 
     bool isFloating() const { return m_bitfields.floating(); }
-    bool isPositioned() const { return m_bitfields.positioned(); } // absolute or fixed positioning
+    bool isOutOfFlowPositioned() const { return m_bitfields.positioned(); } // absolute or fixed positioning
+    bool isInFlowPositioned() const { return m_bitfields.relPositioned(); } // relative positioning
     bool isRelPositioned() const { return m_bitfields.relPositioned(); } // relative positioning
     bool isText() const  { return m_bitfields.isText(); }
     bool isBox() const { return m_bitfields.isBox(); }
@@ -536,7 +539,7 @@ public:
 
     bool isSelectionBorder() const;
 
-    bool hasClip() const { return isPositioned() && style()->hasClip(); }
+    bool hasClip() const { return isOutOfFlowPositioned() && style()->hasClip(); }
     bool hasOverflowClip() const { return m_bitfields.hasOverflowClip(); }
 
     bool hasTransform() const { return m_bitfields.hasTransform(); }
@@ -550,13 +553,6 @@ public:
 #endif
 
     inline bool preservesNewline() const;
-
-#if !HAVE(PATH_BASED_BORDER_RADIUS_DRAWING)
-    // FIXME: This function should be removed when all ports implement GraphicsContext::clipConvexPolygon()!!
-    // At that time, everyone can use RenderObject::drawBoxSideFromPath() instead. This should happen soon.
-    void drawArcForBoxSide(GraphicsContext*, int x, int y, float thickness, const IntSize& radius, int angleStart,
-                           int angleSpan, BoxSide, Color, EBorderStyle, bool firstCorner);
-#endif
 
     // The pseudo element style can be cached or uncached.  Use the cached method if the pseudo element doesn't respect
     // any pseudo classes (and therefore has no concept of changing state).
@@ -647,9 +643,9 @@ public:
 
     bool isComposited() const;
 
-    bool hitTest(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestFilter = HitTestAll);
-    virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const LayoutPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
+    bool hitTest(const HitTestRequest&, HitTestResult&, const HitTestPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestFilter = HitTestAll);
     virtual void updateHitTestResult(HitTestResult&, const LayoutPoint&);
+    virtual bool nodeAtPoint(const HitTestRequest&, HitTestResult&, const HitTestPoint& pointInContainer, const LayoutPoint& accumulatedOffset, HitTestAction);
 
     virtual VisiblePosition positionForPoint(const LayoutPoint&);
     VisiblePosition createVisiblePosition(int offset, EAffinity);
@@ -785,7 +781,7 @@ public:
 
     virtual unsigned int length() const { return 1; }
 
-    bool isFloatingOrPositioned() const { return (isFloating() || isPositioned()); }
+    bool isFloatingOrOutOfFlowPositioned() const { return (isFloating() || isOutOfFlowPositioned()); }
 
     bool isTransparent() const { return style()->opacity() < 1.0f; }
     float opacity() const { return style()->opacity(); }
@@ -936,7 +932,11 @@ private:
     StyleDifference adjustStyleDifference(StyleDifference, unsigned contextSensitiveProperties) const;
 
     Color selectionColor(int colorProperty) const;
-    
+
+#ifndef NDEBUG
+    void checkBlockPositionedObjectsNeedLayout();
+#endif
+
     RefPtr<RenderStyle> m_style;
 
     Node* m_node;
@@ -1108,6 +1108,9 @@ inline void RenderObject::setNeedsLayout(bool needsLayout, MarkingBehavior markP
         setNormalChildNeedsLayout(false);
         setNeedsPositionedMovementLayout(false);
         setAncestorLineBoxDirty(false);
+#ifndef NDEBUG
+        checkBlockPositionedObjectsNeedLayout();
+#endif
     }
 }
 
@@ -1211,18 +1214,6 @@ inline void adjustFloatRectForAbsoluteZoom(FloatRect& rect, RenderObject* render
     float zoom = renderer->style()->effectiveZoom();
     if (zoom != 1)
         rect.scale(1 / zoom, 1 / zoom);
-}
-
-inline void adjustFloatQuadForPageScale(FloatQuad& quad, float pageScale)
-{
-    if (pageScale != 1)
-        quad.scale(1 / pageScale, 1 / pageScale);
-}
-
-inline void adjustFloatRectForPageScale(FloatRect& rect, float pageScale)
-{
-    if (pageScale != 1)
-        rect.scale(1 / pageScale, 1 / pageScale);
 }
 
 } // namespace WebCore

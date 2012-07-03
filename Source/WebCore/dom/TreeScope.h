@@ -75,6 +75,7 @@ public:
     Element* findAnchor(const String& name);
 
     virtual bool applyAuthorStyles() const;
+    virtual bool resetStyleInheritance() const;
 
     // Used by the basic DOM mutation methods (e.g., appendChild()).
     void adoptIfNeeded(Node*);
@@ -109,6 +110,8 @@ inline bool TreeScope::containsMultipleElementsWithId(const AtomicString& id) co
 {
     return m_elementsById.containsMultiple(id.impl());
 }
+
+TreeScope* commonTreeScope(Node*, Node*);
 
 } // namespace WebCore
 

@@ -32,14 +32,14 @@
 #include "qorientationsensor.h"
 #if QT_VERSION < QT_VERSION_CHECK(5, 0, 0)
 using QTM_NAMESPACE::QOrientationSensor;
-#endif // QT_VERSION < QT_VERSION_CHECK(5, 0, 0).
+#endif
 #endif // ENABLE(ORIENTATION_EVENTS).
 #include "qwebelement.h"
 #include "wtf/RefPtr.h"
 #include "Frame.h"
 #include "ViewportArguments.h"
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
 #include "texmap/TextureMapper.h"
 #endif
 
@@ -84,7 +84,7 @@ public:
         , allowsScrolling(true)
         , marginWidth(-1)
         , marginHeight(-1)
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
         , rootTextureMapperLayer(0)
 #endif
         {}
@@ -104,7 +104,7 @@ public:
     void renderFromTiledBackingStore(WebCore::GraphicsContext*, const QRegion& clip);
 #endif
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
     void renderCompositedLayers(WebCore::GraphicsContext*, const WebCore::IntRect& clip);
 #endif
     void renderFrameExtras(WebCore::GraphicsContext*, QFlags<QWebFrame::RenderLayer>, const QRegion& clip);
@@ -124,7 +124,7 @@ public:
     bool allowsScrolling;
     int marginWidth;
     int marginHeight;
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER)
+#if USE(ACCELERATED_COMPOSITING)
     WebCore::TextureMapperLayer* rootTextureMapperLayer;
     OwnPtr<WebCore::TextureMapper> textureMapper;
 #endif
@@ -151,7 +151,7 @@ public:
     QString linkText;
     QUrl linkUrl;
     QString linkTitle;
-    QWeakPointer<QWebFrame> linkTargetFrame;
+    QPointer<QWebFrame> linkTargetFrame;
     QWebElement linkElement;
     QString alternateText;
     QUrl imageUrl;
@@ -159,7 +159,7 @@ public:
     bool isContentEditable;
     bool isContentSelected;
     bool isScrollBar;
-    QWeakPointer<QWebFrame> frame;
+    QPointer<QWebFrame> frame;
     RefPtr<WebCore::Node> innerNode;
     RefPtr<WebCore::Node> innerNonSharedNode;
 };

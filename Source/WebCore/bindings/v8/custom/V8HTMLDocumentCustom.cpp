@@ -85,11 +85,11 @@ v8::Handle<v8::Value> V8HTMLDocument::GetNamedProperty(HTMLDocument* htmlDocumen
         return v8::Handle<v8::Value>();
 
     HTMLCollection* items = htmlDocument->documentNamedItems(key);
-    if (!items->length())
+    if (items->isEmpty())
         return v8::Handle<v8::Value>();
 
-    if (items->length() == 1) {
-        Node* node = items->firstItem();
+    if (items->hasExactlyOneItem()) {
+        Node* node = items->item(0);
         Frame* frame = 0;
         if (node->hasTagName(HTMLNames::iframeTag) && (frame = static_cast<HTMLIFrameElement*>(node)->contentFrame()))
             return toV8(frame->domWindow(), isolate);
@@ -187,7 +187,7 @@ void V8HTMLDocument::allAccessorSetter(v8::Local<v8::String> name, v8::Local<v8:
 v8::Handle<v8::Value> toV8(HTMLDocument* impl, v8::Isolate* isolate, bool forceNewObject)
 {
     if (!impl)
-        return v8::Null();
+        return v8NullWithCheck(isolate);
     v8::Handle<v8::Object> wrapper = V8HTMLDocument::wrap(impl, isolate, forceNewObject);
     if (wrapper.IsEmpty())
         return wrapper;

@@ -31,12 +31,14 @@
 #include "BitmapSkPictureCanvasLayerTextureUpdater.h"
 
 #include "LayerPainterChromium.h"
+#include "PlatformColor.h"
 #include "SkCanvas.h"
 #include "SkDevice.h"
+#include "cc/CCGraphicsContext.h"
 
 namespace WebCore {
 
-BitmapSkPictureCanvasLayerTextureUpdater::Texture::Texture(BitmapSkPictureCanvasLayerTextureUpdater* textureUpdater, PassOwnPtr<ManagedTexture> texture)
+BitmapSkPictureCanvasLayerTextureUpdater::Texture::Texture(BitmapSkPictureCanvasLayerTextureUpdater* textureUpdater, PassOwnPtr<CCPrioritizedTexture> texture)
     : CanvasLayerTextureUpdater::Texture(texture)
     , m_textureUpdater(textureUpdater)
 {
@@ -52,7 +54,7 @@ void BitmapSkPictureCanvasLayerTextureUpdater::Texture::prepareRect(const IntRec
     textureUpdater()->paintContentsRect(&canvas, sourceRect);
 }
 
-void BitmapSkPictureCanvasLayerTextureUpdater::Texture::updateRect(GraphicsContext3D* context, TextureAllocator* allocator, const IntRect& sourceRect, const IntRect& destRect)
+void BitmapSkPictureCanvasLayerTextureUpdater::Texture::updateRect(CCGraphicsContext* context, TextureAllocator* allocator, const IntRect& sourceRect, const IntRect& destRect)
 {
     texture()->bindTexture(context, allocator);
 
@@ -77,9 +79,9 @@ BitmapSkPictureCanvasLayerTextureUpdater::~BitmapSkPictureCanvasLayerTextureUpda
 {
 }
 
-PassOwnPtr<LayerTextureUpdater::Texture> BitmapSkPictureCanvasLayerTextureUpdater::createTexture(TextureManager* manager)
+PassOwnPtr<LayerTextureUpdater::Texture> BitmapSkPictureCanvasLayerTextureUpdater::createTexture(CCPrioritizedTextureManager* manager)
 {
-    return adoptPtr(new Texture(this, ManagedTexture::create(manager)));
+    return adoptPtr(new Texture(this, CCPrioritizedTexture::create(manager)));
 }
 
 LayerTextureUpdater::SampledTexelFormat BitmapSkPictureCanvasLayerTextureUpdater::sampledTexelFormat(GC3Denum textureFormat)
@@ -89,10 +91,10 @@ LayerTextureUpdater::SampledTexelFormat BitmapSkPictureCanvasLayerTextureUpdater
             LayerTextureUpdater::SampledTexelFormatRGBA : LayerTextureUpdater::SampledTexelFormatBGRA;
 }
 
-void BitmapSkPictureCanvasLayerTextureUpdater::prepareToUpdate(const IntRect& contentRect, const IntSize& tileSize, int borderTexels, float contentsScale, IntRect& resultingOpaqueRect)
+void BitmapSkPictureCanvasLayerTextureUpdater::prepareToUpdate(const IntRect& contentRect, const IntSize& tileSize, float contentsWidthScale, float contentsHeightScale, IntRect& resultingOpaqueRect)
 {
     m_texSubImage.setSubImageSize(tileSize);
-    SkPictureCanvasLayerTextureUpdater::prepareToUpdate(contentRect, tileSize, borderTexels, contentsScale, resultingOpaqueRect);
+    SkPictureCanvasLayerTextureUpdater::prepareToUpdate(contentRect, tileSize, contentsWidthScale, contentsHeightScale, resultingOpaqueRect);
 }
 
 void BitmapSkPictureCanvasLayerTextureUpdater::paintContentsRect(SkCanvas* canvas, const IntRect& sourceRect)
@@ -103,7 +105,7 @@ void BitmapSkPictureCanvasLayerTextureUpdater::paintContentsRect(SkCanvas* canva
     drawPicture(canvas);
 }
 
-void BitmapSkPictureCanvasLayerTextureUpdater::updateTextureRect(GraphicsContext3D* context, GC3Denum format, const IntRect& destRect, const uint8_t* pixels)
+void BitmapSkPictureCanvasLayerTextureUpdater::updateTextureRect(CCGraphicsContext* context, GC3Denum format, const IntRect& destRect, const uint8_t* pixels)
 {
     m_texSubImage.upload(pixels, destRect, destRect, destRect, format, context);
 }

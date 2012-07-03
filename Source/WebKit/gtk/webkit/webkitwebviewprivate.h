@@ -25,6 +25,7 @@
 
 #include "AcceleratedCompositingContext.h"
 #include "FullscreenVideoController.h"
+#include "GeolocationClientMock.h"
 #include "GtkClickCounter.h"
 #include "GtkDragAndDropHelper.h"
 #include "Page.h"
@@ -33,6 +34,10 @@
 #include "WidgetBackingStore.h"
 #include <webkit/webkitwebview.h>
 #include <wtf/gobject/GOwnPtr.h>
+
+#if ENABLE(MEDIA_STREAM)
+#include "UserMediaClientGtk.h"
+#endif
 
 namespace WebKit {
 WebCore::Page* core(WebKitWebView*);
@@ -104,6 +109,14 @@ struct _WebKitWebViewPrivate {
 #if ENABLE(ICONDATABASE)
     gulong iconLoadedHandler;
 #endif
+
+#if ENABLE(MEDIA_STREAM)
+    OwnPtr<WebKit::UserMediaClientGtk> userMediaClient;
+#endif
+
+#if ENABLE(GEOLOCATION)
+    OwnPtr<WebCore::GeolocationClientMock> geolocationClientMock;
+#endif
 };
 
 void webkit_web_view_notify_ready(WebKitWebView*);
@@ -123,6 +136,8 @@ GtkMenu* webkit_web_view_get_context_menu(WebKitWebView*);
 
 void webViewEnterFullscreen(WebKitWebView* webView, WebCore::Node*);
 void webViewExitFullscreen(WebKitWebView* webView);
+
+void webkitWebViewRunFileChooserRequest(WebKitWebView*, WebKitFileChooserRequest*);
 
 #if ENABLE(ICONDATABASE)
 void webkitWebViewRegisterForIconNotification(WebKitWebView*, bool shouldRegister);

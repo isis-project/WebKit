@@ -32,6 +32,7 @@
 #include <BlackBerryPlatformExecutableMessage.h>
 #include <BlackBerryPlatformMessage.h>
 #include <BlackBerryPlatformMessageClient.h>
+#include <EGL/egl.h>
 #include <GenericTimerClient.h>
 #include <ThreadTimerClient.h>
 #include <wtf/CurrentTime.h>
@@ -115,7 +116,7 @@ void WebPageCompositorPrivate::render(const IntRect& targetRect, const IntRect& 
     // For thread safety, we have to do it using a round-trip to the WebKit thread, so the
     // embedder might call this before the round-trip to WebPagePrivate::setCompositor() is
     // done.
-    if (m_webPage->compositor() != this)
+    if (!m_webPage || m_webPage->compositor() != this)
         return;
 
     m_layerRenderer->setClearSurfaceOnDrawLayers(false);
@@ -128,7 +129,7 @@ void WebPageCompositorPrivate::render(const IntRect& targetRect, const IntRect& 
     transform *= *m_webPage->m_transformationMatrix;
 
     if (!drawsRootLayer())
-        m_webPage->m_backingStore->d->compositeContents(m_layerRenderer.get(), transform, contents);
+        m_webPage->m_backingStore->d->compositeContents(m_layerRenderer.get(), transform, contents, !m_backgroundColor.hasAlpha());
 
     compositeLayers(transform);
 }
@@ -189,6 +190,11 @@ bool WebPageCompositorPrivate::drawLayers(const IntRect& dstRect, const FloatRec
     compositeLayers(transform);
 
     return true;
+}
+
+void WebPageCompositorPrivate::setBackgroundColor(const Color& color)
+{
+    m_backgroundColor = color;
 }
 
 void WebPageCompositorPrivate::releaseLayerResources()
@@ -259,7 +265,7 @@ WebPageCompositor::WebPageCompositor(WebPage* page, WebPageCompositorClient* cli
     // This ensures that the compositor will be around for as long as it's
     // needed. Unfortunately RefPtr<T> is not public, so we have declare to
     // resort to manual refcounting.
-    webKitThreadMessageClient()->dispatchMessage(createMethodCallMessage(&WebPagePrivate::setCompositor, d->page(), tmp));
+    webKitThreadMessageClient()->dispatchMessage(createMethodCallMessage(&WebPagePrivate::setCompositor, d->page(), tmp, eglGetCurrentContext()));
 }
 
 WebPageCompositor::~WebPageCompositor()
@@ -268,7 +274,7 @@ WebPageCompositor::~WebPageCompositor()
 
     // If we're being destroyed before the page, send a message to disconnect us
     if (d->page())
-        webKitThreadMessageClient()->dispatchMessage(createMethodCallMessage(&WebPagePrivate::setCompositor, d->page(), PassRefPtr<WebPageCompositorPrivate>(0)));
+        webKitThreadMessageClient()->dispatchMessage(createMethodCallMessage(&WebPagePrivate::setCompositor, d->page(), PassRefPtr<WebPageCompositorPrivate>(0), EGL_NO_CONTEXT));
     d->compositorDestroyed();
     d->deref();
 }

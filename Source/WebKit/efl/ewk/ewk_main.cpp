@@ -25,6 +25,7 @@
 #include "Logging.h"
 #include "PageCache.h"
 #include "PageGroup.h"
+#include "PlatformStrategiesEfl.h"
 #include "ResourceHandle.h"
 #include "ScriptController.h"
 #include "Settings.h"
@@ -145,8 +146,12 @@ Eina_Bool _ewk_init_body(void)
             "work (ie: Adobe Flash)");
 
     WebCore::ScriptController::initializeThreading();
+#if !LOG_DISABLED
     WebCore::initializeLoggingChannelsIfNecessary();
+#endif // !LOG_DISABLED
     WebCore::Settings::setDefaultMinDOMTimerInterval(0.004);
+
+    PlatformStrategiesEfl::initialize();
 
     // Page cache capacity (in pages). Comment from Mac port:
     // (Research indicates that value / page drops substantially after 3 pages.)

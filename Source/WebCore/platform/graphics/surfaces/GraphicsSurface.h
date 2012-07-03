@@ -22,10 +22,10 @@
 
 #include "GraphicsContext.h"
 #include "IntRect.h"
-#include "OwnPtr.h"
-#include "PassOwnPtr.h"
-#include "RefCounted.h"
-#include "RefPtr.h"
+#include <wtf/OwnPtr.h>
+#include <wtf/PassOwnPtr.h>
+#include <wtf/RefCounted.h>
+#include <wtf/RefPtr.h>
 
 #if USE(GRAPHICS_SURFACE)
 
@@ -64,7 +64,9 @@ public:
     static PassRefPtr<GraphicsSurface> create(const IntSize&, Flags);
     static PassRefPtr<GraphicsSurface> create(const IntSize&, Flags, uint32_t token);
     void copyToGLTexture(uint32_t target, uint32_t texture, const IntRect& targetRect, const IntPoint& sourceOffset);
+    void copyFromFramebuffer(uint32_t fbo, const IntRect& sourceRect);
     uint32_t exportToken();
+    uint32_t getTextureID();
     PassOwnPtr<GraphicsContext> beginPaint(const IntRect&, LockOptions);
     PassRefPtr<Image> createReadOnlyImage(const IntRect&);
 
@@ -74,9 +76,11 @@ protected:
     uint32_t platformExport();
     void platformDestroy();
 
+    uint32_t platformGetTextureID();
     char* platformLock(const IntRect&, int* stride, LockOptions);
     void platformUnlock();
     void platformCopyToGLTexture(uint32_t target, uint32_t texture, const IntRect&, const IntPoint&);
+    void platformCopyFromFramebuffer(uint32_t fbo, const IntRect& sourceRect);
 
     PassOwnPtr<GraphicsContext> platformBeginPaint(const IntSize&, char* bits, int stride);
 

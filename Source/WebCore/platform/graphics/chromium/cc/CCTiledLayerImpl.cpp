@@ -29,15 +29,18 @@
 
 #include "cc/CCTiledLayerImpl.h"
 
-#include "LayerRendererChromium.h"
+#include "SkColor.h"
+#include "TextStream.h"
 #include "cc/CCCheckerboardDrawQuad.h"
 #include "cc/CCDebugBorderDrawQuad.h"
+#include "cc/CCLayerTilingData.h"
 #include "cc/CCQuadCuller.h"
 #include "cc/CCSolidColorDrawQuad.h"
 #include "cc/CCTileDrawQuad.h"
 #include <wtf/text/WTFString.h>
 
 using namespace std;
+using WebKit::WebTransformationMatrix;
 
 namespace WebCore {
 
@@ -77,7 +80,7 @@ CCTiledLayerImpl::~CCTiledLayerImpl()
 {
 }
 
-void CCTiledLayerImpl::bindContentsTexture(LayerRendererChromium* layerRenderer)
+unsigned CCTiledLayerImpl::contentsTextureId() const
 {
     // This function is only valid for single texture layers, e.g. masks.
     ASSERT(m_tiler);
@@ -88,7 +91,7 @@ void CCTiledLayerImpl::bindContentsTexture(LayerRendererChromium* layerRenderer)
     Platform3DObject textureId = tile ? tile->textureId() : 0;
     ASSERT(textureId);
 
-    layerRenderer->context()->bindTexture(GraphicsContext3D::TEXTURE_2D, textureId);
+    return textureId;
 }
 
 void CCTiledLayerImpl::dumpLayerProperties(TextStream& ts, int indent) const
@@ -121,9 +124,9 @@ DrawableTile* CCTiledLayerImpl::createTile(int i, int j)
     return addedTile;
 }
 
-TransformationMatrix CCTiledLayerImpl::quadTransform() const
+WebTransformationMatrix CCTiledLayerImpl::quadTransform() const
 {
-    TransformationMatrix transform = drawTransform();
+    WebTransformationMatrix transform = drawTransform();
 
     if (contentBounds().isEmpty())
         return transform;
@@ -151,12 +154,12 @@ void CCTiledLayerImpl::appendQuads(CCQuadCuller& quadList, const CCSharedQuadSta
             for (int i = left; i <= right; ++i) {
                 DrawableTile* tile = tileAt(i, j);
                 IntRect tileRect = m_tiler->tileBounds(i, j);
-                Color borderColor;
+                SkColor borderColor;
 
                 if (m_skipsDraw || !tile || !tile->textureId())
-                    borderColor = Color(debugTileBorderMissingTileColorRed, debugTileBorderMissingTileColorGreen, debugTileBorderMissingTileColorBlue, debugTileBorderAlpha);
+                    borderColor = SkColorSetARGB(debugTileBorderAlpha, debugTileBorderMissingTileColorRed, debugTileBorderMissingTileColorGreen, debugTileBorderMissingTileColorBlue);
                 else
-                    borderColor = Color(debugTileBorderColorRed, debugTileBorderColorGreen, debugTileBorderColorBlue, debugTileBorderAlpha);
+                    borderColor = SkColorSetARGB(debugTileBorderAlpha, debugTileBorderColorRed, debugTileBorderColorGreen, debugTileBorderColorBlue);
                 quadList.append(CCDebugBorderDrawQuad::create(sharedQuadState, tileRect, borderColor, debugTileBorderWidth));
             }
         }

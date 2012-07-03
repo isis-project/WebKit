@@ -4,9 +4,13 @@
             var subFrameDocument;
             function test()
             {
-                if (window.layoutTestController) {
-                    layoutTestController.dumpAsText();
-                    layoutTestController.waitUntilDone();
+                if (window.internals)
+                    window.internals.settings.setWindowFocusRestricted(false);
+                else
+                    log("Could not lift restrictions on window.blur(), this part of the test will fail.\n")
+                if (window.testRunner) {
+                    testRunner.dumpAsText();
+                    testRunner.waitUntilDone();
                 } else {
                     /*
                      * Opening a separate window is only necessary for testing in Safari.
@@ -60,8 +64,8 @@
             
             function doneHandler()
             {
-                if (window.layoutTestController)
-                    layoutTestController.notifyDone();
+                if (window.testRunner)
+                    testRunner.notifyDone();
             }
             function log(msg)
             {

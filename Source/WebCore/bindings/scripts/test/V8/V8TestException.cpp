@@ -21,7 +21,7 @@
 #include "config.h"
 #include "V8TestException.h"
 
-#include "ContextEnabledFeatures.h"
+#include "ContextFeatures.h"
 #include "RuntimeEnabledFeatures.h"
 #include "V8Binding.h"
 #include "V8BindingState.h"
@@ -32,7 +32,7 @@
 
 namespace WebCore {
 
-WrapperTypeInfo V8TestException::info = { V8TestException::GetTemplate, V8TestException::derefObject, 0, 0 };
+WrapperTypeInfo V8TestException::info = { V8TestException::GetTemplate, V8TestException::derefObject, 0, 0, 0, WrapperTypeErrorPrototype };
 
 namespace TestExceptionV8Internal {
 

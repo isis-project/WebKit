@@ -31,10 +31,13 @@
 #include "FloatQuad.h"
 #include "IntRect.h"
 #include "TraceEvent.h"
-#include "TransformationMatrix.h"
 #include "cc/CCLayerTreeHost.h"
 #include "cc/CCLayerTreeHostImpl.h"
+#include "cc/CCMathUtil.h"
 #include <public/Platform.h>
+#include <public/WebTransformationMatrix.h>
+
+using WebKit::WebTransformationMatrix;
 
 namespace WebCore {
 
@@ -55,13 +58,25 @@ static inline float wedgeProduct(const FloatPoint& p1, const FloatPoint& p2)
     return p1.x() * p2.y() - p1.y() * p2.x();
 }
 
-// Computes area of quads that are possibly non-rectangular. Can be easily extended to polygons.
-static inline float quadArea(const FloatQuad& quad)
+// Calculates area of an arbitrary convex polygon with up to 8 points.
+static inline float polygonArea(const FloatPoint points[8], int numPoints)
 {
-    return fabs(0.5 * (wedgeProduct(quad.p1(), quad.p2()) +
-                       wedgeProduct(quad.p2(), quad.p3()) +
-                       wedgeProduct(quad.p3(), quad.p4()) +
-                       wedgeProduct(quad.p4(), quad.p1())));
+    if (numPoints < 3)
+        return 0;
+
+    float area = 0;
+    for (int i = 0; i < numPoints; ++i)
+        area += wedgeProduct(points[i], points[(i+1)%numPoints]);
+    return fabs(0.5f * area);
+}
+
+// Takes a given quad, maps it by the given transformation, and gives the area of the resulting polygon.
+static inline float areaOfMappedQuad(const WebTransformationMatrix& transform, const FloatQuad& quad)
+{
+    FloatPoint clippedQuad[8];
+    int numVerticesInClippedQuad = 0;
+    CCMathUtil::mapClippedQuad(transform, quad, clippedQuad, numVerticesInClippedQuad);
+    return polygonArea(clippedQuad, numVerticesInClippedQuad);
 }
 
 void CCOverdrawMetrics::didPaint(const IntRect& paintedRect)
@@ -78,36 +93,36 @@ void CCOverdrawMetrics::didCullTileForUpload()
         ++m_tilesCulledForUpload;
 }
 
-void CCOverdrawMetrics::didUpload(const TransformationMatrix& transformToTarget, const IntRect& uploadRect, const IntRect& opaqueRect)
+void CCOverdrawMetrics::didUpload(const WebTransformationMatrix& transformToTarget, const IntRect& uploadRect, const IntRect& opaqueRect)
 {
     if (!m_recordMetricsForFrame)
         return;
 
-    float uploadArea = quadArea(transformToTarget.mapQuad(FloatQuad(uploadRect)));
-    float uploadOpaqueArea = quadArea(transformToTarget.mapQuad(FloatQuad(intersection(opaqueRect, uploadRect))));
+    float uploadArea = areaOfMappedQuad(transformToTarget, FloatQuad(uploadRect));
+    float uploadOpaqueArea = areaOfMappedQuad(transformToTarget, FloatQuad(intersection(opaqueRect, uploadRect)));
 
     m_pixelsUploadedOpaque += uploadOpaqueArea;
     m_pixelsUploadedTranslucent += uploadArea - uploadOpaqueArea;
 }
 
-void CCOverdrawMetrics::didCullForDrawing(const TransformationMatrix& transformToTarget, const IntRect& beforeCullRect, const IntRect& afterCullRect)
+void CCOverdrawMetrics::didCullForDrawing(const WebTransformationMatrix& transformToTarget, const IntRect& beforeCullRect, const IntRect& afterCullRect)
 {
     if (!m_recordMetricsForFrame)
         return;
 
-    float beforeCullArea = quadArea(transformToTarget.mapQuad(FloatQuad(beforeCullRect)));
-    float afterCullArea = quadArea(transformToTarget.mapQuad(FloatQuad(afterCullRect)));
+    float beforeCullArea = areaOfMappedQuad(transformToTarget, FloatQuad(beforeCullRect));
+    float afterCullArea = areaOfMappedQuad(transformToTarget, FloatQuad(afterCullRect));
 
     m_pixelsCulledForDrawing += beforeCullArea - afterCullArea;
 }
 
-void CCOverdrawMetrics::didDraw(const TransformationMatrix& transformToTarget, const IntRect& afterCullRect, const IntRect& opaqueRect)
+void CCOverdrawMetrics::didDraw(const WebTransformationMatrix& transformToTarget, const IntRect& afterCullRect, const IntRect& opaqueRect)
 {
     if (!m_recordMetricsForFrame)
         return;
 
-    float afterCullArea = quadArea(transformToTarget.mapQuad(FloatQuad(afterCullRect)));
-    float afterCullOpaqueArea = quadArea(transformToTarget.mapQuad(FloatQuad(intersection(opaqueRect, afterCullRect))));
+    float afterCullArea = areaOfMappedQuad(transformToTarget, FloatQuad(afterCullRect));
+    float afterCullOpaqueArea = areaOfMappedQuad(transformToTarget, FloatQuad(intersection(opaqueRect, afterCullRect)));
 
     m_pixelsDrawnOpaque += afterCullOpaqueArea;
     m_pixelsDrawnTranslucent += afterCullArea - afterCullOpaqueArea;
@@ -129,9 +144,9 @@ template<typename LayerTreeHostType>
 void CCOverdrawMetrics::recordMetricsInternal(MetricsType metricsType, const LayerTreeHostType* layerTreeHost) const
 {
     // This gives approximately 10x the percentage of pixels to fill the viewport once.
-    float normalization = 1000.f / (layerTreeHost->viewportSize().width() * layerTreeHost->viewportSize().height());
+    float normalization = 1000.f / (layerTreeHost->deviceViewportSize().width() * layerTreeHost->deviceViewportSize().height());
     // This gives approximately 100x the percentage of tiles to fill the viewport once, if all tiles were 256x256.
-    float tileNormalization = 10000.f / (layerTreeHost->viewportSize().width() / 256.f * layerTreeHost->viewportSize().height() / 256.f);
+    float tileNormalization = 10000.f / (layerTreeHost->deviceViewportSize().width() / 256.f * layerTreeHost->deviceViewportSize().height() / 256.f);
 
     switch (metricsType) {
     case DrawingToScreen:
@@ -140,8 +155,8 @@ void CCOverdrawMetrics::recordMetricsInternal(MetricsType metricsType, const Lay
         WebKit::Platform::current()->histogramCustomCounts("Renderer4.pixelCountCulled_Draw", static_cast<int>(normalization * m_pixelsCulledForDrawing), 100, 1000000, 50);
 
         {
-            TRACE_COUNTER_ID1("webkit", "DrawPixelsCulled", layerTreeHost, m_pixelsCulledForDrawing);
-            TRACE_EVENT2("webkit", "CCOverdrawMetrics", "PixelsDrawnOpaque", m_pixelsDrawnOpaque, "PixelsDrawnTranslucent", m_pixelsDrawnTranslucent);
+            TRACE_COUNTER_ID1("cc", "DrawPixelsCulled", layerTreeHost, m_pixelsCulledForDrawing);
+            TRACE_EVENT2("cc", "CCOverdrawMetrics", "PixelsDrawnOpaque", m_pixelsDrawnOpaque, "PixelsDrawnTranslucent", m_pixelsDrawnTranslucent);
         }
         break;
     case UpdateAndCommit:
@@ -151,12 +166,12 @@ void CCOverdrawMetrics::recordMetricsInternal(MetricsType metricsType, const Lay
         WebKit::Platform::current()->histogramCustomCounts("Renderer4.tileCountCulled_Upload", static_cast<int>(tileNormalization * m_tilesCulledForUpload), 100, 10000000, 50);
 
         {
-            TRACE_COUNTER_ID1("webkit", "UploadTilesCulled", layerTreeHost, m_tilesCulledForUpload);
-            TRACE_EVENT2("webkit", "CCOverdrawMetrics", "PixelsUploadedOpaque", m_pixelsUploadedOpaque, "PixelsUploadedTranslucent", m_pixelsUploadedTranslucent);
+            TRACE_COUNTER_ID1("cc", "UploadTilesCulled", layerTreeHost, m_tilesCulledForUpload);
+            TRACE_EVENT2("cc", "CCOverdrawMetrics", "PixelsUploadedOpaque", m_pixelsUploadedOpaque, "PixelsUploadedTranslucent", m_pixelsUploadedTranslucent);
         }
         {
             // This must be in a different scope than the TRACE_EVENT2 above.
-            TRACE_EVENT1("webkit", "CCOverdrawPaintMetrics", "PixelsPainted", m_pixelsPainted);
+            TRACE_EVENT1("cc", "CCOverdrawPaintMetrics", "PixelsPainted", m_pixelsPainted);
         }
         break;
     }

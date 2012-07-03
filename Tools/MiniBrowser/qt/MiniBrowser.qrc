@@ -2,6 +2,7 @@
     <qresource prefix="/">
         <file>icons/checkbox_checked.png</file>
         <file>icons/checkbox_unchecked.png</file>
+        <file>icons/contents_width.png</file>
         <file>icons/favicon.png</file>
         <file>icons/folder.png</file>
         <file>icons/info.png</file>
@@ -19,6 +20,7 @@
         <file>qml/AuthenticationDialog.qml</file>
         <file>qml/BrowserWindow.qml</file>
         <file>qml/CheckBox.qml</file>
+        <file>qml/ColorChooser.qml</file>
         <file>qml/ConfirmDialog.qml</file>
         <file>qml/Dialog.qml</file>
         <file>qml/DialogButton.qml</file>

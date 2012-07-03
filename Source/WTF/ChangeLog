@@ -1,3 +1,855 @@
+2012-07-03  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Make use of .qmake.cache for caching features
+
+        Instead of loading() features from the files that need them (and re-running
+        a bunch of checks), we now run feature detection as part of configure.pro,
+        and have build-webkit write the computed feature-defines and CONFIG to
+        .qmake.cache, which is then loaded by qmake _before_ even defaults_pre
+        when building WebKit.pro.
+
+        At some point we'll be able to selectivly prevent running of config tests
+        in configure.pro, which means we don't need a separate code-path for
+        the build-webkit --help case.
+
+        We should also move the code in build-webkit that now uses .webkit.config
+        to detect clean builds, to use .qmake.cache, since we now store the same
+        thing there.
+
+        Original patch by Oswald Buddenhagen <oswald.buddenhagen@nokia.com>
+
+        Reviewed by Tor Arne Vestbø.
+
+        * WTF.pri:
+
+2012-07-03  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r121766.
+        http://trac.webkit.org/changeset/121766
+        https://bugs.webkit.org/show_bug.cgi?id=90465
+
+        It caused flakey build errors on the bots (Requested by Ossy
+        on #webkit).
+
+        * WTF.pri:
+
+2012-07-03  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Make use of .qmake.cache for caching features
+
+        Instead of loading() features from the files that need them (and re-running
+        a bunch of checks), we now run feature detection as part of configure.pro,
+        and have build-webkit write the computed feature-defines and CONFIG to
+        .qmake.cache, which is then loaded by qmake _before_ even defaults_pre
+        when building WebKit.pro.
+
+        At some point we'll be able to selectivly prevent running of config tests
+        in configure.pro, which means we don't need a separate code-path for
+        the build-webkit --help case.
+
+        We should also move the code in build-webkit that now uses .webkit.config
+        to detect clean builds, to use .qmake.cache, since we now store the same
+        thing there.
+
+        Original patch by Oswald Buddenhagen <oswald.buddenhagen@nokia.com>
+
+        Reviewed by Tor Arne Vestbø.
+
+        * WTF.pri:
+
+2012-07-03  Jocelyn Turcotte  <jocelyn.turcotte@nokia.com>  Joel Dillon <joel.dillon@codethink.co.uk>
+
+        [Qt][Win] Fix broken QtWebKit5.lib linking
+        https://bugs.webkit.org/show_bug.cgi?id=88321
+
+        Reviewed by Kenneth Rohde Christiansen.
+
+        Instead of letting a module's headers know which other modules depend on them,
+        have depending modules define explicitely that they want its symbols exported too.
+
+        JavaScriptCore should then be compiled with both BUILDING_JavaScriptCore and
+        STATICALLY_LINKED_WITH_WTF.
+
+        * wtf/ExportMacros.h:
+
+2012-06-29  Tony Chang  <tony@chromium.org>
+
+        Unreviewed, rolling out r121572.
+        http://trac.webkit.org/changeset/121572
+        https://bugs.webkit.org/show_bug.cgi?id=90249
+
+        Breaks Mac build since it depends on r121547, which was rolled
+        out
+
+        * wtf/ThreadingPthreads.cpp:
+        (WTF::initializeCurrentThreadInternal):
+
+2012-06-29  Eric Seidel  <eric@webkit.org>
+
+        Remove BUILDING_ON_LEOPARD now that no ports build on Leopard
+        https://bugs.webkit.org/show_bug.cgi?id=90249
+
+        Reviewed by Ryosuke Niwa.
+
+        * wtf/ThreadingPthreads.cpp:
+        (WTF::initializeCurrentThreadInternal):
+
+2012-06-29  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r121529.
+        http://trac.webkit.org/changeset/121529
+        https://bugs.webkit.org/show_bug.cgi?id=90260
+
+        Failed to compile on Chromium WebKitMacBuilder (Requested by
+        keishi on #webkit).
+
+        * wtf/FastMalloc.cpp:
+        (WTF::TCMalloc_ThreadCache::CreateCacheIfNecessary):
+        * wtf/unicode/icu/CollatorICU.cpp:
+        (WTF::Collator::userDefault):
+
+2012-06-29  Eric Seidel  <eric@webkit.org>
+
+        Remove more BUILDING_ON_LEOPARD branches now that no port builds on Leopard
+        https://bugs.webkit.org/show_bug.cgi?id=90252
+
+        Reviewed by Ryosuke Niwa.
+
+        * wtf/FastMalloc.cpp:
+        (WTF::TCMalloc_ThreadCache::CreateCacheIfNecessary):
+        * wtf/unicode/icu/CollatorICU.cpp:
+        (WTF::Collator::userDefault):
+
+2012-06-29  Eric Seidel  <eric@webkit.org>
+
+        Remove more BUILDING_ON_LEOPARD usage in PLATFORM(MAC) code
+        https://bugs.webkit.org/show_bug.cgi?id=85846
+
+        Reviewed by Adam Barth.
+
+        PLATFORM(MAC) has not supported Leopard for several months now.
+        This change removes about 1/3 of the remaining BUILDING_ON_LEOPARD
+        uses in the PLATFORM(MAC) codepaths.  PLATFORM(CHROMIUM) still
+        supports BUILDING_ON_LEOPARD for now.
+
+        * wtf/Platform.h:
+
+2012-06-28  Kalev Lember  <kalevlember@gmail.com>
+
+        ThreadingWin: Silence GCC compiler warnings
+        https://bugs.webkit.org/show_bug.cgi?id=89491
+
+        Reviewed by Adam Roben.
+
+        * wtf/ThreadingWin.cpp:
+        (WTF::createThreadInternal):
+        (WTF::PlatformCondition::timedWait):
+        (WTF::PlatformCondition::signal): Fix unused-but-set-variable
+        warnings.
+
+2012-06-26  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Add missing heades to HEADERS
+
+        For JavaScriptCore there aren't any Qt specific files, so we include all
+        headers for easy editing in Qt Creator.
+
+        Reviewed by Simon Hausmann.
+
+        * WTF.pro:
+
+2012-06-25  Kent Tamura  <tkent@chromium.org>
+
+        Unreviewed, rolling out r121145.
+        http://trac.webkit.org/changeset/121145
+        https://bugs.webkit.org/show_bug.cgi?id=89847
+
+        Had an objection for the change.
+
+        * wtf/text/StringBuilder.h:
+
+2012-06-25  Yong Li  <yoli@rim.com>
+
+        [BlackBerry] Add JSC statistics into about:memory
+        https://bugs.webkit.org/show_bug.cgi?id=89779
+
+        Reviewed by Rob Buis.
+
+        Turn on WTF_USE_EXPORT_MACROS for BlackBerry port.
+        This will make macros like JS_EXPORT_PRIVATE work without
+        extra porting.
+
+        * wtf/Platform.h:
+
+2012-06-25  Adam Barth  <abarth@webkit.org>
+
+        Use InterpolationLow on chromium-android
+        https://bugs.webkit.org/show_bug.cgi?id=89849
+
+        Reviewed by Daniel Bates.
+
+        Introduce a USE macro to control image interpolation quality.
+
+        * wtf/Platform.h:
+
+2012-06-25  Kent Tamura  <tkent@chromium.org>
+
+        Change the serialization format of form control state to make the code simple
+        https://bugs.webkit.org/show_bug.cgi?id=89847
+
+        Reviewed by Hajime Morita.
+
+        * wtf/text/StringBuilder.h:
+        (WTF::StringBuilder::appendEscaped): Added. This function adds the
+        escaped form of the input string. e.g. if stiring="foo,bar" escape='\'
+        special=',', the appended string is foo\,bar.
+
+2012-06-24  Adam Barth  <abarth@webkit.org>
+
+        Remove USE(CHROMIUM_NET) because it is unused
+        https://bugs.webkit.org/show_bug.cgi?id=89850
+
+        Reviewed by Eric Seidel.
+
+        I didn't see any mentions of CHROMIUM_NET when I grepped the Source
+        directory. Also, this USE macro isn't defined on OS(DARWIN) or
+        OS(ANDROID), which seems a bit odd given that Chromium uses the same
+        network stack on all platforms.
+
+        * wtf/Platform.h:
+
+2012-06-22  Peter Beverloo  <peter@chromium.org>
+
+        [Chromium] Disable c++0x compatibility warnings in JavaScriptCore.gyp when building for Android
+        https://bugs.webkit.org/show_bug.cgi?id=88853
+
+        Reviewed by Steve Block.
+
+        The Android exclusions were necessary to fix a gyp generation error, as
+        the gcc_version variable wasn't being defined for Android. Remove these
+        exceptions when Chromium is able to define the gcc_version variable.
+
+        * WTF.gyp/WTF.gyp:
+
+2012-06-18  Gustavo Noronha Silva  <gustavo.noronha@collabora.com>
+
+        Causes crashes in LLVMPipe
+        https://bugs.webkit.org/show_bug.cgi?id=89358
+
+        Reviewed by Martin Robinson.
+
+        Change suggested by Dave Airlie and Xan Lopez.
+
+        * wtf/Platform.h: disable global fastMalloc for GTK+
+
+2012-06-22  Mario Sanchez Prada  <msanchez@igalia.com>
+
+        Memory corruption on HashTable.h
+        https://bugs.webkit.org/show_bug.cgi?id=88419
+
+        Reviewed by Martin Robinson.
+
+        Simplify definition of WTF_USE_PTHREADS and HAVE_PTHREAD_RWLOCK
+        for the GTK platform using OS(LINUX) instead of HAVE(PTHREAD_H).
+
+        * wtf/Platform.h:
+
+2012-06-21  Parth Patel  <parpatel@rim.com>
+
+        [Blackberry] BlackBerry::Platform::Settings::get() rename to BlackBerry::Platform::Settings::instance() to make it consistent with our other singletons
+        https://bugs.webkit.org/show_bug.cgi?id=89684
+
+        Reviewed by Yong Li.
+        
+        Update setting instance access to use instance() instead of get().
+
+        * wtf/ThreadingPthreads.cpp:
+        (WTF::createThreadInternal):
+
+2012-06-21  Kalev Lember  <kalevlember@gmail.com>
+
+        [GTK] Fix NPAPI plugins on Windows
+        https://bugs.webkit.org/show_bug.cgi?id=54531
+
+        Reviewed by Martin Robinson.
+
+        Define ENABLE_PLUGIN_PACKAGE_SIMPLE_HASH for the GTK+ port, and
+        include OwnPtrWin.cpp in the list of files built on Windows.
+
+        * GNUmakefile.am:
+        * GNUmakefile.list.am:
+        * wtf/Platform.h:
+
+2012-06-21  Balazs Kelemen  <kbalazs@webkit.org>
+
+        Compile error: 'bool std::isinf(float)' is not 'constexpr' with GCC 4.6 in C++11 mode
+        https://bugs.webkit.org/show_bug.cgi?id=88721
+
+        Reviewed by Csaba Osztrogonác.
+
+        Don't define these as consexpr because with gcc 4.6
+        they call non constexpr functions.
+        * wtf/MathExtras.h:
+        (std::wtf_isinf):
+        (std::wtf_isnan):
+
+2012-06-17  Filip Pizlo  <fpizlo@apple.com>
+
+        It should be possible to look at disassembly
+        https://bugs.webkit.org/show_bug.cgi?id=89319
+
+        Reviewed by Sam Weinig.
+        
+        Made changes to Assertions.h to make it friendly to C code again.
+        
+        Added ENABLE(DISASSEMBLER) and USE(UDIS86) logic to Platform.h.
+
+        * wtf/Assertions.h:
+        * wtf/Platform.h:
+
+2012-06-19  Jon Honeycutt  <jhoneycutt@apple.com>
+
+        REGRESSION(r120552): Many tests timing out on Windows
+        https://bugs.webkit.org/show_bug.cgi?id=89433
+
+        Reviewed by Andy Estes.
+
+        * wtf/CurrentTime.cpp:
+        (WTF::lowResUTCTime):
+        It looks like there were two bugs:
+        1) the function was converting from 100ths of nanoseconds to seconds
+           rather than 100s of nanoseconds to seconds by dividing by
+           (nsPerSecond * 100) rather than (nsPerSecond / 100)
+        2) the function should've been returning milliseconds, not seconds
+
+2012-06-18  Tony Payne  <tpayne@chromium.org>
+
+        [chromium] Add iccjpeg and qcms to chromium port.
+        https://bugs.webkit.org/show_bug.cgi?id=81974
+
+        * wtf/Platform.h: Add Chromium USE defines for ICCJPEG and QCMSLIB
+        to each Chromium platform, excluding Android.
+
+        Reviewed by Adam Barth.
+
+2012-06-18  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r120485 and r120582.
+        http://trac.webkit.org/changeset/120485
+        http://trac.webkit.org/changeset/120582
+        https://bugs.webkit.org/show_bug.cgi?id=89345
+
+        chromeos tree breakage (Requested by morrita on #webkit).
+
+        * wtf/Platform.h:
+
+2012-06-17  Patrick Gansterer  <paroga@webkit.org>
+
+        [WIN] Simplify implementation of currentTime()
+        https://bugs.webkit.org/show_bug.cgi?id=83156
+
+        Reviewed by Brent Fulgham.
+
+        Use GetSystemTimeAsFileTime() instead of ftime().
+        This avoids an unneeded call to the MS CRT and
+        brings the Win/WinCE code closer together.
+
+        * wtf/CurrentTime.cpp:
+        (WTF::lowResUTCTime):
+        (WTF::currentTime):
+
+2012-06-15  Tony Payne  <tpayne@chromium.org>
+
+        [chromium] Add iccjpeg and qcms to chromium port.
+        https://bugs.webkit.org/show_bug.cgi?id=81974
+
+        * wtf/Platform.h: Add Chromium USE defines for ICCJPEG and QCMSLIB
+        to each Chromium platform, excluding Android.
+
+        Reviewed by Adam Barth.
+
+2012-06-14  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r120393.
+        http://trac.webkit.org/changeset/120393
+        https://bugs.webkit.org/show_bug.cgi?id=89163
+
+        breaks cr-mac build (Requested by morrita on #webkit).
+
+        * wtf/Platform.h:
+
+2012-06-14  Tony Payne  <tpayne@chromium.org>
+
+        [chromium] Add iccjpeg and qcms to chromium port.
+        https://bugs.webkit.org/show_bug.cgi?id=81974
+
+        * wtf/Platform.h: Add Chromium USE defines for ICCJPEG and QCMSLIB
+        to each Chromium platform, excluding Android.
+
+        Reviewed by Adam Barth.
+
+2012-06-14  Yong Li  <yoli@rim.com>
+
+        [BlackBerry] Implement computeRAMSize for QNX
+        https://bugs.webkit.org/show_bug.cgi?id=89110
+
+        Reviewed by Rob Buis.
+
+        * wtf/RAMSize.cpp:
+        (WTF::computeRAMSize):
+
+2012-06-14  Geoffrey Garen  <ggaren@apple.com>
+
+        ARMv7 should support spinlocks
+        https://bugs.webkit.org/show_bug.cgi?id=88957
+
+        Reviewed by Darin Adler.
+
+        More info @ http://infocenter.arm.com/help/topic/
+        com.arm.doc.genc007826/Barrier_Litmus_Tests_and_Cookbook_A08.pdf
+
+        * wtf/Atomics.h:
+        (WTF::memoryBarrierAfterLock):
+        (WTF::memoryBarrierBeforeUnlock): Added memory barrier primitives since
+        ARMv7 has a weakly ordered memory model.
+
+        * wtf/Platform.h: Enabled compare-and-swap on Windows so our spinlock
+        implementation would continue working on Windows.
+
+        * wtf/TCSpinLock.h:
+        (TCMalloc_SpinLock::Lock):
+        (TCMalloc_SpinLock::Unlock):
+        (TCMalloc_SpinLock): Use our compare-and-swap helper function to avoid
+        rewriting it in assembly here.
+
+        Added memory barriers since ARMv7 needs them.
+
+        Removed PPC support because our helper function doesn't support PPC.
+
+2012-06-13  Arnaud Renevier  <arno@renevier.net>
+
+        make sure headers are included only once per file
+        https://bugs.webkit.org/show_bug.cgi?id=88929
+
+        Reviewed by Kentaro Hara.
+
+        * wtf/FastMalloc.cpp:
+        * wtf/MathExtras.h:
+        * wtf/OSAllocator.h:
+
+2012-06-13  Benjamin Poulain  <benjamin@webkit.org>
+
+        Implement the simple constructors WTFURL's KURL
+        https://bugs.webkit.org/show_bug.cgi?id=85724
+
+        Reviewed by Adam Barth.
+
+        This patch extends WTFURL with:
+        -support basic debugging using print() methods
+        -parsing in the incomming string character set (8bits or 16bits)
+        -add a function for parsing of relative URL (but no implementation yet)
+
+        * WTF.xcodeproj/project.pbxproj:
+        * wtf/text/WTFString.h:
+        (String):
+        * wtf/url/api/ParsedURL.cpp:
+        (WTF::ParsedURL::ParsedURL):
+        (WTF):
+        (WTF::ParsedURL::hasFragment): Add this method to query the framgent availability without
+        allocating a new String.
+        (WTF::ParsedURL::withoutFragment): This method is added to implement KURL::removeFragmentIdentifier() and
+        the parsing of empty relative URL (where we return the base without fragment).
+        (WTF::ParsedURL::print):
+        * wtf/url/api/ParsedURL.h:
+        (ParsedURL):
+        (WTF::ParsedURL::spec):
+        * wtf/url/api/URLString.h:
+        (URLString):
+        * wtf/url/src/URLParser.h:
+        (WTF):
+        (URLParser):
+        (WTF::URLParser::parseURLWithBase):
+        * wtf/url/src/URLSegments.cpp:
+        (WTF::URLSegments::length):
+        (WTF::URLSegments::charactersBefore):
+        * wtf/url/src/URLSegments.h:
+        (URLSegments):
+        Change the boolean argument includeDelimiter in favor of an enum to improve readability.
+
+2012-06-13  Filip Pizlo  <fpizlo@apple.com>
+
+        DFG should be able to set watchpoints on global variables
+        https://bugs.webkit.org/show_bug.cgi?id=88692
+
+        Reviewed by Geoffrey Garen.
+        
+        Added ability to set the inline capacity of segmented vectors.
+        
+        Also added the ability ot ASSERT_NOT_REACHED() without having to
+        propagate NO_RETURN macros, which would be a show-stopper for code
+        that is conditionally unreachable.
+
+        * wtf/Assertions.h:
+        (UNREACHABLE_FOR_PLATFORM):
+        * wtf/SegmentedVector.h:
+        (WTF):
+        (SegmentedVectorIterator):
+        (WTF::SegmentedVectorIterator::operator=):
+        (WTF::SegmentedVectorIterator::SegmentedVectorIterator):
+        (SegmentedVector):
+
+2012-06-13  Sheriff Bot  <webkit.review.bot@gmail.com>
+
+        Unreviewed, rolling out r120172.
+        http://trac.webkit.org/changeset/120172
+        https://bugs.webkit.org/show_bug.cgi?id=88976
+
+        The patch causes compilation failures on Gtk, Qt and Apple Win
+        bots (Requested by zdobersek on #webkit).
+
+        * wtf/SegmentedVector.h:
+        (WTF):
+        (SegmentedVectorIterator):
+        (WTF::SegmentedVectorIterator::operator=):
+        (WTF::SegmentedVectorIterator::SegmentedVectorIterator):
+        (SegmentedVector):
+
+2012-06-10  Filip Pizlo  <fpizlo@apple.com>
+
+        DFG should be able to set watchpoints on global variables
+        https://bugs.webkit.org/show_bug.cgi?id=88692
+
+        Reviewed by Geoffrey Garen.
+        
+        Added ability to set the inline capacity of segmented vectors.
+
+        * wtf/SegmentedVector.h:
+        (WTF):
+        (SegmentedVectorIterator):
+        (WTF::SegmentedVectorIterator::operator=):
+        (WTF::SegmentedVectorIterator::SegmentedVectorIterator):
+        (SegmentedVector):
+
+2012-06-12  Geoffrey Garen  <ggaren@apple.com>
+
+        Try to fix the build.
+
+        Maybe don't export inlined functions.
+
+        * wtf/ThreadingPrimitives.h:
+        (WTF::MutexTryLocker::MutexTryLocker):
+        (WTF::MutexTryLocker::~MutexTryLocker):
+        (WTF::MutexTryLocker::locked):
+
+2012-06-11  Jocelyn Turcotte  <jocelyn.turcotte@nokia.com>
+
+        Using extrernal ICU library on case unsensitive drives will not work
+        https://bugs.webkit.org/show_bug.cgi?id=70913
+
+        Reviewed by Csaba Osztrogonác.
+
+        Properly set the include path for the WTF module and for modules using it.
+        The path should include Source/WTF/wtf only when building WTF itself. Other
+        modules are expected to include the headers as #include <wtf/Header.h>, so
+        only add Source/WTF to their include path.
+
+        "unicode/utf8.h" should now then always reference to ICU in the include path
+        and "wtf/unicode/UTF8.h" reference to the WTF version.
+        This will work as long as WTF object files don't depend on ICU themselves.
+
+        Removed gobject, qt and unicode from the include path as those directories
+        don't exist anymore.
+
+        * WTF.pri:
+        * WTF.pro:
+
+2012-06-11  Carlos Garcia Campos  <cgarcia@igalia.com>
+
+        Unreviewed. Fix make distcheck issues.
+
+        * GNUmakefile.list.am: Add missing header file.
+
+2012-06-09  Dominic Cooney  <dominicc@chromium.org>
+
+        [Chromium] Remove JavaScriptCore dependencies from gyp
+        https://bugs.webkit.org/show_bug.cgi?id=88510
+
+        Reviewed by Adam Barth.
+
+        Chromium doesn't support JSC any more and there doesn't seem to be
+        a strong interest in using GYP as the common build system in other
+        ports.
+
+        * WTF.gyp/WTF.gyp:
+
+2012-06-08  Andy Wingo  <wingo@igalia.com>
+
+        Explictly mark stubs called by JIT as being internal
+        https://bugs.webkit.org/show_bug.cgi?id=88552
+
+        Reviewed by Filip Pizlo.
+
+        * wtf/ExportMacros.h (WTF_INTERNAL, HAVE_INTERNAL_VISIBILITY): New
+        defines.  Regardless of what the port does about visibility in
+        general, for code referenced only from assembly it is useful to
+        give it internal visibility.
+        * wtf/InlineASM.h: Split SYMBOL_STRING_RELOCATION into
+        LOCAL_REFERENCE and GLOBAL_REFERENCE; the former will try to avoid
+        indirection if HAVE(INTERNAL_VISIBILITY).
+
+2012-06-07  Csaba Osztrogonác  <ossy@webkit.org>
+
+        [Qt][Win] Fix linking WTF with ICU
+        https://bugs.webkit.org/show_bug.cgi?id=88302
+
+        Reviewed by Simon Hausmann.
+
+        * WTF.pri: Use proper library names on win32 platforms.
+
+2012-06-06  Michael Saboff  <msaboff@apple.com>
+
+        ENH: Add Logging to GC Marking Phase
+        https://bugs.webkit.org/show_bug.cgi?id=88364
+
+        Reviewed by Filip Pizlo.
+
+        * wtf/DataLog.cpp:
+        (WTF::dataLogString): Additional method to support GC Mark logging.
+        * wtf/DataLog.h:
+        * wtf/Platform.h: New ENABLE_OBJECT_MARK_LOGGING flag macro.
+
+2012-06-06  Andy Wingo  <wingo@igalia.com>
+
+        [GTK] Enable the LLInt
+        https://bugs.webkit.org/show_bug.cgi?id=88315
+
+        Reviewed by Filip Pizlo.
+
+        * wtf/InlineASM.h: Add an implementation of LOCAL_LABEL_STRING for
+        OS(LINUX).
+        * wtf/Platform.h: Add OS(LINUX) to the set of operating systems
+        for ENABLE_LLINT.  Add a specific check for PLATFORM(MAC) or
+        PLATFORM(IOS), and add to that a check for PLATFORM(GTK).
+
+2012-06-05  Roland Takacs  <takacs.roland@stud.u-szeged.hu>
+
+        [Qt] Use GraphicsContext3DOpenGLES.cpp when using OpenGL ES
+        https://bugs.webkit.org/show_bug.cgi?id=78720
+
+        Reviewed by Noam Rosenthal.
+
+        Defined a global Opengl ES macro to check OpenGL ES on every platforms.
+
+        * wtf/Platform.h:
+
+2012-06-04  Takashi Toyoshima  <toyoshim@chromium.org>
+
+        [WebSocket] Send requires super linear time against data size
+        https://bugs.webkit.org/show_bug.cgi?id=87383
+
+        Reviewed by Kent Tamura.
+
+        * wtf/StreamBuffer.h: Added.
+        (WTF):
+        (StreamBuffer):
+        (WTF::StreamBuffer::StreamBuffer):
+        (WTF::StreamBuffer::~StreamBuffer):
+        (WTF::StreamBuffer::isEmpty):
+        (WTF::StreamBuffer::append):
+        (WTF::StreamBuffer::consume):
+        (WTF::StreamBuffer::size):
+        (WTF::StreamBuffer::firstBlockData):
+        (WTF::StreamBuffer::firstBlockSize):
+
+2012-06-04  Patrick Gansterer  <paroga@webkit.org>
+
+        Port RAMSize to WinCE
+        https://bugs.webkit.org/show_bug.cgi?id=87854
+
+        Reviewed by Geoffrey Garen.
+
+        WinCE has no GlobalMemoryStatusEx() function. Use GlobalMemoryStatus() instead.
+
+        * wtf/RAMSize.cpp:
+        (WTF::computeRAMSize):
+
+2012-06-01  Xianzhu Wang  <wangxianzhu@chromium.org>
+
+        Remove dependency from ImageDiff to WTF
+        https://bugs.webkit.org/show_bug.cgi?id=88147
+
+        Reviewed by Adam Barth.
+
+        * WTF.gyp/WTF.gyp:
+
+2012-06-01  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Save one copy when going from 8-bit WTF::String to QString
+
+        Asking for characters() of an 8-bit string will make a 16-bit copy internally
+        in WTF::String. Since we're going to copy the data to QStringData anyways, which
+        is 16-bit, we can do the conversion ourselves and save one copy.
+
+        Reviewed by Simon Hausmann.
+
+        * wtf/qt/StringQt.cpp:
+        (WTF::String::operator QString):
+
+2012-05-30  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Make conversion from QString to WTF::String (and back again) ~free
+
+        https://bugs.webkit.org/show_bug.cgi?id=87847
+
+        Instead of copying the QString data when converting to a WTF::String we
+        make the WTF::String adopt the QString data by introducing a new buffer
+        ownership type, and pointing the internal WTF::StringImpl 16-bit data
+        member to the string data managed by QStringData.
+
+        We make sure to reference the QStringData when adopting, so that the
+        data will stay alive, and then dereference it when the WTF::StringImpl
+        is deleted, which will free the QStringData (either straight away, if
+        we're the only one holding a reference still, or later, when the ref
+        count goes to 0).
+
+        In the case of going back from a WTF::String to a QString we can cheat
+        a bit (avoid a copy), if we know that the WTF::String was adopted from
+        a QString, since it's then just a matter of having the QString adopt
+        the existing QStringData (just like a regular QString copy).
+
+        If the WTF::String buffer is not owned by QStringData, eg a regular
+        8-bit or 16-bit string/substring, we have to fall back to copying,
+        as before (though there are potential optimization tricks we can
+        apply here later on).
+
+        Reviewed by Gavin Barraclough.
+
+        * wtf/qt/StringQt.cpp:
+        * wtf/text/StringImpl.cpp:
+        * wtf/text/StringImpl.h:
+
+2012-06-01  Sudarsana Nagineni  <sudarsana.nagineni@linux.intel.com>
+
+        [EFL] Implement PlatformStrategies
+        https://bugs.webkit.org/show_bug.cgi?id=86946
+
+        Reviewed by Carlos Garcia Campos.
+
+        * wtf/Platform.h: Enable PLATFORM_STRATEGIES for EFL platform.
+
+2012-05-31  Anders Carlsson  <andersca@apple.com>
+
+        Enable support for rvalue references when building with a version of clang that supports them
+        https://bugs.webkit.org/show_bug.cgi?id=88018
+
+        Re-enable support for rvalue references when building with a version of Xcode newer than 4.2.
+
+        * wtf/Compiler.h:
+
+2012-05-31  Filip Pizlo  <fpizlo@apple.com>
+
+        DataLog should be usable outside of JSC
+        https://bugs.webkit.org/show_bug.cgi?id=88015
+
+        Reviewed by Oliver Hunt.
+
+        * wtf/DataLog.h:
+        (WTF):
+
+2012-05-31  Anders Carlsson  <andersca@apple.com>
+
+        Disable support for rvalue references until I figure out why this is breaking the Xcode 4.2 build.
+
+        * wtf/Compiler.h:
+
+2012-05-31  Anders Carlsson  <andersca@apple.com>
+
+        Vector should have a move constructor and move assignment operator
+        https://bugs.webkit.org/show_bug.cgi?id=87997
+
+        Reviewed by Andreas Kling.
+
+        * wtf/Compiler.h:
+        Use __has_extension so we can use move semantics and other C++11 features even when building as C++98.
+
+        * wtf/Vector.h:
+        Add a move constructor and a move assignment operator to Vector.
+
+2012-05-31  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
+
+        [Qt] Simplify QT_VERSION_CHECKS for Qt5 by introducing HAVE(QT5)
+        https://bugs.webkit.org/show_bug.cgi?id=87955
+
+        Reviewed by Simon Hausmann.
+
+        * wtf/qt/UtilsQt.h:
+
+2012-05-30  Caio Marcelo de Oliveira Filho  <caio.oliveira@openbossa.org>
+
+        HashTable.h has using directives for std::pair and std::make_pair
+        https://bugs.webkit.org/show_bug.cgi?id=29919
+
+        Reviewed by Darin Adler.
+
+        * wtf/HashTraits.h:
+        (WTF): Remove the directives.
+
+2012-05-30  Caio Marcelo de Oliveira Filho  <caio.oliveira@openbossa.org>
+
+        HashTable.h has using directives for std::pair and std::make_pair
+        https://bugs.webkit.org/show_bug.cgi?id=29919
+
+        Reviewed by Darin Adler.
+
+        Change code to use std::pair and std::make_pair. Later patch will remove the
+        'using' directives.
+
+        * wtf/HashTable.h:
+        (WTF::hashTableSwap):
+        (HashTable):
+        * wtf/HashTraits.h:
+        (PairHashTraits):
+        (WTF::PairHashTraits::emptyValue):
+
+2012-05-30  Patrick Gansterer  <paroga@webkit.org>
+
+        Build fix for WinCE after r118603.
+
+        * wtf/Atomics.h:
+        (WTF::weakCompareAndSwap):
+
+2012-05-29  Anders Carlsson  <andersca@apple.com>
+
+        String should be move enabled/optimized
+        https://bugs.webkit.org/show_bug.cgi?id=87596
+
+        Reviewed by Andreas Kling.
+
+        Add move constructors and move assignment operators to String and AtomicString when building with
+        compilers that support rvalue references. This gets rid of ref-churn when the source of the 
+        constructor or assignment is a temporary object.
+
+        * wtf/text/AtomicString.h:
+        (AtomicString):
+        (WTF::AtomicString::AtomicString):
+        (WTF::AtomicString::operator=):
+        * wtf/text/WTFString.h:
+        (String):
+        (WTF::String::String):
+        (WTF::String::operator=):
+
+2012-05-29  Alexandre Elias  <aelias@google.com>
+
+        Support WebKit log messages on Android
+        https://bugs.webkit.org/show_bug.cgi?id=87773
+
+        Reviewed by Darin Adler.
+
+        This sends WebKit log messages to the Android "logcat" facility, as
+        Android sends stderr to /dev/null.
+
+        * wtf/Assertions.cpp:
+
 2012-05-29  Tor Arne Vestbø  <tor.arne.vestbo@nokia.com>
 
         [Qt] Remove duplication of logic for disabling selected warnings related to C++11

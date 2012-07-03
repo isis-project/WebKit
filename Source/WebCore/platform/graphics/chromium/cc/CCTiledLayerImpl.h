@@ -26,13 +26,12 @@
 #ifndef CCTiledLayerImpl_h
 #define CCTiledLayerImpl_h
 
-#include "LayerTextureUpdater.h"
-#include "TransformationMatrix.h"
 #include "cc/CCLayerImpl.h"
-#include "cc/CCLayerTilingData.h"
+#include <public/WebTransformationMatrix.h>
 
 namespace WebCore {
 
+class CCLayerTilingData;
 class DrawableTile;
 
 class CCTiledLayerImpl : public CCLayerImpl {
@@ -45,7 +44,7 @@ public:
 
     virtual void appendQuads(CCQuadCuller&, const CCSharedQuadState*, bool& hadMissingTiles) OVERRIDE;
 
-    virtual void bindContentsTexture(LayerRendererChromium*) OVERRIDE;
+    virtual unsigned contentsTextureId() const OVERRIDE;
 
     virtual void dumpLayerProperties(TextStream&, int indent) const OVERRIDE;
 
@@ -65,7 +64,7 @@ protected:
     bool hasTileAt(int, int) const;
     bool hasTextureIdForTileAt(int, int) const;
 
-    virtual TransformationMatrix quadTransform() const OVERRIDE;
+    virtual WebKit::WebTransformationMatrix quadTransform() const OVERRIDE;
 
 private:
 

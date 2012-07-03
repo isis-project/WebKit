@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2011 Apple Inc. All rights reserved.
+ * Copyright (C) 2011, 2012 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -47,6 +47,9 @@ namespace JSC { namespace Options {
 
 bool useJIT;
 
+bool showDisassembly;
+bool showDFGDisassembly;
+
 unsigned maximumOptimizationCandidateInstructionCount;
 
 unsigned maximumFunctionForCallInlineCandidateInstructionCount;
@@ -64,7 +67,8 @@ int32_t thresholdForOptimizeSoon;
 int32_t executionCounterIncrementForLoop;
 int32_t executionCounterIncrementForReturn;
 
-unsigned desiredSpeculativeSuccessFailRatio;
+bool randomizeExecutionCountsBetweenCheckpoints;
+int32_t maximumExecutionCountsBetweenCheckpoints;
 
 double likelyToTakeSlowCaseThreshold;
 double couldTakeSlowCaseThreshold;
@@ -72,10 +76,8 @@ unsigned likelyToTakeSlowCaseMinimumCount;
 unsigned couldTakeSlowCaseMinimumCount;
 
 double osrExitProminenceForFrequentExitSite;
-
-unsigned largeFailCountThresholdBase;
-unsigned largeFailCountThresholdBaseForLoop;
-unsigned forcedOSRExitCountForReoptimization;
+unsigned osrExitCountForReoptimization;
+unsigned osrExitCountForReoptimizationFromLoop;
 
 unsigned reoptimizationRetryCounterMax;
 unsigned reoptimizationRetryCounterStep;
@@ -89,11 +91,11 @@ double doubleVoteRatioForDoubleFormat;
 
 unsigned minimumNumberOfScansBetweenRebalance;
 unsigned gcMarkStackSegmentSize;
-unsigned minimumNumberOfCellsToKeep;
-unsigned maximumNumberOfSharedSegments;
-unsigned sharedStackWakeupThreshold;
 unsigned numberOfGCMarkers;
 unsigned opaqueRootMergeThreshold;
+
+bool forceWeakRandomSeed;
+unsigned forcedWeakRandomSeed;
 
 #if ENABLE(RUN_TIME_HEURISTICS)
 static bool parse(const char* string, bool& value)
@@ -145,9 +147,28 @@ void setHeuristic(T& variable, const char* name, U value)
 #define SET(variable, value) variable = value
 #endif
 
+static unsigned computeNumberOfGCMarkers(int maxNumberOfGCMarkers)
+{
+    int cpusToUse = 1;
+
+#if ENABLE(PARALLEL_GC)
+    cpusToUse = std::min(WTF::numberOfProcessorCores(), maxNumberOfGCMarkers);
+
+    // Be paranoid, it is the OS we're dealing with, after all.
+    ASSERT(cpusToUse >= 1);
+    if (cpusToUse < 1)
+        cpusToUse = 1;
+#endif
+
+    return cpusToUse;
+}
+
 void initializeOptions()
 {
     SET(useJIT, true);
+    
+    SET(showDisassembly, false);
+    SET(showDFGDisassembly, false); // DFG disassembly is shown if showDisassembly || showDFGDisassembly
     
     SET(maximumOptimizationCandidateInstructionCount, 10000);
     
@@ -165,19 +186,18 @@ void initializeOptions()
 
     SET(executionCounterIncrementForLoop,   1);
     SET(executionCounterIncrementForReturn, 15);
-
-    SET(desiredSpeculativeSuccessFailRatio, 6);
     
+    SET(randomizeExecutionCountsBetweenCheckpoints, false);
+    SET(maximumExecutionCountsBetweenCheckpoints, 1000);
+
     SET(likelyToTakeSlowCaseThreshold,    0.15);
     SET(couldTakeSlowCaseThreshold,       0.05); // Shouldn't be zero because some ops will spuriously take slow case, for example for linking or caching.
     SET(likelyToTakeSlowCaseMinimumCount, 100);
     SET(couldTakeSlowCaseMinimumCount,    10);
     
-    SET(osrExitProminenceForFrequentExitSite, 0.3);
-
-    SET(largeFailCountThresholdBase,         20);
-    SET(largeFailCountThresholdBaseForLoop,  1);
-    SET(forcedOSRExitCountForReoptimization, 250);
+    SET(osrExitProminenceForFrequentExitSite,  0.3);
+    SET(osrExitCountForReoptimization,         100);
+    SET(osrExitCountForReoptimizationFromLoop, 5);
 
     SET(reoptimizationRetryCounterStep, 1);
 
@@ -188,25 +208,10 @@ void initializeOptions()
     
     SET(doubleVoteRatioForDoubleFormat, 2);
     
-    SET(minimumNumberOfScansBetweenRebalance, 10000);
+    SET(minimumNumberOfScansBetweenRebalance, 100);
     SET(gcMarkStackSegmentSize,               pageSize());
-    SET(minimumNumberOfCellsToKeep,           10);
-    SET(maximumNumberOfSharedSegments,        3);
-    SET(sharedStackWakeupThreshold,           1);
     SET(opaqueRootMergeThreshold,             1000);
-
-    int cpusToUse = 1;
-#if ENABLE(PARALLEL_GC)
-    cpusToUse = WTF::numberOfProcessorCores();
-#endif
-    // We don't scale so well beyond 4.
-    if (cpusToUse > 4)
-        cpusToUse = 4;
-    // Be paranoid, it is the OS we're dealing with, after all.
-    if (cpusToUse < 1)
-        cpusToUse = 1;
-    
-    SET(numberOfGCMarkers, cpusToUse);
+    SET(numberOfGCMarkers, computeNumberOfGCMarkers(7)); // We don't scale so well beyond 7.
 
     ASSERT(thresholdForOptimizeAfterLongWarmUp >= thresholdForOptimizeAfterWarmUp);
     ASSERT(thresholdForOptimizeAfterWarmUp >= thresholdForOptimizeSoon);
@@ -223,6 +228,9 @@ void initializeOptions()
     
     ASSERT((static_cast<int64_t>(thresholdForOptimizeAfterLongWarmUp) << reoptimizationRetryCounterMax) > 0);
     ASSERT((static_cast<int64_t>(thresholdForOptimizeAfterLongWarmUp) << reoptimizationRetryCounterMax) <= static_cast<int64_t>(std::numeric_limits<int32_t>::max()));
+    
+    SET(forceWeakRandomSeed, false);
+    SET(forcedWeakRandomSeed, 0);
 }
 
 } } // namespace JSC::Options

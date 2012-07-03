@@ -128,7 +128,7 @@ public:
 
     PassRefPtr<TimeRanges> buffered() const;
     void load(ExceptionCode&);
-    String canPlayType(const String& mimeType, const String& keySystem = String()) const;
+    String canPlayType(const String& mimeType, const String& keySystem = String(), const KURL& = KURL()) const;
 
 // ready state
     ReadyState readyState() const;
@@ -427,6 +427,7 @@ private:
 
     virtual String mediaPlayerReferrer() const OVERRIDE;
     virtual String mediaPlayerUserAgent() const OVERRIDE;
+    virtual CORSMode mediaPlayerCORSMode() const OVERRIDE;
 
     virtual bool mediaPlayerNeedsSiteSpecificHacks() const OVERRIDE;
     virtual String mediaPlayerDocumentHost() const OVERRIDE;

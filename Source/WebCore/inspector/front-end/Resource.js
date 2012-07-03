@@ -42,8 +42,6 @@
 WebInspector.Resource = function(request, url, documentURL, frameId, loaderId, type, mimeType, isHidden)
 {
     this._request = request;
-    if (this._request)
-        this._request.setResource(this);
     this.url = url;
     this._documentURL = documentURL;
     this._frameId = frameId;
@@ -56,6 +54,8 @@ WebInspector.Resource = function(request, url, documentURL, frameId, loaderId, t
     /** @type {?string} */ this._content;
     /** @type {boolean} */ this._contentEncoded;
     this._pendingContentCallbacks = [];
+    if (this._request && !this._request.finished)
+        this._request.addEventListener(WebInspector.NetworkRequest.Events.FinishedLoading, this._requestFinished, this);
 }
 
 WebInspector.Resource._domainModelBindings = [];
@@ -150,6 +150,25 @@ WebInspector.Resource.persistRevision = function(revision)
 
     // Schedule async storage.
     setTimeout(persist, 0);
+}
+
+/**
+ * @param {WebInspector.Resource} resource
+ */
+WebInspector.Resource._clearResourceHistory = function(resource)
+{
+    if (!window.localStorage)
+        return;
+
+    if (resource.url.startsWith("inspector://"))
+        return;
+
+    var registry = WebInspector.Resource._resourceRevisionRegistry();
+    var historyItems = registry[resource.url];
+    for (var i = 0; historyItems && i < historyItems.length; ++i)
+        delete window.localStorage[historyItems[i].key];
+    delete registry[resource.url];
+    window.localStorage["resource-history"] = JSON.stringify(registry);
 }
 
 WebInspector.Resource.Events = {
@@ -381,7 +400,8 @@ WebInspector.Resource.prototype = {
         }
 
         this._pendingContentCallbacks.push(callback);
-        this._innerRequestContent();
+        if (!this._request || this._request.finished)
+            this._innerRequestContent();
     },
 
     canonicalMimeType: function()
@@ -438,6 +458,15 @@ WebInspector.Resource.prototype = {
         return "data:" + this.mimeType + (this._contentEncoded ? ";base64," : ",") + this._content;
     },
 
+
+    _requestFinished: function()
+    {
+        this._request.removeEventListener(WebInspector.NetworkRequest.Events.FinishedLoading, this._requestFinished, this);
+        if (this._pendingContentCallbacks.length)
+            this._innerRequestContent();
+    },
+
+
     _innerRequestContent: function()
     {
         if (this._contentRequested)
@@ -471,12 +500,45 @@ WebInspector.Resource.prototype = {
         this.requestContent(revert.bind(this));
     },
 
+    revertAndClearHistory: function(callback)
+    {
+        function revert(content)
+        {
+            this.setContent(content, true, clearHistory.bind(this));
+        }
+
+        function clearHistory()
+        {
+            WebInspector.Resource._clearResourceHistory(this);
+            this.history = [];
+            callback();
+        }
+
+        this.requestContent(revert.bind(this));
+    },
+
     /**
      * @return {boolean}
      */
     isHidden: function()
     {
         return !!this._isHidden; 
+    },
+
+    /**
+     * @return {WebInspector.UISourceCode}
+     */
+    uiSourceCode: function()
+    {
+        return this._uiSourceCode;
+    },
+
+    /**
+     * @param {WebInspector.UISourceCode} uiSourceCode
+     */
+    setUISourceCode: function(uiSourceCode)
+    {
+        this._uiSourceCode = uiSourceCode;
     }
 }
 
