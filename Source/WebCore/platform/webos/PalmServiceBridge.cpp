@@ -332,7 +332,7 @@ void PalmServiceBridge::serviceResponse(const char* body)
     JSGlobalObject* globalObject = frame->script()->bindingRootObject()->globalObject();
     ExecState* exec = globalObject->globalExec();
 
-    JSC::JSLock lock(exec);
+    JSC::JSLockHolder lock(exec);
 
     const JSEventListener* listener = JSEventListener::cast(m_callbackFunction.get());
     JSObject* function = 0;
