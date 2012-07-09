@@ -741,6 +741,7 @@ QWebPage* QDeclarativeWebView::page() const
     \qmlproperty bool WebView::settings.offlineWebApplicationCacheEnabled
     \qmlproperty bool WebView::settings.localStorageDatabaseEnabled
     \qmlproperty bool WebView::settings.localContentCanAccessRemoteUrls
+    \qmlproperty bool WebView::settings.fullScreenEnabled
 
     These properties give access to the settings controlling the web view.
 
@@ -782,7 +783,20 @@ void QDeclarativeWebView::setPage(QWebPage* page)
 
     connect(page->mainFrame(), SIGNAL(javaScriptWindowObjectCleared()), this, SLOT(windowObjectCleared()));
 
+    connect(page, SIGNAL(enterFullScreenRequested()), this, SLOT(doEnterFullScreenRequested()));
+    connect(page, SIGNAL(exitFullScreenRequested()), this, SLOT(doExitFullScreenRequested()));
+
     page->settings()->setAttribute(QWebSettings::TiledBackingStoreEnabled, true);
+}
+
+void QDeclarativeWebView::doEnterFullScreenRequested()
+{
+    setFullScreen(true);
+}
+
+void QDeclarativeWebView::doExitFullScreenRequested()
+{
+    setFullScreen(false);
 }
 
 /*!
@@ -1002,6 +1016,17 @@ void QDeclarativeWebView::setBackgroundColor(const QColor& color)
     emit backgroundColorChanged();
 }
 #endif
+
+bool QDeclarativeWebView::fullScreen() const
+{
+    return m_fullScreen;
+}
+
+void QDeclarativeWebView::setFullScreen(bool value)
+{
+    m_fullScreen = value;
+    emit fullScreenChanged();
+}
 
 /*!
     Returns the area of the largest element at position (\a x,\a y) that is no larger

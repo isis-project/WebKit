@@ -189,6 +189,9 @@ void LauncherWindow::initializeView()
             this, SLOT(showLinkHover(const QString&, const QString&)));
     connect(this, SIGNAL(enteredFullScreenMode(bool)), this, SLOT(toggleFullScreenMode(bool)));
 
+    connect(page(), SIGNAL(enterFullScreenRequested()), this, SLOT(enterFullScreenRequested()));
+    connect(page(), SIGNAL(exitFullScreenRequested()), this, SLOT(exitFullScreenRequested()));
+
     if (m_windowOptions.printLoadedUrls)
         connect(page()->mainFrame(), SIGNAL(urlChanged(QUrl)), this, SLOT(printURL(QUrl)));
 
@@ -301,6 +304,8 @@ void LauncherWindow::createChrome()
     toggleFullScreen->connect(this, SIGNAL(enteredFullScreenMode(bool)), SLOT(setChecked(bool)));
 
     QWebSettings* settings = page()->settings();
+
+    settings->setAttribute(QWebSettings::FullScreenEnabled, true);
 
     QMenu* toolsMenu = menuBar()->addMenu("&Develop");
     QMenu* graphicsViewMenu = toolsMenu->addMenu("QGraphicsView");
@@ -650,6 +655,20 @@ void LauncherWindow::loadFinished()
         setAddressUrl(m_inputUrl);
         m_inputUrl = QString();
     }
+}
+
+void LauncherWindow::enterFullScreenRequested()
+{
+    showFullScreen();
+    hideChrome();
+    statusBar()->hide();
+}
+
+void LauncherWindow::exitFullScreenRequested()
+{
+    showNormal();
+    showChrome();
+    statusBar()->show();
 }
 
 void LauncherWindow::showLinkHover(const QString &link, const QString &toolTip)

@@ -42,6 +42,9 @@
 #ifndef QT_NO_FILEDIALOG
 #include <QFileDialog>
 #endif
+#ifndef QT_NO_SHORTCUT
+#include <QMenuBar>
+#endif
 
 MainWindow::MainWindow()
     : m_page(new WebPage(this))
@@ -121,6 +124,18 @@ void MainWindow::setPage(WebPage* page)
 WebPage* MainWindow::page() const
 {
     return m_page;
+}
+
+void MainWindow::hideChrome()
+{
+    m_toolBar->hide();
+    menuBar()->hide();
+}
+
+void MainWindow::showChrome()
+{
+    m_toolBar->show();
+    menuBar()->show();
 }
 
 void MainWindow::setAddressUrl(const QUrl& url)
