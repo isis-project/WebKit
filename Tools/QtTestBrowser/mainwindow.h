@@ -55,6 +55,9 @@ public:
     WebPage* page() const;
     void setPage(WebPage*);
 
+    void hideChrome();
+    void showChrome();
+
 protected slots:
     void setAddressUrl(const QString& url);
     void setAddressUrl(const QUrl& url);

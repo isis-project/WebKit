@@ -690,6 +690,28 @@ void ChromeClientQt::exitFullscreenForNode(Node* node)
 } 
 #endif
 
+#if ENABLE(FULLSCREEN_API)
+bool ChromeClientQt::supportsFullScreenForElement(const Element* element, bool withKeyboard)
+{
+    return true;
+}
+
+void ChromeClientQt::enterFullScreenForElement(Element* element)
+{
+    element->document()->webkitWillEnterFullScreenForElement(element);
+    emit m_webPage->enterFullScreenRequested();
+    element->document()->webkitDidEnterFullScreenForElement(element);
+}
+
+void ChromeClientQt::exitFullScreenForElement(Element* element)
+{
+    element->document()->webkitWillExitFullScreenForElement(element);
+    emit m_webPage->exitFullScreenRequested();
+    element->document()->webkitDidExitFullScreenForElement(element);
+}
+
+#endif
+
 PassOwnPtr<QWebSelectMethod> ChromeClientQt::createSelectPopup() const
 {
     OwnPtr<QWebSelectMethod> result = m_platformPlugin.createSelectInputMethod();

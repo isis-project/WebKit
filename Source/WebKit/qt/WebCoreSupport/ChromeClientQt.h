@@ -163,6 +163,13 @@ public:
     virtual bool requiresFullscreenForVideoPlayback();
     FullScreenVideoQt* fullScreenVideo();
 #endif
+
+#if ENABLE(FULLSCREEN_API)
+    virtual bool supportsFullScreenForElement(const Element*, bool withKeyboard);
+    virtual void enterFullScreenForElement(Element*);
+    virtual void exitFullScreenForElement(Element*);
+#endif
+
      virtual void runOpenPanel(Frame*, PassRefPtr<FileChooser>);
      virtual void loadIconForFiles(const Vector<String>&, FileIconLoader*);
 
