@@ -442,6 +442,9 @@ Q_SIGNALS:
     void deadlockDetectionInterval(int);
 #endif
 
+    void enterFullScreenRequested();
+    void exitFullScreenRequested();
+
 protected:
     virtual QWebPage *createWindow(WebWindowType type);
     virtual QObject *createPlugin(const QString &classid, const QUrl &url, const QStringList &paramNames, const QStringList &paramValues);

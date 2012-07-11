@@ -127,6 +127,8 @@ class QDeclarativeWebView : public QDeclarativeItem {
     Q_PROPERTY(QColor backgroundColor READ backgroundColor WRITE setBackgroundColor NOTIFY backgroundColorChanged REVISION 1)
 #endif
 
+    Q_PROPERTY(bool fullScreen READ fullScreen WRITE setFullScreen NOTIFY fullScreenChanged)
+
 public:
     QDeclarativeWebView(QDeclarativeItem *parent = 0);
     ~QDeclarativeWebView();
@@ -201,6 +203,9 @@ public:
     Q_REVISION(1) void setBackgroundColor(const QColor&);
 #endif
 
+    bool fullScreen() const;
+    void setFullScreen(bool value);
+
 Q_SIGNALS:
     void preferredWidthChanged();
     void preferredHeightChanged();
@@ -220,6 +225,7 @@ Q_SIGNALS:
 #ifdef Q_REVISION
     void backgroundColorChanged();
 #endif
+    void fullScreenChanged();
 
     void loadStarted();
     void loadFinished();
@@ -245,6 +251,9 @@ private Q_SLOTS:
 
     void updateDeclarativeWebViewSize();
 
+    void doEnterFullScreenRequested();
+    void doExitFullScreenRequested();
+
     virtual void geometryChanged(const QRectF &newGeometry,
                                  const QRectF &oldGeometry);
     QDeclarativeWebView* createWindow(QWebPage::WebWindowType type);
@@ -258,6 +267,7 @@ private:
     QMouseEvent* sceneMouseEventToMouseEvent(QGraphicsSceneMouseEvent*);
     QMouseEvent* sceneHoverMoveEventToMouseEvent(QGraphicsSceneHoverEvent*);
     friend class QDeclarativeWebPage;
+    bool m_fullScreen;
 };
 
 class QDeclarativeWebViewAttached : public QObject {
@@ -313,6 +323,7 @@ class QDeclarativeWebSettings : public QObject {
     Q_PROPERTY(bool offlineWebApplicationCacheEnabled READ offlineWebApplicationCacheEnabled WRITE setOfflineWebApplicationCacheEnabled)
     Q_PROPERTY(bool localStorageDatabaseEnabled READ localStorageDatabaseEnabled WRITE setLocalStorageDatabaseEnabled)
     Q_PROPERTY(bool localContentCanAccessRemoteUrls READ localContentCanAccessRemoteUrls WRITE setLocalContentCanAccessRemoteUrls)
+    Q_PROPERTY(bool fullScreenEnabled READ fullScreenEnabled WRITE setFullScreenEnabled)
 
 public:
     QDeclarativeWebSettings() {}
@@ -369,6 +380,8 @@ public:
     void setLocalStorageDatabaseEnabled(bool on) { s->setAttribute(QWebSettings::LocalStorageDatabaseEnabled, on); }
     bool localContentCanAccessRemoteUrls() const { return s->testAttribute(QWebSettings::LocalContentCanAccessRemoteUrls); }
     void setLocalContentCanAccessRemoteUrls(bool on) { s->setAttribute(QWebSettings::LocalContentCanAccessRemoteUrls, on); }
+    bool fullScreenEnabled() const { return s->testAttribute(QWebSettings::FullScreenEnabled); }
+    void setFullScreenEnabled(bool on) { s->setAttribute(QWebSettings::FullScreenEnabled, on); }
 
     QWebSettings *s;
 };

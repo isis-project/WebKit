@@ -80,7 +80,8 @@ public:
         WebGLEnabled,
         CSSRegionsEnabled,
         HyperlinkAuditingEnabled,
-        CSSGridLayoutEnabled
+        CSSGridLayoutEnabled,
+        FullScreenEnabled
     };
     enum WebGraphic {
         MissingImageGraphic,

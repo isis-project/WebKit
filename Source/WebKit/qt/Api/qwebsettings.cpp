@@ -171,6 +171,13 @@ void QWebSettingsPrivate::apply()
 #endif
 #endif
 
+#if ENABLE(FULLSCREEN_API)
+        value = attributes.value(QWebSettings::FullScreenEnabled,
+                                 global->attributes.value(QWebSettings::FullScreenEnabled));
+
+        settings->setFullScreenEnabled(value);
+#endif
+
         value = attributes.value(QWebSettings::CSSRegionsEnabled,
                                  global->attributes.value(QWebSettings::CSSRegionsEnabled));
         settings->setCSSRegionsEnabled(value);
@@ -528,12 +535,14 @@ QWebSettings::QWebSettings()
     d->attributes.insert(QWebSettings::LocalContentCanAccessFileUrls, true);
     d->attributes.insert(QWebSettings::AcceleratedCompositingEnabled, true);
     d->attributes.insert(QWebSettings::WebGLEnabled, false);
+    d->attributes.insert(QWebSettings::FullScreenEnabled, false);
     d->attributes.insert(QWebSettings::CSSRegionsEnabled, false);
     d->attributes.insert(QWebSettings::CSSGridLayoutEnabled, false);
     d->attributes.insert(QWebSettings::HyperlinkAuditingEnabled, false);
     d->attributes.insert(QWebSettings::TiledBackingStoreEnabled, false);
     d->attributes.insert(QWebSettings::FrameFlatteningEnabled, false);
     d->attributes.insert(QWebSettings::SiteSpecificQuirksEnabled, true);
+
     d->offlineStorageDefaultQuota = 5 * 1024 * 1024;
     d->defaultTextEncoding = QLatin1String("iso-8859-1");
 #if QT_VERSION >= QT_VERSION_CHECK(4, 8, 0)

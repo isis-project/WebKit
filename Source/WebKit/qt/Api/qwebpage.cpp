@@ -926,6 +926,20 @@ void QWebPagePrivate::keyPressEvent(QKeyEvent *ev)
     // to trigger editor commands via triggerAction().
     if (!handled)
         handled = frame->eventHandler()->keyEvent(ev);
+#if ENABLE(FULLSCREEN_API)
+    if (!handled) {
+        if (frame->document()->webkitFullscreenEnabled()) {
+            switch (ev->key()) {
+            case Qt::Key_Escape:
+                frame->document()->webkitCancelFullScreen();
+                handled = true;
+                break;
+            default:
+                break;
+            }
+        }
+    }
+#endif
     if (!handled) {
         handled = true;
         if (!handleScrolling(ev, frame)) {

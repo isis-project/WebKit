@@ -168,7 +168,7 @@ haveQt(5) {
 }
 
 !contains(DEFINES, ENABLE_FULLSCREEN_API=.) {
-    !no_webkit2: DEFINES += ENABLE_FULLSCREEN_API=1
+    DEFINES += ENABLE_FULLSCREEN_API=1
 }
 
 haveQt(4) {
