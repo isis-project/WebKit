@@ -26,6 +26,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import optparse
 import StringIO
 import unittest
 
@@ -48,6 +49,10 @@ class ChromiumAndroidPortTest(chromium_port_testcase.ChromiumPortTestCase):
         port = self.make_port()
         self.assertTrue(port.get_option('enable_hardware_gpu'))
         self.assertEquals(port.baseline_path(), port._webkit_baseline_path('chromium-android'))
+
+    def test_default_timeout_ms(self):
+        self.assertEquals(self.make_port(options=optparse.Values({'configuration': 'Release'})).default_timeout_ms(), 10000)
+        self.assertEquals(self.make_port(options=optparse.Values({'configuration': 'Debug'})).default_timeout_ms(), 10000)
 
     def test_expectations_files(self):
         # FIXME: override this test temporarily while we're still upstreaming the android port and
@@ -128,9 +133,9 @@ class ChromiumAndroidDriverTest(unittest.TestCase):
     def test_cmd_line(self):
         cmd_line = self.driver.cmd_line(True, ['--a'])
         self.assertTrue('--a' in cmd_line)
-        self.assertTrue('--in-fifo=' + chromium_android.DRT_APP_FILE_DIR + 'DumpRenderTree.in' in cmd_line)
-        self.assertTrue('--out-fifo=' + chromium_android.DRT_APP_FILE_DIR + 'DumpRenderTree.out' in cmd_line)
-        self.assertTrue('--err-file=' + chromium_android.DRT_APP_FILE_DIR + 'DumpRenderTree.err' in cmd_line)
+        self.assertTrue('--in-fifo=' + chromium_android.DRT_APP_FILES_DIR + 'DumpRenderTree.in' in cmd_line)
+        self.assertTrue('--out-fifo=' + chromium_android.DRT_APP_FILES_DIR + 'DumpRenderTree.out' in cmd_line)
+        self.assertTrue('--err-file=' + chromium_android.DRT_APP_FILES_DIR + 'DumpRenderTree.err' in cmd_line)
 
     def test_read_prompt(self):
         self.driver._proc = Mock()  # FIXME: This should use a tighter mock.

@@ -56,9 +56,20 @@ WebInspector.FileSystemView = function(fileSystem)
 }
 
 WebInspector.FileSystemView.prototype = {
+    /**
+     * @type {Array.<Element>}
+     */
     get statusBarItems()
     {
         return [this._refreshButton.element];
+    },
+
+    /**
+     * @type {WebInspector.View}
+     */
+    get visibleView()
+    {
+        return this._visibleView;
     },
 
     /**
@@ -108,8 +119,10 @@ WebInspector.FileSystemView.EntryTreeElement.prototype = {
         if (!this._view) {
             if (this._entry.isDirectory)
                 this._view = new WebInspector.DirectoryContentView();
-            else
-                return;
+            else {
+                var file = /** @type {WebInspector.FileSystemModel.File} */ this._entry;
+                this._view = new WebInspector.FileContentView(file);
+            }
         }
         this._fileSystemView.showView(this._view);
         this.refresh();
@@ -154,6 +167,9 @@ WebInspector.FileSystemView.EntryTreeElement.prototype = {
             if (order === 0) {
                 if (oldChild._entry.isDirectory)
                     oldChild.shouldRefreshChildren = true;
+                else
+                    oldChild.refresh();
+
                 ++newEntryIndex;
                 ++oldChildIndex;
                 ++currentTreeItem;
@@ -178,9 +194,13 @@ WebInspector.FileSystemView.EntryTreeElement.prototype = {
 
     refresh: function()
     {
-        if (!this._entry.isDirectory)
-            return;
-        this._entry.requestDirectoryContent(this._directoryContentReceived.bind(this));
+        if (!this._entry.isDirectory) {
+            if (this._view && this._view === this._fileSystemView.visibleView) {
+                var fileContentView = /** @type {WebInspector.FileContentView} */ this._view;
+                fileContentView.refresh();
+            }
+        } else
+            this._entry.requestDirectoryContent(this._directoryContentReceived.bind(this));
     }
 }
 

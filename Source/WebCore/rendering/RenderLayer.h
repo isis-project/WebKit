@@ -471,6 +471,7 @@ public:
     RenderLayer* enclosingFilterLayer(bool includeSelf = true) const;
     RenderLayer* enclosingFilterRepaintLayer() const;
     void setFilterBackendNeedsRepaintingInRect(const LayoutRect&, bool immediate);
+    bool hasAncestorWithFilterOutsets() const;
 #endif
 
     bool canUseConvertToLayerCoords() const
@@ -678,7 +679,7 @@ private:
 
     bool shouldRepaintAfterLayout() const;
 
-    void updateSelfPaintingLayerAfterStyleChange(const RenderStyle* oldStyle);
+    void updateSelfPaintingLayer();
     void updateStackingContextsAfterStyleChange(const RenderStyle* oldStyle);
 
     void updateScrollbarsAfterStyleChange(const RenderStyle* oldStyle);

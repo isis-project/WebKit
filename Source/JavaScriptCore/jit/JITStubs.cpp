@@ -622,38 +622,46 @@ SYMBOL_STRING(ctiOpThrowNotCaught) ":" "\n"
 #elif COMPILER(GCC) && CPU(ARM_TRADITIONAL)
 
 asm (
+".text" "\n"
 ".globl " SYMBOL_STRING(ctiTrampoline) "\n"
 HIDE_SYMBOL(ctiTrampoline) "\n"
+INLINE_ARM_FUNCTION(ctiTrampoline)
 SYMBOL_STRING(ctiTrampoline) ":" "\n"
     "stmdb sp!, {r1-r3}" "\n"
-    "stmdb sp!, {r4-r8, lr}" "\n"
+    "stmdb sp!, {r4-r6, r8-r11, lr}" "\n"
     "sub sp, sp, #" STRINGIZE_VALUE_OF(PRESERVEDR4_OFFSET) "\n"
-    "mov r4, r2" "\n"
-    "mov r5, #512" "\n"
+    "mov r5, r2" "\n"
+    "mov r6, #512" "\n"
     // r0 contains the code
-    "mov lr, pc" "\n"
-    "mov pc, r0" "\n"
+    "blx r0" "\n"
     "add sp, sp, #" STRINGIZE_VALUE_OF(PRESERVEDR4_OFFSET) "\n"
-    "ldmia sp!, {r4-r8, lr}" "\n"
+    "ldmia sp!, {r4-r6, r8-r11, lr}" "\n"
     "add sp, sp, #12" "\n"
-    "mov pc, lr" "\n"
+    "bx lr" "\n"
+".globl " SYMBOL_STRING(ctiTrampolineEnd) "\n"
+HIDE_SYMBOL(ctiTrampolineEnd) "\n"
+SYMBOL_STRING(ctiTrampolineEnd) ":" "\n"
 );
 
 asm (
+".text" "\n"
 ".globl " SYMBOL_STRING(ctiVMThrowTrampoline) "\n"
 HIDE_SYMBOL(ctiVMThrowTrampoline) "\n"
+INLINE_ARM_FUNCTION(ctiVMThrowTrampoline)
 SYMBOL_STRING(ctiVMThrowTrampoline) ":" "\n"
     "mov r0, sp" "\n"
     "bl " SYMBOL_STRING(cti_vm_throw) "\n"
 
 // Both has the same return sequence
+".text" "\n"
 ".globl " SYMBOL_STRING(ctiOpThrowNotCaught) "\n"
 HIDE_SYMBOL(ctiOpThrowNotCaught) "\n"
+INLINE_ARM_FUNCTION(ctiOpThrowNotCaught)
 SYMBOL_STRING(ctiOpThrowNotCaught) ":" "\n"
     "add sp, sp, #" STRINGIZE_VALUE_OF(PRESERVEDR4_OFFSET) "\n"
-    "ldmia sp!, {r4-r8, lr}" "\n"
+    "ldmia sp!, {r4-r6, r8-r11, lr}" "\n"
     "add sp, sp, #12" "\n"
-    "mov pc, lr" "\n"
+    "bx lr" "\n"
 );
 
 #elif COMPILER(RVCT) && CPU(ARM_THUMB2)
@@ -954,7 +962,7 @@ NEVER_INLINE void JITThunks::tryCacheGetByID(CallFrame* callFrame, CodeBlock* co
         return;
     }
 
-    size_t offset = slot.cachedOffset();
+    PropertyOffset offset = slot.cachedOffset();
     size_t count = normalizePrototypeChain(callFrame, baseValue, slot.slotBase(), propertyName, offset);
     if (!count) {
         stubInfo->accessType = access_get_by_id_generic;
@@ -1156,11 +1164,12 @@ template<typename T> static T throwExceptionFromOpCall(JITStackFrame& jitStackFr
     }; \
     asm ( \
         ".globl " SYMBOL_STRING(cti_##op) "\n" \
+        INLINE_ARM_FUNCTION(cti_##op) \
         SYMBOL_STRING(cti_##op) ":" "\n" \
         "str lr, [sp, #" STRINGIZE_VALUE_OF(THUNK_RETURN_ADDRESS_OFFSET) "]" "\n" \
         "bl " SYMBOL_STRING(JITStubThunked_##op) "\n" \
         "ldr lr, [sp, #" STRINGIZE_VALUE_OF(THUNK_RETURN_ADDRESS_OFFSET) "]" "\n" \
-        "mov pc, lr" "\n" \
+        "bx lr" "\n" \
         ); \
     rtype JITStubThunked_##op(STUB_ARGS_DECLARATION)
 
@@ -1486,13 +1495,16 @@ DEFINE_STUB_FUNCTION(JSObject*, op_put_by_id_transition_realloc)
     JSValue baseValue = stackFrame.args[0].jsValue();
     int32_t oldSize = stackFrame.args[3].int32();
     Structure* newStructure = stackFrame.args[4].structure();
-    int32_t newSize = newStructure->propertyStorageCapacity();
+    int32_t newSize = newStructure->outOfLineCapacity();
+    
+    ASSERT(oldSize >= 0);
+    ASSERT(newSize > oldSize);
 
     ASSERT(baseValue.isObject());
     JSObject* base = asObject(baseValue);
     JSGlobalData& globalData = *stackFrame.globalData;
-    PropertyStorage newStorage = base->growPropertyStorage(globalData, oldSize, newSize);
-    base->setPropertyStorage(globalData, newStorage, newStructure);
+    PropertyStorage newStorage = base->growOutOfLineStorage(globalData, oldSize, newSize);
+    base->setOutOfLineStorage(globalData, newStorage, newStructure);
 
     return base;
 }
@@ -1710,7 +1722,7 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_get_by_id_self_fail)
 
         if (stubInfo->accessType == access_get_by_id_self) {
             ASSERT(!stubInfo->stubRoutine);
-            polymorphicStructureList = new PolymorphicAccessStructureList(callFrame->globalData(), codeBlock->ownerExecutable(), MacroAssemblerCodeRef(), stubInfo->u.getByIdSelf.baseObjectStructure.get(), true);
+            polymorphicStructureList = new PolymorphicAccessStructureList(callFrame->globalData(), codeBlock->ownerExecutable(), 0, stubInfo->u.getByIdSelf.baseObjectStructure.get(), true);
             stubInfo->initGetByIdSelfList(polymorphicStructureList, 1);
         } else {
             polymorphicStructureList = stubInfo->u.getByIdSelfList.structureList;
@@ -1736,12 +1748,12 @@ static PolymorphicAccessStructureList* getPolymorphicAccessStructureListSlot(JSG
     switch (stubInfo->accessType) {
     case access_get_by_id_proto:
         prototypeStructureList = new PolymorphicAccessStructureList(globalData, owner, stubInfo->stubRoutine, stubInfo->u.getByIdProto.baseObjectStructure.get(), stubInfo->u.getByIdProto.prototypeStructure.get(), true);
-        stubInfo->stubRoutine = MacroAssemblerCodeRef();
+        stubInfo->stubRoutine.clear();
         stubInfo->initGetByIdProtoList(prototypeStructureList, 2);
         break;
     case access_get_by_id_chain:
         prototypeStructureList = new PolymorphicAccessStructureList(globalData, owner, stubInfo->stubRoutine, stubInfo->u.getByIdChain.baseObjectStructure.get(), stubInfo->u.getByIdChain.chain.get(), true);
-        stubInfo->stubRoutine = MacroAssemblerCodeRef();
+        stubInfo->stubRoutine.clear();
         stubInfo->initGetByIdProtoList(prototypeStructureList, 2);
         break;
     case access_get_by_id_proto_list:
@@ -1814,7 +1826,7 @@ DEFINE_STUB_FUNCTION(EncodedJSValue, op_get_by_id_proto_list)
     ASSERT(slot.slotBase().isObject());
     JSObject* slotBaseObject = asObject(slot.slotBase());
     
-    size_t offset = slot.cachedOffset();
+    PropertyOffset offset = slot.cachedOffset();
 
     if (slot.slotBase() == baseValue)
         ctiPatchCallByReturnAddress(codeBlock, STUB_RETURN_ADDRESS, FunctionPtr(cti_op_get_by_id_proto_fail));

@@ -87,6 +87,10 @@
 #include "TiledBackingStore.h"
 #endif
 
+#if ENABLE(TEXT_AUTOSIZING)
+#include "TextAutosizer.h"
+#endif
+
 namespace WebCore {
 
 using namespace HTMLNames;
@@ -1111,6 +1115,11 @@ void FrameView::layout(bool allowSubtree)
             beginDeferredRepaints();
             forceLayoutParentViewIfNeeded();
             root->layout();
+#if ENABLE(TEXT_AUTOSIZING)
+            bool autosized = document->textAutosizer()->processSubtree(root);
+            if (autosized && root->needsLayout())
+                root->layout();
+#endif
             endDeferredRepaints();
             m_inLayout = false;
 
@@ -1468,13 +1477,10 @@ bool FrameView::scrollContentsFastPath(const IntSize& scrollDelta, const IntRect
         RenderLayer* layer = toRenderBoxModelObject(renderer)->layer();
         
 #if ENABLE(CSS_FILTERS)
-        if (layer->parent()) {
-            RenderBoxModelObject* renderer = layer->parent()->renderer();
-            if (renderer->style()->hasFilterOutsets()) {
-                // If the fixed layer has a blur/drop-shadow filter applied on its parent, we cannot 
-                // scroll using the fast path, otherwise the outsets of the filter will be moved around the page.
-                return false;
-            }
+        if (layer->hasAncestorWithFilterOutsets()) {
+            // If the fixed layer has a blur/drop-shadow filter applied on at least one of its parents, we cannot 
+            // scroll using the fast path, otherwise the outsets of the filter will be moved around the page.
+            return false;
         }
 #endif
         IntRect updateRect = pixelSnappedIntRect(layer->repaintRectIncludingNonCompositingDescendants());

@@ -316,11 +316,11 @@ PagePopup* ChromeClientBlackBerry::openPagePopup(PagePopupClient* client, const 
 
 void ChromeClientBlackBerry::closePagePopup(PagePopup*)
 {
-    if (hasOpenedPopup()) {
-        PagePopupBlackBerry* webPopup = m_webPagePrivate->m_webPage->popup();
-        webPopup->closePopup();
-        m_webPagePrivate->m_webPage->popupClosed();
-    }
+    if (!hasOpenedPopup())
+        return;
+
+    PagePopupBlackBerry* webPopup = m_webPagePrivate->m_webPage->popup();
+    webPopup->closePopup();
 }
 
 void ChromeClientBlackBerry::setToolbarsVisible(bool)
@@ -727,13 +727,19 @@ void ChromeClientBlackBerry::enterFullScreenForElement(WebCore::Element* element
     element->document()->webkitWillEnterFullScreenForElement(element);
     m_webPagePrivate->enterFullScreenForElement(element);
     element->document()->webkitDidEnterFullScreenForElement(element);
+    m_fullScreenElement = element;
 }
 
-void ChromeClientBlackBerry::exitFullScreenForElement(WebCore::Element* element)
+void ChromeClientBlackBerry::exitFullScreenForElement(WebCore::Element*)
 {
-    element->document()->webkitWillExitFullScreenForElement(element);
-    m_webPagePrivate->exitFullScreenForElement(element);
-    element->document()->webkitDidExitFullScreenForElement(element);
+    // The element passed into this function is not reliable, i.e. it could
+    // be null. In addition the parameter may be disappearing in the future.
+    // So we use the reference to the element we saved above.
+    ASSERT(m_fullScreenElement);
+    m_fullScreenElement->document()->webkitWillExitFullScreenForElement(m_fullScreenElement.get());
+    m_webPagePrivate->exitFullScreenForElement(m_fullScreenElement.get());
+    m_fullScreenElement->document()->webkitDidExitFullScreenForElement(m_fullScreenElement.get());
+    m_fullScreenElement.clear();
 }
 
 void ChromeClientBlackBerry::fullScreenRendererChanged(RenderBox* fullScreenRenderer)
@@ -810,9 +816,9 @@ PassOwnPtr<ColorChooser> ChromeClientBlackBerry::createColorChooser(ColorChooser
 }
 
 #if ENABLE(CUSTOM_SCHEME_HANDLER)
-CustomHandlersState ChromeClientBlackBerry::isProtocolHandlerRegistered(const String&, const String&, const String&)
+ChromeClient::CustomHandlersState ChromeClientBlackBerry::isProtocolHandlerRegistered(const String&, const String&, const String&)
 {
-    return CustomHandlersDeclined;
+    return ChromeClient::CustomHandlersDeclined;
 }
 
 void ChromeClientBlackBerry::unregisterProtocolHandler(const String&, const String&, const String&)

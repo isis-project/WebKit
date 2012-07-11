@@ -1,5 +1,0 @@
-Tests readFile.
-
-errorCode = 0
-content = "UEFTUw==" [PASS]
-

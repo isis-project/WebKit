@@ -11590,6 +11590,62 @@
 				>
 			</File>
 			<File
+				RelativePath="$(ConfigurationBuildDir)\obj\$(ProjectName)\DerivedSources\JSMutationObserver.cpp"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug_Cairo_CFLite|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_Cairo_CFLite|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug_All|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Production|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="$(ConfigurationBuildDir)\obj\$(ProjectName)\DerivedSources\JSMutationObserver.h"
+				>
+			</File>
+			<File
 				RelativePath="$(ConfigurationBuildDir)\obj\$(ProjectName)\DerivedSources\JSMutationRecord.cpp"
 				>
 				<FileConfiguration
@@ -23063,62 +23119,6 @@
 				>
 			</File>
 			<File
-				RelativePath="$(ConfigurationBuildDir)\obj\$(ProjectName)\DerivedSources\JSWebKitMutationObserver.cpp"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_Cairo_CFLite|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_Cairo_CFLite|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_All|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Production|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="$(ConfigurationBuildDir)\obj\$(ProjectName)\DerivedSources\JSWebKitMutationObserver.h"
-				>
-			</File>
-			<File
 				RelativePath="$(ConfigurationBuildDir)\obj\$(ProjectName)\DerivedSources\JSWebKitNamedFlow.cpp"
 				>
 				<FileConfiguration
@@ -24955,6 +24955,46 @@
 				</File>
 				<File
 					RelativePath="..\Modules\quota\StorageInfoUsageCallback.h"
+					>
+				</File>
+			</Filter>
+			<Filter
+				Name="notifications"
+				>
+				<File
+					RelativePath="..\Modules\notifications\DOMWindowNotifications.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\Modules\notifications\DOMWindowNotifications.h"
+					>
+				</File>
+				<File
+					RelativePath="..\Modules\notifications\Notification.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\Modules\notifications\Notification.h"
+					>
+				</File>
+				<File
+					RelativePath="..\Modules\notifications\NotificationCenter.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\Modules\notifications\NotificationCenter.h"
+					>
+				</File>
+				<File
+					RelativePath="..\Modules\notifications\NotificationClient.h"
+					>
+				</File>
+				<File
+					RelativePath="..\Modules\notifications\WorkerContextNotifications.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\Modules\notifications\WorkerContextNotifications.h"
 					>
 				</File>
 			</Filter>
@@ -31589,10 +31629,6 @@
 						>
 					</File>
 					<File
-						RelativePath="..\platform\graphics\filters\arm\FEGaussianBlurNEON.cpp"
-						>
-					</File>
-					<File
 						RelativePath="..\platform\graphics\filters\arm\FEGaussianBlurNEON.h"
 						>
 					</File>
@@ -31694,6 +31730,10 @@
 					</File>
 					<File
 						RelativePath="..\platform\graphics\filters\LightSource.h"
+						>
+					</File>
+					<File
+						RelativePath="..\platform\graphics\filters\arm\NEONHelpers.h"
 						>
 					</File>
 					<File
@@ -51667,6 +51707,62 @@
 				>
 			</File>
 			<File
+				RelativePath="..\dom\MutationObserver.cpp"
+				>
+				<FileConfiguration
+					Name="Debug|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug_Cairo_CFLite|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_Cairo_CFLite|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Debug_All|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Production|Win32"
+					ExcludedFromBuild="true"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+					/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\dom\MutationObserver.h"
+				>
+			</File>
+			<File
 				RelativePath="..\dom\MutationObserverInterestGroup.cpp"
 				>
 				<FileConfiguration
@@ -54355,62 +54451,6 @@
 				>
 			</File>
 			<File
-				RelativePath="..\dom\WebKitMutationObserver.cpp"
-				>
-				<FileConfiguration
-					Name="Debug|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_Cairo_CFLite|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_Cairo_CFLite|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Debug_All|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Production|Win32"
-					ExcludedFromBuild="true"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-					/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\dom\WebKitMutationObserver.h"
-				>
-			</File>
-			<File
 				RelativePath="..\dom\WebKitNamedFlow.cpp"
 				>
 				<FileConfiguration
@@ -54780,46 +54820,6 @@
 			</File>
 			<File
 				RelativePath="..\workers\WorkerThread.h"
-				>
-			</File>
-		</Filter>
-		<Filter
-			Name="notifications"
-			>
-			<File
-				RelativePath="..\notifications\DOMWindowNotifications.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\notifications\DOMWindowNotifications.h"
-				>
-			</File>
-			<File
-				RelativePath="..\notifications\Notification.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\notifications\Notification.h"
-				>
-			</File>
-			<File
-				RelativePath="..\notifications\NotificationCenter.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\notifications\NotificationCenter.h"
-				>
-			</File>
-			<File
-				RelativePath="..\notifications\NotificationClient.h"
-				>
-			</File>
-			<File
-				RelativePath="..\notifications\WorkerContextNotifications.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\notifications\WorkerContextNotifications.h"
 				>
 			</File>
 		</Filter>
@@ -68234,6 +68234,58 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath="..\bindings\js\JSMutationObserverCustom.cpp"
+					>
+					<FileConfiguration
+						Name="Debug|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug_Cairo_CFLite|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release_Cairo_CFLite|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Debug_All|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Production|Win32"
+						ExcludedFromBuild="true"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+						/>
+					</FileConfiguration>
+				</File>
+				<File
 					RelativePath="..\bindings\js\JSNamedNodeMapCustom.cpp"
 					>
 					<FileConfiguration
@@ -69655,58 +69707,6 @@
 				</File>
 				<File
 					RelativePath="..\bindings\js\JSWebKitCSSMatrixCustom.cpp"
-					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug_Cairo_CFLite|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release_Cairo_CFLite|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug_All|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Production|Win32"
-						ExcludedFromBuild="true"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-						/>
-					</FileConfiguration>
-				</File>
-				<File
-					RelativePath="..\bindings\js\JSWebKitMutationObserverCustom.cpp"
 					>
 					<FileConfiguration
 						Name="Debug|Win32"
@@ -74834,10 +74834,6 @@
 					>
 				</File>
 				<File
-					RelativePath="..\inspector\front-end\DebuggerResourceBinding.js"
-					>
-				</File>
-				<File
 					RelativePath="..\inspector\front-end\DebuggerScriptMapping.js"
 					>
 				</File>
@@ -74923,6 +74919,10 @@
 				</File>
 				<File
 					RelativePath="..\inspector\front-end\ExtensionServer.js"
+					>
+				</File>
+				<File
+					RelativePath="..\inspector\front-end\FileContentView.js"
 					>
 				</File>
 				<File

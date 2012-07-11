@@ -62,11 +62,11 @@ my (
     $datalistSupport,
     $detailsSupport,
     $deviceOrientationSupport,
+    $dialogElementSupport,
     $directoryUploadSupport,
     $downloadAttributeSupport,
     $fileSystemSupport,
     $filtersSupport,
-    $fontBoostingSupport,
     $ftpDirSupport,
     $fullscreenAPISupport,
     $gamepadSupport,
@@ -116,6 +116,7 @@ my (
     $svgFontsSupport,
     $svgSupport,
     $systemMallocSupport,
+    $textAutosizingSupport,
     $tiledBackingStoreSupport,
     $touchEventsSupport,
     $touchIconLoadingSupport,
@@ -175,10 +176,10 @@ my @features = (
       define => "ENABLE_CSS_SHADERS", default => isAppleMacWebKit(), value => \$cssShadersSupport },
 
     { option => "css-variables", desc => "Toggle CSS Variable support",
-      define => "ENABLE_CSS_VARIABLES", default => 0, value => \$cssVariablesSupport },
+      define => "ENABLE_CSS_VARIABLES", default => isEfl(), value => \$cssVariablesSupport },
 
     { option => "custom-scheme-handler", desc => "Toggle Custom Scheme Handler support",
-      define => "ENABLE_CUSTOM_SCHEME_HANDLER", default => isBlackBerry(), value => \$customSchemeHandlerSupport },
+      define => "ENABLE_CUSTOM_SCHEME_HANDLER", default => (isBlackBerry() || isEfl()), value => \$customSchemeHandlerSupport },
 
     { option => "datalist", desc => "Toggle Datalist support",
       define => "ENABLE_DATALIST", default => isEfl(), value => \$datalistSupport },
@@ -192,7 +193,10 @@ my @features = (
     { option => "device-orientation", desc => "Toggle Device Orientation support",
       define => "ENABLE_DEVICE_ORIENTATION", default => isBlackBerry(), value => \$deviceOrientationSupport },
 
-    { option => "directory-upload", desc => "Toogle Directory Upload support",
+    { option => "dialog", desc => "Toggle Dialog Element support",
+      define => "ENABLE_DIALOG_ELEMENT", default => 0, value => \$dialogElementSupport },
+
+    { option => "directory-upload", desc => "Toggle Directory Upload support",
       define => "ENABLE_DIRECTORY_UPLOAD", default => 0, value => \$directoryUploadSupport },
 
     { option => "download-attribute", desc => "Toggle Download Attribute support",
@@ -203,9 +207,6 @@ my @features = (
 
     { option => "filters", desc => "Toggle Filters support",
       define => "ENABLE_FILTERS", default => (isAppleWebKit() || isGtk() || isQt() || isEfl() || isBlackBerry()), value => \$filtersSupport },
-
-    { option => "font-boosting", desc => "Toggle Font Boosting support",
-      define => "ENABLE_FONT_BOOSTING", default => 0, value => \$fontBoostingSupport },
 
     { option => "ftpdir", desc => "Toggle FTP Directory support",
       define => "ENABLE_FTPDIR", default => !isWinCE(), value => \$ftpDirSupport },
@@ -350,6 +351,9 @@ my @features = (
 
     { option => "system-malloc", desc => "Toggle system allocator instead of TCmalloc",
       define => "USE_SYSTEM_MALLOC", default => isWinCE(), value => \$systemMallocSupport },
+
+    { option => "text-autosizing", desc => "Toggle Text Autosizing support",
+      define => "ENABLE_TEXT_AUTOSIZING", default => 0, value => \$textAutosizingSupport },
 
     { option => "tiled-backing-store", desc => "Toggle Tiled Backing Store support",
       define => "WTF_USE_TILED_BACKING_STORE", default => isQt(), value => \$tiledBackingStoreSupport },

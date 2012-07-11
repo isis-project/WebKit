@@ -822,7 +822,7 @@ sub qtFeatureDefaults
 
     my $originalCwd = getcwd();
 
-    my $file;
+    my $file = File::Spec->catfile($qmakepath, "configure.pro");
     my @buildArgs;
     my $qconfigs;
 
@@ -832,12 +832,9 @@ sub qtFeatureDefaults
         my $dir = File::Spec->catfile(productDir(), "Tools", "qmake");
         File::Path::mkpath($dir);
         chdir $dir or die "Failed to cd into " . $dir . "\n";
-        $file = File::Spec->catfile($qmakepath, "configure.pro");
     } else {
         # Do a quick check of the features without running the config tests
-        # FIXME: When Qt supports it, go through configure.pro but without config tests
-        $file = File::Spec->catfile($qmakepath, "mkspecs", "features", "features.prf");
-        push @buildArgs, "CONFIG+=compute_defaults";
+        push @buildArgs, "CONFIG+=quick_check";
     }
 
     my @defaults = `$qmakecommand @buildArgs -nocache $file 2>&1`;
@@ -2069,6 +2066,9 @@ sub buildAutotoolsProject($@)
         push @buildArgs, "--disable-debug";
     }
 
+    # Enable unstable features when building through build-webkit.
+    push @buildArgs, "--enable-unstable-features";
+
     # We might need to update jhbuild dependencies.
     my $needUpdate = 0;
     if (jhbuildConfigurationChanged()) {
@@ -2373,10 +2373,6 @@ sub buildQMakeProjects
             File::Path::rmtree($dir);
             File::Path::mkpath($dir);
             chdir $dir or die "Failed to cd into " . $dir . "\n";
-
-            # After removing WebKitBuild directory, we have to call qtFeatureDefaults()
-            # to run config tests and generate the removed Tools/qmake/.qmake.cache again.
-            qtFeatureDefaults(\@buildArgs, \$qconfigs);
         #}
 
         # Still trigger an incremental build
@@ -2531,6 +2527,7 @@ sub buildChromiumVisualStudioProject($$)
     } else {
         $vsInstallDir = "$programFilesPath/Microsoft Visual Studio 8";
     }
+    $vsInstallDir =~ s,\\,/,g;
     $vsInstallDir = `cygpath "$vsInstallDir"` if isCygwin();
     chomp $vsInstallDir;
     $vcBuildPath = "$vsInstallDir/Common7/IDE/devenv.com";

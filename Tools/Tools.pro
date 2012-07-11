@@ -7,25 +7,18 @@
 TEMPLATE = subdirs
 CONFIG += ordered
 
-BUILD_TOOLS=1
-contains(DEFINES, PALM_DEVICE):!contains(DEFINES, MACHINE_DESKTOP) {
-    BUILD_TOOLS=0
-}
-
 !no_webkit1 {
-    equals(BUILD_TOOLS, 1) {
-        SUBDIRS += QtTestBrowser/QtTestBrowser.pro
-        SUBDIRS += DumpRenderTree/qt/DumpRenderTree.pro
-        SUBDIRS += DumpRenderTree/qt/ImageDiff.pro
-    }
+    SUBDIRS += QtTestBrowser/QtTestBrowser.pro
+    SUBDIRS += DumpRenderTree/qt/DumpRenderTree.pro
+    SUBDIRS += DumpRenderTree/qt/ImageDiff.pro
 }
 
 !no_webkit2 {
-    equals(BUILD_TOOLS, 1) {
-        SUBDIRS += MiniBrowser/qt/MiniBrowser.pro
-        SUBDIRS += WebKitTestRunner/WebKitTestRunner.pro
-        SUBDIRS += MiniBrowser/qt/raw/MiniBrowserRaw.pro
-    }
+    # WTR's InjectedBundle depends currently on WK1's DumpRenderTreeSupport
+    !no_webkit1: SUBDIRS += WebKitTestRunner/WebKitTestRunner.pro
+
+    SUBDIRS += MiniBrowser/qt/MiniBrowser.pro
+    SUBDIRS += MiniBrowser/qt/raw/MiniBrowserRaw.pro
 }
 
 # FIXME: with Qt 5 the test plugin cause some trouble during layout tests.
@@ -33,9 +26,7 @@ contains(DEFINES, PALM_DEVICE):!contains(DEFINES, MACHINE_DESKTOP) {
 # Reenable it after we have a fix for this issue.
 !haveQt(5) {
     !win32:contains(DEFINES, ENABLE_NETSCAPE_PLUGIN_API=1) {
-        equals(BUILD_TOOLS, 1) {
-            SUBDIRS += DumpRenderTree/qt/TestNetscapePlugin/TestNetscapePlugin.pro
-        }
+        SUBDIRS += DumpRenderTree/qt/TestNetscapePlugin/TestNetscapePlugin.pro
     }
 }
 
@@ -44,8 +35,7 @@ OTHER_FILES = \
     $$files(Scripts/webkitpy/*.py, true) \
     $$files(Scripts/webkitperl/*.p[l|m], true) \
     qmake/README \
-    qmake/configure.pro \
-    qmake/sync.profile \
+    qmake/configure.* \
     qmake/qt_webkit.pri \
     qmake/config.tests/README \
     qmake/config.tests/fontconfig/* \

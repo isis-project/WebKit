@@ -61,7 +61,10 @@ public:
             return;
         countObjectSize(objectType, sizeof(T));
     }
-    template <typename HashMapType> void reportHashMap(const HashMapType&, ObjectType);
+    template <typename HashMapType> void reportHashMap(const HashMapType&, ObjectType, bool contentOnly = false);
+    template <typename HashSetType> void reportHashSet(const HashSetType&, ObjectType, bool contentOnly = false);
+    template <typename ListHashSetType> void reportListHashSet(const ListHashSetType&, ObjectType, bool contentOnly = false);
+    template <typename VectorType> void reportVector(const VectorType&, ObjectType, bool contentOnly = false);
 
 protected:
     class InstrumentedPointerBase {
@@ -70,6 +73,12 @@ protected:
 
         virtual void process(MemoryInstrumentation*) = 0;
     };
+
+    template <typename Container>
+    size_t calculateContainerSize(const Container& container, bool contentOnly = false)
+    {
+        return (contentOnly ? 0 : sizeof(container)) + container.capacity() * sizeof(typename Container::ValueType);
+    }
 
 private:
     friend class MemoryObjectInfo;
@@ -129,6 +138,30 @@ public:
         m_objectSize = sizeof(T);
     }
 
+    template <typename HashMapType>
+    void reportHashMap(const HashMapType& map)
+    {
+        m_memoryInstrumentation->reportHashMap(map, objectType(), true);
+    }
+
+    template <typename HashSetType>
+    void reportHashSet(const HashSetType& set)
+    {
+        m_memoryInstrumentation->reportHashSet(set, objectType(), true);
+    }
+
+    template <typename ListHashSetType>
+    void reportListHashSet(const ListHashSetType& set)
+    {
+        m_memoryInstrumentation->reportListHashSet(set, objectType(), true);
+    }
+
+    template <typename VectorType>
+    void reportVector(const VectorType& vector)
+    {
+        m_memoryInstrumentation->reportVector(vector, objectType(), true);
+    }
+
     void reportString(const String& string)
     {
         m_memoryInstrumentation->reportString(objectType(), string);
@@ -136,6 +169,8 @@ public:
 
     MemoryInstrumentation::ObjectType objectType() const { return m_objectType; }
     size_t objectSize() const { return m_objectSize; }
+
+    MemoryInstrumentation* memoryInstrumentation() { return m_memoryInstrumentation; }
 
  private:
     MemoryInstrumentation* m_memoryInstrumentation;
@@ -161,10 +196,34 @@ void MemoryInstrumentation::reportInstrumentedObject(const T& object)
 }
 
 template<typename HashMapType>
-void MemoryInstrumentation::reportHashMap(const HashMapType& hashMap, ObjectType objectType)
+void MemoryInstrumentation::reportHashMap(const HashMapType& hashMap, ObjectType objectType, bool contentOnly)
 {
-    size_t size = sizeof(HashMapType) + hashMap.capacity() * sizeof(typename HashMapType::ValueType);
+    countObjectSize(objectType, calculateContainerSize(hashMap, contentOnly));
+}
+
+template<typename HashSetType>
+void MemoryInstrumentation::reportHashSet(const HashSetType& hashSet, ObjectType objectType, bool contentOnly)
+{
+    if (visited(&hashSet))
+        return;
+    countObjectSize(objectType, calculateContainerSize(hashSet, contentOnly));
+}
+
+template<typename ListHashSetType>
+void MemoryInstrumentation::reportListHashSet(const ListHashSetType& hashSet, ObjectType objectType, bool contentOnly)
+{
+    if (visited(&hashSet))
+        return;
+    size_t size = (contentOnly ? 0 : sizeof(ListHashSetType)) + hashSet.capacity() * sizeof(void*) + hashSet.size() * (sizeof(typename ListHashSetType::ValueType) + 2 * sizeof(void*));
     countObjectSize(objectType, size);
+}
+
+template <typename VectorType>
+void MemoryInstrumentation::reportVector(const VectorType& vector, ObjectType objectType, bool contentOnly)
+{
+    if (visited(vector.data()))
+        return;
+    countObjectSize(objectType, calculateContainerSize(vector, contentOnly));
 }
 
 template<typename T>

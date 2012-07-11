@@ -71,7 +71,6 @@
 #include "Text.h"
 #include "TextIterator.h"
 #include "VoidCallback.h"
-#include "WebKitMutationObserver.h"
 #include "WebKitAnimationList.h"
 #include "XMLNSNames.h"
 #include "XMLNames.h"
@@ -680,7 +679,7 @@ inline void Element::setAttributeInternal(size_t index, const QualifiedName& nam
         old->setValue(value);
 
     if (inUpdateStyleAttribute == NotInUpdateStyleAttribute)
-        didModifyAttribute(*old);
+        didModifyAttribute(Attribute(old->name(), old->value()));
 }
 
 void Element::attributeChanged(const Attribute& attribute)
@@ -1182,7 +1181,7 @@ ShadowRoot* Element::ensureShadowRoot()
     if (ElementShadow* shadow = this->shadow())
         return shadow->oldestShadowRoot();
 
-    return ShadowRoot::create(this, ShadowRoot::CreatingUserAgentShadowRoot).get();
+    return ShadowRoot::create(this, ShadowRoot::UserAgentShadowRoot).get();
 }
 
 const AtomicString& Element::shadowPseudoId() const
@@ -1257,7 +1256,7 @@ static void checkForSiblingStyleChanges(Element* e, RenderStyle* style, bool fin
             firstElementAfterInsertion->setNeedsStyleRecalc();
             
         // We also have to handle node removal.
-        if (childCountDelta < 0 && newFirstChild == firstElementAfterInsertion && newFirstChild && newFirstChild->renderStyle() && !newFirstChild->renderStyle()->firstChildState())
+        if (childCountDelta < 0 && newFirstChild == firstElementAfterInsertion && newFirstChild && (!newFirstChild->renderStyle() || !newFirstChild->renderStyle()->firstChildState()))
             newFirstChild->setNeedsStyleRecalc();
     }
 
@@ -1280,7 +1279,7 @@ static void checkForSiblingStyleChanges(Element* e, RenderStyle* style, bool fin
             
         // We also have to handle node removal.  The parser callback case is similar to node removal as well in that we need to change the last child
         // to match now.
-        if ((childCountDelta < 0 || finishedParsingCallback) && newLastChild == lastElementBeforeInsertion && newLastChild && newLastChild->renderStyle() && !newLastChild->renderStyle()->lastChildState())
+        if ((childCountDelta < 0 || finishedParsingCallback) && newLastChild == lastElementBeforeInsertion && newLastChild && (!newLastChild->renderStyle() || !newLastChild->renderStyle()->lastChildState()))
             newLastChild->setNeedsStyleRecalc();
     }
 
@@ -2042,40 +2041,51 @@ void Element::updateExtraNamedItemRegistration(const AtomicString& oldId, const 
         static_cast<HTMLDocument*>(document())->addExtraNamedItem(newId);
 }
 
-HTMLCollection* Element::ensureCachedHTMLCollection(CollectionType type)
+PassRefPtr<HTMLCollection> Element::ensureCachedHTMLCollection(CollectionType type)
 {
     return ensureElementRareData()->ensureCachedHTMLCollection(this, type);
 }
 
-HTMLCollection* ElementRareData::ensureCachedHTMLCollection(Element* element, CollectionType type)
+PassRefPtr<HTMLCollection> ElementRareData::ensureCachedHTMLCollection(Element* element, CollectionType type)
 {
-    if (!m_cachedCollections)
+    if (!m_cachedCollections) {
         m_cachedCollections = adoptPtr(new CachedHTMLCollectionArray);
-    
-    OwnPtr<HTMLCollection>& collection = (*m_cachedCollections)[type - FirstNodeCollectionType];
-    if (!collection) {
-        if (type == TableRows) {
-            ASSERT(element->hasTagName(tableTag));
-            collection = HTMLTableRowsCollection::create(element);
-        } else if (type == SelectOptions) {
-            ASSERT(element->hasTagName(selectTag));
-            collection = HTMLOptionsCollection::create(element);
-        } else if (type == FormControls) {
-            ASSERT(element->hasTagName(formTag) || element->hasTagName(fieldsetTag));
-            collection = HTMLFormCollection::create(element);
-#if ENABLE(MICRODATA)
-        } else if (type == ItemProperties) {
-            collection = HTMLPropertiesCollection::create(element);
-#endif
-        } else
-            collection = HTMLCollection::create(element, type);
+        for (unsigned i = 0; i < NumNodeCollectionTypes; i++)
+            (*m_cachedCollections)[i] = 0;
     }
-    return collection.get();
+
+    if (HTMLCollection* collection = (*m_cachedCollections)[type - FirstNodeCollectionType])
+        return collection;
+
+    RefPtr<HTMLCollection> collection;
+    if (type == TableRows) {
+        ASSERT(element->hasTagName(tableTag));
+        collection = HTMLTableRowsCollection::create(element);
+    } else if (type == SelectOptions) {
+        ASSERT(element->hasTagName(selectTag));
+        collection = HTMLOptionsCollection::create(element);
+    } else if (type == FormControls) {
+        ASSERT(element->hasTagName(formTag) || element->hasTagName(fieldsetTag));
+        collection = HTMLFormCollection::create(element);
+#if ENABLE(MICRODATA)
+    } else if (type == ItemProperties) {
+        collection = HTMLPropertiesCollection::create(element);
+#endif
+    } else
+        collection = HTMLCollection::create(element, type);
+    (*m_cachedCollections)[type - FirstNodeCollectionType] = collection.get();
+    return collection.release();
 }
 
 HTMLCollection* Element::cachedHTMLCollection(CollectionType type)
 {
     return hasRareData() ? elementRareData()->cachedHTMLCollection(type) : 0;
+}
+
+void Element::removeCachedHTMLCollection(HTMLCollection* collection, CollectionType type)
+{
+    ASSERT(hasRareData());
+    elementRareData()->removeCachedHTMLCollection(collection, type);
 }
 
 IntSize Element::savedLayerScrollOffset() const

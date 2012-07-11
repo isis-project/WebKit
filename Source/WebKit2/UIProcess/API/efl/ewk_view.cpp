@@ -33,6 +33,7 @@
 #include "ewk_intent_private.h"
 #include "ewk_view_loader_client_private.h"
 #include "ewk_view_private.h"
+#include "ewk_view_resource_load_client_private.h"
 #include <wtf/text/CString.h>
 
 using namespace WebKit;
@@ -494,6 +495,7 @@ Evas_Object* ewk_view_base_add(Evas* canvas, WKContextRef contextRef, WKPageGrou
 
     priv->pageClient = PageClientImpl::create(toImpl(contextRef), toImpl(pageGroupRef), ewkView);
     ewk_view_loader_client_attach(toAPI(priv->pageClient->page()), ewkView);
+    ewk_view_resource_load_client_attach(toAPI(priv->pageClient->page()), ewkView);
 
     return ewkView;
 }
@@ -538,6 +540,16 @@ Eina_Bool ewk_view_reload(Evas_Object* ewkView)
     return true;
 }
 
+Eina_Bool ewk_view_reload_bypass_cache(Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    WKPageReloadFromOrigin(toAPI(priv->pageClient->page()));
+
+    return true;
+}
+
 Eina_Bool ewk_view_stop(Evas_Object* ewkView)
 {
     EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
@@ -545,6 +557,20 @@ Eina_Bool ewk_view_stop(Evas_Object* ewkView)
 
     WKPageStopLoading(toAPI(priv->pageClient->page()));
     return true;
+}
+
+/**
+ * @internal
+ * Load was initiated for a resource in the view.
+ *
+ * Emits signal: "resource,request,new" with pointer to resource request.
+ */
+void ewk_view_resource_load_initiated(Evas_Object* ewkView, uint64_t resourceIdentifier, Ewk_Web_Resource* resource, Ewk_Url_Request* request)
+{
+    Ewk_Web_Resource_Request resourceRequest = {resource, request};
+    // FIXME: We will need to store the resource and its identifier at some point
+    // to get the resource back from the identifier on resource load finish.
+    evas_object_smart_callback_call(ewkView, "resource,request,new", &resourceRequest);
 }
 
 const char* ewk_view_title_get(const Evas_Object* ewkView)
@@ -567,6 +593,42 @@ const char* ewk_view_title_get(const Evas_Object* ewkView)
 void ewk_view_title_changed(Evas_Object* ewkView, const char* title)
 {
     evas_object_smart_callback_call(ewkView, "title,changed", const_cast<char*>(title));
+}
+
+double ewk_view_load_progress_get(const Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 0);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 0);
+
+    return WKPageGetEstimatedProgress(toAPI(priv->pageClient->page()));
+}
+
+Eina_Bool ewk_view_device_pixel_ratio_set(Evas_Object* ewkView, float ratio)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+
+    priv->pageClient->page()->setCustomDeviceScaleFactor(ratio);
+    return true;
+}
+
+float ewk_view_device_pixel_ratio_get(const Evas_Object* ewkView)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, 1);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, 1);
+
+    return priv->pageClient->page()->deviceScaleFactor();
+}
+
+/**
+ * @internal
+ * Reports load progress changed.
+ *
+ * Emits signal: "load,progress" with pointer to a double from 0.0 to 1.0.
+ */
+void ewk_view_load_progress_changed(Evas_Object* ewkView, double progress)
+{
+    evas_object_smart_callback_call(ewkView, "load,progress", &progress);
 }
 
 /**
@@ -657,6 +719,75 @@ void ewk_view_image_data_set(Evas_Object* ewkView, void* imageData, const IntSiz
     evas_object_resize(smartData->image, size.width(), size.height());
     evas_object_image_size_set(smartData->image, size.width(), size.height());
     evas_object_image_data_copy_set(smartData->image, imageData);
+}
+
+/**
+ * @internal
+ * Reports load failed with error information.
+ *
+ * Emits signal: "load,error" with pointer to Ewk_Web_Error.
+ */
+void ewk_view_load_error(Evas_Object* ewkView, const Ewk_Web_Error* error)
+{
+    evas_object_smart_callback_call(ewkView, "load,error", const_cast<Ewk_Web_Error*>(error));
+}
+
+/**
+ * @internal
+ * Reports load finished.
+ *
+ * Emits signal: "load,finished".
+ */
+void ewk_view_load_finished(Evas_Object* ewkView)
+{
+    evas_object_smart_callback_call(ewkView, "load,finished", 0);
+}
+
+/**
+ * @internal
+ * Reports view provisional load failed with error information.
+ *
+ * Emits signal: "load,provisional,failed" with pointer to Ewk_Web_Error.
+ */
+void ewk_view_load_provisional_failed(Evas_Object* ewkView, const Ewk_Web_Error* error)
+{
+    evas_object_smart_callback_call(ewkView, "load,provisional,failed", const_cast<Ewk_Web_Error*>(error));
+}
+
+/**
+ * @internal
+ * Reports view received redirect for provisional load.
+ *
+ * Emits signal: "load,provisional,redirect".
+ */
+void ewk_view_load_provisional_redirect(Evas_Object* ewkView)
+{
+    evas_object_smart_callback_call(ewkView, "load,provisional,redirect", 0);
+}
+
+/**
+ * @internal
+ * Reports view provisional load started.
+ *
+ * Emits signal: "load,provisional,started".
+ */
+void ewk_view_load_provisional_started(Evas_Object* ewkView)
+{
+    evas_object_smart_callback_call(ewkView, "load,provisional,started", 0);
+}
+
+Eina_Bool ewk_view_html_string_load(Evas_Object* ewkView, const char* html, const char* baseUrl, const char* unreachableUrl)
+{
+    EWK_VIEW_SD_GET_OR_RETURN(ewkView, smartData, false);
+    EWK_VIEW_PRIV_GET_OR_RETURN(smartData, priv, false);
+    EINA_SAFETY_ON_NULL_RETURN_VAL(html, false);
+
+    if (unreachableUrl && *unreachableUrl)
+        priv->pageClient->page()->loadAlternateHTMLString(String::fromUTF8(html), baseUrl ? String::fromUTF8(baseUrl) : "", String::fromUTF8(unreachableUrl));
+    else
+        priv->pageClient->page()->loadHTMLString(String::fromUTF8(html), baseUrl ? String::fromUTF8(baseUrl) : "");
+
+    return true;
 }
 
 #if ENABLE(WEB_INTENTS_TAG)

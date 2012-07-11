@@ -1723,7 +1723,7 @@ public:
     }
 #endif
     
-#if !defined(NDEBUG) && !CPU(ARM_THUMB2)
+#if !defined(NDEBUG) && !CPU(ARM)
     void prepareForExternalCall()
     {
         for (unsigned i = 0; i < sizeof(void*) / 4; i++)
@@ -2103,8 +2103,7 @@ public:
         m_jit.storePtr(MacroAssembler::TrustedImmPtr(0), MacroAssembler::Address(resultGPR, JSObject::offsetOfInheritorID()));
         
         // Initialize the object's property storage pointer.
-        m_jit.addPtr(MacroAssembler::TrustedImm32(sizeof(JSObject)), resultGPR, scratchGPR);
-        m_jit.storePtr(scratchGPR, MacroAssembler::Address(resultGPR, ClassType::offsetOfPropertyStorage()));
+        m_jit.storePtr(MacroAssembler::TrustedImmPtr(0), MacroAssembler::Address(resultGPR, ClassType::offsetOfOutOfLineStorage()));
     }
 
     // It is acceptable to have structure be equal to scratch, so long as you're fine

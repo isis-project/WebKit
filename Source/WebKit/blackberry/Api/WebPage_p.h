@@ -440,6 +440,9 @@ public:
 
     void setInspectorOverlayClient(WebCore::InspectorOverlay::InspectorOverlayClient*);
 
+    void applySizeOverride(int overrideWidth, int overrideHeight);
+    void setTextZoomFactor(float);
+
     WebPage* m_webPage;
     WebPageClient* m_client;
     WebCore::Page* m_page;
@@ -619,8 +622,6 @@ public:
 
     // The popup that opened in this webpage
     WebCore::PagePopupBlackBerry* m_selectPopup;
-    // The popup that owned this webpage
-    WebCore::PagePopupBlackBerry* m_parentPopup;
 
     RefPtr<WebCore::AutofillManager> m_autofillManager;
 protected:

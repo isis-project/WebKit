@@ -85,12 +85,13 @@ ENDIF ()
 
 IF (ENABLE_NOTIFICATIONS)
   LIST(APPEND WebKit_INCLUDE_DIRECTORIES
-    "${WEBCORE_DIR}/notifications"
+    "${WEBCORE_DIR}/Modules/notifications"
   )
 ENDIF ()
 
 LIST(APPEND WebKit_SOURCES
     efl/WebCoreSupport/AssertMatchingEnums.cpp
+    efl/WebCoreSupport/BatteryClientEfl.cpp
     efl/WebCoreSupport/ChromeClientEfl.cpp
     efl/WebCoreSupport/DeviceOrientationClientEfl.cpp
     efl/WebCoreSupport/DeviceMotionClientEfl.cpp
@@ -103,7 +104,7 @@ LIST(APPEND WebKit_SOURCES
     efl/WebCoreSupport/IconDatabaseClientEfl.cpp
     efl/WebCoreSupport/StorageTrackerClientEfl.cpp
     efl/WebCoreSupport/InspectorClientEfl.cpp
-    efl/WebCoreSupport/NotificationClientEfl.cpp
+    efl/WebCoreSupport/NotificationPresenterClientEfl.cpp
     efl/WebCoreSupport/PageClientEfl.cpp
     efl/WebCoreSupport/PlatformStrategiesEfl.cpp 
 
@@ -161,7 +162,6 @@ ENDIF ()
 
 IF (ENABLE_BATTERY_STATUS)
     LIST(APPEND WebKit_INCLUDE_DIRECTORIES ${WEBCORE_DIR}/Modules/battery)
-    LIST(APPEND WebKit_SOURCES efl/WebCoreSupport/BatteryClientEfl.cpp)
 ENDIF ()
 
 IF (ENABLE_REGISTER_PROTOCOL_HANDLER)
@@ -294,21 +294,7 @@ INSTALL(FILES ${EWebKit_HEADERS}
 INSTALL(FILES ${WebKit_THEME}
         DESTINATION ${DATA_INSTALL_DIR}/themes)
 
-INCLUDE_DIRECTORIES(${THIRDPARTY_DIR}/gtest
-                    ${THIRDPARTY_DIR}/gtest/include
-)
-
-SET(GTEST_SOURCES "${THIRDPARTY_DIR}/gtest/src")
-
-ADD_LIBRARY(gtest
-    ${GTEST_SOURCES}/gtest.cc
-    ${GTEST_SOURCES}/gtest-death-test.cc
-    ${GTEST_SOURCES}/gtest_main.cc
-    ${GTEST_SOURCES}/gtest-filepath.cc
-    ${GTEST_SOURCES}/gtest-port.cc
-    ${GTEST_SOURCES}/gtest-test-part.cc
-    ${GTEST_SOURCES}/gtest-typed-test.cc
-)
+INCLUDE_DIRECTORIES(${THIRDPARTY_DIR}/gtest/include)
 
 SET(EWKUnitTests_LIBRARIES
     ${JavaScriptCore_LIBRARY_NAME}
@@ -323,7 +309,6 @@ SET(EWKUnitTests_LIBRARIES
 SET(EWKUnitTests_INCLUDE_DIRECTORIES
     "${CMAKE_SOURCE_DIR}/Source"
     "${WEBKIT_DIR}/efl/ewk"
-    "${WEBKIT_DIR}/efl/tests/src/UnitTestUtils"
     "${JAVASCRIPTCORE_DIR}"
     "${WTF_DIR}"
     "${WTF_DIR}/wtf"
@@ -372,3 +357,23 @@ FOREACH(testName ${EWKUnitTests_BINARIES})
     ADD_TARGET_PROPERTIES(${testName} LINK_FLAGS "${EWKUnitTests_LINK_FLAGS}")
     SET_TARGET_PROPERTIES(${testName} PROPERTIES FOLDER "WebKit")
 ENDFOREACH()
+
+IF (ENABLE_INSPECTOR)
+    SET(WEB_INSPECTOR_DIR ${CMAKE_BINARY_DIR}/WebKit/efl/webinspector)
+    ADD_DEFINITIONS(-DWEB_INSPECTOR_DIR="${WEB_INSPECTOR_DIR}")
+    ADD_DEFINITIONS(-DWEB_INSPECTOR_INSTALL_DIR="${CMAKE_INSTALL_PREFIX}/${DATA_INSTALL_DIR}/webinspector")
+    ADD_CUSTOM_TARGET(
+        web-inspector-resources ALL
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${WEBCORE_DIR}/inspector/front-end ${WEB_INSPECTOR_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy ${WEBCORE_DIR}/English.lproj/localizedStrings.js ${WEB_INSPECTOR_DIR}
+        COMMAND ${CMAKE_COMMAND} -E copy ${DERIVED_SOURCES_WEBCORE_DIR}/InspectorBackendCommands.js ${WEB_INSPECTOR_DIR}/InspectorBackendCommands.js
+        DEPENDS ${WebCore_LIBRARY_NAME}
+    )
+    INSTALL(DIRECTORY ${WEB_INSPECTOR_DIR}
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/${DATA_INSTALL_DIR}
+        FILES_MATCHING PATTERN "*.js"
+                       PATTERN "*.html"
+                       PATTERN "*.css"
+                       PATTERN "*.gif"
+                       PATTERN "*.png")
+ENDIF ()

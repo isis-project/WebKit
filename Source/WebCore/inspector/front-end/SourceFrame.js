@@ -169,6 +169,7 @@ WebInspector.SourceFrame.prototype = {
         this._clearLineToScrollTo();
         this._lineToHighlight = line;
         this._innerHighlightLineIfNeeded();
+        this._textEditor.setSelection(WebInspector.TextRange.createFromLocation(line, 0));
     },
 
     _innerHighlightLineIfNeeded: function()
@@ -330,6 +331,13 @@ WebInspector.SourceFrame.prototype = {
 
             var regex = WebInspector.SourceFrame.createSearchRegex(query);
             this._searchResults = this._collectRegexMatches(regex);
+            var selection = this._textEditor.lastSelection();
+            for (var i = 0; selection && i < this._searchResults.length; ++i) {
+                if (this._searchResults[i].compareTo(selection) > 0) {
+                    this._currentSearchResultIndex = i - 1;
+                    break;
+                }
+            }
 
             callback(this, this._searchResults.length);
         }

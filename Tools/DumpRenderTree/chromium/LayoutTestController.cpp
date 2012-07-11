@@ -276,7 +276,7 @@ LayoutTestController::LayoutTestController(TestShell* shell)
     bindMethod("setFixedLayoutSize", &LayoutTestController::setFixedLayoutSize);
     bindMethod("selectionAsMarkup", &LayoutTestController::selectionAsMarkup);
     bindMethod("setHasCustomFullScreenBehavior", &LayoutTestController::setHasCustomFullScreenBehavior);
-    bindMethod("textSurroundingElement", &LayoutTestController::textSurroundingElement);
+    bindMethod("textSurroundingNode", &LayoutTestController::textSurroundingNode);
 
     // The fallback method is called when an unknown method is invoked.
     bindFallbackMethod(&LayoutTestController::fallbackMethod);
@@ -1580,8 +1580,6 @@ void LayoutTestController::overridePreference(const CppArgumentList& arguments, 
         prefs->allowDisplayOfInsecureContent = cppVariantToBool(value);
     else if (key == "WebKitAllowRunningInsecureContent")
         prefs->allowRunningOfInsecureContent = cppVariantToBool(value);
-    else if (key == "WebKitHixie76WebSocketProtocolEnabled")
-        prefs->hixie76WebSocketProtocolEnabled = cppVariantToBool(value);
     else if (key == "WebKitCSSCustomFilterEnabled")
         prefs->cssCustomFilterEnabled = cppVariantToBool(value);
     else if (key == "WebKitWebAudioEnabled") {
@@ -2346,10 +2344,10 @@ void LayoutTestController::setPointerLockWillFailSynchronously(const CppArgument
 }
 #endif
 
-void LayoutTestController::textSurroundingElement(const CppArgumentList& arguments, CppVariant* result)
+void LayoutTestController::textSurroundingNode(const CppArgumentList& arguments, CppVariant* result)
 {
     result->setNull();
-    if (arguments.size() < 3 || !arguments[0].isObject() || !arguments[1].isNumber() || !arguments[2].isNumber())
+    if (arguments.size() < 4 || !arguments[0].isObject() || !arguments[1].isNumber() || !arguments[2].isNumber() || !arguments[3].isNumber())
         return;
 
     WebNode node;
@@ -2359,14 +2357,13 @@ void LayoutTestController::textSurroundingElement(const CppArgumentList& argumen
     if (node.isNull() || !node.isTextNode())
         return;
 
-    unsigned offset = arguments[1].toInt32();
-    if (offset >= node.nodeValue().length()) {
-        result->set(WebString().utf8());
-        return;
-    }
+    WebPoint point(arguments[1].toInt32(), arguments[2].toInt32());
+    unsigned maxLength = arguments[3].toInt32();
 
     WebSurroundingText surroundingText;
-    unsigned maxLength = arguments[2].toInt32();
-    surroundingText.initialize(node, offset, maxLength);
+    surroundingText.initialize(node, point, maxLength);
+    if (surroundingText.isNull())
+        return;
+
     result->set(surroundingText.textContent().utf8());
 }

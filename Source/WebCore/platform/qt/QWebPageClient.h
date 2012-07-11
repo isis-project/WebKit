@@ -35,7 +35,7 @@
 #include <GraphicsLayer.h>
 #endif
 
-#if ENABLE(WEBGL)
+#if USE(3D_GRAPHICS)
 #include <GraphicsContext3D.h>
 #endif
 
@@ -111,7 +111,7 @@ public:
 
     virtual void setWidgetVisible(WebCore::Widget*, bool visible) = 0;
 
-#if ENABLE(WEBGL)
+#if USE(3D_GRAPHICS)
     virtual void createPlatformGraphicsContext3D(PlatformGraphicsContext3D*,
                                                  PlatformGraphicsSurface3D*) = 0;
 #endif

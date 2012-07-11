@@ -47,7 +47,7 @@ haveQt(5):if(contains(QT_CONFIG,icu)|mac) {
 
 # We need fontconfig to set up the test fonts for DumpRenderTree and WebKitTestRunner.
 haveQt(5) {
-    contains(config_test_fontconfig, yes):!mac {
+    config_fontconfig:!mac {
         DEFINES += HAVE_FONTCONFIG=1
     }
 } else {
@@ -59,17 +59,17 @@ haveQt(5) {
 
 # We need libxml2 config test to determine to use libxml2 or not
 !contains(DEFINES, WTF_USE_LIBXML2=.) {
-    haveQt(5):contains(config_test_libxml2, yes): DEFINES += WTF_USE_LIBXML2=1
+    config_libxml2: DEFINES += WTF_USE_LIBXML2=1
 }
 
 # We need libxslt config test to determine to use libxslt or not
 !contains(DEFINES, ENABLE_XSLT=.) {
-    haveQt(5):contains(config_test_libxslt, yes): DEFINES += ENABLE_XSLT=1
+    config_libxslt: DEFINES += ENABLE_XSLT=1
 }
 
 # We need libzlib config test to determine to use enable websocket extension or not
 !contains(DEFINES, WTF_USE_ZLIB=.) {
-    haveQt(5):contains(config_test_libzlib, yes): DEFINES += WTF_USE_ZLIB=1
+    config_libzlib: DEFINES += WTF_USE_ZLIB=1
 }
 
 contains(DEFINES, PALM_DEVICE) {
@@ -113,7 +113,7 @@ contains(DEFINES, PALM_DEVICE) {
 }
 
 # QStyle detection
-haveQt(4)|!isEmpty(QT.widgets.name): DEFINES += HAVE_QSTYLE=1
+haveQt(4)|haveQtModule(widgets): DEFINES += HAVE_QSTYLE=1
 
 # WebGL support
 !contains(DEFINES, ENABLE_WEBGL=.) {
@@ -137,7 +137,7 @@ haveQt(4)|!isEmpty(QT.widgets.name): DEFINES += HAVE_QSTYLE=1
 
 # orientation support
 haveQt(5) {
-    !isEmpty(QT.sensors.name) {
+    haveQtModule(sensors) {
         !contains(DEFINES, ENABLE_ORIENTATION_EVENTS=.): DEFINES += ENABLE_ORIENTATION_EVENTS=1
         !contains(DEFINES, ENABLE_DEVICE_ORIENTATION=.): DEFINES += ENABLE_DEVICE_ORIENTATION=1
     }
@@ -221,17 +221,19 @@ for(define, DEFINES) {
     contains(DEFINES, $$opposite): DEFINES -= $$define
 }
 
+# Enable the USE(3D_GRAPHICS) flag for Qt5 or when QtOpenGL is enabled.
+!contains(DEFINES, WTF_USE_3D_GRAPHICS=.) {
+    # Disable USE(3D_GRAPHICS) on Windows temporarily, see https://bugs.webkit.org/show_bug.cgi?id=90850 for details.
+    !win32-* {
+        haveQt(5)|contains(QT_CONFIG, opengl): DEFINES += WTF_USE_3D_GRAPHICS=1
+    }
+}
+
+haveQt(4):contains(DEFINES, ENABLE_WEBGL=1):contains(DEFINES, WTF_USE_3D_GRAPHICS=0) {
+    error("WebGL requires Qt to be configured with OpenGL. Please reconfigure Qt with OpenGL, or build WebKit without WebGL.")
+}
+
 # ---------------------- WebOS   ----------------------
 
 contains(DEFINES, ENABLE_PALM_SERVICE_BRIDGE=1): FEATURES_DEFINES_JAVASCRIPT += ENABLE_PALM_SERVICE_BRIDGE=1
 
-# ---------------------- The end ----------------------
-
-# Used to compute defaults for the build-webkit script
-# Don't place anything after this!
-CONFIG(compute_defaults) {
-    # FIXME: We should have configure.pro do this when the config tests
-    # can be selectivly run.
-    message(DEFINES: $$DEFINES)
-    error("Done computing defaults")
-}

@@ -746,7 +746,7 @@ void HTMLElement::setTranslate(bool enable)
 }
 
 
-HTMLCollection* HTMLElement::children()
+PassRefPtr<HTMLCollection> HTMLElement::children()
 {
     return ensureCachedHTMLCollection(NodeChildren);
 }
@@ -989,9 +989,9 @@ void HTMLElement::setItemValueText(const String& value, ExceptionCode& ec)
     setTextContent(value, ec);
 }
 
-HTMLPropertiesCollection* HTMLElement::properties()
+PassRefPtr<HTMLPropertiesCollection> HTMLElement::properties()
 {
-    return static_cast<HTMLPropertiesCollection*>(ensureCachedHTMLCollection(ItemProperties));
+    return static_cast<HTMLPropertiesCollection*>(ensureCachedHTMLCollection(ItemProperties).get());
 }
 #endif
 

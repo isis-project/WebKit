@@ -157,6 +157,7 @@
 #include <BlackBerryPlatformSettings.h>
 #include <JavaScriptCore/APICast.h>
 #include <JavaScriptCore/JSContextRef.h>
+#include <JavaScriptCore/JSStringRef.h>
 #include <SharedPointer.h>
 #include <sys/keycodes.h>
 #include <unicode/ustring.h> // platform ICU
@@ -403,7 +404,6 @@ WebPagePrivate::WebPagePrivate(WebPage* webPage, WebPageClient* client, const In
     , m_updateDelegatedOverlaysDispatched(false)
     , m_deferredTasksTimer(this, &WebPagePrivate::deferredTasksTimerFired)
     , m_selectPopup(0)
-    , m_parentPopup(0)
     , m_autofillManager(AutofillManager::create(this))
 {
     static bool isInitialized = false;
@@ -567,7 +567,6 @@ void WebPagePrivate::init(const WebString& pageGroupName)
     m_page->settings()->setTextReflowEnabled(m_webSettings->textReflowMode() == WebSettings::TextReflowEnabled);
 #endif
 
-    m_page->settings()->setUseHixie76WebSocketProtocol(false);
     m_page->settings()->setInteractiveFormValidationEnabled(true);
     m_page->settings()->setAllowUniversalAccessFromFileURLs(false);
     m_page->settings()->setAllowFileAccessFromFileURLs(false);
@@ -849,6 +848,93 @@ bool WebPage::executeJavaScriptInIsolatedWorld(const char* script, JavaScriptDat
     return d->executeJavaScriptInIsolatedWorld(sourceCode, returnType, returnValue);
 }
 
+bool WebPage::executeJavaScriptFunction(const std::vector<std::string> &function, const std::vector<std::string> &args, JavaScriptDataType& returnType, WebString& returnValue)
+{
+    if (!d->m_mainFrame)
+        return false;
+    JSC::Bindings::RootObject* root = d->m_mainFrame->script()->bindingRootObject();
+    if (!root)
+        return false;
+    JSC::ExecState* exec = root->globalObject()->globalExec();
+    JSGlobalContextRef ctx = toGlobalRef(exec);
+
+    WTF::Vector<JSStringRef> argList(args.size());
+    WTF::Vector<JSValueRef> argListRef(args.size());
+    for (unsigned i = 0; i < args.size(); ++i) {
+        JSStringRef str = JSStringCreateWithUTF8CString(args[i].c_str());
+        argList[i] = str;
+        JSValueRef strRef = JSValueMakeString(ctx, str);
+        argListRef[i] = strRef;
+    }
+
+    JSValueRef windowObjectValue = windowObject();
+    JSObjectRef obj = JSValueToObject(ctx, windowObjectValue, 0);
+    JSObjectRef thisObject = obj;
+    for (unsigned i = 0; i < function.size(); ++i) {
+        JSStringRef str = JSStringCreateWithUTF8CString(function[i].c_str());
+        thisObject = obj;
+        obj = JSValueToObject(ctx, JSObjectGetProperty(ctx, obj, str, 0), 0);
+        JSStringRelease(str);
+        if (!obj)
+            break;
+    }
+
+    JSObjectRef functionObject = obj;
+    JSValueRef result = 0;
+    JSValueRef exception;
+    if (functionObject && thisObject)
+        result = JSObjectCallAsFunction(ctx, functionObject, thisObject, args.size(), argListRef.data(), &exception);
+
+    for (unsigned i = 0; i < args.size(); ++i)
+        JSStringRelease(argList[i]);
+
+    JSC::JSValue value = toJS(exec, result);
+
+    if (!value) {
+        returnType = JSException;
+        JSStringRef stringRef = JSValueToStringCopy(ctx, exception, 0);
+        size_t bufferSize = JSStringGetMaximumUTF8CStringSize(stringRef);
+        WTF::Vector<char> buffer(bufferSize);
+        JSStringGetUTF8CString(stringRef, buffer.data(), bufferSize);
+        returnValue = WebString::fromUtf8(buffer.data());
+        return false;
+    }
+
+    JSType type = JSValueGetType(ctx, result);
+
+    switch (type) {
+    case kJSTypeNull:
+        returnType = JSNull;
+        break;
+    case kJSTypeBoolean:
+        returnType = JSBoolean;
+        break;
+    case kJSTypeNumber:
+        returnType = JSNumber;
+        break;
+    case kJSTypeString:
+        returnType = JSString;
+        break;
+    case kJSTypeObject:
+        returnType = JSObject;
+        break;
+    case kJSTypeUndefined:
+    default:
+        returnType = JSUndefined;
+        break;
+    }
+
+    if (returnType == JSBoolean || returnType == JSNumber || returnType == JSString || returnType == JSObject) {
+        JSStringRef stringRef = JSValueToStringCopy(ctx, result, 0);
+        size_t bufferSize = JSStringGetMaximumUTF8CStringSize(stringRef);
+        WTF::Vector<char> buffer(bufferSize);
+        JSStringGetUTF8CString(stringRef, buffer.data(), bufferSize);
+        returnValue = WebString::fromUtf8(buffer.data());
+    }
+
+    return true;
+}
+
 void WebPagePrivate::stopCurrentLoad()
 {
     // This function should contain all common code triggered by WebPage::load
@@ -967,6 +1053,9 @@ void WebPagePrivate::setLoadState(LoadState state)
                     Platform::createMethodCallMessage(&WebPagePrivate::destroyLayerResources, this));
             }
 #endif
+            // Suspend screen update to avoid ui thread blitting while resetting backingstore.
+            m_backingStore->d->suspendScreenAndBackingStoreUpdates();
+
             m_previousContentsSize = IntSize();
             m_backingStore->d->resetRenderQueue();
             m_backingStore->d->resetTiles(true /* resetBackground */);
@@ -1037,6 +1126,8 @@ void WebPagePrivate::setLoadState(LoadState state)
             // we report to the client could make our current scroll position invalid.
             setScrollPosition(IntPoint::zero());
             notifyTransformedScrollChanged();
+
+            m_backingStore->d->resumeScreenAndBackingStoreUpdates(BackingStore::None);
 
             // Paints the visible backingstore as white. Note it is important we do
             // this strictly after re-setting the scroll position to origin and resetting
@@ -3456,6 +3547,15 @@ IntSize WebPagePrivate::recomputeVirtualViewportFromViewportArguments()
     int deviceHeight = Platform::Graphics::Screen::primaryScreen()->height();
     ViewportAttributes result = computeViewportAttributes(m_viewportArguments, desktopWidth, deviceWidth, deviceHeight, m_webSettings->devicePixelRatio(), m_defaultLayoutSize);
     m_page->setDeviceScaleFactor(result.devicePixelRatio);
+
+    setUserScalable(m_userScalable && result.userScalable);
+    if (result.initialScale > 0)
+        setInitialScale(result.initialScale * result.devicePixelRatio);
+    if (result.minimumScale > 0)
+        setMinimumScale(result.minimumScale * result.devicePixelRatio);
+    if (result.maximumScale > 0)
+        setMaximumScale(result.maximumScale * result.devicePixelRatio);
+
     return IntSize(result.layoutSize.width(), result.layoutSize.height());
 }
 
@@ -3497,14 +3597,6 @@ void WebPagePrivate::dispatchViewportPropertiesDidChange(const ViewportArguments
         m_viewportArguments.width = ViewportArguments::ValueDeviceWidth;
     if (!m_viewportArguments.height)
         m_viewportArguments.height = ViewportArguments::ValueDeviceHeight;
-
-    setUserScalable(arguments.userScalable == ViewportArguments::ValueAuto ? true : arguments.userScalable);
-    if (arguments.initialScale > 0)
-        setInitialScale(arguments.initialScale);
-    if (arguments.minimumScale > 0)
-        setMinimumScale(arguments.minimumScale);
-    if (arguments.maximumScale > 0)
-        setMaximumScale(arguments.maximumScale);
 
     IntSize virtualViewport = recomputeVirtualViewportFromViewportArguments();
     m_webPage->setVirtualViewportSize(virtualViewport.width(), virtualViewport.height());
@@ -6083,7 +6175,7 @@ void WebPagePrivate::destroyCompositor()
 {
     // m_compositor is a RefPtr, so it may live on beyond this point.
     // Disconnect the compositor from us
-    m_compositor->setPage(0);
+    m_compositor->detach();
     m_compositor.clear();
     m_ownedContext.clear();
 }
@@ -6572,11 +6664,6 @@ PagePopupBlackBerry* WebPage::popup()
     return d->m_selectPopup;
 }
 
-void WebPagePrivate::setParentPopup(PagePopupBlackBerry* webPopup)
-{
-    m_parentPopup = webPopup;
-}
-
 void WebPagePrivate::setInspectorOverlayClient(WebCore::InspectorOverlay::InspectorOverlayClient* inspectorOverlayClient)
 {
     if (inspectorOverlayClient) {
@@ -6595,5 +6682,17 @@ void WebPagePrivate::setInspectorOverlayClient(WebCore::InspectorOverlay::Inspec
     }
 }
 
+void WebPagePrivate::applySizeOverride(int overrideWidth, int overrideHeight)
+{
+    m_client->requestUpdateViewport(overrideWidth, overrideHeight);
+}
+
+void WebPagePrivate::setTextZoomFactor(float textZoomFactor)
+{
+    if (!m_mainFrame)
+        return;
+
+    m_mainFrame->setTextZoomFactor(textZoomFactor);
+}
 }
 }

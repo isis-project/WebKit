@@ -37,7 +37,6 @@
     <file>DatabaseTableView.js</file>
     <file>DataGrid.js</file>
     <file>DebuggerModel.js</file>
-    <file>DebuggerResourceBinding.js</file>
     <file>DebuggerScriptMapping.js</file>
     <file>Dialog.js</file>
     <file>DirectoryContentView.js</file>
@@ -58,6 +57,7 @@
     <file>ExtensionPanel.js</file>
     <file>ExtensionRegistryStub.js</file>
     <file>ExtensionServer.js</file>
+    <file>FileContentView.js</file>
     <file>FileManager.js</file>
     <file>FileSystemModel.js</file>
     <file>FileSystemView.js</file>
@@ -308,12 +308,7 @@
     <file>Images/spinnerInactiveSelected.gif</file>
     <file>Images/splitviewDimple.png</file>
     <file>Images/splitviewDividerBackground.png</file>
-    <file>Images/statusbarBackground.png</file>
-    <file>Images/statusbarBottomBackground.png</file>
-    <file>Images/statusbarButtons.png</file>
     <file>Images/statusbarButtonGlyphs.png</file>
-    <file>Images/statusbarMenuButton.png</file>
-    <file>Images/statusbarMenuButtonSelected.png</file>
     <file>Images/statusbarResizerHorizontal.png</file>
     <file>Images/statusbarResizerVertical.png</file>
     <file>Images/successGreenDot.png</file>

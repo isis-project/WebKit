@@ -158,6 +158,8 @@ WebInspector.TextEditor.prototype = {
      */
     markAndRevealRange: function(range)
     {
+        if (range)
+            this.setSelection(range);
         this._mainPanel.markAndRevealRange(range);
     },
 
@@ -250,7 +252,7 @@ WebInspector.TextEditor.prototype = {
     {
         var lineNumbersWidth = this._gutterPanel.element.offsetWidth;
         if (lineNumbersWidth)
-            this._mainPanel.element.style.setProperty("left", lineNumbersWidth + "px");
+            this._mainPanel.element.style.setProperty("left", (lineNumbersWidth + 2) + "px");
         else
             this._mainPanel.element.style.removeProperty("left"); // Use default value set in CSS.
     },
@@ -377,8 +379,11 @@ WebInspector.TextEditor.prototype = {
     _handleSelectionChange: function(event)
     {
         var textRange = this._mainPanel._getSelection();
-        if (textRange)
-            this._lastSelection = textRange;
+        if (textRange) {
+            // We do not restore selection after focus lost to avoid selection blinking. We restore only cursor position instead.
+            // FIXME: consider adding selection decoration to blurred editor.
+            this._lastSelection = WebInspector.TextRange.createFromLocation(textRange.endLine, textRange.endColumn);
+        }
         this._delegate.selectionChanged(textRange);
     },
 
@@ -391,12 +396,21 @@ WebInspector.TextEditor.prototype = {
     },
 
     /**
+     * @return {WebInspector.TextRange?}
+     */
+    lastSelection: function()
+    {
+        return this._lastSelection;
+    },
+
+    /**
      * @param {WebInspector.TextRange} textRange
      */
     setSelection: function(textRange)
     {
         this._lastSelection = textRange;
-        this._mainPanel._restoreSelection(textRange);
+        if (this.element.isAncestor(document.activeElement))
+            this._mainPanel._restoreSelection(textRange);
     },
 
     wasShown: function()
@@ -410,12 +424,8 @@ WebInspector.TextEditor.prototype = {
 
     _handleFocused: function()
     {
-        if (this._lastSelection) {
-            // We do not restore selection after focus lost to avoid selection blinking. We restore only cursor position instead.
-            // FIXME: consider adding selection decoration to blurred editor.
-            var newSelection = WebInspector.TextRange.createFromLocation(this._lastSelection.endLine, this._lastSelection.endColumn);
-            this.setSelection(newSelection);
-        }
+        if (this._lastSelection)
+            this.setSelection(this._lastSelection);
     },
 
     willHide: function()
@@ -637,10 +647,6 @@ WebInspector.TextEditorChunkedPanel.prototype = {
 
     _scroll: function()
     {
-        // FIXME: Replace the "2" with the padding-left value from CSS.
-        if (this.element.scrollLeft <= 2)
-            this.element.scrollLeft = 0;
-
         this._scheduleRepaintAll();
         if (this._syncScrollListener)
             this._syncScrollListener();
@@ -2185,6 +2191,9 @@ WebInspector.TextEditorMainPanel.prototype = {
             return; // Noop
         }
 
+        if (lines.length === 1 && lines[0] === "}" && oldRange.isEmpty() && selection.isEmpty() && !this._textModel.line(oldRange.endLine).trim())
+            this._unindentAfterBlock(oldRange, selection);
+        
         // This is a "foreign" call outside of this class. Should be before we delete the dirty lines flag.
         this._enterTextChangeMode();
 
@@ -2196,6 +2205,38 @@ WebInspector.TextEditorMainPanel.prototype = {
         this._restoreSelection(selection);
 
         this._exitTextChangeMode(oldRange, newRange);
+    },
+
+    /**
+     * @param {WebInspector.TextRange} oldRange
+     * @param {WebInspector.TextRange} selection
+     */
+    _unindentAfterBlock: function(oldRange, selection)
+    {
+        var nestingLevel = 1;
+        for (var i = oldRange.endLine; i >= 0; --i) {
+            var attribute = this._textModel.getAttribute(i, "highlight");
+            if (!attribute)
+                continue;
+            var columnNumbers = Object.keys(attribute).reverse();
+            for (var j = 0; j < columnNumbers.length; ++j) {
+                var column = columnNumbers[j];
+                if (attribute[column].tokenType === "block-start") {
+                    if (!(--nestingLevel)) {
+                        var lineContent = this._textModel.line(i);
+                        var blockOffset = lineContent.length - lineContent.trimLeft().length;
+                        if (blockOffset < oldRange.startColumn) {
+                            oldRange.startColumn = blockOffset;
+                            selection.startColumn = blockOffset + 1;
+                            selection.endColumn = blockOffset + 1;
+                        }
+                        return;
+                    }
+                }
+                if (attribute[column].tokenType === "block-end")
+                    ++nestingLevel;
+            }
+        }
     },
 
     /**

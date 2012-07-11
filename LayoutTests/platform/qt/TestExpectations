@@ -11,6 +11,7 @@ BUG_QT_SLOW SLOW DEBUG : editing/selection/dump-as-markup.html = PASS
 BUG_QT_SLOW DEBUG : fast/js/array-sort-modifying-tostring.html = TIMEOUT PASS
 BUG_QT_SLOW SLOW DEBUG : fast/overflow/lots-of-sibling-inline-boxes.html = PASS
 BUG_QT_SLOW SLOW DEBUG : fast/js/dfg-inline-function-dot-caller.html = PASS
+BUG_QT_SLOW SLOW DEBUG : fast/js/dfg-poison-fuzz.html = PASS
 
 BUGWK62662 DEBUG : inspector/cookie-parser.html = CRASH PASS
 
@@ -73,6 +74,7 @@ BUGWK88198 : svg/stroke/non-scaling-stroke-pattern.svg = PASS IMAGE
 
 // CSS Variables are not yet enabled.
 BUGWK85580 SKIP : fast/css/variables = PASS
+BUGWK85580 SKIP : inspector/styles/variables = PASS
 
 // UndoManager is not yet enabled.
 BUGWK87908 SKIP : editing/undomanager = PASS
@@ -101,3 +103,10 @@ BUGWK85463 SKIP : editing/inserting/typing-space-to-trigger-smart-link.html = PA
 BUGWK88794 SKIP : webaudio/codec-tests = PASS
 
 BUGWK90007 : http/tests/security/mixedContent/insecure-audio-video-in-main-frame.html = TEXT
+
+// Require rebaseline after bug 88171
+BUGWK88171 : fast/block/float/010.html = TEXT
+BUGWK88171 : css1/formatting_model/floating_elements.html = TEXT
+
+// Text Autosizing is not enabled.
+BUGWK84186 SKIP : fast/text-autosizing = PASS

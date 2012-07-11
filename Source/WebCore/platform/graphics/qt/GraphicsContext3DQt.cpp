@@ -17,15 +17,11 @@
 */
 
 #include "config.h"
-
 #include "GraphicsContext3D.h"
 
-#include "WebGLObject.h"
-#include "CanvasRenderingContext.h"
 #include "Extensions3DOpenGL.h"
 #include "GraphicsContext.h"
 #include "GraphicsSurface.h"
-#include "HTMLCanvasElement.h"
 #include "HostWindow.h"
 #include "ImageBuffer.h"
 #include "ImageData.h"
@@ -40,11 +36,11 @@
 #include <wtf/UnusedParam.h>
 #include <wtf/text/CString.h>
 
-#if USE(ACCELERATED_COMPOSITING) && USE(TEXTURE_MAPPER_GL)
+#if USE(TEXTURE_MAPPER_GL)
 #include <texmap/TextureMapperGL.h>
 #endif
 
-#if ENABLE(WEBGL)
+#if USE(3D_GRAPHICS)
 
 namespace WebCore {
 
@@ -97,6 +93,13 @@ bool GraphicsContext3D::isGLES2Compliant() const
     return false;
 #endif
 }
+
+#if !USE(OPENGL_ES_2)
+void GraphicsContext3D::releaseShaderCompiler()
+{
+    notImplemented();
+}
+#endif
 
 GraphicsContext3DPrivate::GraphicsContext3DPrivate(GraphicsContext3D* context, HostWindow* hostWindow)
     : m_context(context)
@@ -529,7 +532,7 @@ bool GraphicsContext3D::getImageData(Image* image,
 
     outputVector.resize(packedSize);
 
-    return packPixels(qtImage.bits(), SourceFormatBGRA8, image->width(), image->height(), 0, format, type, alphaOp, outputVector.data());
+    return packPixels(qtImage.constBits(), SourceFormatBGRA8, image->width(), image->height(), 0, format, type, alphaOp, outputVector.data());
 }
 
 void GraphicsContext3D::setContextLostCallback(PassOwnPtr<ContextLostCallback>)
@@ -542,4 +545,4 @@ void GraphicsContext3D::setErrorMessageCallback(PassOwnPtr<ErrorMessageCallback>
 
 }
 
-#endif // ENABLE(WEBGL)
+#endif // USE(3D_GRAPHICS)

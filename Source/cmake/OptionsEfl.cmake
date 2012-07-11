@@ -16,6 +16,12 @@ ADD_DEFINITIONS(-DWTF_PLATFORM_EFL=1)
 SET(WTF_PLATFORM_EFL 1)
 
 # -----------------------------------------------------------------------------
+# Enable CTest for the public API unit testing
+# -----------------------------------------------------------------------------
+ENABLE_TESTING()
+SET(ENABLE_API_TESTS ON)
+
+# -----------------------------------------------------------------------------
 # Determine which font backend will be used
 # -----------------------------------------------------------------------------
 SET(ALL_FONT_BACKENDS freetype pango)
@@ -70,6 +76,8 @@ WEBKIT_OPTION_BEGIN()
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_BATTERY_STATUS ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_BLOB ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_CSS_IMAGE_SET ON)
+WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_CSS_VARIABLES ON)
+WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_CUSTOM_SCHEME_HANDLER ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_DATALIST ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_DRAG_SUPPORT ON)
 WEBKIT_OPTION_DEFAULT_PORT_VALUE(ENABLE_FAST_MOBILE_SCROLLING ON)

@@ -110,6 +110,9 @@ class ChromiumPort(WebKitPort):
         # All sub-classes override this, but we need an initial value for testing.
         self._chromium_base_dir_path = None
 
+    def is_chromium(self):
+        return True
+
     def default_pixel_tests(self):
         return True
 
@@ -345,7 +348,13 @@ class ChromiumPort(WebKitPort):
     ])
 
     def expectations_files(self):
-        paths = [self.path_to_test_expectations_file(), self.path_from_chromium_base('skia', 'skia_test_expectations.txt')]
+        paths = [self.path_to_test_expectations_file()]
+        skia_expectations_path = self.path_from_chromium_base('skia', 'skia_test_expectations.txt')
+        if self._filesystem.exists(skia_expectations_path):
+            paths.append(skia_expectations_path)
+        else:
+            _log.warning("Using the chromium port without having the downstream skia_test_expectations.txt file checked out. Expectations related things might be wonky.")
+
         builder_name = self.get_option('builder_name', 'DUMMY_BUILDER_NAME')
         if builder_name == 'DUMMY_BUILDER_NAME' or '(deps)' in builder_name or builder_name in self.try_builder_names:
             paths.append(self.path_from_chromium_base('webkit', 'tools', 'layout_tests', 'test_expectations.txt'))
@@ -687,7 +696,7 @@ class ChromiumDriver(WebKitDriver):
             self._proc.stderr.close()
         time_out_ms = self._port.get_option('time_out_ms')
         if time_out_ms and not self._no_timeout:
-            timeout_ratio = float(time_out_ms) / self._port.default_test_timeout_ms()
+            timeout_ratio = float(time_out_ms) / self._port.default_timeout_ms()
             kill_timeout_seconds = self.KILL_TIMEOUT_DEFAULT * timeout_ratio if timeout_ratio > 1.0 else self.KILL_TIMEOUT_DEFAULT
         else:
             kill_timeout_seconds = self.KILL_TIMEOUT_DEFAULT

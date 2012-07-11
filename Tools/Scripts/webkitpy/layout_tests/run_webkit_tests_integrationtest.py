@@ -46,6 +46,7 @@ import unittest
 from webkitpy.common.system import outputcapture, path
 from webkitpy.common.system.crashlogs_unittest import make_mock_crash_report_darwin
 from webkitpy.common.system.systemhost import SystemHost
+from webkitpy.common.host import Host
 from webkitpy.common.host_mock import MockHost
 
 from webkitpy.layout_tests import port
@@ -903,6 +904,20 @@ class MainTest(unittest.TestCase, StreamTestingMixin):
         self.assertEquals(full_results['has_wdiff'], False)
         self.assertEquals(full_results['has_pretty_patch'], False)
 
+    def test_unsupported_platform(self):
+        oc = outputcapture.OutputCapture()
+        try:
+            oc.capture_output()
+            res = run_webkit_tests.main(['--platform', 'foo'])
+        finally:
+            stdout, stderr, logs = oc.restore_output()
+
+        self.assertEquals(res, run_webkit_tests.EXCEPTIONAL_EXIT_STATUS)
+        self.assertEquals(stdout, '')
+        self.assertTrue('unsupported platform' in stderr)
+
+        # This is empty because we don't even get a chance to configure the logger before failing.
+        self.assertEquals(logs, '')
 
 class EndToEndTest(unittest.TestCase):
     def parse_full_results(self, full_results_text):
@@ -1010,6 +1025,22 @@ class RebaselineTest(unittest.TestCase, StreamTestingMixin):
         self.assertBaselines(file_list,
             "platform/test-mac-leopard/failures/expected/missing_image", [".txt", ".png"], err)
 
+
+class PortTest(unittest.TestCase):
+    def assert_mock_port_works(self, port_name, args=[]):
+        self.assertTrue(passing_run(args + ['--platform', 'mock-' + port_name, 'fast/harness/results.html'], tests_included=True, host=Host()))
+
+    def disabled_test_chromium_mac_lion(self):
+        self.assert_mock_port_works('chromium-mac-lion')
+
+    def disabled_test_chromium_mac_lion_in_test_shell_mode(self):
+        self.assert_mock_port_works('chromium-mac-lion', args=['--additional-drt-flag=--test-shell'])
+
+    def disabled_test_qt_linux(self):
+        self.assert_mock_port_works('qt-linux')
+
+    def disabled_test_mac_lion(self):
+        self.assert_mock_port_works('mac-lion')
 
 if __name__ == '__main__':
     unittest.main()

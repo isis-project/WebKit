@@ -4,6 +4,7 @@ SET(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/Modules/geolocation"
     "${WEBCORE_DIR}/Modules/indexeddb"
     "${WEBCORE_DIR}/Modules/intents"
+    "${WEBCORE_DIR}/Modules/notifications"
     "${WEBCORE_DIR}/Modules/quota"
     "${WEBCORE_DIR}/Modules/webaudio"
     "${WEBCORE_DIR}/Modules/webdatabase"
@@ -32,7 +33,6 @@ SET(WebCore_INCLUDE_DIRECTORIES
     "${WEBCORE_DIR}/loader/cache"
     "${WEBCORE_DIR}/loader/icon"
     "${WEBCORE_DIR}/mathml"
-    "${WEBCORE_DIR}/notifications"
     "${WEBCORE_DIR}/page"
     "${WEBCORE_DIR}/page/animation"
     "${WEBCORE_DIR}/page/scrolling"
@@ -223,6 +223,7 @@ SET(WebCore_IDL_FILES
     dom/MouseEvent.idl
     dom/MutationCallback.idl
     dom/MutationEvent.idl
+    dom/MutationObserver.idl
     dom/MutationRecord.idl
     dom/NamedNodeMap.idl
     dom/NodeFilter.idl
@@ -246,7 +247,6 @@ SET(WebCore_IDL_FILES
     dom/TreeWalker.idl
     dom/UIEvent.idl
     dom/WebKitAnimationEvent.idl
-    dom/WebKitMutationObserver.idl
     dom/WebKitNamedFlow.idl
     dom/WebKitTransitionEvent.idl
     dom/WheelEvent.idl
@@ -278,6 +278,7 @@ SET(WebCore_IDL_FILES
     html/HTMLCollection.idl
     html/HTMLDataListElement.idl
     html/HTMLDetailsElement.idl
+    html/HTMLDialogElement.idl
     html/HTMLDirectoryElement.idl
     html/HTMLDivElement.idl
     html/HTMLDListElement.idl
@@ -614,6 +615,7 @@ SET(WebCore_SOURCES
     dom/MouseEvent.cpp
     dom/MouseRelatedEvent.cpp
     dom/MutationEvent.cpp
+    dom/MutationObserver.cpp
     dom/MutationObserverInterestGroup.cpp
     dom/MutationObserverRegistration.cpp
     dom/MutationRecord.cpp
@@ -667,7 +669,6 @@ SET(WebCore_SOURCES
     dom/UserTypingGestureIndicator.cpp
     dom/ViewportArguments.cpp
     dom/WebKitAnimationEvent.cpp
-    dom/WebKitMutationObserver.cpp
     dom/WebKitNamedFlow.cpp
     dom/WebKitTransitionEvent.cpp
     dom/WheelEvent.cpp
@@ -786,6 +787,7 @@ SET(WebCore_SOURCES
     html/HTMLDListElement.cpp
     html/HTMLDataListElement.cpp
     html/HTMLDetailsElement.cpp
+    html/HTMLDialogElement.cpp
     html/HTMLDirectoryElement.cpp
     html/HTMLDivElement.cpp
     html/HTMLDocument.cpp
@@ -1239,8 +1241,8 @@ SET(WebCore_SOURCES
     platform/graphics/filters/SourceAlpha.cpp
     platform/graphics/filters/SourceGraphic.cpp
 
+    platform/graphics/filters/arm/NEONHelpers.h
     platform/graphics/filters/arm/FECompositeArithmeticNEON.h
-    platform/graphics/filters/arm/FEGaussianBlurNEON.cpp
     platform/graphics/filters/arm/FEGaussianBlurNEON.h
     platform/graphics/filters/arm/FELightingNEON.cpp
     platform/graphics/filters/arm/FELightingNEON.h
@@ -1716,19 +1718,19 @@ ENDIF ()
 
 IF (ENABLE_NOTIFICATIONS)
     LIST(APPEND WebCore_SOURCES
-        notifications/DOMWindowNotifications.cpp
-        notifications/NotificationCenter.cpp
-        notifications/NotificationController.cpp
-        notifications/Notification.cpp
-        notifications/WorkerContextNotifications.cpp
+        Modules/notifications/DOMWindowNotifications.cpp
+        Modules/notifications/NotificationCenter.cpp
+        Modules/notifications/NotificationController.cpp
+        Modules/notifications/Notification.cpp
+        Modules/notifications/WorkerContextNotifications.cpp
     )
 
     LIST(APPEND WebCore_IDL_FILES
-        notifications/DOMWindowNotifications.idl
-        notifications/Notification.idl
-        notifications/NotificationCenter.idl
-        notifications/NotificationPermissionCallback.idl
-        notifications/WorkerContextNotifications.idl
+        Modules/notifications/DOMWindowNotifications.idl
+        Modules/notifications/Notification.idl
+        Modules/notifications/NotificationCenter.idl
+        Modules/notifications/NotificationPermissionCallback.idl
+        Modules/notifications/WorkerContextNotifications.idl
     )
 ENDIF ()
 
@@ -2589,6 +2591,7 @@ IF (ENABLE_WEB_AUDIO)
         platform/audio/AudioBus.cpp
         platform/audio/AudioChannel.cpp
         platform/audio/AudioDSPKernelProcessor.cpp
+        platform/audio/AudioFIFO.cpp
         platform/audio/AudioPullFIFO.cpp
         platform/audio/AudioResampler.cpp
         platform/audio/AudioResamplerKernel.cpp

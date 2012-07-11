@@ -1,3 +1,63 @@
+2012-07-05  Ian Vollick  <vollick@chromium.org>
+
+        [chromium] Create a WebKit::Web* wrapper for the cc animation classes
+        https://bugs.webkit.org/show_bug.cgi?id=90303
+
+        Reviewed by James Robinson.
+
+        * Platform.gypi:
+        * chromium/public/WebAnimation.h: Added.
+        (WebCore):
+        (WebKit):
+        (WebAnimation):
+        (WebKit::WebAnimation::WebAnimation):
+        (WebKit::WebAnimation::~WebAnimation):
+        * chromium/public/WebAnimationCurve.h: Added.
+        (WebCore):
+        (WebKit):
+        (WebAnimationCurve):
+        (WebKit::WebAnimationCurve::~WebAnimationCurve):
+        (WebKit::WebAnimationCurve::WebAnimationCurve):
+        * chromium/public/WebFloatAnimationCurve.h: Added.
+        (WebCore):
+        (WebKit):
+        (WebFloatAnimationCurve):
+        (WebKit::WebFloatAnimationCurve::WebFloatAnimationCurve):
+        (WebKit::WebFloatAnimationCurve::~WebFloatAnimationCurve):
+        * chromium/public/WebFloatKeyframe.h: Added.
+        (WebKit):
+        (WebKit::WebFloatKeyframe::WebFloatKeyframe):
+        (WebFloatKeyframe):
+        * chromium/public/WebTransformAnimationCurve.h: Added.
+        (WebCore):
+        (WebKit):
+        (WebTransformAnimationCurve):
+        (WebKit::WebTransformAnimationCurve::WebTransformAnimationCurve):
+        (WebKit::WebTransformAnimationCurve::~WebTransformAnimationCurve):
+        * chromium/public/WebTransformKeyframe.h: Added.
+        (WebKit):
+        (WebKit::WebTransformKeyframe::WebTransformKeyframe):
+        (WebTransformKeyframe):
+
+2012-07-03  Alex Sakhartchouk  <alexst@chromium.org>
+
+        [chromium] Avoid calling getUniformLocation??() in the compositor startup
+        https://bugs.webkit.org/show_bug.cgi?id=90217
+
+        Reviewed by Adrienne Walker.
+
+        Adding an entry point for bindUniformLocationCHROMIUM.
+
+        * chromium/public/WebGraphicsContext3D.h:
+        (WebGraphicsContext3D):
+        (WebKit::WebGraphicsContext3D::bindUniformLocationCHROMIUM):
+
+2012-07-03  Tony Chang  <tony@chromium.org>
+
+        [chromium] Unreviewed, update .gitignore to handle VS2010 files.
+
+        * Platform.gyp/.gitignore:
+
 2012-07-02  Tommy Widenflycht  <tommyw@google.com>
 
         MediaStream API: Update MediaStreamTrackList to match the specification

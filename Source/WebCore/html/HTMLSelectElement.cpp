@@ -347,17 +347,21 @@ RenderObject* HTMLSelectElement::createRenderer(RenderArena* arena, RenderStyle*
 
 bool HTMLSelectElement::childShouldCreateRenderer(const NodeRenderingContext& childContext) const
 {
-    return childContext.isOnUpperEncapsulationBoundary() && HTMLFormControlElementWithState::childShouldCreateRenderer(childContext);
+    if (!HTMLFormControlElementWithState::childShouldCreateRenderer(childContext))
+        return false;
+    if (!usesMenuList())
+        return true;
+    return validationMessageShadowTreeContains(childContext.node());
 }
 
-HTMLCollection* HTMLSelectElement::selectedOptions()
+PassRefPtr<HTMLCollection> HTMLSelectElement::selectedOptions()
 {
     return ensureCachedHTMLCollection(SelectedOptions);
 }
 
-HTMLOptionsCollection* HTMLSelectElement::options()
+PassRefPtr<HTMLOptionsCollection> HTMLSelectElement::options()
 {
-    return static_cast<HTMLOptionsCollection*>(ensureCachedHTMLCollection(SelectOptions));
+    return static_cast<HTMLOptionsCollection*>(ensureCachedHTMLCollection(SelectOptions).get());
 }
 
 void HTMLSelectElement::updateListItemSelectedStates()

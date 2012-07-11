@@ -80,6 +80,7 @@ fast/forms/datetimelocal
 fast/forms/month
 fast/forms/time
 fast/forms/week
+fast/forms/input-in-table-cell-no-value.html
 
 # ENABLE_GAMEPAD not enabled.
 gamepad/
@@ -183,6 +184,7 @@ fast/dom/shadow/form-in-shadow.html
 fast/dom/shadow/get-element-by-id-in-shadow-mutation.html
 fast/dom/shadow/get-element-by-id-in-shadow-root.html
 fast/dom/shadow/iframe-shadow.html
+fast/dom/shadow/insertion-point-list-menu-crash.html
 fast/dom/shadow/insertion-point-shadow-crash.html
 fast/dom/shadow/link-in-shadow-tree.html
 fast/dom/shadow/multiple-shadowroot.html
@@ -439,6 +441,10 @@ fast/events/page-visibility-transition-test.html
 # No CORS support for media elements is implemented yet.
 http/tests/security/video-cross-origin-readback.html
 
+# Content Security Policy 1.1 (ENABLE_CSP_NEXT) is not enabled
+# https://bugs.webkit.org/show_bug.cgi?id=85558
+http/tests/security/contentSecurityPolicy/1.1
+
 # =========================================================================== #
 #       Drag and Drop Support in DRT.                                         #
 # =========================================================================== #
@@ -685,6 +691,10 @@ http/tests/misc/xslt-bad-import.html
 # New test http/tests/cookies/js-get-and-set-http-only-cookie.php fails on Mac, GTK, Qt, EFL (introduced in r119947)
 # https://bugs.webkit.org/show_bug.cgi?id=87208
 http/tests/cookies/js-get-and-set-http-only-cookie.html
+
+# REGRESSION(r122327): It made http/tests/inspector/network/network-request-revision-content.html fail on Lion, Qt
+# https://bugs.webkit.org/show_bug.cgi?id=90979
+http/tests/inspector/network/network-request-revision-content.html
 
 # =========================================================================== #
 #       Failing xmlhttprequest tests                                          #
@@ -965,9 +975,6 @@ http/tests/misc/link-rel-icon-beforeload.html
 # https://bugs.webkit.org/show_bug.cgi?id=64002
 fast/selectors/unqualified-hover-strict.html
 
-# [Qt] inspector/extensions/extensions-panel.html is flakey
-# https://bugs.webkit.org/show_bug.cgi?id=89333
-inspector/extensions/extensions-panel.html
 
 # =========================================================================== #
 # failing media tests
@@ -1225,6 +1232,9 @@ plugins/crash-restoring-plugin-page-from-page-cache.html
 # ReferenceError: Can't find variable: MediaKeyError
 # http://trac.webkit.org/changeset/114067
 fast/events/constructors/media-key-event-constructor.html
+
+# missing testRunner.setStorageDatabaseIdleInterval() implementation
+storage/domstorage/storage-close-database-on-idle.html
 
 # ============================================================================= #
 # Failing SVG tests
@@ -1904,11 +1914,11 @@ fast/events/keydown-leftright-keys.html
 fast/events/domactivate-sets-underlying-click-event-as-handled.html
 
 # New fast/dom/Window/mozilla-focus-blur.html introduced in r118916 fails
-# https://bugs.webkit.org/show_bug.cgi?id=87951
+# https://bugs.webkit.org/show_bug.cgi?id=87956
 fast/dom/Window/mozilla-focus-blur.html
 
-# [Qt] New fast/notifications/notifications-click-event-focus.html fails
-# https://bugs.webkit.org/show_bug.cgi?id=87956
+# New fast/notifications/notifications-click-event-focus.html introduced in r118916 fails
+# https://bugs.webkit.org/show_bug.cgi?id=90988
 fast/notifications/notifications-click-event-focus.html
 
 # [Qt][GTK][EFL] fast/dom/gc-attribute-node.html fails
@@ -2153,6 +2163,9 @@ fast/borders/scaled-border-image.html
 css3/filters/composited-during-animation-layertree.html
 css3/filters/composited-during-transition-layertree.html
 css3/filters/composited-during-animation.html
+css3/filters/blur-filter-page-scroll.html
+css3/filters/blur-filter-page-scroll-self.html
+css3/filters/blur-filter-page-scroll-parents.html
 svg/foreignObject/fO-display-none-with-relative-pos-content.svg
 svg/foreignObject/fO-display-none.svg
 fast/speech/input-appearance-speechbutton.html
@@ -2525,8 +2538,19 @@ fast/block/float/previous-sibling-abspos-001.html
 fast/block/float/previous-sibling-float-001.html
 fast/block/negative-margin-start-positive-margin-end.html
 fast/block/positive-margin-start-negative-margin-end-align-center.html
+fast/block/float/floats-wrap-inside-inline-001.htm
+fast/block/float/floats-wrap-inside-inline-002.htm
+fast/block/float/floats-wrap-inside-inline-003.htm
 
 # [Qt] css3/filters/huge-region-composited.html makes css3/filters/huge-region.html crash
 # https://bugs.webkit.org/show_bug.cgi?id=90165
 css3/filters/huge-region-composited.html
 
+# [Qt] Regression r121891 made two tests to fail
+# https://bugs.webkit.org/show_bug.cgi?id=90594
+http/tests/inspector/console-cd-completions.html
+http/tests/inspector/console-cd.html
+
+# Reproducible crash in inspector/timeline/timeline-frames.html
+# https://bugs.webkit.org/show_bug.cgi?id=90706
+inspector/timeline/timeline-frames.html

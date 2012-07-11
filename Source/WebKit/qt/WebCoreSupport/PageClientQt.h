@@ -104,7 +104,7 @@ public:
 
     virtual void setWidgetVisible(Widget*, bool visible);
 
-#if ENABLE(WEBGL)
+#if USE(3D_GRAPHICS)
     virtual void createPlatformGraphicsContext3D(PlatformGraphicsContext3D*,
                                                  PlatformGraphicsSurface3D*);
 #endif
@@ -212,7 +212,7 @@ public:
 
     virtual void setWidgetVisible(Widget*, bool);
 
-#if ENABLE(WEBGL)
+#if USE(3D_GRAPHICS)
     virtual void createPlatformGraphicsContext3D(PlatformGraphicsContext3D*,
                                                  PlatformGraphicsSurface3D*);
 #endif

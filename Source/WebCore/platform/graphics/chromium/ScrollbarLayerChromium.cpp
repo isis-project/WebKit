@@ -247,7 +247,7 @@ void ScrollbarLayerChromium::updatePart(LayerTextureUpdater* painter, LayerTextu
     texture->prepareRect(rect);
 
     IntRect destRect(IntPoint(), rect.size());
-    updater.appendUpdate(texture, rect, destRect);
+    updater.appendFullUpdate(texture, rect, destRect);
 }
 
 
@@ -258,18 +258,19 @@ void ScrollbarLayerChromium::setTexturePriorities(const CCPriorityCalculator&)
 
     createTextureUpdaterIfNeeded();
 
+    bool drawsToRootSurface = !targetRenderSurface()->targetRenderSurface();
     if (m_backTrack) {
         m_backTrack->texture()->setDimensions(contentBounds(), m_textureFormat);
-        m_backTrack->texture()->setRequestPriority(CCPriorityCalculator::uiPriority());
+        m_backTrack->texture()->setRequestPriority(CCPriorityCalculator::uiPriority(drawsToRootSurface));
     }
     if (m_foreTrack) {
         m_foreTrack->texture()->setDimensions(contentBounds(), m_textureFormat);
-        m_foreTrack->texture()->setRequestPriority(CCPriorityCalculator::uiPriority());
+        m_foreTrack->texture()->setRequestPriority(CCPriorityCalculator::uiPriority(drawsToRootSurface));
     }
     if (m_thumb) {
         IntSize thumbSize = theme()->thumbRect(m_scrollbar.get()).size();
         m_thumb->texture()->setDimensions(thumbSize, m_textureFormat);
-        m_thumb->texture()->setRequestPriority(CCPriorityCalculator::uiPriority());
+        m_thumb->texture()->setRequestPriority(CCPriorityCalculator::uiPriority(drawsToRootSurface));
     }
 }
 

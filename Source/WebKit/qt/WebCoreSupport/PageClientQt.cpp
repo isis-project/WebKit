@@ -24,13 +24,16 @@
 
 #include <QGraphicsScene>
 #include <QGraphicsView>
+
 #if defined(Q_WS_X11)
 #include <QX11Info>
 #endif
 
-#if ENABLE(WEBGL)
+#ifdef QT_OPENGL_LIB
 #include <QGLWidget>
+#endif
 
+#if USE(3D_GRAPHICS)
 #if HAVE(QT5)
 #include <QWindow>
 #endif
@@ -38,6 +41,7 @@
 static void createPlatformGraphicsContext3DFromWidget(QWidget* widget, PlatformGraphicsContext3D* context,
                                                       PlatformGraphicsSurface3D* surface)
 {
+#ifdef QT_OPENGL_LIB
     *context = 0;
     *surface = 0;
     QAbstractScrollArea* scrollArea = qobject_cast<QAbstractScrollArea*>(widget);
@@ -62,6 +66,7 @@ static void createPlatformGraphicsContext3DFromWidget(QWidget* widget, PlatformG
         delete glWidget;
         glWidget = 0;
     }
+#endif
 }
 #endif
 
@@ -245,7 +250,7 @@ void PageClientQWidget::setWidgetVisible(Widget* widget, bool visible)
     qtWidget->setVisible(visible);
 }
 
-#if ENABLE(WEBGL)
+#if USE(3D_GRAPHICS)
 void PageClientQWidget::createPlatformGraphicsContext3D(PlatformGraphicsContext3D* context,
                                                         PlatformGraphicsSurface3D* surface)
 {
@@ -441,7 +446,7 @@ QRectF PageClientQGraphicsWidget::windowRect() const
 }
 #endif // QT_NO_GRAPHICSVIEW
 
-#if ENABLE(WEBGL)
+#if USE(3D_GRAPHICS)
 void PageClientQGraphicsWidget::createPlatformGraphicsContext3D(PlatformGraphicsContext3D* context,
                                                                 PlatformGraphicsSurface3D* surface)
 {

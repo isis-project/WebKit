@@ -7,7 +7,7 @@
 
 # Will compute features based on command line arguments, config tests,
 # dependency availability, and defaults.
-load(features)
+include(configure.pri)
 
 # Compute delta
 CONFIG -= $$BASE_CONFIG

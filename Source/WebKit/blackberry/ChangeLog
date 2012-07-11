@@ -1,3 +1,197 @@
+2012-07-10  Adam Barth  <abarth@webkit.org>
+
+        WebCore::Settings for Hixie76 WebSocket protocol doesn't do anything and should be removed
+        https://bugs.webkit.org/show_bug.cgi?id=90910
+
+        Reviewed by Eric Seidel.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::init):
+
+2012-07-10  Adam Barth  <abarth@webkit.org>
+
+        LayoutTestController.dumpConfigurationForViewport should move to Internals
+        https://bugs.webkit.org/show_bug.cgi?id=45652
+
+        Reviewed by Eric Seidel.
+
+        * WebKitSupport/DumpRenderTreeSupport.cpp:
+        * WebKitSupport/DumpRenderTreeSupport.h:
+        (DumpRenderTreeSupport):
+
+2012-07-09  Yong Li  <yoli@rim.com>
+
+        [BlackBerry] PagePopupBlackBerry::closePopup() should always clear the pointer in WebPagePrivate
+        https://bugs.webkit.org/show_bug.cgi?id=90817
+
+        Reviewed by Rob Buis.
+
+        PR# 174085.
+        PagePopupBlackBerry::closePopup() should always clear the pointer in WebPagePrivate to avoid crashes.
+        This patch also removes unused variable m_parentPopup and its setter.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::WebPagePrivate): Remove m_parentPopup.
+        * Api/WebPage_p.h:
+        (WebPagePrivate):
+        * WebCoreSupport/ChromeClientBlackBerry.cpp:
+        (WebCore::ChromeClientBlackBerry::closePagePopup):
+        * WebCoreSupport/PagePopupBlackBerry.cpp:
+        (WebCore::PagePopupBlackBerry::init): Remove the setParentPopup() call.
+        (WebCore::PagePopupBlackBerry::closePopup): Clear the reference in WebPagePrivate.
+        * WebCoreSupport/SelectPopupClient.cpp:
+        (WebCore::SelectPopupClient::setValueAndClosePopup): Add an assert for valid m_element.
+
+2012-07-09  Mike Lattanzio  <mlattanzio@rim.com>
+
+        [BlackBerry] meta viewport initial-scale doesn't factor in device pixel ratio
+        https://bugs.webkit.org/show_bug.cgi?id=90575
+
+        Reviewed by Rob Buis.
+
+        Refactor meta viewport handling to multiply the developer
+        specified scale properties by the devicePixelRatio. This
+        required moving the setting of these values until after
+        the call to computeViewportAttributes.
+
+        This fixes an isssue where content wider than the meta viewport
+        would case a zoom-out-to-fit scenario because we misinterpreted
+        the specified initial-scale.
+
+        New test to verify wide content doesn't affect initial-scale:
+        ManualTests/blackberry/meta-viewport-initial-scale-wide-content.html
+
+        Internal review from Konrad Piascik, Arvid Nilsson.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::recomputeVirtualViewportFromViewportArguments):
+        (BlackBerry::WebKit::WebPagePrivate::dispatchViewportPropertiesDidChange):
+
+2012-07-07  George Staikos  <staikos@webkit.org>
+
+        Detach animation clients properly if we clear the web page pointer.
+        https://bugs.webkit.org/show_bug.cgi?id=90730
+
+        Reviewed by Adam Treat.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::destroyCompositor):
+        * Api/WebPageCompositor.cpp:
+        (BlackBerry::WebKit::WebPageCompositorPrivate::WebPageCompositorPrivate):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::~WebPageCompositorPrivate):
+        (WebKit):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::detach):
+        (BlackBerry::WebKit::WebPageCompositorPrivate::setPage):
+        * Api/WebPageCompositor_p.h:
+        (WebPageCompositorPrivate):
+
+2012-07-06  Max Feil  <mfeil@rim.com>
+
+        [BlackBerry] exitFullScreenForElement() is not working for fullscreen elements in iframes
+        https://bugs.webkit.org/show_bug.cgi?id=90327
+
+        Reviewed by Antonio Gomes.
+
+        Fix exit fullscreen problem for elements in iframes. The
+        exitFullScreenForElement() call is passed a null element in
+        this case, instead of the original element which entered
+        fullscreen. If you look in Document.cpp you can see the
+        exitFullScreenForElement() call being made on the topDocument
+        (which has a null m_fullScreenElement) instead of the iframe's
+        document.
+
+        The Chromium and Windows ports get around this problem by
+        storing either the fullscreen element or its frame during
+        enterFullScreenForElement(), so I will bring the BlackBerry port
+        in line with this. See also bug 89817.
+
+        * WebCoreSupport/ChromeClientBlackBerry.cpp:
+        (WebCore::ChromeClientBlackBerry::enterFullScreenForElement):
+        (WebCore::ChromeClientBlackBerry::exitFullScreenForElement):
+        * WebCoreSupport/ChromeClientBlackBerry.h:
+        (ChromeClientBlackBerry):
+
+2012-07-06  Benjamin C Meyer  <bmeyer@rim.com>
+
+        Add an API to explicitly call a JavaScript function with args.
+        https://bugs.webkit.org/show_bug.cgi?id=90694
+
+        Currently the Blackberry port doesn't expose the JavaScript
+        engine to 3rd parties so they rely upon executeJavaScript
+        which can be slower than necessary and unsafe as eval is used.
+        This new API provides a way to explicitly call a specific
+        JavaScript function with a list of args preventing the case
+        where an argument comes from a untrusted source and tries to
+        escape the arg list to take control of the JavaScript engine.
+
+        In the future if the Blackberry port introduces a formal
+        way to interact with the JavaScript engine this function should
+        be removed.
+
+        PR 149294
+
+        Reviewed by Unreviewed
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPage::executeJavaScriptFunction):
+        (WebKit):
+        * Api/WebPage.h:
+
+2012-07-05  Charles Wei  <charles.wei@torchmobile.com.cn>
+
+        [BlackBerry] Fix the build error introduced by enabling CUSTOM_THEME_HANDLER
+        https://bugs.webkit.org/show_bug.cgi?id=90588
+
+        Reviewed by Rob Buis.
+
+        Fix the build error introduced by enabling CUSTOM_THEME_HANDLER.
+        * WebCoreSupport/ChromeClientBlackBerry.cpp:
+        (WebCore::ChromeClientBlackBerry::isProtocolHandlerRegistered):
+
+2012-07-04  Hanna Ma  <Hanma@rim.com>
+
+        [BlackBerry] Implement device metrics for blackberry.
+        https://bugs.webkit.org/show_bug.cgi?id=90494
+        RIM PR #159034
+
+        Reviewed by Rob Buis.
+
+        Implement calls to the application to change the device metrics for
+        the web inspector.
+
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::applySizeOverride):
+        (WebKit):
+        (BlackBerry::WebKit::WebPagePrivate::setTextZoomFactor):
+        * Api/WebPage_p.h:
+        (WebPagePrivate):
+        * WebCoreSupport/InspectorClientBlackBerry.cpp:
+        (WebCore::InspectorClientBlackBerry::InspectorClientBlackBerry):
+        (WebCore::InspectorClientBlackBerry::canOverrideDeviceMetrics):
+        (WebCore):
+        (WebCore::InspectorClientBlackBerry::overrideDeviceMetrics):
+        (WebCore::InspectorClientBlackBerry::supportsFrameInstrumentation):
+        * WebCoreSupport/InspectorClientBlackBerry.h:
+        (InspectorClientBlackBerry):
+
+2012-07-03  Leo Yang  <leo.yang@torchmobile.com.cn>
+
+        [BlackBerry] Checkerboard shown when clicking on error page buttons
+        https://bugs.webkit.org/show_bug.cgi?id=90152
+        RIM PR #161867
+
+        Reviewed by George Staikos.
+
+        r121514 just made the race occur in lower possibility but can't avoid it.
+        This path is using another approach to fix the problem. When we are resetting
+        backingstore while committing a page we need to suspend backingstore and
+        screen update to make sure no other threads can update backingstore and screen.
+
+        * Api/BackingStore.cpp:
+        (BlackBerry::WebKit::BackingStorePrivate::resetTiles):
+        * Api/WebPage.cpp:
+        (BlackBerry::WebKit::WebPagePrivate::setLoadState):
+
 2012-07-03  George Staikos  <staikos@webkit.org>
 
         [BlackBerry] Enable Custom Scheme Handlers for BlackBerry.

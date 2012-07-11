@@ -113,19 +113,23 @@ struct Script {
     }
 };
 
-struct CommandLine {
-    CommandLine()
-        : interactive(false)
-        , dump(false)
-        , exitCode(false)
+class CommandLine {
+public:
+    CommandLine(int argc, char** argv)
+        : m_interactive(false)
+        , m_dump(false)
+        , m_exitCode(false)
     {
+        parseArguments(argc, argv);
     }
 
-    bool interactive;
-    bool dump;
-    bool exitCode;
-    Vector<Script> scripts;
-    Vector<UString> arguments;
+    bool m_interactive;
+    bool m_dump;
+    bool m_exitCode;
+    Vector<Script> m_scripts;
+    Vector<UString> m_arguments;
+
+    void parseArguments(int, char**);
 };
 
 static const char interactivePrompt[] = "> ";
@@ -614,33 +618,41 @@ static NO_RETURN void printUsageStatement(bool help = false)
     fprintf(stderr, "  -s         Installs signal handlers that exit on a crash (Unix platforms only)\n");
 #endif
     fprintf(stderr, "  -x         Output exit code before terminating\n");
+    fprintf(stderr, "\n");
+    fprintf(stderr, "  --options                  Dumps all JSC VM options and exits\n");
+    fprintf(stderr, "  --dumpOptions              Dumps all JSC VM options before continuing\n");
+    fprintf(stderr, "  --<jsc VM option>=<value>  Sets the specified JSC VM option\n");
+    fprintf(stderr, "\n");
 
     exit(help ? EXIT_SUCCESS : EXIT_FAILURE);
 }
 
-static void parseArguments(int argc, char** argv, CommandLine& options)
+void CommandLine::parseArguments(int argc, char** argv)
 {
     int i = 1;
+    bool needToDumpOptions = false;
+    bool needToExit = false;
+
     for (; i < argc; ++i) {
         const char* arg = argv[i];
         if (!strcmp(arg, "-f")) {
             if (++i == argc)
                 printUsageStatement();
-            options.scripts.append(Script(true, argv[i]));
+            m_scripts.append(Script(true, argv[i]));
             continue;
         }
         if (!strcmp(arg, "-e")) {
             if (++i == argc)
                 printUsageStatement();
-            options.scripts.append(Script(false, argv[i]));
+            m_scripts.append(Script(false, argv[i]));
             continue;
         }
         if (!strcmp(arg, "-i")) {
-            options.interactive = true;
+            m_interactive = true;
             continue;
         }
         if (!strcmp(arg, "-d")) {
-            options.dump = true;
+            m_dump = true;
             continue;
         }
         if (!strcmp(arg, "-s")) {
@@ -653,7 +665,7 @@ static void parseArguments(int argc, char** argv, CommandLine& options)
             continue;
         }
         if (!strcmp(arg, "-x")) {
-            options.exitCode = true;
+            m_exitCode = true;
             continue;
         }
         if (!strcmp(arg, "--")) {
@@ -662,33 +674,58 @@ static void parseArguments(int argc, char** argv, CommandLine& options)
         }
         if (!strcmp(arg, "-h") || !strcmp(arg, "--help"))
             printUsageStatement(true);
-        options.scripts.append(Script(true, argv[i]));
+
+        if (!strcmp(arg, "--options")) {
+            needToDumpOptions = true;
+            needToExit = true;
+            continue;
+        }
+        if (!strcmp(arg, "--dumpOptions")) {
+            needToDumpOptions = true;
+            continue;
+        }
+
+        // See if the -- option is a JSC VM option.
+        // NOTE: At this point, we know that the arg starts with "--". Skip it.
+        if (JSC::Options::setOption(&arg[2])) {
+            // The arg was recognized as a VM option and has been parsed.
+            continue; // Just continue with the next arg. 
+        }
+
+        // This arg is not recognized by the VM nor by jsc. Pass it on to the
+        // script.
+        m_scripts.append(Script(true, argv[i]));
     }
 
-    if (options.scripts.isEmpty())
-        options.interactive = true;
+    if (m_scripts.isEmpty())
+        m_interactive = true;
 
     for (; i < argc; ++i)
-        options.arguments.append(argv[i]);
+        m_arguments.append(argv[i]);
+
+    if (needToDumpOptions)
+        JSC::Options::dumpAllOptions(stderr);
+    if (needToExit)
+        exit(EXIT_SUCCESS);
 }
 
 int jscmain(int argc, char** argv)
 {
+    // Note that the options parsing can affect JSGlobalData creation, and thus
+    // comes first.
+    CommandLine options(argc, argv);
     RefPtr<JSGlobalData> globalData = JSGlobalData::create(ThreadStackTypeLarge, LargeHeap);
     JSLockHolder lock(globalData.get());
     int result;
 
-    CommandLine options;
-    parseArguments(argc, argv, options);
-
-    GlobalObject* globalObject = GlobalObject::create(*globalData, GlobalObject::createStructure(*globalData, jsNull()), options.arguments);
-    bool success = runWithScripts(globalObject, options.scripts, options.dump);
-    if (options.interactive && success)
+    GlobalObject* globalObject = GlobalObject::create(*globalData, GlobalObject::createStructure(*globalData, jsNull()), options.m_arguments);
+    bool success = runWithScripts(globalObject, options.m_scripts, options.m_dump);
+    if (options.m_interactive && success)
         runInteractive(globalObject);
 
     result = success ? 0 : 3;
 
-    if (options.exitCode)
+    if (options.m_exitCode)
         printf("jsc exiting %d\n", result);
 
     return result;

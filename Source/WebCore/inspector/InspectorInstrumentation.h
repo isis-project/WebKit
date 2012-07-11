@@ -56,6 +56,7 @@ class Database;
 class Element;
 class EventContext;
 class DocumentLoader;
+class GeolocationPosition;
 class GraphicsContext;
 class HitTestResult;
 class InspectorCSSAgent;
@@ -252,14 +253,22 @@ public:
     static bool hasFrontends() { return s_frontendCounter; }
     static bool hasFrontendForScriptContext(ScriptExecutionContext*);
     static bool collectingHTMLParseErrors(Page*);
+    static InspectorTimelineAgent* timelineAgentForOrphanEvents();
+    static void setTimelineAgentForOrphanEvents(InspectorTimelineAgent*);
 #else
     static bool hasFrontends() { return false; }
     static bool hasFrontendForScriptContext(ScriptExecutionContext*) { return false; }
     static bool collectingHTMLParseErrors(Page*) { return false; }
 #endif
 
+#if ENABLE(GEOLOCATION)
+    static GeolocationPosition* checkGeolocationPositionOrError(Page*, GeolocationPosition*);
+#endif
+
 private:
 #if ENABLE(INSPECTOR)
+    static WTF::ThreadSpecific<InspectorTimelineAgent*>& threadSpecificTimelineAgentForOrphanEvents();
+
     static void didClearWindowObjectInWorldImpl(InstrumentingAgents*, Frame*, DOMWrapperWorld*);
     static bool isDebuggerPausedImpl(InstrumentingAgents*);
 
@@ -416,6 +425,10 @@ private:
     static void pauseOnNativeEventIfNeeded(InstrumentingAgents*, bool isDOMEvent, const String& eventName, bool synchronous);
     static void cancelPauseOnNativeEvent(InstrumentingAgents*);
     static InspectorTimelineAgent* retrieveTimelineAgent(const InspectorInstrumentationCookie&);
+
+#if ENABLE(GEOLOCATION)
+    static GeolocationPosition* checkGeolocationPositionOrErrorImpl(InstrumentingAgents*, GeolocationPosition*);
+#endif
 
     static int s_frontendCounter;
 #endif
@@ -1381,6 +1394,19 @@ inline void InspectorInstrumentation::didFireAnimationFrame(const InspectorInstr
         didFireAnimationFrameImpl(cookie);
 #endif
 }
+
+
+#if ENABLE(GEOLOCATION)
+inline GeolocationPosition* InspectorInstrumentation::checkGeolocationPositionOrError(Page* page, GeolocationPosition* position)
+{
+#if ENABLE(INSPECTOR)
+    FAST_RETURN_IF_NO_FRONTENDS(position);
+    if (InstrumentingAgents* instrumentingAgents = instrumentingAgentsForPage(page))
+        return checkGeolocationPositionOrErrorImpl(instrumentingAgents, position);
+#endif
+    return position;
+}
+#endif
 
 #if ENABLE(INSPECTOR)
 inline bool InspectorInstrumentation::collectingHTMLParseErrors(Page* page)

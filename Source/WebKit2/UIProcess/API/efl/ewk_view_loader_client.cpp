@@ -32,6 +32,8 @@
 #include "ewk_intent_service_private.h"
 #include "ewk_view_loader_client_private.h"
 #include "ewk_view_private.h"
+#include "ewk_web_error.h"
+#include "ewk_web_error_private.h"
 #include <wtf/text/CString.h>
 
 using namespace WebKit;
@@ -65,6 +67,62 @@ static void registerIntentServiceForFrame(WKPageRef page, WKFrameRef frame, WKIn
 }
 #endif
 
+static void didChangeProgress(WKPageRef page, const void* clientInfo)
+{
+    Evas_Object* ewkView = static_cast<Evas_Object*>(const_cast<void*>(clientInfo));
+    ewk_view_load_progress_changed(ewkView, WKPageGetEstimatedProgress(page));
+}
+
+static void didFinishLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void *clientInfo)
+{
+    if (!WKFrameIsMainFrame(frame))
+        return;
+
+    Evas_Object* ewkView = static_cast<Evas_Object*>(const_cast<void*>(clientInfo));
+    ewk_view_load_finished(ewkView);
+}
+
+static void didFailLoadWithErrorForFrame(WKPageRef page, WKFrameRef frame, WKErrorRef error, WKTypeRef, const void *clientInfo)
+{
+    if (!WKFrameIsMainFrame(frame))
+        return;
+
+    Evas_Object* ewkView = static_cast<Evas_Object*>(const_cast<void*>(clientInfo));
+    Ewk_Web_Error* ewkError = ewk_web_error_new(error);
+    ewk_view_load_error(ewkView, ewkError);
+    ewk_view_load_finished(ewkView);
+    ewk_web_error_free(ewkError);
+}
+
+static void didStartProvisionalLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void* clientInfo)
+{
+    if (!WKFrameIsMainFrame(frame))
+        return;
+
+    Evas_Object* ewkView = static_cast<Evas_Object*>(const_cast<void*>(clientInfo));
+    ewk_view_load_provisional_started(ewkView);
+}
+
+static void didReceiveServerRedirectForProvisionalLoadForFrame(WKPageRef page, WKFrameRef frame, WKTypeRef userData, const void* clientInfo)
+{
+    if (!WKFrameIsMainFrame(frame))
+        return;
+
+    Evas_Object* ewkView = static_cast<Evas_Object*>(const_cast<void*>(clientInfo));
+    ewk_view_load_provisional_redirect(ewkView);
+}
+
+static void didFailProvisionalLoadWithErrorForFrame(WKPageRef page, WKFrameRef frame, WKErrorRef error, WKTypeRef userData, const void* clientInfo)
+{
+    if (!WKFrameIsMainFrame(frame))
+        return;
+
+    Evas_Object* ewkView = static_cast<Evas_Object*>(const_cast<void*>(clientInfo));
+    Ewk_Web_Error* ewkError = ewk_web_error_new(error);
+    ewk_view_load_provisional_failed(ewkView, ewkError);
+    ewk_web_error_free(ewkError);
+}
+
 void ewk_view_loader_client_attach(WKPageRef pageRef, Evas_Object* ewkView)
 {
     WKPageLoaderClient loadClient;
@@ -78,5 +136,13 @@ void ewk_view_loader_client_attach(WKPageRef pageRef, Evas_Object* ewkView)
 #if ENABLE(WEB_INTENTS_TAG)
     loadClient.registerIntentServiceForFrame = registerIntentServiceForFrame;
 #endif
+    loadClient.didStartProgress = didChangeProgress;
+    loadClient.didChangeProgress = didChangeProgress;
+    loadClient.didFinishProgress = didChangeProgress;
+    loadClient.didFinishLoadForFrame = didFinishLoadForFrame;
+    loadClient.didFailLoadWithErrorForFrame = didFailLoadWithErrorForFrame;
+    loadClient.didStartProvisionalLoadForFrame = didStartProvisionalLoadForFrame;
+    loadClient.didReceiveServerRedirectForProvisionalLoadForFrame = didReceiveServerRedirectForProvisionalLoadForFrame;
+    loadClient.didFailProvisionalLoadWithErrorForFrame = didFailProvisionalLoadWithErrorForFrame;
     WKPageSetPageLoaderClient(pageRef, &loadClient);
 }

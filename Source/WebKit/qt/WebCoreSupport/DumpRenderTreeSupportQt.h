@@ -234,9 +234,6 @@ public:
     static bool thirdPartyCookiePolicyAllows(QWebPage*, const QUrl&, const QUrl& firstPartyUrl);
 #endif
 
-    static bool defaultHixie76WebSocketProtocolEnabled();
-    static void setHixie76WebSocketProtocolEnabled(QWebPage*, bool);
-
     static QImage paintPagesWithBoundaries(QWebFrame*);
 };
 

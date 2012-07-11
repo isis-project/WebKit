@@ -68,6 +68,7 @@
 #include "WorkerThread.h"
 #include "XMLHttpRequest.h"
 #include <wtf/StdLibExtras.h>
+#include <wtf/ThreadSpecific.h>
 #include <wtf/text/CString.h>
 
 namespace WebCore {
@@ -1136,6 +1137,22 @@ void InspectorInstrumentation::didFireAnimationFrameImpl(const InspectorInstrume
         timelineAgent->didFireAnimationFrame();
 }
 
+InspectorTimelineAgent* InspectorInstrumentation::timelineAgentForOrphanEvents()
+{
+    return *threadSpecificTimelineAgentForOrphanEvents();
+}
+
+void InspectorInstrumentation::setTimelineAgentForOrphanEvents(InspectorTimelineAgent* inspectorTimelineAgent)
+{
+    *threadSpecificTimelineAgentForOrphanEvents() = inspectorTimelineAgent;
+}
+
+WTF::ThreadSpecific<InspectorTimelineAgent*>& InspectorInstrumentation::threadSpecificTimelineAgentForOrphanEvents()
+{
+    AtomicallyInitializedStatic(WTF::ThreadSpecific<InspectorTimelineAgent*>*, instance = new WTF::ThreadSpecific<InspectorTimelineAgent*>());
+    return *instance;
+}
+
 InspectorTimelineAgent* InspectorInstrumentation::retrieveTimelineAgent(const InspectorInstrumentationCookie& cookie)
 {
     if (!cookie.first)
@@ -1166,6 +1183,19 @@ InstrumentingAgents* InspectorInstrumentation::instrumentingAgentsForNonDocument
     if (context->isWorkerContext())
         return instrumentationForWorkerContext(static_cast<WorkerContext*>(context));
     return 0;
+}
+#endif
+
+#if ENABLE(GEOLOCATION)
+GeolocationPosition* InspectorInstrumentation::checkGeolocationPositionOrErrorImpl(InstrumentingAgents* instrumentingAgents, GeolocationPosition* position)
+{
+    if (InspectorPageAgent* pageAgent = instrumentingAgents->inspectorPageAgent()) {
+        if (pageAgent->sendGeolocationError())
+            return 0;
+        if (pageAgent->geolocationPosition())
+            position = pageAgent->geolocationPosition();
+    }
+    return position;
 }
 #endif
 
