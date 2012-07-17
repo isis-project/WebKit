@@ -500,7 +500,7 @@ public:
     }
 
 private:
-    virtual void reportString(ObjectType objectType, const String& string)
+    virtual void addString(const String& string, ObjectType objectType)
     {
         if (string.isNull() || visited(string.impl()))
             return;
@@ -541,13 +541,14 @@ public:
         if (node->document() && node->document()->frame() && m_page != node->document()->frame()->page())
             return;
 
-        m_domMemoryUsage.reportInstrumentedPointer(node);
+        m_domMemoryUsage.addInstrumentedMember(node);
         m_domMemoryUsage.processDeferredInstrumentedPointers();
     }
 
     void visitBindings()
     {
         ScriptProfiler::collectBindingMemoryInfo(&m_domMemoryUsage);
+        m_domMemoryUsage.processDeferredInstrumentedPointers();
     }
 
     PassRefPtr<InspectorMemoryBlock> dumpStatistics(InspectorDataCounter* inspectorData)

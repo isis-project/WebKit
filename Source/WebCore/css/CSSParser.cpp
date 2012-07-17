@@ -1682,6 +1682,7 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
         m_valueList->next();
         return true;
     }
+    ASSERT(propId != CSSPropertyVariable);
 #endif
 
     if (isKeywordPropertyID(propId)) {
@@ -2694,11 +2695,6 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
         m_valueList->next();
         break;
 #endif
-#if ENABLE(CSS_VARIABLES)
-    case CSSPropertyVariable:
-        // FIXME: This should have an actual implementation.
-        return false;
-#endif
     case CSSPropertyBorderBottomStyle:
     case CSSPropertyBorderCollapse:
     case CSSPropertyBorderLeftStyle:
@@ -2735,6 +2731,9 @@ bool CSSParser::parseValue(CSSPropertyID propId, bool important)
     case CSSPropertyTextTransform:
     case CSSPropertyTextUnderlineMode:
     case CSSPropertyTextUnderlineStyle:
+#if ENABLE(CSS_VARIABLES)
+    case CSSPropertyVariable:
+#endif
     case CSSPropertyVisibility:
     case CSSPropertyWebkitAppearance:
     case CSSPropertyWebkitBackfaceVisibility:
@@ -4467,10 +4466,10 @@ PassRefPtr<CSSWrapShape> CSSParser::parseExclusionShapeRectangle(CSSParserValueL
         ASSERT(argumentNumber < 6);
         switch (argumentNumber) {
         case 0:
-            shape->setLeft(length);
+            shape->setX(length);
             break;
         case 1:
-            shape->setTop(length);
+            shape->setY(length);
             break;
         case 2:
             shape->setWidth(length);
@@ -4504,7 +4503,7 @@ PassRefPtr<CSSWrapShape> CSSParser::parseExclusionShapeCircle(CSSParserValueList
 {
     ASSERT(args);
 
-    // circle(x, y, r)
+    // circle(centerX, centerY, radius)
     if (args->size() != 5)
         return 0;
 
@@ -4520,10 +4519,10 @@ PassRefPtr<CSSWrapShape> CSSParser::parseExclusionShapeCircle(CSSParserValueList
         ASSERT(argumentNumber < 3);
         switch (argumentNumber) {
         case 0:
-            shape->setLeft(length);
+            shape->setCenterX(length);
             break;
         case 1:
-            shape->setTop(length);
+            shape->setCenterY(length);
             break;
         case 2:
             shape->setRadius(length);
@@ -4548,7 +4547,7 @@ PassRefPtr<CSSWrapShape> CSSParser::parseExclusionShapeEllipse(CSSParserValueLis
 {
     ASSERT(args);
 
-    // ellipse(x, y, rx, ry)
+    // ellipse(centerX, centerY, radiusX, radiusY)
     if (args->size() != 7)
         return 0;
 
@@ -4563,10 +4562,10 @@ PassRefPtr<CSSWrapShape> CSSParser::parseExclusionShapeEllipse(CSSParserValueLis
         ASSERT(argumentNumber < 4);
         switch (argumentNumber) {
         case 0:
-            shape->setLeft(length);
+            shape->setCenterX(length);
             break;
         case 1:
-            shape->setTop(length);
+            shape->setCenterY(length);
             break;
         case 2:
             shape->setRadiusX(length);

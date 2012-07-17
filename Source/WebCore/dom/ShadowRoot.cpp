@@ -75,11 +75,6 @@ ShadowRoot::~ShadowRoot()
 
 static bool allowsAuthorShadowRoot(Element* element)
 {
-    // FIXME: MEDIA recreates shadow root dynamically.
-    // https://bugs.webkit.org/show_bug.cgi?id=77936
-    if (element->hasTagName(HTMLNames::videoTag) || element->hasTagName(HTMLNames::audioTag))
-        return false;
-
     // FIXME: ValidationMessage recreates shadow root dynamically.
     // https://bugs.webkit.org/show_bug.cgi?id=77937
     // Especially, INPUT recreates shadow root dynamically.
@@ -122,7 +117,7 @@ PassRefPtr<ShadowRoot> ShadowRoot::create(Element* element, ShadowRootType type,
 #endif
 
     ec = 0;
-    element->ensureShadow()->addShadowRoot(element, shadowRoot, ec);
+    element->ensureShadow()->addShadowRoot(element, shadowRoot, type, ec);
     if (ec)
         return 0;
     ASSERT(element == shadowRoot->host());

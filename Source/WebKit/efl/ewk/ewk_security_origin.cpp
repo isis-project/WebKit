@@ -37,22 +37,25 @@ struct _Ewk_Security_Origin {
     RefPtr<WebCore::SecurityOrigin> securityOrigin;
     const char* protocol;
     const char* host;
+    const char* originString;
 };
 
-const char* ewk_security_origin_protocol_get(Ewk_Security_Origin* origin)
+const char* ewk_security_origin_protocol_get(const Ewk_Security_Origin* origin)
 {
-    if (!origin->protocol)
-        origin->protocol = eina_stringshare_add(origin->securityOrigin->protocol().utf8().data());
-
+    EINA_SAFETY_ON_NULL_RETURN_VAL(origin, 0);
     return origin->protocol;
 }
 
-const char* ewk_security_origin_host_get(Ewk_Security_Origin* origin)
+const char* ewk_security_origin_host_get(const Ewk_Security_Origin* origin)
 {
-    if (!origin->host)
-        origin->host = eina_stringshare_add(origin->securityOrigin->host().utf8().data());
-
+    EINA_SAFETY_ON_NULL_RETURN_VAL(origin, 0);
     return origin->host;
+}
+
+const char* ewk_security_origin_string_get(const Ewk_Security_Origin* origin)
+{
+    EINA_SAFETY_ON_NULL_RETURN_VAL(origin, 0);
+    return origin->originString;
 }
 
 uint32_t ewk_security_origin_port_get(const Ewk_Security_Origin* origin)
@@ -119,6 +122,7 @@ void ewk_security_origin_free(Ewk_Security_Origin* origin)
     origin->securityOrigin = 0;
     eina_stringshare_del(origin->host);
     eina_stringshare_del(origin->protocol);
+    eina_stringshare_del(origin->originString);
 
     delete origin;
 }
@@ -142,8 +146,9 @@ Ewk_Security_Origin* ewk_security_origin_new(WebCore::SecurityOrigin* coreOrigin
     Ewk_Security_Origin* origin = new Ewk_Security_Origin;
 
     origin->securityOrigin = coreOrigin;
-    origin->host = 0;
-    origin->protocol = 0;
+    origin->protocol = eina_stringshare_add(coreOrigin->protocol().utf8().data());
+    origin->host = eina_stringshare_add(coreOrigin->host().utf8().data());
+    origin->originString = eina_stringshare_add(origin->securityOrigin->toString().utf8().data());
 
     return origin;
 }

@@ -737,7 +737,11 @@ WebInspector.ProfilesPanel.prototype = {
         return title;
     },
 
-    performSearch: function(query)
+    /**
+     * @param {string} query
+     * @param {boolean} loop
+     */
+    performSearch: function(query, loop)
     {
         this.searchCanceled();
 
@@ -752,6 +756,7 @@ WebInspector.ProfilesPanel.prototype = {
         function updateMatchesCount()
         {
             WebInspector.searchController.updateSearchMatchesCount(this._totalSearchMatches, this);
+            WebInspector.searchController.updateCurrentMatchIndex(this._currentSearchResultIndex, this);
             matchesCountUpdateTimeout = null;
         }
 
@@ -811,10 +816,14 @@ WebInspector.ProfilesPanel.prototype = {
         this._currentSearchChunkIntervalIdentifier = chunkIntervalIdentifier;
     },
 
-    jumpToNextSearchResult: function()
+    /**
+     * @param {boolean} loop
+     * @return {boolean}
+     */
+    jumpToNextSearchResult: function(loop)
     {
         if (!this.showView || !this._searchResults || !this._searchResults.length)
-            return;
+            return false;
 
         var showFirstResult = false;
 
@@ -833,21 +842,28 @@ WebInspector.ProfilesPanel.prototype = {
             showFirstResult = true;
         }
 
+        WebInspector.searchController.updateCurrentMatchIndex(this._currentSearchResultIndex, this);
+
         if (currentView !== this.visibleView) {
             this.showView(currentView);
-            WebInspector.searchController.focusSearchField();
+            WebInspector.searchController.showSearchField();
         }
 
         if (showFirstResult)
             currentView.jumpToFirstSearchResult();
         else
             currentView.jumpToNextSearchResult();
+        return true;
     },
 
-    jumpToPreviousSearchResult: function()
+    /**
+     * @param {boolean} loop
+     * @return {boolean}
+     */
+    jumpToPreviousSearchResult: function(loop)
     {
         if (!this.showView || !this._searchResults || !this._searchResults.length)
-            return;
+            return false;
 
         var showLastResult = false;
 
@@ -866,15 +882,18 @@ WebInspector.ProfilesPanel.prototype = {
             showLastResult = true;
         }
 
+        WebInspector.searchController.updateCurrentMatchIndex(this._currentSearchResultIndex, this);
+
         if (currentView !== this.visibleView) {
             this.showView(currentView);
-            WebInspector.searchController.focusSearchField();
+            WebInspector.searchController.showSearchField();
         }
 
         if (showLastResult)
             currentView.jumpToLastSearchResult();
         else
             currentView.jumpToPreviousSearchResult();
+        return true;
     },
 
     _searchableViews: function()

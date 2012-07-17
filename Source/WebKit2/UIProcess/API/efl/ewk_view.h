@@ -34,7 +34,17 @@
  * - "load,provisional,failed", const Ewk_Web_Error*: view provisional load failed.
  * - "load,provisional,redirect", void: view received redirect for provisional load.
  * - "load,provisional,started", void: view started provisional load.
+ * - "policy,decision,navigation", Ewk_Navigation_Policy_Decision*: a navigation policy decision should be taken.
+ *   To make a policy decision asynchronously, simply increment the reference count of the
+ *   #Ewk_Navigation_Policy_Decision object using ewk_navigation_policy_decision_ref().
+ * - "policy,decision,new,window", Ewk_Navigation_Policy_Decision*: a new window policy decision should be taken.
+ *   To make a policy decision asynchronously, simply increment the reference count of the
+ *   #Ewk_Navigation_Policy_Decision object using ewk_navigation_policy_decision_ref().
+ * - "resource,request,failed", const Ewk_Web_Resource_Load_Error*: a resource failed loading.
+ * - "resource,request,finished", const Ewk_Web_Resource*: a resource finished loading.
  * - "resource,request,new", const Ewk_Web_Resource_Request*: a resource request was initiated.
+ * - "resource,request,response", Ewk_Web_Resource_Load_Response*: a response to a resource request was received.
+ * - "resource,request,sent", const Ewk_Web_Resource_Request*: a resource request was sent.
  * - "title,changed", const char*: title of the main frame was changed.
  */
 
@@ -44,6 +54,8 @@
 #include "ewk_context.h"
 #include "ewk_intent.h"
 #include "ewk_url_request.h"
+#include "ewk_url_response.h"
+#include "ewk_web_error.h"
 #include "ewk_web_resource.h"
 #include <Evas.h>
 
@@ -145,12 +157,35 @@ typedef struct _Ewk_Web_Resource_Request Ewk_Web_Resource_Request;
 
 /**
  * @brief Structure containing details about a resource request.
- *
- * Details given about a resource is loaded.
  */
 struct _Ewk_Web_Resource_Request {
     Ewk_Web_Resource *resource; /**< resource being requested */
     Ewk_Url_Request *request; /**< URL request for the resource */
+    Ewk_Url_Response *redirect_response; /**< Possible redirect response for the resource */
+};
+
+/// Creates a type name for _Ewk_Web_Resource_Load_Response.
+typedef struct _Ewk_Web_Resource_Load_Response Ewk_Web_Resource_Load_Response;
+
+/**
+ * @brief Structure containing details about a response to a resource request.
+ */
+struct _Ewk_Web_Resource_Load_Response {
+     Ewk_Web_Resource *resource; /**< resource requested */
+     Ewk_Url_Response *response; /**< resource load response */
+};
+
+/// Creates a type name for _Ewk_Web_Resource_Load_Error.
+typedef struct _Ewk_Web_Resource_Load_Error Ewk_Web_Resource_Load_Error;
+
+/**
+ * @brief Structure containing details about a resource load error.
+ *
+ * Details given about a resource load failure.
+ */
+struct _Ewk_Web_Resource_Load_Error {
+    Ewk_Web_Resource *resource; /**< resource that failed loading */
+    Ewk_Web_Error *error; /**< load error */
 };
 
 /**
@@ -361,6 +396,29 @@ EAPI float ewk_view_device_pixel_ratio_get(const Evas_Object *o);
  * @see ewk_view_device_pixel_ratio_get()
  */
 EAPI Eina_Bool ewk_view_device_pixel_ratio_set(Evas_Object *o, float ratio);
+
+/**
+ * Sets the theme path that will be used by this view.
+ *
+ * This also sets the theme on the main frame. As frames inherit theme
+ * from their parent, this will have all frames with unset theme to
+ * use this one.
+ *
+ * @param o view object to change theme
+ * @param path theme path, may be @c 0 to reset to the default theme
+ */
+EAPI void ewk_view_theme_set(Evas_Object *o, const char *path);
+
+/**
+ * Gets the theme set on this view.
+ *
+ * This returns the value set by ewk_view_theme_set().
+ *
+ * @param o view object to get theme path
+ *
+ * @return the theme path, may be @c 0 if not set
+ */
+EAPI const char *ewk_view_theme_get(const Evas_Object *o);
 
 #ifdef __cplusplus
 }

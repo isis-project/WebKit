@@ -295,7 +295,7 @@ WebInspector.NetworkLogView.prototype = {
         this._timelineSortSelector.selectedIndex = 0;
         this._updateOffscreenRows();
 
-        this.performSearch(null, true);
+        this.performSearch(null);
     },
 
     _sortByTimeline: function()
@@ -322,7 +322,6 @@ WebInspector.NetworkLogView.prototype = {
     {
         var filterBarElement = document.createElement("div");
         filterBarElement.className = "scope-bar status-bar-item";
-        filterBarElement.id = "network-filter";
 
         /**
          * @param {string} typeName
@@ -442,7 +441,7 @@ WebInspector.NetworkLogView.prototype = {
             selectMultiple = true;
 
         this._filter(e.target, selectMultiple);
-        this.performSearch(null, true);
+        this.performSearch(null);
         this._updateSummaryBar();
     },
 
@@ -1140,15 +1139,14 @@ WebInspector.NetworkLogView.prototype = {
         this.dispatchEventToListeners(WebInspector.NetworkLogView.EventTypes.SearchIndexUpdated, this._currentMatchedRequestIndex);
     },
 
-    performSearch: function(searchQuery, sortOrFilterApplied)
+    performSearch: function(searchQuery)
     {
         var newMatchedRequestIndex = 0;
         var currentMatchedRequestId;
         if (this._currentMatchedRequestIndex !== -1)
             currentMatchedRequestId = this._matchedRequests[this._currentMatchedRequestIndex];
 
-        if (!sortOrFilterApplied)
-            this._searchRegExp = createPlainTextSearchRegex(searchQuery, "i");
+        this._searchRegExp = createPlainTextSearchRegex(searchQuery, "i");
 
         this._clearSearchMatchedList();
 
@@ -1165,21 +1163,35 @@ WebInspector.NetworkLogView.prototype = {
         }
 
         this.dispatchEventToListeners(WebInspector.NetworkLogView.EventTypes.SearchCountUpdated, this._matchedRequests.length);
-        this._highlightNthMatchedRequest(newMatchedRequestIndex, !sortOrFilterApplied);
+        this._highlightNthMatchedRequest(newMatchedRequestIndex, false);
     },
 
-    jumpToPreviousSearchResult: function()
+    /**
+     * @param {boolean} loop
+     * @return {boolean}
+     */
+    jumpToPreviousSearchResult: function(loop)
     {
         if (!this._matchedRequests.length)
-            return;
+            return false;
+        if (!loop && this._currentMatchedRequestIndex <= 0)
+            return false;
         this._highlightNthMatchedRequest((this._currentMatchedRequestIndex + this._matchedRequests.length - 1) % this._matchedRequests.length, true);
+        return true;
     },
 
-    jumpToNextSearchResult: function()
+    /**
+     * @param {boolean} loop
+     * @return {boolean}
+     */
+    jumpToNextSearchResult: function(loop)
     {
         if (!this._matchedRequests.length)
-            return;
+            return false;
+        if (!loop && this._currentMatchedRequestIndex + 1 >= this._matchedRequests.length)
+            return false;
         this._highlightNthMatchedRequest((this._currentMatchedRequestIndex + 1) % this._matchedRequests.length, true);
+        return true;
     },
 
     searchCanceled: function()
@@ -1421,19 +1433,25 @@ WebInspector.NetworkPanel.prototype = {
         this._networkLogView.switchToBriefView();
     },
 
-    performSearch: function(searchQuery, sortOrFilterApplied)
+    performSearch: function(searchQuery)
     {
-        this._networkLogView.performSearch(searchQuery, sortOrFilterApplied);
+        this._networkLogView.performSearch(searchQuery);
     },
 
-    jumpToPreviousSearchResult: function()
+    /**
+     * @param {boolean} loop
+     */
+    jumpToPreviousSearchResult: function(loop)
     {
-        this._networkLogView.jumpToPreviousSearchResult();
+        this._networkLogView.jumpToPreviousSearchResult(loop);
     },
 
-    jumpToNextSearchResult: function()
+    /**
+     * @param {boolean} loop
+     */
+    jumpToNextSearchResult: function(loop)
     {
-        this._networkLogView.jumpToNextSearchResult();
+        this._networkLogView.jumpToNextSearchResult(loop);
     },
 
     searchCanceled: function()

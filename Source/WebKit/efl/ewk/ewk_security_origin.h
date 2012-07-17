@@ -49,9 +49,9 @@ typedef struct _Ewk_Security_Origin Ewk_Security_Origin;
  * It returns a internal string which should not
  * be modified. The string is guaranteed to be stringshared.
  *
- * @return the protocol scheme
+ * @return the protocol scheme or @c 0 if there is not a protocol scheme
  */
-EAPI const char          *ewk_security_origin_protocol_get(Ewk_Security_Origin *o);
+EAPI const char          *ewk_security_origin_protocol_get(const Ewk_Security_Origin *o);
 
 /**
  * Returns the host of the security origin.
@@ -61,9 +61,20 @@ EAPI const char          *ewk_security_origin_protocol_get(Ewk_Security_Origin *
  *
  * @param o security origin object
  *
- * @return the host domain
+ * @return the host domain or @c 0 if there is not a host scheme
  */
-EAPI const char          *ewk_security_origin_host_get(Ewk_Security_Origin *o);
+EAPI const char          *ewk_security_origin_host_get(const Ewk_Security_Origin *o);
+
+/**
+ * Convert this Ewk_Security_Origin into a string.
+ * The string representation of a security origin is similar to a URL, except it lacks a path component.
+ * The string representation does not encode the value of the security origin's domain property.
+ *
+ * @param o security origin object
+ *
+ * @return the string representation of security origin or @c 0 if there is not a proper security origin scheme
+ */
+EAPI const char          *ewk_security_origin_string_get(const Ewk_Security_Origin *o);
 
 /**
  * Returns the port of the security origin.
@@ -157,7 +168,6 @@ EAPI void                 ewk_security_origin_free(Ewk_Security_Origin *o);
  * @return the security origin object
  */
 EAPI Ewk_Security_Origin *ewk_security_origin_new_from_string(const char *url);
-
 
 #ifdef __cplusplus
 }

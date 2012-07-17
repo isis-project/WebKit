@@ -41,13 +41,14 @@
 //////////////////////////////////////////////////////////////////////////////////////////
 
 // Feature disabled, see: https://bugs.webkit.org/show_bug.cgi?id=85425
-BUGWKGTK SKIP : fast/viewport/viewport-legacy-xhtmlmp.html = TEXT
 BUGWKGTK SKIP : fast/viewport/viewport-legacy-handheldfriendly.html = TEXT
 BUGWKGTK SKIP : fast/viewport/viewport-legacy-mobileoptimized-2.html = TEXT
 BUGWKGTK SKIP : fast/viewport/viewport-legacy-mobileoptimized-3.html = TEXT
 BUGWKGTK SKIP : fast/viewport/viewport-legacy-mobileoptimized.html = TEXT
 BUGWKGTK SKIP : fast/viewport/viewport-legacy-ordering-5.html = TEXT
 BUGWKGTK SKIP : fast/viewport/viewport-legacy-ordering-6.html = TEXT
+BUGWKGTK SKIP : fast/viewport/viewport-legacy-xhtmlmp-remove-and-add.html = TEXT
+BUGWKGTK SKIP : fast/viewport/viewport-legacy-xhtmlmp.html = TEXT
 
 // Ignored because we do not have OBJC bindings (via Chromium).
 BUGWKGTK SKIP : editing/pasteboard/paste-RTFD.html = TEXT
@@ -137,7 +138,7 @@ BUGWKGTK SKIP : fast/forms/color = TEXT
 BUGWK29359 : fast/forms/date = TEXT
 BUGWK29359 : fast/forms/date/date-stepup-stepdown-from-renderer.html = PASS
 BUGWK29359 : fast/forms/date/no-page-popup-controller.html = PASS
-BUGWK89209 : fast/forms/input-in-table-cell-no-value.html = IMAGE
+BUGWK90987 : fast/forms/input-in-table-cell-no-value.html = IMAGE
 BUGWK29359 : fast/css/pseudo-in-range.html = TEXT
 BUGWK29359 : fast/css/pseudo-out-of-range.html = TEXT
 BUGWK29359 : fast/css/pseudo-in-range-invalid-value.html = TEXT
@@ -349,6 +350,8 @@ BUGWK85558 SKIP : http/tests/security/contentSecurityPolicy/1.1 = TEXT
 // Text Autosizing is not yet enabled.
 BUGWK84186 SKIP : fast/text-autosizing = PASS
 
+// Dialog element is not yet enabled.
+BUGWK84635 SKIP : fast/dom/HTMLDialogElement = TEXT
 //////////////////////////////////////////////////////////////////////////////////////////
 // End of Expected failures
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -457,6 +460,8 @@ BUGWK77631 : fast/multicol/span/span-as-immediate-columns-child-removal.html = P
 
 BUGWK88061 : fast/replaced/border-radius-clip.html = PASS TEXT
 
+BUGWK91314 : http/tests/misc/webtiming-origins.html = PASS TEXT
+
 //////////////////////////////////////////////////////////////////////////////////////////
 // End of Flaky tests
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -471,19 +476,6 @@ BUGWK68979 SKIP : http/tests/multipart/invalid-image-data-standalone.html = TIME
 BUGWKGTK SKIP : http/tests/xmlhttprequest/redirect-cross-origin-tripmine.html = TIMEOUT
 
 BUGWKGTK DEBUG : fast/css/user-drag-none.html = TIMEOUT
-
-BUGWK84676 SKIP : fast/files/workers/worker-read-blob-async.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/workers/worker-read-blob-sync.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/workers/worker-read-file-async.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/workers/worker-read-file-sync.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/read-blob-async.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/read-file-async.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/apply-blob-url-to-img.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/file-reader-directory-crash.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/null-origin-string.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/file-reader-abort.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/apply-blob-url-to-xhr.html = TIMEOUT
-BUGWK84676 SKIP : fast/files/file-reader-event-listener.html = TIMEOUT
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // End of Tests timing out
@@ -1006,9 +998,6 @@ BUGWK67713 : accessibility/textbox-role-reports-selection.html = TEXT
 
 BUGWK68278 : http/tests/history/back-with-fragment-change.php = TEXT
 
-BUGWK66045 : fast/files/create-blob-url-crash.html = TEXT
-BUGWK66045 : fast/files/url-required-arguments.html = TEXT
-
 BUGWK68512 : accessibility/aria-hidden-updates-alldescendants.html = TEXT
 
 BUGWK68855 : editing/selection/select-bidi-run.html = TEXT
@@ -1095,8 +1084,6 @@ BUGWKGTK : http/tests/download = TEXT
 
 BUGWK77015 : fast/events/clear-drag-state.html = TEXT
 BUGWK77015 : fast/events/clear-edit-drag-state.html = TEXT
-
-BUGWK77413 : fast/parser/nested-fragment-parser-crash.html = TEXT
 
 // These test -apple- and -khtml- prefixed CSS properties, which we don't support.
 BUGWKGTK SKIP : inspector/styles/vendor-prefixes.html = TEXT
@@ -1208,10 +1195,7 @@ BUGWK86971 : svg/hittest/svg-shapes-non-scale-stroke.html = TEXT
 
 BUGWK87088 : fast/js/names.html = TEXT
 
-BUGWK87973 : http/tests/misc/favicon-loads-with-images-disabled.html = TEXT
-
-BUGWK84102 : fast/profiler/dead-time.html = TEXT
-BUGWK84102 : fast/profiler/stop-profiling-after-setTimeout.html = TEXT
+BUGWKGTK : http/tests/misc/favicon-loads-with-icon-loading-override.html = TEXT
 
 BUGWK87734 : svg/dom/complex-svgView-specification.html = IMAGE
 BUGWK87734 : svg/dom/SVGViewSpec.html = TEXT
@@ -1233,9 +1217,6 @@ BUGWK51027 RELEASE : plugins/refcount-leaks.html = TEXT
 
 BUGWK57346 : fast/text/justify-ideograph-leading-expansion.html = TEXT
 
-// Needs Rebaseline after bug 86942
-BUGWK86942 : fast/backgrounds/size/zero.html = TEXT
-
 BUGWK83800 : plugins/get-url-with-blank-target.html = TEXT
 
 BUGWK84037 : fast/text/international/spaces-combined-in-vertical-text.html = TEXT
@@ -1249,6 +1230,16 @@ BUGWK74219 : fast/regions/positioned-objects-block-static-spanning-regions-rtl.h
 BUGWK90770 : fast/regions/webkit-flow-renderer-layer.html = IMAGE
 
 BUGWK89231 : fast/js/global-constructors.html = TEXT
+
+BUGWK91009 DEBUG : fast/xsl/xslt-missing-namespace-in-xslt.xml = TEXT
+
+// Skip tests in fast/text/shaping
+BUGWK90951 SKIP : fast/text/shaping = PASS
+
+BUGWK88684 : fast/text/descent-clip-in-scaled-page.html = IMAGE
+
+// This failure appears to be GTK-specific
+BUGWK91319 : css2.1/20110323/vertical-align-boxes-001.htm = IMAGE
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // End of Tests failing

@@ -62,6 +62,8 @@ RenderView::RenderView(Node* node, FrameView* view)
     , m_pageLogicalHeightChanged(false)
     , m_layoutState(0)
     , m_layoutStateDisableCount(0)
+    , m_renderQuoteCount(0)
+    , m_renderCounterCount(0)
 {
     // Clear our anonymous bit, set because RenderObject assumes
     // any renderer with document as the node is anonymous.
@@ -104,6 +106,14 @@ void RenderView::computePreferredLogicalWidths()
     ASSERT(preferredLogicalWidthsDirty());
 
     RenderBlock::computePreferredLogicalWidths();
+}
+
+LayoutUnit RenderView::availableLogicalHeight() const
+{
+    // If we have columns, then the available logical height is reduced to the column height.
+    if (hasColumns())
+        return columnInfo()->columnHeight();
+    return RenderBlock::availableLogicalHeight();
 }
 
 bool RenderView::isChildAllowed(RenderObject* child, RenderStyle*) const

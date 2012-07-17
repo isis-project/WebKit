@@ -50,6 +50,24 @@ struct _Ewk_Intent {
     const char* action;
     const char* type;
     const char* service;
+
+    _Ewk_Intent(WKIntentDataRef intentRef)
+        : __ref(1)
+#if ENABLE(WEB_INTENTS)
+        , wkIntent(intentRef)
+#endif
+        , action(0)
+        , type(0)
+        , service(0)
+    { }
+
+    ~_Ewk_Intent()
+    {
+        ASSERT(!__ref);
+        eina_stringshare_del(action);
+        eina_stringshare_del(type);
+        eina_stringshare_del(service);
+    }
 };
 
 #define EWK_INTENT_WK_GET_OR_RETURN(intent, wkIntent_, ...)    \
@@ -79,10 +97,7 @@ void ewk_intent_unref(Ewk_Intent* intent)
     if (--intent->__ref)
         return;
 
-    eina_stringshare_del(intent->action);
-    eina_stringshare_del(intent->type);
-    eina_stringshare_del(intent->service);
-    free(intent);
+    delete intent;
 #endif
 }
 
@@ -192,11 +207,7 @@ Ewk_Intent* ewk_intent_new(WKIntentDataRef intentData)
 {
     EINA_SAFETY_ON_NULL_RETURN_VAL(intentData, 0);
 
-    Ewk_Intent* ewkIntent = static_cast<Ewk_Intent*>(calloc(1, sizeof(Ewk_Intent)));
-    ewkIntent->__ref = 1;
-    ewkIntent->wkIntent = intentData;
-
-    return ewkIntent;
+    return new Ewk_Intent(intentData);
 }
 
 WKIntentDataRef ewk_intent_WKIntentDataRef_get(const Ewk_Intent* intent)

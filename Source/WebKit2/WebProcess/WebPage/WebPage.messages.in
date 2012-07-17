@@ -230,6 +230,10 @@ messages -> WebPage {
     DeliverIntentToFrame(uint64_t frameID, WebKit::IntentData intentData);
 #endif
 
+#if PLATFORM(EFL)
+    SetThemePath(WTF::String themePath)
+#endif
+
 #if PLATFORM(QT)
     SetComposition(WTF::String text, WTF::Vector<WebCore::CompositionUnderline> underlines, uint64_t selectionStart, uint64_t selectionEnd, uint64_t replacementRangeStart, uint64_t replacementRangeEnd)
     ConfirmComposition(WTF::String text, int64_t selectionStart, int64_t selectionLength)
@@ -277,7 +281,7 @@ messages -> WebPage {
     FindZoomableAreaForPoint(WebCore::IntPoint point, WebCore::IntSize area)
 #endif
 
-#if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD)
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
     HandleAlternativeTextUIResult(String result)
 #endif
 

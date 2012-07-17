@@ -42,8 +42,6 @@ WebInspector.UISourceCode = function(url, resource, contentProvider, sourceMappi
 {
     this._url = url;
     this._resource = resource;
-    if (resource)
-        resource.setUISourceCode(this);
     this._parsedURL = new WebInspector.ParsedURL(url);
     this._contentProvider = contentProvider;
     this._sourceMapping = sourceMapping;
@@ -149,14 +147,11 @@ WebInspector.UISourceCode.prototype = {
 
     /**
      * @param {string} newContent
-     * @param {function(?string)} callback
      */
-    _setContent: function(newContent, callback)
+    _setContent: function(newContent)
     {
-        if (!this.isEditable())
-            return;
         this.setWorkingCopy(newContent);
-        this.commitWorkingCopy(callback);
+        this.commitWorkingCopy(function() {});
     },
 
     /**
@@ -185,7 +180,6 @@ WebInspector.UISourceCode.prototype = {
         if (!window.localStorage)
             return;
 
-        WebInspector.Revision._ensureStaleRevisionsFileteredOut();
         var registry = WebInspector.Revision._revisionHistoryRegistry();
         var historyItems = registry[this.url];
         for (var i = 0; historyItems && i < historyItems.length; ++i)
@@ -207,22 +201,24 @@ WebInspector.UISourceCode.prototype = {
    
     revertToOriginal: function()
     {
-        function revert(content)
+        /**
+         * @param {?string} content
+         * @param {boolean} contentEncoded
+         * @param {string} mimeType
+         */
+      function callback(content, contentEncoded, mimeType)
         {
-            this._setContent(content, function() {});
+            this._setContent();
         }
-        this.requestOriginalContent(revert.bind(this));
+
+        this.requestOriginalContent(callback.bind(this));
     },
 
     revertAndClearHistory: function(callback)
     {
         function revert(content)
         {
-            this._setContent(content, clearHistory.bind(this));
-        }
-
-        function clearHistory()
-        {
+            this._setContent(content);
             this._clearRevisionHistory();
             this.history = [];
             callback();
@@ -237,9 +233,6 @@ WebInspector.UISourceCode.prototype = {
      */
     contentChanged: function(newContent, mimeType)
     {
-        if (this._committingWorkingCopy)
-            return;
-
         this._content = newContent;
         this._mimeType = mimeType;
         this._contentLoaded = true;
@@ -295,12 +288,8 @@ WebInspector.UISourceCode.prototype = {
         }
 
         var newContent = this._workingCopy;
-        this._committingWorkingCopy = true;
         this.workingCopyCommitted(callback);
         this.addRevision(newContent);
-        delete this._committingWorkingCopy;
-        this.contentChanged(newContent, this._mimeType);
-
     },
 
     /**
@@ -560,15 +549,11 @@ WebInspector.Revision._revisionHistoryRegistry = function()
     return WebInspector.Revision._revisionHistoryRegistryObject;
 }
 
-WebInspector.Revision._ensureStaleRevisionsFileteredOut = function()
+WebInspector.Revision.filterOutStaleRevisions = function()
 {
     if (!window.localStorage)
         return;
 
-    if (WebInspector.Revision._staleRevisionsFilteredOut)
-        return;
-    WebInspector.Revision._staleRevisionsFilteredOut = true;
-    
     var registry = WebInspector.Revision._revisionHistoryRegistry();
     var filteredRegistry = {};
     for (var url in registry) {
@@ -624,7 +609,7 @@ WebInspector.Revision.prototype = {
         function revert(content)
         {
             if (this._uiSourceCode._content !== content)
-                this._uiSourceCode._setContent(content, function() {});
+                this._uiSourceCode._setContent(content);
         }
         this.requestContent(revert.bind(this));
     },

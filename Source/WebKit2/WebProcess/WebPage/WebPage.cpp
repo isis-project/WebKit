@@ -130,6 +130,10 @@
 #include "WebBatteryClient.h"
 #endif
 
+#if ENABLE(NETWORK_INFO)
+#include "WebNetworkInfoClient.h"
+#endif
+
 #if ENABLE(WEB_INTENTS)
 #include "IntentData.h"
 #endif
@@ -241,6 +245,7 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
 #if ENABLE(PAGE_VISIBILITY_API)
     , m_visibilityState(WebCore::PageVisibilityStateVisible)
 #endif
+    , m_inspectorClient(0)
 {
     ASSERT(m_pageID);
     // FIXME: This is a non-ideal location for this Setting and
@@ -258,7 +263,8 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
 #endif
     pageClients.backForwardClient = WebBackForwardListProxy::create(this);
 #if ENABLE(INSPECTOR)
-    pageClients.inspectorClient = new WebInspectorClient(this);
+    m_inspectorClient = new WebInspectorClient(this);
+    pageClients.inspectorClient = m_inspectorClient;
 #endif
 #if USE(AUTOCORRECTION_PANEL)
     pageClients.alternativeTextClient = new WebAlternativeTextClient(this);
@@ -275,6 +281,9 @@ WebPage::WebPage(uint64_t pageID, const WebPageCreationParameters& parameters)
 #if ENABLE(DEVICE_ORIENTATION) && PLATFORM(QT)
     WebCore::provideDeviceMotionTo(m_page.get(), new DeviceMotionClientQt);
     WebCore::provideDeviceOrientationTo(m_page.get(), new DeviceOrientationClientQt);
+#endif
+#if ENABLE(NETWORK_INFO)
+    WebCore::provideNetworkInfoTo(m_page.get(), new WebNetworkInfoClient(this));
 #endif
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     WebCore::provideNotification(m_page.get(), new WebNotificationClient(this));
@@ -1332,6 +1341,10 @@ static bool handleMouseEvent(const WebMouseEvent& mouseEvent, WebPage* page, boo
             if (isContextClick(platformMouseEvent))
                 handled = handleContextMenuEvent(platformMouseEvent, page);
 #endif
+#if PLATFORM(GTK)
+            bool gtkMouseButtonPressHandled = page->handleMousePressedEvent(platformMouseEvent);
+            handled = handled || gtkMouseButtonPressHandled;
+#endif
 
             return handled;
         }
@@ -2078,7 +2091,7 @@ WebInspector* WebPage::inspector()
     if (m_isClosed)
         return 0;
     if (!m_inspector)
-        m_inspector = WebInspector::create(this);
+        m_inspector = WebInspector::create(this, m_inspectorClient);
     return m_inspector.get();
 }
 #endif
@@ -3091,7 +3104,7 @@ bool WebPage::canHandleRequest(const WebCore::ResourceRequest& request)
     return platformCanHandleRequest(request);
 }
 
-#if PLATFORM(MAC) && !defined(BUILDING_ON_SNOW_LEOPARD)
+#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
 void WebPage::handleAlternativeTextUIResult(const String& result)
 {
     Frame* frame = m_page->focusController()->focusedOrMainFrame();

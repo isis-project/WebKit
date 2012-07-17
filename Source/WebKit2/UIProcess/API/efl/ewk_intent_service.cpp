@@ -50,6 +50,28 @@ struct _Ewk_Intent_Service {
     const char* href;
     const char* title;
     const char* disposition;
+
+    _Ewk_Intent_Service(WKIntentServiceInfoRef serviceRef)
+        : __ref(1)
+#if ENABLE(WEB_INTENTS_TAG)
+        , wkService(serviceRef)
+#endif
+        , action(0)
+        , type(0)
+        , href(0)
+        , title(0)
+        , disposition(0)
+    { }
+
+    ~_Ewk_Intent_Service()
+    {
+        ASSERT(!__ref);
+        eina_stringshare_del(action);
+        eina_stringshare_del(type);
+        eina_stringshare_del(href);
+        eina_stringshare_del(title);
+        eina_stringshare_del(disposition);
+    }
 };
 
 #define EWK_INTENT_SERVICE_WK_GET_OR_RETURN(service, wkService_, ...) \
@@ -79,12 +101,7 @@ void ewk_intent_service_unref(Ewk_Intent_Service* service)
     if (--service->__ref)
         return;
 
-    eina_stringshare_del(service->action);
-    eina_stringshare_del(service->type);
-    eina_stringshare_del(service->href);
-    eina_stringshare_del(service->title);
-    eina_stringshare_del(service->disposition);
-    free(service);
+    delete service;
 #endif
 }
 
@@ -168,10 +185,6 @@ Ewk_Intent_Service* ewk_intent_service_new(WKIntentServiceInfoRef wkService)
 {
     EINA_SAFETY_ON_NULL_RETURN_VAL(wkService, 0);
 
-    Ewk_Intent_Service* ewkIntentService = static_cast<Ewk_Intent_Service*>(calloc(1, sizeof(Ewk_Intent_Service)));
-    ewkIntentService->__ref = 1;
-    ewkIntentService->wkService = wkService;
-
-    return ewkIntentService;
+    return new Ewk_Intent_Service(wkService);
 }
 #endif

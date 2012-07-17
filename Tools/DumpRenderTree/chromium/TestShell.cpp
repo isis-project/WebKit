@@ -146,12 +146,11 @@ TestShell::TestShell()
 void TestShell::initialize()
 {
     m_webPermissions = adoptPtr(new WebPermissions(this));
-    m_accessibilityController = adoptPtr(new AccessibilityController(this));
-    m_gamepadController = adoptPtr(new GamepadController(this));
-
+    m_accessibilityController = adoptPtr(new AccessibilityController());
+    m_testInterfaces = adoptPtr(new TestInterfaces());
     m_layoutTestController = adoptPtr(new LayoutTestController(this));
     m_eventSender = adoptPtr(new EventSender(this));
-    m_textInputController = adoptPtr(new TextInputController(this));
+    m_textInputController = adoptPtr(new TextInputController());
 #if ENABLE(NOTIFICATIONS) || ENABLE(LEGACY_NOTIFICATIONS)
     m_notificationPresenter = adoptPtr(new NotificationPresenter(this));
 #endif
@@ -176,15 +175,15 @@ void TestShell::createMainWindow()
     m_drtDevToolsAgent = adoptPtr(new DRTDevToolsAgent);
     m_webViewHost = adoptPtr(createNewWindow(WebURL(), m_drtDevToolsAgent.get()));
     m_webView = m_webViewHost->webView();
+    m_accessibilityController->setWebView(m_webView);
+    m_textInputController->setWebView(m_webView);
     m_drtDevToolsAgent->setWebView(m_webView);
 }
 
 TestShell::~TestShell()
 {
-    // Note: DevTools are closed together with all the other windows in the
-    // windows list.
-
-    // Destroy the WebView before its WebViewHost.
+    m_accessibilityController->setWebView(0);
+    m_textInputController->setWebView(0);
     m_drtDevToolsAgent->setWebView(0);
 }
 
@@ -296,7 +295,7 @@ void TestShell::resetTestController()
     resetWebSettings(*webView());
     m_webPermissions->reset();
     m_accessibilityController->reset();
-    m_gamepadController->reset();
+    m_testInterfaces->resetAll();
     m_layoutTestController->reset();
     m_eventSender->reset();
     m_webViewHost->reset();
@@ -730,7 +729,7 @@ void TestShell::bindJSObjectsToWindow(WebFrame* frame)
 {
     WebTestingSupport::injectInternalsObject(frame);
     m_accessibilityController->bindToJavascript(frame, WebString::fromUTF8("accessibilityController"));
-    m_gamepadController->bindToJavascript(frame, WebString::fromUTF8("gamepadController"));
+    m_testInterfaces->bindTo(frame);
     m_layoutTestController->bindToJavascript(frame, WebString::fromUTF8("layoutTestController"));
     m_layoutTestController->bindToJavascript(frame, WebString::fromUTF8("testRunner"));
     m_eventSender->bindToJavascript(frame, WebString::fromUTF8("eventSender"));

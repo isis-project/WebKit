@@ -34,6 +34,7 @@
 #include "cc/CCInputHandler.h"
 #include "cc/CCLayerAnimationController.h"
 #include "cc/CCRenderSurface.h"
+#include "cc/CCSharedQuadState.h"
 #include <public/WebFilterOperations.h>
 #include <public/WebTransformationMatrix.h>
 #include <wtf/OwnPtr.h>
@@ -48,7 +49,6 @@ class CCLayerSorter;
 class CCLayerTreeHostImpl;
 class CCQuadCuller;
 class CCRenderer;
-class CCSharedQuadState;
 class LayerChromium;
 
 class CCLayerImpl : public CCLayerAnimationControllerClient {
@@ -79,6 +79,10 @@ public:
 
     void setReplicaLayer(PassOwnPtr<CCLayerImpl>);
     CCLayerImpl* replicaLayer() const { return m_replicaLayer.get(); }
+
+    bool hasMask() const { return m_maskLayer; }
+    bool hasReplica() const { return m_replicaLayer; }
+    bool replicaHasMask() const { return m_replicaLayer && (m_maskLayer || m_replicaLayer->m_maskLayer); }
 
     CCLayerTreeHostImpl* layerTreeHostImpl() const { return m_layerTreeHostImpl; }
     void setLayerTreeHostImpl(CCLayerTreeHostImpl* hostImpl) { m_layerTreeHostImpl = hostImpl; }
@@ -181,8 +185,8 @@ public:
     const IntRect& scissorRect() const { return m_scissorRect; }
     void setScissorRect(const IntRect& rect) { m_scissorRect = rect; }
 
-    CCRenderSurface* targetRenderSurface() const { return m_targetRenderSurface; }
-    void setTargetRenderSurface(CCRenderSurface* surface) { m_targetRenderSurface = surface; }
+    CCLayerImpl* renderTarget() const { ASSERT(!m_renderTarget || m_renderTarget->renderSurface()); return m_renderTarget; }
+    void setRenderTarget(CCLayerImpl* target) { m_renderTarget = target; }
 
     void setBounds(const IntSize&);
     const IntSize& bounds() const { return m_bounds; }
@@ -227,8 +231,8 @@ public:
 
     CCInputHandlerClient::ScrollStatus tryScroll(const IntPoint& viewportPoint, CCInputHandlerClient::ScrollInputType) const;
 
-    const IntRect& visibleLayerRect() const { return m_visibleLayerRect; }
-    void setVisibleLayerRect(const IntRect& visibleLayerRect) { m_visibleLayerRect = visibleLayerRect; }
+    const IntRect& visibleContentRect() const { return m_visibleContentRect; }
+    void setVisibleContentRect(const IntRect& visibleContentRect) { m_visibleContentRect = visibleContentRect; }
 
     bool doubleSided() const { return m_doubleSided; }
     void setDoubleSided(bool);
@@ -277,9 +281,6 @@ protected:
 
     virtual void dumpLayerProperties(TextStream&, int indent) const;
     static void writeIndent(TextStream&, int indent);
-
-    // Transformation used to transform quads provided in appendQuads.
-    virtual WebKit::WebTransformationMatrix quadTransform() const;
 
 private:
     void setParent(CCLayerImpl* parent) { m_parent = parent; }
@@ -332,7 +333,7 @@ private:
     bool m_layerSurfacePropertyChanged;
 
     // Uses layer's content space.
-    IntRect m_visibleLayerRect;
+    IntRect m_visibleContentRect;
     bool m_masksToBounds;
     bool m_opaque;
     float m_opacity;
@@ -358,11 +359,10 @@ private:
     IntSize m_maxScrollPosition;
     float m_pageScaleDelta;
 
-    // Render surface this layer draws into. This is a surface that can belong
-    // either to this layer (if m_targetRenderSurface == m_renderSurface) or
-    // to an ancestor of this layer. The target render surface determines the
-    // coordinate system the layer's transforms are relative to.
-    CCRenderSurface* m_targetRenderSurface;
+    // The layer whose coordinate space this layer draws into. This can be
+    // either the same layer (m_renderTarget == this) or an ancestor of this
+    // layer.
+    CCLayerImpl* m_renderTarget;
 
     // The global depth value of the center of the layer. This value is used
     // to sort layers from back to front.

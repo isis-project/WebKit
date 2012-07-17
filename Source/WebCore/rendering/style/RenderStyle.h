@@ -440,35 +440,19 @@ public:
         return hasBackgroundImage();
     }
     
-    void getImageOutsets(const NinePieceImage&, LayoutUnit& top, LayoutUnit& right, LayoutUnit& bottom, LayoutUnit& left) const;
+    LayoutBoxExtent imageOutsets(const NinePieceImage&) const;
     bool hasBorderImageOutsets() const
     {
         return borderImage().hasImage() && borderImage().outset().nonZero();
     }
-    void getBorderImageOutsets(LayoutUnit& top, LayoutUnit& right, LayoutUnit& bottom, LayoutUnit& left) const
+    LayoutBoxExtent borderImageOutsets() const
     {
-        return getImageOutsets(borderImage(), top, right, bottom, left);
+        return imageOutsets(borderImage());
     }
-    void getBorderImageHorizontalOutsets(LayoutUnit& left, LayoutUnit& right) const
+
+    LayoutBoxExtent maskBoxImageOutsets() const
     {
-        return getImageHorizontalOutsets(borderImage(), left, right);
-    }
-    void getBorderImageVerticalOutsets(LayoutUnit& top, LayoutUnit& bottom) const
-    {
-        return getImageVerticalOutsets(borderImage(), top, bottom);
-    }
-    void getBorderImageInlineDirectionOutsets(LayoutUnit& logicalLeft, LayoutUnit& logicalRight) const
-    {
-        return getImageInlineDirectionOutsets(borderImage(), logicalLeft, logicalRight);
-    }
-    void getBorderImageBlockDirectionOutsets(LayoutUnit& logicalTop, LayoutUnit& logicalBottom) const
-    {
-        return getImageBlockDirectionOutsets(borderImage(), logicalTop, logicalBottom);
-    }
-    
-    void getMaskBoxImageOutsets(LayoutUnit& top, LayoutUnit& right, LayoutUnit& bottom, LayoutUnit& left) const
-    {
-        return getImageOutsets(maskBoxImage(), top, right, bottom, left);
+        return imageOutsets(maskBoxImage());
     }
 
 #if ENABLE(CSS_FILTERS)
@@ -830,8 +814,8 @@ public:
     const Vector<Length>& gridColumns() const { return rareNonInheritedData->m_grid->m_gridColumns; }
     const Vector<Length>& gridRows() const { return rareNonInheritedData->m_grid->m_gridRows; }
 
-    const Length& gridItemColumn() const { return rareNonInheritedData->m_gridItem->m_gridColumn; }
-    const Length& gridItemRow() const { return rareNonInheritedData->m_gridItem->m_gridRow; }
+    Length gridItemColumn() const { return rareNonInheritedData->m_gridItem->m_gridColumn; }
+    Length gridItemRow() const { return rareNonInheritedData->m_gridItem->m_gridRow; }
 
     const ShadowData* boxShadow() const { return rareNonInheritedData->m_boxShadow.get(); }
     void getBoxShadowExtent(LayoutUnit& top, LayoutUnit& right, LayoutUnit& bottom, LayoutUnit& left) const { getShadowExtent(boxShadow(), top, right, bottom, left); }
@@ -1443,22 +1427,22 @@ public:
     void setKerning(SVGLength k) { accessSVGStyle()->setKerning(k); }
 #endif
 
-    void setWrapShapeInside(PassRefPtr<CSSWrapShape> shape)
+    void setWrapShapeInside(PassRefPtr<WrapShape> shape)
     {
         if (rareNonInheritedData->m_wrapShapeInside != shape)
             rareNonInheritedData.access()->m_wrapShapeInside = shape;
     }
-    CSSWrapShape* wrapShapeInside() const { return rareNonInheritedData->m_wrapShapeInside.get(); }
+    WrapShape* wrapShapeInside() const { return rareNonInheritedData->m_wrapShapeInside.get(); }
 
-    void setWrapShapeOutside(PassRefPtr<CSSWrapShape> shape)
+    void setWrapShapeOutside(PassRefPtr<WrapShape> shape)
     {
         if (rareNonInheritedData->m_wrapShapeOutside != shape)
             rareNonInheritedData.access()->m_wrapShapeOutside = shape;
     }
-    CSSWrapShape* wrapShapeOutside() const { return rareNonInheritedData->m_wrapShapeOutside.get(); }
+    WrapShape* wrapShapeOutside() const { return rareNonInheritedData->m_wrapShapeOutside.get(); }
 
-    static CSSWrapShape* initialWrapShapeInside() { return 0; }
-    static CSSWrapShape* initialWrapShapeOutside() { return 0; }
+    static WrapShape* initialWrapShapeInside() { return 0; }
+    static WrapShape* initialWrapShapeOutside() { return 0; }
 
     Length wrapPadding() const { return rareNonInheritedData->m_wrapPadding; }
     void setWrapPadding(Length wrapPadding) { SET_VAR(rareNonInheritedData, m_wrapPadding, wrapPadding); }
@@ -1752,18 +1736,6 @@ private:
     void getShadowBlockDirectionExtent(const ShadowData* shadow, LayoutUnit& logicalTop, LayoutUnit& logicalBottom) const
     {
         return isHorizontalWritingMode() ? getShadowVerticalExtent(shadow, logicalTop, logicalBottom) : getShadowHorizontalExtent(shadow, logicalTop, logicalBottom);
-    }
-
-    // Helpers for obtaining border image outsets for overflow.
-    void getImageHorizontalOutsets(const NinePieceImage&, LayoutUnit& left, LayoutUnit& right) const;
-    void getImageVerticalOutsets(const NinePieceImage&, LayoutUnit& top, LayoutUnit& bottom) const;
-    void getImageInlineDirectionOutsets(const NinePieceImage& image, LayoutUnit& logicalLeft, LayoutUnit& logicalRight) const
-    {
-        return isHorizontalWritingMode() ? getImageHorizontalOutsets(image, logicalLeft, logicalRight) : getImageVerticalOutsets(image, logicalLeft, logicalRight);
-    }
-    void getImageBlockDirectionOutsets(const NinePieceImage& image, LayoutUnit& logicalTop, LayoutUnit& logicalBottom) const
-    {
-        return isHorizontalWritingMode() ? getImageVerticalOutsets(image, logicalTop, logicalBottom) : getImageHorizontalOutsets(image, logicalTop, logicalBottom);
     }
 
     // Color accessors are all private to make sure callers use visitedDependentColor instead to access them.

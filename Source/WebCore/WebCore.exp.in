@@ -834,6 +834,7 @@ __ZN7WebCore8Document26pageSizeAndMarginsInPixelsEiRNS_7IntSizeERiS3_S3_S3_
 __ZN7WebCore8Document27removeMediaCanStartListenerEPNS_21MediaCanStartListenerE
 __ZN7WebCore8Document36updateLayoutIgnorePendingStylesheetsEv
 __ZN7WebCore8Document4headEv
+__ZN7WebCore8Document8iconURLsEv
 __ZN7WebCore8FormData6createEPKvm
 __ZN7WebCore8FormDataD1Ev
 __ZN7WebCore8Gradient12addColorStopEfRKNS_5ColorE
@@ -1989,23 +1990,23 @@ __ZN7WebCore7IntSizeC1ERK7_NSSize
 __ZNK7WebCore7IntSizecv7_NSSizeEv
 #endif
 
-#if defined(BUILDING_ON_SNOW_LEOPARD) && !PLATFORM(IOS)
+#if !PLATFORM(IOS) && __MAC_OS_X_VERSION_MIN_REQUIRED == 1060
 _wkGetNSEventMomentumPhase
 #endif
 
-#if !defined(BUILDING_ON_SNOW_LEOPARD) || PLATFORM(IOS)
+#if PLATFORM(IOS) || __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
 _wkCALayerEnumerateRectsBeingDrawnWithBlock
 _wkCFURLRequestAllowAllPostCaching
 _wkCGPathAddRoundedRect
 _wkCreateCTTypesetterWithUniCharProviderAndOptions
 #endif
 
-#if (!defined(BUILDING_ON_SNOW_LEOPARD) || PLATFORM(IOS)) && !PLATFORM(IOS_SIMULATOR)
+#if (PLATFORM(IOS) || __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070) && !PLATFORM(IOS_SIMULATOR)
 _wkIOSurfaceContextCreate
 _wkIOSurfaceContextCreateImage
 #endif
 
-#if !defined(BUILDING_ON_SNOW_LEOPARD) && !PLATFORM(IOS)
+#if !PLATFORM(IOS) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
 _wkAVAssetResolvedURL
 _wkCopyDefaultSearchProviderDisplayName
 _wkCreateVMPressureDispatchOnMainQueue
@@ -2014,7 +2015,7 @@ _wkExecutableWasLinkedOnOrBeforeSnowLeopard
 _wkRecommendedScrollerStyle
 #endif
 
-#if !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION) && !PLATFORM(IOS)
+#if !PLATFORM(IOS) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 1080
 _wkExecutableWasLinkedOnOrBeforeLion
 _wkFilterAddData
 _wkFilterCreateInstance
@@ -2073,7 +2074,7 @@ __ZN7WebCore14ResourceHandle46setPrivateBrowsingStorageSessionIdentifierBaseERKN
 __ZN7WebCore14ResourceHandle21currentStorageSessionEv
 __ZN7WebCore14ResourceHandle29privateBrowsingStorageSessionEv
 __ZN7WebCore26currentCFHTTPCookieStorageEv
-#if defined(BUILDING_ON_SNOW_LEOPARD)
+#if !PLATFORM(IOS) && __MAC_OS_X_VERSION_MIN_REQUIRED == 1060
 __ZN7WebCore14ResourceHandle24setDefaultStorageSessionEP21__CFURLStorageSession
 #else
 __ZN7WebCore14ResourceHandle24setDefaultStorageSessionEPK21__CFURLStorageSession
@@ -2379,6 +2380,10 @@ __ZN7WebCore9FrameView25serviceScriptedAnimationsEy
 __ZN7WebCore22RuntimeEnabledFeatures18isShadowDOMEnabledE
 #endif
 
+#if ENABLE(DIALOG_ELEMENT)
+__ZN7WebCore22RuntimeEnabledFeatures22isDialogElementEnabledE
+#endif
+
 #if ENABLE(SVG)
 __ZN7WebCore14SVGSMILElement13isSMILElementEPNS_4NodeE
 __ZN7WebCore8Document13svgExtensionsEv
@@ -2543,7 +2548,7 @@ __ZNK7WebCore4KURL7isValidEv
 __ZNK7WebCore4KURL22protocolIsInHTTPFamilyEv
 #endif
 
-#if PLATFORM(MAC) && !defined(BUILDING_ON_LEOPARD) && !defined(BUILDING_ON_SNOW_LEOPARD) && !defined(BUILDING_ON_LION)
+#if PLATFORM(MAC) && !PLATFORM(IOS) && __MAC_OS_X_VERSION_MIN_REQUIRED >= 1080
 __ZN7WebCore27AlternativeTextUIController15addAlternativesERKN3WTF9RetainPtrI18NSTextAlternativesEE
 __ZN7WebCore27AlternativeTextUIController22alternativesForContextEy
 __ZN7WebCore27AlternativeTextUIController5clearEv

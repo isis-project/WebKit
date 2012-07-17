@@ -68,7 +68,8 @@ IntRect CCLayerTreeHostCommon::calculateVisibleRect(const IntRect& targetSurface
 template<typename LayerType, typename RenderSurfaceType>
 static IntRect calculateLayerScissorRect(LayerType* layer, const FloatRect& rootScissorRect)
 {
-    RenderSurfaceType* targetSurface = layer->targetRenderSurface();
+    LayerType* renderTarget = layer->renderTarget();
+    RenderSurfaceType* targetSurface = renderTarget->renderSurface();
 
     FloatRect rootScissorRectInTargetSurface = targetSurface->computeRootScissorRectInCurrentSurface(rootScissorRect);
     FloatRect clipAndDamage;
@@ -84,7 +85,9 @@ template<typename LayerType, typename RenderSurfaceType>
 static IntRect calculateSurfaceScissorRect(LayerType* layer, const FloatRect& rootScissorRect)
 {
     LayerType* parentLayer = layer->parent();
-    RenderSurfaceType* targetSurface = parentLayer->targetRenderSurface();
+    LayerType* renderTarget = parentLayer->renderTarget();
+
+    RenderSurfaceType* targetSurface = renderTarget->renderSurface();
     ASSERT(targetSurface);
 
     RenderSurfaceType* currentSurface = layer->renderSurface();
@@ -153,11 +156,11 @@ static bool isSurfaceBackFaceVisible(LayerType* layer, const WebTransformationMa
 }
 
 template<typename LayerType>
-static IntRect calculateVisibleLayerRect(LayerType* layer)
+static IntRect calculateVisibleContentRect(LayerType* layer)
 {
-    ASSERT(layer->targetRenderSurface());
+    ASSERT(layer->renderTarget());
 
-    IntRect targetSurfaceRect = layer->targetRenderSurface()->contentRect();
+    IntRect targetSurfaceRect = layer->renderTarget()->renderSurface()->contentRect();
 
     if (layer->usesLayerClipping())
         targetSurfaceRect.intersect(layer->clipRect());
@@ -176,8 +179,8 @@ static IntRect calculateVisibleLayerRect(LayerType* layer)
                               bounds.height() / static_cast<double>(contentBounds.height()));
     transform.translate(-contentBounds.width() / 2.0, -contentBounds.height() / 2.0);
 
-    IntRect visibleLayerRect = CCLayerTreeHostCommon::calculateVisibleRect(targetSurfaceRect, layerBoundRect, transform);
-    return visibleLayerRect;
+    IntRect visibleContentRect = CCLayerTreeHostCommon::calculateVisibleRect(targetSurfaceRect, layerBoundRect, transform);
+    return visibleContentRect;
 }
 
 static bool isScaleOrTranslation(const WebTransformationMatrix& m)
@@ -219,7 +222,7 @@ static bool layerShouldBeSkipped(LayerType* layer)
     //
     // Some additional conditions need to be computed at a later point after the recursion is finished.
     //   - the intersection of render surface content and layer clipRect is empty
-    //   - the visibleLayerRect is empty
+    //   - the visibleContentRect is empty
     //
     // Note, if the layer should not have been drawn due to being fully transparent,
     // we would have skipped the entire subtree and never made it into this function,
@@ -261,6 +264,11 @@ static inline bool subtreeShouldBeSkipped(LayerChromium* layer)
 template<typename LayerType>
 static bool subtreeShouldRenderToSeparateSurface(LayerType* layer, bool axisAlignedWithRespectToParent)
 {
+    // The root layer has a special render surface that is set up externally, so
+    // it shouldn't be treated as a surface in this code.
+    if (!layer->parent())
+        return false;
+
     // Cache this value, because otherwise it walks the entire subtree several times.
     bool descendantDrawsContent = layer->descendantDrawsContent();
 
@@ -316,7 +324,7 @@ WebTransformationMatrix computeScrollCompensationForThisLayer(CCLayerImpl* scrol
     //
     // These steps create a matrix that both start and end in targetSurfaceSpace. So this matrix can
     // pre-multiply any fixed-position layer's drawTransform to undo the scrollDeltas -- as long as
-    // that fixed position layer is fixed onto the same targetRenderSurface as this scrollingLayer.
+    // that fixed position layer is fixed onto the same renderTarget as this scrollingLayer.
     //
 
     WebTransformationMatrix partialLayerOriginTransform = parentMatrix;
@@ -605,17 +613,14 @@ static bool calculateDrawTransformsInternal(LayerType* layer, LayerType* rootLay
         layer->setClipRect(IntRect());
 
         if (layer->maskLayer())
-            layer->maskLayer()->setTargetRenderSurface(renderSurface);
+            layer->maskLayer()->setRenderTarget(layer);
 
         if (layer->replicaLayer() && layer->replicaLayer()->maskLayer())
-            layer->replicaLayer()->maskLayer()->setTargetRenderSurface(renderSurface);
+            layer->replicaLayer()->maskLayer()->setRenderTarget(layer);
 
-        renderSurface->setFilters(layer->filters());
-        if (renderSurface->filters().hasFilterThatMovesPixels())
+        if (layer->filters().hasFilterThatMovesPixels())
             nearestAncestorThatMovesPixels = renderSurface;
         renderSurface->setNearestAncestorThatMovesPixels(nearestAncestorThatMovesPixels);
-
-        renderSurface->setBackgroundFilters(layer->backgroundFilters());
 
         renderSurfaceLayerList.append(layer);
     } else {
@@ -636,8 +641,8 @@ static bool calculateDrawTransformsInternal(LayerType* layer, LayerType* rootLay
             if (layer->parent()->usesLayerClipping())
                 layer->setUsesLayerClipping(true);
 
-            // Layers without their own renderSurface will render into the nearest ancestor surface.
-            layer->setTargetRenderSurface(layer->parent()->targetRenderSurface());
+            // Layers that are not their own renderTarget will render into the target of their nearest ancestor.
+            layer->setRenderTarget(layer->parent()->renderTarget());
         }
     }
 
@@ -833,7 +838,7 @@ static bool calculateDrawTransformsInternal(LayerType* layer, LayerType* rootLay
 }
 
 // FIXME: Instead of using the following function to set visibility rects on a second
-// tree pass, revise calculateVisibleLayerRect() so that this can be done in a single
+// tree pass, revise calculateVisibleContentRect() so that this can be done in a single
 // pass inside calculateDrawTransformsInternal<>().
 template<typename LayerType, typename LayerList, typename RenderSurfaceType>
 static void calculateVisibleAndScissorRectsInternal(const LayerList& renderSurfaceLayerList, const FloatRect& rootScissorRect)
@@ -846,13 +851,13 @@ static void calculateVisibleAndScissorRectsInternal(const LayerList& renderSurfa
         if (it.representsTargetRenderSurface()) {
             LayerType* maskLayer = it->maskLayer();
             if (maskLayer)
-                maskLayer->setVisibleLayerRect(IntRect(IntPoint(), it->contentBounds()));
+                maskLayer->setVisibleContentRect(IntRect(IntPoint(), it->contentBounds()));
             LayerType* replicaMaskLayer = it->replicaLayer() ? it->replicaLayer()->maskLayer() : 0;
             if (replicaMaskLayer)
-                replicaMaskLayer->setVisibleLayerRect(IntRect(IntPoint(), it->contentBounds()));
+                replicaMaskLayer->setVisibleContentRect(IntRect(IntPoint(), it->contentBounds()));
         } else if (it.representsItself()) {
-            IntRect visibleLayerRect = calculateVisibleLayerRect(*it);
-            it->setVisibleLayerRect(visibleLayerRect);
+            IntRect visibleContentRect = calculateVisibleContentRect(*it);
+            it->setVisibleContentRect(visibleContentRect);
 
             IntRect scissorRect = calculateLayerScissorRect<LayerType, RenderSurfaceType>(*it, rootScissorRect);
             it->setScissorRect(scissorRect);
@@ -913,7 +918,8 @@ static bool pointIsClippedBySurfaceOrClipRect(const IntPoint& viewportPoint, CCL
 
         // Note that clipRects are actually in targetSurface space, so the transform we
         // have to provide is the target surface's screenSpaceTransform.
-        if (currentLayer->usesLayerClipping() && !pointHitsRect(viewportPoint, currentLayer->targetRenderSurface()->screenSpaceTransform(), currentLayer->clipRect()))
+        CCLayerImpl* renderTarget = currentLayer->renderTarget();
+        if (currentLayer->usesLayerClipping() && !pointHitsRect(viewportPoint, renderTarget->renderSurface()->screenSpaceTransform(), currentLayer->clipRect()))
             return true;
 
         currentLayer = currentLayer->parent();

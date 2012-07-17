@@ -7,13 +7,18 @@
 TEMPLATE = subdirs
 CONFIG += ordered
 
-!no_webkit1 {
+BUILD_TOOLS=1
+contains(DEFINES, PALM_DEVICE):!contains(DEFINES, MACHINE_DESKTOP) {
+    BUILD_TOOLS=0
+}
+
+!no_webkit1:equals(BUILD_TOOLS, 1) {
     SUBDIRS += QtTestBrowser/QtTestBrowser.pro
     SUBDIRS += DumpRenderTree/qt/DumpRenderTree.pro
     SUBDIRS += DumpRenderTree/qt/ImageDiff.pro
 }
 
-!no_webkit2 {
+!no_webkit2:equals(BUILD_TOOLS, 1) {
     # WTR's InjectedBundle depends currently on WK1's DumpRenderTreeSupport
     !no_webkit1: SUBDIRS += WebKitTestRunner/WebKitTestRunner.pro
 
@@ -24,7 +29,7 @@ CONFIG += ordered
 # FIXME: with Qt 5 the test plugin cause some trouble during layout tests.
 # See: https://bugs.webkit.org/show_bug.cgi?id=86620
 # Reenable it after we have a fix for this issue.
-!haveQt(5) {
+!haveQt(5):equals(BUILD_TOOLS, 1) {
     !win32:contains(DEFINES, ENABLE_NETSCAPE_PLUGIN_API=1) {
         SUBDIRS += DumpRenderTree/qt/TestNetscapePlugin/TestNetscapePlugin.pro
     }

@@ -268,6 +268,7 @@ public:
 
     ElementShadow* shadow() const;
     ElementShadow* ensureShadow();
+    virtual void willAddAuthorShadowRoot() { }
 
     // FIXME: Remove Element::ensureShadowRoot
     // https://bugs.webkit.org/show_bug.cgi?id=77608
@@ -280,6 +281,9 @@ public:
 
     void setStyleAffectedByEmpty();
     bool styleAffectedByEmpty() const;
+
+    void setIsInCanvasSubtree(bool);
+    bool isInCanvasSubtree() const;
 
     AtomicString computeInheritedLanguage() const;
 
@@ -425,10 +429,10 @@ public:
 
     virtual void reportMemoryUsage(MemoryObjectInfo* memoryObjectInfo) const
     {
-        memoryObjectInfo->reportObjectInfo(this, MemoryInstrumentation::DOM);
-        ContainerNode::reportMemoryUsage(memoryObjectInfo);
-        memoryObjectInfo->reportInstrumentedObject(m_tagName);
-        memoryObjectInfo->reportInstrumentedPointer(m_attributeData.get());
+        MemoryClassInfo<Element> info(memoryObjectInfo, this, MemoryInstrumentation::DOM);
+        info.visitBaseClass<ContainerNode>(this);
+        info.addInstrumentedMember(m_tagName);
+        info.addInstrumentedMember(m_attributeData.get());
     }
 
 protected:

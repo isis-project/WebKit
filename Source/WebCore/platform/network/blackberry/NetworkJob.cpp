@@ -20,6 +20,7 @@
 #include "NetworkJob.h"
 
 #include "AboutData.h"
+#include "AboutTemplate.html.cpp"
 #include "Chrome.h"
 #include "ChromeClient.h"
 #include "CookieManager.h"
@@ -82,6 +83,7 @@ NetworkJob::NetworkJob()
     , m_callingClient(false)
     , m_needsRetryAsFTPDirectory(false)
     , m_isOverrideContentType(false)
+    , m_newJobWithCredentialsStarted(false)
     , m_extendedStatusCode(0)
     , m_redirectCount(0)
     , m_deferredData(*this)
@@ -281,7 +283,7 @@ void NetworkJob::notifyAuthReceived(BlackBerry::Platform::NetworkRequest::AuthTy
         return;
     }
 
-    sendRequestWithCredentials(serverType, scheme, realm);
+    m_newJobWithCredentialsStarted = sendRequestWithCredentials(serverType, scheme, realm);
 }
 
 void NetworkJob::notifyStringHeaderReceived(const String& key, const String& value)
@@ -480,7 +482,8 @@ void NetworkJob::handleNotifyClose(int status)
 
             sendResponseIfNeeded();
             if (isClientAvailable()) {
-
+                if (isError(status))
+                    m_extendedStatusCode = status;
                 RecursionGuard guard(m_callingClient);
                 if (shouldNotifyClientFailed()) {
                     String domain = m_extendedStatusCode < 0 ? ResourceError::platformErrorDomain : ResourceError::httpErrorDomain;
@@ -503,15 +506,8 @@ void NetworkJob::handleNotifyClose(int status)
 
 bool NetworkJob::shouldReleaseClientResource()
 {
-    if (m_redirectCount >= s_redirectMaximum)
-        return true;
-
-    if (m_needsRetryAsFTPDirectory && retryAsFTPDirectory())
+    if ((m_needsRetryAsFTPDirectory && retryAsFTPDirectory()) || (isRedirect(m_extendedStatusCode) && handleRedirect()) || m_newJobWithCredentialsStarted)
         return false;
-
-    if (isRedirect(m_extendedStatusCode) && handleRedirect())
-        return false;
-
     return true;
 }
 
@@ -574,7 +570,7 @@ bool NetworkJob::startNewJobWithRequest(ResourceRequest& newRequest, bool increa
 bool NetworkJob::handleRedirect()
 {
     ASSERT(m_handle);
-    if (!m_handle)
+    if (!m_handle || m_redirectCount >= s_redirectMaximum)
         return false;
 
     String location = m_response.httpHeaderField("Location");
@@ -800,6 +796,12 @@ void NetworkJob::storeCredentials()
 
     CredentialStorage::set(challenge.proposedCredential(), challenge.protectionSpace(), m_response.url());
     challenge.setStored(true);
+
+    if (challenge.protectionSpace().serverType() == ProtectionSpaceProxyHTTP) {
+        BlackBerry::Platform::Client::get()->setProxyCredential(challenge.proposedCredential().user().utf8().data(),
+                                                                challenge.proposedCredential().password().utf8().data());
+        m_frame->page()->chrome()->client()->platformPageClient()->syncProxyCredential(challenge.proposedCredential());
+    }
 }
 
 void NetworkJob::purgeCredentials()
@@ -837,7 +839,8 @@ void NetworkJob::handleAbout()
     if (equalIgnoringCase(aboutWhat, "blank")) {
         handled = true;
     } else if (equalIgnoringCase(aboutWhat, "credits")) {
-        result.append(String("<html><head><title>Open Source Credits</title> <style> .about {padding:14px;} </style> <meta name=\"viewport\" content=\"width=device-width, user-scalable=no\"></head><body>"));
+        result.append(writeHeader("Credits"));
+        result.append(String("<style> .about {padding:14px;} </style>"));
         result.append(String(BlackBerry::Platform::WEBKITCREDITS));
         result.append(String("</body></html>"));
         handled = true;
@@ -877,16 +880,18 @@ void NetworkJob::handleAbout()
         result.append(String("</body></html>"));
         handled = true;
     } else if (equalIgnoringCase(aboutWhat, "version")) {
-        result.append(String("<html><meta name=\"viewport\" content=\"width=device-width, user-scalable=no\"></head><body>"));
+        result.append(writeHeader("Version"));
+        result.append(String("<div class='box'><div class='box-title'>Build Time</div><br>"));
         result.append(String(BlackBerry::Platform::BUILDTIME));
-        result.append(String("</body></html>"));
+        result.append(String("</div><br><div style='font-size:10px;text-align:center;'>Also see the <A href='about:build'>build information</A>.</body></html>"));
         handled = true;
     } else if (BlackBerry::Platform::debugSetting() > 0 && equalIgnoringCase(aboutWhat, "config")) {
         result = configPage();
         handled = true;
     } else if (BlackBerry::Platform::debugSetting() > 0 && equalIgnoringCase(aboutWhat, "build")) {
-        result.append(String("<html><head><title>BlackBerry Browser Build Information</title></head><body><table>"));
-        result.append(String("<tr><td>Build Computer:  </td><td>"));
+        result.append(writeHeader("Build"));
+        result.append(String("<div class='box'><div class='box-title'>Basic</div><table>"));
+        result.append(String("<tr><td>Built On:  </td><td>"));
         result.append(String(BlackBerry::Platform::BUILDCOMPUTER));
         result.append(String("</td></tr>"));
         result.append(String("<tr><td>Build User:  </td><td>"));
@@ -894,11 +899,11 @@ void NetworkJob::handleAbout()
         result.append(String("</td></tr>"));
         result.append(String("<tr><td>Build Time:  </td><td>"));
         result.append(String(BlackBerry::Platform::BUILDTIME));
-        result.append(String("</td></tr><tr><td></td><td></td></tr>"));
+        result.append(String("</table></div><br>"));
         result.append(String(BlackBerry::Platform::BUILDINFO_WEBKIT));
         result.append(String(BlackBerry::Platform::BUILDINFO_PLATFORM));
         result.append(String(BlackBerry::Platform::BUILDINFO_LIBWEBVIEW));
-        result.append(String("</table></body></html>"));
+        result.append(String("</body></html>"));
         handled = true;
     } else if (equalIgnoringCase(aboutWhat, "memory")) {
         result = memoryPage();

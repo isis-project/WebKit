@@ -253,6 +253,8 @@ class ManagerTest(unittest.TestCase):
 
         manager._options = MockOptions(exit_after_n_failures=None, exit_after_n_crashes_or_timeouts=None)
         manager._test_files = ['foo/bar.html', 'baz.html']
+        manager._test_is_slow = lambda test_name: False
+
         result_summary = ResultSummary(expectations=Mock(), test_files=manager._test_files)
         result_summary.unexpected_failures = 100
         result_summary.unexpected_crashes = 50
@@ -452,7 +454,6 @@ class ResultSummaryTest(unittest.TestCase):
             [test_failures.FailureReftestMismatch(self.port.abspath_for_test('foo/common.html'))])
         self.assertTrue('is_reftest' in test_dict)
         self.assertFalse('is_mismatch_reftest' in test_dict)
-        self.assertEqual(test_dict['ref_file'], 'foo/common.html')
 
         test_dict = interpret_test_failures(self.port, 'foo/reftest.html',
             [test_failures.FailureReftestMismatchDidNotOccur(self.port.abspath_for_test('foo/reftest-expected-mismatch.html'))])
@@ -463,7 +464,6 @@ class ResultSummaryTest(unittest.TestCase):
             [test_failures.FailureReftestMismatchDidNotOccur(self.port.abspath_for_test('foo/common.html'))])
         self.assertFalse('is_reftest' in test_dict)
         self.assertTrue(test_dict['is_mismatch_reftest'])
-        self.assertEqual(test_dict['ref_file'], 'foo/common.html')
 
     def get_result(self, test_name, result_type=test_expectations.PASS, run_time=0):
         failures = []
@@ -488,29 +488,30 @@ class ResultSummaryTest(unittest.TestCase):
         if extra_expectations:
             expectations += extra_expectations
 
+        test_is_slow = False
         paths, rs, exp = self.get_result_summary(port, tests, expectations)
         if expected:
-            rs.add(self.get_result('passes/text.html', test_expectations.PASS), expected)
-            rs.add(self.get_result('failures/expected/timeout.html', test_expectations.TIMEOUT), expected)
-            rs.add(self.get_result('failures/expected/crash.html', test_expectations.CRASH), expected)
+            rs.add(self.get_result('passes/text.html', test_expectations.PASS), expected, test_is_slow)
+            rs.add(self.get_result('failures/expected/timeout.html', test_expectations.TIMEOUT), expected, test_is_slow)
+            rs.add(self.get_result('failures/expected/crash.html', test_expectations.CRASH), expected, test_is_slow)
         elif passing:
-            rs.add(self.get_result('passes/text.html'), expected)
-            rs.add(self.get_result('failures/expected/timeout.html'), expected)
-            rs.add(self.get_result('failures/expected/crash.html'), expected)
+            rs.add(self.get_result('passes/text.html'), expected, test_is_slow)
+            rs.add(self.get_result('failures/expected/timeout.html'), expected, test_is_slow)
+            rs.add(self.get_result('failures/expected/crash.html'), expected, test_is_slow)
         else:
-            rs.add(self.get_result('passes/text.html', test_expectations.TIMEOUT), expected)
-            rs.add(self.get_result('failures/expected/timeout.html', test_expectations.CRASH), expected)
-            rs.add(self.get_result('failures/expected/crash.html', test_expectations.TIMEOUT), expected)
+            rs.add(self.get_result('passes/text.html', test_expectations.TIMEOUT), expected, test_is_slow)
+            rs.add(self.get_result('failures/expected/timeout.html', test_expectations.CRASH), expected, test_is_slow)
+            rs.add(self.get_result('failures/expected/crash.html', test_expectations.TIMEOUT), expected, test_is_slow)
 
         for test in extra_tests:
-            rs.add(self.get_result(test, test_expectations.CRASH), expected)
+            rs.add(self.get_result(test, test_expectations.CRASH), expected, test_is_slow)
 
         retry = rs
         if flaky:
             paths, retry, exp = self.get_result_summary(port, tests, expectations)
-            retry.add(self.get_result('passes/text.html'), True)
-            retry.add(self.get_result('failures/expected/timeout.html'), True)
-            retry.add(self.get_result('failures/expected/crash.html'), True)
+            retry.add(self.get_result('passes/text.html'), True, test_is_slow)
+            retry.add(self.get_result('failures/expected/timeout.html'), True, test_is_slow)
+            retry.add(self.get_result('failures/expected/crash.html'), True, test_is_slow)
         unexpected_results = manager.summarize_results(port, exp, rs, retry, test_timings={}, only_unexpected=True, interrupted=False)
         expected_results = manager.summarize_results(port, exp, rs, retry, test_timings={}, only_unexpected=False, interrupted=False)
         return expected_results, unexpected_results

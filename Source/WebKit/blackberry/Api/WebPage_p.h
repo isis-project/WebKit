@@ -20,6 +20,7 @@
 #define WebPage_p_h
 
 #include "ChromeClient.h"
+#include "InspectorClientBlackBerry.h"
 #include "InspectorOverlay.h"
 #if USE(ACCELERATED_COMPOSITING)
 #include "GLES2Context.h"
@@ -191,6 +192,7 @@ public:
     virtual bool isVisible() const { return m_visible; }
     virtual bool authenticationChallenge(const WebCore::KURL&, const WebCore::ProtectionSpace&, WebCore::Credential&);
     virtual SaveCredentialType notifyShouldSaveCredential(bool);
+    virtual void syncProxyCredential(const WebCore::Credential&);
 
     // Called from within WebKit via ChromeClientBlackBerry.
     void enterFullscreenForNode(WebCore::Node*);
@@ -206,7 +208,12 @@ public:
     void notifyPopupAutofillDialog(const Vector<String>&, const WebCore::IntRect&);
     void notifyDismissAutofillDialog();
 
-    bool shouldZoomToInitialScaleOnLoad() const;
+    bool shouldZoomToInitialScaleOnLoad() const { return loadState() == Committed || m_shouldZoomToInitialScaleAfterLoadFinished; }
+    void setShouldZoomToInitialScaleAfterLoadFinished(bool shouldZoomToInitialScaleAfterLoadFinished)
+    {
+        m_shouldZoomToInitialScaleAfterLoadFinished = shouldZoomToInitialScaleAfterLoadFinished;
+    }
+
     // Called according to our heuristic or from setLoadState depending on whether we have a virtual viewport.
     void zoomToInitialScaleOnLoad();
 
@@ -445,6 +452,7 @@ public:
 
     WebPage* m_webPage;
     WebPageClient* m_client;
+    WebCore::InspectorClientBlackBerry* m_inspectorClient;
     WebCore::Page* m_page;
     WebCore::Frame* m_mainFrame;
     RefPtr<WebCore::Node> m_currentContextNode;
@@ -459,6 +467,7 @@ public:
     bool m_visible;
     ActivationStateType m_activationState;
     bool m_shouldResetTilesWhenShown;
+    bool m_shouldZoomToInitialScaleAfterLoadFinished;
     bool m_userScalable;
     bool m_userPerformedManualZoom;
     bool m_userPerformedManualScroll;

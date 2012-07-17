@@ -157,6 +157,7 @@
 #include "UndoManager.h"
 #include "UserContentURLPattern.h"
 #include "WebKitNamedFlow.h"
+#include "WebKitNamedFlowCollection.h"
 #include "XMLDocumentParser.h"
 #include "XMLHttpRequest.h"
 #include "XMLNSNames.h"
@@ -564,7 +565,10 @@ Document::Document(Frame* frame, const KURL& url, bool isXHTML, bool isHTML)
 
     static int docID = 0;
     m_docID = docID++;
-    
+
+    for (unsigned i = 0; i < WTF_ARRAY_LENGTH(m_nodeListCounts); i++)
+        m_nodeListCounts[i] = 0;
+
     for (unsigned i = 0; i < WTF_ARRAY_LENGTH(m_collections); i++)
         m_collections[i] = 0;
 
@@ -615,6 +619,9 @@ Document::~Document()
     if (m_styleSheets)
         m_styleSheets->documentDestroyed();
 
+    if (m_namedFlows)
+        m_namedFlows->documentDestroyed();
+
     if (m_elemSheet)
         m_elemSheet->clearOwnerNode();
     if (m_pageUserSheet)
@@ -647,6 +654,14 @@ Document::~Document()
     // as well as Node. See a comment on TreeScope.h for the reason.
     if (hasRareData())
         clearRareData();
+
+    ASSERT(!m_listsInvalidatedAtDocument.size());
+
+    for (unsigned i = 0; i < WTF_ARRAY_LENGTH(m_nodeListCounts); i++)
+        ASSERT(!m_nodeListCounts[i]);
+
+    for (unsigned i = 0; i < WTF_ARRAY_LENGTH(m_collections); i++)
+        ASSERT(!m_collections[i]);
 
     m_document = 0;
 
@@ -804,7 +819,6 @@ void Document::setDocType(PassRefPtr<DocumentType> docType)
     if (m_docType) {
         this->adoptIfNeeded(m_docType.get());
 #if ENABLE(LEGACY_VIEWPORT_ADAPTION)
-        ASSERT(m_viewportArguments.type == ViewportArguments::Implicit);
         if (m_docType->publicId().startsWith("-//wapforum//dtd xhtml mobile 1.", /* caseSensitive */ false))
             processViewport("width=device-width, height=device-height", ViewportArguments::XHTMLMobileProfile);
 #endif
@@ -1116,43 +1130,25 @@ bool Document::cssGridLayoutEnabled() const
 
 #if ENABLE(CSS_REGIONS)
 
-static bool validFlowName(const String& flowName)
-{
-    if (equalIgnoringCase(flowName, "auto")
-        || equalIgnoringCase(flowName, "default")
-        || equalIgnoringCase(flowName, "inherit")
-        || equalIgnoringCase(flowName, "initial")
-        || equalIgnoringCase(flowName, "none"))
-        return false;
-    return true;
-}
-
 PassRefPtr<WebKitNamedFlow> Document::webkitGetFlowByName(const String& flowName)
-{
-    return webkitGetFlowByName(flowName, CheckFlowNameForInvalidValues);
-}
-
-PassRefPtr<WebKitNamedFlow> Document::webkitGetFlowByName(const String& flowName, FlowNameCheck flowNameCheck)
 {
     if (!cssRegionsEnabled() || !renderer())
         return 0;
 
-    if (flowNameCheck == CheckFlowNameForInvalidValues) {
-        if (flowName.isEmpty() || !validFlowName(flowName))
-            return 0;
+    // It's possible to have pending styles not applied that affect the existing flows.
+    updateStyleIfNeeded();
 
-        // Make a slower check for invalid flow name.
-        CSSParser parser(document());
-        if (!parser.parseFlowThread(flowName))
-            return 0;
-    }
-
-    if (RenderView* view = renderer()->view())
-        return view->flowThreadController()->ensureRenderFlowThreadWithName(flowName)->ensureNamedFlow();
-    return 0;
+    return namedFlows()->flowByName(flowName);
 }
-
 #endif
+
+WebKitNamedFlowCollection* Document::namedFlows()
+{
+    if (!m_namedFlows)
+        m_namedFlows = WebKitNamedFlowCollection::create(this);
+
+    return m_namedFlows.get();
+}
 
 PassRefPtr<Element> Document::createElementNS(const String& namespaceURI, const String& qualifiedName, ExceptionCode& ec)
 {
@@ -2083,6 +2079,11 @@ void Document::detach()
 {
     ASSERT(attached());
     ASSERT(!m_inPageCache);
+
+#if ENABLE(POINTER_LOCK)
+    if (page())
+        page()->pointerLockController()->documentDetached(this);
+#endif
 
     if (this == topDocument())
         clearAXObjectCache();
@@ -3865,20 +3866,48 @@ void Document::setCSSTarget(Element* n)
         n->setNeedsStyleRecalc();
 }
 
-void Document::registerDynamicSubtreeNodeList(DynamicSubtreeNodeList* list)
+void Document::registerNodeListCache(DynamicNodeListCacheBase* list)
 {
-    m_listsInvalidatedAtDocument.add(list);
+    if (list->type() != InvalidCollectionType)
+        m_nodeListCounts[InvalidateOnIdNameAttrChange]++;
+    m_nodeListCounts[list->invalidationType()]++;
+    if (list->isRootedAtDocument())
+        m_listsInvalidatedAtDocument.add(list);
 }
 
-void Document::unregisterDynamicSubtreeNodeList(DynamicSubtreeNodeList* list)
+void Document::unregisterNodeListCache(DynamicNodeListCacheBase* list)
 {
-    m_listsInvalidatedAtDocument.remove(list);
+    if (list->type() != InvalidCollectionType)
+        m_nodeListCounts[InvalidateOnIdNameAttrChange]--;
+    m_nodeListCounts[list->invalidationType()]--;
+    if (list->isRootedAtDocument()) {
+        ASSERT(m_listsInvalidatedAtDocument.contains(list));
+        m_listsInvalidatedAtDocument.remove(list);
+    }
+}
+
+bool Document::shouldInvalidateNodeListCaches(const QualifiedName* attrName) const
+{
+    if (attrName) {
+        for (int type = DoNotInvalidateOnAttributeChanges + 1; type < numNodeListInvalidationTypes; type++) {
+            if (m_nodeListCounts[type] && DynamicNodeListCacheBase::shouldInvalidateTypeOnAttributeChange(static_cast<NodeListInvalidationType>(type), *attrName))
+                return true;
+        }
+        return false;
+    }
+
+    for (int type = 0; type < numNodeListInvalidationTypes; type++) {
+        if (m_nodeListCounts[type])
+            return true;
+    }
+
+    return false;
 }
 
 void Document::clearNodeListCaches()
 {
-    HashSet<DynamicSubtreeNodeList*>::iterator end = m_listsInvalidatedAtDocument.end();
-    for (HashSet<DynamicSubtreeNodeList*>::iterator it = m_listsInvalidatedAtDocument.begin(); it != end; ++it)
+    HashSet<DynamicNodeListCacheBase*>::iterator end = m_listsInvalidatedAtDocument.end();
+    for (HashSet<DynamicNodeListCacheBase*>::iterator it = m_listsInvalidatedAtDocument.begin(); it != end; ++it)
         (*it)->invalidateCache();
 }
 
@@ -4865,8 +4894,31 @@ PassRefPtr<XPathResult> Document::evaluate(const String& expression,
     return m_xpathEvaluator->evaluate(expression, contextNode, resolver, type, result, ec);
 }
 
-const Vector<IconURL>& Document::iconURLs() const
+const Vector<IconURL>& Document::iconURLs()
 {
+    m_iconURLs.clear();
+
+    if (!head() || !(head()->children()))
+        return m_iconURLs;
+
+    // Include any icons where type = link, rel = "shortcut icon".
+    RefPtr<HTMLCollection> children = head()->children();
+    unsigned int length = children->length();
+    for (unsigned int i = 0; i < length; ++i) {
+        Node* child = children->item(i);
+        if (!child->hasTagName(linkTag))
+            continue;
+        HTMLLinkElement* linkElement = static_cast<HTMLLinkElement*>(child);
+        if (linkElement->iconType() != Favicon)
+            continue;
+        if (linkElement->href().isEmpty())
+            continue;
+
+        // Put it at the front to ensure that icons seen later take precedence as required by the spec.
+        IconURL newURL(linkElement->href(), linkElement->iconSizes(), linkElement->type(), linkElement->iconType());
+        m_iconURLs.prepend(newURL);
+    }
+
     return m_iconURLs;
 }
 
@@ -4877,7 +4929,6 @@ void Document::addIconURL(const String& url, const String& mimeType, const Strin
 
     // FIXME - <rdar://problem/4727645> - At some point in the future, we might actually honor the "mimeType"
     IconURL newURL(KURL(ParsedURLString, url), sizes, mimeType, iconType);
-    m_iconURLs.append(newURL);
 
     if (Frame* f = frame()) {
         IconURL iconURL = f->loader()->icon()->iconURL(iconType);
@@ -4890,7 +4941,7 @@ void Document::setUseSecureKeyboardEntryWhenActive(bool usesSecureKeyboard)
 {
     if (m_useSecureKeyboardEntryWhenActive == usesSecureKeyboard)
         return;
-        
+
     m_useSecureKeyboardEntryWhenActive = usesSecureKeyboard;
     m_frame->selection()->updateSecureKeyboardEntryIfActive();
 }
@@ -5345,7 +5396,7 @@ void Document::requestFullScreenForElement(Element* element, unsigned short flag
 
         // The context object's node document, or an ancestor browsing context's document does not have
         // the fullscreen enabled flag set.
-        if (checkType == EnforceIFrameAllowFulScreenRequirement && !fullScreenIsAllowedForElement(element))
+        if (checkType == EnforceIFrameAllowFullScreenRequirement && !fullScreenIsAllowedForElement(element))
             break;
 
         // The context object's node document fullscreen element stack is not empty and its top element
@@ -5965,7 +6016,7 @@ PassRefPtr<NodeList> Document::getItems(const String& typeNames)
     // In this case we need to create an unique string identifier to map such request in the cache.
     String localTypeNames = typeNames.isNull() ? MicroDataItemList::undefinedItemType() : typeNames;
 
-    return ensureRareData()->ensureNodeLists(this)->addCacheWithName<MicroDataItemList>(this, DynamicNodeList::MicroDataItemListType, localTypeNames);
+    return ensureRareData()->ensureNodeLists()->addCacheWithName<MicroDataItemList>(this, DynamicNodeList::MicroDataItemListType, localTypeNames);
 }
 #endif
 
@@ -6033,38 +6084,38 @@ void Document::setContextFeatures(PassRefPtr<ContextFeatures> features)
 
 void Document::reportMemoryUsage(MemoryObjectInfo* memoryObjectInfo) const
 {
-    memoryObjectInfo->reportObjectInfo(this, MemoryInstrumentation::DOM);
-    ContainerNode::reportMemoryUsage(memoryObjectInfo);
-    memoryObjectInfo->reportVector(m_customFonts);
-    memoryObjectInfo->reportString(m_documentURI);
-    memoryObjectInfo->reportString(m_baseTarget);
+    MemoryClassInfo<Document> info(memoryObjectInfo, this, MemoryInstrumentation::DOM);
+    info.visitBaseClass<ContainerNode>(this);
+    info.addVector(m_customFonts);
+    info.addString(m_documentURI);
+    info.addString(m_baseTarget);
     if (m_pageGroupUserSheets)
-        memoryObjectInfo->reportVector(*m_pageGroupUserSheets.get());
+        info.addVector(*m_pageGroupUserSheets.get());
     if (m_userSheets)
-        memoryObjectInfo->reportVector(*m_userSheets.get());
-    memoryObjectInfo->reportHashSet(m_nodeIterators);
-    memoryObjectInfo->reportHashSet(m_ranges);
-    memoryObjectInfo->reportListHashSet(m_styleSheetCandidateNodes);
-    memoryObjectInfo->reportString(m_preferredStylesheetSet);
-    memoryObjectInfo->reportString(m_selectedStylesheetSet);
-    memoryObjectInfo->reportString(m_title.string());
-    memoryObjectInfo->reportString(m_rawTitle.string());
-    memoryObjectInfo->reportString(m_xmlEncoding);
-    memoryObjectInfo->reportString(m_xmlVersion);
-    memoryObjectInfo->reportString(m_contentLanguage);
-    memoryObjectInfo->reportHashMap(m_documentNamedItemCollections);
-    memoryObjectInfo->reportHashMap(m_windowNamedItemCollections);
+        info.addVector(*m_userSheets.get());
+    info.addHashSet(m_nodeIterators);
+    info.addHashSet(m_ranges);
+    info.addListHashSet(m_styleSheetCandidateNodes);
+    info.addString(m_preferredStylesheetSet);
+    info.addString(m_selectedStylesheetSet);
+    info.addString(m_title.string());
+    info.addString(m_rawTitle.string());
+    info.addString(m_xmlEncoding);
+    info.addString(m_xmlVersion);
+    info.addString(m_contentLanguage);
+    info.addHashMap(m_documentNamedItemCollections);
+    info.addHashMap(m_windowNamedItemCollections);
 #if ENABLE(DASHBOARD_SUPPORT)
-    memoryObjectInfo->reportVector(m_dashboardRegions);
+    info.addVector(m_dashboardRegions);
 #endif
-    memoryObjectInfo->reportHashMap(m_cssCanvasElements);
-    memoryObjectInfo->reportVector(m_iconURLs);
-    memoryObjectInfo->reportHashSet(m_documentSuspensionCallbackElements);
-    memoryObjectInfo->reportHashSet(m_mediaVolumeCallbackElements);
-    memoryObjectInfo->reportHashSet(m_privateBrowsingStateChangedElements);
-    memoryObjectInfo->reportHashMap(m_elementsByAccessKey);
-    memoryObjectInfo->reportHashSet(m_mediaCanStartListeners);
-    memoryObjectInfo->reportVector(m_pendingTasks);
+    info.addHashMap(m_cssCanvasElements);
+    info.addVector(m_iconURLs);
+    info.addHashSet(m_documentSuspensionCallbackElements);
+    info.addHashSet(m_mediaVolumeCallbackElements);
+    info.addHashSet(m_privateBrowsingStateChangedElements);
+    info.addHashMap(m_elementsByAccessKey);
+    info.addHashSet(m_mediaCanStartListeners);
+    info.addVector(m_pendingTasks);
 }
 
 #if ENABLE(UNDO_MANAGER)

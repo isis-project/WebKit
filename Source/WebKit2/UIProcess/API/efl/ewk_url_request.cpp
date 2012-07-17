@@ -48,6 +48,22 @@ struct _Ewk_Url_Request {
     const char* url;
     const char* first_party;
     const char* http_method;
+
+    _Ewk_Url_Request(WKURLRequestRef requestRef)
+        : __ref(1)
+        , wkRequest(requestRef)
+        , url(0)
+        , first_party(0)
+        , http_method(0)
+    { }
+
+    ~_Ewk_Url_Request()
+    {
+        ASSERT(!__ref);
+        eina_stringshare_del(url);
+        eina_stringshare_del(first_party);
+        eina_stringshare_del(http_method);
+    }
 };
 
 #define EWK_URL_REQUEST_WK_GET_OR_RETURN(request, wkRequest_, ...)    \
@@ -74,10 +90,7 @@ void ewk_url_request_unref(Ewk_Url_Request* request)
     if (--request->__ref)
         return;
 
-    eina_stringshare_del(request->url);
-    eina_stringshare_del(request->first_party);
-    eina_stringshare_del(request->http_method);
-    free(request);
+    delete request;
 }
 
 const char* ewk_url_request_url_get(const Ewk_Url_Request* request)
@@ -119,9 +132,5 @@ Ewk_Url_Request* ewk_url_request_new(WKURLRequestRef wkUrlRequest)
 {
     EINA_SAFETY_ON_NULL_RETURN_VAL(wkUrlRequest, 0);
 
-    Ewk_Url_Request* ewkUrlRequest = static_cast<Ewk_Url_Request*>(calloc(1, sizeof(Ewk_Url_Request)));
-    ewkUrlRequest->__ref = 1;
-    ewkUrlRequest->wkRequest = wkUrlRequest;
-
-    return ewkUrlRequest;
+    return new Ewk_Url_Request(wkUrlRequest);
 }

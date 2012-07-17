@@ -30,6 +30,7 @@
 #include "CodeBlock.h"
 #include "DFGOSRExit.h"
 #include "DFGRepatch.h"
+#include "DFGThunks.h"
 #include "HostCallReturnValue.h"
 #include "GetterSetter.h"
 #include "Interpreter.h"
@@ -849,7 +850,6 @@ static void* handleHostCall(ExecState* execCallee, JSValue callee, CodeSpecializ
 
     execCallee->setScopeChain(exec->scopeChain());
     execCallee->setCodeBlock(0);
-    execCallee->clearReturnPC();
 
     if (kind == CodeForCall) {
         CallData callData;
@@ -862,14 +862,14 @@ static void* handleHostCall(ExecState* execCallee, JSValue callee, CodeSpecializ
             execCallee->setCallee(asObject(callee));
             globalData->hostCallReturnValue = JSValue::decode(callData.native.function(execCallee));
             if (globalData->exception)
-                return 0;
+                return globalData->getCTIStub(throwExceptionFromCallSlowPathGenerator).code().executableAddress();
 
             return reinterpret_cast<void*>(getHostCallReturnValue);
         }
     
         ASSERT(callType == CallTypeNone);
         exec->globalData().exception = createNotAFunctionError(exec, callee);
-        return 0;
+        return globalData->getCTIStub(throwExceptionFromCallSlowPathGenerator).code().executableAddress();
     }
 
     ASSERT(kind == CodeForConstruct);
@@ -884,17 +884,17 @@ static void* handleHostCall(ExecState* execCallee, JSValue callee, CodeSpecializ
         execCallee->setCallee(asObject(callee));
         globalData->hostCallReturnValue = JSValue::decode(constructData.native.function(execCallee));
         if (globalData->exception)
-            return 0;
+            return globalData->getCTIStub(throwExceptionFromCallSlowPathGenerator).code().executableAddress();
 
         return reinterpret_cast<void*>(getHostCallReturnValue);
     }
     
     ASSERT(constructType == ConstructTypeNone);
     exec->globalData().exception = createNotAConstructorError(exec, callee);
-    return 0;
+    return globalData->getCTIStub(throwExceptionFromCallSlowPathGenerator).code().executableAddress();
 }
 
-inline void* linkFor(ExecState* execCallee, ReturnAddressPtr returnAddress, CodeSpecializationKind kind)
+inline void* linkFor(ExecState* execCallee, CodeSpecializationKind kind)
 {
     ExecState* exec = execCallee->callerFrame();
     JSGlobalData* globalData = &exec->globalData();
@@ -918,7 +918,7 @@ inline void* linkFor(ExecState* execCallee, ReturnAddressPtr returnAddress, Code
         JSObject* error = functionExecutable->compileFor(execCallee, callee->scope(), kind);
         if (error) {
             globalData->exception = createStackOverflowError(exec);
-            return 0;
+            return globalData->getCTIStub(throwExceptionFromCallSlowPathGenerator).code().executableAddress();
         }
         codeBlock = &functionExecutable->generatedBytecodeFor(kind);
         if (execCallee->argumentCountIncludingThis() < static_cast<size_t>(codeBlock->numParameters()))
@@ -926,7 +926,7 @@ inline void* linkFor(ExecState* execCallee, ReturnAddressPtr returnAddress, Code
         else
             codePtr = functionExecutable->generatedJITCodeFor(kind).addressForCall();
     }
-    CallLinkInfo& callLinkInfo = exec->codeBlock()->getCallLinkInfo(returnAddress);
+    CallLinkInfo& callLinkInfo = exec->codeBlock()->getCallLinkInfo(execCallee->returnPC());
     if (!callLinkInfo.seenOnce())
         callLinkInfo.setSeen();
     else
@@ -934,16 +934,14 @@ inline void* linkFor(ExecState* execCallee, ReturnAddressPtr returnAddress, Code
     return codePtr.executableAddress();
 }
 
-P_FUNCTION_WRAPPER_WITH_RETURN_ADDRESS_E(operationLinkCall);
-void* DFG_OPERATION operationLinkCallWithReturnAddress(ExecState* execCallee, ReturnAddressPtr returnAddress)
+void* DFG_OPERATION operationLinkCall(ExecState* execCallee)
 {
-    return linkFor(execCallee, returnAddress, CodeForCall);
+    return linkFor(execCallee, CodeForCall);
 }
 
-P_FUNCTION_WRAPPER_WITH_RETURN_ADDRESS_E(operationLinkConstruct);
-void* DFG_OPERATION operationLinkConstructWithReturnAddress(ExecState* execCallee, ReturnAddressPtr returnAddress)
+void* DFG_OPERATION operationLinkConstruct(ExecState* execCallee)
 {
-    return linkFor(execCallee, returnAddress, CodeForConstruct);
+    return linkFor(execCallee, CodeForConstruct);
 }
 
 inline void* virtualFor(ExecState* execCallee, CodeSpecializationKind kind)
@@ -965,7 +963,7 @@ inline void* virtualFor(ExecState* execCallee, CodeSpecializationKind kind)
         JSObject* error = functionExecutable->compileFor(execCallee, function->scope(), kind);
         if (error) {
             exec->globalData().exception = error;
-            return 0;
+            return globalData->getCTIStub(throwExceptionFromCallSlowPathGenerator).code().executableAddress();
         }
     }
     return executable->generatedJITCodeWithArityCheckFor(kind).executableAddress();
@@ -1232,6 +1230,15 @@ size_t DFG_OPERATION operationIsObject(EncodedJSValue value)
 size_t DFG_OPERATION operationIsFunction(EncodedJSValue value)
 {
     return jsIsFunctionType(JSValue::decode(value));
+}
+
+void DFG_OPERATION operationReallocateStorageAndFinishPut(ExecState* exec, JSObject* base, Structure* structure, PropertyOffset offset, EncodedJSValue value)
+{
+    JSGlobalData& globalData = exec->globalData();
+    ASSERT(structure->outOfLineCapacity() > base->structure()->outOfLineCapacity());
+    ASSERT(!globalData.heap.storageAllocator().fastPathShouldSucceed(structure->outOfLineCapacity() * sizeof(JSValue)));
+    base->setStructureAndReallocateStorageIfNecessary(globalData, structure);
+    base->putDirectOffset(globalData, offset, JSValue::decode(value));
 }
 
 double DFG_OPERATION operationFModOnInts(int32_t a, int32_t b)

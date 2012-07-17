@@ -179,6 +179,7 @@ fast/dom/shadow/content-element-in-meter-element.html
 fast/dom/shadow/drop-event-for-input-in-shadow.html
 fast/dom/shadow/drop-event-in-shadow.html
 fast/dom/shadow/elements-in-frameless-document.html
+fast/dom/shadow/events-stopped-at-shadow-boundary.html
 fast/dom/shadow/focus-navigation.html
 fast/dom/shadow/form-in-shadow.html
 fast/dom/shadow/get-element-by-id-in-shadow-mutation.html
@@ -186,6 +187,7 @@ fast/dom/shadow/get-element-by-id-in-shadow-root.html
 fast/dom/shadow/iframe-shadow.html
 fast/dom/shadow/insertion-point-list-menu-crash.html
 fast/dom/shadow/insertion-point-shadow-crash.html
+fast/dom/shadow/insertion-point-video-crash.html
 fast/dom/shadow/link-in-shadow-tree.html
 fast/dom/shadow/multiple-shadowroot.html
 fast/dom/shadow/multiple-shadowroot-rendering.html
@@ -193,6 +195,18 @@ fast/dom/shadow/multiple-shadowroot-adopt.html
 fast/dom/shadow/parent-tree-scope-in-shadow.html
 fast/dom/shadow/selections-in-shadow.html
 fast/dom/shadow/selection-shouldnt-expose-shadow-dom.html
+fast/dom/shadow/shadowdom-for-image-alt-update.html
+fast/dom/shadow/shadowdom-for-image-alt.html
+fast/dom/shadow/shadowdom-for-image-content.html
+fast/dom/shadow/shadowdom-for-image-dynamic.html
+fast/dom/shadow/shadowdom-for-image-event-click.html
+fast/dom/shadow/shadowdom-for-image-in-shadowdom.html
+fast/dom/shadow/shadowdom-for-image-map.html
+fast/dom/shadow/shadowdom-for-image-style.html
+fast/dom/shadow/shadowdom-for-image-with-multiple-shadow.html
+fast/dom/shadow/shadowdom-for-image-with-width-and-height.html
+fast/dom/shadow/shadowdom-for-image.html
+fast/dom/shadow/shadowdom-for-media.html
 fast/dom/shadow/shadow-boundary-events.html
 fast/dom/shadow/shadow-content-crash.html
 fast/dom/shadow/shadow-contents-fallback-dynamic.html
@@ -222,15 +236,16 @@ fast/dom/shadow/user-modify-inheritance.html
 # https://bugs.webkit.org/show_bug.cgi?id=85532
 fast/sub-pixel/client-rect-has-subpixel-precision.html
 fast/sub-pixel/client-width-height-snapping.html
+fast/sub-pixel/file-upload-control-at-fractional-offset.html
 fast/sub-pixel/float-containing-block-with-margin.html
 fast/sub-pixel/float-with-right-margin-zoom.html
 fast/sub-pixel/float-wrap-with-subpixel-top.html
 fast/sub-pixel/inline-block-with-margin.html
 fast/sub-pixel/inline-block-with-padding.html
 fast/sub-pixel/layout-boxes-with-zoom.html
+fast/sub-pixel/selection-gaps-at-fractional-offsets.html
 fast/sub-pixel/size-of-box-with-zoom.html
-fast/sub-pixel/selection/selection-gaps-at-fractional-offsets.html
-fast/sub-pixel/file-upload-control-at-fractional-offset.html
+fast/sub-pixel/table-rows-no-gaps.html
 
 # CSS Regions support not yet enabled. http://webkit.org/b/57312
 fast/regions
@@ -692,9 +707,12 @@ http/tests/misc/xslt-bad-import.html
 # https://bugs.webkit.org/show_bug.cgi?id=87208
 http/tests/cookies/js-get-and-set-http-only-cookie.html
 
-# REGRESSION(r122327): It made http/tests/inspector/network/network-request-revision-content.html fail on Lion, Qt
-# https://bugs.webkit.org/show_bug.cgi?id=90979
-http/tests/inspector/network/network-request-revision-content.html
+# [Qt] new tests introduced in r122528 fail
+# https://bugs.webkit.org/show_bug.cgi?id=91218
+http/tests/w3c/webperf/approved/navigation-timing/html/test_performance_attributes_exist_in_object.html
+http/tests/w3c/webperf/approved/navigation-timing/html/test_timing_xserver_redirect.html
+http/tests/w3c/webperf/approved/navigation-timing/html5/test_performance_attributes_exist_in_object.html
+http/tests/w3c/webperf/approved/navigation-timing/html5/test_timing_xserver_redirect.html
 
 # =========================================================================== #
 #       Failing xmlhttprequest tests                                          #
@@ -2288,6 +2306,7 @@ fast/events/touch/gesture/gesture-click.html
 # New tests introduced in https://bugs.webkit.org/show_bug.cgi?id=66272. Needs
 # Qt implementation.
 fast/events/touch/gesture/gesture-scroll.html
+fast/events/touch/gesture/touch-gesture-scroll-sideways.html
 
 # new test introduced in r89118, but fail on Qt
 # https://bugs.webkit.org/show_bug.cgi?id=62847
@@ -2454,6 +2473,7 @@ fast/block/lineboxcontain/block-glyphs.html
 fast/block/lineboxcontain/font.html
 
 # Failing reftests, we skip them until we find out how we have to gardening after them
+css3/flexbox/flexbox-overflow-auto.html
 fast/block/line-layout/selection-highlight-overlap.html
 fast/css/empty-cell-baseline.html
 fast/multicol/cell-shrinkback.html
@@ -2541,6 +2561,8 @@ fast/block/positive-margin-start-negative-margin-end-align-center.html
 fast/block/float/floats-wrap-inside-inline-001.htm
 fast/block/float/floats-wrap-inside-inline-002.htm
 fast/block/float/floats-wrap-inside-inline-003.htm
+fast/multicol/table-row-height-increase.html
+css2.1/20110323/vertical-align-boxes-001.htm
 
 # [Qt] css3/filters/huge-region-composited.html makes css3/filters/huge-region.html crash
 # https://bugs.webkit.org/show_bug.cgi?id=90165
@@ -2554,3 +2576,12 @@ http/tests/inspector/console-cd.html
 # Reproducible crash in inspector/timeline/timeline-frames.html
 # https://bugs.webkit.org/show_bug.cgi?id=90706
 inspector/timeline/timeline-frames.html
+
+# [Qt][WK2] REGRESSION(r122376): It made 68 tests flakey (TEXT PASS)
+# https://bugs.webkit.org/show_bug.cgi?id=91063
+compositing/columns/geometry-map-paginated-assert.html
+
+# [Qt] REGRESSION(r122768, r122771): They broke jquery/data.html and inspector/elements/edit-dom-actions.html
+# https://bugs.webkit.org/show_bug.cgi?id=91476
+inspector/elements/edit-dom-actions.html
+jquery/data.html

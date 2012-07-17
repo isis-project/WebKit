@@ -272,6 +272,22 @@ public:
     {
         use(nodeUse.index());
     }
+    
+    RegisterSet usedRegisters()
+    {
+        RegisterSet result;
+        for (unsigned i = GPRInfo::numberOfRegisters; i--;) {
+            GPRReg gpr = GPRInfo::toRegister(i);
+            if (m_gprs.isInUse(gpr))
+                result.set(gpr);
+        }
+        for (unsigned i = FPRInfo::numberOfRegisters; i--;) {
+            FPRReg fpr = FPRInfo::toRegister(i);
+            if (m_fprs.isInUse(fpr))
+                result.set(fpr);
+        }
+        return result;
+    }
 
     static void markCellCard(MacroAssembler&, GPRReg ownerGPR, GPRReg scratchGPR1, GPRReg scratchGPR2);
     static void writeBarrier(MacroAssembler&, GPRReg ownerGPR, GPRReg scratchGPR1, GPRReg scratchGPR2, WriteBarrierUseKind);
@@ -942,10 +958,10 @@ public:
     void nonSpeculativeUInt32ToNumber(Node&);
 
 #if USE(JSVALUE64)
-    void cachedGetById(CodeOrigin, GPRReg baseGPR, GPRReg resultGPR, GPRReg scratchGPR, unsigned identifierNumber, JITCompiler::Jump slowPathTarget = JITCompiler::Jump(), SpillRegistersMode = NeedToSpill);
+    void cachedGetById(CodeOrigin, GPRReg baseGPR, GPRReg resultGPR, unsigned identifierNumber, JITCompiler::Jump slowPathTarget = JITCompiler::Jump(), SpillRegistersMode = NeedToSpill);
     void cachedPutById(CodeOrigin, GPRReg base, GPRReg value, Edge valueUse, GPRReg scratchGPR, unsigned identifierNumber, PutKind, JITCompiler::Jump slowPathTarget = JITCompiler::Jump());
 #elif USE(JSVALUE32_64)
-    void cachedGetById(CodeOrigin, GPRReg baseTagGPROrNone, GPRReg basePayloadGPR, GPRReg resultTagGPR, GPRReg resultPayloadGPR, GPRReg scratchGPR, unsigned identifierNumber, JITCompiler::Jump slowPathTarget = JITCompiler::Jump(), SpillRegistersMode = NeedToSpill);
+    void cachedGetById(CodeOrigin, GPRReg baseTagGPROrNone, GPRReg basePayloadGPR, GPRReg resultTagGPR, GPRReg resultPayloadGPR, unsigned identifierNumber, JITCompiler::Jump slowPathTarget = JITCompiler::Jump(), SpillRegistersMode = NeedToSpill);
     void cachedPutById(CodeOrigin, GPRReg basePayloadGPR, GPRReg valueTagGPR, GPRReg valuePayloadGPR, Edge valueUse, GPRReg scratchGPR, unsigned identifierNumber, PutKind, JITCompiler::Jump slowPathTarget = JITCompiler::Jump());
 #endif
 
@@ -1738,7 +1754,8 @@ public:
     {
         prepareForExternalCall();
         CodeOrigin codeOrigin = at(m_compileIndex).codeOrigin;
-        CallBeginToken token = m_jit.beginCall();
+        CallBeginToken token;
+        m_jit.beginCall(codeOrigin, token);
         JITCompiler::Call call = m_jit.appendCall(function);
         m_jit.addExceptionCheck(call, codeOrigin, token);
         return call;
@@ -2165,7 +2182,7 @@ public:
     // must register the returned Watchpoint with something relevant. In general, this should
     // be used with extreme care. Use speculationCheck() unless you've got an amazing reason
     // not to.
-    Watchpoint* speculationWatchpoint(ExitKind kind, JSValueSource jsValueSource, NodeIndex nodeIndex)
+    JumpReplacementWatchpoint* speculationWatchpoint(ExitKind kind, JSValueSource jsValueSource, NodeIndex nodeIndex)
     {
         if (!m_compileOkay)
             return 0;
@@ -2176,13 +2193,13 @@ public:
                         m_jit.graph().methodOfGettingAValueProfileFor(nodeIndex),
                         JITCompiler::Jump(), this, m_stream->size())));
         exit.m_watchpointIndex = m_jit.codeBlock()->appendWatchpoint(
-            Watchpoint(m_jit.watchpointLabel()));
+            JumpReplacementWatchpoint(m_jit.watchpointLabel()));
         return &m_jit.codeBlock()->watchpoint(exit.m_watchpointIndex);
     }
     // The default for speculation watchpoints is that they're uncounted, because the
     // act of firing a watchpoint invalidates it. So, future recompilations will not
     // attempt to set this watchpoint again.
-    Watchpoint* speculationWatchpoint()
+    JumpReplacementWatchpoint* speculationWatchpoint()
     {
         return speculationWatchpoint(UncountableWatchpoint, JSValueSource(), NoNode);
     }

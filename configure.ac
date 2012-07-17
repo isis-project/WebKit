@@ -2,7 +2,7 @@ AC_PREREQ(2.60)
 
 m4_define([webkit_major_version], [1])
 m4_define([webkit_minor_version], [9])
-m4_define([webkit_micro_version], [4])
+m4_define([webkit_micro_version], [5])
 
 # This is the version we'll be using as part of our User-Agent string
 # e.g., AppleWebKit/$(webkit_user_agent_version) ...
@@ -35,13 +35,13 @@ AC_CONFIG_SRCDIR([Source/WebCore/config.h])
 
 dnl # Libtool library version, not to confuse with API version
 dnl # see http://www.gnu.org/software/libtool/manual/html_node/Libtool-versioning.html
-LIBWEBKITGTK_VERSION=14:0:14
+LIBWEBKITGTK_VERSION=15:0:15
 AC_SUBST([LIBWEBKITGTK_VERSION])
 
-LIBJAVASCRIPTCOREGTK_VERSION=13:3:13
+LIBJAVASCRIPTCOREGTK_VERSION=13:4:13
 AC_SUBST([LIBJAVASCRIPTCOREGTK_VERSION])
 
-LIBWEBKIT2GTK_VERSION=15:0:15
+LIBWEBKIT2GTK_VERSION=16:0:16
 AC_SUBST([LIBWEBKIT2GTK_VERSION])
 
 AM_INIT_AUTOMAKE([foreign subdir-objects dist-xz no-dist-gzip tar-ustar])
@@ -1125,6 +1125,14 @@ AC_ARG_ENABLE(css_regions,
               [],[enable_css_regions="yes"])
 AC_MSG_RESULT([$enable_css_regions])
 
+# check whether to enable CSS Filters support
+AC_MSG_CHECKING([whether to enable CSS Filters])
+AC_ARG_ENABLE(css_filters,
+              AC_HELP_STRING([--enable-css-filters],
+                             [enable support for CSS Filters [default=no]]),
+              [],[enable_css_filters="no"])
+AC_MSG_RESULT([$enable_css_filters])
+
 G_IR_SCANNER=
 G_IR_COMPILER=
 G_IR_GENERATE=
@@ -1465,6 +1473,7 @@ AM_CONDITIONAL([ENABLE_IFRAME_SEAMLESS],[test "$enable_iframe_seamless" = "yes"]
 AM_CONDITIONAL([ENABLE_TEXT_AUTOSIZING],[test "$enable_text_autosizing" = "yes"])
 AM_CONDITIONAL([ENABLE_CSS_EXCLUSIONS],[test "$enable_css_exclusions" = "yes"])
 AM_CONDITIONAL([ENABLE_CSS_REGIONS],[test "$enable_css_regions" = "yes"])
+AM_CONDITIONAL([ENABLE_CSS_FILTERS],[test "$enable_css_filters" = "yes"])
 
 # Gtk conditionals
 AM_CONDITIONAL([ENABLE_INTROSPECTION],[test "$enable_introspection" = "yes"])
@@ -1526,6 +1535,7 @@ Features:
  CSS box-decoration-break support                         : $enable_css_box_decoration_break
  CSS Exclusions support                                   : $enable_css_exclusions
  CSS Regions support                                      : $enable_css_regions
+ CSS Filters support                                      : $enable_css_filters
  DeviceOrientation support                                : $enable_device_orientation
  Directory upload                                         : $enable_directory_upload
  DOM mutation observer support                            : $enable_mutation_observers

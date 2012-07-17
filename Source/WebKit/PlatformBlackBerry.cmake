@@ -91,6 +91,7 @@ LIST(APPEND WebKit_SOURCES
     blackberry/WebCoreSupport/VibrationClientBlackBerry.cpp
     blackberry/WebCoreSupport/PagePopupBlackBerry.cpp
     blackberry/WebCoreSupport/SelectPopupClient.cpp
+    blackberry/WebCoreSupport/DatePickerClient.cpp
     blackberry/WebKitSupport/BackingStoreCompositingSurface.cpp
     blackberry/WebKitSupport/BackingStoreTile.cpp
     blackberry/WebKitSupport/BackingStoreClient.cpp
@@ -108,6 +109,7 @@ LIST(APPEND WebKit_SOURCES
 )
 
 IF (ENABLE_WEBGL)
+    ADD_DEFINITIONS (-DWTF_USE_OPENGL_ES_2=1)
     LIST(APPEND WebKit_INCLUDE_DIRECTORIES
         ${OPENGL_INCLUDE_DIR}
         ${THIRDPARTY_DIR}/ANGLE/src

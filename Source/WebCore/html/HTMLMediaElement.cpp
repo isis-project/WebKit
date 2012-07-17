@@ -488,7 +488,14 @@ RenderObject* HTMLMediaElement::createRenderer(RenderArena* arena, RenderStyle*)
 
 bool HTMLMediaElement::childShouldCreateRenderer(const NodeRenderingContext& childContext) const
 {
-    return childContext.isOnUpperEncapsulationBoundary() && HTMLElement::childShouldCreateRenderer(childContext);
+    if (!hasMediaControls())
+        return false;
+    // <media> doesn't allow its content, including shadow subtree, to
+    // be rendered. So this should return false for most of the children.
+    // One exception is a shadow tree built for rendering controls which should be visible.
+    // So we let them go here by comparing its subtree root with one of the controls.
+    return (mediaControls()->treeScope() == childContext.node()->treeScope()
+            && childContext.isOnUpperEncapsulationBoundary() && HTMLElement::childShouldCreateRenderer(childContext));
 }
 
 Node::InsertionNotificationRequest HTMLMediaElement::insertedInto(ContainerNode* insertionPoint)
@@ -755,6 +762,7 @@ void HTMLMediaElement::loadInternal()
     // If we can't start a load right away, start it later.
     Page* page = document()->page();
     if (pageConsentRequiredForLoad() && page && !page->canStartMedia()) {
+        setShouldDelayLoadEvent(false);
         if (m_isWaitingUntilMediaCanStart)
             return;
         document()->addMediaCanStartListener(this);
@@ -1850,6 +1858,24 @@ void HTMLMediaElement::progressEventTimerFired(Timer<HTMLMediaElement>*)
         m_sentStalledEvent = true;
         setShouldDelayLoadEvent(false);
     }
+}
+
+void HTMLMediaElement::createShadowSubtree()
+{
+    ASSERT(!shadow() || !shadow()->oldestShadowRoot());
+
+    ShadowRoot::create(this, ShadowRoot::UserAgentShadowRoot);
+}
+
+void HTMLMediaElement::willAddAuthorShadowRoot()
+{
+    ASSERT(shadow());
+    if (shadow()->oldestShadowRoot()) {
+        ASSERT(shadow()->oldestShadowRoot()->type() == ShadowRoot::UserAgentShadowRoot);
+        return;
+    }
+
+    createShadowSubtree();
 }
 
 void HTMLMediaElement::rewind(float timeDelta)
@@ -3481,6 +3507,16 @@ void HTMLMediaElement::mediaPlayerRenderingModeChanged(MediaPlayer*)
 }
 #endif
 
+#if PLATFORM(WIN) && USE(AVFOUNDATION)
+GraphicsDeviceAdapter* HTMLMediaElement::mediaPlayerGraphicsDeviceAdapter(const MediaPlayer*) const
+{
+    if (!document() || !document()->page())
+        return 0;
+
+    return document()->page()->chrome()->client()->graphicsDeviceAdapter();
+}
+#endif
+
 void HTMLMediaElement::mediaPlayerEngineUpdated(MediaPlayer*)
 {
     LOG(Media, "HTMLMediaElement::mediaPlayerEngineUpdated");
@@ -3971,7 +4007,7 @@ void HTMLMediaElement::enterFullscreen()
 
 #if ENABLE(FULLSCREEN_API)
     if (document() && document()->settings() && document()->settings()->fullScreenEnabled()) {
-        document()->requestFullScreenForElement(this, 0, Document::ExemptIFrameAllowFulScreenRequirement);
+        document()->requestFullScreenForElement(this, 0, Document::ExemptIFrameAllowFullScreenRequirement);
         return;
     }
 #endif
@@ -4142,12 +4178,12 @@ void HTMLMediaElement::privateBrowsingStateDidChange()
     m_player->setPrivateBrowsingMode(privateMode);
 }
 
-MediaControls* HTMLMediaElement::mediaControls()
+MediaControls* HTMLMediaElement::mediaControls() const
 {
     return toMediaControls(shadow()->oldestShadowRoot()->firstChild());
 }
 
-bool HTMLMediaElement::hasMediaControls()
+bool HTMLMediaElement::hasMediaControls() const
 {
     ElementShadow* elementShadow = shadow();
     if (!elementShadow)
@@ -4172,7 +4208,11 @@ bool HTMLMediaElement::createMediaControls()
     if (isFullscreen())
         controls->enteredFullscreen();
 
-    ensureShadowRoot()->appendChild(controls, ec);
+    if (!shadow())
+        createShadowSubtree();
+
+    ASSERT(shadow()->oldestShadowRoot()->type() == ShadowRoot::UserAgentShadowRoot);
+    shadow()->oldestShadowRoot()->appendChild(controls, ec);
     return true;
 }
 

@@ -80,6 +80,7 @@ public:
     void handleNotifyDataSent(unsigned long long bytesSent, unsigned long long totalBytesToBeSent);
     virtual void notifyClose(int status);
     void handleNotifyClose(int status);
+    virtual int status() const { return m_extendedStatusCode; }
 
 private:
     bool isClientAvailable() const { return !m_cancelled && m_handle && m_handle->client(); }
@@ -164,6 +165,7 @@ private:
     bool m_callingClient;
     bool m_needsRetryAsFTPDirectory;
     bool m_isOverrideContentType;
+    bool m_newJobWithCredentialsStarted;
 
     // If an HTTP status code is received, m_extendedStatusCode and m_response.httpStatusCode will both be set to it.
     // If a platform error code is received, m_extendedStatusCode will be set to it and m_response.httpStatusCode will be set to 404.

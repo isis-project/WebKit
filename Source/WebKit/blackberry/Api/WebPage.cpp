@@ -330,6 +330,7 @@ void WebPage::autofillTextField(const string& item)
 WebPagePrivate::WebPagePrivate(WebPage* webPage, WebPageClient* client, const IntRect& rect)
     : m_webPage(webPage)
     , m_client(client)
+    , m_inspectorClient(0)
     , m_page(0) // Initialized by init.
     , m_mainFrame(0) // Initialized by init.
     , m_currentContextNode(0)
@@ -337,6 +338,7 @@ WebPagePrivate::WebPagePrivate(WebPage* webPage, WebPageClient* client, const In
     , m_visible(false)
     , m_activationState(ActivationActive)
     , m_shouldResetTilesWhenShown(false)
+    , m_shouldZoomToInitialScaleAfterLoadFinished(false)
     , m_userScalable(true)
     , m_userPerformedManualZoom(false)
     , m_userPerformedManualScroll(false)
@@ -487,9 +489,8 @@ void WebPagePrivate::init(const WebString& pageGroupName)
 #if ENABLE(DRAG_SUPPORT)
     dragClient = new DragClientBlackBerry();
 #endif
-    InspectorClientBlackBerry* inspectorClient = 0;
 #if ENABLE(INSPECTOR)
-    inspectorClient = new InspectorClientBlackBerry(this);
+    m_inspectorClient = new InspectorClientBlackBerry(this);
 #endif
 
     FrameLoaderClientBlackBerry* frameLoaderClient = new FrameLoaderClientBlackBerry();
@@ -499,7 +500,7 @@ void WebPagePrivate::init(const WebString& pageGroupName)
     pageClients.contextMenuClient = contextMenuClient;
     pageClients.editorClient = editorClient;
     pageClients.dragClient = dragClient;
-    pageClients.inspectorClient = inspectorClient;
+    pageClients.inspectorClient = m_inspectorClient;
 
     m_page = new Page(pageClients);
 #if !defined(PUBLIC_BUILD) || !PUBLIC_BUILD
@@ -519,7 +520,7 @@ void WebPagePrivate::init(const WebString& pageGroupName)
 #endif
 
 #if ENABLE(BATTERY_STATUS)
-    WebCore::provideBatteryTo(m_page, new WebCore::BatteryClientBlackBerry);
+    WebCore::provideBatteryTo(m_page, new WebCore::BatteryClientBlackBerry(this));
 #endif
 
 #if ENABLE(MEDIA_STREAM)
@@ -881,9 +882,8 @@ bool WebPage::executeJavaScriptFunction(const std::vector<std::string> &function
 
     JSObjectRef functionObject = obj;
     JSValueRef result = 0;
-    JSValueRef exception;
     if (functionObject && thisObject)
-        result = JSObjectCallAsFunction(ctx, functionObject, thisObject, args.size(), argListRef.data(), &exception);
+        result = JSObjectCallAsFunction(ctx, functionObject, thisObject, args.size(), argListRef.data(), 0);
 
     for (unsigned i = 0; i < args.size(); ++i)
         JSStringRelease(argList[i]);
@@ -892,11 +892,6 @@ bool WebPage::executeJavaScriptFunction(const std::vector<std::string> &function
 
     if (!value) {
         returnType = JSException;
-        JSStringRef stringRef = JSValueToStringCopy(ctx, exception, 0);
-        size_t bufferSize = JSStringGetMaximumUTF8CStringSize(stringRef);
-        WTF::Vector<char> buffer(bufferSize);
-        JSStringGetUTF8CString(stringRef, buffer.data(), bufferSize);
-        returnValue = WebString::fromUtf8(buffer.data());
         return false;
     }
 
@@ -1060,6 +1055,7 @@ void WebPagePrivate::setLoadState(LoadState state)
             m_backingStore->d->resetRenderQueue();
             m_backingStore->d->resetTiles(true /* resetBackground */);
             m_backingStore->d->setScrollingOrZooming(false, false /* shouldBlit */);
+            m_shouldZoomToInitialScaleAfterLoadFinished = false;
             m_userPerformedManualZoom = false;
             m_userPerformedManualScroll = false;
             m_shouldUseFixedDesktopMode = false;
@@ -1084,14 +1080,13 @@ void WebPagePrivate::setLoadState(LoadState state)
                 frameLoadType = m_mainFrame->loader()->loadType();
             if (!((m_didRestoreFromPageCache && documentHasViewportArguments) || (frameLoadType == FrameLoadTypeReload || frameLoadType == FrameLoadTypeReloadFromOrigin))) {
                 m_viewportArguments = ViewportArguments();
+                m_userScalable = m_webSettings->isUserScalable();
+                resetScales();
 
                 // At the moment we commit a new load, set the viewport arguments
                 // to any fallback values. If there is a meta viewport in the
                 // content it will overwrite the fallback arguments soon.
                 dispatchViewportPropertiesDidChange(m_userViewportArguments);
-
-                m_userScalable = m_webSettings->isUserScalable();
-                resetScales();
             } else {
                 IntSize virtualViewport = recomputeVirtualViewportFromViewportArguments();
                 m_webPage->setVirtualViewportSize(virtualViewport.width(), virtualViewport.height());
@@ -1706,9 +1701,10 @@ void WebPagePrivate::layoutFinished()
 
     m_nestedLayoutFinishedCount++;
 
-    if (shouldZoomToInitialScaleOnLoad())
+    if (shouldZoomToInitialScaleOnLoad()) {
         zoomToInitialScaleOnLoad();
-    else if (loadState() != None)
+        m_shouldZoomToInitialScaleAfterLoadFinished = false;
+    } else if (loadState() != None)
         notifyTransformedContentsSizeChanged();
 
     m_nestedLayoutFinishedCount--;
@@ -1741,19 +1737,6 @@ void WebPagePrivate::layoutFinished()
             }
         }
     }
-}
-
-bool WebPagePrivate::shouldZoomToInitialScaleOnLoad() const
-{
-    // For FrameLoadTypeSame or FrameLoadTypeStandard load, the layout timer can be fired which can call dispatchDidFirstVisuallyNonEmptyLayout()
-    // after the load Finished state, in which case the web page will have no chance to zoom to initial scale. So we should give it a chance,
-    // otherwise the scale of the web page can be incorrect.
-    FrameLoadType frameLoadType = FrameLoadTypeStandard;
-    if (m_mainFrame && m_mainFrame->loader())
-        frameLoadType = m_mainFrame->loader()->loadType();
-    if (m_loadState == Committed || (m_loadState == Finished && (frameLoadType == FrameLoadTypeSame || frameLoadType == FrameLoadTypeStandard)))
-        return true;
-    return false;
 }
 
 void WebPagePrivate::zoomToInitialScaleOnLoad()
@@ -2344,6 +2327,11 @@ PageClientBlackBerry::SaveCredentialType WebPagePrivate::notifyShouldSaveCredent
     return static_cast<PageClientBlackBerry::SaveCredentialType>(m_client->notifyShouldSaveCredential(isNew));
 }
 
+void WebPagePrivate::syncProxyCredential(const WebCore::Credential& credential)
+{
+    m_client->syncProxyCredential(credential.user().utf8().data(), credential.password().utf8().data());
+}
+
 void WebPagePrivate::notifyPopupAutofillDialog(const Vector<String>& candidates, const WebCore::IntRect& screenRect)
 {
     vector<string> textItems;
@@ -2395,9 +2383,6 @@ Platform::WebContext WebPagePrivate::webContext(TargetDetectionStrategy strategy
         }
     }
 
-    if (!nodeAllowSelectionOverride && !node->canStartSelection())
-        context.resetFlag(Platform::WebContext::IsSelectable);
-
     if (node->isHTMLElement()) {
         HTMLImageElement* imageElement = 0;
         HTMLMediaElement* mediaElement = 0;
@@ -2441,9 +2426,18 @@ Platform::WebContext WebPagePrivate::webContext(TargetDetectionStrategy strategy
             context.setText(curText->wholeText().utf8().data());
     }
 
+    bool canStartSelection = node->canStartSelection();
+
     if (node->isElementNode()) {
         Element* element = static_cast<Element*>(node->shadowAncestorNode());
         if (DOMSupport::isTextBasedContentEditableElement(element)) {
+            if (!canStartSelection) {
+                // Input fields host node is by spec non-editable unless the field itself has content editable enabled.
+                // Enable selection if the shadow tree for the input field is selectable.
+                Node* nodeUnderFinger = m_touchEventHandler->lastFatFingersResult().isValid() ? m_touchEventHandler->lastFatFingersResult().node(FatFingersResult::ShadowContentAllowed) : 0;
+                if (nodeUnderFinger)
+                    canStartSelection = nodeUnderFinger->canStartSelection();
+            }
             context.setFlag(Platform::WebContext::IsInput);
             if (element->hasTagName(HTMLNames::inputTag))
                 context.setFlag(Platform::WebContext::IsSingleLine);
@@ -2455,6 +2449,9 @@ Platform::WebContext WebPagePrivate::webContext(TargetDetectionStrategy strategy
                 context.setText(elementText.utf8().data());
         }
     }
+
+    if (!nodeAllowSelectionOverride && !canStartSelection)
+        context.resetFlag(Platform::WebContext::IsSelectable);
 
     if (node->isFocusable())
         context.setFlag(Platform::WebContext::IsFocusable);
@@ -4125,37 +4122,7 @@ bool WebPagePrivate::handleWheelEvent(PlatformWheelEvent& wheelEvent)
 bool WebPage::touchEvent(const Platform::TouchEvent& event)
 {
 #if DEBUG_TOUCH_EVENTS
-    switch (event.m_type) {
-    case Platform::TouchEvent::TouchEnd:
-        Platform::log(Platform::LogLevelCritical, "WebPage::touchEvent Touch End");
-        break;
-    case Platform::TouchEvent::TouchStart:
-        Platform::log(Platform::LogLevelCritical, "WebPage::touchEvent Touch Start");
-        break;
-    case Platform::TouchEvent::TouchMove:
-        Platform::log(Platform::LogLevelCritical, "WebPage::touchEvent Touch Move");
-        break;
-    case Platform::TouchEvent::TouchCancel:
-        Platform::log(Platform::LogLevelCritical, "WebPage::touchCancel Touch Cancel");
-        break;
-    }
-
-    for (unsigned i = 0; i < event.m_points.size(); i++) {
-        switch (event.m_points[i].m_state) {
-        case Platform::TouchPoint::TouchPressed:
-            Platform::log(Platform::LogLevelCritical, "WebPage::touchEvent %d Touch Pressed (%d, %d)", event.m_points[i].m_id, event.m_points[i].m_pos.x(), event.m_points[i].m_pos.y());
-            break;
-        case Platform::TouchPoint::TouchReleased:
-            Platform::log(Platform::LogLevelCritical, "WebPage::touchEvent %d Touch Released (%d, %d)", event.m_points[i].m_id, event.m_points[i].m_pos.x(), event.m_points[i].m_pos.y());
-            break;
-        case Platform::TouchPoint::TouchMoved:
-            Platform::log(Platform::LogLevelCritical, "WebPage::touchEvent %d Touch Moved (%d, %d)", event.m_points[i].m_id, event.m_points[i].m_pos.x(), event.m_points[i].m_pos.y());
-            break;
-        case Platform::TouchPoint::TouchStationary:
-            Platform::log(Platform::LogLevelCritical, "WebPage::touchEvent %d Touch Stationary (%d, %d)", event.m_points[i].m_id, event.m_points[i].m_pos.x(), event.m_points[i].m_pos.y());
-            break;
-        }
-    }
+    BBLOG(LogLevelCritical, "%s", event.toString().c_str());
 #endif
 
 #if ENABLE(TOUCH_EVENTS)
@@ -5751,7 +5718,10 @@ void WebPage::onCertificateStoreLocationSet(const WebString& caPath)
 
 void WebPage::enableWebInspector()
 {
-    d->m_page->inspectorController()->connectFrontend();
+    if (!d->m_inspectorClient)
+        return;
+
+    d->m_page->inspectorController()->connectFrontend(d->m_inspectorClient);
     d->m_page->settings()->setDeveloperExtrasEnabled(true);
 }
 

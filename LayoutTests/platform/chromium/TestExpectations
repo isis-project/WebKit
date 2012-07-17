@@ -29,7 +29,7 @@ BUGCR24182 DEBUG : jquery/core.html = PASS TIMEOUT
 BUGCR24182 SLOW DEBUG : jquery/data.html = PASS
 BUGCR24182 SLOW DEBUG : jquery/dimensions.html = PASS
 BUGCR24182 DEBUG : jquery/event.html = PASS TIMEOUT
-BUGCR24182 DEBUG : jquery/manipulation.html = PASS TIMEOUT
+BUGCR24182 : jquery/manipulation.html = PASS TIMEOUT
 BUGCR24182 SLOW DEBUG : jquery/offset.html = PASS
 BUGCR24182 LINUX WIN DEBUG : jquery/traversing.html = PASS TIMEOUT
 BUGCR24182 SLOW SNOWLEOPARD DEBUG : fast/frames/sandboxed-iframe-navigation-parent.html = PASS
@@ -46,7 +46,6 @@ BUGCR24182 SLOW SNOWLEOPARD DEBUG : http/tests/misc/dns-prefetch-control.html = 
 BUGCR24182 SLOW SNOWLEOPARD DEBUG : svg/dom/baseVal-animVal-crash.html = PASS
 BUGCR24182 SLOW SNOWLEOPARD DEBUG : fast/dom/shadow/tree-scope-crash.html = PASS
 BUGCR24182 SLOW SNOWLEOPARD DEBUG : fast/loader/javascript-url-iframe-crash.html = PASS
-BUGCR24182 SLOW DEBUG : svg/as-background-image/svg-as-background-5.html = PASS
 BUGCR24182 SLOW DEBUG : html5lib/webkit-resumer.html = PASS
 
 // V8 roll to 3.9.24.1. Remember to remove WIN LINUX from the line below upon fixing.
@@ -927,12 +926,12 @@ WONTFIX SKIP : http/tests/inspector/network/network-content-replacement-embed.ht
 // Works slowly, we have an equivalent test that doesn't open Inspector and runs fast.
 WONTFIX LINUX DEBUG SKIP : inspector/profiler/cpu-profiler-profiling.html = TIMEOUT PASS
 
-BUG_DRT WIN : inspector/extensions/extensions-events.html = TIMEOUT
-BUG_DRT WIN DEBUG : inspector/extensions/extensions-sidebar.html = TIMEOUT
-
-BUGFLAKY : http/tests/inspector/extensions-ignore-cache.html = PASS TIMEOUT
-BUGFLAKY : inspector/timeline/timeline-network-received-data.html = PASS TEXT TIMEOUT
-BUGFLAKY : inspector/debugger/live-edit.html = PASS TEXT TIMEOUT
+BUGWK91435 WIN LINUX : http/tests/inspector/extensions-ignore-cache.html = PASS TIMEOUT
+BUGWK91435 WIN LINUX : inspector/timeline/timeline-network-received-data.html = PASS TEXT
+BUGWK91435 WIN LINUX : inspector/debugger/live-edit.html = PASS TEXT TIMEOUT
+BUGCR89357 SKIP MAC : http/tests/inspector/extensions-ignore-cache.html = TIMEOUT
+BUGCR89357 SKIP MAC : inspector/timeline/timeline-network-received-data.html = TIMEOUT
+BUGCR89357 SKIP MAC : inspector/debugger/live-edit.html = TIMEOUT
 
 // Add support for inspector layout tests on Mac.
 BUGCR89357 SKIP MAC : inspector = PASS
@@ -968,7 +967,7 @@ BUGWK82894 RELEASE : inspector/profiler/heap-snapshot-inspect-dom-wrapper.html =
 BUGWK82894 SKIP DEBUG : inspector/profiler/heap-snapshot-inspect-dom-wrapper.html = PASS
 
 BUGWK60109 WIN RELEASE : inspector/elements/edit-dom-actions.html = PASS TEXT
-BUGWK60109 SLOW WIN DEBUG : inspector/elements/edit-dom-actions.html = PASS TEXT
+BUGWK60109 SKIP WIN DEBUG : inspector/elements/edit-dom-actions.html = PASS TEXT
 
 BUGWK72434 LINUX WIN : inspector/styles/svg-style.xhtml = PASS TEXT
 
@@ -1113,6 +1112,8 @@ BUGWK29359 : fast/forms/datetimelocal/input-valueasnumber-datetimelocal.html = T
 BUGWK29359 : fast/forms/month = TEXT
 BUGWK29359 : fast/forms/time = TEXT
 BUGWK29359 : fast/forms/week = TEXT
+// Need rebaseline
+BUGWK84827 : fast/forms/date/calendar-picker-appearance.html = IMAGE PASS MISSING
 
 BUGCR78376 : http/tests/media/video-play-stall-seek.html = TIMEOUT
 
@@ -1128,15 +1129,6 @@ WONTFIX SKIP : media/media-fullscreen-not-in-document.html = TIMEOUT
 
 // We don't expose a step button.
 WONTFIX SKIP : media/audio-delete-while-step-button-clicked.html = TIMEOUT
-
-// Feature disabled on chromium build, see: https://bugs.webkit.org/show_bug.cgi?id=85425
-WONTFIX SKIP : fast/viewport/viewport-legacy-xhtmlmp.html = TEXT
-WONTFIX SKIP : fast/viewport/viewport-legacy-handheldfriendly.html = TEXT
-WONTFIX SKIP : fast/viewport/viewport-legacy-mobileoptimized-2.html = TEXT
-WONTFIX SKIP : fast/viewport/viewport-legacy-mobileoptimized-3.html = TEXT
-WONTFIX SKIP : fast/viewport/viewport-legacy-mobileoptimized.html = TEXT
-WONTFIX SKIP : fast/viewport/viewport-legacy-ordering-5.html = TEXT
-WONTFIX SKIP : fast/viewport/viewport-legacy-ordering-6.html = TEXT
 
 // We haven't implemented reverse audio/video playback.
 BUGCR33099 SKIP : media/video-reverse-play-duration.html = TIMEOUT
@@ -1202,7 +1194,7 @@ BUGWK60118 MAC : svg/dom/SVGScriptElement/script-set-href.svg = PASS TEXT
 BUGWK65939 : svg/custom/getBBox-path.svg = TEXT
 
 // Failure: drawing a filled shadow for a fill=transparent rectangle.
-BUGKW76557 : svg/custom/transform-with-shadow-and-gradient.svg = IMAGE
+BUGWK76557 : svg/custom/transform-with-shadow-and-gradient.svg = IMAGE
 
 BUGWK78422 WIN LINUX : svg/animations/animate-text-nested-transforms.html = TEXT
 
@@ -1226,8 +1218,6 @@ BUGWK80517 : svg/dynamic-updates/SVGFETurbulenceElement-svgdom-baseFrequency-pro
 BUGWK80517 DEBUG : svg/dynamic-updates/SVGFESpecularLightingElement-remove-lightSource.html = IMAGE PASS
 
 BUGWK81217 : svg/custom/js-late-pattern-and-object-creation.svg = IMAGE
-BUGWK81217 WIN : svg/custom/use-detach.svg = IMAGE
-BUGWK81217 WIN : svg/carto.net/tabgroup.svg = IMAGE
 BUGWK81217 : svg/hixie/perf/003.xml = PASS IMAGE
 
 BUGWK81240 MAC : svg/text/bidi-reorder-value-lists.svg = PASS IMAGE+TEXT
@@ -1602,6 +1592,12 @@ BUGCR23473 LION SNOWLEOPARD : fast/repaint/transform-translate.html = IMAGE
 // END MAC PORT TESTS
 // -----------------------------------------------------------------
 
+// To rebaseline after Skia 4600 lands
+BUGCR137508 : svg/W3C-SVG-1.1/paths-data-12-t.svg = IMAGE+TEXT
+BUGCR137508 : svg/hixie/perf/001.xml = IMAGE+TEXT
+BUGCR137508 : svg/hixie/perf/002.xml = IMAGE+TEXT
+BUGCR137508 : svg/as-background-image/svg-as-background-5.html = IMAGE
+
 // Rebaseline to take advantage of skia ColorFilter optimization.
 // Note that two of tests below are broken on Leopard for other reasons (search
 // elsewhere within this file) and thus should not be blindly rebaselined there.
@@ -1876,8 +1872,6 @@ BUGWK71758 : fast/url/port.html = TEXT PASS
 // // Started failing at r58152
 // BUGWK38038 : fast/url/file-http-base.html = TEXT
 
-BUGWK33812 SKIP : fast/dom/icon-url-property.html = PASS
-
 // New layoutTestController function added at r57993
 BUGCR42696 : http/tests/xmlhttprequest/cross-origin-authorization-with-embedder.html = TIMEOUT
 
@@ -2105,27 +2099,20 @@ BUGWK45737 BUGCR100056 DEBUG : fast/frames/frame-limit.html = TIMEOUT
 BUGWK60092 SLOW LINUX WIN DEBUG : fast/forms/select-set-length-with-mutation-remove.html = PASS
 BUGWK60093 SLOW LINUX DEBUG : http/tests/incremental/slow-utf8-text.pl = PASS
 
-BUGWEBGL WIN : fast/canvas/webgl/tex-image-and-sub-image-2d-with-array-buffer-view.html = PASS TIMEOUT
-BUGWEBGL : fast/canvas/webgl/read-pixels-test.html = TIMEOUT
-BUGWEBGL : platform/chromium/virtual/gpu/fast/canvas/webgl/read-pixels-test.html = TIMEOUT
-BUGWEBGL : fast/canvas/webgl/framebuffer-bindings-unaffected-on-resize.html = TIMEOUT
-BUGWEBGL : platform/chromium/virtual/gpu/fast/canvas/webgl/framebuffer-bindings-unaffected-on-resize.html = TIMEOUT
+BUGWK91432 : fast/canvas/webgl/read-pixels-test.html = TIMEOUT
+BUGWK91432 : platform/chromium/virtual/gpu/fast/canvas/webgl/read-pixels-test.html = TIMEOUT
+BUGWK91432 : fast/canvas/webgl/framebuffer-bindings-unaffected-on-resize.html = TIMEOUT
+BUGWK91432 : platform/chromium/virtual/gpu/fast/canvas/webgl/framebuffer-bindings-unaffected-on-resize.html = TIMEOUT
 
 // These three failures are due to Mesa bugs
-BUGWEBGL : fast/canvas/webgl/framebuffer-object-attachment.html = TEXT
-BUGWEBGL : fast/canvas/webgl/gl-uniform-arrays.html = TIMEOUT TEXT
-BUGWEBGL : fast/canvas/webgl/point-size.html = TEXT
-BUGWEBGL : platform/chromium/virtual/gpu/fast/canvas/webgl/framebuffer-object-attachment.html = TEXT
-BUGWEBGL : platform/chromium/virtual/gpu/fast/canvas/webgl/gl-uniform-arrays.html = TIMEOUT TEXT
-BUGWEBGL : platform/chromium/virtual/gpu/fast/canvas/webgl/point-size.html = TEXT
-BUGWEBGL LINUX MAC : fast/canvas/webgl/gl-object-get-calls.html = TEXT
-BUGWEBGL LINUX MAC : platform/chromium/virtual/gpu/fast/canvas/webgl/gl-object-get-calls.html = TEXT
-
-BUGWEBGL LINUX DEBUG : fast/canvas/webgl/tex-image-with-format-and-type.html = PASS TEXT
-BUGWEBGL LINUX DEBUG : platform/chromium/virtual/gpu/fast/canvas/webgl/tex-image-with-format-and-type.html = PASS TEXT
-
-BUGWEBGL SLOW WIN DEBUG : platform/chromium/virtual/gpu/fast/canvas/webgl/context-attributes-alpha-depth-stencil-antialias.html = PASS
-BUGWEBGL SLOW WIN DEBUG : platform/chromium/virtual/gpu/fast/canvas/webgl/index-validation-with-resized-buffer.html = PASS
+BUGWK91431 : fast/canvas/webgl/framebuffer-object-attachment.html = TEXT
+BUGWK91431 : fast/canvas/webgl/gl-uniform-arrays.html = TEXT
+BUGWK91431 : fast/canvas/webgl/point-size.html = TEXT
+BUGWK91431 : platform/chromium/virtual/gpu/fast/canvas/webgl/framebuffer-object-attachment.html = TEXT
+BUGWK91431 : platform/chromium/virtual/gpu/fast/canvas/webgl/gl-uniform-arrays.html = TEXT
+BUGWK91431 : platform/chromium/virtual/gpu/fast/canvas/webgl/point-size.html = TEXT
+BUGWK91431 LINUX MAC : fast/canvas/webgl/gl-object-get-calls.html = TEXT
+BUGWK91431 LINUX MAC : platform/chromium/virtual/gpu/fast/canvas/webgl/gl-object-get-calls.html = TEXT
 
 // These were not fixed by the Mesa 7.9 upgrade. Need to investigate.
 BUGCR60651 WIN : fast/canvas/webgl/gl-object-get-calls.html = PASS TIMEOUT TEXT
@@ -2160,13 +2147,9 @@ BUGCR58735 SLOW : http/tests/misc/prefetch-purpose.html = PASS
 BUGCR58936 : fast/js/basic-strict-mode.html = TEXT
 BUGCR58936 : fast/js/numeric-escapes-in-string-literals.html = TEXT
 
-// We don't support layoutTestController.nodesFromRect so this test just times out
-BUGWK46600 SKIP : fast/dom/nodesFromRect-links-and-text.html = TEXT
-BUGWK46600 SKIP : fast/dom/nodesFromRect-inner-documents.html = TEXT
-
 // For some reason it seems to not properly rect hit-tests elements in shadow
 // content of <video> elements.
-BUGWK46600 SKIP : media/nodesFromRect-shadowContent.html = TEXT
+BUGWK91205 SKIP : media/nodesFromRect-shadowContent.html = TEXT
 
 BUGJAMESR LINUX WIN : fast/text/international/vertical-text-glyph-test.html = IMAGE+TEXT
 BUGJAMESR LINUX WIN : fast/text/international/vertical-text-metrics-test.html = TEXT
@@ -2245,11 +2228,6 @@ BUG_YUTAK LINUX WIN : fast/images/imagemap-polygon-focus-ring.html = IMAGE+TEXT
 BUGCR62433 LINUX MAC : fast/backgrounds/animated-gif-as-background.html = IMAGE
 BUGCR62433 LINUX MAC : fast/images/gif-loop-count.html = IMAGE
 
-// Background color is wrong.
-BUG_DRT MAC : fast/backgrounds/solid-color-context-restore.html = IMAGE
-BUG_DRT MAC : fast/reflections/inline-crash.html = IMAGE
-// The background color of Apple Mac results also look wrong.
-BUG_DRT : http/tests/misc/slow-loading-image-in-pattern.html = IMAGE
 
 // This test needs enhanced eventSender.contextMenu() return value.
 // See https://bugs.webkit.org/show_bug.cgi?id=45021 for more info.
@@ -2259,14 +2237,13 @@ BUGCR59665 BUGWK45021 SKIP : media/context-menu-actions.html = PASS
 // Occasionally times out with, only under the DRT for Linux
 BUGCR58212 LINUX : http/tests/appcache/main-resource-redirect.html = PASS TIMEOUT
 
-BUG_DRT DEBUG : fast/frames/calculate-round.html = PASS TIMEOUT
-BUG_DRT : fast/repaint/iframe-scroll-repaint.html = IMAGE
-BUG_DRT LINUX : fast/repaint/repaint-across-writing-mode-boundary.html = IMAGE
-BUG_DRT LINUX : fast/text/justification-padding-mid-word.html = PASS TEXT
-BUG_DRT LINUX MAC : http/tests/plugins/post-url-file.html = TIMEOUT
-BUG_DRT BUGCR8729 LINUX MAC : http/tests/multipart/invalid-image-data.html = PASS IMAGE
-BUG_DRT : platform/gtk/fast/forms/menulist-typeahead-find.html = TEXT
-BUG_DRT MAC : transforms/2d/zoom-menulist.html = IMAGE
+BUGWK91429 DEBUG : fast/frames/calculate-round.html = PASS TIMEOUT
+BUGWK91429 : fast/repaint/iframe-scroll-repaint.html = IMAGE
+BUGWK91429 LINUX : fast/text/justification-padding-mid-word.html = PASS TEXT
+BUGWK91429 LINUX MAC : http/tests/plugins/post-url-file.html = TIMEOUT
+BUGWK91429 : platform/gtk/fast/forms/menulist-typeahead-find.html = TEXT
+
+BUGCR8729 LINUX MAC : http/tests/multipart/invalid-image-data.html = PASS IMAGE
 
 // The test says you should see numbers, but we display letters.
 // It looks like we are missing the WebKit "WeightWatcher" fonts,
@@ -2399,8 +2376,6 @@ BUGWK49629 SKIP : platform/chromium/compositing/lots-of-img-layers.html = PASS
 BUGWK49629 SKIP : platform/chromium/compositing/lots-of-img-layers-with-opacity.html = PASS
 BUGWK49629 SKIP : compositing/iframes/page-cache-layer-tree.html = PASS
 
-BUGNONE SLOW WIN DEBUG : platform/chromium/virtual/gpu/fast/canvas/canvas-getImageData.html = PASS
-
 BUGWK53868 : fast/notifications/notifications-document-close-crash.html = PASS TEXT
 
 BUGWK54051 MAC : compositing/plugins/invalidate_rect.html = TEXT
@@ -2413,11 +2388,6 @@ BUGWK54322 SNOWLEOPARD : fast/text/international/text-combine-image-test.html = 
 
 BUGWK54322 SLOW SNOWLEOPARD : fast/loader/loadInProgress.html = PASS
 BUGWK54322 SNOWLEOPARD : transitions/transition-end-event-rendering.html = PASS TEXT
-
-// One the cr-linux-ews bot, this test is flaky, causing the queue to spam bugs
-// will false failures.
-BUGEWS LINUX : fast/loader/loadInProgress.html = PASS TEXT CRASH
-BUGEWS LINUX : plugins/hidden-iframe-with-swf-plugin.html = PASS TEXT CRASH
 
 BUGV8_1168 : fast/js/mozilla/strict/10.6.html = TEXT
 BUGV8_1168 : fast/js/mozilla/strict/15.5.5.2.html = TEXT
@@ -2526,7 +2496,6 @@ BUGWK57785 WIN MAC : fast/frames/iframe-scaling-with-scroll.html = IMAGE MISSING
 BUGWK58193 WIN7 : http/tests/local/fileapi/send-sliced-dragged-file.html = PASS TIMEOUT TEXT
 
 // Regression caused by r83514.
-BUGCR79110 WIN : fast/block/float/021.html = TEXT
 BUGCR79110 LINUX WIN : fast/overflow/infiniteRecursionGuard.html = IMAGE+TEXT
 
 // Regression caused by r83628.
@@ -2681,7 +2650,7 @@ BUGWK74137 SNOWLEOPARD : fast/regions/region-overflow-auto-overflow-visible.html
 BUGWK74137 WIN LINUX LION : fast/regions/region-overflow-auto-overflow-visible.html = PASS MISSING
 
 // CSS custom() filters are not currently supported
-BUGWK71392 WIN : css3/filters/custom = IMAGE IMAGE+TEXT
+BUGWK71392 WIN : css3/filters/custom = IMAGE IMAGE+TEXT PASS
 
 BUGWK82783 SKIP : css3/filters/filter-change-repaint-composited.html = PASS
 BUGWK82783 SKIP : css3/filters/filter-change-repaint.html = PASS
@@ -2908,7 +2877,11 @@ BUGWK70988 SNOWLEOPARD : fast/parser/residual-style-dom.html = PASS TIMEOUT
 BUGWK70988 SNOWLEOPARD : fast/text/khmer-crash.html = PASS TIMEOUT
 BUGWK70988 SNOWLEOPARD : http/tests/navigation/navigation-interrupted-by-fragment.html = PASS TIMEOUT
 BUGWK70988 SNOWLEOPARD : jquery/traversing.html = PASS TIMEOUT
-BUGWK70988 MAC DEBUG SLOW : fast/frames/calculate-fixed.html = PASS
+
+// BUGWK70988 MAC DEBUG SLOW : fast/frames/calculate-fixed.html = PASS
+// Crashing since on or before r122699, please uncomment previous line before removing.
+BUGWK91415 MAC DEBUG SLOW : fast/frames/calculate-fixed.html = PASS TEXT
+BUGWK91415 MAC RELEASE : fast/frames/calculate-fixed.html = PASS TEXT
 
 BUGWK71278 SLOW WIN : fast/events/dispatch-message-string-data.html = PASS
 
@@ -3067,8 +3040,8 @@ BUGCR115055 : fast/js/cyclic-prototypes.html = TEXT
 
 BUGCR113063 DEBUG : storage/indexeddb/basics-workers.html = PASS CRASH
 
-BUGWK79224 WIN : fast/canvas/webgl/tex-image-with-format-and-type.html = TEXT
-BUGWK79224 WIN : platform/chromium/virtual/gpu/fast/canvas/webgl/tex-image-with-format-and-type.html = TEXT
+BUGWK79224 WIN : fast/canvas/webgl/tex-image-with-format-and-type.html = PASS TEXT
+BUGWK79224 WIN : platform/chromium/virtual/gpu/fast/canvas/webgl/tex-image-with-format-and-type.html = PASS TEXT
 
 BUGWK79642 : accessibility/aria-describedby-on-input.html = TIMEOUT
 BUGWK79642 : fast/loader/subresource-willSendRequest-null.html = TIMEOUT
@@ -3162,15 +3135,15 @@ BUGWK81732 : fast/js/integer-division-neg2tothe32-by-neg1.html = PASS CRASH
 // Old test, has been flaky on and off on all platforms since at least r111389
 BUGWK81801 : fast/forms/basic-textareas.html = PASS TEXT IMAGE+TEXT
 
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-e.html = PASS IMAGE
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-n.html = PASS IMAGE
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-ne.html = PASS IMAGE
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-nw.html = PASS IMAGE
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-s.html = PASS IMAGE
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-se.html = PASS IMAGE
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-size-change.html = PASS IMAGE
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-sw.html = PASS IMAGE
-BUGW81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-w.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-e.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-n.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-ne.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-nw.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-s.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-se.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-size-change.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-sw.html = PASS IMAGE
+BUGWK81803 MAC : platform/chromium/compositing/rubberbanding/transform-overhang-w.html = PASS IMAGE
 
 BUGWK81857 SNOWLEOPARD : fast/frames/valid.html = IMAGE
 BUGWK81931 SNOWLEOPARD WIN DEBUG : fast/images/destroyed-image-load-event.html = PASS TIMEOUT
@@ -3513,8 +3486,8 @@ BUGWK85950 LINUX DEBUG : compositing/geometry/limit-layer-bounds-transformed-ove
 
 BUGWK81416 : fast/dom/wrapper-scope.html = TEXT
 
-BUGWK86439 LINUX : inspector/extensions/extensions-events.html = TIMEOUT PASS
-BUGWK86439 LINUX DEBUG : inspector/extensions/extensions-sidebar.html = TIMEOUT PASS
+BUGWK86439 WIN LINUX : inspector/extensions/extensions-events.html = TIMEOUT PASS
+BUGWK86439 WIN LINUX DEBUG : inspector/extensions/extensions-sidebar.html = TIMEOUT PASS
 
 BUGWK86114 MAC DEBUG : animations/combo-transform-translate+scale.html = PASS TEXT
 
@@ -3620,8 +3593,6 @@ BUGWK87772 DEBUG : svg/dom/viewspec-parser-4.html = TIMEOUT
 BUGWK87772 SLOW RELEASE : svg/dom/viewspec-parser-5.html = PASS
 BUGWK87772 DEBUG : svg/dom/viewspec-parser-5.html = TIMEOUT
 
-BUGWK87870 MAC DEBUG : css3/filters/custom/custom-filter-property-computed-style.html = TEXT PASS
-
 BUGWK87880 : fast/layers/scroll-with-transform-composited-layer.html = PASS IMAGE
 
 BUGWK87886 LINUX : perf/mouse-event.html = PASS TEXT
@@ -3692,7 +3663,7 @@ BUGWK90234 : css3/calc/transitions.html = PASS TEXT
 
 BUGWK89820 : fast/text/hyphen-min-preferred-width.html = IMAGE
 
-BUGFLAKY : fast/forms/placeholder-position.html = PASS IMAGE
+BUGWK91433 LINUX : fast/forms/placeholder-position.html = PASS IMAGE
 
 BUGWK89936 WIN : compositing/shadows/shadow-drawing.html = IMAGE
 BUGWK89936 WIN : fast/text/atsui-kerning-and-ligatures.html = IMAGE
@@ -3752,3 +3723,36 @@ BUGWK90900 MAC : tables/mozilla_expected_failures/other/empty_cells.html = PASS 
 
 BUGWK90980 LINUX MAC DEBUG : fast/forms/textarea/textarea-state-restore.html = PASS TIMEOUT
 BUGWK90980 WIN : fast/forms/textarea/textarea-state-restore.html = PASS TIMEOUT
+
+// Started crashing after 122286
+BUGWK91133 WIN : storage/indexeddb/constants.html = PASS CRASH
+
+BUGWK91183 : http/tests/w3c/webperf/approved/navigation-timing/html/test_performance_attributes_exist_in_object.html = PASS TEXT
+
+// Fails on Mac 10.7
+BUGWK91255 LION : fast/multicol/table-vertical-align.html = TEXT
+
+// Fails since creation in 122651
+BUGWK91386 LINUX : fast/text/descent-clip-in-scaled-page.html = IMAGE
+
+// Fails since creation in 122663
+BUGWK91372 WIN : css2.1/20110323/vertical-align-boxes-001.htm = IMAGE
+
+// Started crashing after 122450
+BUGWK91254 WIN LINUX DEBUG : fast/dom/attribute-empty-value-no-children.html = CRASH
+
+// Fails since creation in 122761
+BUGWK91477 : fast/multicol/shrink-to-column-height-for-pagination.html = IMAGE+TEXT
+
+// Need rebaseline
+BUGWK90951 : fast/text/shaping/shaping-selection-rect.html = MISSING
+BUGWK90951 : fast/text/shaping/shaping-script-order.html = MISSING
+
+// Recently(?) started crashing on occassion
+BUGWK91275 WIN : storage/indexeddb/cursor-key-order.html = PASS CRASH
+BUGWK91403 WIN : storage/indexeddb/cursor-update-value-argument-required.html = PASS CRASH
+
+BUGWK91421 WIN7 : svg/W3C-SVG-1.1/animate-elem-39-t.svg = PASS CRASH
+
+// Started failing around r122770
+BUGWK91445 LINUX : plugins/embed-attributes-style.html = PASS IMAGE

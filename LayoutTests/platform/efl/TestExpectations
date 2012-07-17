@@ -55,6 +55,10 @@ BUGWK85262 SKIP : fast/css/image-resolution = PASS
 // This test assumes we cannot play RTSP, but we can.
 BUGWKEFL SKIP : media/unsupported-rtsp.html = TIMEOUT
 
+// Perf tests are really slow in debug builds and there are few benefits in
+// running them.
+WONTFIX SKIP DEBUG : perf = TIMEOUT
+
 // Link prefetch is disabled by default
 BUGWKEFL SKIP : fast/dom/HTMLLinkElement/link-and-subresource-test-nonexistent.html = PASS
 BUGWKEFL SKIP : fast/dom/HTMLLinkElement/link-and-subresource-test.html = PASS
@@ -135,6 +139,12 @@ BUGWK88794 SKIP : webaudio/codec-tests = PASS
 // Text Autosizing is not yet enabled.
 BUGWK84186 SKIP : fast/text-autosizing = PASS
 
+// Dialog element is not yet enabled.
+BUGWK84635 SKIP : fast/dom/HTMLDialogElement = TEXT
+
+// Subpixel layout is not enabled.
+BUGWK85532 SKIP : fast/sub-pixel = MISSING
+
 //////////////////////////////////////////////////////////////////////////////////////////
 // CRASHES
 //////////////////////////////////////////////////////////////////////////////////////////
@@ -158,6 +168,20 @@ BUGWK86081 : loader/navigation-while-deferring-loads.html = TEXT PASS
 BUGWK86082 : security/block-test.html = TEXT PASS
 BUGWK86084 : svg/dom/SVGScriptElement/script-onerror-bubbling.svg = TEXT PASS
 BUGWK60103 : fast/replaced/border-radius-clip.html = TEXT PASS
+BUGWK91366 : fast/forms/number/spin-button-gets-disabled-or-readonly.html = TEXT PASS
+
+// Several media tests are flaky on the bots
+BUGWKEFL : media/controls-styling.html = TEXT PASS
+BUGWKEFL : media/video-display-toggle.html = TEXT PASS
+BUGWKEFL : media/controls-after-reload.html = TEXT PASS
+BUGWKEFL : media/controls-without-preload.html = TEXT PASS
+BUGWKEFL : media/video-controls-rendering.html = TEXT PASS
+BUGWKEFL : media/video-zoom-controls.html = TEXT PASS
+BUGWKEFL : media/video-empty-source.html = TEXT PASS
+BUGWKEFL : media/controls-strict.html = TEXT PASS
+BUGWKEFL : media/media-volume-slider-rendered-normal.html = TEXT PASS
+BUGWKEFL : media/media-document-audio-repaint.html = TEXT PASS
+BUGWKEFL : media/media-controls-clone.html = TEXT PASS
 
 //////////////////////////////////////////////////////////////////////////////////////////
 // FAILING TESTS
@@ -438,6 +462,7 @@ BUGWK82294 : compositing/tiled-layers-hidpi.html = TEXT
 BUGWK82294 : compositing/visibility/layer-visible-content.html = TEXT
 BUGWK82294 : compositing/visibility/visibility-image-layers-dynamic.html = TEXT
 BUGWK82294 : compositing/layer-creation/no-compositing-for-preserve-3d.html = TEXT
+BUGWK82294 : compositing/columns/composited-in-paginated.html = TEXT
 
 // EFL's LayoutTestController does not implement displayInvalidatedRegion
 BUGWK86727 : compositing/plugins/invalidate_rect.html = TEXT
@@ -533,7 +558,6 @@ BUGWK85594 : fast/dom/navigator-detached-no-crash.html = TEXT
 
 // Incorrect rendering results after r115846
 BUGWK85599 : http/tests/navigation/postredirect-basic.html = TEXT
-BUGWK85599 : http/tests/navigation/postredirect-goback1.html = TEXT
 
 // Interferes with the rAF tests that are enabled
 BUGWK85689 SKIP : fast/animation/request-animation-frame-disabled.html = TEXT
@@ -595,6 +619,7 @@ BUGWK88191 : fast/viewport/viewport-legacy-mobileoptimized.html = TEXT
 BUGWK88191 : fast/viewport/viewport-legacy-ordering-5.html = TEXT
 BUGWK88191 : fast/viewport/viewport-legacy-ordering-6.html = TEXT
 BUGWK88191 : fast/viewport/viewport-legacy-xhtmlmp.html = TEXT
+BUGWK88191 : fast/viewport/viewport-legacy-xhtmlmp-remove-and-add.html = TEXT
 
 // The EFL port has no support for the FileSystem API
 BUGWK68591 SKIP : fast/filesystem = PASS
@@ -673,6 +698,9 @@ BUGWK86633 : editing/spelling/spelling-insert-html.html = TEXT
 BUGWK86633 : editing/spelling/spelling-linebreak.html = TEXT
 BUGWK86633 : editing/spelling/spelling-unified-emulation.html = TEXT
 
+// EFL's LayoutTestController does not support setSubpixelTextPositioning()
+BUGWK91341 : fast/text/descent-clip-in-scaled-page.html = IMAGE
+
 // Failing after r119268 on GTK and EFL
 BUGWK88138 : http/tests/media/video-buffered.html = TEXT
 
@@ -690,9 +718,6 @@ BUGWK86637 : editing/spelling/spellcheck-paste-disabled.html = TEXT
 BUGWK86637 : editing/spelling/spellcheck-queue.html = TEXT
 BUGWK86637 : editing/spelling/spellcheck-sequencenum.html = TEXT
 BUGWK86637 : editing/spelling/spelling-marker-description.html = TEXT
-
-// Looks like some race condition during loading.
-BUGWK85977 : fast/css/font-face-download-error.html = TIMEOUT
 
 // Missing test infrastructure, no gamepads available.
 BUGWKEFL : gamepad/gamepad-polling-access.html = TEXT
@@ -722,12 +747,18 @@ BUGWK88031 : fast/multicol/span/generated-child-split-flow-crash.html = TEXT
 // Flexbox test failing on EFL.
 BUGWK88984 : css3/flexbox/flexitem.html = TEXT
 
+// New test introduced in r122663 failing on GTK and Qt as well
+BUGWK91339 : css2.1/20110323/vertical-align-boxes-001.htm = IMAGE
+
 // Failing after r121121 on both GTK and EFL
 BUGWK89845 : fast/forms/input-set-composition-scroll.html = TEXT
 
 BUGWK90007 : http/tests/security/mixedContent/insecure-audio-video-in-main-frame.html = TEXT
 
 BUGWK90334 : css3/flexbox/anonymous-block.html = IMAGE
+
+// Test started failing after r122681 due to wrong scrollbar positioning
+BUGWK91359 : css3/flexbox/flexbox-overflow-auto.html = IMAGE
 
 // Require rebaseline after bug 88171
 BUGWK88171 : fast/block/float/independent-align-positioning.html = TEXT
@@ -736,3 +767,15 @@ BUGWK88171 : css1/formatting_model/floating_elements.html = TEXT
 
 // Looks like missing multipart/x-mixed-replace support in libsoup. Failing on both GTK and EFL.
 BUGWK68979 : http/tests/multipart/multipart-replace-non-html-content.php = TEXT
+
+// Skip tests in fast/text/shaping
+BUGWK90951 SKIP : fast/text/shaping = PASS
+
+// Test added by Mac port, rendering results totally different on EFL.
+BUGWK91477 : fast/multicol/shrink-to-column-height-for-pagination.html = MISSING
+
+// These tests are failing after r122528.
+BUGWK91210 : http/tests/w3c/webperf/approved/navigation-timing/html/test_performance_attributes_exist_in_object.html = TEXT
+BUGWK91210 : http/tests/w3c/webperf/approved/navigation-timing/html/test_timing_xserver_redirect.html = TEXT
+BUGWK91210 : http/tests/w3c/webperf/approved/navigation-timing/html5/test_performance_attributes_exist_in_object.html = TEXT
+BUGWK91210 : http/tests/w3c/webperf/approved/navigation-timing/html5/test_timing_xserver_redirect.html = TEXT
