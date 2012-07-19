@@ -263,8 +263,6 @@ void TextureMapperGL::beginPainting(PaintFlags flags)
     GL_CMD(glGetIntegerv(GL_CURRENT_PROGRAM, &data().previousProgram));
     data().previousScissorState = glIsEnabled(GL_SCISSOR_TEST);
     data().previousDepthState = glIsEnabled(GL_DEPTH_TEST);
-    glDisable(GL_DEPTH_TEST);
-    glEnable(GL_SCISSOR_TEST);
 #if PLATFORM(QT)
     if (m_context) {
         QPainter* painter = m_context->platformContext();
@@ -272,6 +270,8 @@ void TextureMapperGL::beginPainting(PaintFlags flags)
         painter->beginNativePainting();
     }
 #endif
+    glDisable(GL_DEPTH_TEST);
+    glEnable(GL_SCISSOR_TEST);
     data().didModifyStencil = false;
     GL_CMD(glDepthMask(0));
     GL_CMD(glGetIntegerv(GL_VIEWPORT, data().viewport));
@@ -426,6 +426,9 @@ static bool driverSupportsBGRASwizzling()
 {
 #if defined(TEXMAP_OPENGL_ES_2)
     // FIXME: Implement reliable detection. See also https://bugs.webkit.org/show_bug.cgi?id=81103.
+    if(strstr((char*)glGetString(GL_EXTENSIONS), " GL_EXT_texture_format_BGRA8888 ")) {
+        return true;
+    }
     return false;
 #else
     return true;
@@ -473,8 +476,11 @@ void BitmapTextureGL::updateContents(const void* data, const IntRect& targetRect
     else
         swizzleBGRAToRGBA(reinterpret_cast<uint32_t*>(const_cast<void*>(data)), IntRect(sourceOffset, targetRect.size()), bytesPerLine / 4);
 
-    if (bytesPerLine == targetRect.width() / 4 && sourceOffset == IntPoint::zero()) {
+    if (bytesPerLine == targetRect.width() * 4 && sourceOffset == IntPoint::zero()) {
         GL_CMD(glTexSubImage2D(GL_TEXTURE_2D, 0, targetRect.x(), targetRect.y(), targetRect.width(), targetRect.height(), glFormat, DEFAULT_TEXTURE_PIXEL_TRANSFER_TYPE, (const char*)data));
+        return;
+    } else if (bytesPerLine == targetRect.width() * 3 && sourceOffset == IntPoint::zero()) {
+        GL_CMD(glTexSubImage2D(GL_TEXTURE_2D, 0, targetRect.x(), targetRect.y(), targetRect.width(), targetRect.height(), GL_RGB, DEFAULT_TEXTURE_PIXEL_TRANSFER_TYPE, (const char*)data));
         return;
     }
 
@@ -520,6 +526,15 @@ void BitmapTextureGL::updateContents(Image* image, const IntRect& targetRect, co
     // This might be a deep copy, depending on other references to the pixmap.
     qtImage = frameImage->toImage();
 #endif
+
+    if(qtImage.hasAlphaChannel() && isOpaque()) {
+        // upgrade the texture to RGBA
+        reset(size(), BitmapTexture::SupportsAlpha);
+    } else if (!qtImage.hasAlphaChannel() && !isOpaque()) {
+        //downgrade to RGB
+        reset(size()); //defaults to no alpha!
+    }
+
     imageData = reinterpret_cast<const char*>(qtImage.constBits());
     bytesPerLine = qtImage.bytesPerLine();
 #elif USE(CAIRO)
