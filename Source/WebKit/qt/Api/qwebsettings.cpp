@@ -280,6 +280,12 @@ void QWebSettingsPrivate::apply()
 
         settings->setUsesPageCache(WebCore::pageCache()->capacity());
 
+#if PLATFORM(WEBOS)
+	// Momentarily reveal last character when typing in a password field. 
+	settings->setPasswordEchoEnabled(true);
+	settings->setPasswordEchoDurationInSeconds(1);
+#endif
+
     } else {
         QList<QWebSettingsPrivate*> settings = *::allSettings();
         for (int i = 0; i < settings.count(); ++i)
