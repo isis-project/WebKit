@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include "PlatformString.h"
 #include <glib.h>
-#include <lunaservice.h>
+#include <luna-service2/lunaservice.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wtf/text/CString.h>

@@ -4,7 +4,7 @@
 
 #if ENABLE(PALM_SERVICE_BRIDGE)
 
-#include <lunaservice.h>
+#include <luna-service2/lunaservice.h>
 
 namespace WebCore {
 
