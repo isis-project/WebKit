@@ -200,7 +200,7 @@ contains(DEFINES, ENABLE_VIDEO=1) {
 }
 
 contains(DEFINES, ENABLE_PALM_SERVICE_BRIDGE=1) {
-    LIBS += -llunaservice
+    LIBS += -lluna-service2
 }
 
 contains(DEFINES, ENABLE_WEBGL=1) {
