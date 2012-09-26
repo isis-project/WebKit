@@ -200,7 +200,8 @@ contains(DEFINES, ENABLE_VIDEO=1) {
 }
 
 contains(DEFINES, ENABLE_PALM_SERVICE_BRIDGE=1) {
-    LIBS += -llunaservice
+    LIBS += `pkg-config --libs luna-service2`
+    PKGCONFIG += luna-service2
 }
 
 contains(DEFINES, ENABLE_WEBGL=1) {
