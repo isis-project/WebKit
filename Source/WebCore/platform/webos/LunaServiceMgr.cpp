@@ -1,10 +1,10 @@
 #include "config.h"
 #if ENABLE(PALM_SERVICE_BRIDGE)
+#include <glib.h>
 #include "LunaServiceMgr.h"
 
 #include <unistd.h>
 #include "PlatformString.h"
-#include <glib.h>
 #include <lunaservice.h>
 #include <stdio.h>
 #include <stdlib.h>
