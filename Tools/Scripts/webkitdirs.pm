@@ -2324,7 +2324,11 @@ sub buildQMakeProjects
     if ($clean) {
         $command = "$command distclean";
     } elsif ($buildHint eq "incremental") {
-        $command = "$command incremental";
+        # Interpose sed-ing to remove the extraneous "-Wl,-soname," added by qmake to link command lines that causes SONAME
+        # records to be empty between the "make -f Makefile qmake" (which generates the makefiles) and the "make -f Makefile"
+        # that "make incremental" does.
+        $command = "$command -f Makefile qmake && find . -name 'Makefile*' | xargs sed -i -e 's/-Wl,-soname, //' -e 's/-Wl,-soname,\$//' && $command -f Makefile"
+        # $command = "$command incremental";
     }
 
     print "Calling '$command' in " . $dir . "\n\n";
