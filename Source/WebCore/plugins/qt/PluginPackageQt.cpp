@@ -108,7 +108,7 @@ static void initializeGtk(QLibrary* module = 0)
         if (gtkInit) {
             // Prevent gtk_init() from replacing the X error handlers, since the Gtk
             // handlers abort when they receive an X error, thus killing the viewer.
-#if !PLATFORM(WEBOS)
+#if !PLATFORM(WEBOS) || defined(MACHINE_DESKTOP)
 #ifdef Q_WS_X11
             int (*old_error_handler)(Display*, XErrorEvent*) = XSetErrorHandler(0);
             int (*old_io_error_handler)(Display*) = XSetIOErrorHandler(0);
